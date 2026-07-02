@@ -61,20 +61,6 @@ create table if not exists public.partner_requests (
   check (ntrp_min is null or ntrp_max is null or ntrp_min <= ntrp_max)
 );
 
-create table if not exists public.invites (
-  id bigint generated always as identity primary key,
-  sender_profile_id bigint not null references public.profiles (id) on delete cascade,
-  recipient_profile_id bigint not null references public.profiles (id) on delete cascade,
-  partner_request_id bigint references public.partner_requests (id) on delete set null,
-  court_id bigint references public.courts (id) on delete set null,
-  slot_text text not null,
-  message text,
-  status text not null default 'pending' check (status in ('pending', 'accepted', 'declined', 'cancelled')),
-  created_at timestamptz not null default now(),
-  responded_at timestamptz,
-  check (sender_profile_id <> recipient_profile_id)
-);
-
 create table if not exists public.reports (
   id bigint generated always as identity primary key,
   reporter_profile_id bigint not null references public.profiles (id) on delete cascade,
@@ -119,12 +105,6 @@ create index if not exists partner_requests_profile_id_idx on public.partner_req
 create index if not exists partner_requests_court_id_idx on public.partner_requests (court_id);
 create index if not exists partner_requests_open_expiry_idx on public.partner_requests (status, expires_at)
   where status = 'open';
-create index if not exists invites_sender_profile_id_idx on public.invites (sender_profile_id);
-create index if not exists invites_recipient_profile_id_idx on public.invites (recipient_profile_id);
-create index if not exists invites_partner_request_id_idx on public.invites (partner_request_id);
-create index if not exists invites_court_id_idx on public.invites (court_id);
-create index if not exists invites_pending_recipient_idx on public.invites (recipient_profile_id, created_at desc)
-  where status = 'pending';
 create index if not exists reports_reporter_profile_id_idx on public.reports (reporter_profile_id);
 create index if not exists reports_reported_profile_id_idx on public.reports (reported_profile_id);
 create index if not exists reports_partner_request_id_idx on public.reports (partner_request_id);
@@ -135,7 +115,6 @@ alter table public.profile_courts enable row level security;
 alter table public.profile_play_types enable row level security;
 alter table public.profile_slots enable row level security;
 alter table public.partner_requests enable row level security;
-alter table public.invites enable row level security;
 alter table public.reports enable row level security;
 
 create policy "active courts are readable"
@@ -238,27 +217,6 @@ with check (
   )
 );
 
-create policy "invites are readable by participants"
-on public.invites for select
-to authenticated
-using (
-  exists (
-    select 1 from public.profiles p
-    where p.user_id = (select auth.uid())
-      and p.id in (sender_profile_id, recipient_profile_id)
-  )
-);
-
-create policy "invites are insertable by sender"
-on public.invites for insert
-to authenticated
-with check (
-  exists (
-    select 1 from public.profiles p
-    where p.id = sender_profile_id and p.user_id = (select auth.uid())
-  )
-);
-
 create policy "reports are insertable by reporter"
 on public.reports for insert
 to authenticated
@@ -284,6 +242,7 @@ select
   p.id as profile_id,
   p.nickname,
   p.ntrp,
+  p.line_id,
   c.id as court_id,
   c.name as court_name,
   c.district as court_district,
@@ -297,74 +256,18 @@ join public.courts c on c.id = pc.court_id and c.is_active
 left join public.profile_play_types ppt on ppt.profile_id = p.id
 left join public.profile_slots ps on ps.profile_id = p.id
 where p.is_public
-group by p.id, p.nickname, p.ntrp, c.id, c.name, c.district, c.lat, c.lng;
+group by p.id, p.nickname, p.ntrp, p.line_id, c.id, c.name, c.district, c.lat, c.lng;
 
-create or replace function public.accepted_invite_contacts()
-returns table (
-  invite_id bigint,
-  other_profile_id bigint,
-  other_nickname text,
-  other_line_id text
-)
-language sql
-security definer
-set search_path = public
-as $$
-  select
-    i.id,
-    other_profile.id,
-    other_profile.nickname,
-    other_profile.line_id
-  from public.invites i
-  join public.profiles current_profile
-    on current_profile.user_id = (select auth.uid())
-   and current_profile.id in (i.sender_profile_id, i.recipient_profile_id)
-  join public.profiles other_profile
-    on other_profile.id = case
-      when current_profile.id = i.sender_profile_id then i.recipient_profile_id
-      else i.sender_profile_id
-    end
-  where i.status = 'accepted';
-$$;
-
-create or replace function public.respond_to_invite(target_invite_id bigint, next_status text)
-returns public.invites
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  updated_invite public.invites;
-begin
-  if next_status not in ('accepted', 'declined') then
-    raise exception 'invalid invite response status: %', next_status;
-  end if;
-
-  update public.invites i
-     set status = next_status,
-         responded_at = now()
-   where i.id = target_invite_id
-     and i.status = 'pending'
-     and exists (
-       select 1 from public.profiles p
-       where p.id = i.recipient_profile_id
-         and p.user_id = (select auth.uid())
-     )
-  returning i.* into updated_invite;
-
-  if updated_invite.id is null then
-    raise exception 'invite not found or not respondable';
-  end if;
-
-  return updated_invite;
-end;
-$$;
-
-revoke execute on function public.accepted_invite_contacts() from public;
-revoke execute on function public.respond_to_invite(bigint, text) from public;
+grant select on public.courts to anon, authenticated;
 grant select on public.public_profile_discovery to anon, authenticated;
-grant execute on function public.accepted_invite_contacts() to authenticated;
-grant execute on function public.respond_to_invite(bigint, text) to authenticated;
+grant select, insert, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.profile_courts to authenticated;
+grant select, insert, update, delete on public.profile_play_types to authenticated;
+grant select, insert, update, delete on public.profile_slots to authenticated;
+grant select on public.partner_requests to anon, authenticated;
+grant insert, update on public.partner_requests to authenticated;
+grant select, insert on public.reports to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
 
 insert into public.courts (name, district, lat, lng)
 values

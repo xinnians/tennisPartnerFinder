@@ -29,18 +29,24 @@ are in-memory only.
     auth fallback, and desktop/mobile Chromium viewports.
 - Milestone 2 has an initial migration draft:
   - `supabase/migrations/202607020001_initial_mvp_schema.sql`
-  - Includes core tables, Taipei court seed data, indexes, RLS policies, public
-    discovery view, and controlled invite/contact functions.
+  - Includes core tables, Taipei court seed data, indexes, RLS policies, and a
+    public discovery view for quick contact.
+  - `supabase/tests/quick_contact_rls.sql` documents the local RLS verification
+    cases for the quick-contact schema.
 - Milestone 3 and Milestone 4 are not implemented yet.
 
 ## Product Principles
 
 - Pins represent tennis courts, not home addresses.
 - Users explicitly choose whether their profile appears publicly.
-- Public map data should not expose LINE ID or private contact details.
-- LINE ID is shown only after an explicit quick-contact action on a public
-  player card; the MVP sends the real conversation to LINE instead of managing
-  in-app invite states.
+- Public discovery data may include LINE ID for public profiles. This is an
+  accepted MVP tradeoff: LINE visibility is gated by UI, not by a database
+  secrecy boundary.
+- LINE ID is not shown in the first card layer. It is shown only after an
+  explicit quick-contact action on a public player card; the MVP sends the real
+  conversation to LINE instead of managing in-app invite states.
+- A public player with multiple usual courts appears once per usual court.
+- First private beta scope is Taipei City.
 - The MVP should favor a small trusted trial group before broad public launch.
 
 ## Backend Decision Record
@@ -53,12 +59,12 @@ backend.
 Why Supabase fits this product:
 
 - The product data is relational: profiles, courts, play types, availability,
-  partner requests, invites, and reports all reference each other.
+  partner requests, and reports all reference each other.
 - Postgres keeps the data model portable if the project later outgrows the BaaS
   layer.
-- Row Level Security can enforce privacy rules at the database layer, especially
-  for public profiles, private LINE IDs, quick-contact disclosure, and any
-  future invite workflow.
+- Row Level Security can enforce ownership rules at the database layer,
+  especially for profile editing, request publishing, and reporting. LINE ID
+  visibility for public profiles is intentionally handled as a UI gate.
 - Supabase Auth, generated APIs, and local tooling should keep the MVP faster
   than building a custom backend first.
 - PostGIS remains available later if court proximity or geographic search
@@ -114,6 +120,7 @@ Reconsider this decision if:
   - the app shows the target player's LINE ID
   - the app generates a copyable opener
   - the real conversation continues in LINE
+  - no in-app invite, accept, decline, or contact-history state is created
 
 ### Not In Scope for First MVP
 
@@ -157,7 +164,6 @@ Initial tables:
 - `profile_play_types`
 - `profile_slots`
 - `partner_requests`
-- `invites`
 - `reports`
 
 Schema guidelines:
@@ -181,8 +187,8 @@ Goal: turn the prototype into a usable MVP.
 - Save profile edits to Supabase.
 - Publish partner requests.
 - Load active partner requests on the map.
-- Fetch contact details for quick contact without exposing LINE in public
-  discovery payloads.
+- Read `line_id` from `public_profile_discovery`, but keep it hidden in the
+  first-layer UI until the user taps quick contact.
 - Generate copyable LINE openers from profile and request context.
 - Keep full invite status management out of the MVP unless user research shows
   that extra recipient control is needed.
@@ -215,8 +221,8 @@ This is a planning draft, not final SQL.
 - `created_at`
 - `updated_at`
 
-Public reads should expose only safe profile fields. `line_id` needs stricter
-access through explicit contact actions, not the public discovery payload.
+Public discovery includes `line_id` for public profiles. The first-layer UI must
+hide it until the viewer taps quick contact.
 
 ### `courts`
 
@@ -268,24 +274,6 @@ Slot codes can start simple, such as `wd-m`, `wd-a`, `wd-e`, `we-m`, `we-a`,
 
 Statuses can start with `open`, `closed`, `expired`, and `removed`.
 
-### `invites`
-
-The initial migration includes this table as future-ready infrastructure. The
-current MVP frontend does not use in-app invite status management.
-
-- `id`: primary key
-- `sender_profile_id`
-- `recipient_profile_id`
-- `partner_request_id`: nullable
-- `court_id`: nullable
-- `slot_text`
-- `message`
-- `status`
-- `created_at`
-- `responded_at`
-
-Statuses can start with `pending`, `accepted`, `declined`, and `cancelled`.
-
 ### `reports`
 
 - `id`: primary key
@@ -302,25 +290,13 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 - A user can read and update their own full profile.
 - Anyone can read public discovery fields for `profiles.is_public = true`.
-- LINE ID should not be included in public discovery queries.
+- LINE ID is included in public discovery for public profiles. This is UI-gated,
+  not database-hidden.
 - Quick contact should reveal LINE only after an explicit user action on a
   public player card.
-- If in-app invite status management returns later, invite participants should
-  read only invite records they sent or received.
+- The MVP does not create invite or quick-contact event records.
 - Partner requests are publicly readable only when active and not expired.
 - Users can update or close only their own partner requests.
-
-## Open Questions
-
-- Which sign-in method should MVP use first: email magic link, Google login, or
-  LINE Login?
-- Should partner requests require a full profile, or can users publish after a
-  lighter onboarding step?
-- Should public player pins show exact usual court, or aggregate multiple usual
-  courts?
-- Should quick contact require a fully completed viewer profile before showing
-  LINE, or only enough fields to generate a natural opener?
-- What is the first beta area: Taipei only, or Taipei plus nearby cities?
 
 ## Next Concrete Step
 
@@ -329,5 +305,5 @@ Finish Milestone 1 verification, then begin Milestone 2 review:
 1. Run `npm run build`.
 2. Run `npm test`.
 3. Review the Supabase migration locally before applying it to a hosted project.
-4. Add Supabase env placeholders when starting Milestone 3:
-   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+4. Run `npx supabase db reset` and `npx supabase test db` after installing the
+   Supabase CLI and starting Docker.

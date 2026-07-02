@@ -14,6 +14,11 @@ Replace the current full invite flow with a quick contact flow. Users browse
 public player cards, confirm match fit, tap `快速約球`, copy a generated opener,
 copy or view the other player's LINE ID, and continue in LINE.
 
+Important privacy boundary: this MVP treats LINE visibility as a UI gate, not a
+database secrecy boundary. Public discovery payloads may include `line_id` for
+public profiles; the app must hide it on the first card layer and reveal it only
+after the user taps `快速約球`.
+
 ## Context
 
 The current prototype has:
@@ -128,6 +133,7 @@ Pros:
 Cons:
 
 - Not a strong privacy boundary after a profile is public.
+- Technically skilled users may see LINE ID in API responses or browser tools.
 - Does not guarantee the contacted player wants every specific request.
 - Requires clear profile copy so users understand what public visibility means.
 
@@ -313,16 +319,18 @@ For platform-owned requests, generate:
 
 ## Data Boundary
 
-The `invites` table can remain in the database migration as future-ready
-infrastructure, but the MVP quick contact UI should not depend on it.
+The MVP database should be modeled around quick contact, not invite acceptance.
+Do not include invite status infrastructure until the product intentionally adds
+an in-app request/accept workflow.
 
 Recommended frontend/API behavior:
 
-- Public discovery data excludes LINE ID.
+- Public discovery data may include LINE ID for public profiles.
 - Player card first layer excludes LINE ID.
-- Quick contact action fetches or reveals the selected public player's LINE ID.
+- Quick contact action reveals the selected public player's already-loaded LINE ID.
 - No pending invite record is created.
-- No accepted invite contact function is needed for this MVP flow.
+- No accepted invite contact function or quick-contact event log is needed for
+  this MVP flow.
 
 This is not strong secrecy after a profile is public. It is an intentional UX
 boundary: LINE is shown only when the viewer is taking an explicit contact

@@ -31,10 +31,15 @@ npm run dev     # 啟動本機開發伺服器,預設 http://localhost:5173
 
 ```bash
 VITE_GOOGLE_MAPS_API_KEY=___
+VITE_SUPABASE_URL=___
+VITE_SUPABASE_ANON_KEY=___
 ```
 
 存檔後 Vite 會自動重新載入。**沒填 key(或 key 無效)時頁面不會壞**,
 會顯示說明蓋板與球場資料一覽。
+
+`VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 是下一階段接 Supabase
+時使用;目前純前端原型尚未讀取這兩個值。
 
 > 注意:`.env.local` 不會進 git。Google Maps browser key 仍會在瀏覽器中可見,
 > 請務必在 Google Cloud Console 加上 HTTP referrer 限制;如果 key 曾經被提交或分享,
@@ -47,11 +52,32 @@ VITE_GOOGLE_MAPS_API_KEY=___
 3. 到「憑證」建立 **API 金鑰**。
 4. 建議在金鑰設定裡加上 HTTP referrer 限制(例如 `http://localhost:5173/*`)。
 
+## Supabase 本機驗證(下一階段)
+
+後端 schema 草案放在 `supabase/migrations/`,RLS 驗證放在 `supabase/tests/`。
+本機驗證需要 Docker 與 Supabase CLI。官方文件:
+
+- [Local development overview](https://supabase.com/docs/guides/local-development/overview)
+- [Supabase CLI getting started](https://supabase.com/docs/guides/local-development/cli/getting-started)
+- [CLI reference](https://supabase.com/docs/reference/cli/introduction)
+
+常用流程:
+
+```bash
+npx supabase start
+npx supabase db reset
+npx supabase test db
+```
+
+目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
+使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。
+
 ## 專案結構
 
 ```
 index.html          兩個分頁的骨架:地圖(浮層+chips)、個人檔案、tab bar
 .env.example        本機環境變數範本;複製成 .env.local 後填入 Maps key
+supabase/           Supabase migration 草案、本機驗證說明與 RLS 測試
 src/
   config.js         讀取 VITE_GOOGLE_MAPS_API_KEY;地圖中心/縮放設定
   mockData.js       假資料:6 座台北真實球場、6 位球友、6 則徵球伴需求
