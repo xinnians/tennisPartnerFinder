@@ -21,6 +21,10 @@ standalone binary. The official docs currently recommend Node.js 20+ for the
 ## Local Commands
 
 ```bash
+# Confirm prerequisites are available.
+npx supabase --version
+docker --version
+
 # Start the local Supabase stack.
 npx supabase start
 
@@ -28,8 +32,11 @@ npx supabase start
 npx supabase db reset
 
 # Run pgTAP verification files from supabase/tests.
-npx supabase test db
+npx supabase test db supabase/tests
 ```
+
+If Docker Desktop is not installed or not running, `supabase start`, `db reset`,
+and `test db` will fail before reaching the migration/RLS checks.
 
 ## What The Current Tests Verify
 

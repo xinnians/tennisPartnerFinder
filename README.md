@@ -64,10 +64,15 @@ VITE_SUPABASE_ANON_KEY=___
 常用流程:
 
 ```bash
+npx supabase --version
+docker --version
 npx supabase start
 npx supabase db reset
-npx supabase test db
+npx supabase test db supabase/tests
 ```
+
+如果 Docker Desktop 尚未安裝或未啟動,`supabase start`、`db reset` 與
+`test db` 會先卡在本機容器前置環境,還不會進到 migration/RLS 驗證。
 
 目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
 使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。
