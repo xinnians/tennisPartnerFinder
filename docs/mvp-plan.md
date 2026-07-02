@@ -20,7 +20,7 @@ are in-memory only.
 
 ## Implementation Status
 
-- Milestone 1 has been started in the repo:
+- Milestone 1 prototype foundation is complete:
   - Google Maps key is read from `VITE_GOOGLE_MAPS_API_KEY`.
   - `.env.example` documents the required local environment variable.
   - README setup instructions point to `.env.local` instead of editing source.
@@ -307,10 +307,19 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Finish Milestone 1 verification, then begin Milestone 2 review:
+Begin Milestone 3: wire the frontend to local Supabase Auth and data.
 
-1. Run `npm run build`.
-2. Run `npm test`.
-3. Review the Supabase migration locally before applying it to a hosted project.
-4. Run `npx supabase db reset` and `npx supabase test db` after installing the
-   Supabase CLI and starting Docker.
+Recommended next implementation batch:
+
+1. Add `@supabase/supabase-js`.
+2. Add a small Supabase auth/data layer instead of calling Supabase directly
+   inside UI handlers.
+3. Add Email magic link sign-in/sign-out UI.
+4. Persist the current profile form to `profiles`, `profile_courts`,
+   `profile_play_types`, and `profile_slots`.
+5. Load map players from `public_profile_discovery` and keep LINE hidden until
+   the user taps quick contact.
+6. Load and publish active `partner_requests`.
+7. Keep this batch local-only: do not create a hosted Supabase project, do not
+   deploy, and do not change the verified schema unless a blocker is found and
+   covered by local RLS tests.

@@ -52,7 +52,7 @@ VITE_SUPABASE_ANON_KEY=___
 3. 到「憑證」建立 **API 金鑰**。
 4. 建議在金鑰設定裡加上 HTTP referrer 限制(例如 `http://localhost:5173/*`)。
 
-## Supabase 本機驗證(下一階段)
+## Supabase 本機驗證
 
 後端 schema 草案放在 `supabase/migrations/`,RLS 驗證放在 `supabase/tests/`。
 本機驗證需要 Docker 與 Supabase CLI。官方文件:
@@ -73,6 +73,9 @@ npx supabase test db supabase/tests
 
 如果 Docker Desktop 尚未安裝或未啟動,`supabase start`、`db reset` 與
 `test db` 會先卡在本機容器前置環境,還不會進到 migration/RLS 驗證。
+
+目前 local migration/RLS 已驗證通過。下一步是把前端接到 Supabase Auth
+與真實資料,仍先以 local Supabase 專案為準,不急著接 hosted project。
 
 目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
 使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。
