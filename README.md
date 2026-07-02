@@ -20,19 +20,24 @@ Noto Sans TC、底部卡片與聚合釘),地圖換成真正的 **Google Maps Jav
 
 ```bash
 npm install     # 安裝依賴(只有 Vite)
+cp .env.example .env.local
 npm run dev     # 啟動本機開發伺服器,預設 http://localhost:5173
 ```
 
 ### 填入 Google Maps API key(必要)
 
-打開 **`src/config.js`**,把 `"___"` 換成你的 key:
+打開 **`.env.local`**,把 `___` 換成你的 key:
 
-```js
-export const GOOGLE_MAPS_API_KEY = "___"; // ← 換成你的 API key
+```bash
+VITE_GOOGLE_MAPS_API_KEY=___
 ```
 
 存檔後 Vite 會自動重新載入。**沒填 key(或 key 無效)時頁面不會壞**,
 會顯示說明蓋板與球場資料一覽。
+
+> 注意:`.env.local` 不會進 git。Google Maps browser key 仍會在瀏覽器中可見,
+> 請務必在 Google Cloud Console 加上 HTTP referrer 限制;如果 key 曾經被提交或分享,
+> 建議旋轉成新 key。
 
 ### 取得 Google Maps API key
 
@@ -45,8 +50,9 @@ export const GOOGLE_MAPS_API_KEY = "___"; // ← 換成你的 API key
 
 ```
 index.html          三個分頁的骨架:地圖(浮層+chips)、我的邀請、個人檔案、tab bar
+.env.example        本機環境變數範本;複製成 .env.local 後填入 Maps key
 src/
-  config.js         ★ GOOGLE_MAPS_API_KEY 填這裡;地圖中心/縮放設定
+  config.js         讀取 VITE_GOOGLE_MAPS_API_KEY;地圖中心/縮放設定
   mockData.js       假資料:6 座台北真實球場、6 位球友、6 則徵球伴需求
   filters.js        篩選純函式(NTRP band、想打類型)
   pins.js           三種圖釘的 SVG(球友/需求/聚合,樣式取自設計檔)
