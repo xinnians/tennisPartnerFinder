@@ -1,0 +1,405 @@
+/* ============================================================
+   Design tokens
+   設計檔(Tennis Partner Finder.dc.html)在此環境無法匯入,
+   以下 token 為重建的視覺基準:球場綠 + 紅土橘 + 網球黃綠。
+   之後拿到設計檔時,只要對照調整這裡的變數即可全站換膚。
+   ============================================================ */
+:root {
+  --court-green: #1f7a4d;      /* 主色:硬地球場綠 */
+  --court-green-dark: #14532d; /* 主色深階:標題列、外框 */
+  --clay: #c2703d;             /* 次色:紅土橘,需求釘用 */
+  --ball: #d9f24f;             /* 強調色:網球黃綠 */
+  --cream: #fdf6ec;            /* 淺底:卡片、需求釘底色 */
+  --ink: #1c2b24;              /* 主要文字 */
+  --ink-soft: #5c6f64;         /* 次要文字 */
+  --line: #e4dccb;             /* 分隔線 */
+
+  --radius: 12px;
+  --shadow: 0 4px 16px rgba(20, 43, 32, 0.16);
+  --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei",
+    system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--cream);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ------------------------------------------------------------
+   頂部標題列
+   ------------------------------------------------------------ */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--court-green-dark);
+  color: #fff;
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar__logo {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 22px;
+  background: var(--court-green);
+  border: 2px solid var(--ball);
+  border-radius: 50%;
+}
+
+.topbar__title {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+
+.topbar__subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #cfe3d5;
+}
+
+.topbar__stats {
+  font-size: 13px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------
+   篩選列
+   ------------------------------------------------------------ */
+.filterbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+.filterbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterbar__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--court-green-dark);
+}
+
+.filterbar__select {
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.filterbar__dash {
+  color: var(--ink-soft);
+}
+
+.filterbar__check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.filterbar__check input {
+  accent-color: var(--court-green);
+}
+
+.filterbar__divider {
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+}
+
+/* 想打類型 chips */
+.chips {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-soft);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chip:hover {
+  border-color: var(--court-green);
+}
+
+.chip.is-active {
+  color: #fff;
+  background: var(--court-green);
+  border-color: var(--court-green);
+}
+
+/* ------------------------------------------------------------
+   地圖區與圖例
+   ------------------------------------------------------------ */
+.map-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  background: #e8efe9; /* 地圖載入前的底色 */
+}
+
+.legend {
+  position: absolute;
+  left: 16px;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.legend__item img {
+  flex: none;
+}
+
+.legend__item strong {
+  display: block;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.legend__item span {
+  color: var(--ink-soft);
+}
+
+/* ------------------------------------------------------------
+   InfoWindow 內容(Google Maps 會把這段 HTML 塞進它的泡泡)
+   ------------------------------------------------------------ */
+.iw {
+  max-width: 260px;
+  font-family: var(--font);
+  color: var(--ink);
+}
+
+.iw__badge {
+  display: inline-block;
+  padding: 2px 10px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border-radius: 999px;
+}
+
+.iw__badge--player {
+  background: var(--court-green);
+}
+
+.iw__badge--demand {
+  background: var(--clay);
+}
+
+.iw__title {
+  margin: 0 0 2px;
+  font-size: 16px;
+}
+
+.iw__court {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.iw__rows {
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.iw__rows > div {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.iw__rows dt {
+  flex: none;
+  width: 42px;
+  font-weight: 700;
+  color: var(--court-green-dark);
+}
+
+.iw__rows dd {
+  margin: 0;
+}
+
+.iw__tag {
+  display: inline-block;
+  padding: 1px 8px;
+  margin-right: 4px;
+  font-size: 12px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.iw__invite {
+  width: 100%;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--court-green-dark);
+  background: var(--ball);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.iw__invite:hover {
+  filter: brightness(0.95);
+}
+
+.iw__source {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--clay);
+  text-decoration: none;
+}
+
+.iw__source:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------
+   尚未填 API key 的說明蓋板
+   ------------------------------------------------------------ */
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(31, 122, 77, 0.05) 0 24px,
+      rgba(31, 122, 77, 0.1) 24px 48px
+    ),
+    #e8efe9;
+}
+
+.placeholder__card {
+  max-width: 520px;
+  padding: 24px 28px;
+  background: #fff;
+  border-top: 4px solid var(--court-green);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.placeholder__card h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: var(--court-green-dark);
+}
+
+.placeholder__card ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.placeholder__card code {
+  padding: 1px 6px;
+  font-size: 13px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.placeholder__hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.placeholder__courts {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--ink);
+}
+
+/* 窄螢幕:篩選列改為可換行、統計徽章縮小 */
+@media (max-width: 640px) {
+  .topbar__stats {
+    display: none;
+  }
+
+  .filterbar__divider {
+    display: none;
+  }
+}

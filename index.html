@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%8E%BE%3C/text%3E%3C/svg%3E"
+    />
+    <title>Tennis Partner Finder｜台北網球球伴地圖</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- 頂部標題列 -->
+      <header class="topbar">
+        <div class="topbar__brand">
+          <span class="topbar__logo" aria-hidden="true">🎾</span>
+          <div>
+            <h1 class="topbar__title">Tennis Partner Finder</h1>
+            <p class="topbar__subtitle">台北網球球伴地圖・以球場為單位找球友</p>
+          </div>
+        </div>
+        <div class="topbar__stats" id="stats" aria-live="polite">
+          <!-- 由 main.js 動態填入「顯示 X 位球友・Y 則需求」 -->
+        </div>
+      </header>
+
+      <!-- 篩選列:NTRP 範圍 + 想打類型,變更後即時更新地圖圖釘 -->
+      <section class="filterbar" aria-label="篩選條件">
+        <div class="filterbar__group">
+          <label class="filterbar__label">NTRP 範圍</label>
+          <select id="ntrp-min" class="filterbar__select" aria-label="NTRP 下限"></select>
+          <span class="filterbar__dash">–</span>
+          <select id="ntrp-max" class="filterbar__select" aria-label="NTRP 上限"></select>
+          <label class="filterbar__check">
+            <input type="checkbox" id="include-unknown" checked />
+            含程度未提供
+          </label>
+        </div>
+
+        <div class="filterbar__divider" aria-hidden="true"></div>
+
+        <div class="filterbar__group">
+          <label class="filterbar__label">想打類型</label>
+          <div class="chips" id="type-chips" role="group" aria-label="想打類型">
+            <button type="button" class="chip is-active" data-type="單打">單打</button>
+            <button type="button" class="chip is-active" data-type="雙打">雙打</button>
+            <button type="button" class="chip is-active" data-type="對拉">對拉</button>
+          </div>
+        </div>
+
+        <div class="filterbar__divider" aria-hidden="true"></div>
+
+        <div class="filterbar__group">
+          <label class="filterbar__label">顯示</label>
+          <label class="filterbar__check">
+            <input type="checkbox" id="show-players" checked />
+            球友釘
+          </label>
+          <label class="filterbar__check">
+            <input type="checkbox" id="show-demands" checked />
+            需求釘
+          </label>
+        </div>
+      </section>
+
+      <!-- 地圖區 -->
+      <main class="map-wrap">
+        <div id="map" role="application" aria-label="球場地圖"></div>
+
+        <!-- 圖例(圖示由 main.js 注入,與地圖圖釘共用同一組 SVG) -->
+        <aside class="legend" aria-label="圖例">
+          <div class="legend__item">
+            <img id="legend-player" alt="球友釘圖示" width="22" height="28" />
+            <div>
+              <strong>球友釘</strong>
+              <span>公開位置的註冊球友</span>
+            </div>
+          </div>
+          <div class="legend__item">
+            <img id="legend-demand" alt="需求釘圖示" width="22" height="28" />
+            <div>
+              <strong>需求釘</strong>
+              <span>球場附近有人徵球伴</span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 尚未填入 Google Maps API key 時顯示的說明蓋板(main.js 控制) -->
+        <div id="map-placeholder" class="placeholder" hidden>
+          <div class="placeholder__card">
+            <h2>還差一步:填入 Google Maps API key</h2>
+            <ol>
+              <li>打開 <code>src/config.js</code></li>
+              <li>把 <code>GOOGLE_MAPS_API_KEY = "___"</code> 換成你的 API key</li>
+              <li>存檔後頁面會自動重新載入</li>
+            </ol>
+            <p class="placeholder__hint">
+              申請方式見 README「取得 Google Maps API key」。<br />
+              下方是目前假資料的球場一覽,填入 key 後就會變成互動地圖:
+            </p>
+            <ul id="placeholder-courts" class="placeholder__courts"></ul>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

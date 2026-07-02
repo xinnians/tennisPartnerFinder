@@ -1,0 +1,15 @@
+{
+  "name": "tennis-partner-finder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "台北網球球伴地圖原型:以球場為單位,在地圖上顯示徵球伴需求與公開球友",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}
