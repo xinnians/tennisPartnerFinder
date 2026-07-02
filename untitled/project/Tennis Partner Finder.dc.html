@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{background:#D7DCD3;font-family:'Noto Sans TC',sans-serif;-webkit-font-smoothing:antialiased;color:#20302A;}
+.scroll::-webkit-scrollbar{width:0;height:0;}
+.scroll{scrollbar-width:none;-ms-overflow-style:none;}
+@keyframes sheetUp{from{transform:translateY(103%);}to{transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes popIn{from{opacity:0;transform:scale(.94) translateY(10px);}to{opacity:1;transform:scale(1) translateY(0);}}
+@keyframes slideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
+.ntrp-range{-webkit-appearance:none;appearance:none;width:100%;height:7px;border-radius:7px;outline:none;}
+.ntrp-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;border-radius:50%;background:#16351F;border:5px solid #C9E23B;cursor:pointer;box-shadow:0 3px 8px rgba(22,53,31,.4);}
+.ntrp-range::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#16351F;border:5px solid #C9E23B;cursor:pointer;}
+</style>
+</helmet>
+<div style="height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:'Noto Sans TC',sans-serif;">
+ <div ref="{{ fitRef }}" style="width:390px;height:844px;flex:none;transform-origin:center center;">
+ <div style="position:relative;width:390px;height:844px;background:#ECEDE7;border-radius:46px;overflow:hidden;box-shadow:0 40px 90px -22px rgba(20,40,26,.5),0 0 0 11px #12160F,0 0 0 13px #2a3327;">
+
+  <!-- ===================== MAP TAB (always mounted) ===================== -->
+  <div style="position:absolute;inset:0;z-index:1;">
+    <div ref="{{ viewportRef }}" style="position:absolute;inset:0;overflow:hidden;background:#ECEDE7;touch-action:none;cursor:grab;">
+      <div ref="{{ worldRef }}" style="position:absolute;left:0;top:0;width:1200px;height:1500px;transform-origin:0 0;">
+        <div ref="{{ baseRef }}" style="width:1200px;height:1500px;"></div>
+      </div>
+      <div ref="{{ pinsRef }}" style="position:absolute;inset:0;pointer-events:none;">
+        <sc-for list="{{ markers }}" as="m" hint-placeholder-count="0">
+          <button data-pin data-wx="{{ m.wx }}" data-wy="{{ m.wy }}" data-z="{{ m.z }}" onClick="{{ m.onTap }}" style="position:absolute;left:0;top:0;margin:0;padding:0;border:0;background:transparent;cursor:pointer;pointer-events:auto;-webkit-tap-highlight-color:transparent;transform:translate(-9999px,-9999px);will-change:transform;transition:filter .15s;">
+            <sc-if value="{{ m.isPlayer }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <div style="width:44px;height:44px;border-radius:50%;background:#C9E23B;border:2.5px solid #16351F;box-shadow:0 7px 15px rgba(22,53,31,.32);display:flex;align-items:center;justify-content:center;font-family:'Baloo 2',sans-serif;font-weight:800;font-size:18px;color:#16351F;">{{ m.initial }}</div>
+                <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #16351F;margin-top:-1px;"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isDemand }}">
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <div style="width:31px;height:31px;border-radius:50%;background:#FFFFFF;border:2px dashed #9DACA0;box-shadow:0 3px 8px rgba(22,53,31,.14);display:flex;align-items:center;justify-content:center;color:#7A8A7E;font-weight:700;font-size:13px;">徵</div>
+                <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #C4D0C6;margin-top:-1px;"></div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isCluster }}">
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <div style="min-width:46px;height:46px;padding:0 8px;border-radius:23px;background:#16351F;border:2.5px solid #C9E23B;box-shadow:0 8px 18px rgba(22,53,31,.36);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-family:'Baloo 2',sans-serif;font-weight:700;font-size:17px;">{{ m.count }}</div>
+                <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #16351F;margin-top:-1px;"></div>
+              </div>
+            </sc-if>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="position:absolute;right:14px;bottom:154px;display:flex;flex-direction:column;gap:8px;">
+        <button onClick="{{ zoomIn }}" style="width:44px;height:44px;border-radius:14px;border:1px solid #E1E5DC;background:rgba(255,255,255,.95);font-size:24px;color:#20302A;box-shadow:0 4px 12px rgba(20,40,26,.15);cursor:pointer;line-height:1;" style-active="scale:.94">+</button>
+        <button onClick="{{ zoomOut }}" style="width:44px;height:44px;border-radius:14px;border:1px solid #E1E5DC;background:rgba(255,255,255,.95);font-size:26px;color:#20302A;box-shadow:0 4px 12px rgba(20,40,26,.15);cursor:pointer;line-height:1;" style-active="scale:.94">−</button>
+        <button onClick="{{ recenter }}" style="width:44px;height:44px;border-radius:14px;border:1px solid #E1E5DC;background:rgba(255,255,255,.95);box-shadow:0 4px 12px rgba(20,40,26,.15);cursor:pointer;display:flex;align-items:center;justify-content:center;" style-active="scale:.94">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div style="position:absolute;top:0;left:0;right:0;padding:50px 14px 22px;background:linear-gradient(#ECEDE7 22%,rgba(236,237,231,.9) 52%,rgba(236,237,231,0));pointer-events:none;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;pointer-events:auto;">
+        <div style="display:flex;align-items:center;gap:7px;background:#16351F;color:#EEF6D6;height:38px;padding:0 15px;border-radius:19px;box-shadow:0 6px 16px rgba(22,53,31,.28);">
+          <svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#C9E23B"/><path d="M5 6c3.4 3 3.4 9 0 12M19 6c-3.4 3-3.4 9 0 12" fill="none" stroke="#16351F" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <span style="font-weight:700;font-size:15px;letter-spacing:1px;">找球伴</span>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:5px;font-size:12px;color:#54634E;background:rgba(255,255,255,.82);padding:6px 11px;border-radius:13px;font-weight:500;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#54634E" stroke-width="2.4"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/></svg>台北市
+        </div>
+      </div>
+      <div class="scroll" style="display:flex;gap:8px;overflow-x:auto;pointer-events:auto;padding-bottom:2px;">
+        <button onClick="{{ toggleLevel }}" style="flex:none;display:flex;align-items:center;gap:5px;height:36px;padding:0 13px;border-radius:18px;border:1px solid #16351F;background:#16351F;color:#fff;font-family:'Noto Sans TC',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;box-shadow:0 3px 10px rgba(22,53,31,.2);">
+          <span style="opacity:.72;">程度</span><span style="font-family:'Baloo 2',sans-serif;font-weight:700;">{{ bandLabel }}</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <sc-for list="{{ typeChips }}" as="c" hint-placeholder-count="4">
+          <sc-if value="{{ c.active }}"><button onClick="{{ c.onClick }}" style="flex:none;height:36px;padding:0 15px;border-radius:18px;border:1.5px solid #16351F;background:#C9E23B;color:#16351F;font-family:'Noto Sans TC',sans-serif;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(201,226,59,.5);">{{ c.short }}</button></sc-if>
+          <sc-if value="{{ c.notActive }}"><button onClick="{{ c.onClick }}" style="flex:none;height:36px;padding:0 15px;border-radius:18px;border:1px solid #DDE1D8;background:rgba(255,255,255,.94);color:#41514A;font-family:'Noto Sans TC',sans-serif;font-size:13.5px;font-weight:500;cursor:pointer;">{{ c.short }}</button></sc-if>
+        </sc-for>
+      </div>
+    </div>
+
+    <sc-if value="{{ levelOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ toggleLevel }}" style="position:absolute;inset:0;z-index:44;"></div>
+      <div style="position:absolute;top:132px;left:14px;z-index:45;background:#fff;border-radius:18px;padding:8px;box-shadow:0 14px 40px rgba(20,40,26,.24);width:214px;animation:popIn .2s ease;">
+        <div style="font-size:11.5px;color:#94A099;font-weight:700;letter-spacing:.5px;padding:6px 10px 8px;">依 NTRP 程度篩選</div>
+        <sc-for list="{{ bandOptions }}" as="b" hint-placeholder-count="5">
+          <sc-if value="{{ b.active }}"><button onClick="{{ b.onClick }}" style="display:flex;align-items:center;justify-content:space-between;width:100%;padding:11px 12px;border-radius:12px;border:0;background:#16351F;color:#fff;font-family:'Noto Sans TC',sans-serif;font-size:14.5px;font-weight:700;cursor:pointer;margin-bottom:2px;">{{ b.label }}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button></sc-if>
+          <sc-if value="{{ b.notActive }}"><button onClick="{{ b.onClick }}" style="display:flex;align-items:center;width:100%;padding:11px 12px;border-radius:12px;border:0;background:none;color:#41514A;font-family:'Noto Sans TC',sans-serif;font-size:14.5px;font-weight:500;cursor:pointer;margin-bottom:2px;" style-hover="background:#F4F6F0">{{ b.label }}</button></sc-if>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- ===================== INVITES TAB (placeholder) ===================== -->
+  <sc-if value="{{ isInvites }}">
+  <div style="position:absolute;inset:0;z-index:30;background:#F4F6F0;display:flex;flex-direction:column;">
+    <div style="padding:50px 20px 12px;flex:none;">
+      <div style="font-size:22px;font-weight:800;color:#16351F;">我的邀請</div>
+      <div style="font-size:13px;color:#8A968C;margin-top:3px;">你送出的邀請與回覆狀態</div>
+    </div>
+    <sc-if value="{{ invitesEmpty }}">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 40px 90px;text-align:center;">
+        <div style="width:76px;height:76px;border-radius:50%;background:#E9EEE1;display:flex;align-items:center;justify-content:center;"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#A6B8A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>
+        <div style="font-size:16px;font-weight:700;color:#54634E;margin-top:18px;">還沒有送出邀請</div>
+        <div style="font-size:13.5px;color:#94A099;margin-top:7px;line-height:1.6;">到地圖上找找程度相近的球友，<br/>送出你的第一個邀請吧。</div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ invitesHas }}">
+      <div class="scroll" style="flex:1;overflow-y:auto;padding:8px 18px 100px;display:flex;flex-direction:column;gap:12px;">
+        <sc-for list="{{ invitesList }}" as="inv" hint-placeholder-count="1">
+          <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:15px 16px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:46px;height:46px;border-radius:50%;background:#16351F;display:flex;align-items:center;justify-content:center;color:#C9E23B;font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:18px;flex:none;">{{ inv.initial }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16.5px;font-weight:700;color:#20302A;">{{ inv.nick }}</span><span style="font-family:'Baloo 2',sans-serif;font-weight:700;font-size:12px;color:#16351F;background:#C9E23B;padding:2px 8px;border-radius:9px;">{{ inv.ntrp }}</span></div>
+                <div style="font-size:12.5px;color:#94A099;margin-top:3px;">{{ inv.slot }}・{{ inv.when }}</div>
+              </div>
+              <sc-if value="{{ inv.accepted }}"><span style="font-size:12.5px;font-weight:700;color:#16351F;background:#C9E23B;padding:5px 11px;border-radius:11px;flex:none;">已接受</span></sc-if>
+              <sc-if value="{{ inv.pending }}"><span style="font-size:12.5px;font-weight:600;color:#8A968C;background:#EEF1EB;padding:5px 11px;border-radius:11px;flex:none;">待回覆</span></sc-if>
+            </div>
+            <sc-if value="{{ inv.hasMsg }}"><div style="font-size:13.5px;color:#54634E;background:#F5F7F0;border-radius:12px;padding:10px 13px;margin-top:12px;line-height:1.55;">{{ inv.msg }}</div></sc-if>
+            <sc-if value="{{ inv.accepted }}"><div style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:11px 14px;background:#EAF7EE;border:1px solid #C9E8D3;border-radius:13px;"><span style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:12px;color:#fff;background:#06C755;border-radius:6px;padding:3px 8px;">LINE</span><span style="font-size:14.5px;color:#1E6B3A;font-weight:600;">{{ inv.line }}</span><span style="margin-left:auto;font-size:11.5px;color:#4E9E6A;">已可聯絡</span></div></sc-if>
+            <sc-if value="{{ inv.pending }}"><div style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12.5px;color:#A6B0A6;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B0BAB0" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/></svg>等待對方回覆中</div></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ===================== PROFILE TAB (placeholder) ===================== -->
+  <sc-if value="{{ isProfile }}">
+  <div style="position:absolute;inset:0;z-index:30;background:#F4F6F0;display:flex;flex-direction:column;">
+    <div style="padding:50px 20px 10px;flex:none;">
+      <div style="font-size:22px;font-weight:800;color:#16351F;">個人檔案</div>
+      <div style="font-size:13px;color:#8A968C;margin-top:3px;">讓程度相近的球友更容易找到你</div>
+    </div>
+    <div class="scroll" style="flex:1;overflow-y:auto;padding:8px 18px 176px;">
+      <div style="display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:14px 16px;">
+        <div style="width:56px;height:56px;border-radius:50%;background:#16351F;display:flex;align-items:center;justify-content:center;color:#C9E23B;font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:22px;flex:none;">我</div>
+        <div style="flex:1;">
+          <label style="font-size:11.5px;color:#94A099;font-weight:600;letter-spacing:.5px;">暱稱</label>
+          <input type="text" defaultValue="我" onInput="{{ onNick }}" placeholder="輸入暱稱" style="width:100%;border:0;background:none;font-family:'Noto Sans TC',sans-serif;font-size:18px;font-weight:700;color:#20302A;outline:none;padding:2px 0 0;"/>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:16px;margin-top:12px;">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;">
+          <div><div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;">NTRP 程度</div><div style="font-size:12.5px;color:#8A968C;margin-top:5px;">{{ profNtrpDesc }}</div></div>
+          <span style="font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:36px;line-height:1;color:#16351F;">{{ profNtrpStr }}</span>
+        </div>
+        <input type="range" class="ntrp-range" min="1" max="7" step="0.5" defaultValue="3.5" onInput="{{ onNtrp }}" style="background:#E7EAE1;"/>
+        <div style="display:flex;justify-content:space-between;font-family:'Baloo 2',sans-serif;font-size:11px;color:#B0BAB0;margin-top:9px;"><span>1.0</span><span>4.0</span><span>7.0</span></div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:12px;">想打類型（可複選）</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <sc-for list="{{ profTypes }}" as="t" hint-placeholder-count="4">
+            <sc-if value="{{ t.active }}"><button onClick="{{ t.onClick }}" style="height:40px;padding:0 16px;border-radius:13px;border:1.5px solid #16351F;background:#C9E23B;color:#16351F;font-family:'Noto Sans TC',sans-serif;font-size:14px;font-weight:700;cursor:pointer;" style-active="scale:.97">{{ t.full }}</button></sc-if>
+            <sc-if value="{{ t.notActive }}"><button onClick="{{ t.onClick }}" style="height:40px;padding:0 16px;border-radius:13px;border:1px solid #DDE1D8;background:#F7F9F4;color:#54634E;font-family:'Noto Sans TC',sans-serif;font-size:14px;font-weight:500;cursor:pointer;" style-active="scale:.97">{{ t.full }}</button></sc-if>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:12px;">常打的球場（可複選）</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <sc-for list="{{ profCourts }}" as="c" hint-placeholder-count="4">
+            <button onClick="{{ c.onClick }}" style="display:flex;align-items:center;gap:11px;width:100%;padding:11px 12px;border-radius:13px;border:1px solid #ECEFE8;background:#F8FAF4;text-align:left;cursor:pointer;">
+              <sc-if value="{{ c.on }}"><span style="width:24px;height:24px;border-radius:8px;background:#16351F;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></sc-if>
+              <sc-if value="{{ c.off }}"><span style="width:24px;height:24px;border-radius:8px;border:2px solid #D3DBCE;background:#fff;flex:none;box-sizing:border-box;"></span></sc-if>
+              <span style="flex:1;font-size:14.5px;color:#2C3A31;font-weight:500;">{{ c.name }}</span>
+              <span style="font-size:12px;color:#A6B0A6;">{{ c.dist }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:12px;">固定時段（點格子選）</div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <div style="display:flex;gap:7px;">
+            <div style="width:46px;"></div>
+            <div style="flex:1;text-align:center;font-size:12px;color:#94A099;font-weight:600;">早上</div>
+            <div style="flex:1;text-align:center;font-size:12px;color:#94A099;font-weight:600;">下午</div>
+            <div style="flex:1;text-align:center;font-size:12px;color:#94A099;font-weight:600;">晚上</div>
+          </div>
+          <sc-for list="{{ profSlotRows }}" as="r" hint-placeholder-count="2">
+            <div style="display:flex;gap:7px;align-items:stretch;">
+              <div style="width:46px;display:flex;align-items:center;font-size:13.5px;color:#54634E;font-weight:700;">{{ r.day }}</div>
+              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3">
+                <sc-if value="{{ c.on }}"><button onClick="{{ c.onClick }}" style="flex:1;height:42px;border-radius:12px;border:0;background:#C9E23B;display:flex;align-items:center;justify-content:center;cursor:pointer;" style-active="scale:.95"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button></sc-if>
+                <sc-if value="{{ c.off }}"><button onClick="{{ c.onClick }}" style="flex:1;height:42px;border-radius:12px;border:1px solid #E7EAE1;background:#F4F6F0;cursor:pointer;" style-active="scale:.95"></button></sc-if>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:16px;margin-top:12px;">
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+          <div style="flex:1;">
+            <div style="font-size:15.5px;font-weight:700;color:#20302A;">分享我的位置</div>
+            <div style="font-size:12.5px;color:#8A968C;margin-top:4px;line-height:1.5;">預設不分享，你可以隨時關閉。開啟後才會在地圖上出現你的球友釘。</div>
+          </div>
+          <sc-if value="{{ profShareOn }}"><button onClick="{{ shareOff }}" style="width:52px;height:31px;border-radius:16px;border:0;background:#16351F;position:relative;cursor:pointer;flex:none;padding:0;"><span style="position:absolute;top:3px;left:24px;width:25px;height:25px;border-radius:50%;background:#C9E23B;"></span></button></sc-if>
+          <sc-if value="{{ profShareOff }}"><button onClick="{{ shareOn }}" style="width:52px;height:31px;border-radius:16px;border:0;background:#D6DBD2;position:relative;cursor:pointer;flex:none;padding:0;"><span style="position:absolute;top:3px;left:3px;width:25px;height:25px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);"></span></button></sc-if>
+        </div>
+        <sc-if value="{{ profShareOn }}">
+          <div style="margin-top:14px;padding-top:14px;border-top:1px solid #EEF1EB;display:flex;flex-direction:column;gap:8px;">
+            <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:.5px;">位置精細度</div>
+            <sc-for list="{{ profGrans }}" as="g" hint-placeholder-count="3">
+              <button onClick="{{ g.onClick }}" style="display:flex;align-items:flex-start;gap:11px;width:100%;padding:11px 12px;border-radius:13px;border:1px solid #ECEFE8;background:#F8FAF4;text-align:left;cursor:pointer;">
+                <sc-if value="{{ g.active }}"><span style="width:22px;height:22px;border-radius:50%;border:6px solid #16351F;background:#C9E23B;flex:none;margin-top:1px;box-sizing:border-box;"></span></sc-if>
+                <sc-if value="{{ g.notActive }}"><span style="width:22px;height:22px;border-radius:50%;border:2px solid #D3DBCE;background:#fff;flex:none;margin-top:1px;box-sizing:border-box;"></span></sc-if>
+                <div style="flex:1;"><div style="font-size:14.5px;color:#20302A;font-weight:600;">{{ g.label }}</div><div style="font-size:12px;color:#8A968C;margin-top:2px;">{{ g.desc }}</div></div>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:10px;">LINE ID</div>
+        <div style="display:flex;align-items:center;gap:10px;background:#F5F7F0;border-radius:13px;padding:12px 14px;">
+          <span style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:12px;color:#fff;background:#06C755;border-radius:6px;padding:3px 8px;flex:none;">LINE</span>
+          <input type="text" onInput="{{ onLine }}" placeholder="輸入你的 LINE ID" style="flex:1;border:0;background:none;font-family:'Noto Sans TC',sans-serif;font-size:15px;color:#20302A;outline:none;min-width:0;"/>
+        </div>
+        <div style="font-size:11.5px;color:#A6B0A6;margin-top:9px;line-height:1.5;">收到你同意的邀請後，對方才看得到你的 LINE ID。</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;left:0;right:0;bottom:84px;padding:14px 18px 12px;background:linear-gradient(rgba(244,246,240,0),#F4F6F0 32%);">
+      <button onClick="{{ saveProfile }}" style="width:100%;height:52px;border-radius:16px;border:0;background:#16351F;color:#fff;font-family:'Noto Sans TC',sans-serif;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 8px 20px rgba(22,53,31,.3);" style-active="scale:.98">儲存檔案</button>
+    </div>
+
+    <sc-if value="{{ profSaved }}"><div style="position:absolute;left:50%;transform:translateX(-50%);bottom:156px;z-index:70;background:#16351F;color:#EEF6D6;padding:11px 20px;border-radius:22px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(22,53,31,.4);animation:popIn .25s ease;display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>已儲存</div></sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ===================== PIN SHEETS ===================== -->
+  <sc-if value="{{ hasSheet }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ sheet.onClose }}" style="position:absolute;inset:0;z-index:58;background:rgba(12,22,14,.32);animation:fadeIn .2s ease;"></div>
+
+    <sc-if value="{{ sheetPlayer }}">
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:60;background:#fff;border-radius:26px 26px 0 0;padding:12px 20px 30px;box-shadow:0 -14px 44px rgba(20,40,26,.24);animation:sheetUp .36s cubic-bezier(.22,.61,.36,1);">
+      <div style="width:40px;height:5px;border-radius:3px;background:#E1E5DC;margin:2px auto 18px;"></div>
+      <div style="display:flex;gap:13px;align-items:center;">
+        <div style="width:56px;height:56px;border-radius:50%;background:#16351F;display:flex;align-items:center;justify-content:center;color:#C9E23B;font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:24px;flex:none;">{{ sheet.initial }}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:19px;font-weight:700;color:#16351F;">{{ sheet.nick }}</div>
+          <div style="font-size:13px;color:#7C8A7F;margin-top:3px;">{{ sheet.area }}・常打 {{ sheet.court }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:60px;padding:7px 10px;border-radius:16px;background:#16351F;flex:none;">
+          <span style="font-size:9px;letter-spacing:2px;color:#8FA981;font-weight:700;">NTRP</span>
+          <span style="font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:23px;line-height:1.1;color:#C9E23B;">{{ sheet.ntrp }}</span>
+        </div>
+      </div>
+      <div style="margin-top:15px;">
+        <span style="font-size:12.5px;color:#54634E;background:#F0F3EA;padding:6px 12px;border-radius:12px;font-weight:500;">{{ sheet.types }}</span>
+      </div>
+      <div style="margin-top:14px;">
+        <div style="font-size:11.5px;color:#94A099;font-weight:600;letter-spacing:1px;margin-bottom:8px;">固定時段</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <sc-for list="{{ sheet.slots }}" as="s" hint-placeholder-count="2"><div style="font-size:12.5px;color:#2C3A31;background:#EEF6D6;border:1px solid #DCE8B6;padding:6px 12px;border-radius:12px;font-weight:500;">{{ s }}</div></sc-for>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;margin-top:15px;padding:11px 14px;background:#F5F7F0;border-radius:14px;">
+        <span style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:12px;color:#fff;background:#06C755;border-radius:6px;padding:3px 8px;letter-spacing:.5px;">LINE</span>
+        <span style="font-size:14.5px;color:#41514A;font-weight:600;">{{ sheet.line }}</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:17px;">
+        <button onClick="{{ sheet.onDetail }}" style="flex:none;padding:0 18px;height:50px;border-radius:15px;border:1.5px solid #DDE1D8;background:#fff;color:#20302A;font-family:'Noto Sans TC',sans-serif;font-weight:700;font-size:14.5px;cursor:pointer;" style-active="scale:.97">完整檔案</button>
+        <button onClick="{{ sheet.onInvite }}" style="flex:1;height:50px;border-radius:15px;border:0;background:#C9E23B;color:#16351F;font-family:'Noto Sans TC',sans-serif;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 8px 18px rgba(201,226,59,.5);" style-active="scale:.98">送出邀請</button>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ sheetDemand }}">
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:60;background:#fff;border-radius:26px 26px 0 0;padding:12px 20px 30px;box-shadow:0 -14px 44px rgba(20,40,26,.24);animation:sheetUp .36s cubic-bezier(.22,.61,.36,1);">
+      <div style="width:40px;height:5px;border-radius:3px;background:#E1E5DC;margin:2px auto 18px;"></div>
+      <div style="display:flex;align-items:center;gap:11px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:#fff;border:2px dashed #9DACA0;display:flex;align-items:center;justify-content:center;color:#7A8A7E;font-weight:700;font-size:15px;flex:none;">徵</div>
+        <div style="flex:1;">
+          <div style="font-size:17px;font-weight:700;color:#20302A;">{{ sheet.court }} 附近</div>
+          <div style="font-size:12.5px;color:#8A968C;margin-top:2px;">{{ sheet.dist }}・有人在徵球伴</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:inline-flex;align-items:center;gap:9px;background:#EEF1EB;padding:8px 14px;border-radius:13px;">
+        <span style="font-size:11px;color:#9AA69C;font-weight:600;letter-spacing:1px;">大概程度</span>
+        <span style="font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:700;font-size:15px;color:#54634E;">{{ sheet.level }}</span>
+      </div>
+      <div style="margin-top:15px;padding:15px 16px;background:#F5F7F0;border-radius:16px;border-left:4px solid #C9E23B;">
+        <div style="font-size:11px;color:#94A099;font-weight:600;letter-spacing:1px;margin-bottom:6px;">需求原句</div>
+        <div style="font-size:16.5px;color:#20302A;font-weight:600;line-height:1.55;">「{{ sheet.request }}」</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:15px;font-size:12px;color:#8A968C;line-height:1.55;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B0BAB0" stroke-width="2" style="flex:none;margin-top:1px;"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v5.5M12 7.6v.1" stroke-linecap="round"/></svg>
+        <span>此為公開徵求貼文，非平台註冊球友；不顯示姓名與聯絡方式。</span>
+      </div>
+      <button style="margin-top:16px;width:100%;height:48px;border-radius:15px;border:1.5px solid #DDE1D8;background:#fff;color:#20302A;font-family:'Noto Sans TC',sans-serif;font-weight:700;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;" style-active="scale:.98">
+        查看原貼文<span style="font-size:12px;color:#94A099;font-weight:500;">{{ sheet.source }}</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#20302A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M21 3l-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg>
+      </button>
+    </div>
+    </sc-if>
+  </sc-if>
+
+  <!-- ===================== CLUSTER DRAWER ===================== -->
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ drawer.onClose }}" style="position:absolute;inset:0;z-index:58;background:rgba(12,22,14,.32);animation:fadeIn .2s ease;"></div>
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:60;background:#fff;border-radius:26px 26px 0 0;padding:12px 16px 26px;box-shadow:0 -14px 44px rgba(20,40,26,.24);animation:sheetUp .36s cubic-bezier(.22,.61,.36,1);max-height:82%;display:flex;flex-direction:column;">
+      <div style="width:40px;height:5px;border-radius:3px;background:#E1E5DC;margin:2px auto 14px;flex:none;"></div>
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:0 4px 14px;flex:none;">
+        <div style="flex:1;">
+          <div style="font-size:19px;font-weight:700;color:#16351F;">{{ drawer.court }}</div>
+          <div style="font-size:13px;color:#8A968C;margin-top:3px;">{{ drawer.dist }}・{{ drawer.summary }}</div>
+        </div>
+        <button onClick="{{ drawer.onClose }}" style="width:32px;height:32px;border-radius:50%;border:0;background:#F0F3EA;color:#54634E;font-size:15px;cursor:pointer;flex:none;">✕</button>
+      </div>
+      <div class="scroll" style="overflow-y:auto;display:flex;flex-direction:column;gap:9px;padding:2px 2px 4px;">
+        <sc-for list="{{ drawer.items }}" as="it" hint-placeholder-count="2">
+          <sc-if value="{{ it.isPlayer }}">
+            <button onClick="{{ it.onTap }}" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 13px;border-radius:16px;border:1px solid #ECEFE8;background:#F8FAF4;text-align:left;cursor:pointer;" style-active="scale:.99">
+              <div style="width:44px;height:44px;border-radius:50%;background:#16351F;display:flex;align-items:center;justify-content:center;color:#C9E23B;font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:18px;flex:none;">{{ it.initial }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:16px;font-weight:700;color:#20302A;">{{ it.nick }}</span><span style="font-family:'Baloo 2',sans-serif;font-weight:700;font-size:12px;color:#16351F;background:#C9E23B;padding:2px 8px;border-radius:9px;">{{ it.ntrp }}</span></div>
+                <div style="font-size:12.5px;color:#7C8A7F;margin-top:3px;">{{ it.types }}</div>
+              </div>
+              <span style="color:#C0CBC2;font-size:22px;flex:none;line-height:1;">›</span>
+            </button>
+          </sc-if>
+          <sc-if value="{{ it.isDemand }}">
+            <button onClick="{{ it.onTap }}" style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 13px;border-radius:16px;border:1px dashed #D3DBCE;background:#FCFCFA;text-align:left;cursor:pointer;" style-active="scale:.99">
+              <div style="width:40px;height:40px;border-radius:50%;background:#fff;border:2px dashed #9DACA0;display:flex;align-items:center;justify-content:center;color:#7A8A7E;font-weight:700;font-size:14px;flex:none;">徵</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14.5px;font-weight:600;color:#2C3A31;line-height:1.4;">{{ it.request }}</div>
+                <div style="font-size:12px;color:#94A099;margin-top:3px;">{{ it.level }}・{{ it.source }}</div>
+              </div>
+              <span style="color:#C0CBC2;font-size:22px;flex:none;line-height:1;">›</span>
+            </button>
+          </sc-if>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ===================== PLAYER DETAIL (screen 2) ===================== -->
+  <sc-if value="{{ detailOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:55;background:#F4F6F0;display:flex;flex-direction:column;animation:slideIn .32s cubic-bezier(.22,.61,.36,1);">
+    <div style="padding:50px 14px 12px;display:flex;align-items:center;gap:8px;flex:none;">
+      <button onClick="{{ detail.onBack }}" style="width:40px;height:40px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 8px rgba(20,40,26,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;" style-active="scale:.94">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <span style="font-size:16px;font-weight:700;color:#16351F;">球友檔案</span>
+    </div>
+    <div class="scroll" style="flex:1;overflow-y:auto;padding:6px 18px 132px;">
+      <div style="display:flex;flex-direction:column;align-items:center;text-align:center;">
+        <div style="width:82px;height:82px;border-radius:50%;background:#16351F;display:flex;align-items:center;justify-content:center;color:#C9E23B;font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:34px;box-shadow:0 10px 24px rgba(22,53,31,.28);">{{ detail.initial }}</div>
+        <div style="font-size:24px;font-weight:700;color:#16351F;margin-top:12px;">{{ detail.nick }}</div>
+        <div style="font-size:13.5px;color:#8A968C;margin-top:3px;">常出沒 {{ detail.area }}</div>
+      </div>
+      <div style="display:flex;justify-content:center;margin:16px 0 4px;">
+        <div style="display:flex;align-items:center;gap:16px;background:#16351F;border-radius:20px;padding:13px 24px;box-shadow:0 8px 20px rgba(22,53,31,.22);">
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <span style="font-size:10px;letter-spacing:2px;color:#8FA981;font-weight:700;">NTRP</span>
+            <span style="font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:38px;line-height:1;color:#C9E23B;">{{ detail.ntrp }}</span>
+          </div>
+          <div style="width:1px;height:38px;background:rgba(255,255,255,.16);"></div>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;">
+            <span style="font-size:11px;color:#8FA981;">程度分級</span>
+            <span style="font-size:17px;font-weight:700;color:#EEF6D6;margin-top:2px;">{{ detail.ntrpDesc }}</span>
+          </div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:15px 16px;margin-top:14px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:10px;">想打類型</div>
+        <div style="display:flex;flex-wrap:wrap;gap:7px;">
+          <sc-for list="{{ detail.types }}" as="t" hint-placeholder-count="2"><span style="font-size:13.5px;color:#16351F;background:#EEF6D6;border:1px solid #DCE8B6;padding:7px 13px;border-radius:12px;font-weight:600;">{{ t }}</span></sc-for>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:15px 16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:10px;">常打的球場</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <sc-for list="{{ detail.courts }}" as="cn" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center;gap:9px;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7BA23F" stroke-width="2.2"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+              <span style="font-size:15px;color:#2C3A31;font-weight:500;">{{ cn }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:15px 16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:11px;">固定時段</div>
+        <div style="display:flex;flex-direction:column;gap:7px;">
+          <div style="display:flex;gap:7px;">
+            <div style="width:46px;"></div>
+            <div style="flex:1;text-align:center;font-size:12px;color:#94A099;font-weight:600;">早上</div>
+            <div style="flex:1;text-align:center;font-size:12px;color:#94A099;font-weight:600;">下午</div>
+            <div style="flex:1;text-align:center;font-size:12px;color:#94A099;font-weight:600;">晚上</div>
+          </div>
+          <sc-for list="{{ detail.slotRows }}" as="r" hint-placeholder-count="2">
+            <div style="display:flex;gap:7px;align-items:stretch;">
+              <div style="width:46px;display:flex;align-items:center;font-size:13.5px;color:#54634E;font-weight:700;">{{ r.day }}</div>
+              <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="3">
+                <sc-if value="{{ c.on }}"><div style="flex:1;height:38px;border-radius:11px;background:#C9E23B;display:flex;align-items:center;justify-content:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div></sc-if>
+                <sc-if value="{{ c.off }}"><div style="flex:1;height:38px;border-radius:11px;background:#F0F3EA;"></div></sc-if>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #EEF1EB;border-radius:18px;padding:15px 16px;margin-top:12px;">
+        <div style="font-size:12px;color:#94A099;font-weight:700;letter-spacing:1px;margin-bottom:8px;">關於</div>
+        <div style="font-size:14.5px;color:#41514A;line-height:1.6;">{{ detail.bio }}</div>
+      </div>
+    </div>
+    <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 18px 26px;background:linear-gradient(rgba(244,246,240,0),#F4F6F0 24%);display:flex;flex-direction:column;gap:2px;">
+      <button onClick="{{ detail.onInvite }}" style="height:54px;border-radius:16px;border:0;background:#C9E23B;color:#16351F;font-family:'Noto Sans TC',sans-serif;font-weight:800;font-size:17px;cursor:pointer;box-shadow:0 10px 22px rgba(201,226,59,.55);" style-active="scale:.98">送出邀請</button>
+      <button onClick="{{ detail.onLine }}" style="height:46px;border:0;background:none;color:#54634E;font-family:'Noto Sans TC',sans-serif;font-weight:600;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+        <span style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:11px;color:#fff;background:#06C755;border-radius:5px;padding:2px 7px;">LINE</span>直接用 Line 聯絡（{{ detail.line }}）
+      </button>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ===================== INVITE MODAL ===================== -->
+  <sc-if value="{{ inviteOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ invite.onClose }}" style="position:absolute;inset:0;z-index:68;background:rgba(12,22,14,.42);animation:fadeIn .2s ease;"></div>
+    <div style="position:absolute;left:16px;right:16px;top:50%;transform:translateY(-50%);z-index:70;background:#fff;border-radius:24px;padding:20px;box-shadow:0 24px 60px rgba(20,40,26,.4);animation:popIn .3s cubic-bezier(.22,.61,.36,1);">
+      <sc-if value="{{ inviteForm }}">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">
+          <div style="width:48px;height:48px;border-radius:50%;background:#16351F;display:flex;align-items:center;justify-content:center;color:#C9E23B;font-family:'Baloo 2','Noto Sans TC',sans-serif;font-weight:800;font-size:19px;flex:none;">{{ invite.initial }}</div>
+          <div style="flex:1;"><div style="font-size:12px;color:#94A099;font-weight:600;">送出邀請給</div><div style="font-size:18px;font-weight:700;color:#16351F;">{{ invite.nick }}</div></div>
+          <button onClick="{{ invite.onClose }}" style="width:32px;height:32px;border-radius:50%;border:0;background:#F0F3EA;color:#54634E;font-size:15px;cursor:pointer;flex:none;">✕</button>
+        </div>
+        <div style="font-size:12.5px;color:#94A099;font-weight:700;letter-spacing:.5px;margin-bottom:9px;">想約哪個時段？</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
+          <sc-for list="{{ invite.slots }}" as="s" hint-placeholder-count="2">
+            <sc-if value="{{ s.active }}"><button onClick="{{ s.onClick }}" style="height:40px;padding:0 16px;border-radius:13px;border:1.5px solid #16351F;background:#C9E23B;color:#16351F;font-family:'Noto Sans TC',sans-serif;font-size:14px;font-weight:700;cursor:pointer;">{{ s.label }}</button></sc-if>
+            <sc-if value="{{ s.notActive }}"><button onClick="{{ s.onClick }}" style="height:40px;padding:0 16px;border-radius:13px;border:1px solid #DDE1D8;background:#F7F9F4;color:#54634E;font-family:'Noto Sans TC',sans-serif;font-size:14px;font-weight:500;cursor:pointer;">{{ s.label }}</button></sc-if>
+          </sc-for>
+        </div>
+        <div style="font-size:12.5px;color:#94A099;font-weight:700;letter-spacing:.5px;margin-bottom:9px;">留言（選填）</div>
+        <textarea onInput="{{ invite.onMsg }}" placeholder="打聲招呼，說說你的球風、想約的球場…" style="width:100%;height:84px;border:1px solid #E7EAE1;border-radius:14px;background:#F8FAF4;padding:12px 14px;font-family:'Noto Sans TC',sans-serif;font-size:14px;color:#20302A;resize:none;outline:none;line-height:1.5;box-sizing:border-box;"></textarea>
+        <button onClick="{{ invite.onSend }}" style="width:100%;height:52px;border-radius:16px;border:0;background:#C9E23B;color:#16351F;font-family:'Noto Sans TC',sans-serif;font-weight:800;font-size:16px;cursor:pointer;margin-top:16px;box-shadow:0 8px 20px rgba(201,226,59,.5);" style-active="scale:.98">送出邀請</button>
+        <div style="text-align:center;font-size:11.5px;color:#A6B0A6;margin-top:11px;line-height:1.5;">對方接受後，才會互相看到 LINE 聯絡方式。</div>
+      </sc-if>
+      <sc-if value="{{ inviteDone }}">
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:8px 0 4px;">
+          <div style="width:66px;height:66px;border-radius:50%;background:#C9E23B;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(201,226,59,.5);"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <div style="font-size:20px;font-weight:800;color:#16351F;margin-top:16px;">邀請已送出！</div>
+          <div style="font-size:14px;color:#7C8A7F;margin-top:6px;line-height:1.55;">已通知 {{ invite.nick }}，等對方接受後<br/>就能看到 LINE、開始約球。</div>
+          <div style="display:inline-flex;align-items:center;gap:7px;background:#F0F3EA;border-radius:13px;padding:9px 15px;margin-top:16px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#54634E" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-size:14px;color:#41514A;font-weight:600;">{{ invite.chosenSlot }}</span></div>
+        </div>
+        <button onClick="{{ invite.onGoto }}" style="width:100%;height:52px;border-radius:16px;border:0;background:#16351F;color:#fff;font-family:'Noto Sans TC',sans-serif;font-weight:800;font-size:16px;cursor:pointer;margin-top:20px;" style-active="scale:.98">查看我的邀請</button>
+        <button onClick="{{ invite.onClose }}" style="width:100%;height:46px;border:0;background:none;color:#54634E;font-family:'Noto Sans TC',sans-serif;font-weight:600;font-size:14.5px;cursor:pointer;margin-top:2px;">完成</button>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- ===================== STATUS BAR ===================== -->
+  <div style="position:absolute;top:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 27px;z-index:80;pointer-events:none;">
+    <span style="font-family:'Baloo 2',sans-serif;font-weight:700;font-size:15px;color:#16351F;">9:41</span>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="#16351F"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.7" y="4.5" width="3" height="7.5" rx="1"/><rect x="9.3" y="2" width="3" height="10" rx="1"/><rect x="14" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="#16351F" stroke-width="1.6" stroke-linecap="round"><path d="M1 4.4C4 1.4 12 1.4 15 4.4M3.4 7C5.5 5 10.5 5 12.6 7M6 9.4c1-.9 3-.9 4 0"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="#16351F" opacity=".5"/><rect x="2" y="2" width="16.5" height="8" rx="1.5" fill="#16351F"/><rect x="23" y="4" width="1.5" height="4" rx=".75" fill="#16351F" opacity=".5"/></svg>
+    </div>
+  </div>
+
+  <!-- ===================== TAB BAR ===================== -->
+  <div style="position:absolute;left:0;right:0;bottom:0;height:84px;padding:9px 24px 24px;background:rgba(255,255,255,.93);backdrop-filter:blur(14px);border-top:1px solid #E7EAE2;display:flex;justify-content:space-between;align-items:flex-start;z-index:50;">
+    <sc-if value="{{ mapActive }}"><button onClick="{{ tabMap }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;cursor:pointer;color:#16351F;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4" fill="#C9E23B" stroke="none"/></svg><span style="font-size:11px;font-weight:700;">地圖</span></button></sc-if>
+    <sc-if value="{{ notMap }}"><button onClick="{{ tabMap }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;cursor:pointer;color:#A4AEA4;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A4AEA4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span style="font-size:11px;font-weight:500;">地圖</span></button></sc-if>
+
+    <sc-if value="{{ invitesActive }}"><button onClick="{{ tabInvites }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;cursor:pointer;color:#16351F;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg><span style="font-size:11px;font-weight:700;">我的邀請</span></button></sc-if>
+    <sc-if value="{{ notInvites }}"><button onClick="{{ tabInvites }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;cursor:pointer;color:#A4AEA4;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A4AEA4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg><span style="font-size:11px;font-weight:500;">我的邀請</span></button></sc-if>
+
+    <sc-if value="{{ profileActive }}"><button onClick="{{ tabProfile }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;cursor:pointer;color:#16351F;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6.2 8-6.2s8 2.2 8 6.2"/></svg><span style="font-size:11px;font-weight:700;">個人檔案</span></button></sc-if>
+    <sc-if value="{{ notProfile }}"><button onClick="{{ tabProfile }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;background:none;cursor:pointer;color:#A4AEA4;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A4AEA4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6.2 8-6.2s8 2.2 8 6.2"/></svg><span style="font-size:11px;font-weight:500;">個人檔案</span></button></sc-if>
+  </div>
+
+ </div>
+ </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;showDemandPins&quot;: {&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;地圖&quot;,&quot;label&quot;:&quot;顯示需求釘（徵求貼文）&quot;},
+  &quot;showDistrictLabels&quot;: {&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;地圖&quot;,&quot;label&quot;:&quot;顯示行政區名稱&quot;},
+  &quot;defaultBand&quot;: {&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;全部&quot;,&quot;options&quot;:[&quot;全部&quot;,&quot;≤ 3.0&quot;,&quot;3.0–4.0&quot;,&quot;4.0–5.0&quot;,&quot;5.0+&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;篩選&quot;,&quot;label&quot;:&quot;預設程度篩選&quot;}
+}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.viewportRef=React.createRef();
+    this.worldRef=React.createRef();
+    this.baseRef=React.createRef();
+    this.pinsRef=React.createRef();
+    this.fitRef=React.createRef(); this._fit=1;
+    this.WORLD_W=1200; this.WORLD_H=1500;
+    this.minScale=0.42; this.maxScale=2.4;
+    this.s0=0.7; this.tx0=-295; this.ty0=-229;
+    this._tx=this.tx0; this._ty=this.ty0; this._s=this.s0;
+    this._ptrs=new Map(); this._moved=false; this._pan=null; this._pinch=null;
+
+    this.TYPES=[{key:'singles',short:'單打',full:'認真單打'},{key:'rally',short:'對拉',full:'輕鬆對拉'},{key:'doubles',short:'雙打',full:'雙打'},{key:'practice',short:'練球',full:'練球'}];
+    this.SLOTS=[{k:'wd-m',d:'平日',t:'早上'},{k:'wd-a',d:'平日',t:'下午'},{k:'wd-e',d:'平日',t:'晚上'},{k:'we-m',d:'週末',t:'早上'},{k:'we-a',d:'週末',t:'下午'},{k:'we-e',d:'週末',t:'晚上'}];
+    this.courts=[
+      {id:'tianmu',name:'天母網球場',dist:'士林區',x:520,y:210},
+      {id:'bailing',name:'百齡網球中心',dist:'士林區',x:455,y:360},
+      {id:'dajia',name:'大佳河濱網球場',dist:'中山區',x:700,y:452},
+      {id:'neihu',name:'內湖運動公園網球場',dist:'內湖區',x:980,y:452},
+      {id:'yingfeng',name:'迎風河濱網球場',dist:'中山區',x:845,y:560},
+      {id:'daan',name:'大安運動中心',dist:'大安區',x:752,y:792},
+      {id:'qingnian',name:'青年公園網球場',dist:'萬華區',x:388,y:900},
+      {id:'ntu',name:'臺大網球場',dist:'大安區',x:585,y:1010},
+      {id:'xinyi',name:'信義運動中心',dist:'信義區',x:892,y:872},
+      {id:'muzha',name:'木柵網球場',dist:'文山區',x:706,y:1240}
+    ];
+    this.players=[
+      {id:1,nick:'陳彥宏',ntrp:3.5,types:['singles','rally'],court:'daan',courts:['daan','ntu'],slots:['wd-e','we-m'],line:'yen_tennis',area:'大安區',bio:'固定週三晚上打大安，想找程度相近、能長期約的對打咖，重點是穩定出席。'},
+      {id:2,nick:'林佳蓉',ntrp:4.0,types:['singles','doubles'],court:'xinyi',courts:['xinyi','daan'],slots:['we-m','we-a'],line:'chloe_lin',area:'信義區',bio:'週末早上信義運動中心，單打雙打都可以，喜歡有來有往的節奏。'},
+      {id:3,nick:'David',ntrp:4.5,types:['singles'],court:'tianmu',courts:['tianmu','bailing'],slots:['wd-e'],line:'david_tpe',area:'士林區',bio:'天母附近，平日下班後打球。認真單打、想維持比賽手感。'},
+      {id:4,nick:'王柏睿',ntrp:3.0,types:['rally','practice'],court:'qingnian',courts:['qingnian'],slots:['we-a','we-e'],line:'ray0912',area:'萬華區',bio:'還在進步中，週末想找人輕鬆對拉、練基本動作，不太計較勝負。'},
+      {id:5,nick:'Momo',ntrp:3.5,types:['doubles','rally'],court:'neihu',courts:['neihu'],slots:['wd-a','we-a'],line:'momo.tennis',area:'內湖區',bio:'內湖運動公園常客，主要打雙打，歡迎一起揪團湊四缺一。'},
+      {id:6,nick:'Alex',ntrp:5.0,types:['singles'],court:'ntu',courts:['ntu','daan'],slots:['wd-e','wd-m'],line:'alex.chen',area:'大安區',bio:'台大球場，強度較高的單打。希望對手 4.5 以上，能跑能拉。'},
+      {id:7,nick:'佩芬',ntrp:2.5,types:['practice','rally'],court:'muzha',courts:['muzha'],slots:['we-m'],line:'peifen_2',area:'文山區',bio:'新手一枚，木柵球場，週末早上想找一樣在學的球友一起練球。'},
+      {id:8,nick:'Kevin',ntrp:4.0,types:['singles','doubles'],court:'yingfeng',courts:['yingfeng','dajia'],slots:['wd-e','we-e'],line:'kevin.hsu',area:'中山區',bio:'河濱球場，平日晚上或週末晚上，單雙打都行，找固定咖最好。'}
+    ];
+    this.demands=[
+      {id:1,court:'daan',area:'大安區',ntrp:3.5,levelText:'約 3.5',request:'平日晚上・徵固定對打',types:['singles'],source:'PTT Tennis 板'},
+      {id:2,court:'xinyi',area:'信義區',ntrp:null,levelText:'程度未提供',request:'週末早上找人練發球、對拉',types:['rally','practice'],source:'FB 台北網球社'},
+      {id:3,court:'dajia',area:'中山區',ntrp:4.0,levelText:'約 4.0',request:'假日下午雙打，長期缺一腳',types:['doubles'],source:'FB 大佳網球'},
+      {id:4,court:'bailing',area:'士林區',ntrp:3.0,levelText:'約 3.0',request:'平日早上晨打，想長期固定',types:['rally'],source:'LINE 社群'},
+      {id:5,court:'ntu',area:'大安區',ntrp:null,levelText:'程度未提供',request:'想找球友練球，不排斥新手',types:['practice'],source:'Dcard 運動板'},
+      {id:6,court:'qingnian',area:'萬華區',ntrp:3.5,levelText:'約 3.5',request:'週末晚上對打，青年公園',types:['singles','rally'],source:'PTT Tennis 板'},
+      {id:7,court:'daan',area:'大安區',ntrp:null,levelText:'程度未提供',request:'早上想打雙打，六日皆可',types:['doubles'],source:'FB 台北網球社'}
+    ];
+
+    const _bm={'全部':'all','≤ 3.0':'lo','3.0–4.0':'mid','4.0–5.0':'hi','5.0+':'pro'};
+    this.state={ tab:'map', filterTypes:{}, filterBand:(_bm[this.props.defaultBand]||'all'), levelOpen:false, sheet:null, drawerCourtId:null, detailId:null, inviteFor:null, inviteSlot:null, inviteMsg:'', inviteSent:false, invites:[{id:1,playerId:2,slot:'週末早上',msg:'嗨！我住信義區，週末早上時間剛好合，想找人穩定對打～',status:'accepted',when:'2 天前'}], profile:{nick:'我',ntrp:3.5,types:{singles:true,rally:true},courts:{daan:true},slots:{'wd-e':true,'we-m':true},share:false,granularity:'court',line:''}, profSaved:false };
+    ['onWheel','onPointerDown','onPointerMove','onPointerUp'].forEach(k=>this[k]=this[k].bind(this));
+  }
+
+  componentDidMount(){
+    this.fit(); this._onResize=()=>this.fit(); window.addEventListener('resize',this._onResize);
+    this._lbl=this.props.showDistrictLabels;
+    if(this.baseRef.current) this.baseRef.current.innerHTML=this.buildBasemap();
+    const vp=this.viewportRef.current;
+    if(vp){
+      vp.addEventListener('wheel',this.onWheel,{passive:false});
+      vp.addEventListener('pointerdown',this.onPointerDown);
+      window.addEventListener('pointermove',this.onPointerMove);
+      window.addEventListener('pointerup',this.onPointerUp);
+      window.addEventListener('pointercancel',this.onPointerUp);
+    }
+    this.applyTransform();
+  }
+  componentWillUnmount(){
+    window.removeEventListener('resize',this._onResize);
+    window.removeEventListener('pointermove',this.onPointerMove);
+    window.removeEventListener('pointerup',this.onPointerUp);
+    window.removeEventListener('pointercancel',this.onPointerUp);
+  }
+  componentDidUpdate(){ if(this.props.showDistrictLabels!==this._lbl){ this._lbl=this.props.showDistrictLabels; if(this.baseRef.current) this.baseRef.current.innerHTML=this.buildBasemap(); } this.applyTransform(); }
+
+  clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  clampPan(){
+    const vp=this.viewportRef.current; const Wv=vp?vp.clientWidth:390, Hv=vp?vp.clientHeight:844;
+    const Ww=this.WORLD_W*this._s, Hh=this.WORLD_H*this._s, M=90;
+    if(Ww<=Wv) this._tx=(Wv-Ww)/2; else this._tx=this.clamp(this._tx, Wv-Ww-M, M);
+    if(Hh<=Hv) this._ty=(Hv-Hh)/2; else this._ty=this.clamp(this._ty, Hv-Hh-M, M);
+  }
+  applyTransform(){
+    const w=this.worldRef.current; if(w) w.style.transform=`translate(${this._tx}px,${this._ty}px) scale(${this._s})`;
+    const pins=this.pinsRef.current; if(!pins) return;
+    const vp=this.viewportRef.current; const Wv=vp?vp.clientWidth:390, Hv=vp?vp.clientHeight:844;
+    pins.querySelectorAll('[data-pin]').forEach(n=>{
+      const wx=parseFloat(n.dataset.wx), wy=parseFloat(n.dataset.wy);
+      if(isNaN(wx)) return;
+      const sx=this._tx+wx*this._s, sy=this._ty+wy*this._s;
+      if(sx<-46||sx>Wv+46||sy<-30||sy>Hv+46){ n.style.display='none'; }
+      else { n.style.display=''; n.style.transform=`translate(${sx}px,${sy}px) translate(-50%,-100%)`; n.style.zIndex=n.dataset.z; }
+    });
+  }
+  setTransition(on){ const w=this.worldRef.current; if(w) w.style.transition=on?'transform .34s cubic-bezier(.22,.61,.36,1)':'none'; }
+  zoomAround(factor,cx,cy){
+    const ns=this.clamp(this._s*factor,this.minScale,this.maxScale);
+    const wx=(cx-this._tx)/this._s, wy=(cy-this._ty)/this._s;
+    this._s=ns; this._tx=cx-wx*ns; this._ty=cy-wy*ns; this.clampPan(); this.applyTransform();
+  }
+  zoomBtn(f){ this.setTransition(true); const vp=this.viewportRef.current; this.zoomAround(f, vp.clientWidth/2, vp.clientHeight/2); }
+  recenter(){ this.setTransition(true); this._s=this.s0; this._tx=this.tx0; this._ty=this.ty0; this.clampPan(); this.applyTransform(); }
+  fit(){ const el=this.fitRef.current; if(!el) return; const f=Math.min(1,(window.innerHeight-24)/844,(window.innerWidth-24)/390); this._fit=f>0?f:1; el.style.transform='scale('+this._fit+')'; }
+
+  onWheel(e){ e.preventDefault(); this.setTransition(false); const f=Math.pow(0.9985,e.deltaY); const r=this.viewportRef.current.getBoundingClientRect(); this.zoomAround(f, (e.clientX-r.left)/this._fit, (e.clientY-r.top)/this._fit); }
+  onPointerDown(e){
+    this.setTransition(false); this._moved=false;
+    this._ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(this._ptrs.size===1){ this._pan={sx:e.clientX,sy:e.clientY,tx:this._tx,ty:this._ty}; this._pinch=null; }
+    else if(this._ptrs.size===2){ this._startPinch(); }
+  }
+  _startPinch(){ const r=this.viewportRef.current.getBoundingClientRect(); const a=[...this._ptrs.values()]; const mx=(a[0].x+a[1].x)/2, my=(a[0].y+a[1].y)/2; this._pinch={ d:Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y), lx:(mx-r.left)/this._fit, ly:(my-r.top)/this._fit, tx:this._tx, ty:this._ty, s:this._s }; }
+  onPointerMove(e){
+    if(!this._ptrs.has(e.pointerId)) return;
+    this._ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const r=this.viewportRef.current.getBoundingClientRect();
+    if(this._ptrs.size>=2 && this._pinch){
+      const a=[...this._ptrs.values()]; const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); const mx=((a[0].x+a[1].x)/2-r.left)/this._fit, my=((a[0].y+a[1].y)/2-r.top)/this._fit;
+      const f=d/this._pinch.d; const ns=this.clamp(this._pinch.s*f,this.minScale,this.maxScale);
+      const wx=(this._pinch.lx-this._pinch.tx)/this._pinch.s, wy=(this._pinch.ly-this._pinch.ty)/this._pinch.s;
+      this._s=ns; this._tx=mx-wx*ns; this._ty=my-wy*ns; this._moved=true; this.clampPan(); this.applyTransform();
+    } else if(this._pan){
+      const dx=(e.clientX-this._pan.sx)/this._fit, dy=(e.clientY-this._pan.sy)/this._fit; if(Math.abs(dx)+Math.abs(dy)>5) this._moved=true;
+      this._tx=this._pan.tx+dx; this._ty=this._pan.ty+dy; this.clampPan(); this.applyTransform();
+    }
+  }
+  onPointerUp(e){
+    this._ptrs.delete(e.pointerId);
+    if(this._ptrs.size<2) this._pinch=null;
+    if(this._ptrs.size===1){ const p=[...this._ptrs.values()][0]; this._pan={sx:p.x,sy:p.y,tx:this._tx,ty:this._ty}; }
+    if(this._ptrs.size===0) this._pan=null;
+  }
+
+  buildBasemap(){
+    const W=1200,H=1500;
+    const C={land:'#ECEDE7',water:'#C4D8E2',park:'#D8E6C4',hill:'#DFEAD4',casing:'#DEE0D8',road:'#FFFFFF',label:'#AEB6AC'};
+    let seed=20260701; const rnd=()=>{ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; };
+    let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+    s+=`<rect width="${W}" height="${H}" fill="${C.land}"/>`;
+    s+=`<path d="M0,0 H1200 V150 C980,235 770,140 540,215 C360,272 165,205 0,285 Z" fill="${C.hill}"/>`;
+    s+=`<path d="M1200,720 C1070,800 1010,980 1055,1180 C1090,1350 1200,1410 1200,1500 V720 Z" fill="${C.hill}"/>`;
+    s+=`<path d="M0,1500 V1250 C150,1195 320,1300 315,1430 C312,1478 150,1495 0,1500 Z" fill="${C.hill}"/>`;
+    const roads=[];
+    for(let x=150;x<=1120;x+=94){ const o=(rnd()*2-1)*26; roads.push({d:`M${x},60 L${x+o},1450`,w:5}); }
+    for(let y=140;y<=1440;y+=92){ const o=(rnd()*2-1)*26; roads.push({d:`M40,${y} L1170,${y+o}`,w:5}); }
+    const majors=[{d:'M60,846 L1160,858',w:11},{d:'M60,918 L1150,930',w:10},{d:'M604,80 L616,1440',w:11},{d:'M772,90 L760,1440',w:10},{d:'M300,120 C520,520 560,900 470,1440',w:10},{d:'M1160,300 C820,520 700,760 604,900',w:10}];
+    majors.forEach(m=>roads.push(m));
+    roads.forEach(r=>{ s+=`<path d="${r.d}" fill="none" stroke="${C.casing}" stroke-width="${r.w+3}" stroke-linecap="round"/>`; });
+    roads.forEach(r=>{ s+=`<path d="${r.d}" fill="none" stroke="${C.road}" stroke-width="${r.w}" stroke-linecap="round"/>`; });
+    s+=`<path d="M0,0 H150 C120,220 235,360 190,560 C150,720 60,860 100,1060 C130,1220 300,1330 285,1500 H0 Z" fill="${C.water}"/>`;
+    s+=`<path d="M170,470 C370,410 520,520 700,472 C880,424 1010,522 1200,470 L1200,556 C1010,606 880,516 700,566 C520,614 370,512 170,562 Z" fill="${C.water}"/>`;
+    s+=`<rect x="612" y="812" width="122" height="150" rx="20" fill="${C.park}"/>`;
+    s+=`<rect x="328" y="852" width="118" height="94" rx="16" fill="${C.park}"/>`;
+    s+=`<rect x="632" y="430" width="150" height="66" rx="30" fill="${C.park}"/>`;
+    s+=`<circle cx="898" cy="1002" r="54" fill="${C.park}"/>`;
+    if(this.props.showDistrictLabels!==false){
+      const labs=[['士林',432,300],['天母',520,168],['內湖',965,470],['中山',560,648],['大同',430,566],['松山',842,690],['信義',900,948],['大安',700,935],['中正',540,884],['萬華',360,884],['文山',720,1236],['南港',1042,760]];
+      labs.forEach(l=>{ s+=`<text x="${l[1]}" y="${l[2]}" fill="${C.label}" font-family="'Noto Sans TC',sans-serif" font-size="21" font-weight="700" letter-spacing="3" text-anchor="middle" opacity="0.65">${l[0]}</text>`; });
+    }
+    s+='</svg>';
+    return s;
+  }
+
+  _typeMatch(itemTypes){ const ft=Object.keys(this.state.filterTypes).filter(k=>this.state.filterTypes[k]); if(ft.length===0) return true; return itemTypes && itemTypes.some(t=>ft.includes(t)); }
+  _bandMatch(ntrp){ const b=this.state.filterBand; if(b==='all'||ntrp==null) return true; if(b==='lo') return ntrp<=3.0; if(b==='mid') return ntrp>3.0&&ntrp<=4.0; if(b==='hi') return ntrp>4.0&&ntrp<=5.0; if(b==='pro') return ntrp>5.0; return true; }
+  _tap(fn){ return ()=>{ if(this._moved) return; fn(); }; }
+  computeMarkers(){
+    const byCourt={};
+    this.players.forEach(p=>{ if(!this._typeMatch(p.types)||!this._bandMatch(p.ntrp)) return; (byCourt[p.court]=byCourt[p.court]||[]).push({kind:'player',data:p}); });
+    if(this.props.showDemandPins!==false) this.demands.forEach(d=>{ if(!this._typeMatch(d.types)||!this._bandMatch(d.ntrp)) return; (byCourt[d.court]=byCourt[d.court]||[]).push({kind:'demand',data:d}); });
+    const markers=[];
+    this.courts.forEach(c=>{ const arr=byCourt[c.id]; if(!arr||!arr.length) return;
+      if(arr.length===1){ const it=arr[0];
+        if(it.kind==='player') markers.push({id:'p'+it.data.id,wx:c.x,wy:c.y,z:30,isPlayer:true,isDemand:false,isCluster:false,initial:it.data.nick.slice(0,1),onTap:this._tap(()=>this.openPlayer(it.data.id))});
+        else markers.push({id:'d'+it.data.id,wx:c.x,wy:c.y,z:20,isPlayer:false,isDemand:true,isCluster:false,onTap:this._tap(()=>this.openDemand(it.data.id))});
+      } else { markers.push({id:'c'+c.id,wx:c.x,wy:c.y,z:40,isCluster:true,isPlayer:false,isDemand:false,count:arr.length,onTap:this._tap(()=>this.openDrawer(c.id))}); }
+    });
+    return markers;
+  }
+
+  openPlayer(id){ this.setState({sheet:{type:'player',id},drawerCourtId:null}); }
+  openDemand(id){ this.setState({sheet:{type:'demand',id},drawerCourtId:null}); }
+  openDrawer(id){ this.setState({drawerCourtId:id,sheet:null}); }
+  openDetail(id){ this.setState({detailId:id,sheet:null,drawerCourtId:null}); }
+  closeSheets(){ this.setState({sheet:null,drawerCourtId:null,detailId:null}); }
+  toggleType(k){ this.setState(s=>{ const f={...s.filterTypes}; f[k]=!f[k]; if(!f[k]) delete f[k]; return {filterTypes:f}; }); }
+  toggleLevel(){ this.setState(s=>({levelOpen:!s.levelOpen})); }
+  setBand(b){ this.setState({filterBand:b,levelOpen:false}); }
+  setTab(t){ this.setState({tab:t,detailId:null,sheet:null,drawerCourtId:null,levelOpen:false}); }
+  toggleProfType(k){ this.setState(s=>{const t={...s.profile.types}; t[k]=!t[k]; if(!t[k])delete t[k]; return {profile:{...s.profile,types:t}};}); }
+  toggleProfCourt(id){ this.setState(s=>{const c={...s.profile.courts}; c[id]=!c[id]; if(!c[id])delete c[id]; return {profile:{...s.profile,courts:c}};}); }
+  toggleProfSlot(code){ this.setState(s=>{const sl={...s.profile.slots}; sl[code]=!sl[code]; if(!sl[code])delete sl[code]; return {profile:{...s.profile,slots:sl}};}); }
+  setProf(key,v){ this.setState(s=>({profile:{...s.profile,[key]:v}})); }
+  saveProfile(){ this.setState({profSaved:true}); clearTimeout(this._saveT); this._saveT=setTimeout(()=>this.setState({profSaved:false}),2200); }
+  bandLabel(){ const m={all:'全部',lo:'≤3.0',mid:'3.0–4.0',hi:'4.0–5.0',pro:'5.0+'}; return m[this.state.filterBand]||'全部'; }
+  slotLabel(k){ const s=this.SLOTS.find(x=>x.k===k); return s? s.d+s.t : k; }
+  typeFull(keys){ return (keys||[]).map(k=>{ const t=this.TYPES.find(y=>y.key===k); return t?t.full:k; }); }
+  getCourt(id){ return this.courts.find(x=>x.id===id); }
+  courtName(id){ const c=this.getCourt(id); return c?c.name:''; }
+  getPlayer(id){ return this.players.find(p=>p.id===id); }
+  getDemand(id){ return this.demands.find(d=>d.id===id); }
+  openInvite(id){ this.setState({inviteFor:id,inviteSlot:null,inviteMsg:'',inviteSent:false,sheet:null,drawerCourtId:null}); }
+  buildSheet(){
+    const s=this.state.sheet; if(!s) return null;
+    if(s.type==='player'){ const p=this.getPlayer(s.id); if(!p) return null; const c=this.getCourt(p.court);
+      return {kind:'player',nick:p.nick,initial:p.nick.slice(0,1),ntrp:p.ntrp.toFixed(1),area:p.area,court:c?c.name:'',types:this.typeFull(p.types).join('・'),slots:p.slots.map(k=>this.slotLabel(k)),line:p.line,
+        onDetail:()=>this.openDetail(p.id),onInvite:()=>this.openInvite(p.id),onClose:()=>this.closeSheets()};
+    }
+    const d=this.getDemand(s.id); if(!d) return null; const c=this.getCourt(d.court);
+    return {kind:'demand',court:c?c.name:'',dist:d.area,level:d.levelText,request:d.request,source:d.source,onClose:()=>this.closeSheets()};
+  }
+  buildDrawer(){
+    const id=this.state.drawerCourtId; if(!id) return null; const c=this.getCourt(id);
+    const ps=this.players.filter(p=>p.court===id && this._typeMatch(p.types)&&this._bandMatch(p.ntrp));
+    const ds=(this.props.showDemandPins===false)?[]:this.demands.filter(d=>d.court===id && this._typeMatch(d.types)&&this._bandMatch(d.ntrp));
+    const items=[];
+    ps.forEach(p=>items.push({isPlayer:true,isDemand:false,initial:p.nick.slice(0,1),nick:p.nick,ntrp:p.ntrp.toFixed(1),types:this.typeFull(p.types).join('・'),onTap:()=>this.openPlayer(p.id)}));
+    ds.forEach(d=>items.push({isPlayer:false,isDemand:true,request:d.request,level:d.levelText,source:d.source,onTap:()=>this.openDemand(d.id)}));
+    const parts=[]; if(ps.length)parts.push(ps.length+' 位球友'); if(ds.length)parts.push(ds.length+' 則徵求');
+    return {court:c?c.name:'',dist:c?c.dist:'',summary:parts.join('、'),items,onClose:()=>this.closeSheets()};
+  }
+  ntrpDesc(n){ if(n<=2.5)return '初階'; if(n<=3.5)return '中階'; if(n<=4.5)return '中高階'; return '高手'; }
+  buildDetail(){
+    const id=this.state.detailId; if(!id) return null; const p=this.getPlayer(id); if(!p) return null;
+    const on=new Set(p.slots); const times=[['m','早上'],['a','下午'],['e','晚上']];
+    const slotRows=[['wd','平日'],['we','週末']].map(dd=>({day:dd[1],cells:times.map(t=>({label:t[1],on:on.has(dd[0]+'-'+t[0]),off:!on.has(dd[0]+'-'+t[0])}))}));
+    return { id:p.id, nick:p.nick, initial:p.nick.slice(0,1), ntrp:p.ntrp.toFixed(1), ntrpDesc:this.ntrpDesc(p.ntrp), area:p.area, bio:p.bio, line:p.line, types:this.typeFull(p.types), courts:p.courts.map(cid=>this.courtName(cid)), slotRows, onBack:()=>this.setState({detailId:null}), onInvite:()=>this.openInvite(p.id), onLine:()=>{ try{navigator.clipboard.writeText(p.line);}catch(e){} } };
+  }
+  selectInviteSlot(s){ this.setState({inviteSlot:s}); }
+  sendInvite(){ const p=this.getPlayer(this.state.inviteFor); if(!p) return; const rec={id:Date.now(),playerId:p.id,slot:this.state.inviteSlot||'時間再約',msg:this.state.inviteMsg,status:'pending',when:'剛剛'}; this.setState(s=>({invites:[rec,...s.invites],inviteSent:true})); }
+  closeInvite(){ this.setState({inviteFor:null,inviteSent:false}); }
+  gotoInvites(){ this.setState({tab:'invites',inviteFor:null,inviteSent:false,detailId:null,sheet:null,drawerCourtId:null}); }
+  buildInvite(){
+    const id=this.state.inviteFor; if(!id) return null; const p=this.getPlayer(id); if(!p) return null;
+    const slots=p.slots.map(k=>this.slotLabel(k));
+    return { nick:p.nick, initial:p.nick.slice(0,1), ntrp:p.ntrp.toFixed(1),
+      slots:slots.map(s=>({label:s, active:this.state.inviteSlot===s, notActive:this.state.inviteSlot!==s, onClick:()=>this.selectInviteSlot(s)})),
+      sent:this.state.inviteSent, chosenSlot:this.state.inviteSlot||'時間再約',
+      onMsg:(e)=>this.setState({inviteMsg:e.target.value}), onSend:()=>this.sendInvite(), onClose:()=>this.closeInvite(), onGoto:()=>this.gotoInvites() };
+  }
+  buildInvitesList(){
+    return this.state.invites.map(inv=>{ const p=this.getPlayer(inv.playerId)||{}; const accepted=inv.status==='accepted';
+      return { initial:(p.nick||'?').slice(0,1), nick:p.nick||'球友', ntrp:(p.ntrp!=null?p.ntrp.toFixed(1):'—'), slot:inv.slot, msg:inv.msg, hasMsg:!!inv.msg, when:inv.when, accepted, pending:!accepted, statusLabel:accepted?'已接受':'待回覆', line:p.line||'' };
+    });
+  }
+
+  renderVals(){
+    const st=this.state;
+    const typeChips=this.TYPES.map(t=>({ short:t.short, active:!!st.filterTypes[t.key], notActive:!st.filterTypes[t.key], onClick:()=>this.toggleType(t.key) }));
+    const _bands=[['all','全部'],['lo','≤ 3.0'],['mid','3.0 – 4.0'],['hi','4.0 – 5.0'],['pro','5.0 +']];
+    const bandOptions=_bands.map(b=>({label:b[1],active:st.filterBand===b[0],notActive:st.filterBand!==b[0],onClick:()=>this.setBand(b[0])}));
+    const pf=st.profile;
+    const profTypes=this.TYPES.map(t=>({full:t.full, active:!!pf.types[t.key], notActive:!pf.types[t.key], onClick:()=>this.toggleProfType(t.key)}));
+    const profCourts=this.courts.map(c=>({name:c.name, dist:c.dist, on:!!pf.courts[c.id], off:!pf.courts[c.id], onClick:()=>this.toggleProfCourt(c.id)}));
+    const _tm=[['m','早上'],['a','下午'],['e','晚上']];
+    const profSlotRows=[['wd','平日'],['we','週末']].map(dd=>({day:dd[1],cells:_tm.map(t=>{const code=dd[0]+'-'+t[0];return {on:!!pf.slots[code],off:!pf.slots[code],onClick:()=>this.toggleProfSlot(code)};})}));
+    const _gr=[['court','只顯示球場','地圖上只出現你選擇的球場位置'],['district','顯示行政區','只顯示到行政區，例如「大安區」'],['exact','精確位置','分享你目前所在的精確位置']];
+    const profGrans=_gr.map(g=>({label:g[1],desc:g[2],active:pf.granularity===g[0],notActive:pf.granularity!==g[0],onClick:()=>this.setProf('granularity',g[0])}));
+    const sheet=this.buildSheet();
+    const drawer=this.buildDrawer();
+    const detail=this.buildDetail();
+    const invite=this.buildInvite();
+    const invitesList=this.buildInvitesList();
+    return {
+      detail, detailOpen:!!detail,
+      invite, inviteOpen:!!invite, inviteForm:!!(invite && !invite.sent), inviteDone:!!(invite && invite.sent), invitesList, invitesEmpty:invitesList.length===0, invitesHas:invitesList.length>0,
+      profNick:pf.nick, profLine:pf.line, profNtrpStr:pf.ntrp.toFixed(1), profNtrpDesc:this.ntrpDesc(pf.ntrp),
+      profTypes, profCourts, profSlotRows, profGrans, profShareOn:pf.share, profShareOff:!pf.share, profSaved:st.profSaved,
+      onNick:(e)=>this.setProf('nick',e.target.value), onLine:(e)=>this.setProf('line',e.target.value), onNtrp:(e)=>this.setProf('ntrp',parseFloat(e.target.value)),
+      shareOn:()=>this.setProf('share',true), shareOff:()=>this.setProf('share',false), saveProfile:()=>this.saveProfile(),
+      sheet, hasSheet:!!sheet, sheetPlayer:!!(sheet&&sheet.kind==='player'), sheetDemand:!!(sheet&&sheet.kind==='demand'),
+      drawer, drawerOpen:!!drawer,
+      viewportRef:this.viewportRef, worldRef:this.worldRef, baseRef:this.baseRef, pinsRef:this.pinsRef, fitRef:this.fitRef,
+      markers:this.computeMarkers(),
+      typeChips, bandLabel:this.bandLabel(), bandOptions, levelOpen:st.levelOpen,
+      isMap:st.tab==='map', isInvites:st.tab==='invites', isProfile:st.tab==='profile',
+      mapActive:st.tab==='map', invitesActive:st.tab==='invites', profileActive:st.tab==='profile',
+      notMap:st.tab!=='map', notInvites:st.tab!=='invites', notProfile:st.tab!=='profile',
+      tabMap:()=>this.setTab('map'), tabInvites:()=>this.setTab('invites'), tabProfile:()=>this.setTab('profile'),
+      toggleLevel:()=>this.toggleLevel(),
+      zoomIn:()=>this.zoomBtn(1.35), zoomOut:()=>this.zoomBtn(0.74), recenter:()=>this.recenter()
+    };
+  }
+}
+</script>
+</body>
+</html>
