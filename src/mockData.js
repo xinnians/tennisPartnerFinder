@@ -110,7 +110,10 @@ export const REGISTERED_PLAYERS = [
 // DemandPin:球場附近的徵球伴需求(需求釘/次要圖釘)
 // 形狀:id, court(string), courtLat, courtLng, ntrp(number|null),
 //       rawSkill(string|null), demandText(string), sourceUrl
-// ntrp 為 null 代表原貼文沒有明確程度 → 顯示「程度未提供」。
+// ntrp 為 null 代表原貼文沒有可換算的數字程度:
+//   - 篩選:這類釘由「含程度未提供」勾選框控制,不吃 NTRP 範圍。
+//   - 顯示:程度文字取 rawSkill(如「中上」),rawSkill 也是 null
+//     才顯示「程度未提供」。
 // ------------------------------------------------------------
 export const DEMAND_PINS = [
   {

@@ -89,6 +89,7 @@ function refresh() {
 // ------------------------------------------------------------
 function showPlaceholder() {
   const placeholder = document.getElementById("map-placeholder");
+  if (!placeholder.hidden) return; // 已顯示過(可能由多個失敗路徑觸發)
   const list = document.getElementById("placeholder-courts");
   for (const court of COURTS) {
     const players = REGISTERED_PLAYERS.filter((p) => p.homeCourt === court.name).length;
@@ -128,7 +129,12 @@ async function init() {
   }
 
   try {
-    google = await loadGoogleMaps(GOOGLE_MAPS_API_KEY);
+    // 第二個參數:key 無效/受限時 Google 會非同步回呼,退回說明蓋板
+    // 而不是讓使用者看到 Google 的灰色錯誤地圖
+    google = await loadGoogleMaps(GOOGLE_MAPS_API_KEY, () => {
+      console.warn("Google Maps API key 驗證失敗(無效、受限或未開通帳單)");
+      showPlaceholder();
+    });
     map = createMap(google, document.getElementById("map"));
     infoWindow = new google.maps.InfoWindow();
     refresh();

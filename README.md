@@ -68,14 +68,18 @@ RegisteredPlayer: {
 // 需求釘
 DemandPin: {
   id, court: string, courtLat, courtLng,
-  ntrp: number | null,        // null = 程度未提供
+  ntrp: number | null,        // null = 沒有可換算的數字程度(受「含程度未提供」篩選)
   rawSkill: string | null,    // 原貼文的程度描述,如「約3.5」「中上」
   demandText: string, sourceUrl
 }
 ```
 
+InfoWindow 的「程度」顯示 `rawSkill`;`rawSkill` 也是 `null` 才顯示「程度未提供」。
+
 球場清單(名稱/行政區/大約座標)在同檔案的 `COURTS`,
 新增資料時座標請從這裡拿,維持「圖釘=球場」的原則。
+同一座球場有多支釘時,第 2 支起會在球場座標周圍約百餘公尺內環狀攤開
+(`src/map.js` 的 `spreadOverlaps`),代表的仍是同一座球場,只是避免圖釘完全重疊無法點選。
 
 ## 篩選規則
 

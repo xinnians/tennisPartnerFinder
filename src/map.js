@@ -5,12 +5,23 @@ import { MAP_CENTER, MAP_ZOOM } from "./config.js";
 import { districtOf } from "./mockData.js";
 import { playerIcon, demandIcon } from "./pins.js";
 
+// 進行中的載入 Promise:同時(或 HMR 後)再呼叫 loadGoogleMaps 時
+// 直接重用,避免重複注入 maps script
+let loadPromise = null;
+
 /**
  * 動態載入 Google Maps JavaScript API。
  * 用 callback 方式注入 <script>,回傳 Promise 以便 await。
+ * @param {string} apiKey
+ * @param {() => void} [onAuthFailure] key 無效/受限時的回呼(Google 驗證是
+ *   非同步的,可能發生在地圖已建立之後,所以用回呼而不是 reject)
  */
-export function loadGoogleMaps(apiKey) {
-  return new Promise((resolve, reject) => {
+export function loadGoogleMaps(apiKey, onAuthFailure) {
+  // key 驗證失敗(無效、referer 受限、未開通帳單)時 Google 會呼叫這個全域 hook
+  if (onAuthFailure) window.gm_authFailure = onAuthFailure;
+
+  if (loadPromise) return loadPromise;
+  loadPromise = new Promise((resolve, reject) => {
     // 已載入過就直接用(例如 Vite HMR 重新執行 main.js 時)
     if (window.google?.maps) {
       resolve(window.google);
@@ -31,9 +42,13 @@ export function loadGoogleMaps(apiKey) {
     });
     script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
     script.async = true;
-    script.onerror = () => reject(new Error("Google Maps API 載入失敗,請檢查網路與 API key"));
+    script.onerror = () => {
+      loadPromise = null; // 失敗後允許重試
+      reject(new Error("Google Maps API 載入失敗,請檢查網路與 API key"));
+    };
     document.head.appendChild(script);
   });
+  return loadPromise;
 }
 
 /** 建立地圖:台北市中心、市區 zoom,關掉原型用不到的控制項與 POI 雜訊 */
