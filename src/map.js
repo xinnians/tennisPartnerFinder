@@ -1,9 +1,8 @@
 // ============================================================
-//  Google Maps 載入、圖釘繪製與 InfoWindow 內容
+//  Google Maps 載入、鼠尾草色系地圖樣式、圖釘/聚合釘繪製
 // ============================================================
 import { MAP_CENTER, MAP_ZOOM } from "./config.js";
-import { districtOf } from "./mockData.js";
-import { playerIcon, demandIcon } from "./pins.js";
+import { playerPin, demandPin, clusterPin } from "./pins.js";
 
 // 進行中的載入 Promise:同時(或 HMR 後)再呼叫 loadGoogleMaps 時
 // 直接重用,避免重複注入 maps script
@@ -11,7 +10,6 @@ let loadPromise = null;
 
 /**
  * 動態載入 Google Maps JavaScript API。
- * 用 callback 方式注入 <script>,回傳 Promise 以便 await。
  * @param {string} apiKey
  * @param {() => void} [onAuthFailure] key 無效/受限時的回呼(Google 驗證是
  *   非同步的,可能發生在地圖已建立之後,所以用回呼而不是 reject)
@@ -22,7 +20,6 @@ export function loadGoogleMaps(apiKey, onAuthFailure) {
 
   if (loadPromise) return loadPromise;
   loadPromise = new Promise((resolve, reject) => {
-    // 已載入過就直接用(例如 Vite HMR 重新執行 main.js 時)
     if (window.google?.maps) {
       resolve(window.google);
       return;
@@ -51,132 +48,88 @@ export function loadGoogleMaps(apiKey, onAuthFailure) {
   return loadPromise;
 }
 
-/** 建立地圖:台北市中心、市區 zoom,關掉原型用不到的控制項與 POI 雜訊 */
+// 重現設計檔底圖的鼠尾草配色:
+// 陸地 #ECEDE7、水域 #C4D8E2、公園 #D8E6C4、道路白、標籤 #AEB6AC
+const SAGE_STYLES = [
+  { elementType: "geometry", stylers: [{ color: "#ECEDE7" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#9AA69C" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }, { weight: 2 }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#C4D8E2" }] },
+  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#93AEBC" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ visibility: "on" }, { color: "#D8E6C4" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#FFFFFF" }] },
+  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#DEE0D8" }] },
+  { featureType: "road", elementType: "labels", stylers: [{ visibility: "off" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#F6F1E3" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+  { featureType: "administrative", elementType: "geometry", stylers: [{ visibility: "off" }] },
+];
+
+/** 建立地圖:台北市中心、市區 zoom、關掉預設 UI(控制鈕自己畫,沿用設計) */
 export function createMap(google, el) {
   return new google.maps.Map(el, {
     center: MAP_CENTER,
     zoom: MAP_ZOOM,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
+    disableDefaultUI: true,
     clickableIcons: false,
-    styles: [
-      // 隱藏一般 POI 標籤讓球場圖釘更突出,保留公園綠地當視覺定位
-      { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-      { featureType: "transit", stylers: [{ visibility: "off" }] },
-    ],
+    styles: SAGE_STYLES,
   });
 }
 
-// ------------------------------------------------------------
-// InfoWindow 內容(信任的假資料仍一律 escape,養成好習慣)
-// ------------------------------------------------------------
-function esc(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]
-  );
-}
-
-/** 球友釘:暱稱、NTRP、想打類型、固定時段、Line、送出邀請按鈕 */
-function playerInfoHtml(p) {
-  return `
-    <div class="iw iw--player">
-      <div class="iw__badge iw__badge--player">球友</div>
-      <h3 class="iw__title">${esc(p.displayName)}</h3>
-      <p class="iw__court">🏟 ${esc(p.homeCourt)}(${esc(districtOf(p.homeCourt))})</p>
-      <dl class="iw__rows">
-        <div><dt>NTRP</dt><dd>${esc(p.ntrp.toFixed(1))}</dd></div>
-        <div><dt>想打</dt><dd>${p.goals.map((g) => `<span class="iw__tag">${esc(g)}</span>`).join("")}</dd></div>
-        <div><dt>時段</dt><dd>${p.availability.map(esc).join("<br>")}</dd></div>
-        <div><dt>LINE</dt><dd><code>${esc(p.lineId)}</code></dd></div>
-      </dl>
-      <button type="button" class="iw__invite" data-invite="${esc(p.displayName)}">送出邀請</button>
-    </div>`;
-}
-
-/** 需求釘:區域、程度、需求原句、原貼文連結(不顯示姓名/聯絡方式) */
-function demandInfoHtml(d) {
-  const skill = d.rawSkill ?? "程度未提供";
-  // 只放 http(s) 連結進 href,擋掉 javascript: 之類的 scheme
-  const safeUrl = /^https?:\/\//i.test(d.sourceUrl) ? d.sourceUrl : "#";
-  return `
-    <div class="iw iw--demand">
-      <div class="iw__badge iw__badge--demand">徵球伴</div>
-      <h3 class="iw__title">${esc(d.court)}</h3>
-      <p class="iw__court">📍 ${esc(districtOf(d.court))}</p>
-      <dl class="iw__rows">
-        <div><dt>程度</dt><dd>${esc(skill)}</dd></div>
-        <div><dt>需求</dt><dd>「${esc(d.demandText)}」</dd></div>
-      </dl>
-      <a class="iw__source" href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原貼文 ↗</a>
-    </div>`;
-}
-
-// ------------------------------------------------------------
-// 圖釘繪製
-// ------------------------------------------------------------
-
 /**
- * 多支釘落在同一座球場(同座標)時會完全重疊,
- * 依序給每支釘一個小半徑的環狀偏移,讓它們在市區 zoom 下攤開可點。
+ * 依球場把篩選後的資料分組(設計檔 computeMarkers 的邏輯):
+ * 同一座球場只有一筆 → 個別釘;多筆 → 聚合釘(點開球場抽屜)。
+ * 回傳 [{ court, lat, lng, items }],items = [{kind:'player'|'demand', data}]
  */
-function spreadOverlaps(items) {
-  const byCoord = new Map();
-  return items.map((item) => {
-    const key = `${item.lat},${item.lng}`;
-    const n = byCoord.get(key) ?? 0;
-    byCoord.set(key, n + 1);
-    if (n === 0) return item; // 第一支釘留在球場原點
-    const angle = (n - 1) * (Math.PI / 3); // 之後的釘以 60° 間隔繞一圈
-    // 每繞滿一圈(6 支)就往外加一環,避免第 8 支起又疊回第一環的位置
-    const ring = 1 + Math.floor((n - 1) / 6);
-    const r = 0.0012 * ring; // 第一環約 100 多公尺,市區 zoom 下剛好分得開
-    return { ...item, lat: item.lat + r * Math.sin(angle), lng: item.lng + r * Math.cos(angle) };
-  });
+export function groupPinsByCourt(courts, { players, demands }) {
+  const byCourt = new Map();
+  const push = (courtName, entry) => {
+    if (!byCourt.has(courtName)) byCourt.set(courtName, []);
+    byCourt.get(courtName).push(entry);
+  };
+  players.forEach((p) => push(p.homeCourt, { kind: "player", data: p }));
+  demands.forEach((d) => push(d.court, { kind: "demand", data: d }));
+
+  return courts
+    .filter((c) => byCourt.has(c.name))
+    .map((c) => ({ court: c, lat: c.lat, lng: c.lng, items: byCourt.get(c.name) }));
 }
 
 /**
- * 把篩選後的資料畫成圖釘。每次呼叫先清掉舊釘再重畫,
- * 原型資料量小(十來支釘),不需要做 diff 更新。
+ * 把分組結果畫成圖釘。每次呼叫先清掉舊釘再重畫
+ * (原型資料量小,不需要 diff 更新)。
  *
+ * @param {{onPlayer, onDemand, onCluster}} handlers 點釘時的回呼
  * @returns {google.maps.Marker[]} 目前地圖上的 marker,供下次清除
  */
-export function renderPins(google, map, infoWindow, { players, demands }, oldMarkers = []) {
+export function renderPins(google, map, groups, handlers, oldMarkers = []) {
   oldMarkers.forEach((m) => m.setMap(null));
 
-  const pins = spreadOverlaps([
-    // 需求釘先畫、球友釘後畫,讓主要釘蓋在次要釘上面
-    ...demands.map((d) => ({
-      lat: d.courtLat,
-      lng: d.courtLng,
-      icon: demandIcon(google),
-      html: demandInfoHtml(d),
-      title: `徵球伴:${d.court}`,
-      zIndex: 1,
-    })),
-    ...players.map((p) => ({
-      lat: p.courtLat,
-      lng: p.courtLng,
-      icon: playerIcon(google),
-      html: playerInfoHtml(p),
-      title: `球友:${p.displayName}@${p.homeCourt}`,
-      zIndex: 2,
-    })),
-  ]);
+  return groups.map((g) => {
+    let pin;
+    let onTap;
+    if (g.items.length > 1) {
+      pin = clusterPin(google, g.items.length);
+      onTap = () => handlers.onCluster(g.court, g.items);
+    } else if (g.items[0].kind === "player") {
+      pin = playerPin(google, g.items[0].data.displayName);
+      onTap = () => handlers.onPlayer(g.items[0].data);
+    } else {
+      pin = demandPin(google);
+      onTap = () => handlers.onDemand(g.items[0].data);
+    }
 
-  return pins.map((pin) => {
     const marker = new google.maps.Marker({
       map,
-      position: { lat: pin.lat, lng: pin.lng },
+      position: { lat: g.lat, lng: g.lng },
       icon: pin.icon,
-      title: pin.title,
-      zIndex: pin.zIndex,
+      label: pin.label,
+      title: g.court.name,
+      // 聚合 > 球友 > 需求(設計檔的 z 順序)
+      zIndex: g.items.length > 1 ? 40 : g.items[0].kind === "player" ? 30 : 20,
     });
-    marker.addListener("click", () => {
-      infoWindow.setContent(pin.html);
-      infoWindow.open({ map, anchor: marker });
-    });
+    marker.addListener("click", onTap);
     return marker;
   });
 }

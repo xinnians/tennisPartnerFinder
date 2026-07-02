@@ -1,87 +1,322 @@
 // ============================================================
-//  App 進入點:接篩選列 UI、載入地圖、畫圖釘
+//  App 進入點:分頁切換、篩選接線、地圖載入、邀請與個人檔案狀態
 // ============================================================
 import "./style.css";
-import { GOOGLE_MAPS_API_KEY } from "./config.js";
+import { GOOGLE_MAPS_API_KEY, MAP_CENTER, MAP_ZOOM } from "./config.js";
 import { COURTS, REGISTERED_PLAYERS, DEMAND_PINS } from "./mockData.js";
-import { DEFAULT_FILTER_STATE, filterData } from "./filters.js";
-import { loadGoogleMaps, createMap, renderPins } from "./map.js";
-import { PLAYER_PIN_URL, DEMAND_PIN_URL } from "./pins.js";
+import { BANDS, TYPES, DEFAULT_FILTER_STATE, filterData } from "./filters.js";
+import { loadGoogleMaps, createMap, groupPinsByCourt, renderPins } from "./map.js";
+import {
+  openPlayerSheet,
+  openDemandSheet,
+  openCourtDrawer,
+  openInviteModal,
+  closeSheet,
+  closeModal,
+} from "./sheets.js";
+import { esc, ntrpDesc } from "./util.js";
 
 const DATA = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
 
-// NTRP 選單的可選值(0.5 一級,涵蓋一般業餘範圍)
-const NTRP_STEPS = [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5];
+// ------------------------------------------------------------
+// App 狀態(原型:全部放記憶體,重新整理就重置)
+// ------------------------------------------------------------
+const state = {
+  filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
+  // 邀請清單。先塞一筆「已接受」示範設計裡的完整卡片(含 LINE)
+  invites: [
+    {
+      player: REGISTERED_PLAYERS.find((p) => p.id === "p3"), // Amber
+      slot: "週日下午",
+      msg: "嗨!我也常在大安森林公園打,程度差不多,想找人穩定約雙打~",
+      status: "accepted",
+      when: "2 天前",
+    },
+  ],
+  profile: {
+    nick: "我",
+    ntrp: 3.5,
+    types: new Set(["單打", "對拉"]),
+    courts: new Set(["大安森林公園網球場"]),
+    slots: new Set(["wd-e", "we-m"]),
+    share: false,
+    lineId: "",
+  },
+};
 
-const state = { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) };
-
-// 地圖相關的執行期物件(沒填 API key 時保持 null)
+// 地圖執行期物件(沒填 API key 時保持 null)
 let google = null;
 let map = null;
-let infoWindow = null;
 let markers = [];
 
 // ------------------------------------------------------------
-// 篩選列 UI
+// 圖釘互動(球友 sheet → 邀請 modal → 邀請清單)
 // ------------------------------------------------------------
-function buildNtrpSelects() {
-  const minSel = document.getElementById("ntrp-min");
-  const maxSel = document.getElementById("ntrp-max");
+const pinHandlers = {
+  onPlayer: (p) => openPlayerSheet(p, { onInvite: startInvite }),
+  onDemand: (d) => openDemandSheet(d),
+  onCluster: (court, items) => openCourtDrawer(court, items, pinHandlers),
+};
 
-  minSel.append(new Option("不限", "min", true, true));
-  maxSel.append(new Option("不限", "max", true, true));
-  for (const v of NTRP_STEPS) {
-    minSel.append(new Option(v.toFixed(1), String(v)));
-    maxSel.append(new Option(v.toFixed(1), String(v)));
-  }
-
-  minSel.addEventListener("change", () => {
-    state.ntrpMin = minSel.value === "min" ? DEFAULT_FILTER_STATE.ntrpMin : Number(minSel.value);
-    refresh();
-  });
-  maxSel.addEventListener("change", () => {
-    state.ntrpMax = maxSel.value === "max" ? DEFAULT_FILTER_STATE.ntrpMax : Number(maxSel.value);
-    refresh();
+function startInvite(p) {
+  openInviteModal(p, {
+    onSend: ({ player, slot, msg }) => {
+      state.invites.unshift({ player, slot, msg, status: "pending", when: "剛剛" });
+      renderInvites();
+    },
+    onGotoInvites: () => switchTab("invites"),
   });
 }
 
-function bindTypeChips() {
-  document.querySelectorAll("#type-chips .chip").forEach((chip) => {
+// ------------------------------------------------------------
+// 篩選列(程度 popover + 類型 chips)
+// ------------------------------------------------------------
+function refreshPins() {
+  if (!map) return;
+  closeSheet();
+  const groups = groupPinsByCourt(COURTS, filterData(DATA, state.filters));
+  markers = renderPins(google, map, groups, pinHandlers, markers);
+}
+
+function setupLevelPopover() {
+  const chip = document.getElementById("level-chip");
+  const dim = document.getElementById("level-dim");
+  const pop = document.getElementById("level-popover");
+  const optsBox = document.getElementById("band-options");
+  const bandLabel = document.getElementById("band-label");
+
+  const renderOptions = () => {
+    optsBox.innerHTML = BANDS.map(
+      (b) => `
+      <button type="button" class="popover__opt${b.key === state.filters.band ? " is-active" : ""}" data-band="${b.key}">
+        ${esc(b.label)}
+        ${
+          b.key === state.filters.band
+            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
+            : ""
+        }
+      </button>`
+    ).join("");
+    optsBox.querySelectorAll("[data-band]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.filters.band = btn.dataset.band;
+        bandLabel.textContent = BANDS.find((b) => b.key === state.filters.band).label;
+        toggle(false);
+        refreshPins();
+      });
+    });
+  };
+
+  const toggle = (open) => {
+    dim.hidden = !open;
+    pop.hidden = !open;
+    if (open) renderOptions();
+  };
+
+  chip.addEventListener("click", () => toggle(pop.hidden));
+  dim.addEventListener("click", () => toggle(false));
+}
+
+function setupTypeChips() {
+  document.querySelectorAll(".chip-type").forEach((chip) => {
     chip.addEventListener("click", () => {
       const type = chip.dataset.type;
-      if (state.types.has(type)) {
-        state.types.delete(type);
+      if (state.filters.types.has(type)) {
+        state.filters.types.delete(type);
         chip.classList.remove("is-active");
       } else {
-        state.types.add(type);
+        state.filters.types.add(type);
         chip.classList.add("is-active");
       }
-      refresh();
+      refreshPins();
     });
   });
 }
 
-function bindCheckbox(id, key) {
-  const box = document.getElementById(id);
-  box.addEventListener("change", () => {
-    state[key] = box.checked;
-    refresh();
+function setupMapControls() {
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    if (map) map.setZoom(map.getZoom() + 1);
+  });
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    if (map) map.setZoom(map.getZoom() - 1);
+  });
+  document.getElementById("recenter").addEventListener("click", () => {
+    if (!map) return;
+    map.panTo(MAP_CENTER);
+    map.setZoom(MAP_ZOOM);
   });
 }
 
 // ------------------------------------------------------------
-// 重新套用篩選:更新統計文字 + 重畫圖釘
+// 分頁切換
 // ------------------------------------------------------------
-function refresh() {
-  const filtered = filterData(DATA, state);
+function switchTab(tab) {
+  closeSheet();
+  closeModal();
+  document.querySelectorAll(".tab-panel").forEach((el) => el.classList.remove("is-active"));
+  document.getElementById(`tab-${tab}`).classList.add("is-active");
+  document.querySelectorAll(".tabbar__btn").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.tab === tab);
+  });
+}
 
-  document.getElementById("stats").textContent =
-    `顯示 ${filtered.players.length} 位球友・${filtered.demands.length} 則需求`;
+function setupTabs() {
+  document.querySelectorAll(".tabbar__btn").forEach((btn) => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+}
 
-  if (map) {
-    infoWindow.close();
-    markers = renderPins(google, map, infoWindow, filtered, markers);
-  }
+// ------------------------------------------------------------
+// 我的邀請分頁
+// ------------------------------------------------------------
+function renderInvites() {
+  const listEl = document.getElementById("invites-list");
+  const emptyEl = document.getElementById("invites-empty");
+  emptyEl.hidden = state.invites.length > 0;
+  listEl.hidden = state.invites.length === 0;
+
+  listEl.innerHTML = state.invites
+    .map((inv) => {
+      const p = inv.player;
+      const accepted = inv.status === "accepted";
+      return `
+      <div class="card">
+        <div class="inv__row">
+          <div class="avatar" style="width:46px;height:46px;font-size:18px">${esc(p.displayName.slice(0, 1))}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="inv__nick">${esc(p.displayName)}</span>
+              <span class="ntrp-tag">${esc(p.ntrp.toFixed(1))}</span>
+            </div>
+            <div class="inv__meta">${esc(inv.slot)}・${esc(inv.when)}</div>
+          </div>
+          <span class="${accepted ? "badge-accepted" : "badge-pending"}">${accepted ? "已接受" : "待回覆"}</span>
+        </div>
+        ${inv.msg ? `<div class="inv__msg">${esc(inv.msg)}</div>` : ""}
+        ${
+          accepted
+            ? `<div class="inv__line"><span class="line-badge">LINE</span>${esc(p.lineId)}<small>已可聯絡</small></div>`
+            : `<div class="inv__wait">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B0BAB0" stroke-width="2">
+                   <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>
+                 </svg>等待對方回覆中</div>`
+        }
+      </div>`;
+    })
+    .join("");
+}
+
+// ------------------------------------------------------------
+// 個人檔案分頁(原型:存記憶體 + toast,不落地)
+// ------------------------------------------------------------
+const SLOT_ROWS = [
+  { key: "wd", day: "平日" },
+  { key: "we", day: "週末" },
+];
+const SLOT_COLS = [
+  { key: "m", label: "早上" },
+  { key: "a", label: "下午" },
+  { key: "e", label: "晚上" },
+];
+
+function setupProfile() {
+  const prof = state.profile;
+
+  // 暱稱 → 頭像字首連動
+  const nickInput = document.getElementById("prof-nick");
+  nickInput.addEventListener("input", () => {
+    prof.nick = nickInput.value.trim() || "我";
+    document.getElementById("prof-avatar").textContent = prof.nick.slice(0, 1);
+  });
+
+  // NTRP 滑桿
+  const range = document.getElementById("prof-ntrp");
+  range.addEventListener("input", () => {
+    prof.ntrp = parseFloat(range.value);
+    document.getElementById("prof-ntrp-val").textContent = prof.ntrp.toFixed(1);
+    document.getElementById("prof-ntrp-desc").textContent = ntrpDesc(prof.ntrp);
+  });
+
+  // 想打類型
+  const typesBox = document.getElementById("prof-types");
+  typesBox.innerHTML = TYPES.map(
+    (t) => `<button type="button" class="prof-type${prof.types.has(t) ? " is-active" : ""}" data-t="${t}">${esc(t)}</button>`
+  ).join("");
+  typesBox.querySelectorAll("[data-t]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const t = btn.dataset.t;
+      prof.types.has(t) ? prof.types.delete(t) : prof.types.add(t);
+      btn.classList.toggle("is-active");
+    });
+  });
+
+  // 常打球場(清單來自 mockData 的 COURTS)
+  const courtsBox = document.getElementById("prof-courts");
+  courtsBox.innerHTML = COURTS.map(
+    (c) => `
+    <button type="button" class="prof-court${prof.courts.has(c.name) ? " is-on" : ""}" data-c="${esc(c.name)}">
+      <span class="prof-court__box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </span>
+      <span class="prof-court__name">${esc(c.name)}</span>
+      <span class="prof-court__dist">${esc(c.district)}</span>
+    </button>`
+  ).join("");
+  courtsBox.querySelectorAll("[data-c]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.c;
+      prof.courts.has(name) ? prof.courts.delete(name) : prof.courts.add(name);
+      btn.classList.toggle("is-on");
+    });
+  });
+
+  // 固定時段格子
+  const slotsBox = document.getElementById("prof-slots");
+  slotsBox.innerHTML =
+    `<div class="slot-grid__row"><div class="slot-grid__day"></div>${SLOT_COLS.map(
+      (c) => `<div class="slot-grid__hdr">${c.label}</div>`
+    ).join("")}</div>` +
+    SLOT_ROWS.map(
+      (r) =>
+        `<div class="slot-grid__row"><div class="slot-grid__day">${r.day}</div>${SLOT_COLS.map((c) => {
+          const code = `${r.key}-${c.key}`;
+          return `<button type="button" class="slot-cell${prof.slots.has(code) ? " is-on" : ""}" data-s="${code}" aria-label="${r.day}${c.label}">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </button>`;
+        }).join("")}</div>`
+    ).join("");
+  slotsBox.querySelectorAll("[data-s]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const code = btn.dataset.s;
+      prof.slots.has(code) ? prof.slots.delete(code) : prof.slots.add(code);
+      btn.classList.toggle("is-on");
+    });
+  });
+
+  // 分享位置開關
+  const shareBtn = document.getElementById("prof-share");
+  shareBtn.addEventListener("click", () => {
+    prof.share = !prof.share;
+    shareBtn.classList.toggle("is-on", prof.share);
+  });
+
+  // LINE ID
+  const lineInput = document.getElementById("prof-line");
+  lineInput.addEventListener("input", () => {
+    prof.lineId = lineInput.value.trim();
+  });
+
+  // 儲存 → toast(原型不落地)
+  document.getElementById("prof-save").addEventListener("click", () => {
+    const toast = document.getElementById("toast-root");
+    toast.innerHTML = `
+      <div class="toast">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        已儲存
+      </div>`;
+    clearTimeout(setupProfile._t);
+    setupProfile._t = setTimeout(() => (toast.innerHTML = ""), 2200);
+  });
 }
 
 // ------------------------------------------------------------
@@ -95,8 +330,7 @@ function showPlaceholder() {
     const players = REGISTERED_PLAYERS.filter((p) => p.homeCourt === court.name).length;
     const demands = DEMAND_PINS.filter((d) => d.court === court.name).length;
     const li = document.createElement("li");
-    li.textContent =
-      `${court.name}(${court.district})— 球友 ${players} 位・需求 ${demands} 則`;
+    li.textContent = `${court.name}(${court.district})— 球友 ${players} 位・需求 ${demands} 則`;
     list.appendChild(li);
   }
   placeholder.hidden = false;
@@ -106,25 +340,15 @@ function showPlaceholder() {
 // 啟動
 // ------------------------------------------------------------
 async function init() {
-  // 圖例用跟地圖圖釘同一組 SVG
-  document.getElementById("legend-player").src = PLAYER_PIN_URL;
-  document.getElementById("legend-demand").src = DEMAND_PIN_URL;
-
-  buildNtrpSelects();
-  bindTypeChips();
-  bindCheckbox("include-unknown", "includeUnknown");
-  bindCheckbox("show-players", "showPlayers");
-  bindCheckbox("show-demands", "showDemands");
-
-  // InfoWindow 裡的「送出邀請」按鈕(內容是動態 HTML,用事件委派接)
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-invite]");
-    if (btn) alert(`已送出邀請給 ${btn.dataset.invite}!(原型示意,尚未串接後端)`);
-  });
+  setupTabs();
+  setupLevelPopover();
+  setupTypeChips();
+  setupMapControls();
+  setupProfile();
+  renderInvites();
 
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "___") {
     showPlaceholder();
-    refresh(); // 仍更新統計文字,讓篩選列可以先玩
     return;
   }
 
@@ -136,12 +360,10 @@ async function init() {
       showPlaceholder();
     });
     map = createMap(google, document.getElementById("map"));
-    infoWindow = new google.maps.InfoWindow();
-    refresh();
+    refreshPins();
   } catch (err) {
     console.error(err);
     showPlaceholder();
-    refresh();
   }
 }
 

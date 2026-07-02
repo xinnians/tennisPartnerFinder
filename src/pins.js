@@ -1,61 +1,101 @@
 // ============================================================
-//  兩種圖釘的 SVG 圖示(地圖 marker 與圖例共用同一組圖)
-//  - 球友釘:實心球場綠 + 網球圖樣,視覺上是「主要」釘
-//  - 需求釘:奶油底 + 土色虛線框 + 對話泡泡,視覺上是「次要」釘
+//  三種圖釘的 SVG 圖示(視覺完全取自設計檔):
+//  - 球友釘:44px 萊姆圓 + 深綠框 + 深綠小三角,圓心放暱稱字首
+//  - 需求釘:31px 白圓 + 灰虛線框 + 淺灰小三角,圓心放「徵」
+//  - 聚合釘:46px 深綠圓 + 萊姆框,圓心放數量(同球場多筆時)
+//  字首/「徵」/數量用 marker 的 label 畫(label 走 DOM,吃得到
+//  頁面載入的 Baloo 2 字體;SVG data URI 內的 <text> 吃不到)。
 // ============================================================
 
-// 與 style.css 的 design token 對齊的顏色
-const COLORS = {
-  courtGreen: "#1f7a4d",
-  courtGreenDark: "#14532d",
-  ball: "#d9f24f",
-  cream: "#fdf6ec",
-  clay: "#c2703d",
-  ink: "#1c2b24",
-};
-
-// 經典水滴形釘的外框路徑(viewBox 44x56)
-const PIN_PATH =
-  "M22 2C11.5 2 3 10.5 3 21c0 13.4 16.2 30.2 17.9 31.9a1.6 1.6 0 0 0 2.2 0C24.8 51.2 41 34.4 41 21 41 10.5 32.5 2 22 2z";
-
-// 球友釘:綠底白框,中心是一顆網球(圓 + 兩道弧線)
-const PLAYER_PIN_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 56" width="34" height="43">
-  <path d="${PIN_PATH}" fill="${COLORS.courtGreen}" stroke="${COLORS.courtGreenDark}" stroke-width="2"/>
-  <circle cx="22" cy="21" r="10" fill="${COLORS.ball}"/>
-  <path d="M14.8 14.5a10 10 0 0 1 0 13" fill="none" stroke="${COLORS.courtGreenDark}" stroke-width="1.6"/>
-  <path d="M29.2 14.5a10 10 0 0 0 0 13" fill="none" stroke="${COLORS.courtGreenDark}" stroke-width="1.6"/>
-</svg>`;
-
-// 需求釘:奶油底、土色虛線外框,中心是一個「徵」字對話泡泡
-const DEMAND_PIN_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 56" width="28" height="36">
-  <path d="${PIN_PATH}" fill="${COLORS.cream}" stroke="${COLORS.clay}" stroke-width="2.4" stroke-dasharray="4 3"/>
-  <rect x="11" y="12" width="22" height="15" rx="4" fill="${COLORS.clay}"/>
-  <path d="M18 27l-2 5 7-5z" fill="${COLORS.clay}"/>
-  <text x="22" y="23.5" text-anchor="middle" font-family="sans-serif" font-size="10.5" font-weight="bold" fill="${COLORS.cream}">徵</text>
-</svg>`;
+const DEEP = "#16351F";
+const LIME = "#C9E23B";
+const DEMAND_BORDER = "#9DACA0";
+const DEMAND_TAIL = "#C4D0C6";
 
 function svgToDataUri(svg) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.trim())}`;
 }
 
-export const PLAYER_PIN_URL = svgToDataUri(PLAYER_PIN_SVG);
-export const DEMAND_PIN_URL = svgToDataUri(DEMAND_PIN_SVG);
+// 球友釘:viewBox 50×58,圓心 (25,25) 半徑 22,釘尖在 (25,57)
+const PLAYER_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 58" width="50" height="58">
+  <circle cx="25" cy="25" r="22" fill="${LIME}" stroke="${DEEP}" stroke-width="2.5"/>
+  <path d="M19 46.4 L31 46.4 L25 56 Z" fill="${DEEP}"/>
+</svg>`;
 
-// 給 google.maps.Marker 用的 icon 設定(anchor 對齊釘尖)
-export function playerIcon(google) {
+// 需求釘:viewBox 36×42,圓心 (18,16.5) 半徑 15,釘尖在 (18,41)
+const DEMAND_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 42" width="36" height="42">
+  <circle cx="18" cy="16.5" r="15" fill="#FFFFFF" stroke="${DEMAND_BORDER}" stroke-width="2" stroke-dasharray="4 3"/>
+  <path d="M13 32.6 L23 32.6 L18 40.5 Z" fill="${DEMAND_TAIL}"/>
+</svg>`;
+
+// 聚合釘:viewBox 54×62,圓心 (27,26) 半徑 23,釘尖在 (27,61)
+const CLUSTER_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 62" width="54" height="62">
+  <circle cx="27" cy="26" r="23" fill="${DEEP}" stroke="${LIME}" stroke-width="2.5"/>
+  <path d="M21 49.8 L33 49.8 L27 60 Z" fill="${DEEP}"/>
+</svg>`;
+
+export const PLAYER_PIN_URL = svgToDataUri(PLAYER_SVG);
+export const DEMAND_PIN_URL = svgToDataUri(DEMAND_SVG);
+export const CLUSTER_PIN_URL = svgToDataUri(CLUSTER_SVG);
+
+const NUM_FONT = "'Baloo 2', 'Noto Sans TC', sans-serif";
+
+/** 球友釘 icon + 字首 label */
+export function playerPin(google, displayName) {
   return {
-    url: PLAYER_PIN_URL,
-    scaledSize: new google.maps.Size(34, 43),
-    anchor: new google.maps.Point(17, 43),
+    icon: {
+      url: PLAYER_PIN_URL,
+      scaledSize: new google.maps.Size(50, 58),
+      anchor: new google.maps.Point(25, 57),
+      labelOrigin: new google.maps.Point(25, 25),
+    },
+    label: {
+      text: displayName.slice(0, 1),
+      color: DEEP,
+      fontFamily: NUM_FONT,
+      fontSize: "18px",
+      fontWeight: "800",
+    },
   };
 }
 
-export function demandIcon(google) {
+/** 需求釘 icon + 「徵」label */
+export function demandPin(google) {
   return {
-    url: DEMAND_PIN_URL,
-    scaledSize: new google.maps.Size(28, 36),
-    anchor: new google.maps.Point(14, 36),
+    icon: {
+      url: DEMAND_PIN_URL,
+      scaledSize: new google.maps.Size(36, 42),
+      anchor: new google.maps.Point(18, 41),
+      labelOrigin: new google.maps.Point(18, 16.5),
+    },
+    label: {
+      text: "徵",
+      color: "#7A8A7E",
+      fontFamily: "'Noto Sans TC', sans-serif",
+      fontSize: "13px",
+      fontWeight: "700",
+    },
+  };
+}
+
+/** 聚合釘 icon + 數量 label */
+export function clusterPin(google, count) {
+  return {
+    icon: {
+      url: CLUSTER_PIN_URL,
+      scaledSize: new google.maps.Size(54, 62),
+      anchor: new google.maps.Point(27, 61),
+      labelOrigin: new google.maps.Point(27, 26),
+    },
+    label: {
+      text: String(count),
+      color: "#FFFFFF",
+      fontFamily: NUM_FONT,
+      fontSize: "17px",
+      fontWeight: "700",
+    },
   };
 }

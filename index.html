@@ -7,84 +7,20 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%8E%BE%3C/text%3E%3C/svg%3E"
     />
-    <title>Tennis Partner Finder｜台北網球球伴地圖</title>
+    <!-- 設計檔指定的字體:Baloo 2(數字/字首)+ Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <title>Tennis Partner Finder｜找球伴</title>
   </head>
   <body>
     <div id="app">
-      <!-- 頂部標題列 -->
-      <header class="topbar">
-        <div class="topbar__brand">
-          <span class="topbar__logo" aria-hidden="true">🎾</span>
-          <div>
-            <h1 class="topbar__title">Tennis Partner Finder</h1>
-            <p class="topbar__subtitle">台北網球球伴地圖・以球場為單位找球友</p>
-          </div>
-        </div>
-        <div class="topbar__stats" id="stats" aria-live="polite">
-          <!-- 由 main.js 動態填入「顯示 X 位球友・Y 則需求」 -->
-        </div>
-      </header>
-
-      <!-- 篩選列:NTRP 範圍 + 想打類型,變更後即時更新地圖圖釘 -->
-      <section class="filterbar" aria-label="篩選條件">
-        <div class="filterbar__group">
-          <label class="filterbar__label">NTRP 範圍</label>
-          <select id="ntrp-min" class="filterbar__select" aria-label="NTRP 下限"></select>
-          <span class="filterbar__dash">–</span>
-          <select id="ntrp-max" class="filterbar__select" aria-label="NTRP 上限"></select>
-          <label class="filterbar__check">
-            <input type="checkbox" id="include-unknown" checked />
-            含程度未提供
-          </label>
-        </div>
-
-        <div class="filterbar__divider" aria-hidden="true"></div>
-
-        <div class="filterbar__group">
-          <label class="filterbar__label">想打類型</label>
-          <div class="chips" id="type-chips" role="group" aria-label="想打類型">
-            <button type="button" class="chip is-active" data-type="單打">單打</button>
-            <button type="button" class="chip is-active" data-type="雙打">雙打</button>
-            <button type="button" class="chip is-active" data-type="對拉">對拉</button>
-          </div>
-        </div>
-
-        <div class="filterbar__divider" aria-hidden="true"></div>
-
-        <div class="filterbar__group">
-          <label class="filterbar__label">顯示</label>
-          <label class="filterbar__check">
-            <input type="checkbox" id="show-players" checked />
-            球友釘
-          </label>
-          <label class="filterbar__check">
-            <input type="checkbox" id="show-demands" checked />
-            需求釘
-          </label>
-        </div>
-      </section>
-
-      <!-- 地圖區 -->
-      <main class="map-wrap">
+      <!-- ===================== 地圖分頁 ===================== -->
+      <section id="tab-map" class="tab-panel is-active">
         <div id="map" role="application" aria-label="球場地圖"></div>
-
-        <!-- 圖例(圖示由 main.js 注入,與地圖圖釘共用同一組 SVG) -->
-        <aside class="legend" aria-label="圖例">
-          <div class="legend__item">
-            <img id="legend-player" alt="球友釘圖示" width="22" height="28" />
-            <div>
-              <strong>球友釘</strong>
-              <span>公開位置的註冊球友</span>
-            </div>
-          </div>
-          <div class="legend__item">
-            <img id="legend-demand" alt="需求釘圖示" width="22" height="28" />
-            <div>
-              <strong>需求釘</strong>
-              <span>球場附近有人徵球伴</span>
-            </div>
-          </div>
-        </aside>
 
         <!-- 尚未填入 Google Maps API key 時顯示的說明蓋板(main.js 控制) -->
         <div id="map-placeholder" class="placeholder" hidden>
@@ -102,7 +38,188 @@
             <ul id="placeholder-courts" class="placeholder__courts"></ul>
           </div>
         </div>
-      </main>
+
+        <!-- 地圖上方浮層:logo + 篩選 chips(沿用設計) -->
+        <div class="map-top">
+          <div class="map-top__row">
+            <div class="brand-pill">
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" fill="#C9E23B" />
+                <path
+                  d="M5 6c3.4 3 3.4 9 0 12M19 6c-3.4 3-3.4 9 0 12"
+                  fill="none" stroke="#16351F" stroke-width="1.7" stroke-linecap="round"
+                />
+              </svg>
+              <span>找球伴</span>
+            </div>
+            <div class="loc-pill">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#54634E" stroke-width="2.4">
+                <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" />
+              </svg>
+              台北市
+            </div>
+          </div>
+          <div class="chip-row scroll" role="group" aria-label="篩選條件">
+            <button type="button" id="level-chip" class="chip-level">
+              <span class="chip-level__hint">程度</span><b id="band-label">全部</b>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3.4" stroke-linecap="round">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            <!-- 想打類型 chips(未選任何 chip = 不限) -->
+            <button type="button" class="chip-type" data-type="單打">單打</button>
+            <button type="button" class="chip-type" data-type="對拉">對拉</button>
+            <button type="button" class="chip-type" data-type="雙打">雙打</button>
+            <button type="button" class="chip-type" data-type="練球">練球</button>
+          </div>
+        </div>
+
+        <!-- 程度篩選 popover(main.js 產生選項並控制開合) -->
+        <div id="level-dim" class="popover-dim" hidden></div>
+        <div id="level-popover" class="popover" hidden>
+          <div class="popover__title">依 NTRP 程度篩選</div>
+          <div id="band-options"></div>
+        </div>
+
+        <!-- 地圖控制鈕 -->
+        <div class="map-ctrls">
+          <button type="button" id="zoom-in" aria-label="放大">+</button>
+          <button type="button" id="zoom-out" aria-label="縮小">−</button>
+          <button type="button" id="recenter" aria-label="回到市中心">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="2" stroke-linecap="round">
+              <circle cx="12" cy="12" r="3.4" />
+              <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ===================== 我的邀請分頁 ===================== -->
+      <section id="tab-invites" class="tab-panel">
+        <div class="page">
+          <div class="page__inner">
+            <div class="page__head">
+              <div class="page__title">我的邀請</div>
+              <div class="page__sub">你送出的邀請與回覆狀態</div>
+            </div>
+            <div id="invites-empty" class="empty" hidden>
+              <div class="empty__icon">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#A6B8A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                </svg>
+              </div>
+              <div class="empty__title">還沒有送出邀請</div>
+              <div class="empty__sub">到地圖上找找程度相近的球友,<br />送出你的第一個邀請吧。</div>
+            </div>
+            <div id="invites-list" class="page__body scroll"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 個人檔案分頁 ===================== -->
+      <section id="tab-profile" class="tab-panel">
+        <div class="page">
+          <div class="page__inner">
+            <div class="page__head">
+              <div class="page__title">個人檔案</div>
+              <div class="page__sub">讓程度相近的球友更容易找到你</div>
+            </div>
+            <div class="page__body scroll">
+              <div class="prof-card">
+                <div class="prof-nick">
+                  <div id="prof-avatar" class="avatar" style="width: 56px; height: 56px; font-size: 22px">我</div>
+                  <div style="flex: 1">
+                    <label for="prof-nick">暱稱</label>
+                    <input type="text" id="prof-nick" value="我" placeholder="輸入暱稱" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="prof-card">
+                <div class="prof-ntrp__head">
+                  <div>
+                    <div class="prof-card__label" style="margin-bottom: 0">NTRP 程度</div>
+                    <div id="prof-ntrp-desc" class="prof-ntrp__desc">中階</div>
+                  </div>
+                  <span id="prof-ntrp-val" class="prof-ntrp__val">3.5</span>
+                </div>
+                <input type="range" id="prof-ntrp" class="ntrp-range" min="1" max="7" step="0.5" value="3.5" />
+                <div class="ntrp-scale"><span>1.0</span><span>4.0</span><span>7.0</span></div>
+              </div>
+
+              <div class="prof-card">
+                <div class="prof-card__label">想打類型(可複選)</div>
+                <div id="prof-types" class="prof-types"></div>
+              </div>
+
+              <div class="prof-card">
+                <div class="prof-card__label">常打的球場(可複選)</div>
+                <div id="prof-courts" class="prof-courts"></div>
+              </div>
+
+              <div class="prof-card">
+                <div class="prof-card__label">固定時段(點格子選)</div>
+                <div id="prof-slots" class="slot-grid"></div>
+              </div>
+
+              <div class="prof-card">
+                <div class="share-row">
+                  <div style="flex: 1">
+                    <div class="share-row__title">分享我的位置</div>
+                    <div class="share-row__sub">
+                      預設不分享,你可以隨時關閉。開啟後才會在地圖上出現你的球友釘。
+                    </div>
+                  </div>
+                  <button type="button" id="prof-share" class="toggle" aria-label="分享我的位置">
+                    <span class="toggle__knob"></span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="prof-card">
+                <div class="prof-card__label">LINE ID</div>
+                <div class="prof-line">
+                  <span class="line-badge">LINE</span>
+                  <input type="text" id="prof-line" placeholder="輸入你的 LINE ID" />
+                </div>
+                <div class="prof-line__hint">收到你同意的邀請後,對方才看得到你的 LINE ID。</div>
+              </div>
+            </div>
+          </div>
+          <div class="page__cta">
+            <button type="button" id="prof-save" class="btn-save">儲存檔案</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- sheet / 抽屜 / 邀請 modal 的掛載點(sheets.js 動態產生內容) -->
+      <div id="sheet-root"></div>
+      <div id="modal-root"></div>
+      <div id="toast-root"></div>
+
+      <!-- ===================== 底部 tab bar ===================== -->
+      <nav class="tabbar">
+        <button type="button" class="tabbar__btn is-active" data-tab="map">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" />
+            <circle class="dot" cx="12" cy="10" r="2.4" />
+          </svg>
+          <span>地圖</span>
+        </button>
+        <button type="button" class="tabbar__btn" data-tab="invites">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+          </svg>
+          <span>我的邀請</span>
+        </button>
+        <button type="button" class="tabbar__btn" data-tab="profile">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21c0-4 4-6.2 8-6.2s8 2.2 8 6.2" />
+          </svg>
+          <span>個人檔案</span>
+        </button>
+      </nav>
     </div>
 
     <script type="module" src="/src/main.js"></script>

@@ -1,18 +1,20 @@
-# Tennis Partner Finder｜台北網球球伴地圖(原型)
+# Tennis Partner Finder｜找球伴(原型)
 
-以「球場」為單位的網球球伴地圖:地圖上每支圖釘都釘在台北市真實球場的座標,
-分成兩種釘 —
+以「球場」為單位的台北網球球伴地圖。視覺與版面對照 claude.ai/design 匯出的
+設計檔 **`Tennis Partner Finder.dc.html`**(深森林綠 × 萊姆、Baloo 2 +
+Noto Sans TC、底部卡片與聚合釘),地圖換成真正的 **Google Maps JavaScript API**。
 
-- **球友釘**(綠色實心・主要):公開位置的註冊球友。點開顯示暱稱、NTRP、
-  想打類型、固定時段、LINE ID,以及「送出邀請」按鈕(原型階段只跳 alert)。
-- **需求釘**(奶油底虛線框・次要):某球場附近有人徵球伴。點開顯示區域、程度
-  (例「約3.5」或「程度未提供」)、需求原句與「查看原貼文」連結,
-  不顯示姓名或聯絡方式。
+地圖上的釘都釘在台北市真實球場的座標(不是住家),共三種:
 
-上方篩選列可依 **NTRP 範圍** 與 **想打類型(單打/雙打/對拉)** 即時過濾圖釘。
+- **球友釘**(萊姆圓+暱稱字首・主要):公開位置的註冊球友。點開底部卡片
+  顯示暱稱、NTRP、想打類型、固定時段、LINE ID 與「送出邀請」。
+- **需求釘**(白底灰虛線框「徵」・次要):某球場附近有人徵球伴。點開顯示
+  區域、大概程度(如「約 3.5」/「程度未提供」)、需求原句與「查看原貼文」
+  連結;不顯示姓名或聯絡方式。
+- **聚合釘**(深綠圓+數量):同球場有多筆時聚合,點開球場抽屜逐筆查看。
 
 > 純前端原型:HTML + JavaScript(Vite),沒有後端、沒有資料庫,
-> 資料全部寫死在 `src/mockData.js`。
+> 資料全部寫死在 `src/mockData.js`。邀請與個人檔案只存在記憶體。
 
 ## 快速開始
 
@@ -29,8 +31,8 @@ npm run dev     # 啟動本機開發伺服器,預設 http://localhost:5173
 export const GOOGLE_MAPS_API_KEY = "___"; // ← 換成你的 API key
 ```
 
-存檔後 Vite 會自動重新載入。**沒填 key 時頁面不會壞**,會顯示一個說明蓋板
-(附球場與資料一覽),篩選列照常可以操作。
+存檔後 Vite 會自動重新載入。**沒填 key(或 key 無效)時頁面不會壞**,
+會顯示說明蓋板與球場資料一覽。
 
 ### 取得 Google Maps API key
 
@@ -42,15 +44,17 @@ export const GOOGLE_MAPS_API_KEY = "___"; // ← 換成你的 API key
 ## 專案結構
 
 ```
-index.html          頁面骨架:標題列、篩選列、地圖容器、圖例、API key 說明蓋板
+index.html          三個分頁的骨架:地圖(浮層+chips)、我的邀請、個人檔案、tab bar
 src/
   config.js         ★ GOOGLE_MAPS_API_KEY 填這裡;地圖中心/縮放設定
-  mockData.js       假資料:6 座台北真實球場、7 位球友、6 則徵球伴需求
-  filters.js        篩選純函式(NTRP 範圍、想打類型、顯示開關)
-  pins.js           兩種圖釘的 SVG 圖示(marker 與圖例共用)
-  map.js            Google Maps 載入、地圖建立、圖釘與 InfoWindow 繪製
-  main.js           進入點:綁 UI 事件、載入地圖、套篩選重畫
-  style.css         全部樣式;開頭的 design tokens 是換膚入口
+  mockData.js       假資料:6 座台北真實球場、6 位球友、6 則徵球伴需求
+  filters.js        篩選純函式(NTRP band、想打類型)
+  pins.js           三種圖釘的 SVG(球友/需求/聚合,樣式取自設計檔)
+  map.js            Maps 載入、鼠尾草色系地圖樣式、依球場分組與畫釘
+  sheets.js         底部卡片(球友/需求)、球場抽屜、邀請 modal
+  main.js           進入點:分頁、篩選接線、邀請清單、個人檔案表單
+  util.js           esc / URL 白名單 / 來源標籤 / NTRP 分級文案
+  style.css         全部樣式;開頭 design tokens 取自設計檔
 ```
 
 ## 假資料形狀
@@ -60,7 +64,7 @@ src/
 ```ts
 // 球友釘
 RegisteredPlayer: {
-  id, displayName, ntrp: number, goals: string[],   // 單打/雙打/對拉
+  id, displayName, ntrp: number, goals: string[],   // 單打/對拉/雙打/練球
   homeCourt: string, courtLat, courtLng,            // 釘在球場,不是住家
   availability: string[], lineId
 }
@@ -68,31 +72,32 @@ RegisteredPlayer: {
 // 需求釘
 DemandPin: {
   id, court: string, courtLat, courtLng,
-  ntrp: number | null,        // null = 沒有可換算的數字程度(受「含程度未提供」篩選)
-  rawSkill: string | null,    // 原貼文的程度描述,如「約3.5」「中上」
+  ntrp: number | null,        // null = 沒有可換算的數字程度
+  rawSkill: string | null,    // 原貼文的程度描述,如「約 3.5」「中上」
   demandText: string, sourceUrl
 }
 ```
 
-InfoWindow 的「程度」顯示 `rawSkill`;`rawSkill` 也是 `null` 才顯示「程度未提供」。
+卡片上的「大概程度」顯示 `rawSkill`;`rawSkill` 也是 `null` 才顯示「程度未提供」。
+球場清單(名稱/行政區/大約座標)在同檔案的 `COURTS`,新增資料時座標請從
+這裡拿,維持「圖釘=球場」的原則;同球場多筆會自動變聚合釘。
 
-球場清單(名稱/行政區/大約座標)在同檔案的 `COURTS`,
-新增資料時座標請從這裡拿,維持「圖釘=球場」的原則。
-同一座球場有多支釘時,第 2 支起會在球場座標周圍約百餘公尺內環狀攤開
-(`src/map.js` 的 `spreadOverlaps`),代表的仍是同一座球場,只是避免圖釘完全重疊無法點選。
+## 篩選規則(沿用設計檔行為)
 
-## 篩選規則
+- **程度**:下拉選 NTRP 區間 —— 全部 / ≤ 3.0 / 3.0–4.0 / 4.0–5.0 / 5.0+。
+  同時作用於球友釘與需求釘;`ntrp: null` 的需求釘一律通過(不因沒數字被濾掉)。
+- **想打類型**(單打/對拉/雙打/練球):chips 可複選,**未選任何 chip = 不限**。
+  只作用於球友釘 —— 需求釘沒有結構化的類型欄位(原句在 `demandText`),不受影響。
+- 篩選變更即時重畫圖釘;聚合數量也會跟著變(例如選 4.0–5.0 時,
+  台北網球中心的聚合釘會攤開成 Leo 的個別球友釘)。
 
-- **NTRP 範圍**:同時作用於球友釘與需求釘。
-- **含程度未提供**:`ntrp: null` 的需求釘是否顯示(預設顯示)。
-- **想打類型**:只作用於球友釘 —— 需求釘沒有結構化的類型欄位
-  (原句在 `demandText` 裡),所以不受此篩選影響。
-- **顯示開關**:可個別隱藏球友釘/需求釘。
+## 與設計檔的差異(刻意取捨)
 
-## 關於設計檔
-
-原設計 `Tennis Partner Finder.dc.html` 存在 claude.ai/design 專案中,但這個
-遠端環境無法完成 `/design-login` 互動授權,所以目前的視覺是依產品描述重建的
-基準(球場綠/紅土橘/網球黃綠)。之後拿到設計檔時,對照調整
-`src/style.css` 開頭的 design tokens(顏色、圓角、陰影、字體)即可全站換膚,
-版面結構不用動。
+- 設計檔是 390×844 手機殼展示;原型改成滿版 RWD —— 地圖吃滿視窗,
+  卡片/彈窗/tab bar 在桌機上限寬 430px 置中,手機上就是原設計的樣子。
+- 設計檔的假地圖(SVG 街區)換成真 Google Maps,配色用地圖樣式
+  重現設計的鼠尾草色系(陸地 #ECEDE7 / 水域 #C4D8E2 / 公園 #D8E6C4)。
+- 「送出邀請」做了設計檔的完整 modal 流程(選時段 → 留言 → 成功畫面),
+  送出後寫進「我的邀請」分頁(僅記憶體);沒有真的通知任何人。
+- 設計檔的「完整檔案」第二層頁面未實作 —— 底部卡片已涵蓋原型需要的
+  全部欄位;之後要加再說。
