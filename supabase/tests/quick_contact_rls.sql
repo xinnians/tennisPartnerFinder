@@ -58,10 +58,11 @@ values
   )
 on conflict (id) do nothing;
 
-insert into public.profiles (user_id, nickname, ntrp, line_id, is_public)
+insert into public.profiles (id, user_id, nickname, ntrp, line_id, is_public)
+overriding system value
 values
-  ('00000000-0000-0000-0000-000000000101', 'Public Player', 3.5, 'public_line', true),
-  ('00000000-0000-0000-0000-000000000202', 'Private Player', 4.0, 'private_line', false);
+  (9001, '00000000-0000-0000-0000-000000000101', 'Public Player', 3.5, 'public_line', true),
+  (9002, '00000000-0000-0000-0000-000000000202', 'Private Player', 4.0, 'private_line', false);
 
 insert into public.profile_courts (profile_id, court_id)
 select p.id, c.id
@@ -137,11 +138,9 @@ insert into public.partner_requests (
   request_text,
   expires_at
 )
-select p.id, c.id, '週六下午', '想找 3.5 左右球友對拉', now() + interval '7 days'
-from public.profiles p
-cross join public.courts c
-where p.line_id = 'public_line'
-  and c.name = '大安森林公園網球場';
+select 9001, c.id, '週六下午', '想找 3.5 左右球友對拉', now() + interval '7 days'
+from public.courts c
+where c.name = '大安森林公園網球場';
 
 select is(
   (select count(*) from public.partner_requests where request_text = '想找 3.5 左右球友對拉'),
@@ -158,11 +157,9 @@ select throws_ok(
       request_text,
       expires_at
     )
-    select p.id, c.id, '週日早上', 'spoofed request', now() + interval '7 days'
-    from public.profiles p
-    cross join public.courts c
-    where p.line_id = 'private_line'
-      and c.name = '大安森林公園網球場'
+    select 9002, c.id, '週日早上', 'spoofed request', now() + interval '7 days'
+    from public.courts c
+    where c.name = '大安森林公園網球場'
   $$,
   '42501',
   null,
@@ -170,11 +167,7 @@ select throws_ok(
 );
 
 insert into public.reports (reporter_profile_id, reported_profile_id, reason)
-select owner_profile.id, other_profile.id, 'bad behavior'
-from public.profiles owner_profile
-cross join public.profiles other_profile
-where owner_profile.line_id = 'public_line'
-  and other_profile.line_id = 'private_line';
+values (9001, 9002, 'bad behavior');
 
 select is(
   (select count(*) from public.reports where reason = 'bad behavior'),
@@ -185,11 +178,7 @@ select is(
 select throws_ok(
   $$
     insert into public.reports (reporter_profile_id, reported_profile_id, reason)
-    select other_profile.id, owner_profile.id, 'spoofed reporter'
-    from public.profiles owner_profile
-    cross join public.profiles other_profile
-    where owner_profile.line_id = 'public_line'
-      and other_profile.line_id = 'private_line'
+    values (9002, 9001, 'spoofed reporter')
   $$,
   '42501',
   null,

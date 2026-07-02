@@ -27,12 +27,16 @@ are in-memory only.
   - Playwright smoke tests cover app load, tab switching, player sheet,
     quick contact, profile save feedback, external demand source links, Maps
     auth fallback, and desktop/mobile Chromium viewports.
-- Milestone 2 has an initial migration draft:
+- Milestone 2 local migration/RLS verification is complete:
   - `supabase/migrations/202607020001_initial_mvp_schema.sql`
   - Includes core tables, Taipei court seed data, indexes, RLS policies, and a
     public discovery view for quick contact.
-  - `supabase/tests/quick_contact_rls.sql` documents the local RLS verification
-    cases for the quick-contact schema.
+  - `supabase/tests/quick_contact_rls.sql` verifies the quick-contact schema
+    against local Supabase.
+  - Verified on 2026-07-02 with Supabase CLI `2.109.0` and Docker `29.6.1`.
+  - Passing checks: `npx supabase db reset`,
+    `npx supabase test db supabase/tests`, `npm run build`, `npm test`,
+    `npm audit --audit-level=moderate`, and `git diff --check`.
 - Milestone 3 and Milestone 4 are not implemented yet.
 
 ## Product Principles
@@ -156,6 +160,8 @@ Goal: define the backend schema and privacy boundaries before wiring the UI.
 
 Preferred backend: Supabase Auth + Postgres + Row Level Security.
 
+Status: local Supabase migration and RLS tests passed on 2026-07-02.
+
 Initial tables:
 
 - `profiles`
@@ -208,7 +214,8 @@ Goal: make the MVP safe enough for a small real-world trial.
 
 ## Draft Data Model
 
-This is a planning draft, not final SQL.
+This is a planning reference. The SQL source of truth is
+`supabase/migrations/202607020001_initial_mvp_schema.sql`.
 
 ### `profiles`
 
