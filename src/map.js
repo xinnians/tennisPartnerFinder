@@ -98,6 +98,8 @@ function playerInfoHtml(p) {
 /** 需求釘:區域、程度、需求原句、原貼文連結(不顯示姓名/聯絡方式) */
 function demandInfoHtml(d) {
   const skill = d.rawSkill ?? "程度未提供";
+  // 只放 http(s) 連結進 href,擋掉 javascript: 之類的 scheme
+  const safeUrl = /^https?:\/\//i.test(d.sourceUrl) ? d.sourceUrl : "#";
   return `
     <div class="iw iw--demand">
       <div class="iw__badge iw__badge--demand">徵球伴</div>
@@ -107,7 +109,7 @@ function demandInfoHtml(d) {
         <div><dt>程度</dt><dd>${esc(skill)}</dd></div>
         <div><dt>需求</dt><dd>「${esc(d.demandText)}」</dd></div>
       </dl>
-      <a class="iw__source" href="${esc(d.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看原貼文 ↗</a>
+      <a class="iw__source" href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer">查看原貼文 ↗</a>
     </div>`;
 }
 
@@ -127,7 +129,9 @@ function spreadOverlaps(items) {
     byCoord.set(key, n + 1);
     if (n === 0) return item; // 第一支釘留在球場原點
     const angle = (n - 1) * (Math.PI / 3); // 之後的釘以 60° 間隔繞一圈
-    const r = 0.0012; // 約 100 多公尺,市區 zoom 下剛好分得開
+    // 每繞滿一圈(6 支)就往外加一環,避免第 8 支起又疊回第一環的位置
+    const ring = 1 + Math.floor((n - 1) / 6);
+    const r = 0.0012 * ring; // 第一環約 100 多公尺,市區 zoom 下剛好分得開
     return { ...item, lat: item.lat + r * Math.sin(angle), lng: item.lng + r * Math.cos(angle) };
   });
 }

@@ -333,6 +333,11 @@ body {
 /* ------------------------------------------------------------
    尚未填 API key 的說明蓋板
    ------------------------------------------------------------ */
+/* author 樣式的 display 會蓋過 UA 對 [hidden] 的 display:none,必須明寫 */
+.placeholder[hidden] {
+  display: none;
+}
+
 .placeholder {
   position: absolute;
   inset: 0;

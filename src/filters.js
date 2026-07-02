@@ -26,7 +26,10 @@ export const DEFAULT_FILTER_STATE = {
  * @returns {{players: Array, demands: Array}}
  */
 export function filterData({ players, demands }, state) {
-  const inRange = (n) => n >= state.ntrpMin && n <= state.ntrpMax;
+  // 使用者可能把下限選得比上限大;取正規化後的區間,而不是默默清空結果
+  const lo = Math.min(state.ntrpMin, state.ntrpMax);
+  const hi = Math.max(state.ntrpMin, state.ntrpMax);
+  const inRange = (n) => n >= lo && n <= hi;
 
   const filteredPlayers = !state.showPlayers
     ? []
