@@ -33,7 +33,7 @@
             </ol>
             <p class="placeholder__hint">
               申請方式見 README「取得 Google Maps API key」。<br />
-              下方是目前假資料的球場一覽,填入 key 後就會變成互動地圖:
+              下方是目前資料中的球場一覽,填入 key 後就會變成互動地圖:
             </p>
             <ul id="placeholder-courts" class="placeholder__courts"></ul>
           </div>
@@ -57,6 +57,10 @@
                 <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" />
               </svg>
               台北市
+            </div>
+            <div class="auth-pill">
+              <span id="auth-status">未登入</span>
+              <button type="button" id="auth-action">登入</button>
             </div>
           </div>
           <div class="chip-row scroll" role="group" aria-label="篩選條件">
@@ -83,6 +87,7 @@
 
         <!-- 地圖控制鈕 -->
         <div class="map-ctrls">
+          <button type="button" id="publish-request" class="map-ctrls__publish">發布需求</button>
           <button type="button" id="zoom-in" aria-label="放大">+</button>
           <button type="button" id="zoom-out" aria-label="縮小">−</button>
           <button type="button" id="recenter" aria-label="回到市中心">

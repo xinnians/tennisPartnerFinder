@@ -11,17 +11,34 @@ import {
   openDemandSheet,
   openCourtDrawer,
   openQuickContactModal,
+  openLoginModal,
+  openPublishRequestModal,
   closeSheet,
   closeModal,
 } from "./sheets.js";
+import { isSupabaseConfigured } from "./supabaseClient.js";
+import {
+  createPartnerRequest,
+  getInitialSession,
+  loadActivePartnerRequests,
+  loadCourts,
+  loadCurrentProfile,
+  loadDiscoveryPlayers,
+  onAuthStateChange,
+  saveCurrentProfile,
+  signInWithEmail,
+  signOut,
+} from "./dataApi.js";
 import { esc, ntrpDesc } from "./util.js";
 
-const DATA = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+let courts = COURTS;
+let dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
 
 // ------------------------------------------------------------
 // App 狀態(原型:全部放記憶體,重新整理就重置)
 // ------------------------------------------------------------
 const state = {
+  session: null,
   filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
   profile: {
     nick: "我",
@@ -50,6 +67,7 @@ const pinHandlers = {
 
 function contactMissingFields(profile) {
   const missing = [];
+  if (!profile.nick || profile.nick === "我") missing.push("暱稱");
   if (!profile.lineId) missing.push("LINE ID");
   if (!profile.ntrp) missing.push("NTRP");
   if (profile.courts.size === 0) missing.push("常打球場");
@@ -63,15 +81,44 @@ function showToast(message) {
   showToast._t = setTimeout(() => (toast.innerHTML = ""), 2200);
 }
 
-function startQuickContact(p) {
+function openAuthPrompt() {
+  if (!isSupabaseConfigured) {
+    showToast("請先設定 Supabase env。");
+    return;
+  }
+  openLoginModal({
+    onSubmit: async (email) => {
+      await signInWithEmail(email);
+      closeModal();
+      showToast("登入信已寄出");
+    },
+  });
+}
+
+function ensureSignedInAndCompleteProfile() {
+  if (isSupabaseConfigured && !state.session) {
+    openAuthPrompt();
+    return false;
+  }
+
   const missing = contactMissingFields(state.profile);
   if (missing.length > 0) {
     showToast(`先補齊 ${missing.join("、")}，開場白會比較自然。`);
     switchTab("profile");
-    return;
+    closeSheet();
+    return false;
   }
 
-  openQuickContactModal(p, { viewerProfile: state.profile });
+  return true;
+}
+
+function startQuickContact(p) {
+  if (!ensureSignedInAndCompleteProfile()) return;
+
+  openQuickContactModal(p, {
+    viewerProfile: state.profile,
+    onPublishRequest: () => startPublishRequest(),
+  });
 }
 
 // ------------------------------------------------------------
@@ -80,7 +127,7 @@ function startQuickContact(p) {
 function refreshPins() {
   if (!map) return;
   closeSheet();
-  const groups = groupPinsByCourt(COURTS, filterData(DATA, state.filters));
+  const groups = groupPinsByCourt(courts, filterData(dataSet, state.filters));
   markers = renderPins(google, map, groups, pinHandlers, markers);
 }
 
@@ -153,6 +200,57 @@ function setupMapControls() {
   });
 }
 
+function setupPublishRequest() {
+  document.getElementById("publish-request").addEventListener("click", () => startPublishRequest());
+}
+
+async function loadAppData() {
+  if (!isSupabaseConfigured) {
+    courts = COURTS;
+    dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+    return;
+  }
+
+  try {
+    const [nextCourts, players, demands] = await Promise.all([
+      loadCourts(),
+      loadDiscoveryPlayers(),
+      loadActivePartnerRequests(),
+    ]);
+    courts = nextCourts.length ? nextCourts : COURTS;
+    dataSet = { players, demands };
+  } catch (error) {
+    console.error(error);
+    showToast("Supabase 資料載入失敗，先使用原型資料。");
+    courts = COURTS;
+    dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+  }
+}
+
+async function refreshDataAndPins() {
+  await loadAppData();
+  refreshPins();
+}
+
+async function startPublishRequest() {
+  if (!ensureSignedInAndCompleteProfile()) return;
+
+  openPublishRequestModal(courts, {
+    onSubmit: async (request) => {
+      const court = courts.find((item) => String(item.id ?? item.name) === String(request.courtId));
+      if (!court?.id) throw new Error("找不到可發布的球場");
+      await createPartnerRequest({
+        courtId: court.id,
+        desiredTimeText: request.desiredTimeText,
+        rawSkillText: request.rawSkillText,
+        requestText: request.requestText,
+      });
+      await refreshDataAndPins();
+      showToast("需求已發布");
+    },
+  });
+}
+
 // ------------------------------------------------------------
 // 分頁切換
 // ------------------------------------------------------------
@@ -169,6 +267,75 @@ function switchTab(tab) {
 function setupTabs() {
   document.querySelectorAll(".tabbar__btn").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+}
+
+function updateAuthStatus() {
+  const label = document.getElementById("auth-status");
+  const button = document.getElementById("auth-action");
+  if (!label || !button) return;
+
+  if (!isSupabaseConfigured) {
+    label.textContent = "原型";
+    button.textContent = "登入";
+    button.disabled = true;
+    return;
+  }
+
+  if (state.session) {
+    label.textContent = state.session.user?.email ?? "已登入";
+    button.textContent = "登出";
+    button.disabled = false;
+  } else {
+    label.textContent = "未登入";
+    button.textContent = "登入";
+    button.disabled = false;
+  }
+}
+
+function replaceProfile(profile) {
+  state.profile.id = profile.id;
+  state.profile.nick = profile.nick;
+  state.profile.ntrp = profile.ntrp;
+  state.profile.types = new Set(profile.types);
+  state.profile.courts = new Set(profile.courts);
+  state.profile.slots = new Set(profile.slots);
+  state.profile.share = profile.share;
+  state.profile.lineId = profile.lineId;
+}
+
+async function loadSignedInProfile() {
+  if (!state.session || !isSupabaseConfigured) return;
+  const profile = await loadCurrentProfile();
+  if (profile) {
+    replaceProfile(profile);
+    syncProfileForm();
+  }
+}
+
+async function initializeAuth() {
+  state.session = await getInitialSession();
+  await loadSignedInProfile();
+  updateAuthStatus();
+
+  onAuthStateChange(async (session) => {
+    state.session = session;
+    if (session) await loadSignedInProfile();
+    updateAuthStatus();
+  });
+}
+
+function setupAuthControls() {
+  const button = document.getElementById("auth-action");
+  button.addEventListener("click", async () => {
+    if (state.session) {
+      await signOut();
+      state.session = null;
+      updateAuthStatus();
+      showToast("已登出");
+      return;
+    }
+    openAuthPrompt();
   });
 }
 
@@ -262,6 +429,14 @@ function setupProfile() {
   // 分享位置開關
   const shareBtn = document.getElementById("prof-share");
   shareBtn.addEventListener("click", () => {
+    if (!prof.share) {
+      const missing = contactMissingFields(prof);
+      if (missing.length > 0) {
+        showToast(`公開前請先補齊 ${missing.join("、")}`);
+        shareBtn.classList.remove("is-on");
+        return;
+      }
+    }
     prof.share = !prof.share;
     shareBtn.classList.toggle("is-on", prof.share);
   });
@@ -272,9 +447,51 @@ function setupProfile() {
     prof.lineId = lineInput.value.trim();
   });
 
-  // 儲存 → toast(原型不落地)
-  document.getElementById("prof-save").addEventListener("click", () => {
-    showToast("已儲存");
+  // 儲存:未設定 Supabase 時維持原型 toast;有設定時寫入目前登入使用者的 profile。
+  document.getElementById("prof-save").addEventListener("click", async () => {
+    if (!isSupabaseConfigured) {
+      showToast("已儲存");
+      return;
+    }
+
+    if (!state.session) {
+      openAuthPrompt();
+      return;
+    }
+
+    try {
+      const savedProfile = await saveCurrentProfile(prof);
+      if (savedProfile) {
+        replaceProfile(savedProfile);
+        syncProfileForm();
+      }
+      await refreshDataAndPins();
+      showToast("已儲存到 Supabase");
+    } catch (error) {
+      console.error(error);
+      showToast("儲存失敗，請稍後再試。");
+    }
+  });
+}
+
+function syncProfileForm() {
+  const prof = state.profile;
+  document.getElementById("prof-nick").value = prof.nick;
+  document.getElementById("prof-avatar").textContent = prof.nick.slice(0, 1);
+  document.getElementById("prof-ntrp").value = String(prof.ntrp);
+  document.getElementById("prof-ntrp-val").textContent = prof.ntrp.toFixed(1);
+  document.getElementById("prof-ntrp-desc").textContent = ntrpDesc(prof.ntrp);
+  document.getElementById("prof-line").value = prof.lineId;
+  document.getElementById("prof-share").classList.toggle("is-on", prof.share);
+
+  document.querySelectorAll("#prof-types [data-t]").forEach((btn) => {
+    btn.classList.toggle("is-active", prof.types.has(btn.dataset.t));
+  });
+  document.querySelectorAll("#prof-courts [data-c]").forEach((btn) => {
+    btn.classList.toggle("is-on", prof.courts.has(btn.dataset.c));
+  });
+  document.querySelectorAll("#prof-slots [data-s]").forEach((btn) => {
+    btn.classList.toggle("is-on", prof.slots.has(btn.dataset.s));
   });
 }
 
@@ -285,9 +502,9 @@ function showPlaceholder() {
   const placeholder = document.getElementById("map-placeholder");
   if (!placeholder.hidden) return; // 已顯示過(可能由多個失敗路徑觸發)
   const list = document.getElementById("placeholder-courts");
-  for (const court of COURTS) {
-    const players = REGISTERED_PLAYERS.filter((p) => p.homeCourt === court.name).length;
-    const demands = DEMAND_PINS.filter((d) => d.court === court.name).length;
+  for (const court of courts) {
+    const players = dataSet.players.filter((p) => p.homeCourt === court.name).length;
+    const demands = dataSet.demands.filter((d) => d.court === court.name).length;
     const li = document.createElement("li");
     li.textContent = `${court.name}(${court.district})— 球友 ${players} 位・需求 ${demands} 則`;
     list.appendChild(li);
@@ -303,7 +520,11 @@ async function init() {
   setupLevelPopover();
   setupTypeChips();
   setupMapControls();
+  setupPublishRequest();
   setupProfile();
+  setupAuthControls();
+  await initializeAuth();
+  await loadAppData();
 
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "___") {
     showPlaceholder();

@@ -7,6 +7,7 @@ import { esc, safeUrl, sourceLabel } from "./util.js";
 
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
+const publishButton = () => document.getElementById("publish-request");
 
 export function closeSheet() {
   sheetRoot().innerHTML = "";
@@ -14,6 +15,7 @@ export function closeSheet() {
 
 export function closeModal() {
   modalRoot().innerHTML = "";
+  publishButton()?.removeAttribute("hidden");
 }
 
 /** 共用:掛 dimmer + 內容,點 dimmer 關閉 */
@@ -60,6 +62,14 @@ export function openPlayerSheet(p, { onQuickContact }) {
 // ------------------------------------------------------------
 export function openDemandSheet(d) {
   const skill = d.rawSkill ?? "程度未提供";
+  const sourceCta = d.sourceUrl
+    ? `<a class="btn-source" href="${esc(safeUrl(d.sourceUrl))}" target="_blank" rel="noopener noreferrer">
+        查看原貼文<small>${esc(sourceLabel(d.sourceUrl))}</small>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#20302A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3h6v6M21 3l-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/>
+        </svg>
+      </a>`
+    : `<div class="platform-source">平台內需求</div>`;
   mountSheet(`
     <div class="sheet">
       <div class="sheet__handle"></div>
@@ -81,12 +91,7 @@ export function openDemandSheet(d) {
         </svg>
         <span>此為公開徵求貼文,非平台註冊球友;不顯示姓名與聯絡方式。</span>
       </div>
-      <a class="btn-source" href="${esc(safeUrl(d.sourceUrl))}" target="_blank" rel="noopener noreferrer">
-        查看原貼文<small>${esc(sourceLabel(d.sourceUrl))}</small>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#20302A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M15 3h6v6M21 3l-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/>
-        </svg>
-      </a>
+      ${sourceCta}
     </div>`);
 }
 
@@ -186,7 +191,8 @@ async function copyToClipboard(text, button) {
 // ------------------------------------------------------------
 // 快速聯絡 modal:顯示 LINE + 產生開場白,真正溝通交給 LINE
 // ------------------------------------------------------------
-export function openQuickContactModal(p, { viewerProfile }) {
+export function openQuickContactModal(p, { viewerProfile, onPublishRequest }) {
+  publishButton()?.setAttribute("hidden", "");
   const root = modalRoot();
   let chosenSlot = p.availability[0] ?? "";
 
@@ -228,6 +234,7 @@ export function openQuickContactModal(p, { viewerProfile }) {
         <div class="modal__label">開場白</div>
         <div class="contact-opener">${esc(opener)}</div>
         <button type="button" class="modal__send" data-copy-opener>複製開場白</button>
+        ${onPublishRequest ? `<button type="button" class="modal__secondary" data-publish-request>發布需求</button>` : ""}
         <div class="modal__hint">請先簡短自我介紹，確認程度、球場與時間後再約打。</div>
         <div class="contact-copy-error" data-copy-error hidden>複製失敗，請手動選取文字。</div>
       </div>`;
@@ -246,7 +253,105 @@ export function openQuickContactModal(p, { viewerProfile }) {
     root.querySelector("[data-copy-opener]").addEventListener("click", (event) => {
       copyToClipboard(opener, event.currentTarget);
     });
+    root.querySelector("[data-publish-request]")?.addEventListener("click", () => {
+      closeModal();
+      onPublishRequest();
+    });
   };
 
   render();
+}
+
+export function openLoginModal({ onSubmit }) {
+  publishButton()?.setAttribute("hidden", "");
+  const root = modalRoot();
+  root.innerHTML = `
+    <div class="modal-dim" data-close></div>
+    <form class="modal auth-modal" data-login-form>
+      <div class="modal__head">
+        <div class="avatar" style="width:48px;height:48px;font-size:19px">入</div>
+        <div style="flex:1">
+          <div class="modal__to">登入後繼續</div>
+          <div class="modal__nick">Email magic link</div>
+        </div>
+        <button type="button" class="btn-close" data-close-x>✕</button>
+      </div>
+      <div class="modal-field">
+        <label class="modal-field__label" for="login-email">Email</label>
+        <input id="login-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+      </div>
+      <button type="submit" class="modal__send">寄送登入信</button>
+      <div class="modal__hint">本機開發時可使用 Supabase Studio 或測試 session 完成登入。</div>
+    </form>`;
+
+  const close = () => closeModal();
+  root.querySelector("[data-close]").addEventListener("click", close);
+  root.querySelector("[data-close-x]").addEventListener("click", close);
+  root.querySelector("[data-login-form]").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button[type='submit']");
+    button.disabled = true;
+    try {
+      await onSubmit(new FormData(event.currentTarget).get("email").trim());
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+export function openPublishRequestModal(courts, { onSubmit }) {
+  publishButton()?.setAttribute("hidden", "");
+  const root = modalRoot();
+  root.innerHTML = `
+    <div class="modal-dim" data-close></div>
+    <form class="modal request-modal" data-request-form>
+      <div class="modal__head">
+        <div class="demand-face" style="width:48px;height:48px;font-size:17px">徵</div>
+        <div style="flex:1">
+          <div class="modal__to">發布需求</div>
+          <div class="modal__nick">快速找到附近球友</div>
+        </div>
+        <button type="button" class="btn-close" data-close-x>✕</button>
+      </div>
+      <div class="modal-field">
+        <label class="modal-field__label" for="request-court">球場</label>
+        <select id="request-court" name="courtId" required>
+          ${courts.map((court) => `<option value="${esc(String(court.id ?? court.name))}">${esc(court.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="modal-field">
+        <label class="modal-field__label" for="request-time">想約時間</label>
+        <input id="request-time" type="text" name="desiredTimeText" placeholder="例如: 週六下午" required />
+      </div>
+      <div class="modal-field">
+        <label class="modal-field__label" for="request-skill">大概程度</label>
+        <input id="request-skill" type="text" name="rawSkillText" placeholder="例如: 3.5 左右" />
+      </div>
+      <div class="modal-field">
+        <label class="modal-field__label" for="request-text">需求內容</label>
+        <textarea id="request-text" name="requestText" placeholder="想找什麼樣的球友或打法" required></textarea>
+      </div>
+      <button type="submit" class="modal__send">送出需求</button>
+    </form>`;
+
+  const close = () => closeModal();
+  root.querySelector("[data-close]").addEventListener("click", close);
+  root.querySelector("[data-close-x]").addEventListener("click", close);
+  root.querySelector("[data-request-form]").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button[type='submit']");
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    button.disabled = true;
+    try {
+      await onSubmit({
+        courtId: values.courtId,
+        desiredTimeText: values.desiredTimeText.trim(),
+        rawSkillText: values.rawSkillText.trim(),
+        requestText: values.requestText.trim(),
+      });
+      closeModal();
+    } finally {
+      button.disabled = false;
+    }
+  });
 }

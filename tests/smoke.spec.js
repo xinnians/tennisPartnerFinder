@@ -113,9 +113,10 @@ test("loads, uses quick contact, and saves profile", async ({ page }) => {
   await expect(page.getByRole("button", { name: "快速約球" })).toBeVisible();
 
   await page.getByRole("button", { name: "快速約球" }).click();
-  await expect(page.getByText("先補齊 LINE ID，開場白會比較自然。")).toBeVisible();
+  await expect(page.getByText(/先補齊 .*LINE ID/)).toBeVisible();
   await expect(page.locator("#tab-profile .page__title")).toHaveText("個人檔案");
 
+  await page.getByLabel("暱稱").fill("Me");
   await page.getByPlaceholder("輸入你的 LINE ID").fill("my_line_id");
   await page.getByRole("button", { name: /^地圖$/ }).click();
   await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();

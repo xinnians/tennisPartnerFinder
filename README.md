@@ -14,13 +14,14 @@ Noto Sans TC、底部卡片與聚合釘),地圖換成真正的 **Google Maps Jav
   連結;不顯示姓名或聯絡方式。
 - **聚合釘**(深綠圓+數量):同球場有多筆時聚合,點開球場抽屜逐筆查看。
 
-> 純前端原型:HTML + JavaScript(Vite),沒有後端、沒有資料庫,
-> 資料全部寫死在 `src/mockData.js`。個人檔案與快速約球狀態只存在記憶體。
+> 目前是 Vite 前端 + local Supabase MVP wiring。沒設定 Supabase env 時會退回
+> `src/mockData.js` 原型資料;設定 local Supabase 後會讀寫 Auth、profiles、
+> public discovery 與 partner requests。
 
 ## 快速開始
 
 ```bash
-npm install     # 安裝依賴(只有 Vite)
+npm install     # 安裝 Vite、Playwright 與 Supabase client 等前端依賴
 cp .env.example .env.local
 npm run dev     # 啟動本機開發伺服器,預設 http://localhost:5173
 ```
@@ -38,8 +39,15 @@ VITE_SUPABASE_ANON_KEY=___
 存檔後 Vite 會自動重新載入。**沒填 key(或 key 無效)時頁面不會壞**,
 會顯示說明蓋板與球場資料一覽。
 
-`VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 是下一階段接 Supabase
-時使用;目前純前端原型尚未讀取這兩個值。
+若只想看 mock 原型,`VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 可以保留
+`___`。若要跑 Milestone 3 的 local Supabase 前端流程,請改成:
+
+```bash
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=<npx supabase status -o env 顯示的 ANON_KEY>
+```
+
+目前不需要 hosted Supabase project;前端整合先以 local Supabase stack 為準。
 
 > 注意:`.env.local` 不會進 git。Google Maps browser key 仍會在瀏覽器中可見,
 > 請務必在 Google Cloud Console 加上 HTTP referrer 限制;如果 key 曾經被提交或分享,
@@ -74,7 +82,7 @@ npx supabase test db supabase/tests
 如果 Docker Desktop 尚未安裝或未啟動,`supabase start`、`db reset` 與
 `test db` 會先卡在本機容器前置環境,還不會進到 migration/RLS 驗證。
 
-目前 local migration/RLS 已驗證通過。下一步是把前端接到 Supabase Auth
+目前 local migration/RLS 已驗證通過,前端也已開始接 local Supabase Auth
 與真實資料,仍先以 local Supabase 專案為準,不急著接 hosted project。
 
 目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
@@ -92,6 +100,8 @@ src/
   filters.js        篩選純函式(NTRP band、想打類型)
   pins.js           三種圖釘的 SVG(球友/需求/聚合,樣式取自設計檔)
   map.js            Maps 載入、鼠尾草色系地圖樣式、依球場分組與畫釘
+  supabaseClient.js Supabase browser client 與 env 判斷
+  dataApi.js        Auth/profile/discovery/partner requests 的資料邊界
   sheets.js         底部卡片(球友/需求)、球場抽屜、快速聯絡 modal
   main.js           進入點:分頁、篩選接線、快速約球、個人檔案表單
   util.js           esc / URL 白名單 / 來源標籤 / NTRP 分級文案

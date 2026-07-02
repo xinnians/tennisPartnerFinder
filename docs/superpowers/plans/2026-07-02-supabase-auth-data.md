@@ -10,6 +10,36 @@
 
 ---
 
+## Implementation Progress
+
+Updated 2026-07-02:
+
+- Completed the first local Supabase Auth/Data wiring pass.
+- Installed `@supabase/supabase-js`.
+- Added `src/supabaseClient.js` with local env detection and a stable auth
+  storage key for browser/session tests.
+- Added `src/dataApi.js` as the Supabase boundary for auth, courts, discovery,
+  current profile persistence, and partner request publishing.
+- Kept login and request modals in `src/sheets.js` instead of creating a
+  separate `src/authUi.js`, so modal mounting stays with the existing sheet
+  system.
+- Updated `src/main.js` to load local Supabase data when env is configured and
+  fall back to mock data when it is not.
+- Added `tests/supabase.spec.js` for local Supabase flows: signed-out browsing,
+  login gates, incomplete-profile gate, profile save, LINE first-layer hiding,
+  quick contact LINE reveal, and partner request publishing.
+- Still local-only: no hosted Supabase project, no deploy, no invite/accept
+  flow, no quick contact event log, and no schema change.
+
+Remaining hardening candidates:
+
+- More explicit loading, empty, and failure states around Supabase reads/writes.
+- Manual local magic-link QA through Supabase Studio/email capture.
+- Sign-out reset coverage if profile state clearing behavior changes.
+- Mobile visual QA for the new auth and request modal controls.
+
+---
+
 ## Boundaries
 
 - Do not create a hosted Supabase project in this batch.
@@ -32,8 +62,9 @@
 - Modify: `src/style.css`
 - Create: `src/supabaseClient.js`
 - Create: `src/dataApi.js`
-- Create: `src/authUi.js`
-- Modify: `tests/smoke.spec.js`
+- Auth modal lives in `src/sheets.js` for this first pass; no separate
+  `src/authUi.js` was created.
+- Existing `tests/smoke.spec.js` remains as mock fallback coverage.
 - Create: `tests/supabase.spec.js`
 - Modify after implementation: `docs/mvp-plan.md`
 

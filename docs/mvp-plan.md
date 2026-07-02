@@ -13,10 +13,11 @@ Build the first usable version around:
 - Primary flow: find public tennis partners near real courts.
 - Supporting flow: publish short-lived partner requests for a specific court/time.
 
-The current repository is a Vite frontend prototype. It already has the map,
-player pins, demand pins, filters, quick contact modal, and profile UI. Data is
-still hard-coded in `src/mockData.js`; profile edits and quick contact choices
-are in-memory only.
+The current repository is a Vite frontend prototype moving into local Supabase
+MVP wiring. It already has the map, player pins, demand pins, filters, quick
+contact modal, profile UI, local Supabase Auth/Data boundary, profile
+persistence, public discovery reads, and partner request publishing. When
+Supabase env is not configured, it still falls back to `src/mockData.js`.
 
 ## Implementation Status
 
@@ -37,7 +38,18 @@ are in-memory only.
   - Passing checks: `npx supabase db reset`,
     `npx supabase test db supabase/tests`, `npm run build`, `npm test`,
     `npm audit --audit-level=moderate`, and `git diff --check`.
-- Milestone 3 and Milestone 4 are not implemented yet.
+- Milestone 3 local Auth/Data wiring is in progress:
+  - `@supabase/supabase-js` is installed.
+  - `src/supabaseClient.js` owns Supabase client configuration and auth storage.
+  - `src/dataApi.js` owns Supabase reads/writes for auth, profile, discovery,
+    courts, and partner requests.
+  - Email magic link login UI, sign-out UI, profile persistence, public
+    discovery loading, quick contact UI-gated LINE display, and partner request
+    publishing have a first local implementation.
+  - Playwright local Supabase coverage verifies signed-out browsing,
+    login gates, incomplete-profile gates, profile save, first-layer LINE
+    hiding, quick-contact LINE display, and partner request publishing.
+- Milestone 4 is not implemented yet.
 
 ## Product Principles
 
@@ -187,6 +199,9 @@ Schema guidelines:
 
 Goal: turn the prototype into a usable MVP.
 
+Status: local Supabase first pass implemented on 2026-07-02; hosted Supabase,
+deployment, and production env are still intentionally out of scope.
+
 - Add Supabase client configuration.
 - Implement sign-in and sign-out.
 - Load public player pins from Supabase.
@@ -307,19 +322,16 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Begin Milestone 3: wire the frontend to local Supabase Auth and data.
+Continue Milestone 3 hardening before hosted setup.
 
 Recommended next implementation batch:
 
-1. Add `@supabase/supabase-js`.
-2. Add a small Supabase auth/data layer instead of calling Supabase directly
-   inside UI handlers.
-3. Add Email magic link sign-in/sign-out UI.
-4. Persist the current profile form to `profiles`, `profile_courts`,
-   `profile_play_types`, and `profile_slots`.
-5. Load map players from `public_profile_discovery` and keep LINE hidden until
-   the user taps quick contact.
-6. Load and publish active `partner_requests`.
-7. Keep this batch local-only: do not create a hosted Supabase project, do not
-   deploy, and do not change the verified schema unless a blocker is found and
-   covered by local RLS tests.
+1. Add stronger loading, empty, and error states around Supabase reads/writes.
+2. Manually QA the local magic-link flow through Supabase Studio/email capture.
+3. Review signed-out, signed-in incomplete, and signed-in complete profile UX on
+   desktop and mobile widths.
+4. Add targeted tests for sign-out state reset and public-card toggle behavior
+   if those flows change.
+5. Keep the next batch local-only unless explicitly moving to hosted Supabase:
+   do not deploy, do not create production env, and do not change the verified
+   schema unless a blocker is found and covered by local RLS tests.

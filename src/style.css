@@ -147,6 +147,48 @@ button { font-family: var(--font); }
   font-weight: 500;
 }
 
+.auth-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 176px;
+  height: 34px;
+  padding: 0 8px 0 11px;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e4e8df;
+  box-shadow: 0 4px 12px rgba(20, 40, 26, 0.1);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.auth-pill span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-pill button {
+  flex: none;
+  height: 24px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 9px;
+  background: var(--deep);
+  color: #eef6d6;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-pill button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .chip-row {
   display: flex;
   gap: 8px;
@@ -270,6 +312,23 @@ button { font-family: var(--font); }
 }
 
 .map-ctrls button:active { transform: scale(0.94); }
+
+.map-ctrls button[hidden] {
+  display: none;
+}
+
+.map-ctrls .map-ctrls__publish {
+  width: auto;
+  min-width: 76px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--deep);
+  color: #eef6d6;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
 
 /* ------------------------------------------------------------
    底部卡片(球友/需求 sheet)與球場抽屜
@@ -494,6 +553,20 @@ button { font-family: var(--font); }
 .btn-source small { font-size: 12px; color: var(--label); font-weight: 500; }
 .btn-source:active { transform: scale(0.98); }
 
+.platform-source {
+  height: 50px;
+  margin-top: 16px;
+  border-radius: 16px;
+  background: #f4f6f0;
+  border: 1px solid #e5e9df;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 /* 球場抽屜(聚合釘點開) */
 .drawer {
   max-height: 78%;
@@ -716,6 +789,58 @@ button { font-family: var(--font); }
 }
 
 .modal__hint { text-align: center; font-size: 11.5px; color: var(--faint); margin-top: 11px; line-height: 1.5; }
+
+.modal__secondary {
+  width: 100%;
+  height: 46px;
+  border-radius: 15px;
+  border: 1px solid #dfe5d7;
+  background: #fff;
+  color: var(--deep);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.modal-field {
+  display: block;
+  margin-top: 12px;
+}
+
+.modal-field span,
+.modal-field__label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--label);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
+  width: 100%;
+  border: 1px solid #e7eae1;
+  border-radius: 14px;
+  background: #f8faf4;
+  padding: 12px 14px;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--ink);
+  outline: none;
+}
+
+.modal-field select {
+  min-height: 46px;
+}
+
+.modal-field textarea {
+  height: 92px;
+  resize: none;
+  line-height: 1.55;
+}
 
 /* 送出成功狀態 */
 .modal__done { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 8px 0 4px; }
