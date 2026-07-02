@@ -94,28 +94,6 @@
         </div>
       </section>
 
-      <!-- ===================== 我的邀請分頁 ===================== -->
-      <section id="tab-invites" class="tab-panel">
-        <div class="page">
-          <div class="page__inner">
-            <div class="page__head">
-              <div class="page__title">我的邀請</div>
-              <div class="page__sub">你送出的邀請與回覆狀態</div>
-            </div>
-            <div id="invites-empty" class="empty" hidden>
-              <div class="empty__icon">
-                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#A6B8A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-                </svg>
-              </div>
-              <div class="empty__title">還沒有送出邀請</div>
-              <div class="empty__sub">到地圖上找找程度相近的球友,<br />送出你的第一個邀請吧。</div>
-            </div>
-            <div id="invites-list" class="page__body scroll"></div>
-          </div>
-        </div>
-      </section>
-
       <!-- ===================== 個人檔案分頁 ===================== -->
       <section id="tab-profile" class="tab-panel">
         <div class="page">
@@ -165,12 +143,12 @@
               <div class="prof-card">
                 <div class="share-row">
                   <div style="flex: 1">
-                    <div class="share-row__title">分享我的位置</div>
+                    <div class="share-row__title">公開我的球友卡</div>
                     <div class="share-row__sub">
-                      預設不分享,你可以隨時關閉。開啟後才會在地圖上出現你的球友釘。
+                      讓其他球友透過 LINE 找你約球。公開前需要填 LINE ID、NTRP 與常打球場。
                     </div>
                   </div>
-                  <button type="button" id="prof-share" class="toggle" aria-label="分享我的位置">
+                  <button type="button" id="prof-share" class="toggle" aria-label="公開我的球友卡">
                     <span class="toggle__knob"></span>
                   </button>
                 </div>
@@ -182,7 +160,7 @@
                   <span class="line-badge">LINE</span>
                   <input type="text" id="prof-line" placeholder="輸入你的 LINE ID" />
                 </div>
-                <div class="prof-line__hint">收到你同意的邀請後,對方才看得到你的 LINE ID。</div>
+                <div class="prof-line__hint">只有別人按下快速約球時才會看到,不會顯示在地圖第一層。</div>
               </div>
             </div>
           </div>
@@ -205,12 +183,6 @@
             <circle class="dot" cx="12" cy="10" r="2.4" />
           </svg>
           <span>地圖</span>
-        </button>
-        <button type="button" class="tabbar__btn" data-tab="invites">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-          </svg>
-          <span>我的邀請</span>
         </button>
         <button type="button" class="tabbar__btn" data-tab="profile">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">

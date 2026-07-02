@@ -396,7 +396,7 @@ button { font-family: var(--font); }
 
 .line-row span:last-child { font-size: 14.5px; color: #41514a; font-weight: 600; }
 
-.btn-invite {
+.btn-contact {
   width: 100%;
   height: 50px;
   border-radius: 15px;
@@ -410,7 +410,7 @@ button { font-family: var(--font); }
   margin-top: 17px;
 }
 
-.btn-invite:active { transform: scale(0.98); }
+.btn-contact:active { transform: scale(0.98); }
 
 /* 需求 sheet */
 .dsheet__head { display: flex; align-items: center; gap: 11px; }
@@ -566,7 +566,7 @@ button { font-family: var(--font); }
 .drawer__arrow { color: #c0cbc2; font-size: 22px; flex: none; line-height: 1; margin-left: auto; }
 
 /* ------------------------------------------------------------
-   邀請 modal
+   快速聯絡 modal
    ------------------------------------------------------------ */
 .modal-dim {
   position: absolute;
@@ -593,6 +593,69 @@ button { font-family: var(--font); }
 .modal__head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .modal__to { font-size: 12px; color: var(--label); font-weight: 600; }
 .modal__nick { font-size: 18px; font-weight: 700; color: var(--deep); }
+
+.contact-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 18px 60px;
+  font-size: 12.5px;
+  color: var(--muted-2);
+  font-weight: 600;
+}
+
+.contact-line {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 18px;
+  padding: 12px 13px;
+  background: #eaf7ee;
+  border: 1px solid #c9e8d3;
+  border-radius: 14px;
+}
+
+.contact-line strong {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  color: #1e6b3a;
+  overflow-wrap: anywhere;
+}
+
+.contact-line button {
+  flex: none;
+  border: 0;
+  border-radius: 11px;
+  background: var(--deep);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.contact-opener {
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: #f8faf4;
+  border: 1px solid #e7eae1;
+  color: #2c3a31;
+  font-size: 14px;
+  line-height: 1.65;
+  font-weight: 500;
+}
+
+.contact-copy-error {
+  margin-top: 10px;
+  color: #9a3e2f;
+  background: #fff2ed;
+  border: 1px solid #f1c8bb;
+  border-radius: 12px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 
 .modal__label {
   font-size: 12.5px;
@@ -710,7 +773,7 @@ button { font-family: var(--font); }
 }
 
 /* ------------------------------------------------------------
-   我的邀請 / 個人檔案 分頁
+   內容頁 / 個人檔案 分頁
    ------------------------------------------------------------ */
 .page {
   position: absolute;
@@ -758,7 +821,7 @@ button { font-family: var(--font); }
 .empty__title { font-size: 16px; font-weight: 700; color: var(--muted); margin-top: 18px; }
 .empty__sub { font-size: 13.5px; color: var(--label); margin-top: 7px; line-height: 1.6; }
 
-/* 邀請卡片 */
+/* 歷史聯絡卡片樣式(目前未使用) */
 .card {
   background: #fff;
   border: 1px solid var(--card-border);

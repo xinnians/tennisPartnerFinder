@@ -84,7 +84,7 @@ async function installFakeMaps(page) {
   );
 }
 
-test("loads, switches tabs, opens a player sheet, sends an invite, and saves profile", async ({ page }) => {
+test("loads, uses quick contact, and saves profile", async ({ page }) => {
   const runtimeErrors = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") runtimeErrors.push(msg.text());
@@ -97,33 +97,53 @@ test("loads, switches tabs, opens a player sheet, sends an invite, and saves pro
   await expect(page).toHaveTitle(/Tennis Partner Finder/);
   await expect(page.getByText("找球伴")).toBeVisible();
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
-
-  await page.getByRole("button", { name: /我的邀請/ }).click();
-  await expect(page.getByText("你送出的邀請與回覆狀態")).toBeVisible();
+  await expect(page.getByRole("button", { name: /我的邀請/ })).toHaveCount(0);
 
   await page.getByRole("button", { name: /個人檔案/ }).click();
   await expect(page.getByLabel("暱稱")).toBeVisible();
+  await expect(page.getByText("公開我的球友卡")).toBeVisible();
+  await expect(page.getByText("讓其他球友透過 LINE 找你約球")).toBeVisible();
+  await page.getByRole("button", { name: "儲存檔案" }).click();
+  await expect(page.getByText("已儲存")).toBeVisible();
 
   await page.getByRole("button", { name: /^地圖$/ }).click();
   await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
   await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Amber");
+  await expect(page.locator("#sheet-root")).not.toContainText("amber.tw");
+  await expect(page.getByRole("button", { name: "快速約球" })).toBeVisible();
 
-  await page.getByRole("button", { name: "送出邀請" }).click();
-  await expect(page.getByText("送出邀請給")).toBeVisible();
+  await page.getByRole("button", { name: "快速約球" }).click();
+  await expect(page.getByText("先補齊 LINE ID，開場白會比較自然。")).toBeVisible();
+  await expect(page.locator("#tab-profile .page__title")).toHaveText("個人檔案");
+
+  await page.getByPlaceholder("輸入你的 LINE ID").fill("my_line_id");
+  await page.getByRole("button", { name: /^地圖$/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: "快速約球" }).click();
+
+  await expect(page.getByText("快速約球給")).toBeVisible();
+  await expect(page.locator("#modal-root .modal__nick")).toHaveText("Amber");
+  await expect(page.getByText("amber.tw")).toBeVisible();
+  await expect(page.getByRole("button", { name: "複製 LINE ID" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "複製開場白" })).toBeVisible();
   await page.getByRole("button", { name: "週三晚上" }).click();
-  await page.getByPlaceholder(/打聲招呼/).fill("Playwright smoke invite");
-  await page.getByRole("button", { name: "送出邀請" }).click();
-  await expect(page.getByText("邀請已送出!")).toBeVisible();
-
-  await page.getByRole("button", { name: "查看我的邀請" }).click();
-  await expect(page.getByText("Playwright smoke invite")).toBeVisible();
-  await expect(page.getByText("待回覆")).toBeVisible();
-
-  await page.getByRole("button", { name: /個人檔案/ }).click();
-  await page.getByRole("button", { name: "儲存檔案" }).click();
-  await expect(page.getByText("已儲存")).toBeVisible();
+  await expect(page.locator(".contact-opener")).toContainText("大安森林公園網球場");
+  await expect(page.locator(".contact-opener")).toContainText("週三晚上");
+  await expect(page.locator(".contact-opener")).toContainText("3.5");
 
   expect(runtimeErrors).toEqual([]);
+});
+
+test("external demand pins keep the source-link flow", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /地圖圖釘 中正網球中心/ }).evaluate((el) => el.click());
+
+  await expect(page.getByText("中正網球中心 附近")).toBeVisible();
+  await expect(page.getByText("查看原貼文")).toBeVisible();
+  await expect(page.locator("#sheet-root")).not.toContainText("快速約球");
+  await expect(page.locator("#sheet-root")).not.toContainText("回應需求");
 });
 
 test("falls back to the placeholder when Google Maps auth fails", async ({ page }) => {

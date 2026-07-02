@@ -1,5 +1,5 @@
 // ============================================================
-//  App 進入點:分頁切換、篩選接線、地圖載入、邀請與個人檔案狀態
+//  App 進入點:分頁切換、篩選接線、地圖載入、快速約球與個人檔案狀態
 // ============================================================
 import "./style.css";
 import { GOOGLE_MAPS_API_KEY, MAP_CENTER, MAP_ZOOM } from "./config.js";
@@ -10,7 +10,7 @@ import {
   openPlayerSheet,
   openDemandSheet,
   openCourtDrawer,
-  openInviteModal,
+  openQuickContactModal,
   closeSheet,
   closeModal,
 } from "./sheets.js";
@@ -23,16 +23,6 @@ const DATA = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
 // ------------------------------------------------------------
 const state = {
   filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
-  // 邀請清單。先塞一筆「已接受」示範設計裡的完整卡片(含 LINE)
-  invites: [
-    {
-      player: REGISTERED_PLAYERS.find((p) => p.id === "p3"), // Amber
-      slot: "週日下午",
-      msg: "嗨!我也常在大安森林公園打,程度差不多,想找人穩定約雙打~",
-      status: "accepted",
-      when: "2 天前",
-    },
-  ],
   profile: {
     nick: "我",
     ntrp: 3.5,
@@ -50,22 +40,38 @@ let map = null;
 let markers = [];
 
 // ------------------------------------------------------------
-// 圖釘互動(球友 sheet → 邀請 modal → 邀請清單)
+// 圖釘互動(球友 sheet → 快速聯絡 modal)
 // ------------------------------------------------------------
 const pinHandlers = {
-  onPlayer: (p) => openPlayerSheet(p, { onInvite: startInvite }),
+  onPlayer: (p) => openPlayerSheet(p, { onQuickContact: startQuickContact }),
   onDemand: (d) => openDemandSheet(d),
   onCluster: (court, items) => openCourtDrawer(court, items, pinHandlers),
 };
 
-function startInvite(p) {
-  openInviteModal(p, {
-    onSend: ({ player, slot, msg }) => {
-      state.invites.unshift({ player, slot, msg, status: "pending", when: "剛剛" });
-      renderInvites();
-    },
-    onGotoInvites: () => switchTab("invites"),
-  });
+function contactMissingFields(profile) {
+  const missing = [];
+  if (!profile.lineId) missing.push("LINE ID");
+  if (!profile.ntrp) missing.push("NTRP");
+  if (profile.courts.size === 0) missing.push("常打球場");
+  return missing;
+}
+
+function showToast(message) {
+  const toast = document.getElementById("toast-root");
+  toast.innerHTML = `<div class="toast">${esc(message)}</div>`;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => (toast.innerHTML = ""), 2200);
+}
+
+function startQuickContact(p) {
+  const missing = contactMissingFields(state.profile);
+  if (missing.length > 0) {
+    showToast(`先補齊 ${missing.join("、")}，開場白會比較自然。`);
+    switchTab("profile");
+    return;
+  }
+
+  openQuickContactModal(p, { viewerProfile: state.profile });
 }
 
 // ------------------------------------------------------------
@@ -164,46 +170,6 @@ function setupTabs() {
   document.querySelectorAll(".tabbar__btn").forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
-}
-
-// ------------------------------------------------------------
-// 我的邀請分頁
-// ------------------------------------------------------------
-function renderInvites() {
-  const listEl = document.getElementById("invites-list");
-  const emptyEl = document.getElementById("invites-empty");
-  emptyEl.hidden = state.invites.length > 0;
-  listEl.hidden = state.invites.length === 0;
-
-  listEl.innerHTML = state.invites
-    .map((inv) => {
-      const p = inv.player;
-      const accepted = inv.status === "accepted";
-      return `
-      <div class="card">
-        <div class="inv__row">
-          <div class="avatar" style="width:46px;height:46px;font-size:18px">${esc(p.displayName.slice(0, 1))}</div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span class="inv__nick">${esc(p.displayName)}</span>
-              <span class="ntrp-tag">${esc(p.ntrp.toFixed(1))}</span>
-            </div>
-            <div class="inv__meta">${esc(inv.slot)}・${esc(inv.when)}</div>
-          </div>
-          <span class="${accepted ? "badge-accepted" : "badge-pending"}">${accepted ? "已接受" : "待回覆"}</span>
-        </div>
-        ${inv.msg ? `<div class="inv__msg">${esc(inv.msg)}</div>` : ""}
-        ${
-          accepted
-            ? `<div class="inv__line"><span class="line-badge">LINE</span>${esc(p.lineId)}<small>已可聯絡</small></div>`
-            : `<div class="inv__wait">
-                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B0BAB0" stroke-width="2">
-                   <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>
-                 </svg>等待對方回覆中</div>`
-        }
-      </div>`;
-    })
-    .join("");
 }
 
 // ------------------------------------------------------------
@@ -308,14 +274,7 @@ function setupProfile() {
 
   // 儲存 → toast(原型不落地)
   document.getElementById("prof-save").addEventListener("click", () => {
-    const toast = document.getElementById("toast-root");
-    toast.innerHTML = `
-      <div class="toast">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-        已儲存
-      </div>`;
-    clearTimeout(setupProfile._t);
-    setupProfile._t = setTimeout(() => (toast.innerHTML = ""), 2200);
+    showToast("已儲存");
   });
 }
 
@@ -345,7 +304,6 @@ async function init() {
   setupTypeChips();
   setupMapControls();
   setupProfile();
-  renderInvites();
 
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "___") {
     showPlaceholder();

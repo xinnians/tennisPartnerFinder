@@ -1,5 +1,5 @@
 // ============================================================
-//  底部卡片(球友/需求 sheet)、球場抽屜、邀請 modal
+//  底部卡片(球友/需求 sheet)、球場抽屜、快速聯絡 modal
 //  版面與樣式對照設計檔的 PIN SHEETS / CLUSTER DRAWER / INVITE MODAL
 // ============================================================
 import { districtOf } from "./mockData.js";
@@ -24,9 +24,9 @@ function mountSheet(html) {
 }
 
 // ------------------------------------------------------------
-// 球友 sheet:暱稱、NTRP、想打類型、固定時段、LINE、送出邀請
+// 球友 sheet:暱稱、NTRP、想打類型、固定時段、快速約球
 // ------------------------------------------------------------
-export function openPlayerSheet(p, { onInvite }) {
+export function openPlayerSheet(p, { onQuickContact }) {
   mountSheet(`
     <div class="sheet">
       <div class="sheet__handle"></div>
@@ -44,17 +44,13 @@ export function openPlayerSheet(p, { onInvite }) {
       <div class="psheet__types"><span>${esc(p.goals.join("・"))}</span></div>
       <div class="sheet__label">固定時段</div>
       <div class="slot-chips">${p.availability.map((s) => `<span>${esc(s)}</span>`).join("")}</div>
-      <div class="line-row">
-        <span class="line-badge">LINE</span>
-        <span>${esc(p.lineId)}</span>
-      </div>
-      <button type="button" class="btn-invite" data-invite>送出邀請</button>
+      <button type="button" class="btn-contact" data-quick-contact>快速約球</button>
     </div>`);
   sheetRoot()
-    .querySelector("[data-invite]")
+    .querySelector("[data-quick-contact]")
     .addEventListener("click", () => {
       closeSheet();
-      onInvite(p);
+      onQuickContact(p);
     });
 }
 
@@ -158,27 +154,62 @@ export function openCourtDrawer(court, items, { onPlayer, onDemand }) {
   });
 }
 
-// ------------------------------------------------------------
-// 邀請 modal:選時段 → 留言 → 送出 → 成功畫面
-// (原型:只寫進記憶體的邀請清單,不打任何後端)
-// ------------------------------------------------------------
-export function openInviteModal(p, { onSend, onGotoInvites }) {
-  const root = modalRoot();
-  let chosenSlot = null;
+function firstSetValue(set) {
+  return set.values().next().value;
+}
 
-  const renderForm = () => {
+function buildPlayerOpener(player, viewerProfile, slot) {
+  const court = firstSetValue(viewerProfile.courts) || player.homeCourt;
+  const ntrp = Number.isFinite(viewerProfile.ntrp) ? viewerProfile.ntrp.toFixed(1) : null;
+  const playType = firstSetValue(viewerProfile.types);
+  const slotText = slot || "這週";
+  const levelText = ntrp ? `我程度約 ${ntrp}` : "我也在找附近球友";
+  const goalText = playType ? `，想約 ${slotText} ${playType}` : `，想約 ${slotText}`;
+
+  return `嗨，我在找 ${court} 附近的球友，${levelText}${goalText}，看到你的資料覺得蠻適合，想問這週有空打嗎？`;
+}
+
+async function copyToClipboard(text, button) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const original = button.textContent;
+    button.textContent = "已複製";
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1600);
+  } catch {
+    const error = modalRoot().querySelector("[data-copy-error]");
+    if (error) error.hidden = false;
+  }
+}
+
+// ------------------------------------------------------------
+// 快速聯絡 modal:顯示 LINE + 產生開場白,真正溝通交給 LINE
+// ------------------------------------------------------------
+export function openQuickContactModal(p, { viewerProfile }) {
+  const root = modalRoot();
+  let chosenSlot = p.availability[0] ?? "";
+
+  const render = () => {
+    const opener = buildPlayerOpener(p, viewerProfile, chosenSlot);
     root.innerHTML = `
       <div class="modal-dim" data-close></div>
-      <div class="modal">
+      <div class="modal contact-modal">
         <div class="modal__head">
           <div class="avatar" style="width:48px;height:48px;font-size:19px">${esc(p.displayName.slice(0, 1))}</div>
           <div style="flex:1">
-            <div class="modal__to">送出邀請給</div>
+            <div class="modal__to">快速約球給</div>
             <div class="modal__nick">${esc(p.displayName)}</div>
           </div>
           <button type="button" class="btn-close" data-close-x>✕</button>
         </div>
-        <div class="modal__label">想約哪個時段?</div>
+
+        <div class="contact-summary">
+          <span class="ntrp-tag">${esc(p.ntrp.toFixed(1))}</span>
+          <span>${esc(p.homeCourt)}</span>
+        </div>
+
+        <div class="modal__label">想提哪個時段?</div>
         <div class="slot-opts">
           ${p.availability
             .map(
@@ -187,10 +218,18 @@ export function openInviteModal(p, { onSend, onGotoInvites }) {
             )
             .join("")}
         </div>
-        <div class="modal__label">留言(選填)</div>
-        <textarea placeholder="打聲招呼,說說你的球風、想約的球場…"></textarea>
-        <button type="button" class="modal__send" data-send>送出邀請</button>
-        <div class="modal__hint">對方接受後,才會互相看到 LINE 聯絡方式。</div>
+
+        <div class="contact-line">
+          <span class="line-badge">LINE</span>
+          <strong>${esc(p.lineId)}</strong>
+          <button type="button" data-copy-line>複製 LINE ID</button>
+        </div>
+
+        <div class="modal__label">開場白</div>
+        <div class="contact-opener">${esc(opener)}</div>
+        <button type="button" class="modal__send" data-copy-opener>複製開場白</button>
+        <div class="modal__hint">請先簡短自我介紹，確認程度、球場與時間後再約打。</div>
+        <div class="contact-copy-error" data-copy-error hidden>複製失敗，請手動選取文字。</div>
       </div>`;
 
     root.querySelector("[data-close]").addEventListener("click", closeModal);
@@ -198,48 +237,16 @@ export function openInviteModal(p, { onSend, onGotoInvites }) {
     root.querySelectorAll("[data-slot]").forEach((btn) => {
       btn.addEventListener("click", () => {
         chosenSlot = p.availability[Number(btn.dataset.slot)];
-        root.querySelectorAll("[data-slot]").forEach((b) => b.classList.remove("is-active"));
-        btn.classList.add("is-active");
+        render();
       });
     });
-    root.querySelector("[data-send]").addEventListener("click", () => {
-      const msg = root.querySelector("textarea").value.trim();
-      const slot = chosenSlot ?? "時間再約";
-      onSend({ player: p, slot, msg });
-      renderDone(slot);
+    root.querySelector("[data-copy-line]").addEventListener("click", (event) => {
+      copyToClipboard(p.lineId, event.currentTarget);
+    });
+    root.querySelector("[data-copy-opener]").addEventListener("click", (event) => {
+      copyToClipboard(opener, event.currentTarget);
     });
   };
 
-  const renderDone = (slot) => {
-    root.innerHTML = `
-      <div class="modal-dim" data-close></div>
-      <div class="modal">
-        <div class="modal__done">
-          <div class="modal__done-icon">
-            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 6L9 17l-5-5"/>
-            </svg>
-          </div>
-          <div class="modal__done-title">邀請已送出!</div>
-          <div class="modal__done-sub">已通知 ${esc(p.displayName)},等對方接受後<br/>就能看到 LINE、開始約球。</div>
-          <div class="modal__done-slot">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#54634E" stroke-width="2">
-              <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            ${esc(slot)}
-          </div>
-        </div>
-        <button type="button" class="modal__goto" data-goto>查看我的邀請</button>
-        <button type="button" class="modal__dismiss" data-close-x>完成</button>
-      </div>`;
-
-    root.querySelector("[data-close]").addEventListener("click", closeModal);
-    root.querySelector("[data-close-x]").addEventListener("click", closeModal);
-    root.querySelector("[data-goto]").addEventListener("click", () => {
-      closeModal();
-      onGotoInvites();
-    });
-  };
-
-  renderForm();
+  render();
 }

@@ -14,9 +14,9 @@ Build the first usable version around:
 - Supporting flow: publish short-lived partner requests for a specific court/time.
 
 The current repository is a Vite frontend prototype. It already has the map,
-player pins, demand pins, filters, invite modal, invite list, and profile UI.
-Data is still hard-coded in `src/mockData.js`; profile edits and invites are
-in-memory only.
+player pins, demand pins, filters, quick contact modal, and profile UI. Data is
+still hard-coded in `src/mockData.js`; profile edits and quick contact choices
+are in-memory only.
 
 ## Implementation Status
 
@@ -24,9 +24,9 @@ in-memory only.
   - Google Maps key is read from `VITE_GOOGLE_MAPS_API_KEY`.
   - `.env.example` documents the required local environment variable.
   - README setup instructions point to `.env.local` instead of editing source.
-  - Playwright smoke tests cover app load, tab switching, player sheet, invite
-    creation, profile save feedback, Maps auth fallback, and desktop/mobile
-    Chromium viewports.
+  - Playwright smoke tests cover app load, tab switching, player sheet,
+    quick contact, profile save feedback, external demand source links, Maps
+    auth fallback, and desktop/mobile Chromium viewports.
 - Milestone 2 has an initial migration draft:
   - `supabase/migrations/202607020001_initial_mvp_schema.sql`
   - Includes core tables, Taipei court seed data, indexes, RLS policies, public
@@ -38,7 +38,9 @@ in-memory only.
 - Pins represent tennis courts, not home addresses.
 - Users explicitly choose whether their profile appears publicly.
 - Public map data should not expose LINE ID or private contact details.
-- LINE ID becomes visible only after an invite is accepted.
+- LINE ID is shown only after an explicit quick-contact action on a public
+  player card; the MVP sends the real conversation to LINE instead of managing
+  in-app invite states.
 - The MVP should favor a small trusted trial group before broad public launch.
 
 ## Backend Decision Record
@@ -55,7 +57,8 @@ Why Supabase fits this product:
 - Postgres keeps the data model portable if the project later outgrows the BaaS
   layer.
 - Row Level Security can enforce privacy rules at the database layer, especially
-  for public profiles, private LINE IDs, and accepted-invite contact disclosure.
+  for public profiles, private LINE IDs, quick-contact disclosure, and any
+  future invite workflow.
 - Supabase Auth, generated APIs, and local tooling should keep the MVP faster
   than building a custom backend first.
 - PostGIS remains available later if court proximity or geographic search
@@ -105,11 +108,12 @@ Reconsider this decision if:
   - rough skill level
   - short request text
   - expiration/status
-- Invite flow:
-  - send invite
-  - recipient sees invite
-  - recipient accepts or declines
-  - accepted invite reveals contact info to both sides.
+- Quick contact flow:
+  - registered player cards do not show LINE on the first layer
+  - a viewer taps quick contact
+  - the app shows the target player's LINE ID
+  - the app generates a copyable opener
+  - the real conversation continues in LINE
 
 ### Not In Scope for First MVP
 
@@ -134,7 +138,8 @@ Goal: make the existing prototype clean and safe to extend.
   - app loads
   - tab switching works
   - player sheet opens
-  - invite flow adds an invite
+  - quick contact reveals LINE only after an explicit action
+  - external demand pins keep the source-link flow
   - profile save shows feedback
 - Verify responsive behavior on mobile and desktop.
 
@@ -176,10 +181,11 @@ Goal: turn the prototype into a usable MVP.
 - Save profile edits to Supabase.
 - Publish partner requests.
 - Load active partner requests on the map.
-- Send invites.
-- Show received and sent invites.
-- Accept or decline invites.
-- Reveal LINE ID only for accepted invite pairs.
+- Fetch contact details for quick contact without exposing LINE in public
+  discovery payloads.
+- Generate copyable LINE openers from profile and request context.
+- Keep full invite status management out of the MVP unless user research shows
+  that extra recipient control is needed.
 
 ### Milestone 4: Launch Readiness
 
@@ -210,7 +216,7 @@ This is a planning draft, not final SQL.
 - `updated_at`
 
 Public reads should expose only safe profile fields. `line_id` needs stricter
-access through accepted invite logic.
+access through explicit contact actions, not the public discovery payload.
 
 ### `courts`
 
@@ -264,6 +270,9 @@ Statuses can start with `open`, `closed`, `expired`, and `removed`.
 
 ### `invites`
 
+The initial migration includes this table as future-ready infrastructure. The
+current MVP frontend does not use in-app invite status management.
+
 - `id`: primary key
 - `sender_profile_id`
 - `recipient_profile_id`
@@ -294,9 +303,10 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 - A user can read and update their own full profile.
 - Anyone can read public discovery fields for `profiles.is_public = true`.
 - LINE ID should not be included in public discovery queries.
-- Invite participants can read invite records they sent or received.
-- Contact details are readable only when an invite between the two profiles is
-  accepted.
+- Quick contact should reveal LINE only after an explicit user action on a
+  public player card.
+- If in-app invite status management returns later, invite participants should
+  read only invite records they sent or received.
 - Partner requests are publicly readable only when active and not expired.
 - Users can update or close only their own partner requests.
 
@@ -308,8 +318,8 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
   lighter onboarding step?
 - Should public player pins show exact usual court, or aggregate multiple usual
   courts?
-- Should accepted invites reveal LINE ID both ways immediately, or only reveal
-  the recipient's contact to the sender?
+- Should quick contact require a fully completed viewer profile before showing
+  LINE, or only enough fields to generate a natural opener?
 - What is the first beta area: Taipei only, or Taipei plus nearby cities?
 
 ## Next Concrete Step
