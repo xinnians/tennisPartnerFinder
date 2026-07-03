@@ -57,6 +57,20 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - Local Mailpit magic-link QA was completed: the app accepted the local magic
     link callback and displayed the signed-in email.
   - Latest local verification had 11 Playwright tests passing.
+  - Hosted Supabase preparation started on 2026-07-03:
+    - Hosted project `TennisPartnetFinder` is linked as project ref
+      `ttjzxhihctrtoqdsqxdb`.
+    - The verified initial migration was applied to hosted Supabase.
+    - Hosted schema checks confirmed 6 Taipei court seed rows, `line_id` in
+      `public_profile_discovery`, no invite/accept functions, and RLS enabled on
+      `profiles`, `partner_requests`, and `reports`.
+    - Vercel project `tennis-partner-finder` is linked, with preview Supabase
+      env vars configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
+    - Vercel preview is ready at
+      `https://tennis-partner-finder-qr5bagfl9-xinnians-projects-c513dbd3.vercel.app`,
+      but it is currently protected by Vercel Authentication.
+    - Remaining manual setup: Supabase Auth redirect URLs, Google Maps browser
+      key/referrer restrictions, and preview access/protection decision.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -336,12 +350,13 @@ resources.
 
 Recommended next implementation batch:
 
-1. Create a hosted Supabase preparation checklist covering project creation,
-   environment variables, migration application, Auth redirect URLs, RLS
-   verification, and deploy-preview prerequisites.
-2. Keep preparation as documentation only until the project owner provides or
-   confirms hosted Supabase, deployment, and Google Cloud access.
-3. Do not deploy, do not create production env, and do not change the verified
-   schema unless a blocker is found and covered by local RLS tests.
-4. Preserve quick contact scope: no invite/accept flow, no quick contact event
+1. In Vercel, decide whether the preview should stay private behind Vercel
+   Authentication or be opened through a share/bypass flow for QA.
+2. In Supabase Auth URL settings, add the preview URL and localhost redirect
+   URLs before testing hosted magic links.
+3. In Google Cloud, create or rotate a Maps browser key, restrict it by HTTP
+   referrer, and add it to Vercel preview env as `VITE_GOOGLE_MAPS_API_KEY`.
+4. Redeploy the Vercel preview after Maps env is set, then run hosted desktop
+   and 390px mobile QA.
+5. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.

@@ -16,7 +16,17 @@
 - Local RLS verification passes against `supabase/tests/quick_contact_rls.sql`.
 - Playwright coverage includes mock fallback and local Supabase flows; latest target is 11 passing tests.
 - Local Mailpit magic-link QA has been manually verified.
-- No hosted Supabase project, deploy target, or production env is configured yet.
+- Hosted Supabase project `TennisPartnetFinder` is linked as project ref `ttjzxhihctrtoqdsqxdb`.
+- Hosted migration `202607020001_initial_mvp_schema.sql` has been applied.
+- Hosted schema checks confirmed:
+  - 6 Taipei court seed rows exist.
+  - `public_profile_discovery` includes `line_id`.
+  - `invites`, `respond_to_invite()`, and `accepted_invite_contacts()` do not exist.
+  - RLS is enabled on `profiles`, `partner_requests`, and `reports`.
+- Vercel project `tennis-partner-finder` is linked under `xinnians-projects-c513dbd3`.
+- Preview Supabase env vars are configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
+- Vercel preview is ready at `https://tennis-partner-finder-qr5bagfl9-xinnians-projects-c513dbd3.vercel.app`.
+- The preview is currently protected by Vercel Authentication, and Google Maps env is not configured yet.
 
 ## Boundaries
 
@@ -29,13 +39,13 @@
 
 ## Hosted Supabase Checklist
 
-- [ ] Create or identify the hosted Supabase project.
-- [ ] Record project URL and anon key for deploy env only:
+- [x] Create or identify the hosted Supabase project.
+- [x] Record project URL and anon key for deploy env only:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
-- [ ] Apply the existing migration from `supabase/migrations/202607020001_initial_mvp_schema.sql`.
-- [ ] Confirm Taipei court seed rows exist in hosted `courts`.
-- [ ] Verify hosted schema still excludes `invites`, `respond_to_invite()`, and `accepted_invite_contacts()`.
+- [x] Apply the existing migration from `supabase/migrations/202607020001_initial_mvp_schema.sql`.
+- [x] Confirm Taipei court seed rows exist in hosted `courts`.
+- [x] Verify hosted schema still excludes `invites`, `respond_to_invite()`, and `accepted_invite_contacts()`.
 - [ ] Configure Supabase Auth redirect URLs:
   - local dev: `http://localhost:5173`
   - deploy preview domain once available
@@ -50,13 +60,14 @@
 
 ## Deploy Preview Checklist
 
-- [ ] Choose deploy target: Netlify or Vercel.
+- [x] Choose deploy target: Netlify or Vercel.
 - [ ] Configure deploy env:
   - `VITE_GOOGLE_MAPS_API_KEY`
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
+  - [x] `VITE_SUPABASE_URL`
+  - [x] `VITE_SUPABASE_ANON_KEY`
 - [ ] Restrict Google Maps browser key by HTTP referrer before public beta.
 - [ ] Ensure the deploy preview URL is added to Supabase Auth redirect URLs.
+- [ ] Decide whether to keep Vercel Authentication enabled or provide a share/bypass URL for QA.
 - [ ] Run preview QA:
   - signed-out user can browse public map data
   - signed-out quick contact and request publishing open login
