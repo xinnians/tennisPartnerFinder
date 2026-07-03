@@ -262,51 +262,49 @@ export function openQuickContactModal(p, { viewerProfile, onPublishRequest }) {
   render();
 }
 
-export function openLoginModal({ onSubmit }) {
+export function openLoginModal({ onProvider }) {
   publishButton()?.setAttribute("hidden", "");
   const root = modalRoot();
   root.innerHTML = `
     <div class="modal-dim" data-close></div>
-    <form class="modal auth-modal" data-login-form>
+    <div class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
       <div class="modal__head">
         <div class="avatar" style="width:48px;height:48px;font-size:19px">入</div>
         <div style="flex:1">
           <div class="modal__to">登入後繼續</div>
-          <div class="modal__nick">Email magic link</div>
+          <div class="modal__nick" id="login-title">Google / LINE</div>
         </div>
         <button type="button" class="btn-close" data-close-x>✕</button>
       </div>
-      <div class="modal-field">
-        <label class="modal-field__label" for="login-email">Email</label>
-        <input id="login-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
-      </div>
       <div class="modal-message" data-login-message hidden></div>
-      <button type="submit" class="modal__send">寄送登入信</button>
-      <div class="modal__hint">本機開發時可使用 Supabase Studio 或測試 session 完成登入。</div>
-    </form>`;
+      <button type="button" class="modal__send auth-provider" data-provider="google">使用 Google 登入</button>
+      <button type="button" class="modal__secondary auth-provider auth-provider--line" data-provider="custom:line">使用 LINE 登入</button>
+      <div class="modal__hint">登入後再補 LINE ID；LINE Login 帳號不會自動公開成聯絡資訊。</div>
+    </div>`;
 
   const close = () => closeModal();
   root.querySelector("[data-close]").addEventListener("click", close);
   root.querySelector("[data-close-x]").addEventListener("click", close);
-  root.querySelector("[data-login-form]").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const button = event.currentTarget.querySelector("button[type='submit']");
-    const message = event.currentTarget.querySelector("[data-login-message]");
-    message.hidden = true;
-    message.textContent = "";
-    message.classList.remove("is-error");
-    button.disabled = true;
-    try {
-      await onSubmit(new FormData(event.currentTarget).get("email").trim());
-      message.textContent = "已寄出登入連結，請檢查信箱。";
-      message.hidden = false;
-    } catch {
-      message.textContent = "登入連結寄送失敗，請稍後再試。";
-      message.classList.add("is-error");
-      message.hidden = false;
-    } finally {
-      button.disabled = false;
-    }
+  root.querySelectorAll("[data-provider]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const message = root.querySelector("[data-login-message]");
+      const providerButtons = root.querySelectorAll("[data-provider]");
+      const provider = button.dataset.provider;
+      message.hidden = true;
+      message.textContent = "";
+      message.classList.remove("is-error");
+      providerButtons.forEach((providerButton) => (providerButton.disabled = true));
+      try {
+        await onProvider(provider);
+        message.textContent = "正在前往登入頁...";
+        message.hidden = false;
+      } catch {
+        message.textContent = "登入啟動失敗，請稍後再試。";
+        message.classList.add("is-error");
+        message.hidden = false;
+        providerButtons.forEach((providerButton) => (providerButton.disabled = false));
+      }
+    });
   });
 }
 

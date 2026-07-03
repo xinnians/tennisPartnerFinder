@@ -88,22 +88,28 @@ npx supabase test db supabase/tests
 目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
 使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。
 
-### Local magic-link QA
+### OAuth login QA
 
-本機 Supabase 會把 magic link email 收在 Inbucket/Mailpit,不會真的寄到外部信箱。
+MVP 登入改採 Google OAuth + LINE Login。Email magic link 已從正式與 preview UI
+移除,目前不導入自訂 SMTP。LINE Login 帳號只用來驗證身分;公開聯絡用的 LINE ID
+仍由使用者在個人檔案自行填寫。
+
+本機 Supabase 可繼續用測試 session 跑 Playwright;實際 Google / LINE OAuth 需要在
+hosted Supabase Dashboard 設定 provider 後,透過 Vercel preview 手動 QA。
 
 ```bash
 npx supabase start
 npx supabase status -o env
 ```
 
-從輸出找到 `MAILPIT_URL` 或 `INBUCKET_URL`(目前 local 預設為
-`http://127.0.0.1:54324`),打開後可看到登入信。測試流程:
+OAuth provider 設定重點:
 
-1. 啟動 Vite 並設定 `.env.local` 的 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`。
-2. 在 app 點「登入」,輸入 email 並送出。
-3. 到 `MAILPIT_URL` / `INBUCKET_URL` 開信,點 magic link。
-4. 回到 app 確認 auth 狀態變成該 email,profile 可儲存,登出後回到未登入狀態。
+1. Google OAuth redirect URI 使用 Supabase callback:
+   `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`。
+2. LINE Login 用 Supabase Custom OAuth/OIDC provider,provider id 固定為
+   `custom:line`,scope 使用 `profile openid`。
+3. Supabase Auth redirect allow list 需包含 local dev、Vercel preview 與 production URL。
+4. Preview QA 時確認登入返回 app 後,未完成 profile 仍會被導到個人檔案。
 
 ## 專案結構
 

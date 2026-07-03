@@ -906,6 +906,12 @@ button { font-family: var(--font); }
   margin-top: 10px;
 }
 
+.auth-provider--line {
+  border-color: var(--line-green);
+  background: var(--line-green);
+  color: #fff;
+}
+
 .modal-field {
   display: block;
   margin-top: 12px;

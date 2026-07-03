@@ -106,11 +106,11 @@ export function onAuthStateChange(callback) {
   return () => data.subscription.unsubscribe();
 }
 
-export async function signInWithEmail(email) {
+export async function signInWithOAuthProvider(provider) {
   const client = requireSupabase();
-  const { error } = await client.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin },
+  const { error } = await client.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: window.location.origin },
   });
   if (error) throw error;
 }

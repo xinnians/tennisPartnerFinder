@@ -43,9 +43,10 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - `src/supabaseClient.js` owns Supabase client configuration and auth storage.
   - `src/dataApi.js` owns Supabase reads/writes for auth, profile, discovery,
     courts, and partner requests.
-  - Email magic link login UI, sign-out UI, profile persistence, public
-    discovery loading, quick contact UI-gated LINE display, and partner request
-    publishing have a first local implementation.
+  - Google OAuth and LINE Login UI replaced Email magic link for MVP login;
+    sign-out UI, profile persistence, public discovery loading, quick contact
+    UI-gated LINE display, and partner request publishing have a first local
+    implementation.
   - Playwright local Supabase coverage verifies signed-out browsing,
     login gates, incomplete-profile gates, profile save, first-layer LINE
     hiding, quick-contact LINE display, and partner request publishing.
@@ -53,10 +54,12 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
     map data; login modal success/failure messaging; disabled submit states;
     profile reset on sign-out; and profile-page auth controls.
   - Browser QA covered desktop and 390px mobile login/profile surfaces with no
-    relevant console errors.
-  - Local Mailpit magic-link QA was completed: the app accepted the local magic
-    link callback and displayed the signed-in email.
-  - Latest local verification had 11 Playwright tests passing.
+    relevant console errors before the OAuth switch; preview OAuth QA remains.
+  - Local Mailpit magic-link QA was completed earlier, but Email magic link is
+    now intentionally paused for the MVP because hosted Supabase built-in email
+    hit rate limits and the project will not add SMTP for login.
+  - Latest local verification has 13 Playwright tests passing, including
+    Google and LINE OAuth redirect coverage.
   - Hosted Supabase preparation started on 2026-07-03:
     - Hosted project `TennisPartnetFinder` is linked as project ref
       `ttjzxhihctrtoqdsqxdb`.
@@ -75,12 +78,13 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
       partner requests, and direct profile read isolation.
     - Browser QA confirmed the referrer-restricted Google Maps key renders the
       map on the latest protected Vercel preview.
-    - Hosted magic-link QA is currently blocked by Supabase Auth email rate
+    - Hosted Email magic link QA was blocked by Supabase Auth email rate
       limiting: direct `/auth/v1/otp` verification returned HTTP 429
-      `over_email_send_rate_limit`.
-    - Remaining manual setup: browser QA through a Vercel-authenticated session
-      or share/bypass link, and hosted magic-link callback verification after
-      the email rate limit resets or custom SMTP is configured.
+      `over_email_send_rate_limit`. Product decision: do not add SMTP now;
+      use Google OAuth and LINE Login instead.
+    - Remaining manual setup: enable Google OAuth and LINE custom OAuth/OIDC in
+      Supabase Auth, then run browser QA through a Vercel-authenticated session
+      or share/bypass link.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -355,16 +359,17 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Prepare the hosted Supabase integration handoff before creating external
-resources.
+Configure hosted Supabase OAuth providers and verify preview login flows.
 
 Recommended next implementation batch:
 
-1. Wait for the Supabase Auth email rate limit to reset, or configure custom
-   SMTP, then confirm the hosted magic-link callback returns to the preview URL.
-2. Run the remaining signed-out, signed-in incomplete, and signed-in complete
+1. In Google Cloud and Supabase Auth, enable Google OAuth with callback
+   `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`.
+2. In LINE Developers and Supabase Auth, enable a custom OAuth/OIDC provider
+   with provider id `custom:line`,scope `profile openid`,and email optional.
+3. Run the remaining signed-out, signed-in incomplete, and signed-in complete
    profile QA on the latest Vercel preview in desktop and 390px mobile widths.
-3. Decide whether the beta preview should stay private behind Vercel
+4. Decide whether the beta preview should stay private behind Vercel
    Authentication or use a share/bypass flow for testers.
-4. Preserve quick contact scope: no invite/accept flow, no quick contact event
+5. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.

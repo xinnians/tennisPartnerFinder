@@ -26,7 +26,7 @@ import {
   loadDiscoveryPlayers,
   onAuthStateChange,
   saveCurrentProfile,
-  signInWithEmail,
+  signInWithOAuthProvider,
   signOut,
 } from "./dataApi.js";
 import { esc, ntrpDesc } from "./util.js";
@@ -136,8 +136,8 @@ function openAuthPrompt() {
     return;
   }
   openLoginModal({
-    onSubmit: async (email) => {
-      await signInWithEmail(email);
+    onProvider: async (provider) => {
+      await signInWithOAuthProvider(provider);
     },
   });
 }
@@ -339,7 +339,7 @@ function updateAuthStatus() {
   }
 
   if (state.session) {
-    labels.forEach((label) => (label.textContent = state.session.user?.email ?? "已登入"));
+    labels.forEach((label) => (label.textContent = authDisplayName(state.session.user)));
     buttons.forEach((button) => {
       button.textContent = "登出";
       button.disabled = false;
@@ -351,6 +351,16 @@ function updateAuthStatus() {
       button.disabled = false;
     });
   }
+}
+
+function authDisplayName(user) {
+  return (
+    user?.email ||
+    user?.user_metadata?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.user_name ||
+    "已登入"
+  );
 }
 
 function replaceProfile(profile) {

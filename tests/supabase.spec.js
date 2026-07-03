@@ -210,7 +210,7 @@ async function setBrowserSession(page, session) {
   );
 }
 
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: "serial", timeout: 120_000 });
 
 test.beforeAll(async () => {
   execFileSync("npx", ["supabase", "db", "reset"], {
@@ -252,17 +252,44 @@ test("shows loading, empty, error, and retry states for Supabase map data", asyn
   await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Local Ace");
 });
 
-test("login modal reports magic-link success", async ({ page }) => {
+test("login modal offers Google and LINE OAuth without email magic link", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");
 
   await page.getByRole("button", { name: "登入" }).click();
-  await page.getByLabel("Email").fill(`magic-${Date.now()}@example.test`);
-  await page.getByRole("button", { name: "寄送登入信" }).click();
 
-  await expect(page.getByText("已寄出登入連結，請檢查信箱。")).toBeVisible();
-  await expect(page.getByRole("button", { name: "寄送登入信" })).toBeEnabled();
+  await expect(page.getByText("登入後繼續")).toBeVisible();
+  await expect(page.getByText("Google / LINE")).toBeVisible();
+  await expect(page.getByRole("button", { name: "使用 Google 登入" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "使用 LINE 登入" })).toBeVisible();
+  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "寄送登入信" })).toHaveCount(0);
 });
+
+for (const providerCase of [
+  { label: "Google", button: "使用 Google 登入", provider: "google" },
+  { label: "LINE", button: "使用 LINE 登入", provider: "custom:line" },
+]) {
+  test(`login modal redirects to Supabase ${providerCase.label} OAuth`, async ({ page }) => {
+    await installFakeMaps(page);
+    await page.route(`${SUPABASE_URL}/auth/v1/authorize**`, (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: "<title>OAuth redirect captured</title>",
+      })
+    );
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "登入" }).click();
+    const authRequest = page.waitForRequest(`${SUPABASE_URL}/auth/v1/authorize**`);
+    await page.getByRole("button", { name: providerCase.button }).click();
+
+    const request = await authRequest;
+    const url = new URL(request.url());
+    expect(url.searchParams.get("provider")).toBe(providerCase.provider);
+    expect(url.searchParams.get("redirect_to")).toBe("http://127.0.0.1:5175");
+  });
+}
 
 test("signed-out users can browse but quick contact opens login", async ({ page }) => {
   await installFakeMaps(page);
