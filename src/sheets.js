@@ -272,14 +272,13 @@ export function openLoginModal({ onProvider }) {
         <div class="avatar" style="width:48px;height:48px;font-size:19px">入</div>
         <div style="flex:1">
           <div class="modal__to">登入後繼續</div>
-          <div class="modal__nick" id="login-title">Google / LINE</div>
+          <div class="modal__nick" id="login-title">Google</div>
         </div>
         <button type="button" class="btn-close" data-close-x>✕</button>
       </div>
       <div class="modal-message" data-login-message hidden></div>
       <button type="button" class="modal__send auth-provider" data-provider="google">使用 Google 登入</button>
-      <button type="button" class="modal__secondary auth-provider auth-provider--line" data-provider="custom:line">使用 LINE 登入</button>
-      <div class="modal__hint">登入後再補 LINE ID；LINE Login 帳號不會自動公開成聯絡資訊。</div>
+      <div class="modal__hint">登入後可繼續約球與發布需求。</div>
     </div>`;
 
   const close = () => closeModal();

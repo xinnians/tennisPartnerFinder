@@ -41,11 +41,11 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
 - Milestone 3 local Auth/Data wiring is in progress:
   - `@supabase/supabase-js` is installed.
   - `src/supabaseClient.js` owns Supabase client configuration and auth storage.
-    OAuth uses PKCE so custom provider callbacks with `code` are exchanged into
-    browser sessions.
+    OAuth uses PKCE.
   - `src/dataApi.js` owns Supabase reads/writes for auth, profile, discovery,
     courts, and partner requests.
-  - Google OAuth and LINE Login UI replaced Email magic link for MVP login;
+  - Google OAuth replaced Email magic link for beta login; LINE Login is
+    deferred because LINE Web Login does not fit Supabase Custom OIDC cleanly.
     sign-out UI, profile persistence, public discovery loading, quick contact
     UI-gated LINE display, and partner request publishing have a first local
     implementation.
@@ -60,8 +60,8 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - Local Mailpit magic-link QA was completed earlier, but Email magic link is
     now intentionally paused for the MVP because hosted Supabase built-in email
     hit rate limits and the project will not add SMTP for login.
-  - Latest local verification has 13 Playwright tests passing, including
-    Google and LINE OAuth redirect coverage.
+  - Latest local verification has 12 Playwright tests passing, including
+    Google OAuth redirect coverage.
   - Hosted Supabase preparation started on 2026-07-03:
     - Hosted project `TennisPartnetFinder` is linked as project ref
       `ttjzxhihctrtoqdsqxdb`.
@@ -83,10 +83,15 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
     - Hosted Email magic link QA was blocked by Supabase Auth email rate
       limiting: direct `/auth/v1/otp` verification returned HTTP 429
       `over_email_send_rate_limit`. Product decision: do not add SMTP now;
-      use Google OAuth and LINE Login instead.
-    - Remaining manual setup: enable Google OAuth and LINE custom OAuth/OIDC in
-      Supabase Auth, then run browser QA through a Vercel-authenticated session
-      or share/bypass link.
+      use Google OAuth for beta login.
+    - LINE Custom OAuth/OIDC was investigated and deferred: LINE Web Login ID
+      token verification hit an HS256/ES256 incompatibility path in Supabase.
+      Future LINE support should use an auth broker such as Auth0/Clerk or a
+      dedicated auth architecture decision.
+    - Apple sign-in is deferred until iOS native / App Store requirements make
+      it necessary.
+    - Remaining manual setup: enable Google OAuth in Supabase Auth, then run
+      browser QA through a Vercel-authenticated session or share/bypass link.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -361,17 +366,15 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Configure hosted Supabase OAuth providers and verify preview login flows.
+Configure hosted Google OAuth and verify preview login flows.
 
 Recommended next implementation batch:
 
 1. In Google Cloud and Supabase Auth, enable Google OAuth with callback
    `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`.
-2. In LINE Developers and Supabase Auth, enable a custom OAuth/OIDC provider
-   with provider id `custom:line`,scope `profile openid`,and email optional.
-3. Run the remaining signed-out, signed-in incomplete, and signed-in complete
+2. Run the remaining signed-out, signed-in incomplete, and signed-in complete
    profile QA on the latest Vercel preview in desktop and 390px mobile widths.
-4. Decide whether the beta preview should stay private behind Vercel
+3. Decide whether the beta preview should stay private behind Vercel
    Authentication or use a share/bypass flow for testers.
-5. Preserve quick contact scope: no invite/accept flow, no quick contact event
+4. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.

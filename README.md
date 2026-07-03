@@ -90,12 +90,13 @@ npx supabase test db supabase/tests
 
 ### OAuth login QA
 
-MVP 登入改採 Google OAuth + LINE Login。Email magic link 已從正式與 preview UI
-移除,目前不導入自訂 SMTP。LINE Login 帳號只用來驗證身分;公開聯絡用的 LINE ID
-仍由使用者在個人檔案自行填寫。
+Beta 登入先採 Google OAuth。Email magic link 已從正式與 preview UI 移除,目前不導入
+自訂 SMTP。LINE Login 先不透過 Supabase Custom OAuth/OIDC 硬接;若後續確認必須支援,
+改評估 Auth0/Clerk 這類支援 LINE 的 auth broker。Apple 登入留到 iOS 原生或 App
+Store 需求明確時再加入。
 
-本機 Supabase 可繼續用測試 session 跑 Playwright;實際 Google / LINE OAuth 需要在
-hosted Supabase Dashboard 設定 provider 後,透過 Vercel preview 手動 QA。
+本機 Supabase 可繼續用測試 session 跑 Playwright;實際 Google OAuth 需要在 hosted
+Supabase Dashboard 設定 provider 後,透過 Vercel preview 手動 QA。
 
 ```bash
 npx supabase start
@@ -106,11 +107,9 @@ OAuth provider 設定重點:
 
 1. Google OAuth redirect URI 使用 Supabase callback:
    `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`。
-2. LINE Login 用 Supabase Custom OAuth/OIDC provider,provider id 固定為
-   `custom:line`,scope 使用 `profile openid`。
-3. 前端 Supabase client 使用 PKCE flow;custom provider 保持 PKCE enabled,不要關閉。
-4. Supabase Auth redirect allow list 需包含 local dev、Vercel preview 與 production URL。
-5. Preview QA 時確認登入返回 app 後,未完成 profile 仍會被導到個人檔案。
+2. 前端 Supabase client 使用 PKCE flow。
+3. Supabase Auth redirect allow list 需包含 local dev、Vercel preview 與 production URL。
+4. Preview QA 時確認登入返回 app 後,未完成 profile 仍會被導到個人檔案。
 
 ## 專案結構
 

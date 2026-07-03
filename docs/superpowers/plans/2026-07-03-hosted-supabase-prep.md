@@ -4,7 +4,7 @@
 
 **Goal:** Prepare a decision-complete handoff for moving the verified local Supabase MVP to a hosted Supabase project and deploy preview.
 
-**Architecture:** Treat local Supabase as the source of truth. Apply the existing migration to hosted only after the project owner provides hosted Supabase access and confirms redirect/domain settings. Keep the quick-contact MVP unchanged and use Google OAuth + LINE Login for hosted auth.
+**Architecture:** Treat local Supabase as the source of truth. Apply the existing migration to hosted only after the project owner provides hosted Supabase access and confirms redirect/domain settings. Keep the quick-contact MVP unchanged and use Google OAuth for beta auth.
 
 **Tech Stack:** Vite, vanilla JavaScript modules, Supabase Auth/Postgres/RLS, Google Maps JavaScript API, Netlify or Vercel deploy preview, Playwright.
 
@@ -14,8 +14,8 @@
 
 - Local Supabase Auth/Data wiring is implemented and hardened.
 - Local RLS verification passes against `supabase/tests/quick_contact_rls.sql`.
-- Playwright coverage includes mock fallback, local Supabase flows, and OAuth
-  redirect coverage; latest target is 13 passing tests.
+- Playwright coverage includes mock fallback, local Supabase flows, and Google
+  OAuth redirect coverage; latest target is 12 passing tests.
 - Local Mailpit magic-link QA was manually verified before the hosted auth decision changed.
 - Hosted Supabase project `TennisPartnetFinder` is linked as project ref `ttjzxhihctrtoqdsqxdb`.
 - Hosted migration `202607020001_initial_mvp_schema.sql` has been applied.
@@ -35,9 +35,13 @@
 - Hosted magic-link QA was blocked by Supabase Auth email rate limiting:
   direct `/auth/v1/otp` verification returned HTTP 429 `over_email_send_rate_limit`.
 - Product decision: Email magic link and custom SMTP are paused for MVP login.
-  Hosted auth should use Google OAuth and LINE Login.
-- Frontend OAuth uses PKCE. Keep Supabase custom provider PKCE enabled so LINE
-  callbacks with `code` become browser sessions.
+  Hosted beta auth should use Google OAuth.
+- LINE Login through Supabase Custom OAuth/OIDC was investigated and deferred
+  after the hosted callback hit LINE Web Login HS256 token verification
+  incompatibility. Future LINE support should use an auth broker such as
+  Auth0/Clerk or a dedicated auth architecture decision.
+- Apple sign-in is deferred until iOS native / App Store requirements make it
+  necessary.
 
 ## Boundaries
 
@@ -62,8 +66,6 @@
   - deploy preview domain once available
   - production domain once available
 - [ ] Enable Google OAuth in Supabase Auth and confirm it returns to the deploy preview.
-- [ ] Enable LINE Login through Supabase Custom OAuth/OIDC with provider id
-  `custom:line`,then confirm it returns to the deploy preview.
 - [x] Run or manually reproduce RLS checks against hosted:
   - anonymous can read active courts and `public_profile_discovery`
   - private profiles are excluded from discovery
@@ -99,7 +101,6 @@ Completed preview QA evidence:
 Remaining preview QA:
 
 - Hosted Google OAuth callback.
-- Hosted LINE Login callback through Supabase custom provider `custom:line`.
 - Signed-in incomplete/complete profile flows.
 - Quick contact and partner request publishing against hosted data.
 - 390px mobile pass after signing in.
