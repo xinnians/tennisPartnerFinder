@@ -25,8 +25,11 @@
   - RLS is enabled on `profiles`, `partner_requests`, and `reports`.
 - Vercel project `tennis-partner-finder` is linked under `xinnians-projects-c513dbd3`.
 - Preview Supabase env vars are configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
-- Vercel preview is ready at `https://tennis-partner-finder-qr5bagfl9-xinnians-projects-c513dbd3.vercel.app`.
-- The preview is currently protected by Vercel Authentication, and Google Maps env is not configured yet.
+- Preview Google Maps env is configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
+- Latest Vercel preview is ready at `https://tennis-partner-finder-ip6ttf8qe-xinnians-projects-c513dbd3.vercel.app`.
+- The preview is currently protected by Vercel Authentication.
+- Hosted REST smoke checks passed for anonymous courts, public discovery, partner requests, and direct profile read isolation.
+- Browser automation against the protected preview is blocked by Vercel Authentication; manual browser QA needs a logged-in Vercel session or share/bypass access.
 
 ## Boundaries
 
@@ -46,12 +49,12 @@
 - [x] Apply the existing migration from `supabase/migrations/202607020001_initial_mvp_schema.sql`.
 - [x] Confirm Taipei court seed rows exist in hosted `courts`.
 - [x] Verify hosted schema still excludes `invites`, `respond_to_invite()`, and `accepted_invite_contacts()`.
-- [ ] Configure Supabase Auth redirect URLs:
+- [x] Configure Supabase Auth redirect URLs:
   - local dev: `http://localhost:5173`
   - deploy preview domain once available
   - production domain once available
 - [ ] Confirm Email magic link works against the deploy preview callback URL.
-- [ ] Run or manually reproduce RLS checks against hosted:
+- [x] Run or manually reproduce RLS checks against hosted:
   - anonymous can read active courts and `public_profile_discovery`
   - private profiles are excluded from discovery
   - owner can create/update only their own profile
@@ -61,12 +64,12 @@
 ## Deploy Preview Checklist
 
 - [x] Choose deploy target: Netlify or Vercel.
-- [ ] Configure deploy env:
-  - `VITE_GOOGLE_MAPS_API_KEY`
+- [x] Configure deploy env:
+  - [x] `VITE_GOOGLE_MAPS_API_KEY`
   - [x] `VITE_SUPABASE_URL`
   - [x] `VITE_SUPABASE_ANON_KEY`
 - [ ] Restrict Google Maps browser key by HTTP referrer before public beta.
-- [ ] Ensure the deploy preview URL is added to Supabase Auth redirect URLs.
+- [x] Ensure the deploy preview URL is added to Supabase Auth redirect URLs.
 - [ ] Decide whether to keep Vercel Authentication enabled or provide a share/bypass URL for QA.
 - [ ] Run preview QA:
   - signed-out user can browse public map data

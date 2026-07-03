@@ -67,10 +67,15 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
     - Vercel project `tennis-partner-finder` is linked, with preview Supabase
       env vars configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
     - Vercel preview is ready at
-      `https://tennis-partner-finder-qr5bagfl9-xinnians-projects-c513dbd3.vercel.app`,
+      `https://tennis-partner-finder-ip6ttf8qe-xinnians-projects-c513dbd3.vercel.app`,
       but it is currently protected by Vercel Authentication.
-    - Remaining manual setup: Supabase Auth redirect URLs, Google Maps browser
-      key/referrer restrictions, and preview access/protection decision.
+    - Preview env now includes hosted Supabase URL/key and
+      `VITE_GOOGLE_MAPS_API_KEY`.
+    - Hosted REST smoke checks passed for anonymous courts, public discovery,
+      partner requests, and direct profile read isolation.
+    - Remaining manual setup: browser QA through a Vercel-authenticated session
+      or share/bypass link, and confirmation that Google Maps referrer
+      restrictions work on the preview URL.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -350,13 +355,14 @@ resources.
 
 Recommended next implementation batch:
 
-1. In Vercel, decide whether the preview should stay private behind Vercel
-   Authentication or be opened through a share/bypass flow for QA.
-2. In Supabase Auth URL settings, add the preview URL and localhost redirect
-   URLs before testing hosted magic links.
-3. In Google Cloud, create or rotate a Maps browser key, restrict it by HTTP
-   referrer, and add it to Vercel preview env as `VITE_GOOGLE_MAPS_API_KEY`.
-4. Redeploy the Vercel preview after Maps env is set, then run hosted desktop
-   and 390px mobile QA.
+1. Open the latest Vercel preview in a browser session that can pass Vercel
+   Authentication, then run desktop and 390px mobile QA.
+2. Confirm the hosted magic-link callback returns to the preview URL after
+   Supabase Auth redirect configuration.
+3. Confirm Google Maps renders on the preview URL with the referrer-restricted
+   key; if it falls back to the placeholder, update Google Cloud allowed
+   referrers and redeploy.
+4. Decide whether the beta preview should stay private behind Vercel
+   Authentication or use a share/bypass flow for testers.
 5. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.
