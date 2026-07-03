@@ -15,7 +15,8 @@
 - Local Supabase Auth/Data wiring is implemented and hardened.
 - Local RLS verification passes against `supabase/tests/quick_contact_rls.sql`.
 - Playwright coverage includes mock fallback, local Supabase flows, and Google
-  OAuth redirect coverage; latest target is 12 passing tests.
+  OAuth redirect coverage; latest target is 15 passing tests, including a
+  mobile modal animation regression.
 - Local Mailpit magic-link QA was manually verified before the hosted auth decision changed.
 - Hosted Supabase project `TennisPartnetFinder` is linked as project ref `ttjzxhihctrtoqdsqxdb`.
 - Hosted migration `202607020001_initial_mvp_schema.sql` has been applied.
@@ -34,6 +35,23 @@
 - Browser QA confirmed Google Maps renders on the stable branch preview after
   adding the branch preview URL to the Google Cloud HTTP referrer allowlist.
 - Google OAuth callback returns to the preview app successfully.
+- Commit `a6e2f87 Prepare beta readiness flows` added request-expiry copy and
+  player/request report entry points using the existing `reports` table.
+- Hosted preview beta QA on 2026-07-03 used the stable branch preview URL:
+  - signed-out users can browse the map, and gated interactions open Google
+    OAuth with PKCE and the stable branch preview as `redirect_to`.
+  - Chrome owner session restored Google login state and showed the auth pill.
+  - first-layer public player sheets hide LINE; quick contact reveals LINE only
+    after the explicit action.
+  - request publishing shows the 7-day auto-hide copy, wrote a hosted
+    `partner_requests` row, and rendered the new request marker.
+  - player and request report entry points wrote hosted `reports` rows.
+  - headless desktop and 390px checks showed the map renders without request
+    failures; the only browser warning observed was Google Maps Marker
+    deprecation.
+- Hosted preview QA found a transient 390px modal animation issue: dialogs were
+  centered only after the animation ended. The fix is a dedicated centered
+  `modalPopIn` animation plus Playwright coverage.
 - Hosted magic-link QA was blocked by Supabase Auth email rate limiting:
   direct `/auth/v1/otp` verification returned HTTP 429 `over_email_send_rate_limit`.
 - Product decision: Email magic link and custom SMTP are paused for MVP login.
@@ -85,10 +103,11 @@
 - [x] Restrict Google Maps browser key by HTTP referrer before public beta.
 - [x] Ensure the deploy preview URL is added to Supabase Auth redirect URLs.
 - [ ] Decide whether beta testers should use a private preview, share/bypass URL, or production alias.
-- [ ] Run beta readiness preview QA:
+- [x] Run beta readiness preview QA:
   - signed-out user can browse public map data
   - signed-out quick contact and request publishing open login
-  - signed-in incomplete profile is redirected to profile
+  - signed-in incomplete profile is redirected to profile (covered by local
+    automated tests; optional hosted fresh-user reproduction remains below)
   - complete profile can save and publish a partner request
   - first-layer player sheet does not show LINE
   - quick contact reveal shows LINE only after explicit click
@@ -102,12 +121,26 @@ Completed preview QA evidence:
 - Referrer-restricted Google Maps key renders the map on the branch preview URL.
 - Google OAuth returns to the preview app.
 - Empty hosted discovery/request state renders without crashing.
+- Signed-out interactions open Google OAuth with PKCE.
+- Google-authenticated owner session loads on the preview.
+- First-layer player sheets hide LINE, and quick contact reveals LINE after an
+  explicit click.
+- QA partner request publishing writes an active hosted request and renders its
+  marker.
+- Player and request report entry points write separate hosted `reports` rows.
+- A 390px modal animation issue was found during QA and fixed locally; the next
+  branch deployment should be rechecked before inviting testers.
 
 Remaining preview QA:
 
-- Signed-in incomplete/complete profile flows against hosted data.
-- Quick contact, partner request publishing, and report entry points against hosted data.
-- 390px mobile pass after signing in.
+- Re-check the 390px modal animation fix after the latest branch deployment is
+  ready.
+- Optional: create a fresh hosted test user to manually reproduce the
+  incomplete-profile gate in preview. Local automated tests already cover this
+  flow.
+- Decide private preview vs share/bypass vs production alias for beta testers.
+- Clean up `QA-20260703` hosted request/report data once the QA trail is no
+  longer useful.
 
 ## Local Verification Before Hosted Work
 

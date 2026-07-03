@@ -95,8 +95,10 @@ npx supabase test db supabase/tests
 如果 Docker Desktop 尚未安裝或未啟動,`supabase start`、`db reset` 與
 `test db` 會先卡在本機容器前置環境,還不會進到 migration/RLS 驗證。
 
-目前 local migration/RLS 已驗證通過,前端也已開始接 local Supabase Auth
-與真實資料,仍先以 local Supabase 專案為準,不急著接 hosted project。
+目前 local migration/RLS 已驗證通過,前端已接 Supabase Auth/Data,並已完成
+hosted Supabase + Vercel stable branch preview 的 beta QA。production alias 與公開
+beta 仍暫不啟用;後續先決定 private preview、share/bypass 或 production domain
+的測試入口。
 
 目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
 使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。

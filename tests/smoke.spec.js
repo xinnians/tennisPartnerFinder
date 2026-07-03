@@ -84,6 +84,20 @@ async function installFakeMaps(page) {
   );
 }
 
+async function expectWithinViewport(page, locator) {
+  await locator.evaluate(async (el) => {
+    await Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => {})));
+  });
+  const box = await locator.boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+}
+
 test("loads, uses quick contact, and saves profile", async ({ page }) => {
   const runtimeErrors = [];
   page.on("console", (msg) => {
@@ -124,6 +138,7 @@ test("loads, uses quick contact, and saves profile", async ({ page }) => {
 
   await expect(page.getByText("快速約球給")).toBeVisible();
   await expect(page.locator("#modal-root .modal__nick")).toHaveText("Amber");
+  await expectWithinViewport(page, page.locator("#modal-root .modal"));
   await expect(page.getByText("amber.tw")).toBeVisible();
   await expect(page.getByRole("button", { name: "複製 LINE ID" })).toBeVisible();
   await expect(page.getByRole("button", { name: "複製開場白" })).toBeVisible();

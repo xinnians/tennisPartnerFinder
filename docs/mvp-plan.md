@@ -13,11 +13,12 @@ Build the first usable version around:
 - Primary flow: find public tennis partners near real courts.
 - Supporting flow: publish short-lived partner requests for a specific court/time.
 
-The current repository is a Vite frontend prototype moving into local Supabase
-MVP wiring. It already has the map, player pins, demand pins, filters, quick
-contact modal, profile UI, local Supabase Auth/Data boundary, profile
-persistence, public discovery reads, and partner request publishing. When
-Supabase env is not configured, it still falls back to `src/mockData.js`.
+The current repository is a Vite frontend prototype that has moved through
+local Supabase wiring and hosted preview beta QA. It already has the map,
+player pins, demand pins, filters, quick contact modal, profile UI, Supabase
+Auth/Data boundary, profile persistence, public discovery reads, partner
+request publishing, request expiry copy, and report entry points. When Supabase
+env is not configured, it still falls back to `src/mockData.js`.
 
 ## Implementation Status
 
@@ -38,7 +39,8 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - Passing checks: `npx supabase db reset`,
     `npx supabase test db supabase/tests`, `npm run build`, `npm test`,
     `npm audit --audit-level=moderate`, and `git diff --check`.
-- Milestone 3 local Auth/Data wiring is in progress:
+- Milestone 3 Auth/Data wiring is complete for the local and hosted preview
+  baseline:
   - `@supabase/supabase-js` is installed.
   - `src/supabaseClient.js` owns Supabase client configuration and auth storage.
     OAuth uses PKCE.
@@ -62,8 +64,8 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - Local Mailpit magic-link QA was completed earlier, but Email magic link is
     now intentionally paused for the MVP because hosted Supabase built-in email
     hit rate limits and the project will not add SMTP for login.
-  - Latest local verification has 14 Playwright tests passing, including
-    Google OAuth redirect coverage.
+  - Latest local verification target has 15 Playwright tests, including Google
+    OAuth redirect coverage and a mobile modal animation regression.
   - Hosted Supabase preparation started on 2026-07-03:
     - Hosted project `TennisPartnetFinder` is linked as project ref
       `ttjzxhihctrtoqdsqxdb`.
@@ -84,6 +86,16 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
       map on the stable branch preview after adding that URL to Google Cloud
       HTTP referrer restrictions.
     - Hosted Google OAuth returns to the preview successfully.
+    - Hosted preview QA on 2026-07-03 used the stable branch preview. It
+      verified signed-out map browsing and Google OAuth gating, restored a
+      Google-authenticated owner session, confirmed first-layer player cards do
+      not show LINE, confirmed quick contact reveals LINE only after the
+      explicit action, published a QA partner request, and verified hosted DB
+      writes for the request and both player/request reports.
+    - Hosted preview QA also found a transient 390px mobile modal animation
+      issue where dialogs started partly offscreen. This was fixed by giving
+      `.modal` a dedicated centered animation and adding Playwright regression
+      coverage.
     - Hosted Email magic link QA was blocked by Supabase Auth email rate
       limiting: direct `/auth/v1/otp` verification returned HTTP 429
       `over_email_send_rate_limit`. Product decision: do not add SMTP now;
@@ -97,9 +109,12 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
     - Google Maps referrer allowlist should keep stable entries only: local dev,
       production domain, and stable branch preview. Do not chase every Vercel
       immutable deployment URL.
-- Milestone 4 beta readiness is starting:
-  - Current batch adds request-expiry UI copy and minimal report entry points
-    using the existing `reports` table.
+- Milestone 4 beta readiness is in progress:
+  - Commit `a6e2f87 Prepare beta readiness flows` added request-expiry UI copy
+    and minimal player/request report entry points using the existing
+    `reports` table.
+  - Hosted preview QA confirmed the 7-day request copy, request map pin, and
+    report writes against hosted Supabase.
   - Block lists remain out of scope until beta feedback proves they are needed.
 
 ## Product Principles
@@ -250,9 +265,9 @@ Schema guidelines:
 
 Goal: turn the prototype into a usable MVP.
 
-Status: local Supabase first pass implemented on 2026-07-02 and local hardening
-pass implemented on 2026-07-03; hosted Supabase, deployment, and production env
-are still intentionally out of scope.
+Status: local Supabase first pass implemented on 2026-07-02, local hardening
+implemented on 2026-07-03, and hosted preview QA completed on 2026-07-03.
+Production alias rollout and public beta remain intentionally out of scope.
 
 - Add Supabase client configuration.
 - Implement sign-in and sign-out.
@@ -374,16 +389,18 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Finish beta readiness on the hosted preview.
+Prepare the first private beta handoff.
 
 Recommended next implementation batch:
 
-1. Run signed-out, signed-in incomplete, and signed-in complete QA on the stable
-   branch preview in desktop and 390px mobile widths.
-2. Confirm request publishing shows the 7-day auto-hide expectation and expired
-   or non-open requests do not appear on the map.
-3. Confirm player and request report entry points write to `reports`.
-4. Decide beta access policy: keep the Vercel preview private for invited
+1. Wait for the latest branch preview deployment after the QA-results commit and
+   re-check the 390px modal fix on the stable branch preview.
+2. Decide beta access policy: keep the Vercel preview private for invited
    testers, or configure a share/bypass flow before expanding the group.
+3. Optionally create a fresh hosted test user to manually reproduce the
+   incomplete-profile gate in preview; this is already covered by local
+   automated tests.
+4. Clean up hosted QA data after the current QA trail is no longer needed:
+   the `QA-20260703` partner request and its related report rows.
 5. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.

@@ -294,6 +294,22 @@ test("login modal offers Google OAuth for beta without LINE or email magic link"
   await expect(page.getByRole("button", { name: "寄送登入信" })).toHaveCount(0);
 });
 
+test("login modal animation keeps the dialog inside a narrow viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.addStyleTag({ content: "#modal-root .modal { animation-play-state: paused !important; }" });
+
+  await page.getByRole("button", { name: "發布需求" }).click();
+  const modal = page.locator("#modal-root .modal");
+  await expect(modal).toBeVisible();
+
+  const box = await modal.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+});
+
 test("login modal redirects to Supabase Google OAuth", async ({ page }) => {
   await installFakeMaps(page);
   await page.route(`${SUPABASE_URL}/auth/v1/authorize**`, (route) =>
