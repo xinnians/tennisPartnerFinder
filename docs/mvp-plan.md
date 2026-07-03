@@ -52,6 +52,11 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - Hardening pass added loading, empty, error, and retry states for Supabase
     map data; login modal success/failure messaging; disabled submit states;
     profile reset on sign-out; and profile-page auth controls.
+  - Browser QA covered desktop and 390px mobile login/profile surfaces with no
+    relevant console errors.
+  - Local Mailpit magic-link QA was completed: the app accepted the local magic
+    link callback and displayed the signed-in email.
+  - Latest local verification had 11 Playwright tests passing.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -326,14 +331,17 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Finish manual Milestone 3 QA before hosted setup.
+Prepare the hosted Supabase integration handoff before creating external
+resources.
 
 Recommended next implementation batch:
 
-1. Manually QA the local magic-link flow through `MAILPIT_URL` / `INBUCKET_URL`.
-2. Review signed-out, signed-in incomplete, and signed-in complete profile UX on
-   desktop and mobile widths with real local Supabase data.
-3. Add targeted tests if manual QA exposes layout or state regressions.
-4. Keep the next batch local-only unless explicitly moving to hosted Supabase:
-   do not deploy, do not create production env, and do not change the verified
+1. Create a hosted Supabase preparation checklist covering project creation,
+   environment variables, migration application, Auth redirect URLs, RLS
+   verification, and deploy-preview prerequisites.
+2. Keep preparation as documentation only until the project owner provides or
+   confirms hosted Supabase, deployment, and Google Cloud access.
+3. Do not deploy, do not create production env, and do not change the verified
    schema unless a blocker is found and covered by local RLS tests.
+4. Preserve quick contact scope: no invite/accept flow, no quick contact event
+   log, and LINE remains UI-gated rather than database-hidden.

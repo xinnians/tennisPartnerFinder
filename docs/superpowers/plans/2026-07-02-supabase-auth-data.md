@@ -46,6 +46,8 @@ Updated 2026-07-03:
 - Added sign-out profile reset and profile-page auth controls.
 - Extended Playwright local Supabase coverage for loading/empty/error/retry,
   login success messaging, submit disabling, and sign-out gating.
+- Browser desktop/mobile QA and local Mailpit magic-link QA are complete; hosted
+  preparation moved to `docs/superpowers/plans/2026-07-03-hosted-supabase-prep.md`.
 
 ---
 
