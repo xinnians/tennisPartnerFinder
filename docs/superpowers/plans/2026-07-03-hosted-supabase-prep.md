@@ -51,7 +51,9 @@
     deprecation.
 - Hosted preview QA found a transient 390px modal animation issue: dialogs were
   centered only after the animation ended. The fix is a dedicated centered
-  `modalPopIn` animation plus Playwright coverage.
+  `modalPopIn` animation plus Playwright coverage. The stable branch preview
+  deployment was rechecked after the fix and the paused first-frame modal
+  stayed inside the 390px viewport.
 - Hosted magic-link QA was blocked by Supabase Auth email rate limiting:
   direct `/auth/v1/otp` verification returned HTTP 429 `over_email_send_rate_limit`.
 - Product decision: Email magic link and custom SMTP are paused for MVP login.
@@ -128,13 +130,11 @@ Completed preview QA evidence:
 - QA partner request publishing writes an active hosted request and renders its
   marker.
 - Player and request report entry points write separate hosted `reports` rows.
-- A 390px modal animation issue was found during QA and fixed locally; the next
-  branch deployment should be rechecked before inviting testers.
+- A 390px modal animation issue was found during QA, fixed, and rechecked on
+  the stable branch preview deployment.
 
 Remaining preview QA:
 
-- Re-check the 390px modal animation fix after the latest branch deployment is
-  ready.
 - Optional: create a fresh hosted test user to manually reproduce the
   incomplete-profile gate in preview. Local automated tests already cover this
   flow.

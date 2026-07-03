@@ -95,7 +95,8 @@ env is not configured, it still falls back to `src/mockData.js`.
     - Hosted preview QA also found a transient 390px mobile modal animation
       issue where dialogs started partly offscreen. This was fixed by giving
       `.modal` a dedicated centered animation and adding Playwright regression
-      coverage.
+      coverage. The stable branch preview deployment was rechecked after the
+      fix and the paused first-frame modal stayed within the 390px viewport.
     - Hosted Email magic link QA was blocked by Supabase Auth email rate
       limiting: direct `/auth/v1/otp` verification returned HTTP 429
       `over_email_send_rate_limit`. Product decision: do not add SMTP now;
@@ -393,14 +394,12 @@ Prepare the first private beta handoff.
 
 Recommended next implementation batch:
 
-1. Wait for the latest branch preview deployment after the QA-results commit and
-   re-check the 390px modal fix on the stable branch preview.
-2. Decide beta access policy: keep the Vercel preview private for invited
+1. Decide beta access policy: keep the Vercel preview private for invited
    testers, or configure a share/bypass flow before expanding the group.
-3. Optionally create a fresh hosted test user to manually reproduce the
+2. Optionally create a fresh hosted test user to manually reproduce the
    incomplete-profile gate in preview; this is already covered by local
    automated tests.
-4. Clean up hosted QA data after the current QA trail is no longer needed:
+3. Clean up hosted QA data after the current QA trail is no longer needed:
    the `QA-20260703` partner request and its related report rows.
-5. Preserve quick contact scope: no invite/accept flow, no quick contact event
+4. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.
