@@ -280,6 +280,7 @@ export function openLoginModal({ onSubmit }) {
         <label class="modal-field__label" for="login-email">Email</label>
         <input id="login-email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
       </div>
+      <div class="modal-message" data-login-message hidden></div>
       <button type="submit" class="modal__send">寄送登入信</button>
       <div class="modal__hint">本機開發時可使用 Supabase Studio 或測試 session 完成登入。</div>
     </form>`;
@@ -290,9 +291,19 @@ export function openLoginModal({ onSubmit }) {
   root.querySelector("[data-login-form]").addEventListener("submit", async (event) => {
     event.preventDefault();
     const button = event.currentTarget.querySelector("button[type='submit']");
+    const message = event.currentTarget.querySelector("[data-login-message]");
+    message.hidden = true;
+    message.textContent = "";
+    message.classList.remove("is-error");
     button.disabled = true;
     try {
       await onSubmit(new FormData(event.currentTarget).get("email").trim());
+      message.textContent = "已寄出登入連結，請檢查信箱。";
+      message.hidden = false;
+    } catch {
+      message.textContent = "登入連結寄送失敗，請稍後再試。";
+      message.classList.add("is-error");
+      message.hidden = false;
     } finally {
       button.disabled = false;
     }

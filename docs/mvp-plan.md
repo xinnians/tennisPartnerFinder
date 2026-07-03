@@ -1,6 +1,6 @@
 # Tennis Partner Finder MVP Plan
 
-Last updated: 2026-07-02
+Last updated: 2026-07-03
 
 This document is the project planning source of truth. Keep it updated when scope,
 product decisions, data model assumptions, or implementation order changes, so a
@@ -49,6 +49,9 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
   - Playwright local Supabase coverage verifies signed-out browsing,
     login gates, incomplete-profile gates, profile save, first-layer LINE
     hiding, quick-contact LINE display, and partner request publishing.
+  - Hardening pass added loading, empty, error, and retry states for Supabase
+    map data; login modal success/failure messaging; disabled submit states;
+    profile reset on sign-out; and profile-page auth controls.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -199,8 +202,9 @@ Schema guidelines:
 
 Goal: turn the prototype into a usable MVP.
 
-Status: local Supabase first pass implemented on 2026-07-02; hosted Supabase,
-deployment, and production env are still intentionally out of scope.
+Status: local Supabase first pass implemented on 2026-07-02 and local hardening
+pass implemented on 2026-07-03; hosted Supabase, deployment, and production env
+are still intentionally out of scope.
 
 - Add Supabase client configuration.
 - Implement sign-in and sign-out.
@@ -322,16 +326,14 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Continue Milestone 3 hardening before hosted setup.
+Finish manual Milestone 3 QA before hosted setup.
 
 Recommended next implementation batch:
 
-1. Add stronger loading, empty, and error states around Supabase reads/writes.
-2. Manually QA the local magic-link flow through Supabase Studio/email capture.
-3. Review signed-out, signed-in incomplete, and signed-in complete profile UX on
-   desktop and mobile widths.
-4. Add targeted tests for sign-out state reset and public-card toggle behavior
-   if those flows change.
-5. Keep the next batch local-only unless explicitly moving to hosted Supabase:
+1. Manually QA the local magic-link flow through `MAILPIT_URL` / `INBUCKET_URL`.
+2. Review signed-out, signed-in incomplete, and signed-in complete profile UX on
+   desktop and mobile widths with real local Supabase data.
+3. Add targeted tests if manual QA exposes layout or state regressions.
+4. Keep the next batch local-only unless explicitly moving to hosted Supabase:
    do not deploy, do not create production env, and do not change the verified
    schema unless a blocker is found and covered by local RLS tests.

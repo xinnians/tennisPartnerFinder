@@ -34,13 +34,8 @@ import { esc, ntrpDesc } from "./util.js";
 let courts = COURTS;
 let dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
 
-// ------------------------------------------------------------
-// App 狀態(原型:全部放記憶體,重新整理就重置)
-// ------------------------------------------------------------
-const state = {
-  session: null,
-  filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
-  profile: {
+function defaultProfile() {
+  return {
     nick: "我",
     ntrp: 3.5,
     types: new Set(["單打", "對拉"]),
@@ -48,7 +43,17 @@ const state = {
     slots: new Set(["wd-e", "we-m"]),
     share: false,
     lineId: "",
-  },
+  };
+}
+
+// ------------------------------------------------------------
+// App 狀態(原型:全部放記憶體,重新整理就重置)
+// ------------------------------------------------------------
+const state = {
+  session: null,
+  dataStatus: "idle",
+  filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
+  profile: defaultProfile(),
 };
 
 // 地圖執行期物件(沒填 API key 時保持 null)
@@ -81,6 +86,50 @@ function showToast(message) {
   showToast._t = setTimeout(() => (toast.innerHTML = ""), 2200);
 }
 
+function setMapStatus(kind, message, subtext = "") {
+  const status = document.getElementById("map-status");
+  status.hidden = false;
+  status.className = `map-status map-status--${kind}`;
+  status.innerHTML = `
+    <div>${esc(message)}</div>
+    ${subtext ? `<div class="map-status__sub">${esc(subtext)}</div>` : ""}
+    ${kind === "error" ? `<button type="button" class="map-status__retry" data-retry-map>重新載入</button>` : ""}
+  `;
+  status.querySelector("[data-retry-map]")?.addEventListener("click", () => {
+    refreshDataAndPins();
+  });
+}
+
+function clearMapStatus() {
+  const status = document.getElementById("map-status");
+  status.hidden = true;
+  status.innerHTML = "";
+}
+
+function updateMapDataStatus() {
+  if (!isSupabaseConfigured) {
+    clearMapStatus();
+    return;
+  }
+
+  if (state.dataStatus === "loading") {
+    setMapStatus("loading", "正在載入球友資料", "同步公開球友與徵球伴需求中");
+    return;
+  }
+
+  if (state.dataStatus === "error") {
+    setMapStatus("error", "資料載入失敗", "請確認 Supabase local stack 後重新載入");
+    return;
+  }
+
+  if (state.dataStatus === "empty") {
+    setMapStatus("empty", "目前沒有公開球友或需求", "可以先建立自己的檔案或發布需求");
+    return;
+  }
+
+  clearMapStatus();
+}
+
 function openAuthPrompt() {
   if (!isSupabaseConfigured) {
     showToast("請先設定 Supabase env。");
@@ -89,8 +138,6 @@ function openAuthPrompt() {
   openLoginModal({
     onSubmit: async (email) => {
       await signInWithEmail(email);
-      closeModal();
-      showToast("登入信已寄出");
     },
   });
 }
@@ -206,10 +253,15 @@ function setupPublishRequest() {
 
 async function loadAppData() {
   if (!isSupabaseConfigured) {
+    state.dataStatus = "ready";
+    updateMapDataStatus();
     courts = COURTS;
     dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
     return;
   }
+
+  state.dataStatus = "loading";
+  updateMapDataStatus();
 
   try {
     const [nextCourts, players, demands] = await Promise.all([
@@ -219,11 +271,14 @@ async function loadAppData() {
     ]);
     courts = nextCourts.length ? nextCourts : COURTS;
     dataSet = { players, demands };
+    state.dataStatus = players.length === 0 && demands.length === 0 ? "empty" : "ready";
+    updateMapDataStatus();
   } catch (error) {
     console.error(error);
-    showToast("Supabase 資料載入失敗，先使用原型資料。");
-    courts = COURTS;
-    dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+    courts = [];
+    dataSet = { players: [], demands: [] };
+    state.dataStatus = "error";
+    updateMapDataStatus();
   }
 }
 
@@ -271,25 +326,30 @@ function setupTabs() {
 }
 
 function updateAuthStatus() {
-  const label = document.getElementById("auth-status");
-  const button = document.getElementById("auth-action");
-  if (!label || !button) return;
+  const labels = document.querySelectorAll("[data-auth-status]");
+  const buttons = document.querySelectorAll("[data-auth-action]");
 
   if (!isSupabaseConfigured) {
-    label.textContent = "原型";
-    button.textContent = "登入";
-    button.disabled = true;
+    labels.forEach((label) => (label.textContent = "原型"));
+    buttons.forEach((button) => {
+      button.textContent = "登入";
+      button.disabled = true;
+    });
     return;
   }
 
   if (state.session) {
-    label.textContent = state.session.user?.email ?? "已登入";
-    button.textContent = "登出";
-    button.disabled = false;
+    labels.forEach((label) => (label.textContent = state.session.user?.email ?? "已登入"));
+    buttons.forEach((button) => {
+      button.textContent = "登出";
+      button.disabled = false;
+    });
   } else {
-    label.textContent = "未登入";
-    button.textContent = "登入";
-    button.disabled = false;
+    labels.forEach((label) => (label.textContent = "未登入"));
+    buttons.forEach((button) => {
+      button.textContent = "登入";
+      button.disabled = false;
+    });
   }
 }
 
@@ -302,6 +362,11 @@ function replaceProfile(profile) {
   state.profile.slots = new Set(profile.slots);
   state.profile.share = profile.share;
   state.profile.lineId = profile.lineId;
+}
+
+function resetProfile() {
+  replaceProfile(defaultProfile());
+  syncProfileForm();
 }
 
 async function loadSignedInProfile() {
@@ -321,21 +386,25 @@ async function initializeAuth() {
   onAuthStateChange(async (session) => {
     state.session = session;
     if (session) await loadSignedInProfile();
+    else resetProfile();
     updateAuthStatus();
   });
 }
 
 function setupAuthControls() {
-  const button = document.getElementById("auth-action");
-  button.addEventListener("click", async () => {
-    if (state.session) {
-      await signOut();
-      state.session = null;
-      updateAuthStatus();
-      showToast("已登出");
-      return;
-    }
-    openAuthPrompt();
+  document.querySelectorAll("[data-auth-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (state.session) {
+        button.disabled = true;
+        await signOut();
+        state.session = null;
+        resetProfile();
+        updateAuthStatus();
+        showToast("已登出");
+        return;
+      }
+      openAuthPrompt();
+    });
   });
 }
 
@@ -448,7 +517,8 @@ function setupProfile() {
   });
 
   // 儲存:未設定 Supabase 時維持原型 toast;有設定時寫入目前登入使用者的 profile。
-  document.getElementById("prof-save").addEventListener("click", async () => {
+  document.getElementById("prof-save").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
     if (!isSupabaseConfigured) {
       showToast("已儲存");
       return;
@@ -459,6 +529,7 @@ function setupProfile() {
       return;
     }
 
+    button.disabled = true;
     try {
       const savedProfile = await saveCurrentProfile(prof);
       if (savedProfile) {
@@ -470,6 +541,8 @@ function setupProfile() {
     } catch (error) {
       console.error(error);
       showToast("儲存失敗，請稍後再試。");
+    } finally {
+      button.disabled = false;
     }
   });
 }

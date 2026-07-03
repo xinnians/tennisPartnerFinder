@@ -38,6 +38,7 @@
             <ul id="placeholder-courts" class="placeholder__courts"></ul>
           </div>
         </div>
+        <div id="map-status" class="map-status" hidden></div>
 
         <!-- 地圖上方浮層:logo + 篩選 chips(沿用設計) -->
         <div class="map-top">
@@ -59,8 +60,8 @@
               台北市
             </div>
             <div class="auth-pill">
-              <span id="auth-status">未登入</span>
-              <button type="button" id="auth-action">登入</button>
+              <span id="auth-status" data-auth-status>未登入</span>
+              <button type="button" id="auth-action" data-auth-action>登入</button>
             </div>
           </div>
           <div class="chip-row scroll" role="group" aria-label="篩選條件">
@@ -106,6 +107,10 @@
             <div class="page__head">
               <div class="page__title">個人檔案</div>
               <div class="page__sub">讓程度相近的球友更容易找到你</div>
+              <div class="profile-auth">
+                <span data-auth-status>未登入</span>
+                <button type="button" data-auth-action>登入</button>
+              </div>
             </div>
             <div class="page__body scroll">
               <div class="prof-card">

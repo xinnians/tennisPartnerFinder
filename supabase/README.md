@@ -1,7 +1,9 @@
 # Supabase Local Verification
 
 This project uses Supabase Auth + Postgres + Row Level Security for the MVP
-backend, but the frontend is not wired to Supabase yet.
+backend. The frontend is wired to the local Supabase stack when
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured; otherwise it
+falls back to the mock prototype data.
 
 ## Prerequisites
 
@@ -33,6 +35,9 @@ npx supabase db reset
 
 # Run pgTAP verification files from supabase/tests.
 npx supabase test db supabase/tests
+
+# Run frontend flows that use local Supabase Auth/Data.
+npm test -- --project=supabase-chromium
 ```
 
 If Docker Desktop is not installed or not running, `supabase start`, `db reset`,
@@ -57,3 +62,21 @@ can include `line_id`; the app hides it on the first card layer and reveals it
 only after the user taps `快速約球`.
 
 Do not connect a hosted Supabase project until the local migration and tests pass.
+
+## Local Magic Link QA
+
+Local auth emails are captured by the bundled inbox instead of being sent to an
+external mailbox. Run:
+
+```bash
+npx supabase status -o env
+```
+
+Open the reported `MAILPIT_URL` or `INBUCKET_URL`(currently
+`http://127.0.0.1:54324` in the default local stack), then:
+
+1. Start Vite with local Supabase env values.
+2. Submit the app login modal with a test email.
+3. Open the captured email and follow the magic link.
+4. Verify the app shows the signed-in email, allows profile save, and returns to
+   the signed-out browse-only state after logout.

@@ -160,6 +160,47 @@ async function installFakeMaps(page) {
   );
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function installEmptyDiscovery(page, { delayMs = 0 } = {}) {
+  await page.route(`${SUPABASE_URL}/rest/v1/public_profile_discovery**`, async (route) => {
+    if (delayMs) await wait(delayMs);
+    await route.fulfill({
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route(`${SUPABASE_URL}/rest/v1/partner_requests**`, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    if (delayMs) await wait(delayMs);
+    await route.fulfill({
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+}
+
+async function installFailThenRetryDiscovery(page) {
+  let attempts = 0;
+  await page.route(`${SUPABASE_URL}/rest/v1/public_profile_discovery**`, async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "forced discovery failure" }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+}
+
 async function setBrowserSession(page, session) {
   await page.addInitScript(
     ({ key, value }) => {
@@ -189,6 +230,38 @@ test.beforeAll(async () => {
     playTypes: ["單打", "對拉"],
     slots: ["we-m", "wd-e"],
   });
+});
+
+test("shows loading, empty, error, and retry states for Supabase map data", async ({ page }) => {
+  await installFakeMaps(page);
+  await installEmptyDiscovery(page, { delayMs: 350 });
+  await page.goto("/");
+
+  await expect(page.getByText("正在載入球友資料")).toBeVisible();
+  await expect(page.getByText("目前沒有公開球友或需求")).toBeVisible();
+
+  await page.unroute(`${SUPABASE_URL}/rest/v1/public_profile_discovery**`);
+  await page.unroute(`${SUPABASE_URL}/rest/v1/partner_requests**`);
+  await installFailThenRetryDiscovery(page);
+  await page.reload();
+
+  await expect(page.getByText("資料載入失敗")).toBeVisible();
+  await page.getByRole("button", { name: "重新載入" }).click();
+  await expect(page.locator("#sheet-root")).toHaveCount(1);
+  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Local Ace");
+});
+
+test("login modal reports magic-link success", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "登入" }).click();
+  await page.getByLabel("Email").fill(`magic-${Date.now()}@example.test`);
+  await page.getByRole("button", { name: "寄送登入信" }).click();
+
+  await expect(page.getByText("已寄出登入連結，請檢查信箱。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "寄送登入信" })).toBeEnabled();
 });
 
 test("signed-out users can browse but quick contact opens login", async ({ page }) => {
@@ -239,9 +312,46 @@ test("signed-in users can save profile, quick contact, and publish a request", a
   await page.getByLabel("想約時間", { exact: true }).fill("週六下午");
   await page.getByLabel("大概程度", { exact: true }).fill("3.5 左右");
   await page.getByLabel("需求內容", { exact: true }).fill("想找 3.5 左右球友對拉");
+  await page.route(`${SUPABASE_URL}/rest/v1/partner_requests**`, async (route) => {
+    if (route.request().method() === "POST") await wait(350);
+    await route.continue();
+  });
   await page.getByRole("button", { name: "送出需求" }).click();
+  await expect(page.getByRole("button", { name: "送出需求" })).toBeDisabled();
   await expect(page.getByText("需求已發布")).toBeVisible();
 
   await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
   await expect(page.locator("#sheet-root")).toContainText("想找 3.5 左右球友對拉");
+});
+
+test("sign-out clears current profile and gates quick contact again", async ({ page }) => {
+  const email = `signout-${Date.now()}@example.test`;
+  const { session } = await signUpUser(email);
+
+  await installFakeMaps(page);
+  await setBrowserSession(page, session);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /個人檔案/ }).click();
+  await page.getByLabel("暱稱").fill("Sign Out");
+  await page.getByPlaceholder("輸入你的 LINE ID").fill("signout_line");
+  await page.getByRole("button", { name: "儲存檔案" }).click();
+  await expect(page.getByText("已儲存到 Supabase")).toBeVisible();
+
+  await page.getByRole("button", { name: "登出" }).click();
+  await expect(page.getByText("已登出")).toBeVisible();
+  await expect(page.getByLabel("暱稱")).toHaveValue("我");
+  await expect(page.getByPlaceholder("輸入你的 LINE ID")).toHaveValue("");
+
+  await page.getByRole("button", { name: /^地圖$/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  const localAceDrawerItem = page.getByRole("button", { name: /Local Ace/ }).first();
+  try {
+    await localAceDrawerItem.waitFor({ state: "visible", timeout: 700 });
+    await localAceDrawerItem.click();
+  } catch {
+    // The marker may be a direct player pin when no same-court request exists.
+  }
+  await page.getByRole("button", { name: "快速約球" }).click();
+  await expect(page.getByText("登入後繼續")).toBeVisible();
 });

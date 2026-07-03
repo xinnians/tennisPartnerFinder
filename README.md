@@ -88,6 +88,23 @@ npx supabase test db supabase/tests
 目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
 使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。
 
+### Local magic-link QA
+
+本機 Supabase 會把 magic link email 收在 Inbucket/Mailpit,不會真的寄到外部信箱。
+
+```bash
+npx supabase start
+npx supabase status -o env
+```
+
+從輸出找到 `MAILPIT_URL` 或 `INBUCKET_URL`(目前 local 預設為
+`http://127.0.0.1:54324`),打開後可看到登入信。測試流程:
+
+1. 啟動 Vite 並設定 `.env.local` 的 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`。
+2. 在 app 點「登入」,輸入 email 並送出。
+3. 到 `MAILPIT_URL` / `INBUCKET_URL` 開信,點 magic link。
+4. 回到 app 確認 auth 狀態變成該 email,profile 可儲存,登出後回到未登入狀態。
+
 ## 專案結構
 
 ```

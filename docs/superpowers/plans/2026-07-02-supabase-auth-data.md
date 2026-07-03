@@ -33,10 +33,19 @@ Updated 2026-07-02:
 
 Remaining hardening candidates:
 
-- More explicit loading, empty, and failure states around Supabase reads/writes.
 - Manual local magic-link QA through Supabase Studio/email capture.
-- Sign-out reset coverage if profile state clearing behavior changes.
 - Mobile visual QA for the new auth and request modal controls.
+
+Updated 2026-07-03:
+
+- Added map data loading, empty, error, and retry states for local Supabase
+  reads.
+- Added modal-level magic-link success/error messaging.
+- Added disabled submit states for login, profile save, and partner request
+  publishing.
+- Added sign-out profile reset and profile-page auth controls.
+- Extended Playwright local Supabase coverage for loading/empty/error/retry,
+  login success messaging, submit disabling, and sign-out gating.
 
 ---
 

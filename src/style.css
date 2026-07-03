@@ -101,6 +101,47 @@ button { font-family: var(--font); }
    ------------------------------------------------------------ */
 #map { position: absolute; inset: 0; background: var(--bg); }
 
+.map-status {
+  position: absolute;
+  left: 50%;
+  top: 116px;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 360px);
+  z-index: 16;
+  padding: 13px 15px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e3e8de;
+  box-shadow: 0 12px 30px rgba(20, 40, 26, 0.16);
+  color: var(--deep);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.map-status[hidden] { display: none; }
+
+.map-status__sub {
+  margin-top: 4px;
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.map-status__retry {
+  height: 34px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 14px;
+  background: var(--deep);
+  color: #eef6d6;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 /* 地圖上方漸層浮層:logo 列 + 篩選 chips */
 .map-top {
   position: absolute;
@@ -187,6 +228,41 @@ button { font-family: var(--font); }
 .auth-pill button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.profile-auth {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin-top: 10px;
+  padding: 7px 9px 7px 12px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e5e9df;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-auth span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-auth button {
+  flex: none;
+  height: 26px;
+  border: 0;
+  border-radius: 13px;
+  padding: 0 10px;
+  background: var(--deep);
+  color: #eef6d6;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .chip-row {
@@ -788,7 +864,34 @@ button { font-family: var(--font); }
   box-shadow: 0 8px 20px rgba(201, 226, 59, 0.5);
 }
 
+.modal__send:disabled,
+.modal__secondary:disabled,
+.auth-pill button:disabled,
+.btn-save:disabled {
+  opacity: 0.58;
+  cursor: wait;
+  box-shadow: none;
+}
+
 .modal__hint { text-align: center; font-size: 11.5px; color: var(--faint); margin-top: 11px; line-height: 1.5; }
+
+.modal-message {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: #eff8e2;
+  border: 1px solid #d9ebb9;
+  color: #31551f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.modal-message.is-error {
+  background: #fff2ed;
+  border-color: #f1c8bb;
+  color: #9a3e2f;
+}
 
 .modal__secondary {
   width: 100%;
