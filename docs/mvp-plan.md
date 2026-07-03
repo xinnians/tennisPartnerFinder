@@ -75,8 +75,12 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
       partner requests, and direct profile read isolation.
     - Browser QA confirmed the referrer-restricted Google Maps key renders the
       map on the latest protected Vercel preview.
+    - Hosted magic-link QA is currently blocked by Supabase Auth email rate
+      limiting: direct `/auth/v1/otp` verification returned HTTP 429
+      `over_email_send_rate_limit`.
     - Remaining manual setup: browser QA through a Vercel-authenticated session
-      or share/bypass link, and hosted magic-link callback verification.
+      or share/bypass link, and hosted magic-link callback verification after
+      the email rate limit resets or custom SMTP is configured.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -356,8 +360,8 @@ resources.
 
 Recommended next implementation batch:
 
-1. Confirm the hosted magic-link callback returns to the preview URL after
-   Supabase Auth redirect configuration.
+1. Wait for the Supabase Auth email rate limit to reset, or configure custom
+   SMTP, then confirm the hosted magic-link callback returns to the preview URL.
 2. Run the remaining signed-out, signed-in incomplete, and signed-in complete
    profile QA on the latest Vercel preview in desktop and 390px mobile widths.
 3. Decide whether the beta preview should stay private behind Vercel

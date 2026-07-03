@@ -31,6 +31,8 @@
 - Hosted REST smoke checks passed for anonymous courts, public discovery, partner requests, and direct profile read isolation.
 - Browser QA confirmed Google Maps renders on the protected preview after adding the preview URL to the Google Cloud HTTP referrer allowlist.
 - Browser automation against the protected preview is blocked by Vercel Authentication; manual browser QA needs a logged-in Vercel session or share/bypass access.
+- Hosted magic-link QA is currently blocked by Supabase Auth email rate limiting:
+  direct `/auth/v1/otp` verification returned HTTP 429 `over_email_send_rate_limit`.
 
 ## Boundaries
 
@@ -89,7 +91,8 @@ Completed preview QA evidence:
 
 Remaining preview QA:
 
-- Hosted email magic-link callback.
+- Hosted email magic-link callback after Supabase Auth email rate limit resets
+  or custom SMTP is configured.
 - Signed-in incomplete/complete profile flows.
 - Quick contact and partner request publishing against hosted data.
 - 390px mobile pass after signing in.
