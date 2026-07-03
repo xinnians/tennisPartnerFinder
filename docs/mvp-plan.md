@@ -51,16 +51,18 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
     implementation.
   - Playwright local Supabase coverage verifies signed-out browsing,
     login gates, incomplete-profile gates, profile save, first-layer LINE
-    hiding, quick-contact LINE display, and partner request publishing.
+    hiding, quick-contact LINE display, partner request publishing,
+    expired/non-open request hiding, and player/request report creation.
   - Hardening pass added loading, empty, error, and retry states for Supabase
     map data; login modal success/failure messaging; disabled submit states;
     profile reset on sign-out; and profile-page auth controls.
   - Browser QA covered desktop and 390px mobile login/profile surfaces with no
-    relevant console errors before the OAuth switch; preview OAuth QA remains.
+    relevant console errors before the OAuth switch. Hosted Google OAuth and
+    Maps preview QA are now verified on the stable branch preview URL.
   - Local Mailpit magic-link QA was completed earlier, but Email magic link is
     now intentionally paused for the MVP because hosted Supabase built-in email
     hit rate limits and the project will not add SMTP for login.
-  - Latest local verification has 12 Playwright tests passing, including
+  - Latest local verification has 14 Playwright tests passing, including
     Google OAuth redirect coverage.
   - Hosted Supabase preparation started on 2026-07-03:
     - Hosted project `TennisPartnetFinder` is linked as project ref
@@ -71,15 +73,17 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
       `profiles`, `partner_requests`, and `reports`.
     - Vercel project `tennis-partner-finder` is linked, with preview Supabase
       env vars configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
-    - Vercel preview is ready at
-      `https://tennis-partner-finder-ip6ttf8qe-xinnians-projects-c513dbd3.vercel.app`,
-      but it is currently protected by Vercel Authentication.
+    - Stable Vercel branch preview is
+      `https://tennis-partner-finder-git-cla-6f302a-xinnians-projects-c513dbd3.vercel.app`.
+      Use this as the QA entrypoint instead of per-deploy immutable hash URLs.
     - Preview env now includes hosted Supabase URL/key and
       `VITE_GOOGLE_MAPS_API_KEY`.
     - Hosted REST smoke checks passed for anonymous courts, public discovery,
       partner requests, and direct profile read isolation.
     - Browser QA confirmed the referrer-restricted Google Maps key renders the
-      map on the latest protected Vercel preview.
+      map on the stable branch preview after adding that URL to Google Cloud
+      HTTP referrer restrictions.
+    - Hosted Google OAuth returns to the preview successfully.
     - Hosted Email magic link QA was blocked by Supabase Auth email rate
       limiting: direct `/auth/v1/otp` verification returned HTTP 429
       `over_email_send_rate_limit`. Product decision: do not add SMTP now;
@@ -90,9 +94,13 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
       dedicated auth architecture decision.
     - Apple sign-in is deferred until iOS native / App Store requirements make
       it necessary.
-    - Remaining manual setup: enable Google OAuth in Supabase Auth, then run
-      browser QA through a Vercel-authenticated session or share/bypass link.
-- Milestone 4 is not implemented yet.
+    - Google Maps referrer allowlist should keep stable entries only: local dev,
+      production domain, and stable branch preview. Do not chase every Vercel
+      immutable deployment URL.
+- Milestone 4 beta readiness is starting:
+  - Current batch adds request-expiry UI copy and minimal report entry points
+    using the existing `reports` table.
+  - Block lists remain out of scope until beta feedback proves they are needed.
 
 ## Product Principles
 
@@ -366,15 +374,16 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Configure hosted Google OAuth and verify preview login flows.
+Finish beta readiness on the hosted preview.
 
 Recommended next implementation batch:
 
-1. In Google Cloud and Supabase Auth, enable Google OAuth with callback
-   `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`.
-2. Run the remaining signed-out, signed-in incomplete, and signed-in complete
-   profile QA on the latest Vercel preview in desktop and 390px mobile widths.
-3. Decide whether the beta preview should stay private behind Vercel
-   Authentication or use a share/bypass flow for testers.
-4. Preserve quick contact scope: no invite/accept flow, no quick contact event
+1. Run signed-out, signed-in incomplete, and signed-in complete QA on the stable
+   branch preview in desktop and 390px mobile widths.
+2. Confirm request publishing shows the 7-day auto-hide expectation and expired
+   or non-open requests do not appear on the map.
+3. Confirm player and request report entry points write to `reports`.
+4. Decide beta access policy: keep the Vercel preview private for invited
+   testers, or configure a share/bypass flow before expanding the group.
+5. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.

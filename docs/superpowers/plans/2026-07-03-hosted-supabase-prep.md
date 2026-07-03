@@ -27,11 +27,13 @@
 - Vercel project `tennis-partner-finder` is linked under `xinnians-projects-c513dbd3`.
 - Preview Supabase env vars are configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
 - Preview Google Maps env is configured for branch `claude/tennis-partner-finder-proto-xfrr6g`.
-- Latest Vercel preview is ready at `https://tennis-partner-finder-ip6ttf8qe-xinnians-projects-c513dbd3.vercel.app`.
-- The preview is currently protected by Vercel Authentication.
+- Stable Vercel branch preview is `https://tennis-partner-finder-git-cla-6f302a-xinnians-projects-c513dbd3.vercel.app`.
+- Use the stable branch preview as the QA entrypoint; do not add every immutable
+  Vercel hash deployment URL to Google Maps HTTP referrer restrictions.
 - Hosted REST smoke checks passed for anonymous courts, public discovery, partner requests, and direct profile read isolation.
-- Browser QA confirmed Google Maps renders on the protected preview after adding the preview URL to the Google Cloud HTTP referrer allowlist.
-- Browser automation against the protected preview is blocked by Vercel Authentication; manual browser QA needs a logged-in Vercel session or share/bypass access.
+- Browser QA confirmed Google Maps renders on the stable branch preview after
+  adding the branch preview URL to the Google Cloud HTTP referrer allowlist.
+- Google OAuth callback returns to the preview app successfully.
 - Hosted magic-link QA was blocked by Supabase Auth email rate limiting:
   direct `/auth/v1/otp` verification returned HTTP 429 `over_email_send_rate_limit`.
 - Product decision: Email magic link and custom SMTP are paused for MVP login.
@@ -65,7 +67,7 @@
   - local dev: `http://localhost:5173`
   - deploy preview domain once available
   - production domain once available
-- [ ] Enable Google OAuth in Supabase Auth and confirm it returns to the deploy preview.
+- [x] Enable Google OAuth in Supabase Auth and confirm it returns to the deploy preview.
 - [x] Run or manually reproduce RLS checks against hosted:
   - anonymous can read active courts and `public_profile_discovery`
   - private profiles are excluded from discovery
@@ -82,27 +84,29 @@
   - [x] `VITE_SUPABASE_ANON_KEY`
 - [x] Restrict Google Maps browser key by HTTP referrer before public beta.
 - [x] Ensure the deploy preview URL is added to Supabase Auth redirect URLs.
-- [ ] Decide whether to keep Vercel Authentication enabled or provide a share/bypass URL for QA.
-- [ ] Run preview QA:
+- [ ] Decide whether beta testers should use a private preview, share/bypass URL, or production alias.
+- [ ] Run beta readiness preview QA:
   - signed-out user can browse public map data
   - signed-out quick contact and request publishing open login
   - signed-in incomplete profile is redirected to profile
   - complete profile can save and publish a partner request
   - first-layer player sheet does not show LINE
   - quick contact reveal shows LINE only after explicit click
+  - request publishing communicates 7-day auto-hide behavior
+  - player and request report entry points write to `reports`
   - desktop and 390px mobile layouts have no obvious overlap or clipping
 
 Completed preview QA evidence:
 
-- Latest preview loads behind Vercel Authentication.
-- Referrer-restricted Google Maps key renders the map on the preview URL.
+- Stable branch preview is the fixed QA URL.
+- Referrer-restricted Google Maps key renders the map on the branch preview URL.
+- Google OAuth returns to the preview app.
 - Empty hosted discovery/request state renders without crashing.
 
 Remaining preview QA:
 
-- Hosted Google OAuth callback.
-- Signed-in incomplete/complete profile flows.
-- Quick contact and partner request publishing against hosted data.
+- Signed-in incomplete/complete profile flows against hosted data.
+- Quick contact, partner request publishing, and report entry points against hosted data.
 - 390px mobile pass after signing in.
 
 ## Local Verification Before Hosted Work
@@ -130,6 +134,6 @@ Expected:
 
 - Hosted Supabase project access or confirmation to create one.
 - Preferred deploy target: Netlify or Vercel.
-- Deploy preview domain once created.
-- Google Cloud access to rotate or restrict the Maps API key.
-- Decision on whether beta deploy should use a private preview URL or a public-but-unlisted URL.
+- Production domain once created.
+- Decision on whether beta deploy should use private preview access, share/bypass
+  access, or a production alias.

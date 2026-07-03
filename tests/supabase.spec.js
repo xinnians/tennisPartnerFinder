@@ -151,6 +151,23 @@ async function createProfile(client, profile) {
   return profileId;
 }
 
+async function createPartnerRequestForProfile(client, profileId, request) {
+  const courtId = await courtIdByName(client, request.courtName);
+  const insert = client.from("partner_requests").insert({
+    profile_id: profileId,
+    court_id: courtId,
+    desired_time_text: request.desiredTimeText,
+    raw_skill_text: request.rawSkillText,
+    request_text: request.requestText,
+    status: request.status ?? "open",
+    expires_at: request.expiresAt,
+  });
+  const { data, error } =
+    request.returnId === false ? await insert : await insert.select("id").single();
+  if (error) throw error;
+  return data?.id ?? null;
+}
+
 async function installFakeMaps(page) {
   await page.route("https://maps.googleapis.com/maps/api/js**", (route) =>
     route.fulfill({
@@ -208,6 +225,17 @@ async function setBrowserSession(page, session) {
     },
     { key: AUTH_STORAGE_KEY, value: session }
   );
+}
+
+async function openLocalAceSheet(page) {
+  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  const localAceDrawerItem = page.getByRole("button", { name: /Local Ace/ }).first();
+  try {
+    await localAceDrawerItem.waitFor({ state: "visible", timeout: 700 });
+    await localAceDrawerItem.click();
+  } catch {
+    // The marker is a direct player pin when no same-court request exists yet.
+  }
 }
 
 test.describe.configure({ mode: "serial", timeout: 120_000 });
@@ -336,6 +364,7 @@ test("signed-in users can save profile, quick contact, and publish a request", a
   await page.getByLabel("想約時間", { exact: true }).fill("週六下午");
   await page.getByLabel("大概程度", { exact: true }).fill("3.5 左右");
   await page.getByLabel("需求內容", { exact: true }).fill("想找 3.5 左右球友對拉");
+  await expect(page.getByText("需求會在 7 天後自動隱藏")).toBeVisible();
   await page.route(`${SUPABASE_URL}/rest/v1/partner_requests**`, async (route) => {
     if (route.request().method() === "POST") await wait(350);
     await route.continue();
@@ -346,6 +375,126 @@ test("signed-in users can save profile, quick contact, and publish a request", a
 
   await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
   await expect(page.locator("#sheet-root")).toContainText("想找 3.5 左右球友對拉");
+});
+
+test("expired and non-open partner requests stay hidden from the map", async ({ page }) => {
+  const email = `requests-${Date.now()}@example.test`;
+  const { client, session } = await signUpUser(email);
+  const profileId = await createProfile(client, {
+    userId: session.user.id,
+    nickname: "Request Owner",
+    ntrp: 3.5,
+    lineId: "request_owner_line",
+    isPublic: false,
+    courts: ["中正網球中心"],
+    playTypes: ["對拉"],
+    slots: ["we-a"],
+  });
+
+  await createPartnerRequestForProfile(client, profileId, {
+    courtName: "中正網球中心",
+    desiredTimeText: "今天晚上",
+    rawSkillText: "3.5",
+    requestText: "這則有效需求應該出現",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+  await createPartnerRequestForProfile(client, profileId, {
+    courtName: "中正網球中心",
+    desiredTimeText: "昨天晚上",
+    rawSkillText: "3.5",
+    requestText: "這則過期需求不應該出現",
+    expiresAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    returnId: false,
+  });
+  await createPartnerRequestForProfile(client, profileId, {
+    courtName: "中正網球中心",
+    desiredTimeText: "明天晚上",
+    rawSkillText: "3.5",
+    requestText: "這則關閉需求不應該出現",
+    status: "closed",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    returnId: false,
+  });
+
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /地圖圖釘 中正網球中心/ }).click();
+  await expect(page.locator("#sheet-root")).toContainText("這則有效需求應該出現");
+  await expect(page.locator("#sheet-root")).not.toContainText("這則過期需求不應該出現");
+  await expect(page.locator("#sheet-root")).not.toContainText("這則關閉需求不應該出現");
+});
+
+test("report flow requires auth and a saved profile, then writes player and request reports", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await openLocalAceSheet(page);
+  await page.getByRole("button", { name: "檢舉" }).click();
+  await expect(page.getByText("登入後繼續")).toBeVisible();
+  await page.getByRole("button", { name: "✕" }).click();
+
+  const email = `reporter-${Date.now()}@example.test`;
+  const { client, session } = await signUpUser(email);
+  await setBrowserSession(page, session);
+  await page.reload();
+
+  await openLocalAceSheet(page);
+  await page.getByRole("button", { name: "檢舉" }).click();
+  await expect(page.locator("#tab-profile .page__title")).toHaveText("個人檔案");
+  await expect(page.getByText("檢舉前請先建立個人檔案")).toBeVisible();
+
+  await page.getByLabel("暱稱").fill("Reporter");
+  await page.getByPlaceholder("輸入你的 LINE ID").fill("reporter_line");
+  await page.getByRole("button", { name: "儲存檔案" }).click();
+  await expect(page.getByText("已儲存到 Supabase")).toBeVisible();
+
+  const profile = await client.from("profiles").select("id").eq("user_id", session.user.id).single();
+  if (profile.error) throw profile.error;
+  const requestId = await createPartnerRequestForProfile(client, profile.data.id, {
+    courtName: "大安森林公園網球場",
+    desiredTimeText: "週日早上",
+    rawSkillText: "4.0",
+    requestText: "這則需求會被檢舉",
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  await page.route(`${SUPABASE_URL}/rest/v1/reports**`, async (route) => {
+    if (route.request().method() === "POST") await wait(350);
+    await route.continue();
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: /^地圖$/ }).click();
+  await openLocalAceSheet(page);
+  await page.getByRole("button", { name: "檢舉" }).click();
+  await expect(page.getByRole("dialog", { name: /檢舉 Local Ace/ })).toBeVisible();
+  await page.getByRole("radio", { name: "疑似假資料" }).check();
+  await page.getByRole("button", { name: "送出檢舉" }).click();
+  await expect(page.getByRole("button", { name: "送出檢舉" })).toBeDisabled();
+  await expect(page.getByText("已收到檢舉")).toBeVisible();
+
+  await page.getByRole("button", { name: /^地圖$/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /這則需求會被檢舉/ }).click();
+  await page.getByRole("button", { name: "檢舉" }).click();
+  await expect(page.getByRole("dialog", { name: /檢舉需求/ })).toBeVisible();
+  await page.getByRole("radio", { name: "不適當內容" }).check();
+  await page.getByRole("button", { name: "送出檢舉" }).click();
+  await expect(page.getByText("已收到檢舉")).toBeVisible();
+
+  const { data: reports, error } = await client
+    .from("reports")
+    .select("reported_profile_id,partner_request_id,reason")
+    .eq("reporter_profile_id", profile.data.id)
+    .order("id");
+  if (error) throw error;
+  expect(reports).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ reported_profile_id: 1, partner_request_id: null, reason: "疑似假資料" }),
+      expect.objectContaining({ reported_profile_id: null, partner_request_id: requestId, reason: "不適當內容" }),
+    ])
+  );
 });
 
 test("sign-out clears current profile and gates quick contact again", async ({ page }) => {

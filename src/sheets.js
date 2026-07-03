@@ -28,7 +28,7 @@ function mountSheet(html) {
 // ------------------------------------------------------------
 // 球友 sheet:暱稱、NTRP、想打類型、固定時段、快速約球
 // ------------------------------------------------------------
-export function openPlayerSheet(p, { onQuickContact }) {
+export function openPlayerSheet(p, { onQuickContact, onReport }) {
   mountSheet(`
     <div class="sheet">
       <div class="sheet__handle"></div>
@@ -47,6 +47,7 @@ export function openPlayerSheet(p, { onQuickContact }) {
       <div class="sheet__label">固定時段</div>
       <div class="slot-chips">${p.availability.map((s) => `<span>${esc(s)}</span>`).join("")}</div>
       <button type="button" class="btn-contact" data-quick-contact>快速約球</button>
+      ${onReport ? `<button type="button" class="btn-report" data-report>檢舉</button>` : ""}
     </div>`);
   sheetRoot()
     .querySelector("[data-quick-contact]")
@@ -54,13 +55,19 @@ export function openPlayerSheet(p, { onQuickContact }) {
       closeSheet();
       onQuickContact(p);
     });
+  sheetRoot()
+    .querySelector("[data-report]")
+    ?.addEventListener("click", () => {
+      closeSheet();
+      onReport(p);
+    });
 }
 
 // ------------------------------------------------------------
 // 需求 sheet:區域、大概程度、需求原句、查看原貼文
 // (不顯示姓名或聯絡方式)
 // ------------------------------------------------------------
-export function openDemandSheet(d) {
+export function openDemandSheet(d, { onReport } = {}) {
   const skill = d.rawSkill ?? "程度未提供";
   const sourceCta = d.sourceUrl
     ? `<a class="btn-source" href="${esc(safeUrl(d.sourceUrl))}" target="_blank" rel="noopener noreferrer">
@@ -92,7 +99,14 @@ export function openDemandSheet(d) {
         <span>此為公開徵求貼文,非平台註冊球友;不顯示姓名與聯絡方式。</span>
       </div>
       ${sourceCta}
+      ${onReport ? `<button type="button" class="btn-report" data-report>檢舉</button>` : ""}
     </div>`);
+  sheetRoot()
+    .querySelector("[data-report]")
+    ?.addEventListener("click", () => {
+      closeSheet();
+      onReport(d);
+    });
 }
 
 // ------------------------------------------------------------
@@ -307,6 +321,62 @@ export function openLoginModal({ onProvider }) {
   });
 }
 
+const reportReasons = ["不適當內容", "疑似假資料", "騷擾或安全疑慮", "其他"];
+
+export function openReportModal({ title, subtitle }, { onSubmit }) {
+  publishButton()?.setAttribute("hidden", "");
+  const root = modalRoot();
+  root.innerHTML = `
+    <div class="modal-dim" data-close></div>
+    <form class="modal report-modal" data-report-form role="dialog" aria-modal="true" aria-labelledby="report-title">
+      <div class="modal__head">
+        <div class="avatar" style="width:48px;height:48px;font-size:19px">!</div>
+        <div style="flex:1">
+          <div class="modal__to">協助維護球友品質</div>
+          <div class="modal__nick" id="report-title">${esc(title)}</div>
+        </div>
+        <button type="button" class="btn-close" data-close-x>✕</button>
+      </div>
+      ${subtitle ? `<div class="modal__hint report-modal__subtitle">${esc(subtitle)}</div>` : ""}
+      <fieldset class="report-reasons">
+        <legend>檢舉原因</legend>
+        ${reportReasons
+          .map(
+            (reason, index) => `
+              <label class="report-reason">
+                <input type="radio" name="reason" value="${esc(reason)}" ${index === 0 ? "checked" : ""} />
+                <span>${esc(reason)}</span>
+              </label>`
+          )
+          .join("")}
+      </fieldset>
+      <div class="modal-message is-error" data-report-message hidden></div>
+      <button type="submit" class="modal__send">送出檢舉</button>
+      <div class="modal__hint">檢舉只會提供給平台檢查，不會通知對方。</div>
+    </form>`;
+
+  const close = () => closeModal();
+  root.querySelector("[data-close]").addEventListener("click", close);
+  root.querySelector("[data-close-x]").addEventListener("click", close);
+  root.querySelector("[data-report-form]").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector("button[type='submit']");
+    const message = form.querySelector("[data-report-message]");
+    const values = Object.fromEntries(new FormData(form));
+    button.disabled = true;
+    message.hidden = true;
+    message.textContent = "";
+    try {
+      await onSubmit(values.reason);
+    } catch {
+      message.textContent = "檢舉送出失敗，請稍後再試。";
+      message.hidden = false;
+      button.disabled = false;
+    }
+  });
+}
+
 export function openPublishRequestModal(courts, { onSubmit }) {
   publishButton()?.setAttribute("hidden", "");
   const root = modalRoot();
@@ -339,6 +409,7 @@ export function openPublishRequestModal(courts, { onSubmit }) {
         <label class="modal-field__label" for="request-text">需求內容</label>
         <textarea id="request-text" name="requestText" placeholder="想找什麼樣的球友或打法" required></textarea>
       </div>
+      <div class="modal__hint request-expiry-hint">需求會在 7 天後自動隱藏</div>
       <button type="submit" class="modal__send">送出需求</button>
     </form>`;
 

@@ -58,7 +58,20 @@ VITE_SUPABASE_ANON_KEY=<npx supabase status -o env 顯示的 ANON_KEY>
 1. 到 [Google Cloud Console](https://console.cloud.google.com/) 建立(或選擇)一個專案。
 2. 在「API 和服務」啟用 **Maps JavaScript API**。
 3. 到「憑證」建立 **API 金鑰**。
-4. 建議在金鑰設定裡加上 HTTP referrer 限制(例如 `http://localhost:5173/*`)。
+4. 建議在金鑰設定裡加上 HTTP referrer 限制。只維護會固定打開的入口,
+   不要逐一加入每次 Vercel redeploy 產生的 immutable hash URL。
+
+目前建議的 referrer:
+
+```text
+http://localhost:5173/*
+http://127.0.0.1:5173/*
+https://tennis-partner-finder-git-cla-6f302a-xinnians-projects-c513dbd3.vercel.app/*
+https://tennis-partner-finder-inky.vercel.app/*
+```
+
+其中 `tennis-partner-finder-git-cla-6f302a-...` 是目前固定 QA 的 branch
+preview URL。正式 production domain 確認後再加入 production URL。
 
 ## Supabase 本機驗證
 
@@ -95,8 +108,12 @@ Beta 登入先採 Google OAuth。Email magic link 已從正式與 preview UI 移
 改評估 Auth0/Clerk 這類支援 LINE 的 auth broker。Apple 登入留到 iOS 原生或 App
 Store 需求明確時再加入。
 
-本機 Supabase 可繼續用測試 session 跑 Playwright;實際 Google OAuth 需要在 hosted
-Supabase Dashboard 設定 provider 後,透過 Vercel preview 手動 QA。
+本機 Supabase 可繼續用測試 session 跑 Playwright;實際 Google OAuth 已在 hosted
+Supabase + Vercel preview 手動驗證。Preview QA 固定使用 branch alias:
+
+```text
+https://tennis-partner-finder-git-cla-6f302a-xinnians-projects-c513dbd3.vercel.app
+```
 
 ```bash
 npx supabase start

@@ -13,12 +13,14 @@ import {
   openQuickContactModal,
   openLoginModal,
   openPublishRequestModal,
+  openReportModal,
   closeSheet,
   closeModal,
 } from "./sheets.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
 import {
   createPartnerRequest,
+  createReport,
   getInitialSession,
   loadActivePartnerRequests,
   loadCourts,
@@ -65,8 +67,8 @@ let markers = [];
 // 圖釘互動(球友 sheet → 快速聯絡 modal)
 // ------------------------------------------------------------
 const pinHandlers = {
-  onPlayer: (p) => openPlayerSheet(p, { onQuickContact: startQuickContact }),
-  onDemand: (d) => openDemandSheet(d),
+  onPlayer: (p) => openPlayerSheet(p, { onQuickContact: startQuickContact, onReport: startPlayerReport }),
+  onDemand: (d) => openDemandSheet(d, { onReport: startDemandReport }),
   onCluster: (court, items) => openCourtDrawer(court, items, pinHandlers),
 };
 
@@ -166,6 +168,71 @@ function startQuickContact(p) {
     viewerProfile: state.profile,
     onPublishRequest: () => startPublishRequest(),
   });
+}
+
+function ensureCanReport() {
+  if (!isSupabaseConfigured) {
+    showToast("檢舉功能需要 Supabase 環境。");
+    return false;
+  }
+
+  if (!state.session) {
+    openAuthPrompt();
+    return false;
+  }
+
+  if (!state.profile.id) {
+    showToast("檢舉前請先建立個人檔案");
+    switchTab("profile");
+    closeSheet();
+    return false;
+  }
+
+  return true;
+}
+
+function startPlayerReport(player) {
+  if (!ensureCanReport()) return;
+  if (!player.profileId) {
+    showToast("目前不能檢舉這筆球友資料。");
+    return;
+  }
+
+  openReportModal(
+    {
+      title: `檢舉 ${player.displayName}`,
+      subtitle: `${player.homeCourt}・NTRP ${player.ntrp.toFixed(1)}`,
+    },
+    {
+      onSubmit: async (reason) => {
+        await createReport({ reportedProfileId: player.profileId, reason });
+        closeModal();
+        showToast("已收到檢舉");
+      },
+    }
+  );
+}
+
+function startDemandReport(demand) {
+  if (!ensureCanReport()) return;
+  if (!demand.requestId) {
+    showToast("目前不能檢舉這筆需求。");
+    return;
+  }
+
+  openReportModal(
+    {
+      title: "檢舉需求",
+      subtitle: `${demand.court}・${demand.rawSkill ?? "程度未提供"}`,
+    },
+    {
+      onSubmit: async (reason) => {
+        await createReport({ partnerRequestId: demand.requestId, reason });
+        closeModal();
+        showToast("已收到檢舉");
+      },
+    }
+  );
 }
 
 // ------------------------------------------------------------

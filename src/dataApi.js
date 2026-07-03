@@ -269,3 +269,18 @@ export async function createPartnerRequest({ courtId, desiredTimeText, rawSkillT
   });
   if (error) throw error;
 }
+
+export async function createReport({ reportedProfileId = null, partnerRequestId = null, reason }) {
+  const client = requireSupabase();
+  const profile = await loadCurrentProfile();
+  if (!profile?.id) throw new Error("請先建立個人檔案");
+  if (!reportedProfileId && !partnerRequestId) throw new Error("缺少檢舉目標");
+
+  const { error } = await client.from("reports").insert({
+    reporter_profile_id: profile.id,
+    reported_profile_id: reportedProfileId,
+    partner_request_id: partnerRequestId,
+    reason,
+  });
+  if (error) throw error;
+}
