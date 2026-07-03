@@ -29,6 +29,7 @@
 - Latest Vercel preview is ready at `https://tennis-partner-finder-ip6ttf8qe-xinnians-projects-c513dbd3.vercel.app`.
 - The preview is currently protected by Vercel Authentication.
 - Hosted REST smoke checks passed for anonymous courts, public discovery, partner requests, and direct profile read isolation.
+- Browser QA confirmed Google Maps renders on the protected preview after adding the preview URL to the Google Cloud HTTP referrer allowlist.
 - Browser automation against the protected preview is blocked by Vercel Authentication; manual browser QA needs a logged-in Vercel session or share/bypass access.
 
 ## Boundaries
@@ -68,7 +69,7 @@
   - [x] `VITE_GOOGLE_MAPS_API_KEY`
   - [x] `VITE_SUPABASE_URL`
   - [x] `VITE_SUPABASE_ANON_KEY`
-- [ ] Restrict Google Maps browser key by HTTP referrer before public beta.
+- [x] Restrict Google Maps browser key by HTTP referrer before public beta.
 - [x] Ensure the deploy preview URL is added to Supabase Auth redirect URLs.
 - [ ] Decide whether to keep Vercel Authentication enabled or provide a share/bypass URL for QA.
 - [ ] Run preview QA:
@@ -79,6 +80,19 @@
   - first-layer player sheet does not show LINE
   - quick contact reveal shows LINE only after explicit click
   - desktop and 390px mobile layouts have no obvious overlap or clipping
+
+Completed preview QA evidence:
+
+- Latest preview loads behind Vercel Authentication.
+- Referrer-restricted Google Maps key renders the map on the preview URL.
+- Empty hosted discovery/request state renders without crashing.
+
+Remaining preview QA:
+
+- Hosted email magic-link callback.
+- Signed-in incomplete/complete profile flows.
+- Quick contact and partner request publishing against hosted data.
+- 390px mobile pass after signing in.
 
 ## Local Verification Before Hosted Work
 

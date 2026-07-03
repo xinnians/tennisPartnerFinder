@@ -73,9 +73,10 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
       `VITE_GOOGLE_MAPS_API_KEY`.
     - Hosted REST smoke checks passed for anonymous courts, public discovery,
       partner requests, and direct profile read isolation.
+    - Browser QA confirmed the referrer-restricted Google Maps key renders the
+      map on the latest protected Vercel preview.
     - Remaining manual setup: browser QA through a Vercel-authenticated session
-      or share/bypass link, and confirmation that Google Maps referrer
-      restrictions work on the preview URL.
+      or share/bypass link, and hosted magic-link callback verification.
 - Milestone 4 is not implemented yet.
 
 ## Product Principles
@@ -355,14 +356,11 @@ resources.
 
 Recommended next implementation batch:
 
-1. Open the latest Vercel preview in a browser session that can pass Vercel
-   Authentication, then run desktop and 390px mobile QA.
-2. Confirm the hosted magic-link callback returns to the preview URL after
+1. Confirm the hosted magic-link callback returns to the preview URL after
    Supabase Auth redirect configuration.
-3. Confirm Google Maps renders on the preview URL with the referrer-restricted
-   key; if it falls back to the placeholder, update Google Cloud allowed
-   referrers and redeploy.
-4. Decide whether the beta preview should stay private behind Vercel
+2. Run the remaining signed-out, signed-in incomplete, and signed-in complete
+   profile QA on the latest Vercel preview in desktop and 390px mobile widths.
+3. Decide whether the beta preview should stay private behind Vercel
    Authentication or use a share/bypass flow for testers.
-5. Preserve quick contact scope: no invite/accept flow, no quick contact event
+4. Preserve quick contact scope: no invite/accept flow, no quick contact event
    log, and LINE remains UI-gated rather than database-hidden.
