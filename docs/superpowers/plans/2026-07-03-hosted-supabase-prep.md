@@ -36,6 +36,8 @@
   direct `/auth/v1/otp` verification returned HTTP 429 `over_email_send_rate_limit`.
 - Product decision: Email magic link and custom SMTP are paused for MVP login.
   Hosted auth should use Google OAuth and LINE Login.
+- Frontend OAuth uses PKCE. Keep Supabase custom provider PKCE enabled so LINE
+  callbacks with `code` become browser sessions.
 
 ## Boundaries
 

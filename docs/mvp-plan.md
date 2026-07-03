@@ -41,6 +41,8 @@ Supabase env is not configured, it still falls back to `src/mockData.js`.
 - Milestone 3 local Auth/Data wiring is in progress:
   - `@supabase/supabase-js` is installed.
   - `src/supabaseClient.js` owns Supabase client configuration and auth storage.
+    OAuth uses PKCE so custom provider callbacks with `code` are exchanged into
+    browser sessions.
   - `src/dataApi.js` owns Supabase reads/writes for auth, profile, discovery,
     courts, and partner requests.
   - Google OAuth and LINE Login UI replaced Email magic link for MVP login;

@@ -288,6 +288,8 @@ for (const providerCase of [
     const url = new URL(request.url());
     expect(url.searchParams.get("provider")).toBe(providerCase.provider);
     expect(url.searchParams.get("redirect_to")).toBe("http://127.0.0.1:5175");
+    expect(url.searchParams.get("code_challenge_method")).toBe("s256");
+    expect(url.searchParams.get("code_challenge")).toBeTruthy();
   });
 }
 

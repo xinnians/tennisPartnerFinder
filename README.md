@@ -108,8 +108,9 @@ OAuth provider 設定重點:
    `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`。
 2. LINE Login 用 Supabase Custom OAuth/OIDC provider,provider id 固定為
    `custom:line`,scope 使用 `profile openid`。
-3. Supabase Auth redirect allow list 需包含 local dev、Vercel preview 與 production URL。
-4. Preview QA 時確認登入返回 app 後,未完成 profile 仍會被導到個人檔案。
+3. 前端 Supabase client 使用 PKCE flow;custom provider 保持 PKCE enabled,不要關閉。
+4. Supabase Auth redirect allow list 需包含 local dev、Vercel preview 與 production URL。
+5. Preview QA 時確認登入返回 app 後,未完成 profile 仍會被導到個人檔案。
 
 ## 專案結構
 
