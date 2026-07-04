@@ -61,22 +61,6 @@ Quick contact is a UI gate, not a database secrecy boundary. Public player data
 can include `line_id`; the app hides it on the first card layer and reveals it
 only after the user taps `快速約球`.
 
-Do not connect a hosted Supabase project until the local migration and tests pass.
-
-## Local Magic Link QA
-
-Local auth emails are captured by the bundled inbox instead of being sent to an
-external mailbox. Run:
-
-```bash
-npx supabase status -o env
-```
-
-Open the reported `MAILPIT_URL` or `INBUCKET_URL`(currently
-`http://127.0.0.1:54324` in the default local stack), then:
-
-1. Start Vite with local Supabase env values.
-2. Submit the app login modal with a test email.
-3. Open the captured email and follow the magic link.
-4. Verify the app shows the signed-in email, allows profile save, and returns to
-   the signed-out browse-only state after logout.
+The hosted Supabase project (ref `ttjzxhihctrtoqdsqxdb`) is already linked and QA'd.
+Keep the local migration and tests green as the gate for any further hosted schema
+change: verify locally first, then apply to the hosted project.
