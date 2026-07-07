@@ -18,14 +18,14 @@ Chinese (zh-TW)** — match that language when editing copy and comments.
 
 ### Current direction — read before extending the schema or product flows
 
-`docs/mvp-plan.md` carries a "Direction update (2026-07-07)" pointing to
-`docs/superpowers/plans/2026-07-07-session-first-and-court-guide-plan.md`
-(status: planned, **not yet implemented**). It supersedes the partner-request
-model with first-class sessions, replaces the current quick-contact design with a
-mutual-consent gate that removes `line_id` from the anon-readable discovery view,
-and adds a court-guide layer. Everything below documents the **shipped** code;
-new data-model work should follow that plan. The 2026-07-03 monetization plan is
-explicitly deferred by it.
+`docs/superpowers/plans/2026-07-08-dev-roadmap.md` is the approved batch
+schedule (**none of it implemented yet**): Batch 1 = deep court guide + SEO
+landing pages, then `sessions` replace `partner_requests` outright with a
+mutual-consent LINE reveal that removes `line_id` from anon-readable discovery.
+Design detail: `2026-07-07-session-first-and-court-guide-plan.md` (same dir) —
+its §4 opens with three 2026-07-08 corrections; read them before writing the
+migration. Everything below documents **shipped** code; the 2026-07-03
+monetization plan stays deferred.
 
 Product red lines (from the plans; easy to violate by accident): never scrape or
 auto-import from Facebook groups or LINE groups; any future demand aggregation is
@@ -142,43 +142,14 @@ configured, auth UI shows "原型" and is disabled.
 
 Quick contact (快速約球) and publish are gated on **viewer profile completeness**
 even in mock mode: the default profile (nick 「我」, empty LINE ID) fails the
-check, so a fresh load always toasts and bounces to the profile tab. Any demo,
-screenshot, or E2E of quick contact must first fill nick + LINE ID.
+check, so a fresh load always toasts and bounces to the profile tab — any demo,
+screenshot, or E2E of quick contact must fill nick + LINE ID first.
 
 ### Data model / privacy (Supabase)
 
-Schema lives in `supabase/migrations/202607020001_initial_mvp_schema.sql` (the
-only migration): `profiles`, `courts`, join tables `profile_courts` /
-`profile_play_types` / `profile_slots`, `partner_requests`, `reports`, plus the
-`public_profile_discovery` view. **RLS is enabled on all tables**; the frontend
-reads discovery via that view, and open+unexpired partner requests are the only
-publicly readable requests.
-
-**Critical product principle (shipped code) — do not violate:** quick contact is
-a *UI gate, not a database secrecy boundary*. `line_id` IS present in
-`public_profile_discovery` for public profiles; the UI must keep it hidden on the
-first card layer and reveal it only after the user taps 快速約球. The MVP creates
-**no** invite/accept/contact-history records. (The 2026-07-07 session-first plan
-is the approved path to change this — see "Current direction" above.)
-
-Backend gotchas:
-
-- `public_profile_discovery` works **because** it is a default (non
-  `security_invoker`) view that bypasses the owner-only SELECT policy on
-  `profiles`. Recreating it with `security_invoker = true`, or reading `profiles`
-  directly, silently breaks all discovery.
-- The only `partner_requests` SELECT policy is `open + unexpired` — owners cannot
-  read their own closed/expired rows, and there is no DELETE policy. Any
-  request-management feature needs a new policy migration.
-- Courts are seeded **inside the migration** (`[db.seed]` is disabled, no
-  seed.sql) and clients have no court write path. Adding a court = a new
-  migration **plus** updating the pgTAP test that hard-asserts exactly 6 active
-  courts.
-- `createPartnerRequest` hardcodes a 7-day `expires_at` (the column has no DB
-  default) and never sets `ntrp_min`/`ntrp_max` — which is where demand-pin NTRP
-  is read from, so UI-created requests render without NTRP.
-- Schema changes are **local-first**: migration + pgTAP green locally before
-  applying to the hosted project (see `supabase/README.md`).
+Schema, RLS boundaries, the `line_id` UI-gate product principle, and backend
+gotchas: see `.claude/rules/supabase.md` (auto-loads for `supabase/**`,
+`src/dataApi.js`, `src/supabaseClient.js`; read it first for any schema/RLS work).
 
 ### Shared enums (keep in sync)
 

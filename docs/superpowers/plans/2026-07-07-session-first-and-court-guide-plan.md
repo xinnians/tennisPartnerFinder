@@ -1,7 +1,9 @@
 # 球局優先(session-first)+ 台北球場指南 實作計劃
 
 日期:2026-07-07
-狀態:規劃完成,待實作(下一個 session 檢查後動手)
+狀態:排程已由 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` 接手(競品重盤後
+方向保留、批次順序與驗收以 roadmap 為準);本檔仍是 schema/UX 設計正文,但 §4 有
+三條 2026-07-08 技術修正(見 §4 開頭警示區塊),§8 open questions 已落章。
 關聯:`docs/mvp-plan.md`(planning SoT)、`docs/superpowers/plans/2026-07-03-monetization-growth-plan.md`
 對照路線圖(Artifact v2):https://claude.ai/code/artifact/07651c23-a9e5-481c-b217-784663e89901
 
@@ -47,6 +49,24 @@
 ---
 
 ## 4. Workstream A — 球局 schema(取代 `partner_requests`)
+
+> ⚠️ **2026-07-08 技術修正(實作時以此為準,原文 DDL 保留供對照):**
+>
+> 1. 下方 `session_contacts` 的 `security_invoker = true` 是**死路**:invoker
+>    語意下 profiles 的 owner-only SELECT 政策讓對方 profiles 列永遠讀不到,
+>    view 恆為空。改 **definer view**(拿掉 security_invoker)＋view 內建
+>    `viewer.user_id = auth.uid()` 與雙方 accepted 條件,grant 只給
+>    authenticated——同現有 `public_profile_discovery` 模式。
+> 2. `session_participants.status` CHECK 需加 `'invited'`:否則「本人可把自己列
+>    改 accepted」＋「host 列開局即 accepted」＝任何人可 self-join＋self-accept
+>    繞過同意直接拿 host 的 LINE ID。狀態轉移用 BEFORE UPDATE trigger 分流
+>    (`requested→accepted` 只准 host;`invited→accepted` 只准本人)。
+> 3. 需**補一個 roster view `session_participant_profiles`**(definer、不含
+>    line_id):host 接受請求的介面要看報名者暱稱/NTRP,而 profiles 是 owner-only。
+> 4. 另注意:`public_profile_discovery` 要 **drop 再 create**(`create or replace
+>    view` 不能移除欄位)並重下 grant。
+>
+> 細節與批次驗收見 `2026-07-08-dev-roadmap.md` §4-§5。
 
 ### 從 `partner_requests` → `sessions` 對照
 
@@ -261,9 +281,13 @@ create table if not exists public.court_details (
 
 ---
 
-## 8. 待創辦人決定(open questions)
+## 8. 待創辦人決定(open questions)——已於 2026-07-08 落章
 
 - `partner_requests` 直接取代 vs 保留?(建議取代)
+  → **直接取代**(pre-beta 無真實資料,migration/dataApi/測試一起改)。
 - 第一熱區確定「大安–中正」?還是「內湖/台北網球中心」?
+  → **留為 roadmap Batch 1 開工決策點**(建議大安–中正＋錨點台北網球中心)。
 - v1 UI 先只開單打,還是一開始就露空位 1–3?
+  → **一開始就開缺 1–3**(雙打缺1缺2是主流,schema 本就支援)。
 - 要不要現在就接 LINE 官方帳號當通知/回訪層(留存最缺鉤子),還是晚點?
+  → **本輪不排**(roadmap Batch 3 以 pull＋badge 為 MVP 發現機制,LINE OA 列後續)。

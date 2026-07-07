@@ -1,6 +1,6 @@
 # Tennis Partner Finder MVP Plan
 
-Last updated: 2026-07-07
+Last updated: 2026-07-08
 
 This document is the project planning source of truth. Keep it updated when scope,
 product decisions, data model assumptions, or implementation order changes, so a
@@ -8,6 +8,14 @@ new session can resume without relying on chat memory.
 
 ## Current Direction
 
+> **Direction update (2026-07-08，排程 SoT）:** 競品重盤後的開發批次行程定於
+> `docs/superpowers/plans/2026-07-08-dev-roadmap.md`。觸發原因：發現直接競品
+> baseline.tw（雙北 112 座球場庫＋地圖＋session 制揪團，2026-05 上線、traction
+> 趨近於零）。session-first 方向保留（被獨立驗證），差異化改押「地圖上的人＋
+> accepted 才互露 LINE＋一熱區深度指南（SEO 獲客資產，排第一批）」。該 roadmap
+> 對 07-07 計畫有三條技術修正（session_contacts 改 definer view、participant
+> status 加 'invited' 堵 self-accept 提權、補 roster view），實作前必讀其 §4。
+>
 > **Direction update (2026-07-07):** a session-first reframe plus a Taipei court
 > guide cold-start layer is planned in
 > `docs/superpowers/plans/2026-07-07-session-first-and-court-guide-plan.md`.
@@ -399,16 +407,13 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-Prepare the first private beta handoff.
+執行 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` 的 **Batch 1（深度指南＋
+SEO 落地頁）**：
 
-Recommended next implementation batch:
+1. 開工決策：第一熱區定案（建議大安–中正）、canonical domain、slug 命名。
+2. 4-5 座球場內容查證（費用/搶場規則/材質/燈光，記 `verifiedAt`＋`sourceUrl`）。
+3. `src/courtGuide.js`＋`scripts/build-court-pages.mjs`＋sitemap/robots＋
+   球場抽屜指南區塊＋`?court=` deep-link。
 
-1. Decide beta access policy: keep the Vercel preview private for invited
-   testers, or configure a share/bypass flow before expanding the group.
-2. Optionally create a fresh hosted test user to manually reproduce the
-   incomplete-profile gate in preview; this is already covered by local
-   automated tests.
-3. Clean up hosted QA data after the current QA trail is no longer needed:
-   the `QA-20260703` partner request and its related report rows.
-4. Preserve quick contact scope: no invite/accept flow, no quick contact event
-   log, and LINE remains UI-gated rather than database-hidden.
+原「beta handoff」批次移到 roadmap Batch 5；原第 4 點（quick contact 維持
+UI-gate）已被 roadmap Batch 2-3 的 mutual-consent 重構取代，不再適用。
