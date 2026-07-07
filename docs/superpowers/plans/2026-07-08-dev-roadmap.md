@@ -10,8 +10,9 @@
 ## 0. 一句話
 
 發現競品 baseline.tw 後全盤重盤：session-first 方向**保留**（被獨立驗證），差異化改押
-「**地圖上的人＋accepted 才互露 LINE＋一熱區深度指南**」，深度指南（SEO 獲客資產）排第一批，
-之後依批次完成 sessions 重構直到私測 beta 就緒。
+「**地圖上的人＋accepted 才互露 LINE＋深度球場指南**」。球場資料庫先擴到**全雙北**
+（地圖廣度），深度指南內容**分波滾動做到全覆蓋**（第一波大安–中正），與 sessions
+重構批次穿插進行，直到私測 beta 就緒。
 
 ---
 
@@ -49,7 +50,8 @@
 | session-first 是我們的新方向 | 它已上線雛形——反而**驗證了需求判斷**（兩個獨立團隊收斂到同一形狀） |
 
 反面教材（排程依據）：baseline 出貨了 session 功能但沒有獲客層 → 全站只有 1 團。
-零流動性市場裡媒合迴圈自己不會帶來用戶，**獲客資產（指南）排第一批**。
+零流動性市場裡媒合迴圈自己不會帶來用戶，**獲客資產（球場層：資料庫＋深度指南）
+排在 sessions 重構之前**（Batch 1–2）。
 
 ---
 
@@ -57,8 +59,9 @@
 
 1. **以「人」為單位的地圖探索**——baseline 地圖上沒有人、LoveTennis 有人沒地圖；
    這格目前全市場只有我們佔（且是已出貨的程式碼）。
-2. **一熱區深度球場指南**——費用/搶場規則/材質/面數/燈光/尖離峰，
-   可被 Google 索引的落地頁＝零用戶也運作的被動獲客管道。
+2. **深度球場指南**——費用/搶場規則/材質/面數/燈光/尖離峰，可被 Google 索引的
+   落地頁＝零用戶也運作的被動獲客管道。與 baseline 的差異是「深而準」（每欄附
+   查證日期＋來源）；目標全雙北覆蓋，分波滾動出貨（見 §5 內容波次）。
 3. **Mutual-consent 聯絡揭露**——accepted 才互露 LINE，把對話送回 LINE；
    對比 baseline 的站內討論串（冷啟動期站內訊息易成死城）。
 
@@ -71,13 +74,15 @@
 | 行程單位 | 開發批次（一個 session 一批＋可證偽驗收條件，不綁日期） |
 | partner_requests | 直接被 sessions 取代（不並行） |
 | 缺額 UI | v1 一開始就開缺 1–3 |
-| 第一熱區 | Batch 1 開工時定案（建議大安–中正＋錨點台北網球中心——皆在現有 6 座 seed 內，避開新增球場的 migration/pgTAP/mock 連鎖） |
+| 球場覆蓋（2026-07-08 再議定案） | **地圖資料庫全雙北**（官方開放資料匯入，Batch 1）；**深度內容也做到全雙北**，分波滾動（第一波大安–中正），落地頁只為達完整度門檻的球場產生 |
+| 網域（2026-07-08 定案） | **先用 vercel.app 頂著**；買自訂網域延後（見 §6 風險：內容波次越晚換、SEO 重來成本越高，建議大量內容上線前重新評估） |
+| slug（2026-07-08 定案） | 英文意譯風格（如 `daan-forest-park`），由 Claude 全數產生、創辦人掃一眼定案，收錄後永不改 |
 | 變現 | 續暫緩（07-03 計畫維持 deferred） |
 | 本輪不排 | LINE OA 通知層、比賽記錄/積分、PTT 聚合層 |
 
 ---
 
-## 4. 對 07-07 計畫的三條技術修正（實作 Batch 2 時必讀）
+## 4. 對 07-07 計畫的三條技術修正（實作 Batch 3 時必讀）
 
 1. **`session_contacts` 不能用 `security_invoker`**：invoker 語意下 profiles 的
    owner-only SELECT 政策會讓對方的 profiles 列永遠讀不到 → view 恆為空，雙方
@@ -100,13 +105,29 @@
 > 負責人：〔C〕Claude session 可完成；〔U〕需創辦人人工（決策/查證把關/營運）。
 > 批間 app 保持可跑，每批結尾全測綠才收工。
 
-### Batch 1 — 深度指南＋SEO 落地頁（獲客資產，不碰 DB）
+### Batch 1 — 全雙北球場資料庫（地圖廣度）
 
-- 開工決策〔U〕：熱區定案（建議大安–中正）；canonical domain（自訂網域 vs 續用
-  vercel.app；SEO 信任度考量建議買網域）；slug 命名（ASCII、一旦收錄永不改）。
-- 內容查證〔C+U〕：4-5 座球場的費用/預約方式/搶場規則/材質/面數/燈光/尖離峰，
-  來源 vbs.sports.taipei、tsc.taipei 等官方頁，每筆記 `verifiedAt`＋`sourceUrl`
-  （Claude 網路查證、創辦人抽查把關；費率會變，建議每季重驗）。
+- 資料來源〔C〕：臺北市／新北市政府開放資料、體育署場館資料等**官方來源**
+  （開工時確認各資料集開放授權並於頁面標注來源；**不爬 baseline.tw**）。
+  目標：雙北網球場全量清單（名稱／行政區／座標／河濱與否，約 110+ 座）。
+- slug〔C→U〕：英文意譯風格全數產生，清單交創辦人掃一眼定案（收錄後永不改）。
+- 實作〔C〕：
+  - courts seed migration 由 script 從資料檔產生（courts 表 schema 不變）；
+    pgTAP「exactly 6 active courts」硬斷言改為與資料檔筆數同步驗證。
+  - profile「常出沒球場」UI 從 6 個勾選框改為**分區＋可搜尋**選單，資料改吃
+    `loadCourts()` 結果（廢除「checklist 永遠讀 mock COURTS」舊行為；mock 模式
+    維持 6 座示範）。court name 仍是跨後端 join key，匯入時名稱需唯一。
+  - 地圖加**球場底圖 pin**（弱化樣式、點開球場抽屜；球友／球局 pin 蓋上層）——
+    零用戶時地圖也有東西可看，並為指南內容提供入口。
+- 驗收：DB 座數＝資料檔筆數（pgTAP 斷言）；profile 可搜尋選到任一新北球場並
+  存檔成功；抽屜對「無指南內容」球場顯示基本資訊不報錯；`npm test` 全綠。
+
+### Batch 2 — 指南基礎建設＋第一波深度內容（SEO 獲客資產）
+
+- 內容查證〔C+U〕：第一波大安–中正 4-5 座（大安森林、中正網球中心、青年公園、
+  錨點台北網球中心）的費用/預約方式/搶場規則/材質/面數/燈光/尖離峰，來源
+  vbs.sports.taipei、tsc.taipei 等官方頁，每筆記 `verifiedAt`＋`sourceUrl`
+  （Claude 網路查證、創辦人抽查把關）。
 - 實作〔C〕：
   - 新增 `src/courtGuide.js`：指南內容**唯一 SoT**（key＝court name 沿用既有
     join-key 機制＋不可變 `slug`；欄位鏡射計畫中的 court_details）。
@@ -114,6 +135,8 @@
     `dist/courts/<slug>/index.html`（純靜態、inline CSS、JSON-LD
     SportsActivityLocation、canonical/OG、頁尾互鏈）＋ `dist/sitemap.xml`。
     重用 `src/util.js` 的 `esc()`/`safeUrl()`（已驗證 Node 可直接 import）。
+    **只為達完整度門檻的球場產生落地頁**（薄頁對 SEO 扣分）；canonical／
+    `SITE_ORIGIN` 先用 Vercel production URL（自訂網域延後，見 §6）。
   - `package.json`：`"build": "vite build && node scripts/build-court-pages.mjs"`
     （產生器必須在後——vite build 會清空 dist）＋`build:pages`。
   - 新增 `public/robots.txt`（Sitemap 指向）；`index.html` 補 meta description。
@@ -132,7 +155,17 @@
     deep-link 斷言。
   - 部署後 `curl -I` 確認 production 回應無 `X-Robots-Tag: noindex`。
 
-### Batch 2 — sessions schema＋讀路徑＋開局（快速約球下架）
+### 內容波次 C2–C5 — 深度內容滾動到全雙北（與 Batch 3–5 穿插）
+
+- 全量目標約 110+ 座；一個 session 一波約 15–25 座（官方資料齊全的公有場館快，
+  民營／河濱要多查）。建議分波：C2 台北市其餘公有／運動中心場館、C3 台北河濱、
+  C4 新北市區、C5 新北河濱與其餘。
+- 每波流程：Claude 官方來源查證（每欄 `verifiedAt`＋`sourceUrl`）→ 創辦人抽查
+  把關 → 更新 `src/courtGuide.js` → build 產新落地頁＋sitemap 更新 → 部署。
+- 品質鐵則：查不到的欄位**留空並標註**，不硬填；達完整度門檻才產落地頁。
+- 與功能批次穿插進行，**不阻塞** Batch 3–6；beta 開跑不等內容波全部完成。
+
+### Batch 3 — sessions schema＋讀路徑＋開局（快速約球下架）
 
 - 新 migration `supabase/migrations/202607080001_session_first_schema.sql`，依序：
   1. `alter table reports drop column partner_request_id` →
@@ -174,7 +207,7 @@
 - 驗收：三套測試全綠；anon REST 查 discovery 回應不含字串 `line_id`、
   `/rest/v1/partner_requests` 回 404；`grep -rn "快速約球" src/` 無結果。
 
-### Batch 3 — 參與迴圈＋「我的球局」tab（mutual-consent 介面）
+### Batch 4 — 參與迴圈＋「我的球局」tab（mutual-consent 介面）
 
 - `dataApi.js`：`joinSession`／`acceptParticipant`／`declineParticipant`／
   `acceptInvite`／`declineInvite`／`withdrawFromSession`／`cancelSession`／
@@ -191,7 +224,7 @@
   `not.toContainText`(對方 LINE)→A 見 badge 與請求→接受→雙方各見對方 LINE；
   ②邀請 journey 同構。mock 模式 smoke 全綠（零 console error）。
 
-### Batch 4 — 成局回報＋分析＋清理收尾
+### Batch 5 — 成局回報＋分析＋清理收尾
 
 - `confirmPlayed`：start_at 過後顯示「打成了」；host 確認同時 `status='played'`。
 - 北極星（每週成局數）／同伴回訪率 SQL（07-07 計畫 §4 已寫好）收進 docs 固定位置。
@@ -202,9 +235,9 @@
 - 驗收：成局 journey 後 psql 跑北極星 SQL 回傳本週 1；
   `grep -rn "partner_request\|快速約球" src tests supabase/tests` 無結果；全測綠。
 
-### Batch 5 — Beta 就緒〔C+U〕
+### Batch 6 — Beta 就緒〔C+U〕（不等內容波全部完成）
 
-- 清理 hosted QA 資料（`QA-20260703` request＋相關 report 列——Batch 2 的
+- 清理 hosted QA 資料（`QA-20260703` request＋相關 report 列——Batch 3 的
   destructive migration 可能已順帶清掉，屆時確認即可）。
 - beta 訪問策略定案〔U〕；hosted stable preview 走完
   開局→報名→接受→互露 LINE→打成了 全流程 QA〔C+U〕。
@@ -223,8 +256,12 @@
 - 主人發現請求純靠 pull＋badge，轉化率有天花板——LINE OA 通知層列後續 open
   question，本輪不做。
 - Vercel preview 部署預設 `X-Robots-Tag: noindex`、production 才可索引
-  [推論，Batch 1 部署後 `curl -I` 驗證]；SEO 賭注押在 vercel.app 子網域信任度弱，
-  建議買自訂網域。
+  [推論，Batch 2 部署後 `curl -I` 驗證]。已決定**先用 vercel.app**：日後買網域
+  需 301 轉址＋canonical 更換＋sitemap 重送，SEO 累積會部分重來——內容波次越多
+  越晚換成本越高，**建議 C2 開跑前重新評估一次買網域**。
+- 內容規模化維護：110+ 座的費率／規則會變，全量每季重驗不現實——改**抽樣重驗**
+  ＋落地頁顯著顯示 `verified_at` 讓讀者自行判讀新鮮度；河濱／民營場官方資料
+  稀疏，欄位留空標註、不硬填。
 - 單獨跑 `vite build`（不走 npm script）會漏落地頁——README 需註明。
 - `datetime-local` 在 iOS Safari 樣式受限——原型可接受。
 
@@ -233,4 +270,5 @@
 - 別爬 FB 私密社團／LINE 群；只做 PTT 公開板＋去識別＋連回原文（且本輪不排）。
 - 玩家基本配對永遠免費；要收錢跟供給端收。
 - line_id：accepted 才露、**永不露電話**。
-- 火力集中一熱區，不攤多城市多運動。
+- 火力集中雙北網球，不攤其他城市、其他運動（2026-07-08 再議：覆蓋由一熱區
+  擴為全雙北，深度內容分波滾動）。

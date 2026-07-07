@@ -286,8 +286,9 @@ create table if not exists public.court_details (
 - `partner_requests` 直接取代 vs 保留?(建議取代)
   → **直接取代**(pre-beta 無真實資料,migration/dataApi/測試一起改)。
 - 第一熱區確定「大安–中正」?還是「內湖/台北網球中心」?
-  → **留為 roadmap Batch 1 開工決策點**(建議大安–中正＋錨點台北網球中心)。
+  → 2026-07-08 再議定案:**球場資料庫全雙北覆蓋(roadmap Batch 1)、深度內容
+  分波滾動到全雙北**,第一波仍是大安–中正＋錨點台北網球中心。
 - v1 UI 先只開單打,還是一開始就露空位 1–3?
   → **一開始就開缺 1–3**(雙打缺1缺2是主流,schema 本就支援)。
 - 要不要現在就接 LINE 官方帳號當通知/回訪層(留存最缺鉤子),還是晚點?
-  → **本輪不排**(roadmap Batch 3 以 pull＋badge 為 MVP 發現機制,LINE OA 列後續)。
+  → **本輪不排**(roadmap Batch 4 以 pull＋badge 為 MVP 發現機制,LINE OA 列後續)。

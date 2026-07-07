@@ -19,13 +19,13 @@ Chinese (zh-TW)** — match that language when editing copy and comments.
 ### Current direction — read before extending the schema or product flows
 
 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` is the approved batch
-schedule (**none of it implemented yet**): Batch 1 = deep court guide + SEO
-landing pages, then `sessions` replace `partner_requests` outright with a
-mutual-consent LINE reveal that removes `line_id` from anon-readable discovery.
-Design detail: `2026-07-07-session-first-and-court-guide-plan.md` (same dir) —
-its §4 opens with three 2026-07-08 corrections; read them before writing the
-migration. Everything below documents **shipped** code; the 2026-07-03
-monetization plan stays deferred.
+schedule (**none of it implemented yet**): courts DB expands to all of 雙北,
+the deep court guide + SEO landing pages roll out in waves, then `sessions`
+replace `partner_requests` outright with a mutual-consent LINE reveal that
+removes `line_id` from anon-readable discovery. Design detail:
+`2026-07-07-session-first-and-court-guide-plan.md` (same dir) — its §4 opens
+with three 2026-07-08 corrections; read them before writing the migration.
+Everything below documents **shipped** code; monetization stays deferred.
 
 Product red lines (from the plans; easy to violate by accident): never scrape or
 auto-import from Facebook groups or LINE groups; any future demand aggregation is

@@ -12,7 +12,7 @@ new session can resume without relying on chat memory.
 > `docs/superpowers/plans/2026-07-08-dev-roadmap.md`。觸發原因：發現直接競品
 > baseline.tw（雙北 112 座球場庫＋地圖＋session 制揪團，2026-05 上線、traction
 > 趨近於零）。session-first 方向保留（被獨立驗證），差異化改押「地圖上的人＋
-> accepted 才互露 LINE＋一熱區深度指南（SEO 獲客資產，排第一批）」。該 roadmap
+> accepted 才互露 LINE＋深度球場指南（全雙北、分波滾動，SEO 獲客資產）」。該 roadmap
 > 對 07-07 計畫有三條技術修正（session_contacts 改 definer view、participant
 > status 加 'invited' 堵 self-accept 提權、補 roster view），實作前必讀其 §4。
 >
@@ -407,13 +407,13 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-執行 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` 的 **Batch 1（深度指南＋
-SEO 落地頁）**：
+執行 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` 的 **Batch 1（全雙北
+球場資料庫）**：
 
-1. 開工決策：第一熱區定案（建議大安–中正）、canonical domain、slug 命名。
-2. 4-5 座球場內容查證（費用/搶場規則/材質/燈光，記 `verifiedAt`＋`sourceUrl`）。
-3. `src/courtGuide.js`＋`scripts/build-court-pages.mjs`＋sitemap/robots＋
-   球場抽屜指南區塊＋`?court=` deep-link。
+1. 官方開放資料匯入雙北網球場全量清單（約 110+ 座）＋slug 全數產生供掃描定案。
+2. courts seed migration（由 script 從資料檔產生）＋pgTAP 斷言改為與資料檔同步。
+3. profile 球場選單改為分區＋可搜尋（改吃 `loadCourts()`）；地圖加球場底圖 pin。
 
-原「beta handoff」批次移到 roadmap Batch 5；原第 4 點（quick contact 維持
-UI-gate）已被 roadmap Batch 2-3 的 mutual-consent 重構取代，不再適用。
+深度指南＋SEO 落地頁為 Batch 2＋內容波次 C2–C5（分波滾動至全雙北）。原「beta
+handoff」批次移到 roadmap Batch 6；原第 4 點（quick contact 維持 UI-gate）已被
+roadmap Batch 3-4 的 mutual-consent 重構取代，不再適用。
