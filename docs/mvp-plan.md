@@ -8,6 +8,15 @@ new session can resume without relying on chat memory.
 
 ## Current Direction
 
+> **Direction update (2026-07-07):** a session-first reframe plus a Taipei court
+> guide cold-start layer is planned in
+> `docs/superpowers/plans/2026-07-07-session-first-and-court-guide-plan.md`.
+> That plan supersedes the "partner request" model with a first-class `sessions`
+> entity (slots 1-3, played/回訪 metrics), makes contact reveal a mutual-consent
+> gate that finally removes `line_id` from the anon-readable discovery view, and
+> defers monetization. Read it before extending the data model. Sections below
+> still describe the current shipped prototype.
+
 Build the first usable version around:
 
 - Primary flow: find public tennis partners near real courts.
