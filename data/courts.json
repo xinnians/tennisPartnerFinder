@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "updatedAt": "2026-07-08",
+    "license": "政府資料開放授權條款-第1版",
+    "sources": [
+      {
+        "name": "運動部 全國運動場館資訊（data.gov.tw #22849）",
+        "url": "https://data.gov.tw/dataset/22849",
+        "fetchedAt": "2026-07-08"
+      }
+    ],
+    "slugPolicy": "英文意譯、ASCII、收錄後永不改"
+  },
+  "courts": [
+    {
+      "name": "台北網球中心",
+      "slug": "taipei-tennis-center",
+      "city": "台北市",
+      "district": "內湖區",
+      "lat": 25.069,
+      "lng": 121.593,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/"
+    },
+    {
+      "name": "大安森林公園網球場",
+      "slug": "daan-forest-park",
+      "city": "台北市",
+      "district": "大安區",
+      "lat": 25.03,
+      "lng": 121.536,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/"
+    },
+    {
+      "name": "中正網球中心",
+      "slug": "zhongzheng-tennis-center",
+      "city": "台北市",
+      "district": "中正區",
+      "lat": 25.018,
+      "lng": 121.523,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/"
+    },
+    {
+      "name": "迎風河濱公園網球場",
+      "slug": "yingfeng-riverside",
+      "city": "台北市",
+      "district": "松山區",
+      "lat": 25.068,
+      "lng": 121.557,
+      "isRiverside": true,
+      "sourceUrl": "https://vbs.sports.taipei/"
+    },
+    {
+      "name": "百齡河濱公園網球場",
+      "slug": "bailing-riverside",
+      "city": "台北市",
+      "district": "士林區",
+      "lat": 25.089,
+      "lng": 121.514,
+      "isRiverside": true,
+      "sourceUrl": "https://vbs.sports.taipei/"
+    },
+    {
+      "name": "青年公園網球場",
+      "slug": "youth-park",
+      "city": "台北市",
+      "district": "萬華區",
+      "lat": 25.022,
+      "lng": 121.504,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/"
+    }
+  ]
+}
