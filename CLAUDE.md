@@ -11,9 +11,26 @@ The whole UI is two tabs (map + profile) driven by imperative DOM code in `src/`
 
 `docs/mvp-plan.md` is the declared **planning source of truth** (scope, product
 decisions, milestone status). Update it when scope or data-model decisions change.
-`README.md` is the setup guide. Both `README.md` and all in-code comments/UI
-strings are in **Traditional Chinese (zh-TW)** — match that language when editing
-copy and comments.
+Dated implementation plans/specs from past sessions live under
+`docs/superpowers/plans/` and `docs/superpowers/specs/`. `README.md` is the setup
+guide. Both `README.md` and all in-code comments/UI strings are in **Traditional
+Chinese (zh-TW)** — match that language when editing copy and comments.
+
+### Current direction — read before extending the schema or product flows
+
+`docs/mvp-plan.md` carries a "Direction update (2026-07-07)" pointing to
+`docs/superpowers/plans/2026-07-07-session-first-and-court-guide-plan.md`
+(status: planned, **not yet implemented**). It supersedes the partner-request
+model with first-class sessions, replaces the current quick-contact design with a
+mutual-consent gate that removes `line_id` from the anon-readable discovery view,
+and adds a court-guide layer. Everything below documents the **shipped** code;
+new data-model work should follow that plan. The 2026-07-03 monetization plan is
+explicitly deferred by it.
+
+Product red lines (from the plans; easy to violate by accident): never scrape or
+auto-import from Facebook groups or LINE groups; any future demand aggregation is
+PTT public-board only, de-identified, linking back to the source post. No
+realtime chat, no payments/booking, no native app; player matching stays free.
 
 ## Commands
 
@@ -29,17 +46,44 @@ npm test                    # Playwright E2E (auto-starts its own dev servers)
 Run a single Playwright project or test:
 
 ```bash
-npx playwright test tests/smoke.spec.js                 # one file
-npx playwright test --project=desktop-chromium          # one project
-npx playwright test --project=supabase-chromium         # needs local Supabase up
-npx playwright test -g "quick contact"                  # by title substring
+npx playwright test tests/smoke.spec.js                            # one file
+npx playwright test --project=desktop-chromium                     # one project
+npx playwright test --project=supabase-chromium                    # needs local Supabase up
+npx playwright test -g "quick contact" --project=desktop-chromium  # by title substring
 ```
+
+Always scope `-g` with `--project`: title patterns also match `supabase.spec.js`
+titles, and running that project without the local stack fails.
 
 `playwright.config.js` auto-starts **two** dev servers: port **5174** with no
 Supabase env (mock-data path, used by `desktop-chromium` + `mobile-chromium` /
 `smoke.spec.js`) and port **5175** wired to a local Supabase stack (used by
 `supabase-chromium` / `supabase.spec.js`). The `supabase-chromium` project only
 passes when the local Supabase stack is running.
+
+Test gotchas:
+
+- The supabase suite's `beforeAll` runs `npx supabase db reset` — running
+  `npm test` **wipes any manually created local Supabase data**, then self-seeds
+  the profiles it needs.
+- Both webServer entries set `reuseExistingServer: false` — kill anything on
+  ports 5174/5175 first (the most common test-failure cause). The test servers
+  inject all `VITE_*` vars inline (Maps key = `e2e`), so tests ignore `.env.local`.
+- Tests never load real Google Maps: both spec files carry a **duplicated**
+  `window.google.maps` stub that signals readiness via
+  `window.__onGoogleMapsReady` — the exact callback `map.js` registers. Changing
+  the loader or using Maps APIs beyond Map/Marker means updating the stub in
+  **both** files.
+- `supabase.spec.js` signs in by writing session JSON into `localStorage` under
+  the hardcoded key `tennis-partner-finder-auth` (must match the
+  `supabaseClient.js` storageKey) using local email/password `signUp` — the local
+  stack has **no Google provider**; real OAuth exists only on the hosted project.
+  The local demo anon JWT is hardcoded in both `playwright.config.js` and
+  `supabase.spec.js`; keep them in sync.
+- The smoke test collects every `console.error`/`pageerror` and asserts the list
+  is empty — a zero-console-error policy enforced by tests.
+- `supabase.spec.js` runs serial with a 120s timeout; one failure skips the rest,
+  so "skipped" output usually means an earlier test failed.
 
 Local Supabase (requires Docker + Supabase CLI):
 
@@ -58,18 +102,32 @@ npx supabase status -o env               # print local URL + ANON_KEY for .env.l
 `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are set and not the `___` placeholder).
 This one boolean gates the entire app:
 
-- **Not configured** → the app runs entirely on `src/mockData.js` (6 real Taipei
-  courts, 6 players, 6 demands). Auth is disabled, "save" is a toast, no network.
+- **Not configured** → the app runs on `src/mockData.js` (6 real Taipei courts,
+  6 players, 6 demands). Auth is disabled, "save" is a toast, no network.
 - **Configured** → the app reads/writes real Supabase Auth + Postgres.
 
-`src/dataApi.js` is the **single data boundary**. Every function
-(`loadCourts`, `loadDiscoveryPlayers`, `loadActivePartnerRequests`,
-`loadCurrentProfile`, `saveCurrentProfile`, `createPartnerRequest`, `createReport`,
-plus the auth helpers) returns mock data when `!isSupabaseConfigured` and otherwise
-talks to Supabase. Crucially, `mapDiscoveryRow`/`mapRequestRow`/`normalizeProfile`
-convert DB rows into the **exact same object shapes** `mockData.js` exports — so
-`map.js`, `filters.js`, and `sheets.js` never know or care which backend is live.
-When you add a field, keep the mock shape and the `dataApi` mapper in sync.
+`src/dataApi.js` is the **single data boundary**, but the mock fallback is
+**asymmetric**: only the three read loaders (`loadCourts`, `loadDiscoveryPlayers`,
+`loadActivePartnerRequests`) return mock data; `loadCurrentProfile` returns
+`null`, and the writes (`saveCurrentProfile`, `createPartnerRequest`,
+`createReport`) **throw** via `requireSupabase()`. Mock-mode UX lives in the
+`main.js` callers (the save button short-circuits to a toast; reporting is
+blocked) — a new dataApi write will not no-op in mock mode by itself. 發布需求
+(publish) is effectively Supabase-only: mock courts have no `id`, and the publish
+modal's `try/finally` swallows the resulting error.
+
+`mapDiscoveryRow`/`mapRequestRow`/`normalizeProfile` convert DB rows into the
+mock object shapes **plus** Supabase-only `profileId`/`requestId` — when those
+ids are absent (mock rows), tapping 檢舉 (report) early-returns with a toast
+instead of opening the report modal. When you add a
+field, keep the mock shape and the `dataApi` mapper in sync. Discovery is one row
+per (profile, court): a player with N home courts renders as N separate pins.
+
+**Court names are the cross-backend join key**: the profile tab's court checklist
+always renders from mockData `COURTS` (even when Supabase is live), and
+`saveCurrentProfile` converts checked names to DB ids by matching
+`courts.name`. Renaming or adding a court in only one place silently drops it
+from saves.
 
 ### Runtime flow
 
@@ -79,7 +137,8 @@ prototype keeps app state in memory, so a refresh resets everything **except** w
 Supabase persists. `init()` wires tabs/filters/controls, initializes auth, calls
 `loadAppData()` (which fills `courts` + `dataSet`), then loads Google Maps and draws
 pins. Filters re-run `refreshPins()`, which pipes `filterData()` → `groupPinsByCourt()`
-→ `renderPins()`.
+→ `renderPins()`. Every filter change closes any open sheet and re-renders all
+markers from scratch — an intentional prototype simplification.
 
 Layer responsibilities:
 - `config.js` — Maps key + map center/zoom (Taipei).
@@ -89,6 +148,10 @@ Layer responsibilities:
 - `sheets.js` — all bottom cards, the court drawer, and the login / quick-contact / publish / report modals.
 - `util.js` — `esc()` (HTML-escape), `safeUrl()` (http(s)-only hrefs), `sourceLabel()`, `ntrpDesc()`.
 - `style.css` — one stylesheet; design tokens live at the top.
+
+Filter semantics: the play-type chips intentionally filter **player pins only**
+(demands have no structured play type), and null-NTRP items always pass the band
+filter.
 
 ### Three pin types
 
@@ -105,37 +168,69 @@ Google OAuth only (PKCE flow), configured in `src/supabaseClient.js` with a cust
 login are intentionally **out of scope** (see `docs/mvp-plan.md`). When not
 configured, auth UI shows "原型" and is disabled.
 
+Quick contact (快速約球) and publish are gated on **viewer profile completeness**
+even in mock mode: the default profile (nick 「我」, empty LINE ID) fails the
+check, so a fresh load always toasts and bounces to the profile tab. Any demo,
+screenshot, or E2E of quick contact must first fill nick + LINE ID.
+
 ### Data model / privacy (Supabase)
 
-Schema lives in `supabase/migrations/202607020001_initial_mvp_schema.sql`:
-`profiles`, `courts`, join tables `profile_courts` / `profile_play_types` /
-`profile_slots`, `partner_requests`, `reports`, plus the `public_profile_discovery`
-view. **RLS is enabled** on user-owned tables; the frontend reads discovery via that
-view, and open+unexpired partner requests are the only publicly readable requests.
+Schema lives in `supabase/migrations/202607020001_initial_mvp_schema.sql` (the
+only migration): `profiles`, `courts`, join tables `profile_courts` /
+`profile_play_types` / `profile_slots`, `partner_requests`, `reports`, plus the
+`public_profile_discovery` view. **RLS is enabled on all tables**; the frontend
+reads discovery via that view, and open+unexpired partner requests are the only
+publicly readable requests.
 
-**Critical product principle — do not violate:** quick contact is a *UI gate, not a
-database secrecy boundary*. `line_id` IS present in `public_profile_discovery` for
-public profiles; the UI must keep it hidden on the first card layer and reveal it
-only after the user taps 快速約球 (quick contact). The MVP creates **no**
-invite/accept/contact-history records.
+**Critical product principle (shipped code) — do not violate:** quick contact is
+a *UI gate, not a database secrecy boundary*. `line_id` IS present in
+`public_profile_discovery` for public profiles; the UI must keep it hidden on the
+first card layer and reveal it only after the user taps 快速約球. The MVP creates
+**no** invite/accept/contact-history records. (The 2026-07-07 session-first plan
+is the approved path to change this — see "Current direction" above.)
 
-### Shared enums (keep in sync across three places)
+Backend gotchas:
 
-These values are enforced by DB `CHECK` constraints and must match the frontend
-constants and mock data:
-- **play types:** `單打`, `雙打`, `對拉`, `練球`
-- **slot codes:** `wd-m`, `wd-a`, `wd-e`, `we-m`, `we-a`, `we-e`
+- `public_profile_discovery` works **because** it is a default (non
+  `security_invoker`) view that bypasses the owner-only SELECT policy on
+  `profiles`. Recreating it with `security_invoker = true`, or reading `profiles`
+  directly, silently breaks all discovery.
+- The only `partner_requests` SELECT policy is `open + unexpired` — owners cannot
+  read their own closed/expired rows, and there is no DELETE policy. Any
+  request-management feature needs a new policy migration.
+- Courts are seeded **inside the migration** (`[db.seed]` is disabled, no
+  seed.sql) and clients have no court write path. Adding a court = a new
+  migration **plus** updating the pgTAP test that hard-asserts exactly 6 active
+  courts.
+- `createPartnerRequest` hardcodes a 7-day `expires_at` (the column has no DB
+  default) and never sets `ntrp_min`/`ntrp_max` — which is where demand-pin NTRP
+  is read from, so UI-created requests render without NTRP.
+- Schema changes are **local-first**: migration + pgTAP green locally before
+  applying to the hosted project (see `supabase/README.md`).
 
-Changing either means editing the migration, `filters.js`/`main.js`, and any mock
-data together.
+### Shared enums (keep in sync)
+
+These values are enforced by DB `CHECK` constraints and must match the frontend:
+
+- **play types** (`單打`, `雙打`, `對拉`, `練球`): the migration, `TYPES` in
+  `filters.js`, the hard-coded filter chips in `index.html`, and mock data.
+- **slot codes** (`wd-m`, `wd-a`, `wd-e`, `we-m`, `we-a`, `we-e`): the migration,
+  the slot grid + `defaultProfile` in `main.js`, and the `slotLabels` code→label
+  map in `dataApi.js`.
 
 ## Conventions & gotchas
 
 - Build DOM via template strings + `innerHTML`; always wrap dynamic/user values in
   `esc()` and URLs in `safeUrl()` from `util.js`.
+- Sheets, modals, and toasts mount into `#sheet-root`/`#modal-root`/`#toast-root`
+  and are torn down by innerHTML wipe — re-attach listeners on every render. Every
+  modal opener hides the floating 發布需求 button and `closeModal()` re-shows it;
+  keep that pairing for new modals.
 - No Google Maps key (or an invalid/referrer-blocked key) must **not** break the
-  page: `main.js` shows a placeholder overlay listing courts instead. Preserve this
-  graceful degradation when touching map init.
+  page: `main.js` shows a placeholder overlay listing courts instead. Key failure
+  arrives **asynchronously** via the global `window.gm_authFailure` callback (not
+  a rejected promise), and `loadGoogleMaps` memoizes its promise — preserve both
+  when touching map init.
 - The Google Maps browser key is referrer-restricted in Google Cloud Console. Keep
   the allowlist to stable entries only (local dev, production domain, the stable
   Vercel branch preview) — do not add per-deploy immutable hash URLs.

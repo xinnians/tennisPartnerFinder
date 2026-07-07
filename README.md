@@ -47,7 +47,9 @@ VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=<npx supabase status -o env 顯示的 ANON_KEY>
 ```
 
-目前不需要 hosted Supabase project;前端整合先以 local Supabase stack 為準。
+本機開發與測試以 local Supabase stack 為準;hosted Supabase project
+(ref `ttjzxhihctrtoqdsqxdb`)已建立並完成 beta QA,現況見下方
+「Supabase 本機驗證」一節與 `docs/mvp-plan.md`。
 
 > 注意:`.env.local` 不會進 git。Google Maps browser key 仍會在瀏覽器中可見,
 > 請務必在 Google Cloud Console 加上 HTTP referrer 限制;如果 key 曾經被提交或分享,

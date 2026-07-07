@@ -1,6 +1,6 @@
 # Tennis Partner Finder MVP Plan
 
-Last updated: 2026-07-03
+Last updated: 2026-07-07
 
 This document is the project planning source of truth. Keep it updated when scope,
 product decisions, data model assumptions, or implementation order changes, so a
