@@ -231,7 +231,7 @@ rollback;
 }
 
 // ------------------------------------------------------------
-//  --check:找出既有 migration(依檔名 suffix 比對)
+//  --check:找出既有 migration(依檔名 suffix 比對,若多筆取最新一支)
 // ------------------------------------------------------------
 
 function findExistingMigration() {
@@ -239,8 +239,8 @@ function findExistingMigration() {
   const matches = readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(MIGRATION_SUFFIX))
     .sort();
-  if (matches.length !== 1) return null;
-  return path.join(MIGRATIONS_DIR, matches[0]);
+  if (matches.length === 0) return null;
+  return path.join(MIGRATIONS_DIR, matches.at(-1));
 }
 
 // ------------------------------------------------------------
@@ -306,7 +306,7 @@ function main() {
   const existingMigrationPath = findExistingMigration();
   if (!existingMigrationPath) {
     console.error(
-      `錯誤:找不到唯一的既有 migration(supabase/migrations/*${MIGRATION_SUFFIX}),請先用 --stamp 產生`
+      `錯誤:找不到任何既有 migration(supabase/migrations/*${MIGRATION_SUFFIX}),請先用 --stamp 產生`
     );
     process.exit(1);
   }
