@@ -81,7 +81,7 @@ env is not configured, it still falls back to `src/mockData.js`.
   - Local Mailpit magic-link QA was completed earlier, but Email magic link is
     now intentionally paused for the MVP because hosted Supabase built-in email
     hit rate limits and the project will not add SMTP for login.
-  - Latest local verification target has 15 Playwright tests, including Google
+  - Latest local verification target has 21 Playwright tests, including Google
     OAuth redirect coverage and a mobile modal animation regression.
   - Hosted Supabase preparation started on 2026-07-03:
     - Hosted project `TennisPartnetFinder` is linked as project ref
@@ -134,6 +134,20 @@ env is not configured, it still falls back to `src/mockData.js`.
   - Hosted preview QA confirmed the 7-day request copy, request map pin, and
     report writes against hosted Supabase.
   - Block lists remain out of scope until beta feedback proves they are needed.
+- Batch 1（全雙北球場資料庫，2026-07-08 dev roadmap §5）is complete:
+  - `data/courts.json` is now the single courts-catalog source of truth: 82
+    座雙北網球場（官方開放資料，data.gov.tw #22849 為主，vbs.sports.taipei／
+    hrcm.ntpc.gov.tw 交叉查核），`scripts/generate-courts-seed.mjs` 從它同源
+    產出 courts migration 與 `supabase/tests/courts_catalog.sql`。
+  - 校真修正：既有 6 座 seed 中的「大安森林公園網球場」「中正網球中心」
+    「迎風河濱公園網球場」經三份官方來源查證為虛構場館，已停用（`is_active
+    = false`）；「台北網球中心」「百齡河濱公園網球場」「青年公園網球場」查
+    證為真，保留 active 並沿用為 join-key 錨點。
+  - Profile 球場選單改用 `src/courtPicker.js`（分區＋可搜尋，改吃
+    `loadCourts()`）取代原本永遠讀 mock `COURTS` 的 checklist；地圖新增球場
+    底圖 pin（`src/pins.js`／`src/map.js`）。`src/mockData.js` 的 6 座 mock
+    demo 資料同步校真，維持與新 courts.json 一致的真實名稱。
+  - `npm test` 一路維持 21/21 綠。
 
 ## Product Principles
 
@@ -407,13 +421,16 @@ Statuses can start with `open`, `reviewed`, and `dismissed`.
 
 ## Next Concrete Step
 
-執行 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` 的 **Batch 1（全雙北
-球場資料庫）**：
+**Batch 1（全雙北球場資料庫）已完成**——見下方 Implementation Status。執行
+`docs/superpowers/plans/2026-07-08-dev-roadmap.md` 的 **Batch 2（指南基礎建設
+＋第一波深度內容，SEO 獲客資產）**：
 
-1. 官方開放資料匯入雙北網球場全量清單（約 110+ 座）＋slug 全數產生供掃描定案。
-2. courts seed migration（由 script 從資料檔產生）＋pgTAP 斷言改為與資料檔同步。
-3. profile 球場選單改為分區＋可搜尋（改吃 `loadCourts()`）；地圖加球場底圖 pin。
+1. 第一波球場內容查證（費用/預約方式/搶場規則/材質/面數/燈光/尖離峰，官方來源
+   附 `verifiedAt`＋`sourceUrl`）；錨點見 roadmap §4 修正後的清單。
+2. 新增 `src/courtGuide.js`（指南內容 SoT）＋`scripts/build-court-pages.mjs`
+   （靜態落地頁＋sitemap 產生器）。
+3. 球場抽屜補指南摘要區塊＋整頁連結；`?court=<slug>` deep-link。
 
-深度指南＋SEO 落地頁為 Batch 2＋內容波次 C2–C5（分波滾動至全雙北）。原「beta
-handoff」批次移到 roadmap Batch 6；原第 4 點（quick contact 維持 UI-gate）已被
-roadmap Batch 3-4 的 mutual-consent 重構取代，不再適用。
+內容波次 C2–C5（分波滾動至全雙北）與 Batch 3–5（sessions 重構）穿插進行；
+「beta handoff」批次在 roadmap Batch 6；原第 4 點（quick contact 維持 UI-gate）
+已被 roadmap Batch 3-4 的 mutual-consent 重構取代，不再適用。

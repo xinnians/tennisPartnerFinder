@@ -55,6 +55,17 @@ and `test db` will fail before reaching the migration/RLS checks.
 - authenticated users can create/read only their own reports.
 - the old invite table is not part of the quick-contact MVP schema.
 
+`supabase/tests/courts_catalog.sql` verifies the courts catalog (82 雙北
+courts) against `data/courts.json`, generated in lockstep by
+`node scripts/generate-courts-seed.mjs`:
+
+- active court count matches `data/courts.json`'s entry count.
+- the three legacy real courts (台北網球中心/百齡河濱公園網球場/青年公園網球場)
+  stay active.
+- the three legacy fictional courts (大安森林公園網球場/中正網球中心/迎風河濱公園網球場)
+  are deactivated (校真 canary).
+- anon can read the active catalog.
+
 ## Product Boundary
 
 Quick contact is a UI gate, not a database secrecy boundary. Public player data

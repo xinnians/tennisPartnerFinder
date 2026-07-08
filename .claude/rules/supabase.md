@@ -33,10 +33,14 @@ Backend gotchas:
 - The only `partner_requests` SELECT policy is `open + unexpired` — owners cannot
   read their own closed/expired rows, and there is no DELETE policy. Any
   request-management feature needs a new policy migration.
-- Courts are seeded **inside the migration** (`[db.seed]` is disabled, no
-  seed.sql) and clients have no court write path. Adding a court = a new
-  migration **plus** updating the pgTAP test that hard-asserts exactly 6 active
-  courts.
+- Courts catalog SoT is `data/courts.json` (82 雙北 courts); clients have no
+  court write path, and `[db.seed]` is disabled (no seed.sql) — courts only
+  land via generated migrations. Adding/editing a court = edit the JSON, then
+  run `node scripts/generate-courts-seed.mjs --stamp <新 stamp>` to regenerate
+  the migration **and** `supabase/tests/courts_catalog.sql` from the same
+  source (same-source-same-sync). **A migration already pushed to hosted must
+  never be edited — always cut a new stamp.** `--check` diffs a fresh
+  regeneration against what's on disk and exits non-zero on drift.
 - `createPartnerRequest` hardcodes a 7-day `expires_at` (the column has no DB
   default) and never sets `ntrp_min`/`ntrp_max` — which is where demand-pin NTRP
   is read from, so UI-created requests render without NTRP.

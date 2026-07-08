@@ -450,3 +450,39 @@ node scripts/generate-courts-seed.mjs --check
 - migration stamp `202607080001` 與 roadmap Batch 3 預名衝突：Task 10 Step 4 註記後移。
 - 6 座既有球場座標會被官方精確值覆寫（pin 微移）：無測試依賴座標值，接受。
 - 執行方式：核准後建議 superpowers:subagent-driven-development 逐任務派工（每任務含紅→綠證據與 grep 輸出回報）；或 executing-plans 就地執行。
+
+## 執行後記（2026-07-08）
+
+- **校真修正（3 座虛構）**：既有 6 座 seed 中「大安森林公園網球場」「中正網球中心」
+  「迎風河濱公園網球場」經三份官方來源交叉查證**不存在**（虛構），Task 2 之後、
+  Task 3 之前插入的校正任務（見下方 T2b）把它們從 catalog 停用；Task 5
+  （commit `d934b17`）連帶把 `src/mockData.js` 的 6 座 mock 示範資料同步換真
+  （換成 大佳河濱／古亭河濱／彩虹河濱等目錄內真實球場），smoke 測試名稱與快速
+  約球開場白斷言一併更新。真實留任的 3 座（台北網球中心／百齡河濱公園網球場／
+  青年公園網球場）沿用為 join-key 錨點不變。
+- **82 座（非 110+，如實）**：Task 4 官方資料清理後最終收錄 **82 座**雙北網球場
+  （台北市 53、新北市 29），低於計畫階段預估的「約 110+ 座」。差額主因見
+  `data/courts-curation-log.md`：data.gov.tw #22849 原始 104 列→可對外 76 列，
+  加上 vbs/hrcm/水利處等官方來源補全後合併去重共 125 列，多個資料來源常指向
+  同一場館（例如大佳河濱公園同時出現在 riverside／vbs／#22849 三個來源列），
+  場館級整編後才是 82 座；另有 4 筆因設施項目誤標（如籃球場列名稱誤含「網球」）
+  被剔除。「約 110+」是規劃階段的粗估原始列數，未預估同場館跨來源重複與誤標
+  的比例；如實收錄不硬湊數字，缺口留待內容波次 C2–C5 官方資料補查時一併檢視。
+- **T2b 任務插入**：計畫原始任務序未預留「虛構球場校正」步驟——Task 2（生成器）
+  完成、Task 4（全量匯入）尚未開始前，開發過程中發現既有 6 座 seed 有 3 座查無
+  實體，因此在 Task 2 與 Task 3 之間插入一個未編號的校正任務（實際 commits
+  `900dab3 fix: 全面校真——虛構3座退出catalog並停用,測試與預設值換真場`、
+  `a5ccd36 test: 校真連帶——快速約球開場白斷言改用新預設主場`），提前處理
+  catalog／migration／pgTAP／`tests/supabase.spec.js` 的連動，讓後續 Task 3、
+  Task 4 建立在校真後的基礎上。與計畫檔逐任務對照時請注意這段插入，不是
+  Task 3 本身的一部分。
+- **stub 格網 top=134 偏差**：Task 6 規劃並先落地的 Maps stub marker 格網排版是
+  `top = 70 + Math.floor(i / 24) * 22`（commit `8250f95`），到 Task 8
+  （commit `6551650`）加上球場底圖 pin 後改成
+  `top = 134 + Math.floor(i / 24) * 24`（`left` 公式不變，仍是
+  `8 + (i % 24) * 15`）。原因見該 commit 訊息：`.map-top` 濾鏡浮層高
+  124px（含可點擊的程度/類型 chips），底圖釘＋overlay 釘疊加後 marker 數量
+  翻倍，格網第一列若仍從 70px 起跳會落在濾鏡列底下，導致 chips 攔截底圖/
+  overlay pin 的點擊；改成 134px 起跳讓第一列落在濾鏡列下方才解決。此為
+  計畫檔（70/22）與實作落地（134/24）的差異，之後改動 stub 排版時請以
+  `tests/smoke.spec.js`／`tests/supabase.spec.js` 程式碼現值為準。

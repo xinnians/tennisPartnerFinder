@@ -19,10 +19,10 @@ Chinese (zh-TW)** — match that language when editing copy and comments.
 ### Current direction — read before extending the schema or product flows
 
 `docs/superpowers/plans/2026-07-08-dev-roadmap.md` is the approved batch
-schedule (**none of it implemented yet**): courts DB expands to all of 雙北,
-the deep court guide + SEO landing pages roll out in waves, then `sessions`
-replace `partner_requests` outright with a mutual-consent LINE reveal that
-removes `line_id` from anon-readable discovery. Design detail:
+schedule. **Batch 1 (courts DB expanded to all of 雙北) is done**; next up is
+Batch 2, the deep court guide + SEO landing pages, rolling out in waves; then
+`sessions` replace `partner_requests` outright with a mutual-consent LINE
+reveal that removes `line_id` from anon-readable discovery. Design detail:
 `2026-07-07-session-first-and-court-guide-plan.md` (same dir) — its §4 opens
 with three 2026-07-08 corrections; read them before writing the migration.
 Everything below documents **shipped** code; monetization stays deferred.
@@ -75,7 +75,9 @@ npx supabase status -o env               # print local URL + ANON_KEY for .env.l
 This one boolean gates the entire app:
 
 - **Not configured** → the app runs on `src/mockData.js` (6 real Taipei courts,
-  6 players, 6 demands). Auth is disabled, "save" is a toast, no network.
+  6 players, 6 demands). Auth is disabled, "save" is a toast, no network. Full
+  catalog SoT is `data/courts.json` (82 雙北 courts) — edit it, then run
+  `node scripts/generate-courts-seed.mjs --stamp <stamp>` to regenerate.
 - **Configured** → the app reads/writes real Supabase Auth + Postgres.
 
 `src/dataApi.js` is the **single data boundary**, but the mock fallback is
@@ -95,8 +97,9 @@ instead of opening the report modal. When you add a
 field, keep the mock shape and the `dataApi` mapper in sync. Discovery is one row
 per (profile, court): a player with N home courts renders as N separate pins.
 
-**Court names are the cross-backend join key**: the profile tab's court checklist
-always renders from mockData `COURTS` (even when Supabase is live), and
+**Court names are the cross-backend join key**: the profile tab's court picker
+(`src/courtPicker.js`, districted + searchable) renders whatever `loadCourts()`
+returns — mock mode still returns the 6-court `COURTS` demo set — and
 `saveCurrentProfile` converts checked names to DB ids by matching
 `courts.name`. Renaming or adding a court in only one place silently drops it
 from saves.
@@ -116,6 +119,7 @@ Layer responsibilities:
 - `config.js` — Maps key + map center/zoom (Taipei).
 - `map.js` — loads Google Maps, applies the sage-green style, groups pins by court, draws markers.
 - `pins.js` — SVG for the three pin types.
+- `courtPicker.js` — the profile tab's districted + searchable court picker (mounts on `loadCourts()` results).
 - `filters.js` — pure filter functions + the NTRP `BANDS` / play-`TYPES` constants.
 - `sheets.js` — all bottom cards, the court drawer, and the login / quick-contact / publish / report modals.
 - `util.js` — `esc()` (HTML-escape), `safeUrl()` (http(s)-only hrefs), `sourceLabel()`, `ntrpDesc()`.
@@ -174,12 +178,8 @@ These values are enforced by DB `CHECK` constraints and must match the frontend:
   arrives **asynchronously** via the global `window.gm_authFailure` callback (not
   a rejected promise), and `loadGoogleMaps` memoizes its promise — preserve both
   when touching map init.
-- The Google Maps browser key is referrer-restricted in Google Cloud Console. Keep
-  the allowlist to stable entries only (local dev, production domain, the stable
-  Vercel branch preview) — do not add per-deploy immutable hash URLs.
-- Deployment is Vercel (`npm run build` → `dist/`). Hosted Supabase project ref is
-  `ttjzxhihctrtoqdsqxdb`; the stable branch-preview URL is the QA entrypoint, not
-  per-deploy URLs.
+- The Google Maps browser key is referrer-restricted in Google Cloud Console; keep the allowlist to stable entries only (local dev, production domain, the stable Vercel branch preview) — never per-deploy immutable hash URLs.
+- Deployment is Vercel (`npm run build` → `dist/`). Hosted Supabase project ref is `ttjzxhihctrtoqdsqxdb`; the stable branch-preview URL is the QA entrypoint, not per-deploy URLs.
 - Doc upkeep: after editing this file run `wc -l CLAUDE.md` — keep it ≤ 200 lines
   (~10 KB). Over the cap, move the most situational section to `.claude/rules/`
   (scope it with `paths` frontmatter) or `docs/` and leave a one-line pointer here.

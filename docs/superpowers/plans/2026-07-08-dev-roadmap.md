@@ -124,6 +124,11 @@
 
 ### Batch 2 — 指南基礎建設＋第一波深度內容（SEO 獲客資產）
 
+> **Batch 1 完工後註記（2026-07-08）：** 第一波熱區「大安–中正」的錨點需重定。
+> 「大安森林公園網球場」「中正網球中心」經 Batch 1 三份官方來源查證**不存在**
+> （虛構、已停用），不可再作第一波內容錨點。建議改錨真實球場：中正河濱／
+> 古亭河濱／青年公園一帶＋台北網球中心（皆已在 82 座目錄內、Batch 1 校真為真）。
+
 - 內容查證〔C+U〕：第一波大安–中正 4-5 座（大安森林、中正網球中心、青年公園、
   錨點台北網球中心）的費用/預約方式/搶場規則/材質/面數/燈光/尖離峰，來源
   vbs.sports.taipei、tsc.taipei 等官方頁，每筆記 `verifiedAt`＋`sourceUrl`
@@ -166,6 +171,11 @@
 - 與功能批次穿插進行，**不阻塞** Batch 3–6；beta 開跑不等內容波全部完成。
 
 ### Batch 3 — sessions schema＋讀路徑＋開局（快速約球下架）
+
+> **Batch 1 完工後註記（2026-07-08）：** 預名 stamp `202607080001` 已被 Batch 1
+> 的 `supabase/migrations/202607080001_courts_catalog_double_north.sql` 用掉，
+> 實作 Batch 3 時 migration 檔名須改用當日實際 stamp（例如
+> `<YYYYMMDDHHmm>_session_first_schema.sql`），不可沿用下方檔名。
 
 - 新 migration `supabase/migrations/202607080001_session_first_schema.sql`，依序：
   1. `alter table reports drop column partner_request_id` →
