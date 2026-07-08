@@ -2,9 +2,9 @@
 insert into public.courts (name, district, lat, lng)
 values
   ('台北網球中心', '內湖區', 25.069000, 121.593000),
-  ('大安森林公園網球場', '大安區', 25.030000, 121.536000),
-  ('中正網球中心', '中正區', 25.018000, 121.523000),
-  ('迎風河濱公園網球場', '松山區', 25.068000, 121.557000),
+  ('彩虹河濱公園網球場', '內湖區', 25.062687, 121.571815),
+  ('華中河濱公園網球場', '萬華區', 25.017174, 121.491658),
+  ('古亭河濱公園網球場', '中正區', 25.019024, 121.522689),
   ('百齡河濱公園網球場', '士林區', 25.089000, 121.514000),
   ('青年公園網球場', '萬華區', 25.022000, 121.504000)
 on conflict (name) do update
@@ -14,4 +14,4 @@ set district = excluded.district, lat = excluded.lat, lng = excluded.lng,
 -- 目錄外球場一律停用(不 DELETE:profile_courts/partner_requests 為 on delete restrict)
 update public.courts
 set is_active = false, updated_at = now()
-where name not in ('台北網球中心', '大安森林公園網球場', '中正網球中心', '迎風河濱公園網球場', '百齡河濱公園網球場', '青年公園網球場');
+where name not in ('台北網球中心', '彩虹河濱公園網球場', '華中河濱公園網球場', '古亭河濱公園網球場', '百齡河濱公園網球場', '青年公園網球場');

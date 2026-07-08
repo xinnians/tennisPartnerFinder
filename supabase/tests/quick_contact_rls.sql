@@ -69,7 +69,7 @@ select p.id, c.id
 from public.profiles p
 cross join public.courts c
 where p.nickname in ('Public Player', 'Private Player')
-  and c.name = '大安森林公園網球場';
+  and c.name = '青年公園網球場';
 
 insert into public.profile_play_types (profile_id, play_type)
 select id, '單打'
@@ -140,7 +140,7 @@ insert into public.partner_requests (
 )
 select 9001, c.id, '週六下午', '想找 3.5 左右球友對拉', now() + interval '7 days'
 from public.courts c
-where c.name = '大安森林公園網球場';
+where c.name = '青年公園網球場';
 
 select is(
   (select count(*) from public.partner_requests where request_text = '想找 3.5 左右球友對拉'),
@@ -159,7 +159,7 @@ select throws_ok(
     )
     select 9002, c.id, '週日早上', 'spoofed request', now() + interval '7 days'
     from public.courts c
-    where c.name = '大安森林公園網球場'
+    where c.name = '青年公園網球場'
   $$,
   '42501',
   null,

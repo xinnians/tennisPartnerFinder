@@ -7,6 +7,11 @@
         "name": "運動部 全國運動場館資訊（data.gov.tw #22849）",
         "url": "https://data.gov.tw/dataset/22849",
         "fetchedAt": "2026-07-08"
+      },
+      {
+        "name": "臺北市體育局場館設施管理系統",
+        "url": "https://vbs.sports.taipei/",
+        "fetchedAt": "2026-07-08"
       }
     ],
     "slugPolicy": "英文意譯、ASCII、收錄後永不改"
@@ -23,34 +28,34 @@
       "sourceUrl": "https://vbs.sports.taipei/"
     },
     {
-      "name": "大安森林公園網球場",
-      "slug": "daan-forest-park",
+      "name": "彩虹河濱公園網球場",
+      "slug": "rainbow-riverside",
       "city": "台北市",
-      "district": "大安區",
-      "lat": 25.03,
-      "lng": 121.536,
-      "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/"
+      "district": "內湖區",
+      "lat": 25.062687,
+      "lng": 121.571815,
+      "isRiverside": true,
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=201"
     },
     {
-      "name": "中正網球中心",
-      "slug": "zhongzheng-tennis-center",
+      "name": "華中河濱公園網球場",
+      "slug": "huazhong-riverside",
+      "city": "台北市",
+      "district": "萬華區",
+      "lat": 25.017174,
+      "lng": 121.491658,
+      "isRiverside": true,
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=239"
+    },
+    {
+      "name": "古亭河濱公園網球場",
+      "slug": "guting-riverside",
       "city": "台北市",
       "district": "中正區",
-      "lat": 25.018,
-      "lng": 121.523,
-      "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/"
-    },
-    {
-      "name": "迎風河濱公園網球場",
-      "slug": "yingfeng-riverside",
-      "city": "台北市",
-      "district": "松山區",
-      "lat": 25.068,
-      "lng": 121.557,
+      "lat": 25.019024,
+      "lng": 121.522689,
       "isRiverside": true,
-      "sourceUrl": "https://vbs.sports.taipei/"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=305"
     },
     {
       "name": "百齡河濱公園網球場",

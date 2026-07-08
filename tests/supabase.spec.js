@@ -228,7 +228,7 @@ async function setBrowserSession(page, session) {
 }
 
 async function openLocalAceSheet(page) {
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   const localAceDrawerItem = page.getByRole("button", { name: /Local Ace/ }).first();
   try {
     await localAceDrawerItem.waitFor({ state: "visible", timeout: 700 });
@@ -254,7 +254,7 @@ test.beforeAll(async () => {
     ntrp: 4.0,
     lineId: "local_ace_line",
     isPublic: true,
-    courts: ["大安森林公園網球場"],
+    courts: ["青年公園網球場"],
     playTypes: ["單打", "對拉"],
     slots: ["we-m", "wd-e"],
   });
@@ -276,7 +276,7 @@ test("shows loading, empty, error, and retry states for Supabase map data", asyn
   await expect(page.getByText("資料載入失敗")).toBeVisible();
   await page.getByRole("button", { name: "重新載入" }).click();
   await expect(page.locator("#sheet-root")).toHaveCount(1);
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Local Ace");
 });
 
@@ -337,7 +337,7 @@ test("signed-out users can browse but quick contact opens login", async ({ page 
   await page.goto("/");
 
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Local Ace");
   await expect(page.locator("#sheet-root")).not.toContainText("local_ace_line");
 
@@ -357,7 +357,7 @@ test("signed-in users can save profile, quick contact, and publish a request", a
   await setBrowserSession(page, session);
   await page.goto("/");
 
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   await page.getByRole("button", { name: "快速約球" }).click();
   await expect(page.getByText(/先補齊/)).toBeVisible();
   await expect(page.locator("#tab-profile .page__title")).toHaveText("個人檔案");
@@ -370,13 +370,13 @@ test("signed-in users can save profile, quick contact, and publish a request", a
   await expect(page.getByText("已儲存到 Supabase")).toBeVisible();
 
   await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   await expect(page.locator("#sheet-root")).not.toContainText("local_ace_line");
   await page.getByRole("button", { name: "快速約球" }).click();
   await expect(page.getByText("local_ace_line")).toBeVisible();
 
   await page.getByRole("button", { name: "發布需求" }).click();
-  await page.getByLabel("球場", { exact: true }).selectOption({ label: "大安森林公園網球場" });
+  await page.getByLabel("球場", { exact: true }).selectOption({ label: "青年公園網球場" });
   await page.getByLabel("想約時間", { exact: true }).fill("週六下午");
   await page.getByLabel("大概程度", { exact: true }).fill("3.5 左右");
   await page.getByLabel("需求內容", { exact: true }).fill("想找 3.5 左右球友對拉");
@@ -389,7 +389,7 @@ test("signed-in users can save profile, quick contact, and publish a request", a
   await expect(page.getByRole("button", { name: "送出需求" })).toBeDisabled();
   await expect(page.getByText("需求已發布")).toBeVisible();
 
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   await expect(page.locator("#sheet-root")).toContainText("想找 3.5 左右球友對拉");
 });
 
@@ -402,20 +402,20 @@ test("expired and non-open partner requests stay hidden from the map", async ({ 
     ntrp: 3.5,
     lineId: "request_owner_line",
     isPublic: false,
-    courts: ["中正網球中心"],
+    courts: ["華中河濱公園網球場"],
     playTypes: ["對拉"],
     slots: ["we-a"],
   });
 
   await createPartnerRequestForProfile(client, profileId, {
-    courtName: "中正網球中心",
+    courtName: "華中河濱公園網球場",
     desiredTimeText: "今天晚上",
     rawSkillText: "3.5",
     requestText: "這則有效需求應該出現",
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   });
   await createPartnerRequestForProfile(client, profileId, {
-    courtName: "中正網球中心",
+    courtName: "華中河濱公園網球場",
     desiredTimeText: "昨天晚上",
     rawSkillText: "3.5",
     requestText: "這則過期需求不應該出現",
@@ -423,7 +423,7 @@ test("expired and non-open partner requests stay hidden from the map", async ({ 
     returnId: false,
   });
   await createPartnerRequestForProfile(client, profileId, {
-    courtName: "中正網球中心",
+    courtName: "華中河濱公園網球場",
     desiredTimeText: "明天晚上",
     rawSkillText: "3.5",
     requestText: "這則關閉需求不應該出現",
@@ -435,7 +435,7 @@ test("expired and non-open partner requests stay hidden from the map", async ({ 
   await installFakeMaps(page);
   await page.goto("/");
 
-  await page.getByRole("button", { name: /地圖圖釘 中正網球中心/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 華中河濱公園網球場/ }).click();
   await expect(page.locator("#sheet-root")).toContainText("這則有效需求應該出現");
   await expect(page.locator("#sheet-root")).not.toContainText("這則過期需求不應該出現");
   await expect(page.locator("#sheet-root")).not.toContainText("這則關閉需求不應該出現");
@@ -468,7 +468,7 @@ test("report flow requires auth and a saved profile, then writes player and requ
   const profile = await client.from("profiles").select("id").eq("user_id", session.user.id).single();
   if (profile.error) throw profile.error;
   const requestId = await createPartnerRequestForProfile(client, profile.data.id, {
-    courtName: "大安森林公園網球場",
+    courtName: "青年公園網球場",
     desiredTimeText: "週日早上",
     rawSkillText: "4.0",
     requestText: "這則需求會被檢舉",
@@ -491,7 +491,7 @@ test("report flow requires auth and a saved profile, then writes player and requ
   await expect(page.getByText("已收到檢舉")).toBeVisible();
 
   await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   await page.getByRole("button", { name: /這則需求會被檢舉/ }).click();
   await page.getByRole("button", { name: "檢舉" }).click();
   await expect(page.getByRole("dialog", { name: /檢舉需求/ })).toBeVisible();
@@ -533,7 +533,7 @@ test("sign-out clears current profile and gates quick contact again", async ({ p
   await expect(page.getByPlaceholder("輸入你的 LINE ID")).toHaveValue("");
 
   await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   const localAceDrawerItem = page.getByRole("button", { name: /Local Ace/ }).first();
   try {
     await localAceDrawerItem.waitFor({ state: "visible", timeout: 700 });

@@ -41,7 +41,7 @@ function defaultProfile() {
     nick: "我",
     ntrp: 3.5,
     types: new Set(["單打", "對拉"]),
-    courts: new Set(["大安森林公園網球場"]),
+    courts: new Set(["青年公園網球場"]),
     slots: new Set(["wd-e", "we-m"]),
     share: false,
     lineId: "",
