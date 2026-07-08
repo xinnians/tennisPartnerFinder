@@ -155,6 +155,35 @@ test("loads, uses quick contact, and saves profile", async ({ page }) => {
   expect(runtimeErrors).toEqual([]);
 });
 
+test("profile court picker searches, selects, and keeps search focus", async ({ page }) => {
+  const runtimeErrors = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") runtimeErrors.push(msg.text());
+  });
+  page.on("pageerror", (err) => runtimeErrors.push(err.message));
+
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /個人檔案/ }).click();
+  // defaultProfile 已預選青年公園網球場,一進來就該有一顆 chip
+  await expect(page.locator("#prof-courts .court-chip", { hasText: "青年公園網球場" })).toBeVisible();
+
+  const search = page.getByLabel("搜尋球場");
+  await search.pressSequentially("青年", { delay: 20 });
+  await expect(page.locator("#prof-courts .prof-court")).toHaveCount(1);
+  await expect(search).toBeFocused();
+
+  // 換一個尚未選取的球場,驗證搜尋→點選→出現 chip 的流程
+  await search.fill("彩虹");
+  await expect(page.locator("#prof-courts .prof-court")).toHaveCount(1);
+  await expect(search).toBeFocused();
+  await page.locator("#prof-courts .prof-court", { hasText: "彩虹河濱公園網球場" }).click();
+  await expect(page.locator("#prof-courts .court-chip", { hasText: "彩虹河濱公園網球場" })).toBeVisible();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("external demand pins keep the source-link flow", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");

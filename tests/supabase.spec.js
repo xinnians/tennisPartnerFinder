@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 
@@ -548,4 +549,33 @@ test("sign-out clears current profile and gates quick contact again", async ({ p
   }
   await page.getByRole("button", { name: "快速約球" }).click();
   await expect(page.getByText("登入後繼續")).toBeVisible();
+});
+
+test("profile court picker searches a New Taipei court, saves, and survives reload", async ({ page }) => {
+  const catalog = JSON.parse(readFileSync("data/courts.json", "utf-8"));
+  const newTaipeiCourt = catalog.courts.find((c) => c.city === "新北市");
+  if (!newTaipeiCourt) throw new Error("data/courts.json 缺少新北市球場,無法驗證分區清單");
+
+  const email = `court-picker-${Date.now()}@example.test`;
+  const { session } = await signUpUser(email);
+
+  await installFakeMaps(page);
+  await setBrowserSession(page, session);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: /個人檔案/ }).click();
+  await page.getByLabel("暱稱").fill("Court Picker");
+  await page.getByPlaceholder("輸入你的 LINE ID").fill("court_picker_line");
+
+  const search = page.getByLabel("搜尋球場");
+  await search.fill(newTaipeiCourt.name);
+  await page.locator("#prof-courts .prof-court", { hasText: newTaipeiCourt.name }).click();
+  await expect(page.locator("#prof-courts .court-chip", { hasText: newTaipeiCourt.name })).toBeVisible();
+
+  await page.getByRole("button", { name: "儲存檔案" }).click();
+  await expect(page.getByText("已儲存到 Supabase")).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: /個人檔案/ }).click();
+  await expect(page.locator("#prof-courts .court-chip", { hasText: newTaipeiCourt.name })).toBeVisible();
 });

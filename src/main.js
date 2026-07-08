@@ -32,9 +32,11 @@ import {
   signOut,
 } from "./dataApi.js";
 import { esc, ntrpDesc } from "./util.js";
+import { mountCourtPicker } from "./courtPicker.js";
 
 let courts = COURTS;
 let dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+let courtPicker = null;
 
 function defaultProfile() {
   return {
@@ -324,6 +326,7 @@ async function loadAppData() {
     updateMapDataStatus();
     courts = COURTS;
     dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+    courtPicker?.setCourts(courts);
     return;
   }
 
@@ -338,6 +341,7 @@ async function loadAppData() {
     ]);
     courts = nextCourts.length ? nextCourts : COURTS;
     dataSet = { players, demands };
+    courtPicker?.setCourts(courts);
     state.dataStatus = players.length === 0 && demands.length === 0 ? "empty" : "ready";
     updateMapDataStatus();
   } catch (error) {
@@ -529,25 +533,15 @@ function setupProfile() {
     });
   });
 
-  // 常打球場(清單來自 mockData 的 COURTS)
-  const courtsBox = document.getElementById("prof-courts");
-  courtsBox.innerHTML = COURTS.map(
-    (c) => `
-    <button type="button" class="prof-court${prof.courts.has(c.name) ? " is-on" : ""}" data-c="${esc(c.name)}">
-      <span class="prof-court__box">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-      </span>
-      <span class="prof-court__name">${esc(c.name)}</span>
-      <span class="prof-court__dist">${esc(c.district)}</span>
-    </button>`
-  ).join("");
-  courtsBox.querySelectorAll("[data-c]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const name = btn.dataset.c;
+  // 常打球場(分區＋搜尋,資料來自 loadAppData 的 courts)
+  courtPicker = mountCourtPicker(document.getElementById("prof-courts"), {
+    getSelected: () => prof.courts,
+    onToggle: (name) => {
       prof.courts.has(name) ? prof.courts.delete(name) : prof.courts.add(name);
-      btn.classList.toggle("is-on");
-    });
+      courtPicker.refresh();
+    },
   });
+  courtPicker.setCourts(courts); // 初次=mock COURTS(mock 模式維持 6 座示範)
 
   // 固定時段格子
   const slotsBox = document.getElementById("prof-slots");
@@ -637,9 +631,7 @@ function syncProfileForm() {
   document.querySelectorAll("#prof-types [data-t]").forEach((btn) => {
     btn.classList.toggle("is-active", prof.types.has(btn.dataset.t));
   });
-  document.querySelectorAll("#prof-courts [data-c]").forEach((btn) => {
-    btn.classList.toggle("is-on", prof.courts.has(btn.dataset.c));
-  });
+  courtPicker?.refresh();
   document.querySelectorAll("#prof-slots [data-s]").forEach((btn) => {
     btn.classList.toggle("is-on", prof.slots.has(btn.dataset.s));
   });
