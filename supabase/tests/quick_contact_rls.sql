@@ -76,12 +76,15 @@ select id, '單打'
 from public.profiles
 where nickname in ('Public Player', 'Private Player');
 
+insert into public.courts (name, district, lat, lng, is_active)
+values ('__pgtap_inactive_court', '測試區', 25.000000, 121.500000, false);
+
 set local role anon;
 
 select is(
-  (select count(*) from public.courts where is_active),
-  6::bigint,
-  'anon can read active Taipei courts'
+  (select count(*) from public.courts where name = '__pgtap_inactive_court'),
+  0::bigint,
+  'anon cannot read inactive courts (RLS is_active gate)'
 );
 
 select is(
