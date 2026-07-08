@@ -118,11 +118,12 @@ export function openCourtDrawer(court, items, { onPlayer, onDemand }) {
   if (players.length) parts.push(`${players.length} 位球友`);
   if (demands.length) parts.push(`${demands.length} 則徵求`);
 
-  const rows = items
-    .map((it, i) => {
-      if (it.kind === "player") {
-        const p = it.data;
-        return `
+  const rows = items.length
+    ? items
+        .map((it, i) => {
+          if (it.kind === "player") {
+            const p = it.data;
+            return `
           <button type="button" class="drawer__item" data-idx="${i}">
             <div class="avatar" style="width:44px;height:44px;font-size:18px">${esc(p.displayName.slice(0, 1))}</div>
             <div style="flex:1;min-width:0">
@@ -134,9 +135,9 @@ export function openCourtDrawer(court, items, { onPlayer, onDemand }) {
             </div>
             <span class="drawer__arrow">›</span>
           </button>`;
-      }
-      const d = it.data;
-      return `
+          }
+          const d = it.data;
+          return `
         <button type="button" class="drawer__item drawer__item--demand" data-idx="${i}">
           <div class="demand-face" style="width:40px;height:40px;font-size:14px">徵</div>
           <div style="flex:1;min-width:0">
@@ -145,8 +146,11 @@ export function openCourtDrawer(court, items, { onPlayer, onDemand }) {
           </div>
           <span class="drawer__arrow">›</span>
         </button>`;
-    })
-    .join("");
+        })
+        .join("")
+    : `<div class="drawer__empty">這座球場還沒有球友或徵求</div>`;
+
+  const sub = [esc(court.district), parts.length ? esc(parts.join("、")) : ""].filter(Boolean).join("・");
 
   mountSheet(`
     <div class="sheet drawer">
@@ -154,7 +158,7 @@ export function openCourtDrawer(court, items, { onPlayer, onDemand }) {
       <div class="drawer__head">
         <div style="flex:1">
           <div class="drawer__court">${esc(court.name)}</div>
-          <div class="drawer__sub">${esc(court.district)}・${esc(parts.join("、"))}</div>
+          <div class="drawer__sub">${sub}</div>
         </div>
         <button type="button" class="btn-close" data-close-drawer>✕</button>
       </div>

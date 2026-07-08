@@ -99,3 +99,18 @@ export function clusterPin(google, count) {
     },
   };
 }
+
+// 球場底圖釘:弱化樣式的同心圓,墊在球友/需求釘下層。
+const COURT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="#F4F6F0" stroke="#9DACA0" stroke-width="1.6"/><circle cx="13" cy="13" r="3.5" fill="#9DACA0"/></svg>`;
+export const COURT_PIN_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(COURT_SVG)}`;
+
+/** 球場底圖釘 icon(無 label——110+ 顆 label 會糊掉地圖) */
+export function courtPin(google) {
+  return {
+    icon: {
+      url: COURT_PIN_URL,
+      scaledSize: new google.maps.Size(26, 26),
+      anchor: new google.maps.Point(13, 13),
+    },
+  };
+}

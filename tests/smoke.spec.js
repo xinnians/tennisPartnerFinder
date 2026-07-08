@@ -51,9 +51,11 @@ const fakeMapsScript = `
       this.el.textContent = label || options.title || "marker";
       this.el.setAttribute("aria-label", "地圖圖釘 " + (options.title || label || "marker"));
       this.el.style.position = "absolute";
+      // top 134px 起跳:.map-top 濾鏡浮層高 124px(含可點擊的程度/類型 chips),
+      // 格網要落在它下方,否則 chips 會攔截底圖/overlay pin 的點擊。
       const i = markers.length;
       this.el.style.left = 8 + (i % 24) * 15 + "px";
-      this.el.style.top = 70 + Math.floor(i / 24) * 22 + "px";
+      this.el.style.top = 134 + Math.floor(i / 24) * 24 + "px";
       this.el.style.width = "12px";
       this.el.style.height = "12px";
       this.el.style.overflow = "hidden";
@@ -194,6 +196,32 @@ test("external demand pins keep the source-link flow", async ({ page }) => {
   await expect(page.getByText("查看原貼文")).toBeVisible();
   await expect(page.locator("#sheet-root")).not.toContainText("快速約球");
   await expect(page.locator("#sheet-root")).not.toContainText("回應需求");
+});
+
+test("court base pins render under every court and open the drawer without clashing with overlay pins", async ({ page }) => {
+  const runtimeErrors = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") runtimeErrors.push(msg.text());
+  });
+  page.on("pageerror", (err) => runtimeErrors.push(err.message));
+
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
+
+  // 底圖釘(title 前綴「球場 」)與 overlay 釘(球友/需求/聚合)aria-label 不同字串,
+  // strict-mode 不應互相衝突。
+  await expect(page.getByRole("button", { name: /^地圖圖釘 大佳河濱公園網球場$/ })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /^地圖圖釘 球場 大佳河濱公園網球場$/ })).toHaveCount(1);
+
+  // 青年公園網球場 mock 資料:1 位球友(Momo)+ 3 則需求(d2/d5/d6)= 4 筆
+  await page.getByRole("button", { name: /地圖圖釘 球場 青年公園網球場/ }).click();
+  await expect(page.locator(".drawer__court")).toHaveText("青年公園網球場");
+  await expect(page.locator(".drawer__sub")).toContainText("萬華區");
+  await expect(page.locator(".drawer__item")).toHaveCount(4);
+
+  expect(runtimeErrors).toEqual([]);
 });
 
 test("falls back to the placeholder when Google Maps auth fails", async ({ page }) => {

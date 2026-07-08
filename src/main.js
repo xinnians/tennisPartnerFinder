@@ -5,7 +5,7 @@ import "./style.css";
 import { GOOGLE_MAPS_API_KEY, MAP_CENTER, MAP_ZOOM } from "./config.js";
 import { COURTS, REGISTERED_PLAYERS, DEMAND_PINS } from "./mockData.js";
 import { BANDS, TYPES, DEFAULT_FILTER_STATE, filterData } from "./filters.js";
-import { loadGoogleMaps, createMap, groupPinsByCourt, renderPins } from "./map.js";
+import { loadGoogleMaps, createMap, groupPinsByCourt, renderPins, renderCourtBasePins } from "./map.js";
 import {
   openPlayerSheet,
   openDemandSheet,
@@ -64,6 +64,7 @@ const state = {
 let google = null;
 let map = null;
 let markers = [];
+let baseMarkers = [];
 
 // ------------------------------------------------------------
 // 圖釘互動(球友 sheet → 快速聯絡 modal)
@@ -247,6 +248,18 @@ function refreshPins() {
   markers = renderPins(google, map, groups, pinHandlers, markers);
 }
 
+// 球場底圖釘池:只在 courts 可能變動的地方重建(init 建圖後、資料重新整理後)。
+// refreshPins() 篩選重繪不碰這裡,避免 110+ 顆底圖 marker 被篩選 chip 反覆重建。
+function refreshBasePins() {
+  if (!map) return;
+  baseMarkers = renderCourtBasePins(google, map, courts, openCourtFromBasePin, baseMarkers);
+}
+
+function openCourtFromBasePin(court) {
+  const groups = groupPinsByCourt([court], filterData(dataSet, state.filters));
+  openCourtDrawer(court, groups[0]?.items ?? [], pinHandlers);
+}
+
 function setupLevelPopover() {
   const chip = document.getElementById("level-chip");
   const dim = document.getElementById("level-dim");
@@ -356,6 +369,7 @@ async function loadAppData() {
 async function refreshDataAndPins() {
   await loadAppData();
   refreshPins();
+  refreshBasePins();
 }
 
 async function startPublishRequest() {
@@ -682,6 +696,7 @@ async function init() {
     });
     map = createMap(google, document.getElementById("map"));
     refreshPins();
+    refreshBasePins();
   } catch (err) {
     console.error(err);
     showPlaceholder();

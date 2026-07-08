@@ -61,9 +61,11 @@ const fakeMapsScript = `
       this.el.textContent = label || options.title || "marker";
       this.el.setAttribute("aria-label", "地圖圖釘 " + (options.title || label || "marker"));
       this.el.style.position = "absolute";
+      // top 134px 起跳:.map-top 濾鏡浮層高 124px(含可點擊的程度/類型 chips),
+      // 格網要落在它下方,否則 chips 會攔截底圖/overlay pin 的點擊。
       const i = markers.length;
       this.el.style.left = 8 + (i % 24) * 15 + "px";
-      this.el.style.top = 70 + Math.floor(i / 24) * 22 + "px";
+      this.el.style.top = 134 + Math.floor(i / 24) * 24 + "px";
       this.el.style.width = "12px";
       this.el.style.height = "12px";
       this.el.style.overflow = "hidden";
@@ -578,4 +580,31 @@ test("profile court picker searches a New Taipei court, saves, and survives relo
   await page.reload();
   await page.getByRole("button", { name: /個人檔案/ }).click();
   await expect(page.locator("#prof-courts .court-chip", { hasText: newTaipeiCourt.name })).toBeVisible();
+});
+
+test("court base pin for a court with no players or demands shows name, district, and an empty state", async ({
+  page,
+}) => {
+  const catalog = JSON.parse(readFileSync("data/courts.json", "utf-8"));
+  // index 1(而非第一筆)——第一筆新北市球場已被前一則測試存成球友的私人常打球場,
+  // 這裡要挑一座完全沒被寫入過 profile_courts / partner_requests 的球場。
+  const emptyCourt = catalog.courts.filter((c) => c.city === "新北市")[1];
+  if (!emptyCourt) throw new Error("data/courts.json 新北市球場不足,無法驗證空狀態");
+
+  const runtimeErrors = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") runtimeErrors.push(msg.text());
+  });
+  page.on("pageerror", (err) => runtimeErrors.push(err.message));
+
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.getByRole("button", { name: `地圖圖釘 球場 ${emptyCourt.name}` }).click();
+  await expect(page.locator(".drawer__court")).toHaveText(emptyCourt.name);
+  await expect(page.locator(".drawer__sub")).toHaveText(emptyCourt.district);
+  await expect(page.locator(".drawer__empty")).toHaveText("這座球場還沒有球友或徵求");
+  await expect(page.locator(".drawer__item")).toHaveCount(0);
+
+  expect(runtimeErrors).toEqual([]);
 });

@@ -2,7 +2,7 @@
 //  Google Maps 載入、鼠尾草色系地圖樣式、圖釘/聚合釘繪製
 // ============================================================
 import { MAP_CENTER, MAP_ZOOM } from "./config.js";
-import { playerPin, demandPin, clusterPin } from "./pins.js";
+import { playerPin, demandPin, clusterPin, courtPin } from "./pins.js";
 
 // 進行中的載入 Promise:同時(或 HMR 後)再呼叫 loadGoogleMaps 時
 // 直接重用,避免重複注入 maps script
@@ -130,6 +130,22 @@ export function renderPins(google, map, groups, handlers, oldMarkers = []) {
       zIndex: g.items.length > 1 ? 40 : g.items[0].kind === "player" ? 30 : 20,
     });
     marker.addListener("click", onTap);
+    return marker;
+  });
+}
+
+// 球場底圖釘:每座 active 球場一顆,只在資料變動時重建(不進 refreshPins 的篩選重繪池)。
+export function renderCourtBasePins(google, map, courts, onCourtTap, oldMarkers = []) {
+  oldMarkers.forEach((m) => m.setMap(null));
+  return courts.map((court) => {
+    const marker = new google.maps.Marker({
+      map,
+      position: { lat: court.lat, lng: court.lng },
+      icon: courtPin(google).icon,
+      title: `球場 ${court.name}`,
+      zIndex: 10,
+    });
+    marker.addListener("click", () => onCourtTap(court));
     return marker;
   });
 }
