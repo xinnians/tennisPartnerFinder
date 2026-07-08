@@ -121,7 +121,7 @@ test("loads, uses quick contact, and saves profile", async ({ page }) => {
   await expect(page.getByText("已儲存")).toBeVisible();
 
   await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 大佳河濱公園網球場/ }).click();
   await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Amber");
   await expect(page.locator("#sheet-root")).not.toContainText("amber.tw");
   await expect(page.getByRole("button", { name: "快速約球" })).toBeVisible();
@@ -133,7 +133,7 @@ test("loads, uses quick contact, and saves profile", async ({ page }) => {
   await page.getByLabel("暱稱").fill("Me");
   await page.getByPlaceholder("輸入你的 LINE ID").fill("my_line_id");
   await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大安森林公園網球場/ }).click();
+  await page.getByRole("button", { name: /地圖圖釘 大佳河濱公園網球場/ }).click();
   await page.getByRole("button", { name: "快速約球" }).click();
 
   await expect(page.getByText("快速約球給")).toBeVisible();
@@ -154,9 +154,9 @@ test("external demand pins keep the source-link flow", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");
 
-  await page.getByRole("button", { name: /地圖圖釘 中正網球中心/ }).evaluate((el) => el.click());
+  await page.getByRole("button", { name: /地圖圖釘 古亭河濱公園網球場/ }).evaluate((el) => el.click());
 
-  await expect(page.getByText("中正網球中心 附近")).toBeVisible();
+  await expect(page.getByText("古亭河濱公園網球場 附近")).toBeVisible();
   await expect(page.getByText("查看原貼文")).toBeVisible();
   await expect(page.locator("#sheet-root")).not.toContainText("快速約球");
   await expect(page.locator("#sheet-root")).not.toContainText("回應需求");

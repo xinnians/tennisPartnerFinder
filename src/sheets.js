@@ -2,7 +2,6 @@
 //  底部卡片(球友/需求 sheet)、球場抽屜、快速聯絡 modal
 //  版面與樣式對照設計檔的 PIN SHEETS / CLUSTER DRAWER / INVITE MODAL
 // ============================================================
-import { districtOf } from "./mockData.js";
 import { esc, safeUrl, sourceLabel } from "./util.js";
 
 const sheetRoot = () => document.getElementById("sheet-root");
@@ -36,7 +35,7 @@ export function openPlayerSheet(p, { onQuickContact, onReport }) {
         <div class="avatar" style="width:56px;height:56px;font-size:24px">${esc(p.displayName.slice(0, 1))}</div>
         <div style="flex:1;min-width:0">
           <div class="psheet__nick">${esc(p.displayName)}</div>
-          <div class="psheet__sub">${esc(districtOf(p.homeCourt))}・常打 ${esc(p.homeCourt)}</div>
+          <div class="psheet__sub">${esc(p.courtDistrict)}・常打 ${esc(p.homeCourt)}</div>
         </div>
         <div class="ntrp-box">
           <span class="ntrp-box__label">NTRP</span>
@@ -84,7 +83,7 @@ export function openDemandSheet(d, { onReport } = {}) {
         <div class="demand-face" style="width:36px;height:36px;font-size:15px">徵</div>
         <div style="flex:1">
           <div class="dsheet__court">${esc(d.court)} 附近</div>
-          <div class="dsheet__sub">${esc(districtOf(d.court))}・有人在徵球伴</div>
+          <div class="dsheet__sub">${esc(d.courtDistrict)}・有人在徵球伴</div>
         </div>
       </div>
       <div class="dsheet__level"><small>大概程度</small><b>${esc(skill)}</b></div>
