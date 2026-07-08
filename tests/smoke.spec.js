@@ -143,7 +143,7 @@ test("loads, uses quick contact, and saves profile", async ({ page }) => {
   await expect(page.getByRole("button", { name: "複製 LINE ID" })).toBeVisible();
   await expect(page.getByRole("button", { name: "複製開場白" })).toBeVisible();
   await page.getByRole("button", { name: "週三晚上" }).click();
-  await expect(page.locator(".contact-opener")).toContainText("大安森林公園網球場");
+  await expect(page.locator(".contact-opener")).toContainText("青年公園網球場");
   await expect(page.locator(".contact-opener")).toContainText("週三晚上");
   await expect(page.locator(".contact-opener")).toContainText("3.5");
 
