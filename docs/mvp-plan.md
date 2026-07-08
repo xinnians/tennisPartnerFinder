@@ -148,6 +148,11 @@ env is not configured, it still falls back to `src/mockData.js`.
     底圖 pin（`src/pins.js`／`src/map.js`）。`src/mockData.js` 的 6 座 mock
     demo 資料同步校真，維持與新 courts.json 一致的真實名稱。
   - `npm test` 一路維持 21/21 綠。
+  - Hosted 已套用並驗證（2026-07-08）：`npx supabase db push` 後
+    `migration list` 顯示 `202607080001` local=remote；REST
+    `Prefer: count=exact` 回 `content-range: 0-81/82`（active=82=資料檔筆數）；
+    虛構三座逐一查詢皆回 `[]`（anon 不可見），青年公園網球場可見。
+    自此 `202607080001` migration 不可再改（目錄更新一律換新 stamp 重生）。
 
 ## Product Principles
 
