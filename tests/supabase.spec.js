@@ -60,8 +60,13 @@ const fakeMapsScript = `
       this.el.textContent = label || options.title || "marker";
       this.el.setAttribute("aria-label", "地圖圖釘 " + (options.title || label || "marker"));
       this.el.style.position = "absolute";
-      this.el.style.left = 20 + markers.length * 12 + "px";
-      this.el.style.top = 120 + markers.length * 8 + "px";
+      const i = markers.length;
+      this.el.style.left = 8 + (i % 24) * 15 + "px";
+      this.el.style.top = 70 + Math.floor(i / 24) * 22 + "px";
+      this.el.style.width = "12px";
+      this.el.style.height = "12px";
+      this.el.style.overflow = "hidden";
+      this.el.style.padding = "0";
       this.el.style.zIndex = String(options.zIndex || 1);
       markers.push(this);
       this.map?.el?.appendChild(this.el);
