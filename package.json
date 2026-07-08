@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "pretest": "node scripts/generate-courts-seed.mjs --check",
     "test": "playwright test"
   },
   "devDependencies": {

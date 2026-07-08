@@ -141,12 +141,12 @@ insert into public.partner_requests (
   request_text,
   expires_at
 )
-select 9001, c.id, '週六下午', '想找 3.5 左右球友對拉', now() + interval '7 days'
+select 9001, c.id, '週六下午', '__pgtap_想找 3.5 左右球友對拉', now() + interval '7 days'
 from public.courts c
 where c.name = '青年公園網球場';
 
 select is(
-  (select count(*) from public.partner_requests where request_text = '想找 3.5 左右球友對拉'),
+  (select count(*) from public.partner_requests where request_text = '__pgtap_想找 3.5 左右球友對拉'),
   1::bigint,
   'authenticated owner can create their own partner request'
 );
