@@ -397,7 +397,21 @@ export function openPublishRequestModal(courts, { onSubmit }) {
       <div class="modal-field">
         <label class="modal-field__label" for="request-court">球場</label>
         <select id="request-court" name="courtId" required>
-          ${courts.map((court) => `<option value="${esc(String(court.id ?? court.name))}">${esc(court.name)}</option>`).join("")}
+          ${Array.from(
+            courts.reduce((groups, court) => {
+              const district = court.district || "其他";
+              if (!groups.has(district)) groups.set(district, []);
+              groups.get(district).push(court);
+              return groups;
+            }, new Map()),
+          )
+            .map(
+              ([district, group]) => `
+            <optgroup label="${esc(district)}">
+              ${group.map((court) => `<option value="${esc(String(court.id ?? court.name))}">${esc(court.name)}</option>`).join("")}
+            </optgroup>`,
+            )
+            .join("")}
         </select>
       </div>
       <div class="modal-field">

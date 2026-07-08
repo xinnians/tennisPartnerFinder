@@ -661,10 +661,14 @@ function showPlaceholder() {
   for (const court of courts) {
     const players = dataSet.players.filter((p) => p.homeCourt === court.name).length;
     const demands = dataSet.demands.filter((d) => d.court === court.name).length;
+    if (players === 0 && demands === 0) continue; // 只列有球友/需求的球場
     const li = document.createElement("li");
     li.textContent = `${court.name}(${court.district})— 球友 ${players} 位・需求 ${demands} 則`;
     list.appendChild(li);
   }
+  const summary = document.createElement("li");
+  summary.textContent = `共 ${courts.length} 座球場`;
+  list.appendChild(summary);
   placeholder.hidden = false;
 }
 
