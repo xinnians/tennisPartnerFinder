@@ -1,6 +1,9 @@
 import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const LOCAL_API_URL = "http://127.0.0.1:54321";
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function fail(message) {
   console.error(`Local reset refused: ${message}`);
@@ -21,9 +24,9 @@ function parseEnvironment(output) {
 
 function runNpx(args, options = {}) {
   return spawnSync("npx", args, {
-    cwd: process.cwd(),
-    encoding: "utf8",
     ...options,
+    cwd: repositoryRoot,
+    encoding: "utf8",
   });
 }
 

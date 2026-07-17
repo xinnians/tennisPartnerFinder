@@ -6,6 +6,13 @@ function asDate(value) {
   return date;
 }
 
+function requireCourtId(courtId) {
+  if (!Number.isSafeInteger(courtId) || courtId <= 0) {
+    throw new Error("Session fixture requires a positive court ID");
+  }
+  return courtId;
+}
+
 export function createIsoSafeRunId(now = new Date(), suffix = Math.random().toString(36).slice(2, 10)) {
   const timestamp = asDate(now).toISOString().replace(/[-:.]/g, "");
   const safeSuffix = String(suffix).toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -36,10 +43,10 @@ export function createSessionTestContext({ now = new Date(), suffix } = {}) {
   };
 }
 
-export function createFutureSessionInput({ now = new Date(), startAt, ...overrides } = {}) {
+export function createFutureSessionInput({ now = new Date(), startAt, courtId, ...overrides } = {}) {
   const current = asDate(now);
   return {
-    courtId: null,
+    courtId: requireCourtId(courtId),
     startAt: startAt ?? new Date(current.getTime() + 24 * HOUR_MS).toISOString(),
     playType: "單打",
     ntrpMin: 3.0,
@@ -65,9 +72,10 @@ export async function callSessionRpc(client, name, args) {
   return data;
 }
 
-export function createSessionViaRpc(client, session) {
+export async function createSessionViaRpc(client, session) {
+  const courtId = requireCourtId(session?.courtId);
   return callSessionRpc(client, "create_session", {
-    p_court_id: session.courtId,
+    p_court_id: courtId,
     p_start_at: session.startAt,
     p_play_type: session.playType,
     p_ntrp_min: session.ntrpMin,
