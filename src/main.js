@@ -123,6 +123,7 @@ function renderDiscovery(view) {
     sessions: view.sessions,
     expanded: view.expanded,
     hasUserLocation: view.hasUserLocation,
+    mapStatus: view.mapStatus,
     onToggle: controller.setDrawerExpanded,
     onOpenSession: controller.openSession,
     onReset: controller.resetFilters,

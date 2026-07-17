@@ -216,6 +216,32 @@ test("mock sessions and discovery payloads are future, local-demo-only SessionSu
   assert.deepEqual(sortedKeys(discovery[0]), [...SESSION_SUMMARY_KEYS].sort());
   assert.equal("lineId" in discovery[0], false);
   assert.equal("profileId" in discovery[0], false);
+
+  const taintedMock = {
+    ...MOCK_SESSIONS[0],
+    hostProfileId: "TAINT_HOST_PROFILE_ID",
+    lineId: "TAINT_LINE_ID",
+    profileId: "TAINT_PROFILE_ID",
+    profileUrl: "TAINT_PROFILE_URL",
+    realName: "TAINT_REAL_NAME",
+    sourceUrl: "TAINT_SOURCE_URL",
+    usualCourts: "TAINT_USUAL_COURTS",
+  };
+  const taintedDiscovery = await createDataApi({ configured: false, mockSessions: [taintedMock] }).loadSessionDiscovery({
+    bounds: { south: 24.95, west: 121.43, north: 25.18, east: 121.67 },
+  });
+  const capturedPublicJson = JSON.stringify(taintedDiscovery);
+  for (const value of [
+    "TAINT_HOST_PROFILE_ID",
+    "TAINT_LINE_ID",
+    "TAINT_PROFILE_ID",
+    "TAINT_PROFILE_URL",
+    "TAINT_REAL_NAME",
+    "TAINT_SOURCE_URL",
+    "TAINT_USUAL_COURTS",
+  ]) {
+    assert.doesNotMatch(capturedPublicJson, new RegExp(value));
+  }
 });
 
 test("session filters use Taipei local date, range overlap, and preserve source order", () => {
@@ -439,6 +465,7 @@ test("RPC failures are exposed as documented action codes", async () => {
 
 test("session creation, reporting, and profile save use only their RPC contracts", async () => {
   const rpcCalls = [];
+  const ephemeralLocation = { lat: 25.031234, lng: 121.551234 };
   const profileRow = {
     nickname: "安全表單",
     ntrp: 3.5,
@@ -497,11 +524,12 @@ test("session creation, reporting, and profile save use only their RPC contracts
       ntrpMax: 4,
       slotsTotal: 1,
       notes: "safe note",
+      location: ephemeralLocation,
     }),
     { sessionId: 81 }
   );
   assert.deepEqual(
-    await api.createReport({ sessionId: 81, reportedProfileId: null, reason: "reason" }),
+    await api.createReport({ sessionId: 81, reportedProfileId: null, reason: "reason", location: ephemeralLocation }),
     { reportId: 91 }
   );
   const saved = await api.saveCurrentProfile({
@@ -512,6 +540,7 @@ test("session creation, reporting, and profile save use only their RPC contracts
     types: new Set(["單打"]),
     slots: new Set(["we-m"]),
     share: true,
+    location: ephemeralLocation,
   });
 
   assert.deepEqual(saved.courts, new Set(["青年公園網球場"]));
@@ -542,6 +571,8 @@ test("session creation, reporting, and profile save use only their RPC contracts
       },
     ],
   ]);
+  const capturedMutationJson = JSON.stringify(rpcCalls);
+  assert.doesNotMatch(capturedMutationJson, /25\.031234|121\.551234/);
 });
 
 test("data API contains no direct browser lifecycle or profile-join writes", async () => {

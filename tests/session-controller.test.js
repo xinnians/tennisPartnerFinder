@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
 import { createSessionController } from "../src/sessionController.js";
 
 function deferred() {
@@ -41,6 +42,10 @@ function flush() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function withNavigatorGeolocation(geolocation, run) {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: { geolocation } });
@@ -77,8 +82,16 @@ function createHarness(overrides = {}) {
       opened.push({ detail, handlers, session: openedSession });
       return detail;
     },
-    openJoinConfirmation: (openedSession, handlers) => confirmations.push({ handlers, session: openedSession }),
-    openCourtDrawer: (court, sessions, handlers) => courtDrawers.push({ court, handlers, sessions }),
+    openJoinConfirmation: (openedSession, handlers) => {
+      const detail = { closeCalls: 0, close() { this.closeCalls += 1; } };
+      confirmations.push({ detail, handlers, session: openedSession });
+      return detail;
+    },
+    openCourtDrawer: (court, sessions, handlers) => {
+      const detail = { closeCalls: 0, close() { this.closeCalls += 1; } };
+      courtDrawers.push({ court, detail, handlers, sessions });
+      return detail;
+    },
     toast: (message) => toasts.push(message),
   });
   return { api, confirmations, controller, courtDrawers, opened, pinBatches, renders, session, toasts };
@@ -264,6 +277,66 @@ test("a bounds refresh clears stale cards and pins until the newest discovery re
   assert.deepEqual(harness.renders.at(-1).sessions.map((item) => item.sessionId), [2]);
 });
 
+test("authoritative discovery changes close a detail whose session fields are now stale", async () => {
+  let discoveryCall = 0;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () =>
+        discoveryCall++ === 0 ? [futureSession({ slotsRemaining: 1, status: "open" })] : [futureSession({ slotsRemaining: 0, status: "full" })],
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  const staleDetail = openAction(harness);
+  assert.equal(staleDetail.handlers.action.label, "申請加入");
+
+  await harness.controller.retryDiscovery();
+  assert.equal(staleDetail.detail.closeCalls, 1, "an obsolete CTA is not left interactive after a refresh");
+
+  const freshDetail = openAction(harness);
+  assert.equal(freshDetail.handlers.action.label, "已額滿");
+  assert.equal(freshDetail.handlers.action.disabled, true);
+});
+
+test("a session disappearing from the same viewport closes its stale public detail", async () => {
+  let discoveryCall = 0;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () => (discoveryCall++ === 0 ? [futureSession()] : []),
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  const staleDetail = openAction(harness);
+  await harness.controller.retryDiscovery();
+
+  assert.equal(staleDetail.detail.closeCalls, 1, "a cancelled or expired session cannot keep its old CTA open");
+});
+
+test("a viewport refresh closes an active court drawer before its stale cards can target cleared sessions", async () => {
+  const initial = deferred();
+  const refresh = deferred();
+  let discoveryCall = 0;
+  const session = futureSession({ courtId: 8 });
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: () => (discoveryCall++ === 0 ? initial.promise : refresh.promise),
+    },
+  });
+
+  const firstLoad = harness.controller.loadDiscovery();
+  initial.resolve([session]);
+  await firstLoad;
+  harness.controller.openCourt({ id: 8, name: "示範球場" });
+  const courtDrawer = harness.courtDrawers.at(-1);
+  assert.deepEqual(courtDrawer.sessions.map((item) => item.sessionId), [session.sessionId]);
+
+  const secondLoad = harness.controller.loadDiscovery({ south: 25.1, west: 121.6, north: 25.12, east: 121.62 });
+  assert.equal(courtDrawer.detail.closeCalls, 1, "stale court cards are removed while the new viewport is loading");
+  refresh.resolve([]);
+  await secondLoad;
+});
+
 test("auth epochs clear stale participation on logout and account switches", async () => {
   const pendingParticipation = [];
   const harness = createHarness({
@@ -295,6 +368,461 @@ test("auth epochs clear stale participation on logout and account switches", asy
   await accountA;
   detail = openAction(harness);
   assert.equal(detail.handlers.action.label, "查看聯絡方式");
+});
+
+test("a delayed participation refresh closes a detail whose CTA would otherwise become stale", async () => {
+  const participation = deferred();
+  const harness = createHarness({
+    api: { loadMySessions: () => participation.promise },
+  });
+
+  await harness.controller.loadDiscovery();
+  const authUpdate = harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await flush();
+  const staleDetail = openAction(harness);
+  assert.equal(staleDetail.handlers.action.label, "申請加入");
+
+  participation.resolve([{ sessionId: 41, viewerParticipantStatus: "requested" }]);
+  await authUpdate;
+  assert.equal(staleDetail.detail.closeCalls, 1, "the old join CTA is removed once participation is authoritative");
+});
+
+test("an account switch closes an open detail before its stale participation action survives", async () => {
+  let participationLoad = 0;
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => {
+        participationLoad += 1;
+        return participationLoad === 1 ? [{ sessionId: 41, viewerParticipantStatus: "requested" }] : [];
+      },
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  const staleDetail = openAction(harness);
+  assert.equal(staleDetail.handlers.action.label, "申請等待中");
+
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+  assert.equal(staleDetail.detail.closeCalls, 1, "the prior account's detail closes synchronously");
+
+  const currentDetail = openAction(harness);
+  assert.equal(currentDetail.handlers.action.label, "申請加入");
+});
+
+test("an account switch invalidates a pending join confirmation before it can mutate for the next account", async () => {
+  let requestCalls = 0;
+  const harness = createHarness({
+    api: {
+      requestToJoinSession: async () => {
+        requestCalls += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  const detail = openAction(harness);
+  detail.handlers.onPrimary();
+  const staleConfirmation = harness.confirmations.at(-1);
+  assert.ok(staleConfirmation, "eligible account A can open a confirmation");
+
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+  assert.equal(staleConfirmation.detail.closeCalls, 1, "switching identity closes the pending confirmation");
+  await staleConfirmation.handlers.onConfirm(() => {});
+  assert.equal(requestCalls, 0, "a stale confirmation cannot send B's join RPC");
+});
+
+test("a same-account profile eligibility reset invalidates its pending join confirmation", async () => {
+  let requestCalls = 0;
+  const harness = createHarness({
+    api: {
+      requestToJoinSession: async () => {
+        requestCalls += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  const detail = openAction(harness);
+  detail.handlers.onPrimary();
+  const staleConfirmation = harness.confirmations.at(-1);
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, null);
+  assert.equal(staleConfirmation.detail.closeCalls, 1, "profile loading cannot leave a previously eligible confirmation open");
+  await staleConfirmation.handlers.onConfirm(() => {});
+  assert.equal(requestCalls, 0, "the stale handler re-checks profile eligibility before an RPC");
+});
+
+test("an in-flight join cannot refresh or announce success after its account changes", async () => {
+  const pendingJoin = deferred();
+  let discoveryCalls = 0;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () => {
+        discoveryCalls += 1;
+        return [futureSession()];
+      },
+      requestToJoinSession: () => pendingJoin.promise,
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const detail = openAction(harness);
+  detail.handlers.onPrimary();
+  const mutation = harness.confirmations.at(-1).handlers.onConfirm(() => {});
+  await flush();
+
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+  const discoveryCallsBeforeResolution = discoveryCalls;
+  pendingJoin.resolve({ outcome: "OK", reloadRequired: false });
+  await mutation;
+
+  assert.equal(discoveryCalls, discoveryCallsBeforeResolution, "A's completion does not reload B's UI state");
+  assert.equal(harness.toasts.includes("已送出申請。"), false);
+});
+
+test("an in-flight withdrawal cannot refresh or announce success after its account changes", async () => {
+  const pendingWithdrawal = deferred();
+  let discoveryCalls = 0;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () => {
+        discoveryCalls += 1;
+        return [futureSession()];
+      },
+      loadMySessions: async () => [{ sessionId: 41, viewerParticipantStatus: "requested" }],
+      withdrawFromSession: () => pendingWithdrawal.promise,
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const detail = openAction(harness);
+  const mutation = detail.handlers.onWithdraw();
+  await flush();
+
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+  const discoveryCallsBeforeResolution = discoveryCalls;
+  pendingWithdrawal.resolve({ outcome: "OK", reloadRequired: false });
+  await mutation;
+
+  assert.equal(discoveryCalls, discoveryCallsBeforeResolution, "A's completion does not reload B's UI state");
+  assert.equal(harness.toasts.includes("已撤回申請。"), false);
+});
+
+test("a dismissed join confirmation cannot start a second lifecycle RPC for the same account and session", async () => {
+  const pendingJoin = deferred();
+  let joinCalls = 0;
+  const harness = createHarness({
+    api: {
+      requestToJoinSession: () => {
+        joinCalls += 1;
+        return pendingJoin.promise;
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const detail = openAction(harness);
+  detail.handlers.onPrimary();
+  const confirmation = harness.confirmations.at(-1);
+  const mutation = confirmation.handlers.onConfirm(() => {});
+  await flush();
+  assert.equal(joinCalls, 1);
+
+  // The dialog can be dismissed while the network is pending. Reopening the
+  // same detail must not create another confirmation/RPC for this lifecycle.
+  confirmation.detail.close();
+  detail.handlers.onPrimary();
+  await flush();
+  assert.equal(harness.confirmations.length, 1);
+  assert.equal(joinCalls, 1);
+  assert.ok(harness.toasts.includes("這個球局的操作正在處理中。"));
+
+  pendingJoin.resolve({ outcome: "OK", reloadRequired: false });
+  await mutation;
+});
+
+test("a dismissed withdrawal sheet cannot start a second lifecycle RPC for the same account and session", async () => {
+  const pendingWithdrawal = deferred();
+  let withdrawalCalls = 0;
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [{ sessionId: 41, viewerParticipantStatus: "requested" }],
+      withdrawFromSession: () => {
+        withdrawalCalls += 1;
+        return pendingWithdrawal.promise;
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const firstDetail = openAction(harness);
+  const firstMutation = firstDetail.handlers.onWithdraw();
+  await flush();
+  assert.equal(withdrawalCalls, 1);
+
+  firstDetail.detail.close();
+  const reopenedDetail = openAction(harness);
+  const repeatedMutation = reopenedDetail.handlers.onWithdraw();
+  await flush();
+  assert.equal(withdrawalCalls, 1);
+  assert.ok(harness.toasts.includes("這個球局的操作正在處理中。"));
+
+  pendingWithdrawal.resolve({ outcome: "OK", reloadRequired: false });
+  await Promise.all([firstMutation, repeatedMutation]);
+});
+
+test("an in-flight join blocks a conflicting withdrawal for the same account and session", async () => {
+  const pendingJoin = deferred();
+  let withdrawalCalls = 0;
+  let participation = [];
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => participation,
+      requestToJoinSession: () => pendingJoin.promise,
+      withdrawFromSession: async () => {
+        withdrawalCalls += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const joinDetail = openAction(harness);
+  joinDetail.handlers.onPrimary();
+  const joinMutation = harness.confirmations.at(-1).handlers.onConfirm(() => {});
+  await flush();
+
+  // An external refresh can legitimately make the CTA look like a withdraw
+  // before the original join RPC settles. It must still remain one lifecycle.
+  participation = [{ sessionId: 41, viewerParticipantStatus: "requested" }];
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  const withdrawalDetail = openAction(harness);
+  assert.equal(withdrawalDetail.handlers.action.secondaryLabel, "撤回申請");
+  await withdrawalDetail.handlers.onWithdraw();
+  assert.equal(withdrawalCalls, 0);
+  assert.ok(harness.toasts.includes("這個球局的操作正在處理中。"));
+
+  pendingJoin.resolve({ outcome: "OK", reloadRequired: false });
+  await joinMutation;
+});
+
+test("a completed join closes only its own confirmation, not a newer confirmation for another session", async () => {
+  const pendingJoin = deferred();
+  const firstSession = futureSession({ sessionId: 41 });
+  const secondSession = futureSession({ sessionId: 42, court: "另一座示範球場" });
+  const harness = createHarness({
+    session: firstSession,
+    api: {
+      loadSessionDiscovery: async () => [firstSession, secondSession],
+      requestToJoinSession: () => pendingJoin.promise,
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const firstDetail = openAction(harness, firstSession.sessionId);
+  firstDetail.handlers.onPrimary();
+  const firstConfirmation = harness.confirmations.at(-1);
+  const firstMutation = firstConfirmation.handlers.onConfirm(() => {});
+  await flush();
+
+  firstConfirmation.detail.close();
+  const secondDetail = openAction(harness, secondSession.sessionId);
+  secondDetail.handlers.onPrimary();
+  const secondConfirmation = harness.confirmations.at(-1);
+  assert.notEqual(secondConfirmation, firstConfirmation);
+
+  pendingJoin.resolve({ outcome: "OK", reloadRequired: false });
+  await firstMutation;
+  assert.equal(secondConfirmation.detail.closeCalls, 0, "a stale completion must not close another session's confirmation");
+});
+
+test("a late map-ready location replay suppresses its own idle refresh", async () => {
+  const callbacks = [];
+  const discoveryBounds = [];
+  let idleCallback = null;
+  let mapReady = false;
+  const location = { lat: 25.06, lng: 121.58 };
+  const explicitBounds = { south: 25.02, west: 121.53, north: 25.1, east: 121.63 };
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async ({ bounds }) => {
+        discoveryBounds.push(bounds);
+        return [futureSession()];
+      },
+    },
+    mapTools: {
+      getMapBounds: () => ({ south: 25.019, west: 121.529, north: 25.101, east: 121.631 }),
+      setUserLocation(nextLocation) {
+        if (!mapReady) return null;
+        assert.deepEqual(nextLocation, location);
+        queueMicrotask(() => idleCallback?.());
+        return explicitBounds;
+      },
+      subscribeToMapIdle(_map, callback) {
+        idleCallback = callback;
+      },
+    },
+  });
+
+  await withNavigatorGeolocation(
+    {
+      getCurrentPosition(success, failure) {
+        callbacks.push({ failure, success });
+      },
+    },
+    async () => {
+      harness.controller.requestCurrentLocation();
+      callbacks[0].success({ coords: { latitude: location.lat, longitude: location.lng } });
+      await flush();
+      assert.equal(discoveryBounds.length, 0, "the unready map cannot issue a viewport query");
+
+      mapReady = true;
+      harness.controller.attachMap({});
+      await wait(MAP_IDLE_DEBOUNCE_MS + 40);
+    }
+  );
+
+  assert.equal(discoveryBounds.length, 1, "the location fit and its late idle share one discovery refresh");
+  assert.deepEqual(discoveryBounds[0], explicitBounds);
+});
+
+test("an explicit location viewport does not swallow a later manual map pan when no fit idle arrives", async () => {
+  const callbacks = [];
+  const discoveryBounds = [];
+  const explicitBounds = { south: 25.02, west: 121.53, north: 25.1, east: 121.63 };
+  const manualBounds = { south: 25.08, west: 121.61, north: 25.16, east: 121.71 };
+  let currentBounds = explicitBounds;
+  let idleCallback = null;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async ({ bounds }) => {
+        discoveryBounds.push(bounds);
+        return [futureSession()];
+      },
+    },
+    mapTools: {
+      getMapBounds: () => currentBounds,
+      setUserLocation: () => explicitBounds,
+      subscribeToMapIdle(_map, callback) {
+        idleCallback = callback;
+      },
+    },
+  });
+  harness.controller.attachMap({});
+
+  await withNavigatorGeolocation(
+    {
+      getCurrentPosition(success, failure) {
+        callbacks.push({ failure, success });
+      },
+    },
+    async () => {
+      harness.controller.requestCurrentLocation();
+      callbacks[0].success({ coords: { latitude: 25.06, longitude: 121.58 } });
+      await flush();
+    }
+  );
+  assert.deepEqual(discoveryBounds, [explicitBounds]);
+
+  // The fitBounds idle never arrives. A later human pan must still query its
+  // own viewport rather than be consumed as the missing explicit camera idle.
+  currentBounds = manualBounds;
+  idleCallback();
+  await wait(MAP_IDLE_DEBOUNCE_MS + 40);
+  assert.deepEqual(discoveryBounds, [explicitBounds, manualBounds]);
+});
+
+test("late idles from rapid explicit location moves do not duplicate discovery", async () => {
+  const callbacks = [];
+  const discoveryBounds = [];
+  const firstBounds = { south: 25.02, west: 121.53, north: 25.1, east: 121.63 };
+  const secondBounds = { south: 25.08, west: 121.6, north: 25.16, east: 121.7 };
+  let currentBounds = firstBounds;
+  let idleCallback = null;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async ({ bounds }) => {
+        discoveryBounds.push(bounds);
+        return [futureSession()];
+      },
+    },
+    mapTools: {
+      getMapBounds: () => currentBounds,
+      setUserLocation(location) {
+        return location.lat < 25.1 ? firstBounds : secondBounds;
+      },
+      subscribeToMapIdle(_map, callback) {
+        idleCallback = callback;
+      },
+    },
+  });
+  harness.controller.attachMap({});
+
+  await withNavigatorGeolocation(
+    {
+      getCurrentPosition(success, failure) {
+        callbacks.push({ failure, success });
+      },
+    },
+    async () => {
+      harness.controller.requestCurrentLocation();
+      callbacks[0].success({ coords: { latitude: 25.06, longitude: 121.58 } });
+      await flush();
+      harness.controller.requestCurrentLocation();
+      callbacks[1].success({ coords: { latitude: 25.12, longitude: 121.65 } });
+      await flush();
+    }
+  );
+  assert.deepEqual(discoveryBounds, [firstBounds, secondBounds]);
+
+  // Google can deliver both fitBounds idle events after the second move.
+  // Each expected viewport is already represented by its direct discovery.
+  currentBounds = firstBounds;
+  idleCallback();
+  await wait(MAP_IDLE_DEBOUNCE_MS + 40);
+  currentBounds = secondBounds;
+  idleCallback();
+  await wait(MAP_IDLE_DEBOUNCE_MS + 40);
+  assert.deepEqual(discoveryBounds, [firstBounds, secondBounds]);
+});
+
+test("expanding to Taipei treats the resulting camera idle as the same discovery refresh", async () => {
+  const discoveryBounds = [];
+  const fitBounds = { south: 24.95, west: 121.43, north: 25.18, east: 121.67 };
+  let idleCallback = null;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async ({ bounds }) => {
+        discoveryBounds.push(bounds);
+        return [futureSession()];
+      },
+    },
+    mapTools: {
+      fitTaipei: () => fitBounds,
+      getMapBounds: () => fitBounds,
+      subscribeToMapIdle(_map, callback) {
+        idleCallback = callback;
+      },
+    },
+  });
+  harness.controller.attachMap({});
+
+  await harness.controller.expandBounds();
+  assert.deepEqual(discoveryBounds, [fitBounds]);
+  idleCallback();
+  await wait(MAP_IDLE_DEBOUNCE_MS + 40);
+  assert.deepEqual(discoveryBounds, [fitBounds]);
 });
 
 test("base-court drawers receive the same locally filtered session set as pins and rows", async () => {

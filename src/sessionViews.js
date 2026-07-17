@@ -7,6 +7,30 @@ const dialogFocusable =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const drawerBindings = new WeakMap();
 const drawerIsolations = new WeakMap();
+const drawerFocusIntents = new WeakMap();
+
+function rememberFocusedSessionCard(root) {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !root.contains(active)) return;
+  const card = active.closest("[data-session-id]");
+  if (card?.dataset.sessionId) drawerFocusIntents.set(root, card.dataset.sessionId);
+}
+
+function restoreFocusedSessionCard(root) {
+  const sessionId = drawerFocusIntents.get(root);
+  if (!sessionId) return;
+  requestAnimationFrame(() => {
+    const active = document.activeElement;
+    const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
+    if (hasNewSurface || (active && active !== document.body && active !== document.documentElement)) return;
+    const card = [...root.querySelectorAll("[data-session-id]")].find(
+      (node) => String(node.dataset.sessionId) === String(sessionId)
+    );
+    if (!card) return;
+    drawerFocusIntents.delete(root);
+    card.focus({ preventScroll: true });
+  });
+}
 
 function taipeiDateTime(value) {
   const date = new Date(value);
@@ -69,7 +93,7 @@ function setDrawerModal(root, expanded) {
   if (backdrop) backdrop.hidden = !expanded;
 }
 
-function wireDrawerInteractions(root, { expanded, onToggle }) {
+function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle }) {
   drawerBindings.get(root)?.abort();
   const bindings = new AbortController();
   drawerBindings.set(root, bindings);
@@ -77,7 +101,17 @@ function wireDrawerInteractions(root, { expanded, onToggle }) {
   const panel = root.querySelector("[data-nearby-dialog]");
   const close = () => {
     onToggle(false);
-    requestAnimationFrame(() => document.getElementById("nearby-sessions-toggle")?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => {
+      const toggle = root.querySelector("#nearby-sessions-toggle");
+      const active = document.activeElement;
+      const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
+      // A user can move straight to a map pin before this deferred focus
+      // restoration runs. Never steal that newer target (or a newly opened
+      // sheet) just to restore the drawer's default opener.
+      if (!toggle || toggle.getAttribute("aria-expanded") !== "false" || hasNewSurface) return;
+      if (active && active !== document.body && active !== document.documentElement) return;
+      toggle.focus({ preventScroll: true });
+    });
   };
 
   if (expanded && panel) {
@@ -106,7 +140,17 @@ function wireDrawerInteractions(root, { expanded, onToggle }) {
       },
       { signal }
     );
-    requestAnimationFrame(() => panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true }));
+    if (focusOnOpen) {
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        const opener = root.querySelector("#nearby-sessions-toggle");
+        const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
+        // The drawer needs an initial keyboard target, but that deferred move
+        // must yield if the user already reached a card in the same frame.
+        if (hasNewSurface || (active && active !== document.body && active !== document.documentElement && active !== opener)) return;
+        panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
+      });
+    }
   }
 
   let pointerStart = null;
@@ -134,6 +178,7 @@ export function renderNearbySessionsDrawer(
     sessions = [],
     expanded = false,
     hasUserLocation = false,
+    mapStatus = { kind: "idle", message: "" },
     onToggle = () => {},
     onOpenSession = () => {},
     onReset = () => {},
@@ -144,12 +189,21 @@ export function renderNearbySessionsDrawer(
 ) {
   // A render replaces the toggle node. Release its old inert state first, then
   // apply a fresh layer to the newly rendered node below.
+  const wasExpanded = root.querySelector("#nearby-sessions-toggle")?.getAttribute("aria-expanded") === "true";
+  rememberFocusedSessionCard(root);
   setDrawerModal(root, false);
   const count = sessions.length;
   const summary = `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
   const nearest = sessions[0]
     ? `${taipeiDateTime(sessions[0].startAt)} · ${sessions[0].court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
     : "移動地圖或調整篩選條件，查看可加入的球局。";
+  const activeDrawerStatus =
+    expanded && mapStatus?.kind !== "idle" && mapStatus?.message
+      ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true">
+          <p>${esc(mapStatus.message)}</p>
+          ${mapStatus.kind === "error" ? '<button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button>' : ""}
+        </div>`
+      : "";
 
   root.innerHTML = `
     <button type="button" id="nearby-sessions-toggle" class="nearby-sessions__toggle" aria-expanded="${expanded}" aria-controls="nearby-sessions-list">
@@ -164,6 +218,7 @@ export function renderNearbySessionsDrawer(
         <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
         <button type="button" class="surface__close" data-nearby-close aria-label="關閉附近球局">×</button>
       </div>
+      ${activeDrawerStatus}
       <div class="nearby-sessions__cards">
         ${
           count
@@ -180,8 +235,10 @@ export function renderNearbySessionsDrawer(
   root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
   root.querySelector("#discovery-retry")?.addEventListener("click", onRetry);
+  root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
   setDrawerModal(root, expanded);
-  wireDrawerInteractions(root, { expanded, onToggle });
+  wireDrawerInteractions(root, { expanded, focusOnOpen: expanded && !wasExpanded, onToggle });
+  restoreFocusedSessionCard(root);
 }
 
 /** Render the standard session-only empty state in the active drawer. */
@@ -231,7 +288,23 @@ export function openSessionSheet(session, { action, onPrimary = () => {}, onWith
       </div>`,
   });
   mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
-  mounted.root.querySelector('[data-session-action="secondary"]')?.addEventListener("click", onWithdraw);
+  const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
+  let withdrawing = false;
+  secondaryButton?.addEventListener("click", async () => {
+    if (withdrawing) return;
+    withdrawing = true;
+    secondaryButton.disabled = true;
+    try {
+      await onWithdraw();
+    } finally {
+      // A successful withdrawal closes this sheet. Restore the button only
+      // after a recoverable failure while this exact surface still exists.
+      if (mounted.root.contains(secondaryButton)) {
+        withdrawing = false;
+        secondaryButton.disabled = false;
+      }
+    }
+  });
   return mounted;
 }
 
@@ -249,7 +322,23 @@ export function openJoinSessionConfirmation(session, { onConfirm = () => {} } = 
       <p class="surface__copy">送出後，主揪會在球局流程中處理申請。</p>
       <button type="button" class="session-primary" data-confirm-join>確認申請加入</button>`,
   });
-  mounted.root.querySelector("[data-confirm-join]")?.addEventListener("click", () => onConfirm(mounted.close));
+  const confirmButton = mounted.root.querySelector("[data-confirm-join]");
+  let submitting = false;
+  confirmButton?.addEventListener("click", async () => {
+    if (submitting) return;
+    submitting = true;
+    confirmButton.disabled = true;
+    try {
+      await onConfirm(mounted.close);
+    } finally {
+      // requestJoin keeps this dialog available after a recoverable failure;
+      // restore one deliberate retry only if this is still the mounted dialog.
+      if (mounted.root.contains(confirmButton)) {
+        submitting = false;
+        confirmButton.disabled = false;
+      }
+    }
+  });
   return mounted;
 }
 

@@ -3,6 +3,35 @@ import { expectWithinViewport, installFakeMaps, setFakeMapBounds } from "./fixtu
 
 const publicSurface = (page) => page.locator("#app");
 
+const TAINTED_PUBLIC_VALUES = [
+  "TAINT_LINE_ID",
+  "TAINT_PROFILE_ID",
+  "TAINT_HOST_PROFILE_ID",
+  "TAINT_REAL_NAME",
+  "TAINT_PROFILE_URL",
+  "TAINT_SOURCE_URL",
+  "TAINT_USUAL_COURTS",
+];
+
+async function installTaintedMockSessions(page) {
+  await page.route("**/src/mockData.js", async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    await route.fulfill({
+      response,
+      body: `${source}\nMOCK_SESSIONS.forEach((session) => Object.assign(session, {
+        lineId: "TAINT_LINE_ID",
+        profileId: "TAINT_PROFILE_ID",
+        hostProfileId: "TAINT_HOST_PROFILE_ID",
+        realName: "TAINT_REAL_NAME",
+        profileUrl: "TAINT_PROFILE_URL",
+        sourceUrl: "TAINT_SOURCE_URL",
+        usualCourts: "TAINT_USUAL_COURTS"
+      }));`,
+    });
+  });
+}
+
 async function installGeolocation(page, responses) {
   await page.addInitScript((nextResponses) => {
     let calls = 0;
@@ -103,6 +132,166 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
     markers.map((marker) => ({ title: marker.getAttribute("title"), aria: marker.getAttribute("aria-label") }))
   );
   expect(JSON.stringify(markerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("anonymous session artifacts strip tainted source fields from HTML, data attributes, markers, and captured JSON", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await installTaintedMockSessions(page);
+  await page.goto("/");
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
+
+  const captured = await page.evaluate(() => {
+    const attributeSnapshots = [...document.querySelectorAll("#app, #app *")].map((node) => ({
+      dataset: { ...node.dataset },
+      dataAttributes: [...node.attributes]
+        .filter((attribute) => attribute.name.startsWith("data-"))
+        .map((attribute) => [attribute.name, attribute.value]),
+    }));
+    const markerAttributes = [...document.querySelectorAll(".test-marker")].map((marker) => ({
+      ariaLabel: marker.getAttribute("aria-label"),
+      dataAttributes: [...marker.attributes]
+        .filter((attribute) => attribute.name.startsWith("data-"))
+        .map((attribute) => [attribute.name, attribute.value]),
+      title: marker.getAttribute("title"),
+    }));
+    return {
+      dataAttributes: attributeSnapshots,
+      html: document.getElementById("app")?.innerHTML ?? "",
+      mapSnapshot: window.__fakeMapsSnapshot(),
+      markerAttributes,
+    };
+  });
+
+  const capturedJson = JSON.stringify(captured);
+  for (const value of TAINTED_PUBLIC_VALUES) expect(capturedJson).not.toContain(value);
+  expect(captured.html).toContain("示範松果");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("closing the nearby drawer cannot steal focus from a newly selected base-court pin", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("[data-nearby-close]")).toBeFocused();
+  await page.keyboard.press("Escape");
+
+  const basePin = page.getByRole("button", { name: /地圖圖釘 球場 青年公園網球場/ });
+  await basePin.focus();
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  await expect(basePin).toBeFocused();
+
+  await basePin.press("Enter");
+  await expect(page.locator("#court-session-sheet")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(basePin).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("opening the nearby drawer cannot steal focus from an immediate session-card interaction", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  // Both actions happen before the drawer's deferred initial focus runs. A
+  // keyboard or assistive-tech user can similarly reach a card immediately.
+  await page.evaluate(() => {
+    document.getElementById("nearby-sessions-toggle")?.click();
+    document.querySelector("[data-testid='session-card']")?.focus();
+  });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  await expect(page.locator("[data-testid='session-card']").first()).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a pending join confirmation accepts only one intentional submission", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+    let releaseConfirmation;
+    window.__joinConfirmationCalls = 0;
+    window.__releaseJoinConfirmation = () => releaseConfirmation?.();
+    const pendingConfirmation = new Promise((resolve) => {
+      releaseConfirmation = resolve;
+    });
+    openJoinSessionConfirmation(
+      { court: "示範球場", startAt: "2026-07-19T01:00:00.000Z" },
+      {
+        onConfirm: async (close) => {
+          window.__joinConfirmationCalls += 1;
+          await pendingConfirmation;
+          close();
+        },
+      }
+    );
+  });
+
+  const confirm = page.locator("#join-session-confirmation [data-confirm-join]");
+  await expect(confirm).toBeVisible();
+  await page.evaluate(() => {
+    const button = document.querySelector("#join-session-confirmation [data-confirm-join]");
+    button?.click();
+    button?.click();
+  });
+  await expect.poll(() => page.evaluate(() => window.__joinConfirmationCalls)).toBe(1);
+  await expect(confirm).toBeDisabled();
+  await page.evaluate(() => window.__releaseJoinConfirmation());
+  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a pending withdrawal accepts only one intentional submission", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    let releaseWithdrawal;
+    window.__withdrawalCalls = 0;
+    window.__releaseWithdrawal = () => releaseWithdrawal?.();
+    const pendingWithdrawal = new Promise((resolve) => {
+      releaseWithdrawal = resolve;
+    });
+    openSessionSheet(
+      {
+        court: "示範球場",
+        courtDistrict: "大安區",
+        startAt: "2026-07-19T01:00:00.000Z",
+        playType: "單打",
+        ntrpMin: 3,
+        ntrpMax: 4,
+        slotsRemaining: 1,
+        hostNickname: "示範松果",
+        hostNtrp: 3.5,
+        hostProfileComplete: true,
+        notes: "測試",
+      },
+      {
+        action: { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請" },
+        onWithdraw: async () => {
+          window.__withdrawalCalls += 1;
+          await pendingWithdrawal;
+        },
+      }
+    );
+  });
+
+  const withdraw = page.locator("#session-sheet [data-session-action='secondary']");
+  await page.evaluate(() => {
+    const button = document.querySelector("#session-sheet [data-session-action='secondary']");
+    button?.click();
+    button?.click();
+  });
+  await expect.poll(() => page.evaluate(() => window.__withdrawalCalls)).toBe(1);
+  await expect(withdraw).toBeDisabled();
+  await page.evaluate(() => window.__releaseWithdrawal());
+  await expect(withdraw).toBeEnabled();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -208,6 +397,10 @@ test("location denial is non-repeating and Maps authentication fallback keeps di
   await page.goto("/");
 
   await expect(page.locator("#map-data-status")).toContainText("地圖目前無法使用");
+  const fallbackAnnouncement = page.locator("#nearby-sessions-list [role='status']");
+  await expect(fallbackAnnouncement).toContainText("地圖目前無法使用");
+  await expect(fallbackAnnouncement).toHaveAttribute("aria-live", "polite");
+  await expect(fallbackAnnouncement).toHaveJSProperty("inert", false);
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
   await page.keyboard.press("Escape");
@@ -292,6 +485,29 @@ test("a discovery rerender cannot let an underlying drawer overtake a sheet moda
   await expect(page.locator("#tab-map")).toHaveJSProperty("inert", true);
   await page.keyboard.press("Escape");
   await expect(page.locator("#nearby-sessions-list")).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("drawer-card focus survives discovery rerenders and remains a logical sheet restore target", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  const card = page.locator("[data-testid='session-card']").first();
+  await card.focus();
+  await setFakeMapBounds(page, { south: 25.0, west: 121.49, north: 25.1, east: 121.61 });
+  await page.waitForTimeout(310);
+
+  const rerenderedCard = page.locator("[data-testid='session-card']").first();
+  await expect(rerenderedCard).toBeFocused();
+  await rerenderedCard.press("Enter");
+  await expect(page.locator("#session-sheet")).toBeVisible();
+
+  await setFakeMapBounds(page, { south: 25.0, west: 121.49, north: 25.1, east: 121.61 });
+  await page.waitForTimeout(310);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-testid='session-card']").first()).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });
 

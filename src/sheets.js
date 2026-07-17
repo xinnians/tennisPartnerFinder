@@ -12,11 +12,28 @@ function focusableNodes(surface) {
   );
 }
 
+function captureRestoreTarget(node) {
+  if (!(node instanceof HTMLElement)) return null;
+  const sessionId = node.dataset?.sessionId ?? null;
+  const drawer = node.closest("#nearby-sessions-drawer");
+  return { drawerId: drawer?.id ?? null, node, sessionId };
+}
+
+function resolveRestoreTarget(target) {
+  if (!target) return null;
+  if (target.node?.isConnected) return target.node;
+  if (!target.sessionId) return null;
+  const scope = target.drawerId ? document.getElementById(target.drawerId) : document;
+  return [...scope.querySelectorAll("[data-session-id]")].find(
+    (node) => String(node.dataset.sessionId) === String(target.sessionId)
+  );
+}
+
 function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
   const active = surfaces.get(root);
   // When a detail replaces a court sheet in the same root, retain the court
   // opener rather than the card about to be removed with the old surface.
-  const previousFocus = active?.restoreFocus ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const previousFocus = active?.restoreFocus ?? captureRestoreTarget(document.activeElement);
   closeSurface(root, { restoreFocus: false });
   root.innerHTML = `
     <div class="surface-backdrop" data-surface-dismiss></div>
@@ -39,7 +56,7 @@ function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
     releaseIsolation();
     root.innerHTML = "";
     surfaces.delete(root);
-    if (restoreFocus && previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    if (restoreFocus) resolveRestoreTarget(previousFocus)?.focus({ preventScroll: true });
   };
 
   const onKeyDown = (event) => {
