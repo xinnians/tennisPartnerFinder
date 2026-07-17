@@ -109,7 +109,7 @@ begin
 end;
 $$;
 
-select plan(212);
+select plan(224);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -1991,6 +1991,153 @@ select is(
   (select count(*) from public.session_participants where session_id = current_setting('pgtap.host_cascade_session_id')::bigint),
   0::bigint,
   'parent session deletion removes its host participant through the FK cascade'
+);
+
+-- A guest can disappear through either approved profile cascade while its
+-- session remains. The delete invariant must distinguish those FK cascades
+-- from a raw participant-row deletion.
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  created_at,
+  updated_at,
+  raw_app_meta_data,
+  raw_user_meta_data
+)
+values
+  ('00000000-0000-0000-0000-000000001008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'session-profile-cascade@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000001009', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'session-auth-cascade@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+insert into public.profiles (user_id, nickname, ntrp, line_id)
+values
+  ('00000000-0000-0000-0000-000000001008', 'Profile Cascade Guest', 3.0, 'profile_cascade_line'),
+  ('00000000-0000-0000-0000-000000001009', 'Auth Cascade Guest', 3.0, 'auth_cascade_line')
+on conflict (user_id) do nothing;
+
+select set_config(
+  'pgtap.profile_cascade_profile_id',
+  (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000001008'),
+  true
+);
+select set_config(
+  'pgtap.auth_cascade_profile_id',
+  (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000001009'),
+  true
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select set_config(
+  'pgtap.profile_cascade_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '20 days', 3.0, 5.0, 2, '__pgtap_profile_cascade_session__'
+  )::text,
+  true
+);
+reset role;
+
+insert into public.session_participants (session_id, profile_id, role, status)
+values
+  (
+    current_setting('pgtap.profile_cascade_session_id')::bigint,
+    current_setting('pgtap.profile_cascade_profile_id')::bigint,
+    'guest',
+    'requested'
+  ),
+  (
+    current_setting('pgtap.profile_cascade_session_id')::bigint,
+    current_setting('pgtap.auth_cascade_profile_id')::bigint,
+    'guest',
+    'requested'
+  );
+
+select set_config(
+  'pgtap.profile_cascade_participant_id',
+  (
+    select id::text
+    from public.session_participants
+    where session_id = current_setting('pgtap.profile_cascade_session_id')::bigint
+      and profile_id = current_setting('pgtap.profile_cascade_profile_id')::bigint
+  ),
+  true
+);
+select set_config(
+  'pgtap.auth_cascade_participant_id',
+  (
+    select id::text
+    from public.session_participants
+    where session_id = current_setting('pgtap.profile_cascade_session_id')::bigint
+      and profile_id = current_setting('pgtap.auth_cascade_profile_id')::bigint
+  ),
+  true
+);
+
+select throws_ok(
+  $$select pg_temp.delete_participant_and_force_constraints(current_setting('pgtap.profile_cascade_participant_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'raw guest deletion remains blocked while both parent session and profile exist'
+);
+set constraints all deferred;
+
+select lives_ok(
+  $$delete from public.profiles where id = current_setting('pgtap.profile_cascade_profile_id')::bigint$$,
+  'non-legacy guest profile deletion queues its participant FK cascade'
+);
+select lives_ok(
+  $$set constraints all immediate$$,
+  'participant delete invariant permits a guest profile cascade while its session remains'
+);
+set constraints all deferred;
+select is(
+  (select count(*) from public.sessions where id = current_setting('pgtap.profile_cascade_session_id')::bigint),
+  1::bigint,
+  'profile cascade keeps the live parent session'
+);
+select is(
+  (select count(*) from public.profiles where id = current_setting('pgtap.profile_cascade_profile_id')::bigint),
+  0::bigint,
+  'profile cascade removes the non-legacy guest profile'
+);
+select is(
+  (select count(*) from public.session_participants where id = current_setting('pgtap.profile_cascade_participant_id')::bigint),
+  0::bigint,
+  'profile cascade removes the guest participant'
+);
+
+select lives_ok(
+  $$delete from auth.users where id = '00000000-0000-0000-0000-000000001009'$$,
+  'non-legacy auth user deletion queues profile and participant FK cascades'
+);
+select lives_ok(
+  $$set constraints all immediate$$,
+  'participant delete invariant permits an auth-linked profile cascade while its session remains'
+);
+set constraints all deferred;
+select is(
+  (select count(*) from auth.users where id = '00000000-0000-0000-0000-000000001009'),
+  0::bigint,
+  'auth cascade removes the non-legacy user'
+);
+select is(
+  (select count(*) from public.profiles where id = current_setting('pgtap.auth_cascade_profile_id')::bigint),
+  0::bigint,
+  'auth cascade removes the guest profile'
+);
+select is(
+  (select count(*) from public.session_participants where id = current_setting('pgtap.auth_cascade_participant_id')::bigint),
+  0::bigint,
+  'auth cascade removes the guest participant'
+);
+select is(
+  (select count(*) from public.sessions where id = current_setting('pgtap.profile_cascade_session_id')::bigint),
+  1::bigint,
+  'auth cascade keeps the live parent session'
 );
 
 -- A deferred database invariant protects capacity even if a future privileged

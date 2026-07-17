@@ -556,6 +556,10 @@ begin
     select 1
     from public.sessions session_row
     where session_row.id = old.session_id
+  ) and exists (
+    select 1
+    from public.profiles profile_row
+    where profile_row.id = old.profile_id
   ) then
     raise exception 'INVALID_TRANSITION';
   end if;
