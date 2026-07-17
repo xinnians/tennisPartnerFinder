@@ -38,12 +38,12 @@ export function createPlaywrightConfig({
     projects: [
       {
         name: "desktop-chromium",
-        testMatch: /smoke\.spec\.js/,
+        testMatch: /(?:smoke|performance)\.spec\.js/,
         use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:5174" },
       },
       {
         name: "mobile-chromium",
-        testMatch: /smoke\.spec\.js/,
+        testMatch: /(?:smoke|performance)\.spec\.js/,
         use: {
           ...devices["Pixel 5"],
           baseURL: "http://127.0.0.1:5174",
@@ -52,7 +52,7 @@ export function createPlaywrightConfig({
       },
       {
         name: "supabase-chromium",
-        testMatch: /session\.spec\.js/,
+        testMatch: /(?:session|performance)\.spec\.js/,
         use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:5175" },
       },
       {

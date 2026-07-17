@@ -8,7 +8,7 @@ const surfaceStack = [];
 
 function focusableNodes(surface) {
   return [...surface.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(
-    (node) => !node.hasAttribute("hidden")
+    (node) => !node.hasAttribute("hidden") && !node.closest("[hidden]")
   );
 }
 
@@ -24,9 +24,15 @@ function resolveRestoreTarget(target) {
   if (target.node?.isConnected) return target.node;
   if (!target.sessionId) return null;
   const scope = target.drawerId ? document.getElementById(target.drawerId) : document;
-  return [...scope.querySelectorAll("[data-session-id]")].find(
+  if (!scope) return null;
+  const restoredCard = [...scope.querySelectorAll("[data-session-id]")].find(
     (node) => String(node.dataset.sessionId) === String(target.sessionId)
   );
+  if (restoredCard) return restoredCard;
+  // An authoritative refresh can remove a public card while its detail and
+  // confirmation are still open. Return focus to the persistent drawer
+  // surface so closing those layers never leaves a keyboard user at body.
+  return scope.querySelector("[data-nearby-dialog] [data-nearby-close]");
 }
 
 function mountSurface(root, { id, label, className = "", html, onClose, onMount } = {}) {

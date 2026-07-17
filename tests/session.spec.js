@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
 import { installFakeMaps } from "./fixtures/fakeMaps.js";
-import { courtIdByName, createProfile, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
+import { courtIdByName, createProfile, makeClient, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
 import {
   createFutureSessionInput,
   createSessionTestContext,
@@ -164,6 +164,36 @@ test("an incomplete signed-in profile saves atomically and returns to the Join c
 
   await expect(page.locator("#join-session-confirmation")).toBeVisible();
   await expect(page.locator("#join-session-confirmation")).toContainText(published.context.host.courts[0]);
+});
+
+test("a stale Join rejection returns keyboard focus from closing surfaces to the nearby drawer", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
+
+  let invalidated = false;
+  await page.route(`${SUPABASE_URL}/rest/v1/rpc/request_to_join_session`, async (route) => {
+    if (!invalidated) {
+      invalidated = true;
+      const { error } = await host.client.rpc("cancel_session", { p_session_id: sessionId });
+      if (error) throw error;
+    }
+    await route.continue();
+  });
+  await gotoWithSession(page, guest.session);
+  await openPublishedSession(page, sessionId);
+  await page.locator("#session-sheet [data-session-action='primary']").click();
+  const confirmation = page.locator("#join-session-confirmation");
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByTestId("join-session").click();
+
+  await expect(confirmation).toBeHidden();
+  await expect(page.locator("#session-sheet")).toBeHidden();
+  await expect(page.locator(`[data-session-id="${sessionId}"]`)).toHaveCount(0);
+  await expect(page.locator("#nearby-sessions-list")).toBeVisible();
+  await expect(page.locator("#nearby-sessions-list [data-nearby-close]")).toBeFocused();
 });
 
 test("a stale same-account profile read cannot overwrite a saved profile or its recovered Join confirmation", async ({ page }) => {
@@ -375,6 +405,86 @@ test("accepting the final vacancy declines the remaining request, and an accepte
   await page.getByTestId("my-sessions-tab").click();
   await page.locator("#my-sessions-refresh").click();
   await expect(page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article")).toContainText("開放報名");
+});
+
+test("two isolated host clients can accept only one final vacancy without exposing a second contact", async () => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const firstGuest = await createCompleteActor(context.guest);
+  const secondGuest = await createCompleteActor(context.observer);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
+  await requestToJoinSessionViaRpc(firstGuest.client, sessionId);
+  await requestToJoinSessionViaRpc(secondGuest.client, sessionId);
+
+  const { data: requestedRows, error: requestedRowsError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id, profile_id, role, status")
+    .eq("session_id", sessionId)
+    .eq("role", "guest")
+    .eq("status", "requested");
+  if (requestedRowsError) throw requestedRowsError;
+  expect(requestedRows).toHaveLength(2);
+
+  const firstHostClient = makeClient();
+  const secondHostClient = makeClient();
+  for (const client of [firstHostClient, secondHostClient]) {
+    const { error } = await client.auth.setSession({
+      access_token: host.session.access_token,
+      refresh_token: host.session.refresh_token,
+    });
+    if (error) throw error;
+  }
+
+  const outcomes = await Promise.allSettled(
+    requestedRows.map((row, index) =>
+      reviewJoinRequestViaRpc(index === 0 ? firstHostClient : secondHostClient, {
+        decision: "accepted",
+        participantId: row.participant_id,
+        sessionId,
+      })
+    )
+  );
+  const fulfilled = outcomes.filter((outcome) => outcome.status === "fulfilled");
+  const rejected = outcomes.filter((outcome) => outcome.status === "rejected");
+  expect(fulfilled).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
+  expect(rejected[0].reason?.message).toMatch(/ALREADY_DECIDED|SESSION_FULL/);
+
+  const { data: finalRoster, error: finalRosterError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id, profile_id, role, status")
+    .eq("session_id", sessionId)
+    .eq("role", "guest");
+  if (finalRosterError) throw finalRosterError;
+  const acceptedGuest = finalRoster.find((row) => row.status === "accepted");
+  const declinedGuest = finalRoster.find((row) => row.status === "declined");
+  expect(acceptedGuest).toBeTruthy();
+  expect(declinedGuest).toBeTruthy();
+  expect(finalRoster.filter((row) => row.status === "accepted")).toHaveLength(1);
+
+  const { data: hostSession, error: hostSessionError } = await host.client
+    .from("my_session_participations")
+    .select("status, slots_remaining")
+    .eq("session_id", sessionId)
+    .single();
+  if (hostSessionError) throw hostSessionError;
+  expect(hostSession).toEqual({ slots_remaining: 0, status: "full" });
+
+  const { data: hostContacts, error: hostContactsError } = await host.client
+    .from("session_contacts")
+    .select("counterpart_profile_id")
+    .eq("session_id", sessionId);
+  if (hostContactsError) throw hostContactsError;
+  expect(hostContacts).toEqual([{ counterpart_profile_id: acceptedGuest.profile_id }]);
+
+  const declinedActor = [firstGuest, secondGuest].find((guest) => guest.profileId === declinedGuest.profile_id);
+  const { data: declinedContacts, error: declinedContactsError } = await declinedActor.client
+    .from("session_contacts")
+    .select("counterpart_profile_id")
+    .eq("session_id", sessionId);
+  if (declinedContactsError) throw declinedContactsError;
+  expect(declinedContacts).toEqual([]);
 });
 
 test("after a session starts, the host can report it played and an accepted guest can confirm attendance", async ({ page }) => {

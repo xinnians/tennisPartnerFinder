@@ -8,8 +8,13 @@ const dialogFocusable =
 const drawerBindings = new WeakMap();
 const drawerIsolations = new WeakMap();
 const drawerFocusIntents = new WeakMap();
+const drawerLoadingFocusFallbacks = new WeakSet();
 const mySessionActionStates = new WeakMap();
 const MY_SESSION_LIFECYCLE_ACTIONS = new Set(["accept", "attendance", "cancel", "decline", "played", "refresh", "refresh-contacts", "withdraw"]);
+const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
+const DRAWER_CLOSE_FOCUS = "__drawer-close__";
+const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
+const DRAWER_ACTION_IDS = new Set(["discovery-reset", "discovery-retry", "drawer-map-retry", "discovery-expand", "discovery-first"]);
 
 export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。";
@@ -93,22 +98,118 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
 function rememberFocusedSessionCard(root) {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !root.contains(active)) return;
+  if (active.matches("#nearby-sessions-toggle")) {
+    setDrawerFocusIntent(root, DRAWER_TOGGLE_FOCUS);
+    return;
+  }
+  if (active.matches("[data-nearby-close]")) {
+    // The loading fallback is only a temporary reachable target. Preserve the
+    // original card/action intent through the next authoritative rerender.
+    if (!drawerLoadingFocusFallbacks.has(root)) setDrawerFocusIntent(root, DRAWER_CLOSE_FOCUS);
+    return;
+  }
+  if (DRAWER_ACTION_IDS.has(active.id)) {
+    setDrawerFocusIntent(root, `${DRAWER_ACTION_FOCUS_PREFIX}${active.id}`);
+    return;
+  }
   const card = active.closest("[data-session-id]");
-  if (card?.dataset.sessionId) drawerFocusIntents.set(root, card.dataset.sessionId);
+  if (card?.dataset.sessionId) setDrawerFocusIntent(root, card.dataset.sessionId);
+}
+
+function setDrawerFocusIntent(root, intent) {
+  drawerLoadingFocusFallbacks.delete(root);
+  drawerFocusIntents.set(root, intent);
+}
+
+function clearDrawerFocusIntent(root) {
+  drawerLoadingFocusFallbacks.delete(root);
+  drawerFocusIntents.delete(root);
+}
+
+function drawerRecoveryTarget(root) {
+  const panel = root.querySelector("[data-nearby-dialog]");
+  if (!panel) return null;
+  return (
+    panel.querySelector("#discovery-retry") ??
+    panel.querySelector("#drawer-map-retry") ??
+    panel.querySelector("[data-session-id]") ??
+    panel.querySelector("#discovery-reset") ??
+    panel.querySelector("#discovery-expand") ??
+    panel.querySelector("#discovery-first")
+  );
+}
+
+function focusDrawerLoadingFallback(root) {
+  const close = root.querySelector("[data-nearby-dialog] [data-nearby-close]");
+  if (!close) return;
+  drawerLoadingFocusFallbacks.add(root);
+  close.focus({ preventScroll: true });
 }
 
 function restoreFocusedSessionCard(root) {
-  const sessionId = drawerFocusIntents.get(root);
-  if (!sessionId) return;
+  if (!drawerFocusIntents.get(root)) return;
   requestAnimationFrame(() => {
+    const focusIntent = drawerFocusIntents.get(root);
+    if (!focusIntent) return;
     const active = document.activeElement;
     const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
-    if (hasNewSurface || (active && active !== document.body && active !== document.documentElement)) return;
+    if (hasNewSurface || (active?.isConnected && active !== document.body && active !== document.documentElement)) return;
+    const toggle = root.querySelector("#nearby-sessions-toggle");
+    if (focusIntent === DRAWER_TOGGLE_FOCUS) {
+      if (toggle?.getAttribute("aria-expanded") === "false") {
+        clearDrawerFocusIntent(root);
+        toggle.focus({ preventScroll: true });
+      } else if (toggle?.getAttribute("aria-expanded") === "true") {
+        // Opening the drawer has its own deliberate first target: its close
+        // control. Do not let a replaced opener compete with that hand-off.
+        clearDrawerFocusIntent(root);
+      }
+      return;
+    }
+    const panel = root.querySelector("[data-nearby-dialog]");
+    if (!panel) {
+      clearDrawerFocusIntent(root);
+      return;
+    }
+    if (focusIntent === DRAWER_CLOSE_FOCUS) {
+      clearDrawerFocusIntent(root);
+      panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
+      return;
+    }
+    const actionId = focusIntent.startsWith(DRAWER_ACTION_FOCUS_PREFIX)
+      ? focusIntent.slice(DRAWER_ACTION_FOCUS_PREFIX.length)
+      : null;
+    if (actionId) {
+      const sameAction = DRAWER_ACTION_IDS.has(actionId) ? panel.querySelector(`#${actionId}`) : null;
+      const nextAction = sameAction ?? drawerRecoveryTarget(root);
+      if (!nextAction) {
+        // Loading deliberately contains no stale card or recovery CTA. Keep
+        // the intent for the authoritative result, but never leave keyboard
+        // focus on document.body during that wait.
+        focusDrawerLoadingFallback(root);
+        return;
+      }
+      clearDrawerFocusIntent(root);
+      nextAction.focus({ preventScroll: true });
+      return;
+    }
     const card = [...root.querySelectorAll("[data-session-id]")].find(
-      (node) => String(node.dataset.sessionId) === String(sessionId)
+      (node) => String(node.dataset.sessionId) === String(focusIntent)
     );
-    if (!card) return;
-    drawerFocusIntents.delete(root);
+    if (!card) {
+      // During the loading render there is deliberately no stale card and no
+      // retry action yet. Keep the intent through that transient state, then
+      // hand focus to the first meaningful action in the final drawer state.
+      const fallback = drawerRecoveryTarget(root);
+      if (!fallback) {
+        focusDrawerLoadingFallback(root);
+        return;
+      }
+      clearDrawerFocusIntent(root);
+      fallback.focus({ preventScroll: true });
+      return;
+    }
+    clearDrawerFocusIntent(root);
     card.focus({ preventScroll: true });
   });
 }
@@ -613,7 +714,7 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
       // restoration runs. Never steal that newer target (or a newly opened
       // sheet) just to restore the drawer's default opener.
       if (!toggle || toggle.getAttribute("aria-expanded") !== "false" || hasNewSurface) return;
-      if (active && active !== document.body && active !== document.documentElement) return;
+      if (active?.isConnected && active !== document.body && active !== document.documentElement) return;
       toggle.focus({ preventScroll: true });
     });
   };
@@ -630,7 +731,7 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
           return;
         }
         if (event.key !== "Tab") return;
-        const nodes = [...panel.querySelectorAll(dialogFocusable)].filter((node) => !node.hasAttribute("hidden"));
+        const nodes = [...panel.querySelectorAll(dialogFocusable)].filter((node) => !node.hasAttribute("hidden") && !node.closest("[hidden]"));
         if (!nodes.length) return;
         const first = nodes[0];
         const last = nodes[nodes.length - 1];
@@ -645,15 +746,22 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
       { signal }
     );
     if (focusOnOpen) {
-      requestAnimationFrame(() => {
+      const focusDrawerClose = () => {
         const active = document.activeElement;
         const opener = root.querySelector("#nearby-sessions-toggle");
+        const livePanel = root.querySelector("[data-nearby-dialog]");
         const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
         // The drawer needs an initial keyboard target, but that deferred move
         // must yield if the user already reached a card in the same frame.
-        if (hasNewSurface || (active && active !== document.body && active !== document.documentElement && active !== opener)) return;
-        panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
-      });
+        if (hasNewSurface || (active?.isConnected && active !== document.body && active !== document.documentElement && active !== opener)) return;
+        livePanel?.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
+      };
+      // A render can replace the opener during the click event. Claim focus in
+      // the next microtask, then once more after the frame so a concurrent
+      // court/discovery rerender targets the live drawer rather than its
+      // detached predecessor.
+      queueMicrotask(focusDrawerClose);
+      requestAnimationFrame(focusDrawerClose);
     }
   }
 
@@ -702,12 +810,21 @@ export function renderNearbySessionsDrawer(
     ? `${taipeiDateTime(sessions[0].startAt)} · ${sessions[0].court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
     : "移動地圖或調整篩選條件，查看可加入的球局。";
   const activeDrawerStatus =
-    expanded && mapStatus?.kind !== "idle" && mapStatus?.message
-      ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true">
-          <p>${esc(mapStatus.message)}</p>
-          ${mapStatus.kind === "error" ? '<button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button>' : ""}
-        </div>`
+    expanded && mapStatus?.kind === "warning" && mapStatus?.message
+      ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(mapStatus.message)}</p></div>`
       : "";
+  const drawerContent =
+    mapStatus?.kind === "loading"
+      ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(
+          mapStatus.message || "正在載入球局資料…"
+        )}</p></div>`
+      : mapStatus?.kind === "error"
+        ? `<div class="nearby-sessions__status" role="alert"><p>${esc(
+            mapStatus.message || "球局資料暫時無法載入。"
+          )}</p><button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button></div>`
+        : count
+          ? sessions.map((session) => sessionCard(session)).join("")
+          : renderDiscoveryEmpty({ onReset, onExpandBounds, onOpenCreate, onRetry, asMarkup: true });
 
   root.innerHTML = `
     <button type="button" id="nearby-sessions-toggle" class="nearby-sessions__toggle" aria-expanded="${expanded}" aria-controls="nearby-sessions-list">
@@ -724,11 +841,7 @@ export function renderNearbySessionsDrawer(
       </div>
       ${activeDrawerStatus}
       <div class="nearby-sessions__cards">
-        ${
-          count
-            ? sessions.map((session) => sessionCard(session)).join("")
-            : renderDiscoveryEmpty({ onReset, onExpandBounds, onOpenCreate, onRetry, asMarkup: true })
-        }
+        ${drawerContent}
       </div>
     </section>`;
 

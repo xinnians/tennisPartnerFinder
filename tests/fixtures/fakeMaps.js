@@ -178,6 +178,9 @@ const fakeMapsScript = `
   window.__setFakeGoogleMapsBounds = (bounds) => {
     maps.forEach((map) => map.setTestBounds(bounds));
   };
+  window.__setFakeGoogleMapsBoundsBurst = (boundsList) => {
+    for (const bounds of boundsList) maps.forEach((map) => map.setTestBounds(bounds));
+  };
   window.__fakeMapsSnapshot = () => ({
     fitBoundsCalls: fitBoundsCalls.map(boundsSummary),
     setCenterCalls: setCenterCalls.map(() => ({})),
@@ -208,6 +211,16 @@ export async function setFakeMapBounds(page, bounds) {
     window.__setFakeGoogleMapsBounds(nextBounds);
     return true;
   }, bounds);
+  if (!changed) throw new Error("Fake Google Maps is not installed");
+}
+
+/** Emit several idle events in one browser turn, matching a quick map drag. */
+export async function setFakeMapBoundsBurst(page, boundsList) {
+  const changed = await page.evaluate((nextBoundsList) => {
+    if (!Array.isArray(nextBoundsList) || typeof window.__setFakeGoogleMapsBoundsBurst !== "function") return false;
+    window.__setFakeGoogleMapsBoundsBurst(nextBoundsList);
+    return true;
+  }, boundsList);
   if (!changed) throw new Error("Fake Google Maps is not installed");
 }
 

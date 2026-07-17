@@ -693,6 +693,8 @@ test("location denial is non-repeating and Maps authentication fallback keeps di
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "false");
   await page.locator("#use-my-location").click();
   await expect(page.locator("#location-feedback")).toContainText("無法取得位置");
+  await expect(page.locator("#use-my-location")).toBeEnabled();
+  await expect(page.locator("#use-my-location")).toBeFocused();
   await page.locator("#use-my-location").click();
   await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(1);
   expect(runtimeErrors).toEqual([]);
@@ -829,6 +831,7 @@ test("nested login modal restores focus and announces a failed provider start", 
 });
 
 test("profile and create sheets disclose public nickname use and retain a local-demo create failure", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
 
@@ -877,6 +880,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await form.getByTestId("session-submit").click();
   await expect(form.getByRole("alert")).toContainText("本機示範資料僅供瀏覽");
   await expect(createSheet).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
 });
 
 test("delayed Taipei court options hydrate open profile and create forms without losing drafts", async ({ page }) => {
@@ -971,6 +975,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
 });
 
 test("mock-mode create does not open OAuth or fabricate a new session", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
   const initialCardCount = await page.getByTestId("session-card").count();
@@ -979,4 +984,5 @@ test("mock-mode create does not open OAuth or fabricate a new session", async ({
   await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
   await expect(page.locator("#login-dialog")).toBeHidden();
   await expect(page.getByTestId("session-card")).toHaveCount(initialCardCount);
+  expect(runtimeErrors).toEqual([]);
 });
