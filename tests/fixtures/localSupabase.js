@@ -1,14 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_AUTH_STORAGE_KEY } from "../../src/supabaseClient.js";
+import { LOCAL_SUPABASE_API_URL, loadLocalSupabaseConfig } from "./localSupabaseConfig.js";
 
-export const SUPABASE_URL = "http://127.0.0.1:54321";
-export const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJhc3ViYXNlLWRlbW8iLCJyb2xlIjoiYW5vbiIsImV4cCI6MTk4MzgxMjk5Nn0.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+export const SUPABASE_URL = LOCAL_SUPABASE_API_URL;
+
+let localSupabaseConfig;
+
+function getLocalSupabaseConfig() {
+  localSupabaseConfig ??= loadLocalSupabaseConfig();
+  return localSupabaseConfig;
+}
 
 export { SUPABASE_AUTH_STORAGE_KEY };
 
 export function makeClient() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  return createClient(SUPABASE_URL, getLocalSupabaseConfig().publicKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
