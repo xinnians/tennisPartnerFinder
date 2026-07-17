@@ -277,6 +277,18 @@ begin
     if (
       new.status in ('open', 'full', 'cancelled')
       and old.start_at <= now()
+      and not (
+        old.status = 'full'
+        and new.status = 'open'
+        and pg_trigger_depth() > 1
+        and (
+          select count(*)
+          from public.session_participants participant_row
+          where participant_row.session_id = new.id
+            and participant_row.role = 'guest'
+            and participant_row.status = 'accepted'
+        ) < new.slots_total
+      )
     ) or (
       new.status = 'played'
       and (
@@ -491,6 +503,37 @@ begin
 end;
 $$;
 
+create or replace function private.reopen_full_session_after_profile_cascade()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if old.role = 'guest'
+    and old.status = 'accepted'
+    and not exists (
+      select 1
+      from public.profiles profile_row
+      where profile_row.id = old.profile_id
+    ) then
+    update public.sessions session_row
+    set status = 'open'
+    where session_row.id = old.session_id
+      and session_row.status = 'full'
+      and (
+        select count(*)
+        from public.session_participants participant_row
+        where participant_row.session_id = old.session_id
+          and participant_row.role = 'guest'
+          and participant_row.status = 'accepted'
+      ) < session_row.slots_total;
+  end if;
+
+  return null;
+end;
+$$;
+
 create or replace function private.enforce_session_host_invariant()
 returns trigger
 language plpgsql
@@ -577,6 +620,11 @@ drop trigger if exists session_participants_enforce_transition on public.session
 create trigger session_participants_enforce_transition
 before insert or update on public.session_participants
 for each row execute function private.enforce_session_participant_transition();
+
+drop trigger if exists session_participants_reopen_after_profile_cascade on public.session_participants;
+create trigger session_participants_reopen_after_profile_cascade
+after delete on public.session_participants
+for each row execute function private.reopen_full_session_after_profile_cascade();
 
 drop trigger if exists session_participants_capacity_invariant on public.session_participants;
 create constraint trigger session_participants_capacity_invariant

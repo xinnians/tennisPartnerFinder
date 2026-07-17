@@ -26,6 +26,65 @@ begin
 end;
 $$;
 
+create function pg_temp.create_full_guest_cascade_fixture(
+  p_guest_profile_id bigint,
+  p_notes text
+)
+returns bigint
+language plpgsql
+as $$
+declare
+  created_session_id bigint;
+  host_profile_id bigint;
+begin
+  select id
+  into host_profile_id
+  from public.profiles
+  where user_id = '00000000-0000-0000-0000-000000001001';
+
+  insert into public.sessions (
+    sport_id,
+    host_profile_id,
+    court_id,
+    play_type,
+    start_at,
+    ntrp_min,
+    ntrp_max,
+    slots_total,
+    notes
+  )
+  values (
+    (select id from public.sports where code = 'tennis'),
+    host_profile_id,
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打',
+    now() + interval '22 days',
+    3.0,
+    5.0,
+    1,
+    p_notes
+  )
+  returning id into created_session_id;
+
+  insert into public.session_participants (session_id, profile_id, role, status)
+  values (created_session_id, host_profile_id, 'host', 'accepted');
+
+  insert into public.session_participants (session_id, profile_id, role, status)
+  values (created_session_id, p_guest_profile_id, 'guest', 'requested');
+
+  update public.session_participants
+  set status = 'accepted'
+  where session_id = created_session_id
+    and profile_id = p_guest_profile_id;
+
+  update public.sessions
+  set status = 'full'
+  where id = created_session_id;
+
+  return created_session_id;
+end;
+$$;
+
 -- Historical lifecycle fixtures require an authoritative clock setup, while
 -- production start_at values are intentionally immutable. This helper runs
 -- only inside pgTAP's rolled-back transaction and temporarily disables the
@@ -109,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(224);
+select plan(243);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -2139,6 +2198,211 @@ select is(
   1::bigint,
   'auth cascade keeps the live parent session'
 );
+
+-- An accepted guest may disappear through an approved profile cascade after
+-- filling a session. That legal cascade must reopen the session rather than
+-- leave the deferred capacity invariant with a stale full count.
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  created_at,
+  updated_at,
+  raw_app_meta_data,
+  raw_user_meta_data
+)
+values
+  ('00000000-0000-0000-0000-000000001010', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'session-full-profile-cascade@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000001011', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'session-full-auth-cascade@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000001012', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'session-started-profile-cascade@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+insert into public.profiles (user_id, nickname, ntrp, line_id)
+values
+  ('00000000-0000-0000-0000-000000001010', 'Full Profile Cascade Guest', 3.0, 'full_profile_cascade_line'),
+  ('00000000-0000-0000-0000-000000001011', 'Full Auth Cascade Guest', 3.0, 'full_auth_cascade_line'),
+  ('00000000-0000-0000-0000-000000001012', 'Started Profile Cascade Guest', 3.0, 'started_profile_cascade_line')
+on conflict (user_id) do nothing;
+
+select set_config(
+  'pgtap.full_profile_cascade_profile_id',
+  (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000001010'),
+  true
+);
+select set_config(
+  'pgtap.full_auth_cascade_profile_id',
+  (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000001011'),
+  true
+);
+select set_config(
+  'pgtap.started_profile_cascade_profile_id',
+  (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000001012'),
+  true
+);
+
+select set_config(
+  'pgtap.full_profile_cascade_session_id',
+  pg_temp.create_full_guest_cascade_fixture(
+    current_setting('pgtap.full_profile_cascade_profile_id')::bigint,
+    '__pgtap_full_profile_cascade_session__'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.full_auth_cascade_session_id',
+  pg_temp.create_full_guest_cascade_fixture(
+    current_setting('pgtap.full_auth_cascade_profile_id')::bigint,
+    '__pgtap_full_auth_cascade_session__'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.started_profile_cascade_session_id',
+  pg_temp.create_full_guest_cascade_fixture(
+    current_setting('pgtap.started_profile_cascade_profile_id')::bigint,
+    '__pgtap_started_profile_cascade_session__'
+  )::text,
+  true
+);
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.started_profile_cascade_session_id')::bigint,
+  now() - interval '1 hour'
+);
+
+select set_config(
+  'pgtap.full_profile_cascade_participant_id',
+  (
+    select id::text
+    from public.session_participants
+    where session_id = current_setting('pgtap.full_profile_cascade_session_id')::bigint
+      and profile_id = current_setting('pgtap.full_profile_cascade_profile_id')::bigint
+  ),
+  true
+);
+select set_config(
+  'pgtap.full_auth_cascade_participant_id',
+  (
+    select id::text
+    from public.session_participants
+    where session_id = current_setting('pgtap.full_auth_cascade_session_id')::bigint
+      and profile_id = current_setting('pgtap.full_auth_cascade_profile_id')::bigint
+  ),
+  true
+);
+select set_config(
+  'pgtap.started_profile_cascade_participant_id',
+  (
+    select id::text
+    from public.session_participants
+    where session_id = current_setting('pgtap.started_profile_cascade_session_id')::bigint
+      and profile_id = current_setting('pgtap.started_profile_cascade_profile_id')::bigint
+  ),
+  true
+);
+
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.full_profile_cascade_session_id')::bigint),
+  'full',
+  'future profile-cascade fixture reaches full with an accepted guest'
+);
+select throws_ok(
+  $$select pg_temp.delete_participant_and_force_constraints(current_setting('pgtap.full_profile_cascade_participant_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'raw accepted guest deletion cannot reopen a full session while its profile remains'
+);
+set constraints all deferred;
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.full_profile_cascade_session_id')::bigint),
+  'full',
+  'rejected raw participant deletion leaves the full session closed'
+);
+select lives_ok(
+  $$delete from public.profiles where id = current_setting('pgtap.full_profile_cascade_profile_id')::bigint$$,
+  'future accepted guest profile deletion queues its participant cascade'
+);
+select lives_ok(
+  $$set constraints all immediate$$,
+  'future accepted guest profile cascade reopens its full session'
+);
+set constraints all deferred;
+select is(
+  (select count(*) from public.session_participants where id = current_setting('pgtap.full_profile_cascade_participant_id')::bigint),
+  0::bigint,
+  'future profile cascade removes the accepted guest participant'
+);
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.full_profile_cascade_session_id')::bigint),
+  'open',
+  'future profile cascade reopens the surviving session'
+);
+delete from public.sessions
+where id = current_setting('pgtap.full_profile_cascade_session_id')::bigint;
+
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.full_auth_cascade_session_id')::bigint),
+  'full',
+  'future auth-cascade fixture reaches full with an accepted guest'
+);
+select lives_ok(
+  $$delete from auth.users where id = '00000000-0000-0000-0000-000000001011'$$,
+  'future accepted guest auth deletion queues profile and participant cascades'
+);
+select lives_ok(
+  $$set constraints all immediate$$,
+  'future accepted guest auth cascade reopens its full session'
+);
+set constraints all deferred;
+select is(
+  (select count(*) from public.session_participants where id = current_setting('pgtap.full_auth_cascade_participant_id')::bigint),
+  0::bigint,
+  'future auth cascade removes the accepted guest participant'
+);
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.full_auth_cascade_session_id')::bigint),
+  'open',
+  'future auth cascade reopens the surviving session'
+);
+delete from public.sessions
+where id = current_setting('pgtap.full_auth_cascade_session_id')::bigint;
+
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.started_profile_cascade_session_id')::bigint),
+  'full',
+  'started profile-cascade fixture remains full before the guest disappears'
+);
+select throws_ok(
+  $$update public.sessions set status = 'open' where id = current_setting('pgtap.started_profile_cascade_session_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw started full-session reopen remains blocked outside the profile-cascade trigger'
+);
+select lives_ok(
+  $$delete from public.profiles where id = current_setting('pgtap.started_profile_cascade_profile_id')::bigint$$,
+  'started accepted guest profile deletion queues its participant cascade'
+);
+select lives_ok(
+  $$set constraints all immediate$$,
+  'started accepted guest profile cascade reopens its full session'
+);
+set constraints all deferred;
+select is(
+  (select count(*) from public.session_participants where id = current_setting('pgtap.started_profile_cascade_participant_id')::bigint),
+  0::bigint,
+  'started profile cascade removes the accepted guest participant'
+);
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.started_profile_cascade_session_id')::bigint),
+  'open',
+  'started profile cascade reopens the surviving session'
+);
+select is(
+  (select count(*) from public.session_discovery where session_id = current_setting('pgtap.started_profile_cascade_session_id')::bigint),
+  0::bigint,
+  'started profile cascade reopen remains excluded from discovery'
+);
+delete from public.sessions
+where id = current_setting('pgtap.started_profile_cascade_session_id')::bigint;
 
 -- A deferred database invariant protects capacity even if a future privileged
 -- backend accidentally bypasses the public review RPC.
