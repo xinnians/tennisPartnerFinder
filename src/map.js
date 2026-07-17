@@ -1,23 +1,24 @@
-// ============================================================
-//  Google Maps 載入、鼠尾草色系地圖樣式、圖釘/聚合釘繪製
-// ============================================================
-import { MAP_CENTER, MAP_ZOOM } from "./config.js";
-import { playerPin, demandPin, clusterPin, courtPin } from "./pins.js";
+import { MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
+import { courtPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
 
-// 進行中的載入 Promise:同時(或 HMR 後)再呼叫 loadGoogleMaps 時
-// 直接重用,避免重複注入 maps script
 let loadPromise = null;
+let runtimeGoogle = null;
+let runtimeMap = null;
+let userMarker = null;
 
-/**
- * 動態載入 Google Maps JavaScript API。
- * @param {string} apiKey
- * @param {() => void} [onAuthFailure] key 無效/受限時的回呼(Google 驗證是
- *   非同步的,可能發生在地圖已建立之後,所以用回呼而不是 reject)
- */
-export function loadGoogleMaps(apiKey, onAuthFailure) {
-  // key 驗證失敗(無效、referer 受限、未開通帳單)時 Google 會呼叫這個全域 hook
-  if (onAuthFailure) window.gm_authFailure = onAuthFailure;
+const SAGE_STYLES = [
+  { elementType: "geometry", stylers: [{ color: "#edf1ec" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#52667a" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#c8dced" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "poi.park", elementType: "geometry", stylers: [{ visibility: "on" }, { color: "#dceccf" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+  { featureType: "road", elementType: "labels", stylers: [{ visibility: "off" }] },
+];
 
+/** Load Maps once. Authentication failures intentionally leave discovery usable. */
+export function loadGoogleMaps(apiKey, onAuthFailure = () => {}) {
+  window.gm_authFailure = onAuthFailure;
   if (loadPromise) return loadPromise;
   loadPromise = new Promise((resolve, reject) => {
     if (window.google?.maps) {
@@ -29,123 +30,151 @@ export function loadGoogleMaps(apiKey, onAuthFailure) {
       resolve(window.google);
     };
     const script = document.createElement("script");
-    const params = new URLSearchParams({
+    script.src = `https://maps.googleapis.com/maps/api/js?${new URLSearchParams({
       key: apiKey,
       v: "weekly",
       loading: "async",
       language: "zh-TW",
       region: "TW",
       callback: "__onGoogleMapsReady",
-    });
-    script.src = `https://maps.googleapis.com/maps/api/js?${params}`;
+    })}`;
     script.async = true;
     script.onerror = () => {
-      loadPromise = null; // 失敗後允許重試
-      reject(new Error("Google Maps API 載入失敗,請檢查網路與 API key"));
+      loadPromise = null;
+      reject(new Error("Google Maps 載入失敗"));
     };
     document.head.appendChild(script);
   });
   return loadPromise;
 }
 
-// 重現設計檔底圖的鼠尾草配色:
-// 陸地 #ECEDE7、水域 #C4D8E2、公園 #D8E6C4、道路白、標籤 #AEB6AC
-const SAGE_STYLES = [
-  { elementType: "geometry", stylers: [{ color: "#ECEDE7" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#9AA69C" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#FFFFFF" }, { weight: 2 }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#C4D8E2" }] },
-  { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#93AEBC" }] },
-  { featureType: "poi", stylers: [{ visibility: "off" }] },
-  { featureType: "poi.park", elementType: "geometry", stylers: [{ visibility: "on" }, { color: "#D8E6C4" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#FFFFFF" }] },
-  { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#DEE0D8" }] },
-  { featureType: "road", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#F6F1E3" }] },
-  { featureType: "transit", stylers: [{ visibility: "off" }] },
-  { featureType: "administrative", elementType: "geometry", stylers: [{ visibility: "off" }] },
-];
-
-/** 建立地圖:台北市中心、市區 zoom、關掉預設 UI(控制鈕自己畫,沿用設計) */
-export function createMap(google, el) {
-  return new google.maps.Map(el, {
+export function createMap(google, element) {
+  runtimeGoogle = google;
+  runtimeMap = new google.maps.Map(element, {
     center: MAP_CENTER,
     zoom: MAP_ZOOM,
     disableDefaultUI: true,
     clickableIcons: false,
     styles: SAGE_STYLES,
   });
+  return runtimeMap;
 }
 
-/**
- * 依球場把篩選後的資料分組(設計檔 computeMarkers 的邏輯):
- * 同一座球場只有一筆 → 個別釘;多筆 → 聚合釘(點開球場抽屜)。
- * 回傳 [{ court, lat, lng, items }],items = [{kind:'player'|'demand', data}]
- */
-export function groupPinsByCourt(courts, { players, demands }) {
-  const byCourt = new Map();
-  const push = (courtName, entry) => {
-    if (!byCourt.has(courtName)) byCourt.set(courtName, []);
-    byCourt.get(courtName).push(entry);
-  };
-  players.forEach((p) => push(p.homeCourt, { kind: "player", data: p }));
-  demands.forEach((d) => push(d.court, { kind: "demand", data: d }));
+function plainBounds(bounds) {
+  if (!bounds?.getSouthWest || !bounds?.getNorthEast) return null;
+  const southWest = bounds.getSouthWest();
+  const northEast = bounds.getNorthEast();
+  const south = Number(southWest?.lat?.());
+  const west = Number(southWest?.lng?.());
+  const north = Number(northEast?.lat?.());
+  const east = Number(northEast?.lng?.());
+  if (![south, west, north, east].every(Number.isFinite)) return null;
+  return { south, west, north, east };
+}
 
+export function getMapBounds(map = runtimeMap) {
+  return plainBounds(map?.getBounds?.());
+}
+
+export function subscribeToMapIdle(map, callback) {
+  return map?.addListener?.("idle", callback);
+}
+
+/** Group public SessionSummary rows by court for single and aggregate session pins. */
+export function groupSessionsByCourt(courts = [], sessions = []) {
+  const byCourtId = new Map();
+  for (const session of sessions) {
+    const key = String(session.courtId);
+    const current = byCourtId.get(key) ?? [];
+    current.push(session);
+    byCourtId.set(key, current);
+  }
   return courts
-    .filter((c) => byCourt.has(c.name))
-    .map((c) => ({ court: c, lat: c.lat, lng: c.lng, items: byCourt.get(c.name) }));
+    .filter((court) => byCourtId.has(String(court.id)))
+    .map((court) => ({ court, sessions: byCourtId.get(String(court.id)) }));
 }
 
-/**
- * 把分組結果畫成圖釘。每次呼叫先清掉舊釘再重畫
- * (原型資料量小,不需要 diff 更新)。
- *
- * @param {{onPlayer, onDemand, onCluster}} handlers 點釘時的回呼
- * @returns {google.maps.Marker[]} 目前地圖上的 marker,供下次清除
- */
-export function renderPins(google, map, groups, handlers, oldMarkers = []) {
-  oldMarkers.forEach((m) => m.setMap(null));
-
-  return groups.map((g) => {
-    let pin;
-    let onTap;
-    if (g.items.length > 1) {
-      pin = clusterPin(google, g.items.length);
-      onTap = () => handlers.onCluster(g.court, g.items);
-    } else if (g.items[0].kind === "player") {
-      pin = playerPin(google, g.items[0].data.displayName);
-      onTap = () => handlers.onPlayer(g.items[0].data);
-    } else {
-      pin = demandPin(google);
-      onTap = () => handlers.onDemand(g.items[0].data);
-    }
-
-    const marker = new google.maps.Marker({
-      map,
-      position: { lat: g.lat, lng: g.lng },
-      icon: pin.icon,
-      label: pin.label,
-      title: g.court.name,
-      // 聚合 > 球友 > 需求(設計檔的 z 順序)
-      zIndex: g.items.length > 1 ? 40 : g.items[0].kind === "player" ? 30 : 20,
-    });
-    marker.addListener("click", onTap);
-    return marker;
-  });
-}
-
-// 球場底圖釘:每座 active 球場一顆,只在資料變動時重建(不進 refreshPins 的篩選重繪池)。
-export function renderCourtBasePins(google, map, courts, onCourtTap, oldMarkers = []) {
-  oldMarkers.forEach((m) => m.setMap(null));
-  return courts.map((court) => {
+/** Replace visible session markers while preserving the lower-priority court base layer. */
+export function renderSessionPins(google, map, groups, { onSession = () => {}, onCluster = () => {} } = {}, oldMarkers = []) {
+  oldMarkers.forEach((marker) => marker.setMap(null));
+  return groups.map(({ court, sessions }) => {
+    const multiple = sessions.length >= 2;
+    const pin = multiple ? sessionClusterPin(google, sessions.length) : sessionPin(google, sessions[0]);
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },
-      icon: courtPin(google).icon,
+      icon: pin.icon,
+      label: pin.label,
+      title: multiple ? `球局 · ${court.name} · ${sessions.length} 場` : `球局 · ${court.name}`,
+      zIndex: multiple ? 40 : 30,
+    });
+    marker.addListener("click", () => (multiple ? onCluster(court, sessions) : onSession(sessions[0].sessionId)));
+    return marker;
+  });
+}
+
+/** Render stable base-court pins beneath session pins. */
+export function renderCourtBasePins(google, map, courts = [], onCourt = () => {}, oldMarkers = []) {
+  oldMarkers.forEach((marker) => marker.setMap(null));
+  return courts.map((court) => {
+    const pin = courtPin(google);
+    const marker = new google.maps.Marker({
+      map,
+      position: { lat: court.lat, lng: court.lng },
+      icon: pin.icon,
       title: `球場 ${court.name}`,
       zIndex: 10,
     });
-    marker.addListener("click", () => onCourtTap(court));
+    marker.addListener("click", () => onCourt(court));
     return marker;
   });
+}
+
+function boundsAround({ lat, lng }, radiusMeters) {
+  const latitudeDelta = radiusMeters / 111_320;
+  const longitudeDelta = radiusMeters / (111_320 * Math.max(Math.cos((lat * Math.PI) / 180), 0.01));
+  return { south: lat - latitudeDelta, west: lng - longitudeDelta, north: lat + latitudeDelta, east: lng + longitudeDelta };
+}
+
+/**
+ * Keep location only in the Maps runtime: center an approximate radius and
+ * update an intentionally coordinate-free marker title.
+ */
+export function setUserLocation({ lat, lng }, radiusMeters) {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  const radius = Number(radiusMeters);
+  if (!runtimeGoogle?.maps || !runtimeMap || !Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(radius)) {
+    return null;
+  }
+  const bounds = boundsAround({ lat: latitude, lng: longitude }, radius);
+  const sw = { lat: bounds.south, lng: bounds.west };
+  const ne = { lat: bounds.north, lng: bounds.east };
+  runtimeMap.fitBounds(new runtimeGoogle.maps.LatLngBounds(sw, ne));
+  if (!userMarker) {
+    const pin = userLocationPin(runtimeGoogle);
+    userMarker = new runtimeGoogle.maps.Marker({
+      map: runtimeMap,
+      position: { lat: latitude, lng: longitude },
+      icon: pin.icon,
+      title: "你",
+      zIndex: 50,
+    });
+  } else {
+    userMarker.setPosition?.({ lat: latitude, lng: longitude });
+    userMarker.setMap?.(runtimeMap);
+  }
+  return bounds;
+}
+
+/** Fit the public Taipei City discovery bounds without exposing a location. */
+export function fitTaipeiBounds() {
+  if (!runtimeGoogle?.maps || !runtimeMap) return null;
+  runtimeMap.fitBounds(
+    new runtimeGoogle.maps.LatLngBounds(
+      { lat: TAIPEI_CITY_BOUNDS.south, lng: TAIPEI_CITY_BOUNDS.west },
+      { lat: TAIPEI_CITY_BOUNDS.north, lng: TAIPEI_CITY_BOUNDS.east }
+    )
+  );
+  return { ...TAIPEI_CITY_BOUNDS };
 }

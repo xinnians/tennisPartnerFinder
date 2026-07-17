@@ -1,582 +1,275 @@
-// ============================================================
-//  App 進入點:分頁切換、篩選接線、地圖載入、快速約球與個人檔案狀態
-// ============================================================
 import "./style.css";
-import { GOOGLE_MAPS_API_KEY, MAP_CENTER, MAP_ZOOM } from "./config.js";
-import { COURTS } from "./mockData.js";
-import { BANDS, TYPES, DEFAULT_FILTER_STATE } from "./filters.js";
-import { loadGoogleMaps, createMap, groupPinsByCourt, renderPins, renderCourtBasePins } from "./map.js";
+import "./session.css";
+import { GOOGLE_MAPS_API_KEY } from "./config.js";
+import { BANDS, TYPES } from "./filters.js";
 import {
-  openCourtDrawer,
-  openLoginModal,
-  closeSheet,
-  closeModal,
-} from "./sheets.js";
+  createMap,
+  fitTaipeiBounds,
+  getMapBounds,
+  groupSessionsByCourt,
+  loadGoogleMaps,
+  renderCourtBasePins,
+  renderSessionPins,
+  setUserLocation,
+  subscribeToMapIdle,
+} from "./map.js";
+import { getInitialSession, loadCourts, loadCurrentProfile, loadMySessions, loadSessionDiscovery, onAuthStateChange, requestToJoinSession, signInWithOAuthProvider, withdrawFromSession } from "./dataApi.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
+import { createSessionController } from "./sessionController.js";
 import {
-  getInitialSession,
-  loadCourts,
-  loadCurrentProfile,
-  loadSessionDiscovery,
-  onAuthStateChange,
-  saveCurrentProfile,
-  signInWithOAuthProvider,
-  signOut,
-} from "./dataApi.js";
-import { esc, ntrpDesc } from "./util.js";
-import { mountCourtPicker } from "./courtPicker.js";
+  openCourtSessionDrawer,
+  openJoinSessionConfirmation,
+  openSessionSheet,
+  renderMapDataStatus,
+  renderNearbySessionsDrawer,
+} from "./sessionViews.js";
+import { mountDialog, mountSheet, openLoginModal } from "./sheets.js";
+import { esc } from "./util.js";
 
-let courts = COURTS;
-// Task 5 replaces the retired quick-contact map UI. Until then, the legacy
-// renderer only ever receives this explicit empty shape; SessionSummary is
-// never coerced into a player/demand payload.
-let dataSet = { players: [], demands: [] };
-let courtPicker = null;
-
-function defaultProfile() {
-  return {
-    nick: "我",
-    ntrp: 3.5,
-    types: new Set(["單打", "對拉"]),
-    courts: new Set(["青年公園網球場"]),
-    slots: new Set(["wd-e", "we-m"]),
-    share: false,
-    lineId: "",
-  };
-}
-
-// ------------------------------------------------------------
-// App 狀態(原型:全部放記憶體,重新整理就重置)
-// ------------------------------------------------------------
-const state = {
-  session: null,
-  dataStatus: "idle",
-  sessions: [],
-  filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
-  profile: defaultProfile(),
-};
-
-// 地圖執行期物件(沒填 API key 時保持 null)
 let google = null;
 let map = null;
-let markers = [];
-let baseMarkers = [];
+let courts = [];
+let sessionMarkers = [];
+let courtMarkers = [];
+let controller;
 
-// ------------------------------------------------------------
-// Task 5 replaces these legacy pin callbacks with SessionSummary cards. The
-// safe bridge deliberately has no path into quick contact or legacy reports.
-// ------------------------------------------------------------
-const pinHandlers = {
-  onPlayer: () => showToast("新版球局介面即將提供。"),
-  onDemand: () => showToast("新版球局介面即將提供。"),
-  onCluster: (court, items) => openCourtDrawer(court, items, pinHandlers),
-};
-
-function contactMissingFields(profile) {
-  const missing = [];
-  if (!profile.nick || profile.nick === "我") missing.push("暱稱");
-  if (!profile.lineId) missing.push("LINE ID");
-  if (!profile.ntrp) missing.push("NTRP");
-  if (profile.courts.size === 0) missing.push("常打球場");
-  return missing;
+function toast(message) {
+  const root = document.getElementById("toast-root");
+  root.innerHTML = `<div class="toast">${esc(message)}</div>`;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => (root.innerHTML = ""), 2400);
 }
 
-function showToast(message) {
-  const toast = document.getElementById("toast-root");
-  toast.innerHTML = `<div class="toast">${esc(message)}</div>`;
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => (toast.innerHTML = ""), 2200);
-}
-
-function setMapStatus(kind, message, subtext = "") {
-  const status = document.getElementById("map-status");
-  status.hidden = false;
-  status.className = `map-status map-status--${kind}`;
-  status.innerHTML = `
-    <div>${esc(message)}</div>
-    ${subtext ? `<div class="map-status__sub">${esc(subtext)}</div>` : ""}
-    ${kind === "error" ? `<button type="button" class="map-status__retry" data-retry-map>重新載入</button>` : ""}
-  `;
-  status.querySelector("[data-retry-map]")?.addEventListener("click", () => {
-    refreshDataAndPins();
-  });
-}
-
-function clearMapStatus() {
-  const status = document.getElementById("map-status");
-  status.hidden = true;
-  status.innerHTML = "";
-}
-
-function updateMapDataStatus() {
-  if (!isSupabaseConfigured) {
-    clearMapStatus();
-    return;
-  }
-
-  if (state.dataStatus === "loading") {
-    setMapStatus("loading", "正在載入球局資料", "同步公開球局中");
-    return;
-  }
-
-  if (state.dataStatus === "error") {
-    setMapStatus("error", "資料載入失敗", "請確認 Supabase local stack 後重新載入");
-    return;
-  }
-
-  if (state.dataStatus === "empty") {
-    setMapStatus("empty", "目前沒有可加入球局", "新版球局介面會顯示建立與申請流程");
-    return;
-  }
-
-  clearMapStatus();
-}
-
-function openAuthPrompt() {
-  if (!isSupabaseConfigured) {
-    showToast("請先設定 Supabase env。");
-    return;
-  }
+function openSafeLogin() {
   openLoginModal({
     onProvider: async (provider) => {
+      if (!isSupabaseConfigured) throw new Error("登入服務尚未啟用");
       await signInWithOAuthProvider(provider);
     },
   });
 }
 
-// ------------------------------------------------------------
-// 篩選列(程度 popover + 類型 chips)
-// ------------------------------------------------------------
-function refreshPins() {
-  if (!map) return;
-  closeSheet();
-  const groups = groupPinsByCourt(courts, dataSet);
-  markers = renderPins(google, map, groups, pinHandlers, markers);
-}
-
-// 球場底圖釘池:只在 courts 可能變動的地方重建(init 建圖後、資料重新整理後)。
-// refreshPins() 篩選重繪不碰這裡,避免 110+ 顆底圖 marker 被篩選 chip 反覆重建。
-function refreshBasePins() {
-  if (!map) return;
-  baseMarkers = renderCourtBasePins(google, map, courts, openCourtFromBasePin, baseMarkers);
-}
-
-function openCourtFromBasePin(court) {
-  const groups = groupPinsByCourt([court], dataSet);
-  openCourtDrawer(court, groups[0]?.items ?? [], pinHandlers);
-}
-
-function setupLevelPopover() {
-  const chip = document.getElementById("level-chip");
-  const dim = document.getElementById("level-dim");
-  const pop = document.getElementById("level-popover");
-  const optsBox = document.getElementById("band-options");
-  const bandLabel = document.getElementById("band-label");
-
-  const renderOptions = () => {
-    optsBox.innerHTML = BANDS.map(
-      (b) => `
-      <button type="button" class="popover__opt${b.key === state.filters.band ? " is-active" : ""}" data-band="${b.key}">
-        ${esc(b.label)}
-        ${
-          b.key === state.filters.band
-            ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`
-            : ""
-        }
-      </button>`
-    ).join("");
-    optsBox.querySelectorAll("[data-band]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.filters.band = btn.dataset.band;
-        bandLabel.textContent = BANDS.find((b) => b.key === state.filters.band).label;
-        toggle(false);
-        refreshPins();
-      });
-    });
-  };
-
-  const toggle = (open) => {
-    dim.hidden = !open;
-    pop.hidden = !open;
-    if (open) renderOptions();
-  };
-
-  chip.addEventListener("click", () => toggle(pop.hidden));
-  dim.addEventListener("click", () => toggle(false));
-}
-
-function setupTypeChips() {
-  document.querySelectorAll(".chip-type").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      const type = chip.dataset.type;
-      if (state.filters.types.has(type)) {
-        state.filters.types.delete(type);
-        chip.classList.remove("is-active");
-      } else {
-        state.filters.types.add(type);
-        chip.classList.add("is-active");
-      }
-      refreshPins();
-    });
+function openProfileCompletionPrompt() {
+  mountDialog({
+    id: "profile-completion-prompt",
+    label: "完成個人檔案",
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">完成後即可申請</p><h2>請先完成個人檔案</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉提示">×</button>
+      </div>
+      <p class="surface__copy">個人檔案設定會在登入後的流程中提供。</p>`,
   });
 }
 
-function setupMapControls() {
-  document.getElementById("zoom-in").addEventListener("click", () => {
-    if (map) map.setZoom(map.getZoom() + 1);
+function openCreatePrompt({ signedIn, onContinue }) {
+  const mounted = mountSheet({
+    id: "create-session-prompt",
+    label: "開球局",
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">開球局</p><h2>建立你的下一場球局</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉開球局提示">×</button>
+      </div>
+      <p class="surface__copy">建立球局的表單會在${signedIn ? "完成個人檔案後" : "登入後"}提供。</p>
+      <button type="button" class="session-primary" data-create-continue>${signedIn ? "完成個人檔案" : "登入後繼續"}</button>`,
   });
-  document.getElementById("zoom-out").addEventListener("click", () => {
-    if (map) map.setZoom(map.getZoom() - 1);
-  });
-  document.getElementById("recenter").addEventListener("click", () => {
-    if (!map) return;
-    map.panTo(MAP_CENTER);
-    map.setZoom(MAP_ZOOM);
-  });
-}
-
-function setupPublishRequest() {
-  document.getElementById("publish-request").addEventListener("click", () => startPublishRequest());
-}
-
-async function loadAppData() {
-  state.dataStatus = "loading";
-  updateMapDataStatus();
-
-  try {
-    const [nextCourts, sessions] = await Promise.all([loadCourts(), loadSessionDiscovery()]);
-    courts = nextCourts;
-    state.sessions = sessions;
-    dataSet = { players: [], demands: [] };
-    courtPicker?.setCourts(courts);
-    state.dataStatus = sessions.length === 0 ? "empty" : "ready";
-    updateMapDataStatus();
-  } catch (error) {
-    console.error(error);
-    courts = [];
-    state.sessions = [];
-    dataSet = { players: [], demands: [] };
-    state.dataStatus = "error";
-    updateMapDataStatus();
-  }
-}
-
-async function refreshDataAndPins() {
-  await loadAppData();
-  refreshPins();
-  refreshBasePins();
-}
-
-async function startPublishRequest() {
-  showToast("新版球局建立介面即將提供。");
-}
-
-// ------------------------------------------------------------
-// 分頁切換
-// ------------------------------------------------------------
-function switchTab(tab) {
-  closeSheet();
-  closeModal();
-  document.querySelectorAll(".tab-panel").forEach((el) => el.classList.remove("is-active"));
-  document.getElementById(`tab-${tab}`).classList.add("is-active");
-  document.querySelectorAll(".tabbar__btn").forEach((btn) => {
-    btn.classList.toggle("is-active", btn.dataset.tab === tab);
+  mounted.root.querySelector("[data-create-continue]")?.addEventListener("click", () => {
+    mounted.close();
+    onContinue();
   });
 }
 
-function setupTabs() {
-  document.querySelectorAll(".tabbar__btn").forEach((btn) => {
-    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+function renderFilters(filters) {
+  const district = document.getElementById("district-filter");
+  const court = document.getElementById("court-filter");
+  const date = document.getElementById("date-filter");
+  if (district) district.value = filters.district || "";
+  if (court) court.value = filters.courtId == null ? "" : String(filters.courtId);
+  if (date) date.value = filters.date || "";
+  document.getElementById("band-label").textContent = BANDS.find((band) => band.key === filters.band)?.label ?? "全部";
+  document.querySelectorAll(".chip-type").forEach((button) => {
+    button.classList.toggle("is-active", filters.types.has(button.dataset.type));
+  });
+  document.querySelectorAll("[data-band]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.band === filters.band);
   });
 }
 
-function updateAuthStatus() {
-  const labels = document.querySelectorAll("[data-auth-status]");
-  const buttons = document.querySelectorAll("[data-auth-action]");
-
-  if (!isSupabaseConfigured) {
-    labels.forEach((label) => (label.textContent = "原型"));
-    buttons.forEach((button) => {
-      button.textContent = "登入";
-      button.disabled = true;
-    });
-    return;
-  }
-
-  if (state.session) {
-    labels.forEach((label) => (label.textContent = authDisplayName(state.session.user)));
-    buttons.forEach((button) => {
-      button.textContent = "登出";
-      button.disabled = false;
-    });
-  } else {
-    labels.forEach((label) => (label.textContent = "未登入"));
-    buttons.forEach((button) => {
-      button.textContent = "登入";
-      button.disabled = false;
-    });
-  }
-}
-
-function authDisplayName(user) {
-  return (
-    user?.email ||
-    user?.user_metadata?.name ||
-    user?.user_metadata?.full_name ||
-    user?.user_metadata?.user_name ||
-    "已登入"
+function renderSessionMarkers(sessions) {
+  if (!google || !map) return;
+  const groups = groupSessionsByCourt(courts, sessions);
+  sessionMarkers = renderSessionPins(
+    google,
+    map,
+    groups,
+    {
+      onSession: (sessionId) => controller.openSession(sessionId),
+      onCluster: (court, groupedSessions) => controller.openCourt(court, groupedSessions),
+    },
+    sessionMarkers
   );
 }
 
-function replaceProfile(profile) {
-  delete state.profile.id;
-  state.profile.nick = profile.nick;
-  state.profile.ntrp = profile.ntrp;
-  state.profile.types = new Set(profile.types);
-  state.profile.courts = new Set(profile.courts);
-  state.profile.slots = new Set(profile.slots);
-  state.profile.share = false;
-  state.profile.lineId = profile.lineId;
+function renderDiscovery(view) {
+  renderFilters(view.filters);
+  renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
+    sessions: view.sessions,
+    expanded: view.expanded,
+    hasUserLocation: view.hasUserLocation,
+    onToggle: controller.setDrawerExpanded,
+    onOpenSession: controller.openSession,
+    onReset: controller.resetFilters,
+    onExpandBounds: controller.expandBounds,
+    onOpenCreate: controller.openCreateIntent,
+    onRetry: controller.retryDiscovery,
+  });
+  renderMapDataStatus(document.getElementById("map-data-status"), {
+    ...view.mapStatus,
+    locationMessage: view.locationMessage,
+    onRetry: controller.retryDiscovery,
+  });
 }
 
-function resetProfile() {
-  replaceProfile(defaultProfile());
-  syncProfileForm();
+function populateCourtFilters(nextCourts) {
+  const districts = [...new Set(nextCourts.map((court) => court.district).filter(Boolean))].sort();
+  const district = document.getElementById("district-filter");
+  const court = document.getElementById("court-filter");
+  district.innerHTML = `<option value="">全部行政區</option>${districts.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("")}`;
+  court.innerHTML = `<option value="">全部球場</option>${nextCourts
+    .map((entry) => `<option value="${esc(entry.id)}">${esc(entry.name)}</option>`)
+    .join("")}`;
 }
 
-async function loadSignedInProfile() {
-  if (!state.session || !isSupabaseConfigured) return;
-  const profile = await loadCurrentProfile();
-  if (profile) {
-    replaceProfile(profile);
-    syncProfileForm();
+function renderBaseCourtPins() {
+  if (!google || !map) return;
+  courtMarkers = renderCourtBasePins(google, map, courts, (court) => controller.openCourt(court), courtMarkers);
+}
+
+function wireFilters() {
+  document.getElementById("district-filter").addEventListener("change", (event) => controller.setFilter("district", event.currentTarget.value));
+  document.getElementById("court-filter").addEventListener("change", (event) => controller.setFilter("courtId", event.currentTarget.value || null));
+  document.getElementById("date-filter").addEventListener("input", (event) => controller.setFilter("date", event.currentTarget.value || null));
+  document.getElementById("filters-reset").addEventListener("click", () => controller.resetFilters());
+
+  const chip = document.getElementById("level-chip");
+  const popover = document.getElementById("level-popover");
+  document.getElementById("band-options").innerHTML = BANDS.map(
+    (band) => `<button type="button" class="band-option${band.key === "all" ? " is-active" : ""}" data-band="${esc(band.key)}">${esc(band.label)}</button>`
+  ).join("");
+  chip.addEventListener("click", () => {
+    popover.hidden = !popover.hidden;
+    chip.setAttribute("aria-expanded", String(!popover.hidden));
+  });
+  document.querySelectorAll("[data-band]").forEach((button) => {
+    button.addEventListener("click", () => {
+      controller.setFilter("band", button.dataset.band);
+      popover.hidden = true;
+      chip.setAttribute("aria-expanded", "false");
+    });
+  });
+  document.querySelectorAll(".chip-type").forEach((button) => {
+    button.addEventListener("click", () => {
+      const selected = new Set(
+        [...document.querySelectorAll(".chip-type.is-active")].map((node) => node.dataset.type)
+      );
+      selected.has(button.dataset.type) ? selected.delete(button.dataset.type) : selected.add(button.dataset.type);
+      controller.setFilter("types", selected);
+    });
+  });
+}
+
+async function loadCourtsImmediately() {
+  try {
+    courts = await loadCourts();
+    controller.setCourts(courts);
+    populateCourtFilters(courts);
+    renderBaseCourtPins();
+  } catch {
+    courts = [];
+    controller.setCourts([]);
+    toast("球場資料暫時無法載入。");
   }
 }
 
-async function initializeAuth() {
-  state.session = await getInitialSession();
-  await loadSignedInProfile();
-  updateAuthStatus();
+function eligibilityFromPrivateProfile(profile) {
+  return {
+    complete: Boolean(
+      profile?.nick &&
+        Number.isFinite(Number(profile?.ntrp)) &&
+        profile?.lineId &&
+        (profile?.courts?.size ?? 0) > 0
+    ),
+  };
+}
 
+async function restoreAuth() {
+  let initialSession = null;
+  let profile = null;
+  try {
+    initialSession = await getInitialSession();
+    if (initialSession) profile = eligibilityFromPrivateProfile(await loadCurrentProfile());
+  } catch {
+    // Discovery is deliberately independent from auth restoration.
+  }
+  await controller.setAuthState(initialSession, profile);
   onAuthStateChange(async (session) => {
-    state.session = session;
-    if (session) await loadSignedInProfile();
-    else resetProfile();
-    updateAuthStatus();
-  });
-}
-
-function setupAuthControls() {
-  document.querySelectorAll("[data-auth-action]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (state.session) {
-        button.disabled = true;
-        await signOut();
-        state.session = null;
-        resetProfile();
-        updateAuthStatus();
-        showToast("已登出");
-        return;
-      }
-      openAuthPrompt();
-    });
-  });
-}
-
-// ------------------------------------------------------------
-// 個人檔案分頁(原型:存記憶體 + toast,不落地)
-// ------------------------------------------------------------
-const SLOT_ROWS = [
-  { key: "wd", day: "平日" },
-  { key: "we", day: "週末" },
-];
-const SLOT_COLS = [
-  { key: "m", label: "早上" },
-  { key: "a", label: "下午" },
-  { key: "e", label: "晚上" },
-];
-
-function setupProfile() {
-  const prof = state.profile;
-
-  // 暱稱 → 頭像字首連動
-  const nickInput = document.getElementById("prof-nick");
-  nickInput.addEventListener("input", () => {
-    prof.nick = nickInput.value.trim() || "我";
-    document.getElementById("prof-avatar").textContent = prof.nick.slice(0, 1);
-  });
-
-  // NTRP 滑桿
-  const range = document.getElementById("prof-ntrp");
-  range.addEventListener("input", () => {
-    prof.ntrp = parseFloat(range.value);
-    document.getElementById("prof-ntrp-val").textContent = prof.ntrp.toFixed(1);
-    document.getElementById("prof-ntrp-desc").textContent = ntrpDesc(prof.ntrp);
-  });
-
-  // 想打類型
-  const typesBox = document.getElementById("prof-types");
-  typesBox.innerHTML = TYPES.map(
-    (t) => `<button type="button" class="prof-type${prof.types.has(t) ? " is-active" : ""}" data-t="${t}">${esc(t)}</button>`
-  ).join("");
-  typesBox.querySelectorAll("[data-t]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const t = btn.dataset.t;
-      prof.types.has(t) ? prof.types.delete(t) : prof.types.add(t);
-      btn.classList.toggle("is-active");
-    });
-  });
-
-  // 常打球場(分區＋搜尋,資料來自 loadAppData 的 courts)
-  courtPicker = mountCourtPicker(document.getElementById("prof-courts"), {
-    getSelected: () => prof.courts,
-    onToggle: (name) => {
-      prof.courts.has(name) ? prof.courts.delete(name) : prof.courts.add(name);
-      courtPicker.refresh();
-    },
-  });
-  courtPicker.setCourts(courts); // 初次=mock COURTS(mock 模式維持 6 座示範)
-
-  // 固定時段格子
-  const slotsBox = document.getElementById("prof-slots");
-  slotsBox.innerHTML =
-    `<div class="slot-grid__row"><div class="slot-grid__day"></div>${SLOT_COLS.map(
-      (c) => `<div class="slot-grid__hdr">${c.label}</div>`
-    ).join("")}</div>` +
-    SLOT_ROWS.map(
-      (r) =>
-        `<div class="slot-grid__row"><div class="slot-grid__day">${r.day}</div>${SLOT_COLS.map((c) => {
-          const code = `${r.key}-${c.key}`;
-          return `<button type="button" class="slot-cell${prof.slots.has(code) ? " is-on" : ""}" data-s="${code}" aria-label="${r.day}${c.label}">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#16351F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-          </button>`;
-        }).join("")}</div>`
-    ).join("");
-  slotsBox.querySelectorAll("[data-s]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const code = btn.dataset.s;
-      prof.slots.has(code) ? prof.slots.delete(code) : prof.slots.add(code);
-      btn.classList.toggle("is-on");
-    });
-  });
-
-  // 分享位置開關
-  const shareBtn = document.getElementById("prof-share");
-  shareBtn.addEventListener("click", () => {
-    if (!prof.share) {
-      const missing = contactMissingFields(prof);
-      if (missing.length > 0) {
-        showToast(`公開前請先補齊 ${missing.join("、")}`);
-        shareBtn.classList.remove("is-on");
-        return;
-      }
-    }
-    prof.share = !prof.share;
-    shareBtn.classList.toggle("is-on", prof.share);
-  });
-
-  // LINE ID
-  const lineInput = document.getElementById("prof-line");
-  lineInput.addEventListener("input", () => {
-    prof.lineId = lineInput.value.trim();
-  });
-
-  // 儲存:未設定 Supabase 時維持原型 toast;有設定時寫入目前登入使用者的 profile。
-  document.getElementById("prof-save").addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    if (!isSupabaseConfigured) {
-      showToast("已儲存");
-      return;
-    }
-
-    if (!state.session) {
-      openAuthPrompt();
-      return;
-    }
-
-    button.disabled = true;
+    let nextProfile = null;
     try {
-      const savedProfile = await saveCurrentProfile(prof);
-      if (savedProfile) {
-        replaceProfile(savedProfile);
-        syncProfileForm();
-      }
-      await refreshDataAndPins();
-      showToast("已儲存到 Supabase");
-    } catch (error) {
-      console.error(error);
-      showToast("儲存失敗，請稍後再試。");
-    } finally {
-      button.disabled = false;
+      if (session) nextProfile = eligibilityFromPrivateProfile(await loadCurrentProfile());
+    } catch {
+      nextProfile = null;
     }
+    await controller.setAuthState(session, nextProfile);
   });
 }
 
-function syncProfileForm() {
-  const prof = state.profile;
-  document.getElementById("prof-nick").value = prof.nick;
-  document.getElementById("prof-avatar").textContent = prof.nick.slice(0, 1);
-  document.getElementById("prof-ntrp").value = String(prof.ntrp);
-  document.getElementById("prof-ntrp-val").textContent = prof.ntrp.toFixed(1);
-  document.getElementById("prof-ntrp-desc").textContent = ntrpDesc(prof.ntrp);
-  document.getElementById("prof-line").value = prof.lineId;
-  document.getElementById("prof-share").classList.toggle("is-on", prof.share);
-
-  document.querySelectorAll("#prof-types [data-t]").forEach((btn) => {
-    btn.classList.toggle("is-active", prof.types.has(btn.dataset.t));
-  });
-  courtPicker?.refresh();
-  document.querySelectorAll("#prof-slots [data-s]").forEach((btn) => {
-    btn.classList.toggle("is-on", prof.slots.has(btn.dataset.s));
-  });
-}
-
-// ------------------------------------------------------------
-// 沒填 API key 時的說明蓋板
-// ------------------------------------------------------------
-function showPlaceholder() {
-  const placeholder = document.getElementById("map-placeholder");
-  if (!placeholder.hidden) return; // 已顯示過(可能由多個失敗路徑觸發)
-  const list = document.getElementById("placeholder-courts");
-  const summary = document.createElement("li");
-  summary.textContent = `共 ${courts.length} 座球場；新版介面會顯示安全球局清單。`;
-  list.appendChild(summary);
-  placeholder.hidden = false;
-}
-
-// ------------------------------------------------------------
-// 啟動
-// ------------------------------------------------------------
-async function init() {
-  setupTabs();
-  setupLevelPopover();
-  setupTypeChips();
-  setupMapControls();
-  setupPublishRequest();
-  setupProfile();
-  setupAuthControls();
-  await initializeAuth();
-  await loadAppData();
-
+function startMap() {
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "___") {
-    showPlaceholder();
+    controller.setMapUnavailable();
     return;
   }
-
-  try {
-    // 第二個參數:key 無效/受限時 Google 會非同步回呼,退回說明蓋板
-    // 而不是讓使用者看到 Google 的灰色錯誤地圖
-    google = await loadGoogleMaps(GOOGLE_MAPS_API_KEY, () => {
-      console.warn("Google Maps API key 驗證失敗(無效、受限或未開通帳單)");
-      showPlaceholder();
+  loadGoogleMaps(GOOGLE_MAPS_API_KEY, () => {
+    // Keep this deliberately diagnostic-only: the public UI has a list fallback.
+    console.warn("Google Maps 驗證失敗；已切換為球局清單。");
+    controller.setMapUnavailable();
+  })
+    .then((mapsApi) => {
+      google = mapsApi;
+      map = createMap(google, document.getElementById("map"));
+      controller.attachMap(map);
+      renderBaseCourtPins();
+      renderSessionMarkers(controller.getVisibleSessions());
+    })
+    .catch(() => {
+      console.warn("Google Maps 載入失敗；已切換為球局清單。");
+      controller.setMapUnavailable();
     });
-    map = createMap(google, document.getElementById("map"));
-    refreshPins();
-    refreshBasePins();
-  } catch (err) {
-    console.error(err);
-    showPlaceholder();
-  }
+}
+
+function init() {
+  controller = createSessionController({
+    api: { loadSessionDiscovery, loadMySessions, requestToJoinSession, withdrawFromSession },
+    mapTools: { getMapBounds, subscribeToMapIdle, setUserLocation, fitTaipei: fitTaipeiBounds },
+    render: renderDiscovery,
+    renderPins: renderSessionMarkers,
+    openSession: (session, handlers) => openSessionSheet(session, handlers),
+    openJoinConfirmation: (session, handlers) => openJoinSessionConfirmation(session, handlers),
+    openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
+    openCreatePrompt,
+    openLogin: openSafeLogin,
+    promptProfile: openProfileCompletionPrompt,
+    toast,
+  });
+  wireFilters();
+  document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
+  document.getElementById("open-session").addEventListener("click", () => controller.openCreateIntent());
+
+  // None of these awaits the others: court pins and discovery work before auth.
+  loadCourtsImmediately();
+  controller.loadDiscovery();
+  restoreAuth();
+  startMap();
 }
 
 init();

@@ -1,157 +1,152 @@
 import { expect, test } from "@playwright/test";
 import { expectWithinViewport, installFakeMaps } from "./fixtures/fakeMaps.js";
 
-test("loads, uses quick contact, and saves profile", async ({ page }) => {
-  const runtimeErrors = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") runtimeErrors.push(msg.text());
-  });
-  page.on("pageerror", (err) => runtimeErrors.push(err.message));
+const publicSurface = (page) => page.locator("#app");
 
-  await installFakeMaps(page);
-  await page.goto("/");
-
-  await expect(page).toHaveTitle(/Tennis Partner Finder/);
-  await expect(page.getByText("找球伴")).toBeVisible();
-  await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
-  await expect(page.getByRole("button", { name: /我的邀請/ })).toHaveCount(0);
-
-  await page.getByRole("button", { name: /個人檔案/ }).click();
-  await expect(page.getByLabel("暱稱")).toBeVisible();
-  await expect(page.getByText("公開我的球友卡")).toBeVisible();
-  await expect(page.getByText("讓其他球友透過 LINE 找你約球")).toBeVisible();
-  await page.getByRole("button", { name: "儲存檔案" }).click();
-  await expect(page.getByText("已儲存")).toBeVisible();
-
-  await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大佳河濱公園網球場/ }).click();
-  await expect(page.locator("#sheet-root .psheet__nick")).toHaveText("Amber");
-  await expect(page.locator("#sheet-root")).not.toContainText("amber.tw");
-  await expect(page.getByRole("button", { name: "快速約球" })).toBeVisible();
-
-  await page.getByRole("button", { name: "快速約球" }).click();
-  await expect(page.getByText(/先補齊 .*LINE ID/)).toBeVisible();
-  await expect(page.locator("#tab-profile .page__title")).toHaveText("個人檔案");
-
-  await page.getByLabel("暱稱").fill("Me");
-  await page.getByPlaceholder("輸入你的 LINE ID").fill("my_line_id");
-  await page.getByRole("button", { name: /^地圖$/ }).click();
-  await page.getByRole("button", { name: /地圖圖釘 大佳河濱公園網球場/ }).click();
-  await page.getByRole("button", { name: "快速約球" }).click();
-
-  await expect(page.getByText("快速約球給")).toBeVisible();
-  await expect(page.locator("#modal-root .modal__nick")).toHaveText("Amber");
-  await expectWithinViewport(page, page.locator("#modal-root .modal"));
-  await expect(page.getByText("amber.tw")).toBeVisible();
-  await expect(page.getByRole("button", { name: "複製 LINE ID" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "複製開場白" })).toBeVisible();
-  await page.getByRole("button", { name: "週三晚上" }).click();
-  await expect(page.locator(".contact-opener")).toContainText("青年公園網球場");
-  await expect(page.locator(".contact-opener")).toContainText("週三晚上");
-  await expect(page.locator(".contact-opener")).toContainText("3.5");
-
-  expect(runtimeErrors).toEqual([]);
-});
-
-test("profile court picker searches, selects, and keeps search focus", async ({ page }) => {
-  const runtimeErrors = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") runtimeErrors.push(msg.text());
-  });
-  page.on("pageerror", (err) => runtimeErrors.push(err.message));
-
-  await installFakeMaps(page);
-  await page.goto("/");
-
-  await page.getByRole("button", { name: /個人檔案/ }).click();
-  // defaultProfile 已預選青年公園網球場,一進來就該有一顆 chip
-  await expect(page.locator("#prof-courts .court-chip", { hasText: "青年公園網球場" })).toBeVisible();
-
-  const search = page.getByLabel("搜尋球場");
-  await search.pressSequentially("青年", { delay: 20 });
-  await expect(page.locator("#prof-courts .prof-court")).toHaveCount(1);
-  await expect(search).toBeFocused();
-
-  // 換一個尚未選取的球場,驗證搜尋→點選→出現 chip 的流程
-  await search.fill("彩虹");
-  await expect(page.locator("#prof-courts .prof-court")).toHaveCount(1);
-  await expect(search).toBeFocused();
-  await page.locator("#prof-courts .prof-court", { hasText: "彩虹河濱公園網球場" }).click();
-  await expect(page.locator("#prof-courts .court-chip", { hasText: "彩虹河濱公園網球場" })).toBeVisible();
-
-  expect(runtimeErrors).toEqual([]);
-});
-
-test("court picker derives city groups from court data", async ({ page }) => {
-  await installFakeMaps(page);
-  await page.goto("/");
-
-  await page.evaluate(async () => {
-    const { mountCourtPicker } = await import("/src/courtPicker.js");
-    const container = document.createElement("div");
-    container.id = "city-picker-test";
-    document.body.append(container);
-    const picker = mountCourtPicker(container, {
-      getSelected: () => new Set(),
-      onToggle: () => {},
+async function installGeolocation(page, responses) {
+  await page.addInitScript((nextResponses) => {
+    let calls = 0;
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition(success, failure) {
+          const response = nextResponses[Math.min(calls, nextResponses.length - 1)];
+          calls += 1;
+          if (response.error) failure(response.error);
+          else success({ coords: response.coords });
+        },
+      },
     });
-    picker.setCourts([
-      { name: "資料驅動測試球場", city: "測試市", district: "測試區", lat: 25, lng: 121 },
-    ]);
+    window.__geolocationCallCount = () => calls;
+  }, responses);
+}
+
+function captureConsoleErrors(page) {
+  const errors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
   });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return errors;
+}
 
-  await expect(page.locator("#city-picker-test .court-picker__city")).toHaveText("測試市");
-  await expect(page.locator("#city-picker-test .court-picker__district")).toHaveText("測試區");
-});
-
-test("external demand pins keep the source-link flow", async ({ page }) => {
+test("anonymous map discovery renders only safe SessionSummary fields", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
+  await installGeolocation(page, [{ coords: { latitude: 25.03, longitude: 121.55 } }]);
   await page.goto("/");
 
-  await page.getByRole("button", { name: /地圖圖釘 古亭河濱公園網球場/ }).evaluate((el) => el.click());
-
-  await expect(page.getByText("古亭河濱公園網球場 附近")).toBeVisible();
-  await expect(page.getByText("查看原貼文")).toBeVisible();
-  await expect(page.locator("#sheet-root")).not.toContainText("快速約球");
-  await expect(page.locator("#sheet-root")).not.toContainText("回應需求");
-});
-
-test("court base pins render under every court and open the drawer without clashing with overlay pins", async ({ page }) => {
-  const runtimeErrors = [];
-  page.on("console", (msg) => {
-    if (msg.type() === "error") runtimeErrors.push(msg.text());
-  });
-  page.on("pageerror", (err) => runtimeErrors.push(err.message));
-
-  await installFakeMaps(page);
-  await page.goto("/");
-
+  await expect(page.getByRole("region", { name: "台北市球局地圖" })).toBeVisible();
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
+  await expect(page.locator("#use-my-location")).toBeVisible();
+  await expect(page.locator("#nearby-sessions-drawer")).toBeVisible();
+  await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#nearby-sessions-summary")).toContainText("這個地圖範圍內");
+  await expect(page.locator("#nearby-sessions-list")).toBeHidden();
+  await expect(page.locator("#open-session")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(0);
 
-  // 底圖釘(title 前綴「球場 」)與 overlay 釘(球友/需求/聚合)aria-label 不同字串,
-  // strict-mode 不應互相衝突。
-  await expect(page.getByRole("button", { name: /^地圖圖釘 大佳河濱公園網球場$/ })).toHaveCount(1);
-  await expect(page.getByRole("button", { name: /^地圖圖釘 球場 大佳河濱公園網球場$/ })).toHaveCount(1);
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
+  const firstCard = page.locator("[data-testid='session-card']").first();
+  await expect(firstCard).toBeVisible();
+  await expect(firstCard).toContainText("示範");
+  await expect(firstCard).toContainText("NTRP");
 
-  // 青年公園網球場 mock 資料:1 位球友(Momo)+ 3 則需求(d2/d5/d6)= 4 筆
-  await page.getByRole("button", { name: /地圖圖釘 球場 青年公園網球場/ }).click();
-  await expect(page.locator(".drawer__court")).toHaveText("青年公園網球場");
-  await expect(page.locator(".drawer__sub")).toContainText("萬華區");
-  await expect(page.locator(".drawer__item")).toHaveCount(4);
-
+  const exposed = await publicSurface(page).innerText();
+  expect(exposed).not.toMatch(/amber\.tw|hsu_tennis|facebook\.com|ptt\.cc|LINE ID/i);
+  expect(exposed).not.toMatch(/profile[_ -]?id|真名|常打球場/i);
+  const markerAttributes = await page.locator(".test-marker").evaluateAll((markers) =>
+    markers.map((marker) => ({ title: marker.getAttribute("title"), aria: marker.getAttribute("aria-label") }))
+  );
+  expect(JSON.stringify(markerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
   expect(runtimeErrors).toEqual([]);
 });
 
-test("falls back to the placeholder when Google Maps auth fails", async ({ page }) => {
-  await page.route("https://maps.googleapis.com/maps/api/js**", (route) =>
-    route.fulfill({
-      contentType: "application/javascript",
-      body: "window.gm_authFailure?.();",
-    })
-  );
-
+test("drawer, filters, session sheet, and empty reset preserve the session-only flow", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
   await page.goto("/");
 
-  await expect(page.getByText("還差一步:填入 Google Maps API key")).toBeVisible();
-  await expect(page.locator("#placeholder-courts")).toContainText("台北網球中心");
+  await page.locator("#nearby-sessions-toggle").click();
+  const firstCard = page.locator("[data-testid='session-card']").first();
+  await firstCard.click();
+
+  const sheet = page.locator("#session-sheet");
+  await expect(sheet).toHaveAttribute("role", "dialog");
+  await expect(sheet).toHaveAttribute("aria-modal", "true");
+  await expect(sheet.locator("[data-session-field='court']")).toBeVisible();
+  await expect(sheet.locator("[data-session-field='time']")).toBeVisible();
+  await expect(sheet.locator("[data-session-field='details']")).toBeVisible();
+  await expect(sheet.locator("[data-session-field='host']")).toContainText("示範");
+  await expect(sheet.locator("[data-session-field='notes']")).toContainText("本機示範");
+  await expect(sheet.getByRole("button", { name: "申請加入" })).toBeVisible();
+  const fieldOrder = await sheet.locator("[data-session-field], [data-session-action]").evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute("data-session-field") ?? node.getAttribute("data-session-action"))
+  );
+  expect(fieldOrder).toEqual(["court", "time", "details", "host", "notes", "primary"]);
+  await expectWithinViewport(page, sheet);
+
+  await sheet.getByRole("button", { name: /關閉/ }).click();
+  await page.locator("#date-filter").fill("2099-01-01");
+  await expect(page.locator("#discovery-empty")).toBeVisible();
+  await expect(page.locator("#discovery-empty")).toContainText("這個範圍暫時沒有可加入的球局");
+  await expect(page.locator("#discovery-retry")).toBeVisible();
+  await page.locator("#discovery-reset").click();
+  await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
+
+  await page.locator("[data-testid='session-card']").filter({ hasText: "已額滿" }).click();
+  await expect(page.locator("#session-sheet [data-session-action='primary']")).toHaveText("已額滿");
+  await expect(page.locator("#session-sheet [data-session-action='primary']")).toBeDisabled();
+  await page.locator("#session-sheet").getByRole("button", { name: /關閉/ }).click();
+
+  await page.getByRole("button", { name: /地圖圖釘 球場 青年公園網球場/ }).click();
+  await expect(page.locator("#court-session-sheet")).toHaveAttribute("role", "dialog");
+  await expect(page.locator("#court-session-sheet [data-testid='session-card']")).toHaveCount(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("location is explicit, ephemeral, and recenters from a fresh coordinate", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await installGeolocation(page, [
+    { coords: { latitude: 25.03, longitude: 121.55 } },
+    { coords: { latitude: 25.05, longitude: 121.57 } },
+  ]);
+  await page.goto("/");
+
+  await page.locator("#use-my-location").click();
+  await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(1);
+  await expect(page.locator("#nearby-sessions-summary")).toContainText("附近");
+  const firstSnapshot = await page.evaluate(() => window.__fakeMapsSnapshot());
+  expect(firstSnapshot.fitBoundsCalls).toHaveLength(1);
+  expect(firstSnapshot.userMarkers).toEqual([{ title: "你" }]);
+  expect(JSON.stringify(firstSnapshot.userMarkers)).not.toMatch(/25\.03|121\.55/);
+  const stored = await page.evaluate(() => Object.values(sessionStorage).join(" "));
+  expect(stored).not.toMatch(/25\.03|121\.55/);
+
+  await page.locator("#use-my-location").click();
+  await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(2);
+  const secondSnapshot = await page.evaluate(() => window.__fakeMapsSnapshot());
+  expect(secondSnapshot.fitBoundsCalls).toHaveLength(2);
+  expect(secondSnapshot.userMarkers).toEqual([{ title: "你" }]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("location denial is non-repeating and Maps authentication fallback keeps discovery usable", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installGeolocation(page, [{ error: { code: 1, message: "denied" } }]);
+  await page.route("https://maps.googleapis.com/maps/api/js**", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: "window.gm_authFailure?.();" })
+  );
+  await page.goto("/");
+
+  await expect(page.locator("#map-data-status")).toContainText("地圖目前無法使用");
+  await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
+  await page.locator("#use-my-location").click();
+  await expect(page.locator("#location-feedback")).toContainText("無法取得位置");
+  await page.locator("#use-my-location").click();
+  await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(1);
+  expect(runtimeErrors).toEqual([]);
 });

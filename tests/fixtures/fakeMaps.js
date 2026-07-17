@@ -4,6 +4,8 @@ const fakeMapsScript = `
 (() => {
   const markers = [];
   const maps = [];
+  const fitBoundsCalls = [];
+  const setCenterCalls = [];
 
   class Size {
     constructor(width, height) {
@@ -78,6 +80,12 @@ const fakeMapsScript = `
 
     panTo(center) {
       this.center = center;
+      setCenterCalls.push({});
+    }
+
+    setCenter(center) {
+      this.center = center;
+      setCenterCalls.push({});
     }
 
     getBounds() {
@@ -99,6 +107,12 @@ const fakeMapsScript = `
       this.bounds = boundsFromTestValue(bounds);
       for (const callback of this.listeners.idle ?? []) callback();
     }
+
+    fitBounds(bounds) {
+      this.bounds = bounds;
+      fitBoundsCalls.push({});
+      for (const callback of this.listeners.idle ?? []) callback();
+    }
   }
 
   class Marker {
@@ -111,6 +125,7 @@ const fakeMapsScript = `
       this.el.className = "test-marker";
       this.el.textContent = label || options.title || "marker";
       this.el.setAttribute("aria-label", "地圖圖釘 " + (options.title || label || "marker"));
+      this.el.setAttribute("title", options.title || "");
       this.el.style.position = "absolute";
       const i = markers.length;
       this.el.style.left = 8 + (i % 24) * 15 + "px";
@@ -134,11 +149,20 @@ const fakeMapsScript = `
       this.map = map;
       this.map?.el?.appendChild(this.el);
     }
+
+    setPosition(position) {
+      this.options.position = position;
+    }
   }
 
   window.__setFakeGoogleMapsBounds = (bounds) => {
     maps.forEach((map) => map.setTestBounds(bounds));
   };
+  window.__fakeMapsSnapshot = () => ({
+    fitBoundsCalls: fitBoundsCalls.map(() => ({})),
+    setCenterCalls: setCenterCalls.map(() => ({})),
+    userMarkers: markers.filter((marker) => marker.options.title === "你").map(() => ({ title: "你" })),
+  });
   window.google = { maps: { LatLng, LatLngBounds, Map, Marker, Point, Size } };
   window.__onGoogleMapsReady?.();
 })();
