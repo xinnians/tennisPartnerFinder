@@ -4,7 +4,13 @@ import { expect, test } from "@playwright/test";
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
 import { installFakeMaps } from "./fixtures/fakeMaps.js";
 import { courtIdByName, createProfile, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
-import { createFutureSessionInput, createSessionTestContext, createSessionViaRpc } from "./fixtures/sessionFactory.js";
+import {
+  createFutureSessionInput,
+  createSessionTestContext,
+  createSessionViaRpc,
+  requestToJoinSessionViaRpc,
+  reviewJoinRequestViaRpc,
+} from "./fixtures/sessionFactory.js";
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
 
@@ -41,6 +47,38 @@ async function gotoWithSession(page, session) {
   );
   await page.goto("/");
   await profileResponse;
+}
+
+async function switchBrowserSession(page, session) {
+  await setBrowserSession(page, session);
+  const profileResponse = page.waitForResponse(
+    (response) => response.url().includes("/rest/v1/my_profile") && response.request().method() === "GET"
+  );
+  await page.reload();
+  await profileResponse;
+}
+
+async function switchBrowserSessionWithoutReload(page, session) {
+  await page.evaluate(async (nextSession) => {
+    const { supabase } = await import("/src/supabaseClient.js");
+    await supabase.auth.setSession({
+      access_token: nextSession.access_token,
+      refresh_token: nextSession.refresh_token,
+    });
+  }, session);
+}
+
+async function createCompleteActor(actor) {
+  const { client, session } = await signUpUser(actor.email);
+  const profileId = await createProfile(client, {
+    courts: actor.courts,
+    lineId: actor.lineId,
+    nickname: actor.nickname,
+    ntrp: actor.ntrp,
+    playTypes: actor.playTypes,
+    slots: actor.slots,
+  });
+  return { client, profileId, session };
 }
 
 test("anonymous Join resumes the same live target as a confirmation, never an automatic request", async ({ page }) => {
@@ -214,4 +252,160 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   await expect(page.locator("#my-upcoming-sessions [data-session-id]").first()).toBeFocused();
   await expect(page.locator("#my-upcoming-sessions")).toContainText(context.host.courts[0]);
   expect(createPayload?.p_start_at).toBe("2099-07-18T01:30:00.000Z");
+});
+
+test("host sees a safe requested roster first, can report it, then accepts and exchanges only approved contacts", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `mutual-consent-${context.runId}`, slotsTotal: 1 })
+  );
+
+  await gotoWithSession(page, guest.session);
+  await openPublishedSession(page, sessionId);
+  await page.locator("#session-sheet [data-session-action='primary']").click();
+  const confirmation = page.locator("#join-session-confirmation");
+  await expect(confirmation.getByTestId("session-join-form")).toBeVisible();
+  await confirmation.getByTestId("join-session").click();
+  await expect(confirmation).toContainText("已送出申請，等待主揪回覆。");
+  await expect.poll(() => page.evaluate((key) => sessionStorage.getItem(key), PENDING_SESSION_INTENT_KEY)).toBeNull();
+  await confirmation.getByRole("button", { name: "前往我的球局" }).click();
+  await expect(page.locator("#my-sessions-page")).toBeVisible();
+  await expect(page.locator("#my-sessions-root [data-my-sessions-heading]")).toBeFocused();
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const participantRow = page.getByTestId("participant-row");
+  await expect(participantRow).toBeVisible();
+  await expect(page.locator("#my-needs-action")).toContainText(context.guest.nickname);
+  await expect(page.locator("#my-sessions-badge")).toHaveText("1");
+  await expect(page.getByTestId(`session-contact-${guest.profileId}`)).toHaveCount(0);
+  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
+
+  const reportRequest = page.waitForRequest((request) => request.url().includes("/rpc/create_report"));
+  await page.getByTestId(`report-participant-${guest.profileId}`).click();
+  const reportDialog = page.locator("#report-dialog");
+  await reportDialog.getByLabel("不當行為").check();
+  await reportDialog.getByTestId("report-submit").click();
+  const reportPayload = (await reportRequest).postDataJSON();
+  expect(reportPayload).toMatchObject({
+    p_reason: "不當行為",
+    p_reported_profile_id: guest.profileId,
+    p_session_id: null,
+  });
+  await expect(reportDialog).toContainText("已送出檢舉，謝謝你的回報。");
+  await reportDialog.getByRole("button", { name: "關閉檢舉" }).click();
+
+  const participantId = await participantRow.getAttribute("data-participant-id");
+  await page.getByTestId(`accept-participant-${participantId}`).click();
+  await expect(participantRow).toBeHidden();
+  const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
+  await expect(hostContact).toBeVisible();
+  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+  await expect(hostContact.locator("[data-copy-contact]")).toHaveCount(2);
+  await expect(page.locator("#my-sessions-badge")).toBeHidden();
+
+  await switchBrowserSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
+  await expect(guestContact).toBeVisible();
+  await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
+
+  // Switching accounts while the private destination is hidden must clear it
+  // synchronously. This intentionally avoids a page reload: otherwise a prior
+  // account's accepted contact would remain queryable in hidden DOM.
+  await page.getByTestId("map-tab").click();
+  await switchBrowserSessionWithoutReload(page, host.session);
+  await expect(page.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveCount(0);
+  await expect(page.getByTestId(`session-contact-${host.profileId}`)).toHaveCount(0);
+
+  await switchBrowserSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+
+  const sessionReportRequest = page.waitForRequest((request) => request.url().includes("/rpc/create_report"));
+  await page.getByTestId(`report-session-${sessionId}`).click();
+  await expect(page.locator("#report-dialog")).toBeVisible();
+  await page.locator("#report-dialog").getByLabel("與實際球局不符").check();
+  await page.locator("#report-dialog").getByTestId("report-submit").click();
+  expect((await sessionReportRequest).postDataJSON()).toMatchObject({
+    p_reason: "與實際球局不符",
+    p_reported_profile_id: null,
+    p_session_id: sessionId,
+  });
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.locator(`#my-upcoming-sessions [data-my-action='cancel'][data-session-id='${sessionId}']`).click();
+  await expect(page.locator("#my-history")).toContainText("主揪已取消這一局");
+  await expect(page.locator(`#my-history [data-my-action='cancel'][data-session-id='${sessionId}']`)).toHaveCount(0);
+});
+
+test("accepting the final vacancy declines the remaining request, and an accepted guest withdrawal reopens the session", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const acceptedGuest = await createCompleteActor(context.guest);
+  const declinedGuest = await createCompleteActor(context.observer);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
+  await requestToJoinSessionViaRpc(acceptedGuest.client, sessionId);
+  await requestToJoinSessionViaRpc(declinedGuest.client, sessionId);
+
+  await gotoWithSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const acceptedRow = page.getByTestId("participant-row").filter({ hasText: context.guest.nickname });
+  const acceptedParticipantId = await acceptedRow.getAttribute("data-participant-id");
+  await page.getByTestId(`accept-participant-${acceptedParticipantId}`).click();
+  await expect(page.getByTestId("participant-row")).toHaveCount(0);
+
+  await switchBrowserSession(page, declinedGuest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(page.locator("#my-history")).toContainText("主揪婉拒了你的申請");
+  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
+
+  await switchBrowserSession(page, acceptedGuest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.locator(`#my-upcoming-sessions [data-my-action='withdraw'][data-session-id='${sessionId}']`).click();
+  await expect(page.locator("#my-history")).toContainText("你已退出這一局");
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.locator("#my-sessions-refresh").click();
+  await expect(page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article")).toContainText("開放報名");
+});
+
+test("after a session starts, the host can report it played and an accepted guest can confirm attendance", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const startAt = new Date(Date.now() + 7_000).toISOString();
+  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, startAt, slotsTotal: 1 }));
+  await requestToJoinSessionViaRpc(guest.client, sessionId);
+  const { data: roster, error: rosterError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id, profile_id")
+    .eq("session_id", sessionId)
+    .eq("profile_id", guest.profileId)
+    .single();
+  if (rosterError) throw rosterError;
+  await reviewJoinRequestViaRpc(host.client, { decision: "accepted", participantId: roster.participant_id, sessionId });
+
+  await page.waitForTimeout(Math.max(0, new Date(startAt).getTime() - Date.now() + 1_100));
+  await gotoWithSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const playedButton = page.locator(`#my-upcoming-sessions [data-my-action='played'][data-session-id='${sessionId}']`);
+  await expect(playedButton).toBeVisible();
+  await playedButton.click();
+  await expect(page.locator("#my-history")).toContainText("本局已回報打成");
+
+  await switchBrowserSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const attendanceButton = page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`);
+  await expect(attendanceButton).toBeVisible();
+  await attendanceButton.click();
+  await expect(page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`)).toHaveCount(0);
 });

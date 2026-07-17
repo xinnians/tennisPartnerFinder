@@ -79,6 +79,7 @@ export function pushDrawerIsolation(toggle) {
       document.querySelector(".map-toolbar"),
       document.getElementById("level-popover"),
       document.getElementById("map-data-status"),
+      document.querySelector(".bottom-navigation"),
       document.getElementById("sheet-root"),
       document.getElementById("modal-root"),
       toggle,

@@ -109,6 +109,92 @@ function terminalAction(session) {
   return null;
 }
 
+const MY_SESSION_FINAL_STATUSES = new Set(["cancelled", "expired", "played"]);
+const MY_SESSION_OPEN_STATUSES = new Set(["open", "full"]);
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function timeValue(value, fallback = 0) {
+  const time = new Date(value ?? "").getTime();
+  return Number.isFinite(time) ? time : fallback;
+}
+
+function compareSessionStart(left, right) {
+  return timeValue(left?.startAt, Number.POSITIVE_INFINITY) - timeValue(right?.startAt, Number.POSITIVE_INFINITY) ||
+    Number(left?.sessionId) - Number(right?.sessionId);
+}
+
+function compareHistorySession(left, right) {
+  return (
+    timeValue(right?.updatedAt, timeValue(right?.startAt)) - timeValue(left?.updatedAt, timeValue(left?.startAt)) ||
+    timeValue(right?.startAt) - timeValue(left?.startAt) ||
+    Number(right?.sessionId) - Number(left?.sessionId)
+  );
+}
+
+/**
+ * Arrange private My Sessions rows around the next safe action. Host request
+ * rows are supplied by an already-authorized roster hydrate; public discovery
+ * is never used to infer them.
+ */
+export function groupMySessions(items = [], now = new Date()) {
+  const currentTime = timeValue(now, Date.now());
+  const needsAction = [];
+  const upcoming = [];
+  const history = [];
+
+  for (const session of Array.isArray(items) ? items : []) {
+    const status = String(session?.status ?? "").toLowerCase();
+    const viewerRole = String(session?.viewerRole ?? "").toLowerCase();
+    const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
+    const startedMoreThanADayAgo =
+      MY_SESSION_OPEN_STATUSES.has(status) && timeValue(session?.startAt, Number.NEGATIVE_INFINITY) <= currentTime - DAY_MS;
+
+    if (
+      MY_SESSION_FINAL_STATUSES.has(status) ||
+      startedMoreThanADayAgo ||
+      (viewerRole === "guest" && (participantStatus === "declined" || participantStatus === "withdrawn"))
+    ) {
+      history.push(session);
+      continue;
+    }
+
+    if (viewerRole === "guest" && participantStatus === "requested") {
+      if (session?.canWithdraw) needsAction.push({ kind: "guest-request", session });
+      else history.push(session);
+      continue;
+    }
+
+    if (!MY_SESSION_OPEN_STATUSES.has(status) || participantStatus !== "accepted") {
+      history.push(session);
+      continue;
+    }
+
+    upcoming.push(session);
+    if (viewerRole !== "host" || !session?.canCancel) continue;
+    const requests = (Array.isArray(session?.pendingRequests) ? session.pendingRequests : [])
+      .filter((participant) => participant?.role === "guest" && participant?.status === "requested")
+      .sort((left, right) => Number(left?.participantId) - Number(right?.participantId));
+    for (const participant of requests) needsAction.push({ kind: "host-request", participant, session });
+  }
+
+  needsAction.sort((left, right) => {
+    const kindOrder = left.kind === right.kind ? 0 : left.kind === "host-request" ? -1 : 1;
+    return (
+      kindOrder ||
+      compareSessionStart(left.session, right.session) ||
+      Number(left.participant?.participantId ?? 0) - Number(right.participant?.participantId ?? 0)
+    );
+  });
+  upcoming.sort(compareSessionStart);
+  history.sort(compareHistorySession);
+  return {
+    history,
+    needsAction,
+    pendingHostRequestCount: needsAction.filter((entry) => entry.kind === "host-request").length,
+    upcoming,
+  };
+}
+
 function samePendingIntent(left, right) {
   if (!left || !right || left.action !== right.action) return false;
   return left.action !== "join" || String(left.sessionId) === String(right.sessionId);
@@ -179,7 +265,9 @@ export function createSessionController({
   openCourtDrawer = () => {},
   openCreateSession = () => {},
   openLogin = () => {},
+  openReport = () => {},
   promptProfile = () => {},
+  onMySessionsChange = () => {},
   showCreatedSession = () => {},
   intentStore = browserIntentStore(),
   toast = () => {},
@@ -200,13 +288,21 @@ export function createSessionController({
     authSession: null,
     profile: null,
     mySessions: [],
+    mySessionsError: "",
+    mySessionContactsError: "",
+    mySessionsStatus: "idle",
+    mySessionContacts: new Map(),
+    mySessionRosters: new Map(),
   };
   let map = null;
   let idleTimer = null;
   let latestRequest = 0;
   let latestParticipationRequest = 0;
+  let latestRosterRequest = 0;
+  let latestContactRequest = 0;
   let latestLocationRequest = 0;
   let authEpoch = 0;
+  let mySessionsVersion = 0;
   let explicitViewportGeneration = 0;
   let expectedExplicitViewports = [];
   let activeDetail = null;
@@ -217,6 +313,7 @@ export function createSessionController({
   let activeJoinConfirmationSessionId = null;
   let activeCreateSession = null;
   let activeProfilePrompt = null;
+  let activeReportDialog = null;
   let lifecycleMutationGeneration = 0;
   let intentVersion = 0;
   const resumeInFlight = new Map();
@@ -250,6 +347,139 @@ export function createSessionController({
   function currentParticipation(sessionId) {
     if (!state.authSession) return null;
     return state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
+  }
+
+  function sessionKey(sessionId) {
+    return String(sessionId);
+  }
+
+  function mySessionItems() {
+    return state.mySessions.map((session) => ({
+      ...session,
+      pendingRequests: [...(state.mySessionRosters.get(sessionKey(session.sessionId)) ?? [])],
+    }));
+  }
+
+  function mySessionGroups() {
+    return groupMySessions(mySessionItems());
+  }
+
+  function notifyMySessions() {
+    onMySessionsChange({
+      authenticated: Boolean(state.authSession),
+      contactsError: state.mySessionContactsError,
+      error: state.mySessionsError,
+      groups: mySessionGroups(),
+      status: state.mySessionsStatus,
+      viewGeneration: authEpoch,
+    });
+  }
+
+  function replaceMySessions(sessions) {
+    state.mySessions = Array.isArray(sessions) ? sessions : [];
+    state.mySessionContacts = new Map();
+    state.mySessionContactsError = "";
+    state.mySessionRosters = new Map();
+    mySessionsVersion += 1;
+  }
+
+  function isCurrentMySessionsSnapshot(snapshot) {
+    return isCurrentAuthSnapshot(snapshot) && snapshot?.mySessionsVersion === mySessionsVersion;
+  }
+
+  function hostSessionsNeedingRoster() {
+    return state.mySessions.filter(
+      (session) =>
+        String(session?.viewerRole) === "host" &&
+        Boolean(session?.canCancel) &&
+        MY_SESSION_OPEN_STATUSES.has(String(session?.status ?? "").toLowerCase())
+    );
+  }
+
+  function sessionsEligibleForContacts() {
+    return state.mySessions.filter(
+      (session) =>
+        String(session?.viewerParticipantStatus) === "accepted" &&
+        ["open", "full", "played"].includes(String(session?.status ?? "").toLowerCase())
+    );
+  }
+
+  async function hydrateMySessionRosters(authSnapshot = captureAuthSnapshot()) {
+    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+    if (typeof api?.loadSessionRoster !== "function") return true;
+    const requestId = ++latestRosterRequest;
+    const snapshot = { ...authSnapshot, mySessionsVersion };
+    const targets = hostSessionsNeedingRoster();
+    const results = await Promise.all(
+      targets.map(async (session) => {
+        try {
+          const roster = await api.loadSessionRoster(session.sessionId);
+          return { roster: Array.isArray(roster) ? roster : [], sessionId: session.sessionId };
+        } catch {
+          return { roster: null, sessionId: session.sessionId };
+        }
+      })
+    );
+    if (requestId !== latestRosterRequest || !isCurrentMySessionsSnapshot(snapshot)) return false;
+    const rosters = new Map();
+    let failed = false;
+    for (const result of results) {
+      if (result.roster) rosters.set(sessionKey(result.sessionId), result.roster);
+      else failed = true;
+    }
+    state.mySessionRosters = rosters;
+    if (failed) {
+      state.mySessionsError = "待審核申請暫時無法載入，請重新整理後再試。";
+      state.mySessionsStatus = "error";
+    }
+    notifyMySessions();
+    return !failed;
+  }
+
+  async function hydrateMySessionContacts(authSnapshot = captureAuthSnapshot()) {
+    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+    if (typeof api?.loadSessionContacts !== "function") return true;
+    const requestId = ++latestContactRequest;
+    const snapshot = { ...authSnapshot, mySessionsVersion };
+    const targets = sessionsEligibleForContacts();
+    const results = await Promise.all(
+      targets.map(async (session) => {
+        try {
+          const contacts = await api.loadSessionContacts(session.sessionId);
+          return { contacts: Array.isArray(contacts) ? contacts : [], sessionId: session.sessionId };
+        } catch {
+          return { contacts: null, sessionId: session.sessionId };
+        }
+      })
+    );
+    if (requestId !== latestContactRequest || !isCurrentMySessionsSnapshot(snapshot)) return false;
+    const contacts = new Map();
+    let failed = false;
+    for (const result of results) {
+      if (result.contacts) contacts.set(sessionKey(result.sessionId), result.contacts);
+      else failed = true;
+    }
+    state.mySessionContacts = contacts;
+    if (failed) {
+      // Contact retrieval is deliberately secondary to the authoritative
+      // lifecycle list. It must not hide a known host action badge or make a
+      // successful accept/withdraw look like a failed mutation.
+      state.mySessionContactsError = "聯絡方式暫時無法載入，請重新整理後再試。";
+    } else {
+      state.mySessionContactsError = "";
+    }
+    notifyMySessions();
+    return !failed;
+  }
+
+  async function refreshMySessions({ includeContacts = true } = {}) {
+    const authSnapshot = captureAuthSnapshot();
+    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+    return reloadParticipation(authSnapshot.epoch, authSnapshot.identity, { includeContacts });
+  }
+
+  async function refreshMySessionDetails({ includeContacts = false } = {}) {
+    return refreshMySessions({ includeContacts });
   }
 
   function actionFor(session) {
@@ -300,9 +530,11 @@ export function createSessionController({
     return Boolean(key && inFlightLifecycleActions.has(key));
   }
 
-  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.authSession)) {
+  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.authSession), { includeContacts = false } = {}) {
     if (!state.authSession || !identity || typeof api?.loadMySessions !== "function") return false;
     const requestId = ++latestParticipationRequest;
+    state.mySessionsStatus = "loading";
+    notifyMySessions();
     try {
       const sessions = await api.loadMySessions();
       if (
@@ -313,8 +545,21 @@ export function createSessionController({
       ) {
         return false;
       }
-      state.mySessions = Array.isArray(sessions) ? sessions : [];
+      replaceMySessions(sessions);
+      state.mySessionsError = "";
+      // Publish the cleared private caches before awaiting secondary reads so
+      // an old roster or LINE row never survives in the rendered destination.
+      notifyMySessions();
+      const rosterReady = await hydrateMySessionRosters({ epoch, identity });
+      if (!rosterReady || !isCurrentAuthSnapshot({ epoch, identity })) return false;
+      if (includeContacts) await hydrateMySessionContacts({ epoch, identity });
+      if (!isCurrentAuthSnapshot({ epoch, identity })) return false;
+      state.mySessionsStatus = "ready";
       reconcileActiveDetailParticipation();
+      notifyMySessions();
+      // Contacts are non-authoritative enrichment. A failed contact request
+      // leaves a localized retry message, but the current lifecycle snapshot
+      // remains fresh and can safely complete an action.
       return true;
     } catch {
       if (
@@ -325,9 +570,13 @@ export function createSessionController({
       ) {
         return false;
       }
-      state.mySessions = [];
-      reconcileActiveDetailParticipation();
-      return true;
+      // A retryable read failure must not turn a known private list into an
+      // empty state. Keep the last authoritative rows and surface an error to
+      // the My Sessions page instead.
+      state.mySessionsError = "我的球局暫時無法載入。";
+      state.mySessionsStatus = "error";
+      notifyMySessions();
+      return false;
     }
   }
 
@@ -346,7 +595,7 @@ export function createSessionController({
     publish();
     try {
       const sessions = await api.loadSessionDiscovery({ bounds: nextBounds });
-      if (requestId !== latestRequest) return;
+      if (requestId !== latestRequest) return false;
       state.sessions = Array.isArray(sessions) ? sessions : [];
       state.discoveryStatus = "ready";
       reconcileActiveDetail(nextBounds);
@@ -358,8 +607,11 @@ export function createSessionController({
       // Keeping a stale action open after authority could not be refreshed is
       // less safe than asking the user to reopen it after a successful retry.
       closeActiveDetail();
+      publish();
+      return false;
     }
     publish();
+    return true;
   }
 
   function setCourts(courts, { ready = true } = {}) {
@@ -458,13 +710,17 @@ export function createSessionController({
     // drawer's original opener for focus restoration. Forget the controller
     // reference without closing the surface ahead of that hand-off.
     activeCourtDrawer = null;
-    const session = state.sessions.find((entry) => String(entry.sessionId) === String(sessionId));
+    const session =
+      state.sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
+      state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
     if (!session) return;
     const action = actionFor(session);
     let detail = null;
     detail = openSession(session, {
       action,
       onPrimary: () => startPrimaryAction(session, detail),
+      canReport: Boolean(state.authSession && profileReadiness(state.profile) === "ready" && profileIsComplete(state.profile)),
+      onReport: () => openSessionReport(session.sessionId),
       onWithdraw: () => withdraw(session, detail),
     });
     activeDetail = detail?.close ? detail : null;
@@ -481,11 +737,12 @@ export function createSessionController({
 
   function closeActiveDetail(detail = activeDetail, options = {}) {
     if (!detail || activeDetail !== detail) return;
+    const { preserveJoinConfirmation = false, ...closeOptions } = options;
     activeDetail = null;
     activeDetailSession = null;
     activeDetailActionKey = null;
-    closeActiveJoinConfirmation(undefined, options);
-    detail.close?.(options);
+    if (!preserveJoinConfirmation) closeActiveJoinConfirmation(undefined, closeOptions);
+    detail.close?.(closeOptions);
   }
 
   function reconcileActiveDetail(bounds = state.bounds) {
@@ -529,6 +786,12 @@ export function createSessionController({
     const sheet = activeProfilePrompt;
     activeProfilePrompt = null;
     sheet?.close?.(options);
+  }
+
+  function closeActiveReportDialog(options = {}) {
+    const dialog = activeReportDialog;
+    activeReportDialog = null;
+    dialog?.close?.(options);
   }
 
   function readIntent() {
@@ -653,14 +916,14 @@ export function createSessionController({
     requireSessionAction({ action: "join", sessionId: session.sessionId }, { detail, session });
   }
 
-  async function refreshAuthoritativeState(authSnapshot) {
-    await Promise.all([
-      reloadParticipation(authSnapshot?.epoch, authSnapshot?.identity),
+  async function refreshAuthoritativeState(authSnapshot, { includeContacts = false } = {}) {
+    const [participationReady, discoveryReady] = await Promise.all([
+      reloadParticipation(authSnapshot?.epoch, authSnapshot?.identity, { includeContacts }),
       loadDiscovery(state.bounds),
     ]);
     if (authSnapshot && !isCurrentAuthSnapshot(authSnapshot)) return false;
     publish();
-    return true;
+    return Boolean(participationReady && discoveryReady);
   }
 
   async function requestJoin(session, close, detail, confirmingAuth, confirmation) {
@@ -669,37 +932,50 @@ export function createSessionController({
       closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
       toast("登入狀態已變更，請重新開啟球局。");
-      return;
+      return { joinError: "登入狀態已變更，請重新開啟球局。" };
     }
     if (!profileIsComplete(state.profile)) {
       close?.();
       closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
       requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
-      return;
+      return { joinError: "請先完成個人檔案。" };
     }
     const mutation = beginLifecycleAction("join", session.sessionId, confirmingAuth);
     if (!mutation) {
       close?.();
       closeActiveJoinConfirmation(confirmation);
       toast("這個球局的操作正在處理中。");
-      return;
+      return { joinError: "這個球局的操作正在處理中。" };
     }
     try {
       const result = await api.requestToJoinSession(session.sessionId);
-      if (!isCurrentAuthSnapshot(confirmingAuth)) return;
+      if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
       clearIntent({ action: "join", sessionId: session.sessionId });
-      close?.();
-      closeActiveJoinConfirmation(confirmation);
-      closeActiveDetail(detail);
-      if (!(await refreshAuthoritativeState(confirmingAuth))) return;
       if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+        close?.();
+        closeActiveJoinConfirmation(confirmation);
+        closeActiveDetail(detail);
+        await refreshAuthoritativeState(confirmingAuth);
         toast("球局狀態已更新，請重新載入。");
-        return;
+        return { joinError: "球局狀態已更新，請重新載入。" };
       }
-      toast("已送出申請。");
+      // Keep the deliberate confirmation visible as the success surface. The
+      // detail sheet can close without implicitly dismissing that dialog.
+      closeActiveDetail(detail, { reason: "join-submitted", preserveJoinConfirmation: true });
+      if (!(await refreshAuthoritativeState(confirmingAuth))) {
+        return { joinError: "球局狀態暫時無法重新載入，請重新整理後再試。" };
+      }
+      return { ...result, joinSubmitted: true };
     } catch (error) {
-      if (isCurrentAuthSnapshot(confirmingAuth)) toast(error?.message || "申請失敗，請稍後再試。");
+      if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
+      await refreshAuthoritativeState(confirmingAuth);
+      const message = error?.message || "申請失敗，請稍後再試。";
+      // A stale discovery response can legitimately close the underlying
+      // detail (and therefore this confirmation) before its inline error is
+      // rendered. Announce that result instead of silently discarding it.
+      if (activeJoinConfirmation !== confirmation) toast(message);
+      return { joinError: message };
     } finally {
       finishLifecycleAction(mutation);
     }
@@ -716,18 +992,180 @@ export function createSessionController({
     try {
       const result = await api.withdrawFromSession(session.sessionId);
       if (!isCurrentAuthSnapshot(authSnapshot)) return;
-      closeActiveDetail(detail);
-      if (!(await refreshAuthoritativeState(authSnapshot))) return;
+      if (!(await refreshAuthoritativeState(authSnapshot))) {
+        if (activeDetail === detail) toast("球局狀態暫時無法重新載入，請重新整理後再試。");
+        return;
+      }
       if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+        closeActiveDetail(detail);
         toast("球局狀態已更新，請重新載入。");
         return;
       }
+      closeActiveDetail(detail);
       toast("已撤回申請。");
     } catch (error) {
-      if (isCurrentAuthSnapshot(authSnapshot)) toast(error?.message || "撤回失敗，請稍後再試。");
+      if (!isCurrentAuthSnapshot(authSnapshot)) return;
+      await refreshAuthoritativeState(authSnapshot);
+      toast(error?.message || "撤回失敗，請稍後再試。");
     } finally {
       finishLifecycleAction(mutation);
     }
+  }
+
+  function mySessionForAction(sessionId) {
+    const session = state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
+    if (!session) throw new Error("這個球局已更新，請重新整理後再試。");
+    return session;
+  }
+
+  function requireMySessionAction(sessionId, predicate) {
+    const authSnapshot = captureAuthSnapshot();
+    if (
+      !isCurrentAuthSnapshot(authSnapshot) ||
+      profileReadiness(state.profile) !== "ready" ||
+      !profileIsComplete(state.profile)
+    ) {
+      throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
+    }
+    const session = mySessionForAction(sessionId);
+    if (!predicate(session)) throw new Error("這個球局的狀態已更新，請重新整理後再試。");
+    return { authSnapshot, session };
+  }
+
+  async function runMySessionMutation(kind, session, authSnapshot, execute, successMessage, { includeContacts = true } = {}) {
+    const mutation = beginLifecycleAction(kind, session.sessionId, authSnapshot);
+    if (!mutation) throw new Error("這個球局的操作正在處理中。");
+    let refreshed = false;
+    try {
+      const result = await execute();
+      if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+      refreshed = await refreshAuthoritativeState(authSnapshot, { includeContacts });
+      if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
+      if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+        throw new Error("球局狀態已更新，請重新載入。");
+      }
+      toast(successMessage);
+      return result;
+    } catch (error) {
+      // Re-read authority even after a server-side rejection so a full,
+      // cancelled, expired, or already-decided race never leaves stale actions.
+      if (isCurrentAuthSnapshot(authSnapshot) && !refreshed) {
+        await refreshAuthoritativeState(authSnapshot, { includeContacts });
+      }
+      throw error;
+    } finally {
+      finishLifecycleAction(mutation);
+    }
+  }
+
+  async function reviewMySessionParticipant(sessionId, participantId, decision) {
+    const { authSnapshot, session } = requireMySessionAction(
+      sessionId,
+      (candidate) => String(candidate.viewerRole) === "host" && Boolean(candidate.canCancel)
+    );
+    const participant = (state.mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
+      (candidate) =>
+        String(candidate.participantId) === String(participantId) && candidate.role === "guest" && candidate.status === "requested"
+    );
+    if (!participant || !["accepted", "declined"].includes(decision)) {
+      throw new Error("這筆申請已更新，請重新整理後再試。");
+    }
+    const apiAction = decision === "accepted" ? api?.acceptSessionParticipant : api?.declineSessionParticipant;
+    if (typeof apiAction !== "function") throw new Error("目前無法處理這筆申請。");
+    return runMySessionMutation(
+      decision === "accepted" ? "accept" : "decline",
+      session,
+      authSnapshot,
+      () => apiAction(session.sessionId, participant.participantId),
+      decision === "accepted" ? "已接受申請。" : "已婉拒申請。"
+    );
+  }
+
+  async function cancelMySession(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canCancel));
+    if (typeof api?.cancelSession !== "function") throw new Error("目前無法取消這個球局。");
+    return runMySessionMutation("cancel", session, authSnapshot, () => api.cancelSession(session.sessionId), "已取消球局。");
+  }
+
+  async function withdrawMySession(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canWithdraw));
+    if (typeof api?.withdrawFromSession !== "function") throw new Error("目前無法退出這個球局。");
+    return runMySessionMutation("withdraw", session, authSnapshot, () => api.withdrawFromSession(session.sessionId), "已退出球局。");
+  }
+
+  async function markMySessionPlayed(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canConfirmPlayed));
+    if (typeof api?.markSessionPlayed !== "function") throw new Error("目前無法回報這個球局。");
+    return runMySessionMutation("played", session, authSnapshot, () => api.markSessionPlayed(session.sessionId), "已回報打成。");
+  }
+
+  async function confirmMySessionAttendance(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(
+      sessionId,
+      (candidate) => Boolean(candidate.canConfirmAttendance) && !candidate.viewerPlayedConfirmed
+    );
+    if (typeof api?.confirmSessionAttendance !== "function") throw new Error("目前無法確認到場。");
+    return runMySessionMutation("attendance", session, authSnapshot, () => api.confirmSessionAttendance(session.sessionId), "已確認到場。");
+  }
+
+  function requireReportAccess() {
+    const authSnapshot = captureAuthSnapshot();
+    if (
+      !isCurrentAuthSnapshot(authSnapshot) ||
+      profileReadiness(state.profile) !== "ready" ||
+      !profileIsComplete(state.profile)
+    ) {
+      throw new Error("請先登入並完成個人檔案後再檢舉。");
+    }
+    if (typeof api?.createReport !== "function") throw new Error("目前無法送出檢舉。");
+    return authSnapshot;
+  }
+
+  function openReportForTarget({ sessionId = null, reportedProfileId = null, targetLabel }) {
+    const authSnapshot = requireReportAccess();
+    let dialog = null;
+    dialog = openReport({
+      targetLabel,
+      onClose: () => {
+        if (activeReportDialog === dialog) activeReportDialog = null;
+      },
+      onSubmit: async (reason) => {
+        const normalizedReason = String(reason ?? "").trim();
+        if (!normalizedReason) throw new Error("請選擇檢舉原因。");
+        if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsComplete(state.profile)) {
+          throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
+        }
+        const result = await api.createReport({ reportedProfileId, reason: normalizedReason, sessionId });
+        if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新開啟檢舉。");
+        toast("已送出檢舉，謝謝你的回報。");
+        return result;
+      },
+    });
+    activeReportDialog = dialog?.close ? dialog : null;
+    return dialog;
+  }
+
+  function openSessionReport(sessionId) {
+    const session =
+      state.sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
+      state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
+    if (!session) throw new Error("這個球局已更新，請重新整理後再試。");
+    return openReportForTarget({
+      sessionId: session.sessionId,
+      targetLabel: `${session.court} · ${session.startAt}`,
+    });
+  }
+
+  function openRosterParticipantReport(sessionId, profileId) {
+    const session = mySessionForAction(sessionId);
+    const participant = (state.mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
+      (candidate) => String(candidate.profileId) === String(profileId)
+    );
+    if (!participant) throw new Error("申請者資料已更新，請重新整理後再試。");
+    return openReportForTarget({
+      reportedProfileId: participant.profileId,
+      targetLabel: `${participant.nickname ?? "這位球友"} · ${session.court}`,
+    });
   }
 
   async function submitCreateSession(input, close, sheet, openedAuthSnapshot = captureAuthSnapshot()) {
@@ -913,12 +1351,14 @@ export function createSessionController({
       const options = { reason: "account-change", restoreFocus: false };
       closeActiveCreateSession(options);
       closeActiveProfilePrompt(options);
+      closeActiveReportDialog(options);
       closeActiveJoinConfirmation(undefined, options);
       closeActiveDetail(undefined, options);
     } else if (eligibilityWasLost) {
       const options = { reason: "profile-incomplete", restoreFocus: false };
       closeActiveCreateSession(options);
       closeActiveJoinConfirmation(undefined, options);
+      closeActiveReportDialog(options);
       closeActiveDetail(undefined, options);
     } else if (eligibilityChanged && nextEligible) {
       // A previously incomplete profile may have completed in another tab or
@@ -929,7 +1369,15 @@ export function createSessionController({
 
     state.authSession = session ?? null;
     state.profile = profile ?? null;
-    if (identityChanged) state.mySessions = [];
+    if (identityChanged) {
+      replaceMySessions([]);
+      state.mySessionsError = "";
+      state.mySessionsStatus = identity ? "loading" : "idle";
+      // The private DOM may currently contain a roster or contact. Push the
+      // empty snapshot synchronously, including on plain sign-out, before any
+      // optional authenticated reload can run.
+      notifyMySessions();
+    }
     reconcileActiveDetailParticipation();
     publish();
     if (await reloadParticipation(epoch, identity)) publish();
@@ -946,17 +1394,35 @@ export function createSessionController({
 
   return {
     attachMap,
+    cancelMySession,
     capturePendingIntentVersion: () => intentVersion,
     clearPendingIntent: () => clearIntent(),
     clearPendingIntentIfUnchanged: (version) => (version === intentVersion ? clearIntent() : false),
+    confirmMySessionAttendance,
     expandBounds,
     getMySessions: () => [...state.mySessions],
+    getMySessionGroups: () => mySessionGroups(),
+    getMySessionState: () => ({
+      authenticated: Boolean(state.authSession),
+      contactsError: state.mySessionContactsError,
+      error: state.mySessionsError,
+      groups: mySessionGroups(),
+      status: state.mySessionsStatus,
+      viewGeneration: authEpoch,
+    }),
+    getSessionContacts: (sessionId) => [...(state.mySessionContacts.get(sessionKey(sessionId)) ?? [])],
     getVisibleSessions: visibleSessions,
     loadDiscovery,
+    markMySessionPlayed,
     openCourt,
     openCreateIntent,
+    openRosterParticipantReport,
+    openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,
+    refreshMySessionDetails,
+    refreshMySessions,
+    reviewMySessionParticipant,
     resetFilters,
     resumePendingIntent,
     retryDiscovery,
@@ -965,5 +1431,6 @@ export function createSessionController({
     setDrawerExpanded,
     setFilter,
     setMapUnavailable,
+    withdrawMySession,
   };
 }

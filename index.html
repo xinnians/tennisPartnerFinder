@@ -72,6 +72,19 @@
         <div id="my-sessions-root" class="my-sessions-shell" tabindex="-1"></div>
       </section>
 
+      <nav class="bottom-navigation" aria-label="主要導覽">
+        <button type="button" id="map-tab" data-testid="map-tab" class="bottom-navigation__item" aria-controls="tab-map" aria-current="page">
+          <span aria-hidden="true">⌖</span><span>找球局</span>
+        </button>
+        <button type="button" id="create-session-tab" data-testid="create-session-tab" class="bottom-navigation__item" aria-controls="sheet-root" aria-haspopup="dialog">
+          <span aria-hidden="true">＋</span><span>開球局</span>
+        </button>
+        <button type="button" id="my-sessions-tab" data-testid="my-sessions-tab" class="bottom-navigation__item" aria-controls="my-sessions-page" aria-current="false" aria-label="我的球局">
+          <span aria-hidden="true">◎</span><span>我的球局</span><span id="my-sessions-badge" class="my-sessions-badge" aria-hidden="true" hidden></span>
+        </button>
+      </nav>
+      <span id="my-sessions-badge-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></span>
+
       <div id="sheet-root"></div>
       <div id="modal-root"></div>
       <div id="toast-root" aria-live="polite" aria-atomic="true"></div>

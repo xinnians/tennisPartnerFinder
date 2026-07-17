@@ -8,6 +8,8 @@ const dialogFocusable =
 const drawerBindings = new WeakMap();
 const drawerIsolations = new WeakMap();
 const drawerFocusIntents = new WeakMap();
+const mySessionActionStates = new WeakMap();
+const MY_SESSION_LIFECYCLE_ACTIONS = new Set(["accept", "attendance", "cancel", "decline", "played", "refresh", "refresh-contacts", "withdraw"]);
 
 export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。";
@@ -154,43 +156,427 @@ function sessionCard(session, { compact = false } = {}) {
   </button>`;
 }
 
-/** Minimal Task-6 success destination; Task 7 expands it into full My Sessions grouping. */
-export function renderCreatedSessionDestination(root, { createdSessionId, onBack = () => {}, onOpenSession = () => {}, sessions = [] } = {}) {
-  const created = sessions.find((session) => String(session.sessionId) === String(createdSessionId)) ?? null;
-  const ordered = created
-    ? [created, ...sessions.filter((session) => String(session.sessionId) !== String(createdSessionId))]
-    : sessions;
+function mySessionReason(session) {
+  const status = String(session?.status ?? "").toLowerCase();
+  const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
+  if (participantStatus === "declined") return "主揪婉拒了你的申請";
+  if (participantStatus === "withdrawn") return "你已退出這一局";
+  if (status === "played") return "本局已回報打成";
+  if (status === "cancelled") return "主揪已取消這一局";
+  if (status === "expired") return "這一局已逾期結束";
+  return "這一局已無可進行的動作";
+}
+
+function mySessionRole(session) {
+  if (String(session?.viewerRole) === "host") return "我是主揪";
+  const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
+  if (participantStatus === "requested") return "申請中";
+  if (participantStatus === "declined") return "未核准";
+  if (participantStatus === "withdrawn") return "已退出";
+  return participantStatus === "accepted" ? "已核准加入" : "參與者";
+}
+
+function mySessionStatus(session) {
+  const status = String(session?.status ?? "").toLowerCase();
+  const startTime = new Date(session?.startAt ?? "").getTime();
+  if (["open", "full"].includes(status) && Number.isFinite(startTime) && startTime <= Date.now()) return "進行中";
+  return (
+    {
+      cancelled: "已取消",
+      expired: "已結束",
+      full: "已額滿",
+      open: "開放報名",
+      played: "已打成",
+      started: "已開始",
+    }[status] ?? "狀態待確認"
+  );
+}
+
+function mySessionActionButton(session, { action, label, testId }) {
+  return `<button type="button" class="session-secondary" data-my-action="${esc(action)}" data-session-id="${esc(
+    session.sessionId
+  )}"${testId ? ` data-testid="${esc(testId)}"` : ""}>${esc(label)}</button>`;
+}
+
+function contactRows(session, contacts) {
+  const safeContacts = Array.isArray(contacts) ? contacts : [];
+  if (!safeContacts.length) return "";
+  return `<section class="my-session-contacts" aria-label="已核准的聯絡方式">
+    <h3>已核准的聯絡方式</h3>
+    ${safeContacts
+      .map(
+        (contact) =>
+          `<div id="session-contact-${esc(session.sessionId)}-${esc(contact.counterpartProfileId)}" class="session-contact" data-contact-profile-id="${esc(
+            contact.counterpartProfileId
+          )}" data-testid="session-contact-${esc(contact.counterpartProfileId)}">
+            <strong>${esc(contact.nickname)}</strong>
+            <label>LINE ID<input readonly value="${esc(contact.lineId)}" aria-label="${esc(contact.nickname)} 的 LINE ID" /></label>
+            <div class="session-contact__copy-actions">
+              <button type="button" class="session-secondary" data-copy-contact data-copy-kind="line">複製 LINE ID</button>
+              <button type="button" class="session-secondary" data-copy-contact data-copy-kind="opening">複製開場訊息</button>
+            </div>
+            <p data-contact-opening>你好，我是球局「${esc(session.court)}」的${esc(mySessionRole(session))}。</p>
+            <p data-contact-copy-status role="status" aria-live="polite"></p>
+          </div>`
+      )
+      .join("")}
+  </section>`;
+}
+
+async function copyContactText(text) {
+  if (!text) throw new Error("沒有可複製的內容。");
+  if (globalThis.navigator?.clipboard?.writeText) {
+    try {
+      await globalThis.navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Permission is often denied outside a direct user gesture. Fall back
+      // to the selectable, readonly input path before asking for manual copy.
+    }
+  }
+  const helper = document.createElement("textarea");
+  helper.value = text;
+  helper.setAttribute("readonly", "");
+  helper.style.position = "fixed";
+  helper.style.opacity = "0";
+  document.body.append(helper);
+  helper.select();
+  const copied = document.execCommand?.("copy");
+  helper.remove();
+  if (!copied) throw new Error("此瀏覽器無法複製，請手動選取文字。");
+}
+
+function wireContactCopy(root) {
+  root.querySelectorAll("[data-copy-contact]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const contact = button.closest(".session-contact");
+      const status = contact?.querySelector("[data-contact-copy-status]");
+      const value =
+        button.dataset.copyKind === "opening"
+          ? contact?.querySelector("[data-contact-opening]")?.textContent?.trim()
+          : contact?.querySelector("input")?.value;
+      button.disabled = true;
+      if (status) status.textContent = "";
+      try {
+        await copyContactText(value);
+        if (status) status.textContent = "已複製。";
+      } catch (copyError) {
+        if (status) status.textContent = copyError?.message || "複製失敗，請手動選取文字。";
+      } finally {
+        if (root.contains(button)) button.disabled = false;
+      }
+    });
+  });
+}
+
+function mySessionCard(session, { createdSessionId = null, contacts = [] } = {}) {
+  const actions = [
+    `<button type="button" class="session-secondary" data-open-my-session data-session-id="${esc(session.sessionId)}">查看球局</button>`,
+    session.canCancel ? mySessionActionButton(session, { action: "cancel", label: "取消球局" }) : "",
+    session.canWithdraw ? mySessionActionButton(session, { action: "withdraw", label: "退出球局" }) : "",
+    session.canConfirmPlayed ? mySessionActionButton(session, { action: "played", label: "回報打成" }) : "",
+    session.canConfirmAttendance && !session.viewerPlayedConfirmed
+      ? mySessionActionButton(session, { action: "attendance", label: "確認到場" })
+      : "",
+    `<button type="button" class="session-tertiary" data-my-action="report-session" data-session-id="${esc(
+      session.sessionId
+    )}" data-testid="report-session-${esc(session.sessionId)}">檢舉此球局</button>`,
+  ]
+    .filter(Boolean)
+    .join("");
+  return `<article class="my-session-card"${String(session.sessionId) === String(createdSessionId) ? ' data-created-session="true"' : ""}>
+    <div class="my-session-card__head"><span class="my-session-card__role">${esc(mySessionRole(session))}</span><span class="my-session-card__status">${esc(
+      mySessionStatus(session)
+    )}</span></div>
+    <p class="my-session-card__time">${esc(taipeiDateTime(session.startAt))}</p>
+    <h3>${esc(session.court)} · ${esc(session.courtDistrict)}</h3>
+    <p>${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
+    <div class="my-session-card__actions">${actions}</div>
+    ${contactRows(session, contacts)}
+  </article>`;
+}
+
+function hostRequestCard({ participant, session }) {
+  return `<article class="my-action-card" data-testid="participant-row" data-participant-id="${esc(participant.participantId)}">
+    <p class="my-action-card__eyebrow">需要你處理 · ${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
+    <h3>${esc(participant.nickname)} · NTRP ${esc(Number(participant.ntrp).toFixed(1))}</h3>
+    <p>${esc((participant.playTypes ?? []).join("、") || "尚未填寫打法")} · ${esc((participant.homeCourts ?? []).join("、") || "尚未填寫常打球場")}</p>
+    <div class="my-session-card__actions">
+      <button type="button" class="session-primary" data-my-action="accept" data-session-id="${esc(session.sessionId)}" data-participant-id="${esc(
+        participant.participantId
+      )}" data-testid="accept-participant-${esc(participant.participantId)}">接受</button>
+      <button type="button" class="session-secondary" data-my-action="decline" data-session-id="${esc(session.sessionId)}" data-participant-id="${esc(
+        participant.participantId
+      )}" data-testid="decline-participant-${esc(participant.participantId)}">婉拒</button>
+      <button type="button" class="session-tertiary" data-my-action="report-participant" data-session-id="${esc(session.sessionId)}" data-profile-id="${esc(
+        participant.profileId
+      )}" data-testid="report-participant-${esc(participant.profileId)}">檢舉這位申請者</button>
+    </div>
+  </article>`;
+}
+
+function guestRequestCard({ session }) {
+  return `<article class="my-action-card" data-guest-request-session="${esc(session.sessionId)}">
+    <p class="my-action-card__eyebrow">等待主揪回覆</p>
+    <h3>${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</h3>
+    <p>你的申請已送出，主揪回覆前可自行撤回。</p>
+    <div class="my-session-card__actions">${mySessionActionButton(session, { action: "withdraw", label: "撤回申請" })}</div>
+  </article>`;
+}
+
+function actionDescriptor(button) {
+  return {
+    action:
+      button.dataset.myAction ??
+      (button.hasAttribute("data-retry-contacts") ? "refresh-contacts" : button.id === "my-sessions-refresh" ? "refresh" : ""),
+    participantId: button.dataset.participantId ?? "",
+    profileId: button.dataset.profileId ?? "",
+    sessionId: button.dataset.sessionId ?? "",
+  };
+}
+
+function actionDescriptorKey(descriptor) {
+  return JSON.stringify([descriptor.action, descriptor.sessionId, descriptor.participantId, descriptor.profileId]);
+}
+
+function pendingMySessionActionState(root) {
+  let state = mySessionActionStates.get(root);
+  if (!state) {
+    state = { pending: new Map(), scopeKey: null };
+    mySessionActionStates.set(root, state);
+  }
+  return state;
+}
+
+function pendingMySessionActions(root) {
+  return pendingMySessionActionState(root).pending;
+}
+
+function setMySessionActionScope(root, scopeKey) {
+  const state = pendingMySessionActionState(root);
+  if (state.scopeKey === scopeKey) return;
+  // A render for another account/profile epoch must not inherit a stale
+  // promise's disabled button or error surface from the previous account.
+  mySessionActionStates.set(root, { pending: new Map(), scopeKey });
+}
+
+function sameActionDescriptor(left, right) {
+  return (
+    left?.action === right?.action &&
+    left?.sessionId === right?.sessionId &&
+    left?.participantId === right?.participantId &&
+    left?.profileId === right?.profileId
+  );
+}
+
+function currentMySessionActionButton(root, descriptor) {
+  if (descriptor.action === "refresh") return root.querySelector("#my-sessions-refresh");
+  if (descriptor.action === "refresh-contacts") return root.querySelector("[data-retry-contacts]");
+  return [...root.querySelectorAll("[data-my-action]")].find((button) => sameActionDescriptor(actionDescriptor(button), descriptor));
+}
+
+function syncPendingMySessionActions(root) {
+  for (const descriptor of pendingMySessionActions(root).values()) {
+    const button = currentMySessionActionButton(root, descriptor);
+    if (button) button.disabled = true;
+  }
+}
+
+function showMySessionActionError(root, message) {
+  const error = root.querySelector("[data-my-sessions-error]");
+  if (!error) return;
+  error.textContent = message;
+  error.hidden = false;
+}
+
+function focusMySessionActionResult(root, descriptor, { failed = false } = {}) {
+  const currentButton = currentMySessionActionButton(root, descriptor);
+  if (currentButton && !currentButton.disabled) {
+    currentButton.focus({ preventScroll: true });
+    return;
+  }
+  if (failed) {
+    const error = root.querySelector("[data-my-sessions-error]");
+    if (error && !error.hidden) {
+      error.focus({ preventScroll: true });
+      return;
+    }
+  }
+  const nextAction = root.querySelector("#my-needs-action [data-my-action]:not([disabled])");
+  if (nextAction) {
+    nextAction.focus({ preventScroll: true });
+    return;
+  }
+  const sessionCard = [...root.querySelectorAll("[data-open-my-session]")].find(
+    (button) => String(button.dataset.sessionId) === String(descriptor.sessionId)
+  );
+  if (sessionCard) {
+    sessionCard.focus({ preventScroll: true });
+    return;
+  }
+  root.querySelector("#my-sessions-refresh")?.focus({ preventScroll: true });
+}
+
+function runMySessionAction(button, callback, root) {
+  if (!callback || button.disabled) return;
+  const descriptor = actionDescriptor(button);
+  const descriptorKey = actionDescriptorKey(descriptor);
+  const pending = pendingMySessionActions(root);
+  pending.set(descriptorKey, descriptor);
+  button.disabled = true;
+  root.querySelector("[data-my-sessions-error]")?.setAttribute("hidden", "");
+  let restoreActionFocus = false;
+  Promise.resolve()
+    .then(callback)
+    .catch((actionError) => {
+      if (pendingMySessionActions(root) !== pending) return;
+      showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
+      // reloadParticipation can replace the original button before an error
+      // arrives. Resolve the semantic action again in the current DOM so the
+      // keyboard user stays in the same operational context.
+      restoreActionFocus = true;
+    })
+    .finally(() => {
+      if (pendingMySessionActions(root) !== pending) return;
+      pending.delete(descriptorKey);
+      const currentButton = currentMySessionActionButton(root, descriptor);
+      if (currentButton) currentButton.disabled = false;
+      if (MY_SESSION_LIFECYCLE_ACTIONS.has(descriptor.action)) {
+        focusMySessionActionResult(root, descriptor, { failed: restoreActionFocus });
+      }
+    });
+}
+
+/** Render the private, action-first My Sessions destination. */
+export function renderMySessionsPage(
+  root,
+  {
+    contactsForSession = () => [],
+    contactsError = "",
+    createdSessionId = null,
+    groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+    onAccept = () => {},
+    onBack = () => {},
+    onCancel = () => {},
+    onConfirmAttendance = () => {},
+    onCreatedSessionFocus = () => true,
+    onDecline = () => {},
+    onMarkPlayed = () => {},
+    onOpenSession = () => {},
+    onRefresh = () => {},
+    onReportParticipant = () => {},
+    onReportSession = () => {},
+    onSignIn = () => {},
+    onWithdraw = () => {},
+    authenticated = false,
+    actionScopeKey = null,
+    status = "idle",
+    errorMessage = "",
+  } = {}
+) {
+  const needsAction = Array.isArray(groups.needsAction) ? groups.needsAction : [];
+  const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
+  const history = Array.isArray(groups.history) ? groups.history : [];
+  setMySessionActionScope(root, actionScopeKey);
   root.innerHTML = `
     <div class="my-sessions-shell__head">
-      <div><p class="surface__eyebrow">我的球局</p><h1>即將打球</h1></div>
-      <button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button>
+      <div><p class="surface__eyebrow">我的球局</p><h1 tabindex="-1" data-my-sessions-heading>下一步行動</h1></div>
+      <div class="my-sessions-shell__tools"><button type="button" id="my-sessions-refresh" class="session-secondary">重新整理</button><button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button></div>
     </div>
     <p class="surface__copy">${
-      created
-        ? "球局已建立，主揪身分已加入這一局。"
-        : createdSessionId
-          ? "球局已建立；正在更新你的球局清單。"
-          : "在這裡查看即將打球的球局。"
+      createdSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"
     }</p>
-    <div id="my-upcoming-sessions" class="nearby-sessions__cards">
+    <p class="my-sessions-message" data-my-sessions-status role="status" aria-live="polite"${status === "loading" ? "" : " hidden"}>正在更新我的球局…</p>
+    <p class="form-error" data-my-sessions-error role="alert" tabindex="-1"${errorMessage ? "" : " hidden"}>${esc(errorMessage)}</p>
+    ${
+      authenticated
+        ? ""
+        : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、查看已核准球友的聯絡方式，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
+    }
+    <section class="my-sessions-section" aria-labelledby="my-needs-action-title">
+      <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
+      <div id="my-needs-action" class="my-sessions-list">${
+        needsAction.length
+          ? needsAction.map((entry) => (entry.kind === "host-request" ? hostRequestCard(entry) : guestRequestCard(entry))).join("")
+          : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
+      }</div>
+    </section>
+    <section class="my-sessions-section" aria-labelledby="my-upcoming-sessions-title">
+      <div class="my-sessions-section__head"><h2 id="my-upcoming-sessions-title">即將打球</h2><span>${esc(upcoming.length)} 場</span></div>
+      <div id="my-upcoming-sessions" class="my-sessions-list">${
+        upcoming.length
+          ? upcoming
+              .map((session) => mySessionCard(session, { contacts: contactsForSession(session.sessionId), createdSessionId }))
+              .join("")
+          : '<p class="surface__copy">目前沒有即將打球的球局。</p>'
+      }</div>
       ${
-        ordered.length
-          ? ordered
+        contactsError
+          ? `<div class="form-error my-session-contacts-error" role="alert">${esc(
+              contactsError
+            )}<button type="button" class="session-secondary" data-retry-contacts>重新整理</button></div>`
+          : ""
+      }
+    </section>
+    <section class="my-sessions-section" aria-labelledby="my-history-title">
+      <div class="my-sessions-section__head"><h2 id="my-history-title">過去紀錄</h2><span>${esc(history.length)} 場</span></div>
+      <div id="my-history" class="my-sessions-list">${
+        history.length
+          ? history
               .map(
                 (session) =>
-                  `<div${String(session.sessionId) === String(createdSessionId) ? ' data-created-session="true"' : ""}>${sessionCard(session)}</div>`
+                  `${mySessionCard(session, {
+                    contacts: contactsForSession(session.sessionId),
+                    createdSessionId,
+                  })}<p class="my-history-reason">${esc(mySessionReason(session))}</p>`
               )
               .join("")
-          : '<p class="surface__copy">尚未載入即將打球的球局。</p>'
-      }
-    </div>`;
+          : '<p class="surface__copy">尚無過去紀錄。</p>'
+      }</div>
+    </section>`;
+
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
-  wireSessionCards(root, onOpenSession);
-  if (created) {
+  root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
+  root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
+  root.querySelector("[data-retry-contacts]")?.addEventListener("click", () =>
+    runMySessionAction(root.querySelector("[data-retry-contacts]"), onRefresh, root)
+  );
+  root.querySelectorAll("[data-open-my-session]").forEach((button) => {
+    button.addEventListener("click", () => onOpenSession(button.dataset.sessionId));
+  });
+  root.querySelectorAll("[data-my-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const sessionId = button.dataset.sessionId;
+      const participantId = button.dataset.participantId;
+      const profileId = button.dataset.profileId;
+      const callbacks = {
+        accept: () => onAccept(sessionId, participantId),
+        attendance: () => onConfirmAttendance(sessionId),
+        cancel: () => onCancel(sessionId),
+        decline: () => onDecline(sessionId, participantId),
+        played: () => onMarkPlayed(sessionId),
+        "report-participant": () => onReportParticipant(sessionId, profileId),
+        "report-session": () => onReportSession(sessionId),
+        withdraw: () => onWithdraw(sessionId),
+      };
+      runMySessionAction(button, callbacks[button.dataset.myAction], root);
+    });
+  });
+  wireContactCopy(root);
+  syncPendingMySessionActions(root);
+  if (createdSessionId && upcoming.some((session) => String(session.sessionId) === String(createdSessionId))) {
     requestAnimationFrame(() => {
-      root.querySelector("[data-created-session] [data-session-id]")?.focus({ preventScroll: true });
+      const target = root.querySelector("[data-created-session] [data-open-my-session]");
+      if (!target || !onCreatedSessionFocus()) return;
+      target.focus({ preventScroll: true });
     });
   }
+}
+
+/** Backward-compatible alias for Task 6's create success handoff. */
+export function renderCreatedSessionDestination(root, { createdSessionId, onBack = () => {}, onOpenSession = () => {}, sessions = [] } = {}) {
+  const groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: sessions };
+  renderMySessionsPage(root, { createdSessionId, groups, onBack, onOpenSession });
 }
 
 function wireSessionCards(root, onOpenSession) {
@@ -375,7 +761,10 @@ export function renderDiscoveryEmpty({ onReset = () => {}, onExpandBounds = () =
 }
 
 /** Open a public session detail sheet with the privacy-reviewed field order. */
-export function openSessionSheet(session, { action, onPrimary = () => {}, onWithdraw = () => {} } = {}) {
+export function openSessionSheet(
+  session,
+  { action, canReport = false, onPrimary = () => {}, onReport = () => {}, onWithdraw = () => {} } = {}
+) {
   const primaryDisabled = action?.disabled ? " disabled" : "";
   const mounted = mountSheet({
     id: "session-sheet",
@@ -393,6 +782,7 @@ export function openSessionSheet(session, { action, onPrimary = () => {}, onWith
           completionLabel(session)
         )}</p>
         <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
+        <p class="form-error" data-session-report-error role="alert" hidden></p>
         <div class="session-detail__actions">
           <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
             action?.label ?? "申請加入"
@@ -402,10 +792,29 @@ export function openSessionSheet(session, { action, onPrimary = () => {}, onWith
               ? `<button type="button" class="session-secondary" data-session-action="secondary">${esc(action.secondaryLabel)}</button>`
               : ""
           }
+          ${
+            canReport
+              ? '<button type="button" class="session-tertiary" data-session-action="report">檢舉此球局</button>'
+              : ""
+          }
         </div>
       </div>`,
   });
   mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
+  const reportButton = mounted.root.querySelector('[data-session-action="report"]');
+  reportButton?.addEventListener("click", async () => {
+    const error = mounted.root.querySelector("[data-session-report-error]");
+    reportButton.disabled = true;
+    error.hidden = true;
+    try {
+      await onReport();
+    } catch (reportError) {
+      error.textContent = reportError?.message || "目前無法開啟檢舉。";
+      error.hidden = false;
+    } finally {
+      if (mounted.root.contains(reportButton)) reportButton.disabled = false;
+    }
+  });
   const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
   let withdrawing = false;
   secondaryButton?.addEventListener("click", async () => {
@@ -427,34 +836,145 @@ export function openSessionSheet(session, { action, onPrimary = () => {}, onWith
 }
 
 /** Ask for an intentional confirmation before the join lifecycle RPC. */
-export function openJoinSessionConfirmation(session, { onClose = () => {}, onConfirm = () => {} } = {}) {
+export function openJoinSessionConfirmation(session, { onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {} } = {}) {
+  let joined = false;
   const mounted = mountDialog({
     id: "join-session-confirmation",
     label: "確認申請加入",
-    onClose,
+    onClose: (detail) => {
+      onClose(detail);
+      // Joining closes the public detail beneath this dialog. When the user
+      // dismisses the success state, that original trigger no longer exists,
+      // so hand focus to a durable navigation target instead of document.body.
+      if (joined) requestAnimationFrame(() => document.getElementById("my-sessions-tab")?.focus({ preventScroll: true }));
+    },
     html: `
       <div class="surface__head">
         <div><p class="surface__eyebrow">確認申請</p><h2>申請加入這一局？</h2></div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉確認">×</button>
       </div>
-      <p class="surface__copy">${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
-      <p class="surface__copy">送出後，主揪會在球局流程中處理申請。</p>
-      <button type="button" class="session-primary" data-confirm-join>確認申請加入</button>`,
+      <form data-testid="session-join-form" class="join-session-form" novalidate>
+        <div class="session-detail join-session-summary">
+          <p data-join-field="court"><strong>${esc(session.court)}</strong> · ${esc(session.courtDistrict)}</p>
+          <p data-join-field="time">${esc(taipeiDateTime(session.startAt))}</p>
+          <p data-join-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
+          <p data-join-field="host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))} · ${esc(
+            completionLabel(session)
+          )}</p>
+          <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
+        </div>
+        <p class="surface__copy">送出後，主揪會在球局流程中處理申請。</p>
+        <p class="form-error" data-join-error role="alert" hidden></p>
+        <button type="submit" class="session-primary" data-confirm-join data-testid="join-session">確認申請加入</button>
+      </form>
+      <p class="surface__message" data-join-success role="status" aria-live="polite" tabindex="-1" hidden>已送出申請，等待主揪回覆。</p>
+      <div class="session-detail__actions" data-join-success-actions hidden><button type="button" class="session-primary" data-join-view-my-sessions>前往我的球局</button></div>`,
   });
+  const form = mounted.root.querySelector("[data-testid='session-join-form']");
   const confirmButton = mounted.root.querySelector("[data-confirm-join]");
+  const error = mounted.root.querySelector("[data-join-error]");
+  const success = mounted.root.querySelector("[data-join-success]");
+  const successActions = mounted.root.querySelector("[data-join-success-actions]");
+  const viewMySessions = mounted.root.querySelector("[data-join-view-my-sessions]");
   let submitting = false;
-  confirmButton?.addEventListener("click", async () => {
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
     if (submitting) return;
     submitting = true;
     confirmButton.disabled = true;
+    error.hidden = true;
     try {
-      await onConfirm(mounted.close);
+      const result = await onConfirm(mounted.close);
+      if (result?.joinSubmitted && mounted.root.contains(form)) {
+        joined = true;
+        form.hidden = true;
+        success.hidden = false;
+        successActions.hidden = false;
+        viewMySessions.focus({ preventScroll: true });
+      } else if (result?.joinError && mounted.root.contains(error)) {
+        error.textContent = result.joinError;
+        error.hidden = false;
+      }
+    } catch (submitError) {
+      if (mounted.root.contains(error)) {
+        error.textContent = submitError?.message || "申請失敗，請稍後再試。";
+        error.hidden = false;
+      }
     } finally {
       // requestJoin keeps this dialog available after a recoverable failure;
       // restore one deliberate retry only if this is still the mounted dialog.
-      if (mounted.root.contains(confirmButton)) {
+      if (mounted.root.contains(confirmButton) && !form.hidden) {
         submitting = false;
         confirmButton.disabled = false;
+      }
+    }
+  });
+  viewMySessions?.addEventListener("click", () => {
+    mounted.close({ reason: "view-my-sessions", restoreFocus: false });
+    onViewMySessions();
+  });
+  return mounted;
+}
+
+const REPORT_REASONS = ["與實際球局不符", "不當行為", "疑似詐騙", "其他"];
+
+/** Collect a minimal, reviewable report without exposing any new profile data. */
+export function openReportDialog({ targetLabel = "這個項目", onClose = () => {}, onSubmit = () => {} } = {}) {
+  const mounted = mountDialog({
+    id: "report-dialog",
+    label: "檢舉",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">檢舉</p><h2>回報問題</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉檢舉">×</button>
+      </div>
+      <p class="surface__copy">${esc(targetLabel)}</p>
+      <form data-testid="report-form" class="report-form" novalidate>
+        <fieldset class="form-fieldset"><legend>檢舉原因</legend>
+          ${REPORT_REASONS.map(
+            (reason) =>
+              `<label><input type="radio" name="report-reason" value="${esc(reason)}" />${esc(reason)}</label>`
+          ).join("")}
+        </fieldset>
+        <p class="form-error" data-report-error role="alert" hidden></p>
+        <button type="submit" class="session-primary" data-testid="report-submit">送出檢舉</button>
+      </form>
+      <p class="surface__message" data-report-success role="status" aria-live="polite" tabindex="-1" hidden>已送出檢舉，謝謝你的回報。</p>`,
+  });
+  const form = mounted.root.querySelector("[data-testid='report-form']");
+  const submit = mounted.root.querySelector("[data-testid='report-submit']");
+  const error = mounted.root.querySelector("[data-report-error]");
+  const success = mounted.root.querySelector("[data-report-success]");
+  let submitting = false;
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submitting) return;
+    const reason = form.querySelector("[name='report-reason']:checked")?.value;
+    if (!reason) {
+      error.textContent = "請選擇檢舉原因。";
+      error.hidden = false;
+      return;
+    }
+    submitting = true;
+    submit.disabled = true;
+    error.hidden = true;
+    try {
+      await onSubmit(reason);
+      if (mounted.root.contains(form)) {
+        form.hidden = true;
+        success.hidden = false;
+        success.focus({ preventScroll: true });
+      }
+    } catch (submitError) {
+      if (mounted.root.contains(error)) {
+        error.textContent = submitError?.message || "檢舉暫時無法送出，請稍後再試。";
+        error.hidden = false;
+      }
+    } finally {
+      if (mounted.root.contains(submit) && !form.hidden) {
+        submitting = false;
+        submit.disabled = false;
       }
     }
   });

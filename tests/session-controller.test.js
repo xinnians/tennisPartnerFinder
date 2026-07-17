@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
-import { createSessionController } from "../src/sessionController.js";
+import * as sessionController from "../src/sessionController.js";
+
+const { createSessionController, groupMySessions } = sessionController;
 
 function deferred() {
   let resolve;
@@ -102,6 +104,8 @@ function createHarness(overrides = {}) {
   const createSheets = [];
   const loginPrompts = [];
   const profilePrompts = [];
+  const reportDialogs = [];
+  const mySessionChanges = [];
   const toasts = [];
   const session = overrides.session ?? futureSession();
   const api = {
@@ -146,6 +150,12 @@ function createHarness(overrides = {}) {
       profilePrompts.push({ ...context, detail });
       return detail;
     },
+    openReport: (context) => {
+      const detail = createSurface(context.onClose);
+      reportDialogs.push({ ...context, detail });
+      return detail;
+    },
+    onMySessionsChange: (nextState) => mySessionChanges.push(nextState),
     intentStore: overrides.intentStore,
     toast: (message) => toasts.push(message),
   });
@@ -156,9 +166,11 @@ function createHarness(overrides = {}) {
     courtDrawers,
     createSheets,
     loginPrompts,
+    mySessionChanges,
     opened,
     pinBatches,
     profilePrompts,
+    reportDialogs,
     renders,
     session,
     toasts,
@@ -169,6 +181,302 @@ function openAction(harness, sessionId = harness.session.sessionId) {
   harness.controller.openSession(sessionId);
   return harness.opened.at(-1);
 }
+
+test("My Sessions groups private lifecycle rows by the next safe action", () => {
+  assert.equal(typeof groupMySessions, "function");
+  if (typeof groupMySessions !== "function") return;
+  const now = new Date("2026-07-17T04:00:00.000Z");
+  const item = (overrides = {}) => ({
+    ...futureSession({
+      canCancel: false,
+      canConfirmAttendance: false,
+      canConfirmPlayed: false,
+      sessionId: 100,
+      startAt: "2026-07-20T01:00:00.000Z",
+      updatedAt: "2026-07-17T01:00:00.000Z",
+      viewerParticipantStatus: "accepted",
+      viewerPlayedConfirmed: false,
+      viewerRole: "guest",
+    }),
+    ...overrides,
+  });
+  const host = item({
+    canCancel: true,
+    pendingRequests: [
+      { participantId: 72, nickname: "第二位申請者", role: "guest", status: "requested" },
+      { participantId: 71, nickname: "第一位申請者", role: "guest", status: "requested" },
+    ],
+    sessionId: 1,
+    startAt: "2026-07-19T01:00:00.000Z",
+    viewerRole: "host",
+  });
+  const guestWaiting = item({
+    canWithdraw: true,
+    sessionId: 2,
+    startAt: "2026-07-18T01:00:00.000Z",
+    viewerParticipantStatus: "requested",
+  });
+  const acceptedGuest = item({ sessionId: 3, startAt: "2026-07-18T03:00:00.000Z" });
+  const declinedGuest = item({
+    sessionId: 4,
+    updatedAt: "2026-07-17T03:00:00.000Z",
+    viewerParticipantStatus: "declined",
+  });
+  const playedGuest = item({
+    canConfirmAttendance: true,
+    sessionId: 5,
+    startAt: "2026-07-17T02:00:00.000Z",
+    status: "played",
+    updatedAt: "2026-07-17T02:00:00.000Z",
+  });
+  const staleOpenGuest = item({
+    sessionId: 6,
+    startAt: "2026-07-15T01:00:00.000Z",
+    updatedAt: "2026-07-16T01:00:00.000Z",
+  });
+
+  const groups = groupMySessions([acceptedGuest, staleOpenGuest, host, guestWaiting, declinedGuest, playedGuest], now);
+
+  assert.equal(groups.pendingHostRequestCount, 2, "only host-owned requested guests receive a badge count");
+  assert.deepEqual(
+    groups.needsAction.map((entry) => [entry.kind, entry.session.sessionId, entry.participant?.participantId ?? null]),
+    [
+      ["host-request", 1, 71],
+      ["host-request", 1, 72],
+      ["guest-request", 2, null],
+    ]
+  );
+  assert.deepEqual(groups.upcoming.map((entry) => entry.sessionId), [3, 1]);
+  assert.deepEqual(groups.history.map((entry) => entry.sessionId), [4, 5, 6]);
+  assert.equal(groups.history[1].canConfirmAttendance, true, "played history can retain its server-authorized attendance action");
+});
+
+test("My Sessions hydrates host-only rosters for the badge and defers contacts until the page requests them", async () => {
+  const rosterCalls = [];
+  const contactCalls = [];
+  const hostSession = futureSession({
+    canCancel: true,
+    sessionId: 51,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const acceptedGuestSession = futureSession({
+    canWithdraw: true,
+    sessionId: 52,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [hostSession, acceptedGuestSession],
+      loadSessionContacts: async (sessionId) => {
+        contactCalls.push(sessionId);
+        return [{ counterpartProfileId: sessionId + 100, lineId: `line-${sessionId}`, nickname: `聯絡人-${sessionId}`, sessionId }];
+      },
+      loadSessionRoster: async (sessionId) => {
+        rosterCalls.push(sessionId);
+        return [
+          { participantId: 1, profileId: 11, role: "host", status: "accepted" },
+          { participantId: 72, profileId: 22, nickname: "待審核球友", role: "guest", status: "requested" },
+        ];
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+
+  assert.deepEqual(rosterCalls, [51]);
+  assert.deepEqual(contactCalls, [], "contacts are not fetched merely because a participant is accepted");
+  assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
+
+  await harness.controller.refreshMySessionDetails({ includeContacts: true });
+
+  assert.deepEqual(contactCalls.sort((left, right) => left - right), [51, 52]);
+  assert.deepEqual(harness.controller.getSessionContacts(52), [
+    { counterpartProfileId: 152, lineId: "line-52", nickname: "聯絡人-52", sessionId: 52 },
+  ]);
+});
+
+test("a host review uses an authorized roster request and refreshes My Sessions before reporting success", async () => {
+  const calls = [];
+  let requested = true;
+  const hostSession = futureSession({
+    canCancel: true,
+    sessionId: 61,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    api: {
+      acceptSessionParticipant: async (sessionId, participantId) => {
+        calls.push([sessionId, participantId]);
+        requested = false;
+        return { outcome: "OK", reloadRequired: false };
+      },
+      loadMySessions: async () => [hostSession],
+      loadSessionRoster: async () => [
+        { participantId: 1, profileId: 11, role: "host", status: "accepted" },
+        { participantId: 72, profileId: 22, nickname: "待審核球友", role: "guest", status: requested ? "requested" : "accepted" },
+      ],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await harness.controller.reviewMySessionParticipant(61, 72, "accepted");
+
+  assert.deepEqual(calls, [[61, 72]]);
+  assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 0);
+  assert.ok(harness.toasts.includes("已接受申請。"));
+});
+
+test("My Sessions refresh rereads authoritative rows and clears private output on sign-out", async () => {
+  let rows = [
+    futureSession({
+      canCancel: true,
+      sessionId: 71,
+      viewerParticipantStatus: "accepted",
+      viewerRole: "host",
+    }),
+  ];
+  let loads = 0;
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => {
+        loads += 1;
+        return rows;
+      },
+      loadSessionContacts: async () => [{ counterpartProfileId: 20, lineId: "safe-line", nickname: "已核准球友" }],
+      loadSessionRoster: async () => [{ participantId: 2, profileId: 20, nickname: "待審核球友", role: "guest", status: "requested" }],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await harness.controller.refreshMySessions({ includeContacts: true });
+  assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
+  assert.deepEqual(harness.controller.getSessionContacts(71).map((contact) => contact.lineId), ["safe-line"]);
+
+  rows = [];
+  await harness.controller.refreshMySessions({ includeContacts: true });
+  assert.equal(loads >= 3, true, "a manual refresh must re-read My Sessions rather than only cached details");
+  assert.deepEqual(harness.controller.getMySessionGroups().upcoming, []);
+
+  await harness.controller.setAuthState(null, null);
+  assert.equal(harness.mySessionChanges.at(-1).authenticated, false, "sign-out publishes the anonymous My Sessions state");
+  assert.equal(harness.mySessionChanges.at(-1).groups.pendingHostRequestCount, 0);
+  assert.deepEqual(harness.mySessionChanges.at(-1).groups.upcoming, []);
+  assert.deepEqual(harness.controller.getSessionContacts(71), []);
+});
+
+test("a failed roster read is visible as an error instead of a false zero-badge state", async () => {
+  const hostSession = futureSession({
+    canCancel: true,
+    sessionId: 75,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [hostSession],
+      loadSessionRoster: async () => {
+        throw new Error("roster unavailable");
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  const state = harness.controller.getMySessionState();
+  assert.equal(state.status, "error");
+  assert.match(state.error, /待審核申請暫時無法載入/);
+  assert.equal(state.groups.pendingHostRequestCount, 0);
+  assert.equal(harness.mySessionChanges.at(-1).status, "error");
+});
+
+test("a lifecycle mutation never announces success when its authoritative refresh fails", async () => {
+  let readCount = 0;
+  const hostSession = futureSession({
+    canCancel: true,
+    sessionId: 76,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    api: {
+      acceptSessionParticipant: async () => ({ outcome: "OK", reloadRequired: false }),
+      loadMySessions: async () => {
+        readCount += 1;
+        if (readCount > 1) throw new Error("temporary read failure");
+        return [hostSession];
+      },
+      loadSessionRoster: async () => [{ participantId: 7, profileId: 8, role: "guest", status: "requested" }],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await assert.rejects(
+    harness.controller.reviewMySessionParticipant(76, 7, "accepted"),
+    /球局狀態暫時無法重新載入/
+  );
+  assert.equal(harness.toasts.includes("已接受申請。"), false);
+  assert.equal(harness.controller.getMySessionState().status, "error");
+});
+
+test("reporting accepts only public session targets or safe roster targets", async () => {
+  const reports = [];
+  const hostSession = futureSession({
+    canCancel: true,
+    sessionId: 81,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    session: hostSession,
+    api: {
+      createReport: async (payload) => {
+        reports.push(payload);
+        return { reportId: reports.length };
+      },
+      loadMySessions: async () => [hostSession],
+      loadSessionRoster: async () => [
+        { participantId: 1, profileId: 11, role: "host", status: "accepted" },
+        { participantId: 2, profileId: 22, nickname: "安全申請者", role: "guest", status: "requested" },
+      ],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  // The surface adapter is intentionally simple in this unit harness: submit
+  // through the callback captured by the controller rather than browser DOM.
+  harness.controller.openSessionReport(81);
+  const sessionReport = harness.reportDialogs.at(-1);
+  await sessionReport.onSubmit("不實球局");
+  assert.deepEqual(reports[0], { reportedProfileId: null, reason: "不實球局", sessionId: 81 });
+
+  await harness.controller.openRosterParticipantReport(81, 22);
+  const profileReport = harness.reportDialogs.at(-1);
+  await profileReport.onSubmit("不當行為");
+  assert.deepEqual(reports[1], { reportedProfileId: 22, reason: "不當行為", sessionId: null });
+  assert.throws(() => harness.controller.openRosterParticipantReport(81, 999), /申請者資料已更新/);
+});
+
+test("a My Sessions card can reopen its safe detail even after it is outside the current discovery viewport", async () => {
+  const privateSession = futureSession({
+    sessionId: 89,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [privateSession],
+      loadSessionDiscovery: async () => [],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  harness.controller.openSession(89);
+  assert.equal(harness.opened.at(-1).session.sessionId, 89);
+});
 
 test("expired join and withdrawal refresh authority without success toasts", async () => {
   let discoveryCalls = 0;
@@ -225,6 +533,65 @@ test("expired join and withdrawal refresh authority without success toasts", asy
   assert.equal(withdrawCalls, 1);
   assert.equal(withdrawDetail.detail.closeCalls, 1, "expired withdrawal closes obsolete detail actions");
   assert.deepEqual(withdrawHarness.toasts, ["球局狀態已更新，請重新載入。"]);
+});
+
+test("a rejected detail withdrawal refreshes authority before leaving a retryable error", async () => {
+  let discoveryCalls = 0;
+  let participationCalls = 0;
+  const publicSession = futureSession();
+  const harness = createHarness({
+    session: publicSession,
+    api: {
+      loadMySessions: async () => {
+        participationCalls += 1;
+        return [{ sessionId: 41, viewerParticipantStatus: "requested" }];
+      },
+      loadSessionDiscovery: async () => {
+        discoveryCalls += 1;
+        return [publicSession];
+      },
+      withdrawFromSession: async () => {
+        throw new Error("撤回申請已被其他裝置處理。");
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "guest" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const detail = openAction(harness);
+  await detail.handlers.onWithdraw();
+
+  assert.ok(participationCalls >= 2, "server rejection still re-reads private participation authority");
+  assert.ok(discoveryCalls >= 2, "server rejection still re-reads public session authority");
+  assert.equal(detail.detail.closeCalls, 0, "a retryable rejection keeps the current detail surface available");
+  assert.ok(harness.toasts.includes("撤回申請已被其他裝置處理。"));
+  assert.equal(harness.toasts.includes("已撤回申請。"), false);
+});
+
+test("a stale join rejection announces its reason when authority refresh closes the confirmation", async () => {
+  let discoveryCalls = 0;
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () => {
+        discoveryCalls += 1;
+        return discoveryCalls === 1 ? [futureSession()] : [];
+      },
+      requestToJoinSession: async () => {
+        throw new Error("球局已額滿，無法送出申請。");
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "guest" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  const detail = openAction(harness);
+  detail.handlers.onPrimary();
+  const confirmation = harness.confirmations.at(-1);
+  const result = await confirmation.handlers.onConfirm(() => {});
+
+  assert.match(result.joinError, /球局已額滿/);
+  assert.equal(detail.detail.closeCalls, 1, "authoritative discovery removes the stale detail");
+  assert.ok(harness.toasts.includes("球局已額滿，無法送出申請。"));
 });
 
 test("only the newest location callback can update discovery and map readiness replays it", async () => {

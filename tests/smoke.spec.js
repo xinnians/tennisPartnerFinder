@@ -135,6 +135,30 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
+test("My Sessions has a bottom navigation destination and stays isolated beneath the nearby drawer", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const mySessionsTab = page.getByTestId("my-sessions-tab");
+  await expect(mySessionsTab).toBeVisible();
+  await mySessionsTab.click();
+  await expect(page.locator("#tab-map")).toBeHidden();
+  await expect(page.locator("#my-sessions-page")).toBeVisible();
+  await expect(page.locator("#my-needs-action")).toBeVisible();
+  await expect(page.locator("#my-upcoming-sessions")).toBeVisible();
+  await expect(page.locator("#my-history")).toBeVisible();
+  await expect(page.locator("#my-sessions-refresh")).toBeVisible();
+
+  await page.getByTestId("map-tab").click();
+  await expect(page.locator("#tab-map")).toBeVisible();
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator(".bottom-navigation")).toHaveJSProperty("inert", true);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".bottom-navigation")).toHaveJSProperty("inert", false);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("anonymous session artifacts strip tainted source fields from HTML, data attributes, markers, and captured JSON", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -243,6 +267,268 @@ test("a pending join confirmation accepts only one intentional submission", asyn
   await expect(confirm).toBeDisabled();
   await page.evaluate(() => window.__releaseJoinConfirmation());
   await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("join confirmation repeats the safe summary and becomes an in-place success state", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+    openJoinSessionConfirmation(
+      {
+        court: "青年公園網球場",
+        courtDistrict: "萬華區",
+        hostNickname: "公開主揪",
+        hostNtrp: 3.5,
+        hostProfileComplete: true,
+        notes: "自備新球",
+        ntrpMax: 4,
+        ntrpMin: 3,
+        playType: "單打",
+        slotsRemaining: 1,
+        startAt: "2026-07-19T01:00:00.000Z",
+      },
+      {
+        onConfirm: async () => ({ joinSubmitted: true }),
+        onViewMySessions: () => {
+          window.__joinSuccessDestinationCalls = (window.__joinSuccessDestinationCalls ?? 0) + 1;
+        },
+      }
+    );
+  });
+
+  const confirmation = page.locator("#join-session-confirmation");
+  await expect(confirmation.getByTestId("session-join-form")).toBeVisible();
+  await expect(confirmation.getByTestId("join-session")).toBeVisible();
+  await expect(confirmation).toContainText("青年公園網球場 · 萬華區");
+  await expect(confirmation).toContainText("單打 · NTRP 3.0–4.0 · 剩 1 位");
+  await expect(confirmation).toContainText("主揪 公開主揪 · NTRP 3.5 · 檔案已完成");
+  await expect(confirmation).toContainText("自備新球");
+  await confirmation.getByTestId("join-session").click();
+  await expect(confirmation.getByTestId("session-join-form")).toBeHidden();
+  await expect(confirmation).toContainText("已送出申請，等待主揪回覆。");
+  const mySessionsCta = confirmation.getByRole("button", { name: "前往我的球局" });
+  await expect(mySessionsCta).toBeFocused();
+  await mySessionsCta.click();
+  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions preserves the initiating action and its error across a private-page rerender", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const session = {
+      canCancel: true,
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      hostNickname: "公開主揪",
+      hostNtrp: 3.5,
+      hostProfileComplete: true,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      sessionId: 731,
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole: "host",
+    };
+    let release;
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    const render = () =>
+      renderMySessionsPage(root, {
+        authenticated: true,
+        groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+        onCancel: async () => {
+          window.__mySessionActionCalls = (window.__mySessionActionCalls ?? 0) + 1;
+          await pending;
+          throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
+        },
+      });
+    window.__rerenderMySessions = render;
+    window.__releaseMySessionAction = release;
+    render();
+  });
+
+  const cancel = page.locator("[data-my-action='cancel']");
+  await cancel.click();
+  await expect.poll(() => page.evaluate(() => window.__mySessionActionCalls)).toBe(1);
+  await page.evaluate(() => window.__rerenderMySessions());
+  await expect(cancel).toBeDisabled();
+  await page.evaluate(() => window.__releaseMySessionAction());
+  await expect(page.locator("[data-my-sessions-error]")).toContainText("球局狀態暫時無法重新載入");
+  await expect(cancel).toBeEnabled();
+  await expect(cancel).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions moves focus to an updated card and scopes pending actions to the current account render", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const session = {
+      canWithdraw: true,
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      hostNickname: "公開主揪",
+      hostNtrp: 3.5,
+      hostProfileComplete: true,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      sessionId: 732,
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole: "host",
+    };
+    const request = { nickname: "待處理球友", participantId: 16, profileId: 26, role: "guest", status: "requested" };
+    const groupsWithRequest = { history: [], needsAction: [{ kind: "host-request", participant: request, session }], pendingHostRequestCount: 1, upcoming: [session] };
+    const groupsAfterReview = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] };
+    const render = ({ groups, onAccept = async () => {}, scopeKey }) =>
+      renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onAccept });
+
+    window.__renderAfterReview = () => render({ groups: groupsAfterReview, scopeKey: "account-a" });
+    render({
+      groups: groupsWithRequest,
+      onAccept: async () => window.__renderAfterReview(),
+      scopeKey: "account-a",
+    });
+  });
+
+  await page.getByTestId("accept-participant-16").click();
+  await expect(page.locator("[data-open-my-session][data-session-id='732']")).toBeFocused();
+
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    const session = {
+      canWithdraw: true,
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      hostNickname: "公開主揪",
+      hostNtrp: 3.5,
+      hostProfileComplete: true,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      sessionId: 733,
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole: "guest",
+    };
+    let release;
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    const render = (scopeKey, groups, onWithdraw) =>
+      renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onWithdraw });
+    window.__releaseAccountAAction = release;
+    render(
+      "account-a",
+      { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+      async () => {
+        await pending;
+        throw new Error("登入狀態已變更，請重新整理後再試。");
+      }
+    );
+  });
+
+  await page.locator("[data-my-action='withdraw'][data-session-id='733']").click();
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    const session = {
+      canWithdraw: true,
+      court: "新帳號球局",
+      courtDistrict: "大安區",
+      hostNickname: "B 的主揪",
+      hostNtrp: 3.5,
+      hostProfileComplete: true,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      sessionId: 733,
+      slotsRemaining: 1,
+      startAt: "2099-07-20T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole: "guest",
+    };
+    renderMySessionsPage(root, {
+      actionScopeKey: "account-b",
+      authenticated: true,
+      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+    });
+  });
+  const accountBWithdraw = page.locator("[data-my-action='withdraw'][data-session-id='733']");
+  await expect(accountBWithdraw).toBeEnabled();
+  await page.evaluate(() => window.__releaseAccountAAction());
+  await expect(accountBWithdraw).toBeEnabled();
+  await expect(page.locator("[data-my-sessions-error]")).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("anonymous My Sessions has a login next step instead of three dead-end empty lists", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.getByTestId("my-sessions-tab").click();
+  const destination = page.locator("#my-sessions-page");
+  await expect(destination).toContainText("登入後查看與管理你的球局");
+  await expect(destination.getByRole("button", { name: "登入" })).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("report dialog requires a reason, preserves failures, and acknowledges a successful report", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openReportDialog } = await import("/src/sessionViews.js");
+    window.__reportReasons = [];
+    openReportDialog({
+      targetLabel: "青年公園網球場 · 週六上午",
+      onSubmit: async (reason) => {
+        window.__reportReasons.push(reason);
+        if (reason === "其他") throw new Error("暫時無法送出");
+        return { reportId: 1 };
+      },
+    });
+  });
+
+  const dialog = page.locator("#report-dialog");
+  await expect(dialog.getByTestId("report-form")).toBeVisible();
+  await expect(dialog).toContainText("青年公園網球場 · 週六上午");
+  await dialog.getByLabel("其他").check();
+  await dialog.getByTestId("report-submit").click();
+  await expect(dialog.getByRole("alert")).toContainText("暫時無法送出");
+  await expect(dialog.getByTestId("report-form")).toBeVisible();
+  await dialog.getByLabel("與實際球局不符").check();
+  await dialog.getByTestId("report-submit").click();
+  await expect(dialog.getByTestId("report-form")).toBeHidden();
+  await expect(dialog).toContainText("已送出檢舉，謝謝你的回報。");
+  await expect.poll(() => page.evaluate(() => window.__reportReasons)).toEqual(["其他", "與實際球局不符"]);
   expect(runtimeErrors).toEqual([]);
 });
 
