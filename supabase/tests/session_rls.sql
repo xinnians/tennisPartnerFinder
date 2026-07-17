@@ -14,6 +14,18 @@ exception when others then
 end;
 $$;
 
+create function pg_temp.delete_participant_and_force_constraints(p_participant_id bigint)
+returns void
+language plpgsql
+as $$
+begin
+  delete from public.session_participants
+  where id = p_participant_id;
+
+  set constraints all immediate;
+end;
+$$;
+
 -- Historical lifecycle fixtures require an authoritative clock setup, while
 -- production start_at values are intentionally immutable. This helper runs
 -- only inside pgTAP's rolled-back transaction and temporarily disables the
@@ -97,7 +109,7 @@ begin
 end;
 $$;
 
-select plan(206);
+select plan(212);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -1173,6 +1185,11 @@ select throws_ok(
   'P0001', 'SESSION_CANCELLED', 'accepted guest cannot confirm attendance for a cancelled session'
 );
 reset role;
+select throws_ok(
+  $$select pg_temp.delete_participant_and_force_constraints(current_setting('pgtap.open_attendance_guest_participant_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'raw guest deletion cannot erase cancelled-session history'
+);
+set constraints all deferred;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
@@ -1510,6 +1527,11 @@ select is(
   false,
   'stale full-session attendance confirmation does not mutate the guest flag'
 );
+select throws_ok(
+  $$select pg_temp.delete_participant_and_force_constraints(current_setting('pgtap.full_stale_guest_participant_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'raw guest deletion cannot erase expired-session history'
+);
+set constraints all deferred;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
@@ -1813,6 +1835,11 @@ select throws_ok(
   $$update public.session_participants set status = 'withdrawn' where id = current_setting('pgtap.raw_started_accept_participant_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw requested guest cannot withdraw after an open session has started'
 );
+select throws_ok(
+  $$select pg_temp.delete_participant_and_force_constraints(current_setting('pgtap.raw_started_accept_participant_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'raw guest deletion cannot erase started open-session history'
+);
+set constraints all deferred;
 delete from public.sessions
 where id = current_setting('pgtap.raw_started_cancel_session_id')::bigint;
 
@@ -1924,6 +1951,11 @@ select throws_ok(
   $$update public.session_participants set status = 'withdrawn' where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw accepted guest cannot withdraw after a played session starts'
 );
+select throws_ok(
+  $$select pg_temp.delete_participant_and_force_constraints(current_setting('pgtap.raw_confirm_guard_participant_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'raw guest deletion cannot erase played-session history'
+);
+set constraints all deferred;
 
 -- A host-row constraint allows parent session deletes to cascade, but refuses
 -- a raw child deletion that would leave a live session orphaned.
@@ -1942,6 +1974,11 @@ select lives_ok(
   $$delete from public.sessions where id = current_setting('pgtap.host_cascade_session_id')::bigint$$,
   'trusted raw session deletion remains cascade-safe'
 );
+select lives_ok(
+  $$set constraints all immediate$$,
+  'participant delete invariant permits a parent-delete cascade after the parent is absent'
+);
+set constraints all deferred;
 select lives_ok(
   $$set constraints session_participants_host_invariant immediate$$,
   'host invariant permits participant cascade after parent session deletion'
@@ -2171,6 +2208,10 @@ select set_config(
 select lives_ok(
   $$delete from public.session_participants where id = current_setting('pgtap.host_orphan_participant_id')::bigint$$,
   'raw host deletion queues the deferred host invariant'
+);
+select throws_ok(
+  $$set constraints session_participants_delete_invariant immediate$$,
+  'P0001', 'INVALID_TRANSITION', 'raw host deletion cannot commit while its parent session remains'
 );
 select is(
   (select count(*) from public.sessions where id = current_setting('pgtap.host_orphan_session_id')::bigint),

@@ -545,6 +545,25 @@ begin
 end;
 $$;
 
+create or replace function private.enforce_session_participant_delete_invariant()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1
+    from public.sessions session_row
+    where session_row.id = old.session_id
+  ) then
+    raise exception 'INVALID_TRANSITION';
+  end if;
+
+  return null;
+end;
+$$;
+
 drop trigger if exists sessions_enforce_transition on public.sessions;
 create trigger sessions_enforce_transition
 before insert or update on public.sessions
@@ -572,6 +591,12 @@ create constraint trigger session_participants_host_invariant
 after insert or update or delete on public.session_participants
 deferrable initially deferred
 for each row execute function private.enforce_session_host_invariant();
+
+drop trigger if exists session_participants_delete_invariant on public.session_participants;
+create constraint trigger session_participants_delete_invariant
+after delete on public.session_participants
+deferrable initially deferred
+for each row execute function private.enforce_session_participant_delete_invariant();
 
 drop trigger if exists sessions_host_invariant on public.sessions;
 create constraint trigger sessions_host_invariant
