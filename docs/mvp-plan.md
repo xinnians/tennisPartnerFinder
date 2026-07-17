@@ -8,6 +8,8 @@ new session can resume without relying on chat memory.
 
 ## Current Direction
 
+> **Direction update (2026-07-17, public-MVP design):** 創辦人確認首發採**直接公開上線**，不是封閉 beta；首發仍只聚焦台北網球，核心從球友名單／單向徵人改為「球局 → 加入申請 → 主揪核准 → 才互露 LINE」。公開上線的 P0 是資料庫層保護聯絡資訊與完整的 session 參與流程；球場深度指南與低摩擦生態研究可並行，但不再是公開 MVP 的上線前置。完整、已確認的設計見 `docs/superpowers/specs/2026-07-17-taipei-tennis-public-mvp-design.md`。既有 `2026-07-08-dev-roadmap.md` 仍可作為 sessions／指南的技術參考，但其 private-beta 與批次上線假設以本決策為準調整。
+
 > **Direction update (2026-07-08，排程 SoT）:** 競品重盤後的開發批次行程定於
 > `docs/superpowers/plans/2026-07-08-dev-roadmap.md`。觸發原因：發現直接競品
 > baseline.tw（雙北 112 座球場庫＋地圖＋session 制揪團，2026-05 上線、traction
@@ -156,17 +158,17 @@ env is not configured, it still falls back to `src/mockData.js`.
 
 ## Product Principles
 
+> 這些原則描述 2026-07-17 已確認的公開 MVP 目標；下方 Milestone 1–4 與 draft schema 保留作為已出貨 `partner_requests` 原型的歷史參考，不能覆蓋 `docs/superpowers/specs/2026-07-17-taipei-tennis-public-mvp-design.md` 的 session 與隱私決策。
+
 - Pins represent tennis courts, not home addresses.
 - Users explicitly choose whether their profile appears publicly.
-- Public discovery data may include LINE ID for public profiles. This is an
-  accepted MVP tradeoff: LINE visibility is gated by UI, not by a database
-  secrecy boundary.
-- LINE ID is not shown in the first card layer. It is shown only after an
-  explicit quick-contact action on a public player card; the MVP sends the real
-  conversation to LINE instead of managing in-app invite states.
+- Public discovery data never includes LINE ID or another direct contact field.
+- LINE ID is revealed by a database-enforced session-contact boundary only after
+  the host has accepted a participant; a UI-only gate is not sufficient.
 - A public player with multiple usual courts appears once per usual court.
-- First private beta scope is Taipei City.
-- The MVP should favor a small trusted trial group before broad public launch.
+- First public MVP scope is Taipei City tennis.
+- The MVP is publicly accessible from launch, while initial distribution stays
+  focused on relevant Taipei tennis communities.
 
 ## Backend Decision Record
 
@@ -178,12 +180,12 @@ backend.
 Why Supabase fits this product:
 
 - The product data is relational: profiles, courts, play types, availability,
-  partner requests, and reports all reference each other.
+  sessions, session participants, and reports all reference each other.
 - Postgres keeps the data model portable if the project later outgrows the BaaS
   layer.
 - Row Level Security can enforce ownership rules at the database layer,
-  especially for profile editing, request publishing, and reporting. LINE ID
-  visibility for public profiles is intentionally handled as a UI gate.
+  especially for profile editing, session participation, contact disclosure, and
+  reporting. LINE ID visibility must be enforced as a database boundary.
 - Supabase Auth, generated APIs, and local tooling should keep the MVP faster
   than building a custom backend first.
 - PostGIS remains available later if court proximity or geographic search
@@ -212,7 +214,11 @@ Reconsider this decision if:
 - The product pivots toward realtime chat or social-feed behavior where another
   backend shape is clearly better.
 
-## MVP Scope
+## Historical Prototype Scope
+
+> This section records the shipped `partner_requests` / quick-contact prototype
+> and its former scope. It is useful for understanding existing code, but the
+> approved public-MVP scope is the 2026-07-17 design specification linked above.
 
 ### In Scope
 
@@ -250,7 +256,7 @@ Reconsider this decision if:
 - Native mobile app.
 - Full admin console beyond minimal moderation needs.
 
-## Implementation Milestones
+## Historical Prototype Implementation Milestones
 
 ### Milestone 1: Stabilize Current Prototype
 
@@ -331,7 +337,7 @@ Goal: make the MVP safe enough for a small real-world trial.
 - Deploy to Netlify or Vercel.
 - Run a small private beta with real tennis players.
 
-## Draft Data Model
+## Historical Prototype Draft Data Model
 
 This is a planning reference. The SQL source of truth is
 `supabase/migrations/202607020001_initial_mvp_schema.sql`.
