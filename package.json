@@ -9,7 +9,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "pretest": "node scripts/generate-courts-seed.mjs --check",
-    "test": "playwright test"
+    "test": "npm run test:mock",
+    "test:mock": "playwright test --project=desktop-chromium --project=mobile-chromium",
+    "test:db": "npx supabase test db supabase/tests",
+    "test:local": "playwright test --project=supabase-chromium --project=supabase-mobile-chromium",
+    "db:reset:test": "node scripts/reset-local-test-db.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

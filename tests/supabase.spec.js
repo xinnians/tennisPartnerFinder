@@ -1,163 +1,17 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
-
-const SUPABASE_URL = "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
-const AUTH_STORAGE_KEY = "tennis-partner-finder-auth";
+import { installFakeMaps } from "./fixtures/fakeMaps.js";
+import {
+  courtIdByName,
+  createProfile,
+  setBrowserSession,
+  signUpUser,
+  SUPABASE_URL,
+} from "./fixtures/localSupabase.js";
 
 test.setTimeout(90_000);
 
-const fakeMapsScript = `
-(() => {
-  const markers = [];
-
-  class Size {
-    constructor(width, height) {
-      this.width = width;
-      this.height = height;
-    }
-  }
-
-  class Point {
-    constructor(x, y) {
-      this.x = x;
-      this.y = y;
-    }
-  }
-
-  class Map {
-    constructor(el, options) {
-      this.el = el;
-      this.center = options.center;
-      this.zoom = options.zoom;
-      el.dataset.fakeGoogleMap = "ready";
-      el.style.position = "relative";
-    }
-
-    getZoom() {
-      return this.zoom;
-    }
-
-    setZoom(zoom) {
-      this.zoom = zoom;
-    }
-
-    panTo(center) {
-      this.center = center;
-    }
-  }
-
-  class Marker {
-    constructor(options) {
-      this.options = options;
-      this.map = options.map;
-      this.el = document.createElement("button");
-      const label = typeof options.label === "string" ? options.label : options.label?.text;
-      this.el.type = "button";
-      this.el.className = "test-marker";
-      this.el.textContent = label || options.title || "marker";
-      this.el.setAttribute("aria-label", "地圖圖釘 " + (options.title || label || "marker"));
-      this.el.style.position = "absolute";
-      // top 134px 起跳:.map-top 濾鏡浮層高 124px(含可點擊的程度/類型 chips),
-      // 格網要落在它下方,否則 chips 會攔截底圖/overlay pin 的點擊。
-      const i = markers.length;
-      this.el.style.left = 8 + (i % 24) * 15 + "px";
-      this.el.style.top = 134 + Math.floor(i / 24) * 24 + "px";
-      this.el.style.width = "12px";
-      this.el.style.height = "12px";
-      this.el.style.overflow = "hidden";
-      this.el.style.padding = "0";
-      this.el.style.zIndex = String(options.zIndex || 1);
-      markers.push(this);
-      this.map?.el?.appendChild(this.el);
-    }
-
-    addListener(event, callback) {
-      this.el.addEventListener(event, callback);
-      return { remove: () => this.el.removeEventListener(event, callback) };
-    }
-
-    setMap(map) {
-      this.el.remove();
-      this.map = map;
-      this.map?.el?.appendChild(this.el);
-    }
-  }
-
-  window.google = { maps: { Map, Marker, Point, Size } };
-  window.__onGoogleMapsReady?.();
-})();
-`;
-
-function makeClient() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-async function signUpUser(email) {
-  const supabase = makeClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password: "password123",
-  });
-  if (error) throw error;
-  if (!data.session) throw new Error(`Expected signUp to create a session for ${email}`);
-  return { client: supabase, session: data.session };
-}
-
-async function courtIdByName(client, name) {
-  const { data, error } = await client.from("courts").select("id").eq("name", name).single();
-  if (error) throw error;
-  return data.id;
-}
-
-async function createProfile(client, profile) {
-  const { data, error } = await client
-    .from("profiles")
-    .insert({
-      nickname: profile.nickname,
-      ntrp: profile.ntrp,
-      line_id: profile.lineId,
-      is_public: profile.isPublic,
-      user_id: profile.userId,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-
-  const profileId = data.id;
-  const courtIds = [];
-  for (const courtName of profile.courts) {
-    courtIds.push(await courtIdByName(client, courtName));
-  }
-
-  if (courtIds.length > 0) {
-    const { error: courtsError } = await client
-      .from("profile_courts")
-      .insert(courtIds.map((court_id) => ({ profile_id: profileId, court_id })));
-    if (courtsError) throw courtsError;
-  }
-
-  if (profile.playTypes.length > 0) {
-    const { error: typesError } = await client
-      .from("profile_play_types")
-      .insert(profile.playTypes.map((play_type) => ({ profile_id: profileId, play_type })));
-    if (typesError) throw typesError;
-  }
-
-  if (profile.slots.length > 0) {
-    const { error: slotsError } = await client
-      .from("profile_slots")
-      .insert(profile.slots.map((slot_code) => ({ profile_id: profileId, slot_code })));
-    if (slotsError) throw slotsError;
-  }
-
-  return profileId;
-}
+let localAceProfileId;
 
 async function createPartnerRequestForProfile(client, profileId, request) {
   const courtId = await courtIdByName(client, request.courtName);
@@ -174,15 +28,6 @@ async function createPartnerRequestForProfile(client, profileId, request) {
     request.returnId === false ? await insert : await insert.select("id").single();
   if (error) throw error;
   return data?.id ?? null;
-}
-
-async function installFakeMaps(page) {
-  await page.route("https://maps.googleapis.com/maps/api/js**", (route) =>
-    route.fulfill({
-      contentType: "application/javascript",
-      body: fakeMapsScript,
-    })
-  );
 }
 
 function wait(ms) {
@@ -226,15 +71,6 @@ async function installFailThenRetryDiscovery(page) {
   });
 }
 
-async function setBrowserSession(page, session) {
-  await page.addInitScript(
-    ({ key, value }) => {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    },
-    { key: AUTH_STORAGE_KEY, value: session }
-  );
-}
-
 async function openLocalAceSheet(page) {
   await page.getByRole("button", { name: /地圖圖釘 青年公園網球場/ }).click();
   const localAceDrawerItem = page.getByRole("button", { name: /Local Ace/ }).first();
@@ -249,14 +85,9 @@ async function openLocalAceSheet(page) {
 test.describe.configure({ mode: "serial", timeout: 120_000 });
 
 test.beforeAll(async () => {
-  execFileSync("npx", ["supabase", "db", "reset"], {
-    cwd: process.cwd(),
-    stdio: "pipe",
-  });
-
   const email = `public-player-${Date.now()}@example.test`;
   const { client, session } = await signUpUser(email);
-  await createProfile(client, {
+  localAceProfileId = await createProfile(client, {
     userId: session.user.id,
     nickname: "Local Ace",
     ntrp: 4.0,
@@ -515,7 +346,11 @@ test("report flow requires auth and a saved profile, then writes player and requ
   if (error) throw error;
   expect(reports).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ reported_profile_id: 1, partner_request_id: null, reason: "疑似假資料" }),
+      expect.objectContaining({
+        reported_profile_id: localAceProfileId,
+        partner_request_id: null,
+        reason: "疑似假資料",
+      }),
       expect.objectContaining({ reported_profile_id: null, partner_request_id: requestId, reason: "不適當內容" }),
     ])
   );
