@@ -29,6 +29,7 @@ export function createPlaywrightConfig({
       env: {
         ...process.env,
         VITE_GOOGLE_MAPS_API_KEY: "e2e",
+        VITE_SUPPORT_EMAIL: "support@example.test",
         VITE_SUPABASE_URL: isLocal ? localConfig.apiUrl : "___",
         VITE_SUPABASE_ANON_KEY: isLocal ? localConfig.publicKey : "___",
       },

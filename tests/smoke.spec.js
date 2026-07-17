@@ -135,6 +135,17 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a configured support address renders a mailto contact link", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const support = page.getByRole("link", { name: "聯絡支援" });
+  await expect(support).toBeVisible();
+  await expect(support).toHaveAttribute("href", "mailto:support@example.test");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("My Sessions has a bottom navigation destination and stays isolated beneath the nearby drawer", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

@@ -1,6 +1,6 @@
 import "./style.css";
 import "./session.css";
-import { GOOGLE_MAPS_API_KEY } from "./config.js";
+import { GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.js";
 import { BANDS } from "./filters.js";
 import {
   createMap,
@@ -75,6 +75,15 @@ function toast(message) {
   root.innerHTML = `<div class="toast">${esc(message)}</div>`;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => (root.innerHTML = ""), 2400);
+}
+
+function renderSupportContact() {
+  const link = document.getElementById("support-link");
+  if (!link) return;
+  const address = SUPPORT_EMAIL.trim();
+  link.hidden = !address;
+  if (address) link.href = `mailto:${address}`;
+  else link.removeAttribute("href");
 }
 
 const LOCAL_DEMO_UNAVAILABLE = "本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。";
@@ -570,6 +579,7 @@ function startMap() {
 }
 
 function init() {
+  renderSupportContact();
   controller = createSessionController({
     api: {
       acceptSessionParticipant,
