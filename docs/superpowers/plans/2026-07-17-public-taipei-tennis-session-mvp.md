@@ -4,18 +4,20 @@
 
 **Goal:** Replace the rushed player-card and one-way request prototype with a public Taipei City tennis session board: anyone can browse real upcoming sessions, a signed-in player can request to join, the host accepts or declines, and only an accepted host/guest pair can read each other's LINE ID.
 
-**Architecture:** Keep Vite and vanilla JavaScript. Add a small session controller/view layer above the existing map UI, use Supabase security-definer views and RPCs as the only session mutation boundary, and keep the existing 82-court dual-North catalogue as data while enforcing Taipei City for the first public launch. A scheduled Postgres job makes expiry persistent; every lifecycle RPC also checks expiry so a job delay cannot admit a stale session.
+**Architecture:** Keep Vite and vanilla JavaScript. Add a small session controller/view layer above a map-first home screen with a collapsible nearby-sessions drawer, use Supabase security-definer views and RPCs as the only session mutation boundary, and keep the existing 82-court dual-North catalogue as data while enforcing Taipei City for the first public launch. A scheduled Postgres job makes expiry persistent; every lifecycle RPC also checks expiry so a job delay cannot admit a stale session.
 
 **Tech Stack:** Vite 6, browser-native ES modules, Supabase Auth/Postgres/RLS/pg_cron, Google Maps JavaScript API, Playwright, pgTAP.
 
 ## Global Constraints
 
-- The confirmed product authority is [the public-MVP design](../specs/2026-07-17-taipei-tennis-public-mvp-design.md). The older quick-contact plans document historical code only.
+- The confirmed product authorities are [the public-MVP design](../specs/2026-07-17-taipei-tennis-public-mvp-design.md) and the later [approved UX flow](../specs/2026-07-17-public-taipei-tennis-ux-flow-design.md). The UX flow prevails where its map, public-detail, create-form, My Sessions, or resume-flow decisions differ from older plans.
 - First release is public Web for **Taipei City tennis**. Preserve the existing 82-court dual-North source catalogue, but add a persisted city field and permit public session creation/discovery only where city is 台北市. This keeps existing data intact and makes a future Twin-North expansion a deliberate policy change.
 - The atomic public unit is a concrete session. Do not retain player cards, direct invitations, or direct contact as an alternate discovery path in this MVP.
 - Do not add duration, court booking, payments, chat, push notifications, waitlists, rating, coach matching, another city, or another sport UI. The schema may seed tennis through sport_id only.
 - Never scrape, republish, or store posts or identities from private LINE/Facebook communities. Configured Supabase mode must show only host-created real sessions; mock sessions are local-test/demo data only.
 - LINE ID must be absent from every anonymous REST response, DOM node, marker title, list card, and unaccepted roster. It is exposed only by the database-backed host-to-accepted-guest contact view.
+- The only host profile data public discovery may reveal is the explicitly allowlisted `host_nickname`, `host_ntrp`, and `host_profile_complete`. It must never expose `host_profile_id`, a profile URL, real name, LINE ID, phone, e-mail, usual courts, history, or any other participant data.
+- The homepage starts on a Taipei City map with a collapsed nearby-sessions drawer, not a map/list mode switch. Do not call the browser location API until the user taps `使用我的位置`; then center to an approximately 5 km view, keep the user position only in memory, and continue discovery by current map bounds after a pan or zoom.
 - No UI code may call Supabase tables or RPCs directly. All client data access goes through src/dataApi.js.
 - Do not edit the already-applied generated migration 202607080001_courts_catalog_double_north.sql. New catalogue output must be generated from data/courts.json with a new migration stamp.
 - Keep the user-owned untracked file docs/ai-cross-project-setup-handoff.md untouched and unstaged.
@@ -36,18 +38,18 @@
 | supabase/migrations/202607170003_public_taipei_tennis_sessions.sql | New sports/session/participant/report schema, RLS, safe views, RPCs, archival of legacy quick-contact records, and expiry schedule. |
 | supabase/tests/session_rls.sql | New pgTAP contract for privacy, permissions, state transitions, reports, and expiry. |
 | supabase/tests/quick_contact_rls.sql | Delete after session_rls.sql provides replacement coverage. |
-| src/config.js | Add launch city, city bounds, discovery window, debounce, and support-email configuration. |
+| src/config.js | Add launch city, city bounds, discovery window, map debounce, 5 km location radius, and support-email configuration. |
 | src/mockData.js | Replace registered players and demand pins with safe, future-dated MOCK_SESSIONS. |
 | src/filters.js | Keep common NTRP bands/play types; replace player/demand filtering with session range-overlap filtering. |
 | src/dataApi.js | Replace discovery/request writes with safe session mappers, profile-save RPC, lifecycle RPC callers, and typed action errors. |
 | src/sessionIntent.js | New sessionStorage-only action-intent adapter. |
-| src/sessionController.js | New orchestration layer for discovery, map/list, auth/profile gates, lifecycle refresh, and My Sessions. |
-| src/sessionViews.js | New DOM-only renderer for session cards, sheets, forms, My Sessions, and contact copy actions. |
+| src/sessionController.js | New orchestration layer for map-first discovery, explicit location, nearby-sessions drawer, auth/profile gates, lifecycle refresh, and My Sessions. |
+| src/sessionViews.js | New DOM-only renderer for nearby-sessions drawer/cards, sheets, forms, My Sessions, and contact copy actions. |
 | src/session.css | New session-specific responsive styles, imported by main.js after the legacy base stylesheet. |
 | src/map.js and src/pins.js | Render sessions rather than people/demands and publish debounced map bounds. |
 | src/sheets.js | Keep accessible overlay primitives, login, and report dialog; remove player/demand/quick-contact/request modal exports. |
 | src/main.js | Become a thin boot/auth/profile/map shell that wires sessionController. |
-| index.html | Replace quick-contact controls with map/list session discovery, session filters, My Sessions, privacy/contact affordances, and stable test IDs. |
+| index.html | Replace quick-contact controls with map-first session discovery, a collapsible nearby-sessions drawer, explicit-location control, session filters, My Sessions, privacy/contact affordances, and stable test IDs. |
 | src/style.css | Remove only obsolete player/demand/quick-contact selectors after callers are gone; keep shared primitives. |
 | tests/fixtures/fakeMaps.js | New single fake Maps implementation, including bounds/idle support. |
 | tests/fixtures/localSupabase.js | New single local URL/key/auth-session/profile helper. |
@@ -83,11 +85,14 @@ const SessionSummary = {
   slotsTotal: 2,
   slotsRemaining: 1,
   notes: "自備新球",
+  hostNickname: "阿漢", // deliberately public display name, never a profile link
+  hostNtrp: 3.5,
+  hostProfileComplete: true,
   status: "open" // public view may also return future "full"
 };
 ~~~
 
-It must never contain hostProfileId, participantId, nickname, LINE ID, or roster data. No duration field belongs in v1 because the approved product did not choose one.
+`hostNickname`, `hostNtrp`, and `hostProfileComplete` are the sole exception to the normal profile-data ban: the approved UX deliberately shows them in the public session sheet. It must never contain hostProfileId, participantId, a profile URL, LINE ID, real name, phone, e-mail, usual courts, history, or roster data. No duration field belongs in v1 because the approved product did not choose one.
 
 ### Authenticated session data
 
@@ -97,6 +102,7 @@ const MySession = {
   viewerRole: "host" || "guest",
   viewerParticipantStatus: "requested" || "accepted" || "declined" || "withdrawn",
   viewerPlayedConfirmed: false,
+  updatedAt: "2026-07-17T10:00:00.000Z",
   canCancel: false,
   canWithdraw: false,
   canConfirmPlayed: false,
@@ -205,7 +211,7 @@ create unique index session_participants_one_host_idx
 
 ### Views, grants, and lifecycle semantics
 
-- session_discovery is a definer view with no profile join. Its WHERE clause requires a Taipei City active court, session status in open/full, and start_at greater than now(). It contains no contact field even when a session is full.
+- session_discovery is a definer view with a narrow join to the session host profile. Its WHERE clause requires a Taipei City active court, session status in open/full, and start_at greater than now(). Its explicit SELECT list returns only SessionSummary fields, including `profiles.nickname as host_nickname`, `profiles.ntrp as host_ntrp`, and `true as host_profile_complete`; it contains no profile ID, contact field, profile URL, or wildcard profile column even when a session is full.
 - my_session_participations, session_participant_roster, and session_contacts use auth.uid through private.viewer_profile_id. They are definer views because owner-only profiles RLS would otherwise hide legitimate counterpart data. Each view has an explicit column list; none uses a wildcard.
 - session_contacts requires viewer and counterpart accepted rows in the same session and the pair of roles to be host/guest. This relation is the database proof that guest A cannot learn guest B's LINE.
 - create_session and request_to_join_session call private.require_complete_profile. They also validate courts.city = '台北市' and courts.is_active, so changing a browser request cannot create a New Taipei session.
@@ -302,7 +308,7 @@ The actual migration first unschedules a same-named job if one exists. All funct
 - [ ] Create 202607170001_courts_city_scope.sql. It adds nullable courts.city, adds a check permitting null, 台北市, or 新北市, and leaves the three inactive historical fictional rows valid. Do not make city NOT NULL because those archived inactive rows are intentionally outside data/courts.json.
 - [ ] Update buildMigration in scripts/generate-courts-seed.mjs so each generated upsert includes name, city, district, lat, and lng; conflict updates city too. Update buildPgTap so active catalogue assertions prove city is present and valid. The generator remains the only writer of 202607170002 and courts_catalog.sql.
 - [ ] Generate the new migration exactly with node scripts/generate-courts-seed.mjs --stamp 202607170002. Do not patch its SQL manually. Run node scripts/generate-courts-seed.mjs --check and require a clean result.
-- [ ] Export LAUNCH_CITY = "台北市", TAIPEI_CITY_BOUNDS, DISCOVERY_WINDOW_DAYS = 14, MAP_IDLE_DEBOUNCE_MS = 250, and SUPPORT_EMAIL from src/config.js. TAIPEI_CITY_BOUNDS is the query fallback before the map yields its first viewport.
+- [ ] Export LAUNCH_CITY = "台北市", TAIPEI_CITY_BOUNDS, DISCOVERY_WINDOW_DAYS = 14, MAP_IDLE_DEBOUNCE_MS = 250, LOCATION_INITIAL_RADIUS_METERS = 5000, and SUPPORT_EMAIL from src/config.js. TAIPEI_CITY_BOUNDS is the query fallback before the map yields its first viewport; LOCATION_INITIAL_RADIUS_METERS is used only after the user explicitly requests their current position.
 - [ ] Change loadCourts in src/dataApi.js to request id,name,city,district,lat,lng and default its city filter to LAUNCH_CITY. The map base pins, profile picker, and session form therefore use Taipei City courts from day one.
 - [ ] Add city to every mock court and revise src/courtPicker.js to group by court.city rather than maintaining a second hard-coded city grouping. With the launch filter it renders only 台北市, while the catalogue keeps both cities.
 - [ ] Reset local data using the explicit confirmed command, then run npm run test:db and node scripts/generate-courts-seed.mjs --check. Verify a New Taipei court remains in the raw active catalogue but loadCourts() does not present it to launch UI.
@@ -335,12 +341,12 @@ private.is_session_host(p_session_id, p_profile_id)
 
 - [ ] Create public session views owned by the migration role and grant only their intended SELECT access:
 
-  - public.session_discovery: anon and authenticated can read only future Taipei City open/full sessions. Return only SessionSummary fields and calculate slots_remaining from accepted guest rows.
-  - public.my_session_participations: authenticated users see their own lifecycle rows, including terminal session status and action flags.
+  - public.session_discovery: anon and authenticated can read only future Taipei City open/full sessions. Return only the exact SessionSummary allowlist, calculate slots_remaining from accepted guest rows, and expose the approved public host fields `host_nickname`, `host_ntrp`, and `host_profile_complete` through a narrow host-profile join. It must not return `host_profile_id`, a profile URL, LINE, or any other profile field.
+  - public.my_session_participations: authenticated users see their own lifecycle rows, including terminal session status, `updated_at` for history ordering, and action flags.
   - public.session_participant_roster: host sees all safe request/guest rows; a guest sees only self and the host; no row has line_id.
   - public.session_contacts: authenticated host sees each accepted guest; each accepted guest sees only that host; accepted guest-to-guest contact is impossible.
 
-  Recreate public.public_profile_discovery without line_id if it is retained for a future browse-only use. It is not loaded by this MVP.
+  Revoke anon/authenticated SELECT on the obsolete public.public_profile_discovery and remove it from this MVP's client contracts; player-card discovery is not a launch feature. If a future browse-only version is reintroduced, it needs a separate approved allowlist with no LINE, profile IDs, profile URLs, or historical/profile-detail fields.
 
 - [ ] Enable RLS on all new tables. Revoke raw session, participant, report, sports, profile insert/update, and profile-join-table DML privileges from anon/authenticated; profile writes must now use save_my_profile. Retain only owner-safe profile SELECT reads and court catalogue reads. Revoke default PUBLIC execute on all security-definer functions, then grant only the public action RPCs to authenticated.
 - [ ] Implement save_my_profile so profiles, profile_courts, profile_play_types, and profile_slots are replaced in one transaction. It validates all referenced court IDs are active Taipei City courts; src/dataApi.js will call this RPC instead of delete-then-insert browser writes.
@@ -366,7 +372,7 @@ create_report: derives the reporter from auth.uid and accepts exactly one sessio
 
 - [ ] Add immutable-role/host-identity and legal-transition trigger checks as defense in depth. Direct raw DML must fail even if a future UI accidentally attempts it.
 - [ ] Install or verify pg_cron and schedule private.expire_stale_sessions every 15 minutes under the idempotent job name expire-stale-tennis-sessions. Before scheduling, unschedule the existing job with that name if present. The scheduled body is a direct SELECT of the private function, not an HTTP callback.
-- [ ] Run the pgTAP suite locally after an explicitly confirmed local reset. Do not proceed until it is green.
+- [ ] Assert in pgTAP that `session_discovery` has the three approved host display columns and lacks `host_profile_id`, `line_id`, profile URLs, and all non-allowlisted profile columns; anon/authenticated cannot select the retired public_profile_discovery view. Run the pgTAP suite locally after an explicitly confirmed local reset. Do not proceed until it is green.
 - [ ] Commit as: feat: add private session lifecycle and contact boundary
 
 ### Task 4: Establish safe client models, filters, mock data, and API calls
@@ -378,17 +384,17 @@ create_report: derives the reporter from auth.uid and accepts exactly one sessio
 - Modify src/dataApi.js
 - Create src/sessionIntent.js
 
-- [ ] Add a failing mock smoke assertion that the public session card and its captured discovery payload contain no seeded LINE ID, host name, or profile ID. Keep a second assertion that configured Supabase mode returns no mock session if the database is empty.
-- [ ] Replace REGISTERED_PLAYERS and DEMAND_PINS in src/mockData.js with 4 to 6 dynamically future-dated MOCK_SESSIONS at verified Taipei City courts. Their labels, notes, and data are clearly local-demo-only; they include no source URLs, personal names, LINE IDs, or real-looking social posts.
+- [ ] Add a failing mock smoke assertion that the public session card, sheet, and captured discovery payload contain the approved hostNickname/hostNtrp/hostProfileComplete fields but contain no seeded LINE ID, profile ID, profile URL, real name, or unallowlisted profile field. Keep a second assertion that configured Supabase mode returns no mock session if the database is empty.
+- [ ] Replace REGISTERED_PLAYERS and DEMAND_PINS in src/mockData.js with 4 to 6 dynamically future-dated MOCK_SESSIONS at verified Taipei City courts. Each includes a clearly fictional public nickname, NTRP, and completion marker because the same safe SessionSummary contract is rendered in demo mode. Their labels, notes, and data are clearly local-demo-only; they include no source URLs, LINE IDs, real-looking social posts, or profile identifiers.
 - [ ] Replace filterData with filterSessions(sessions, filters, now). Filter fields are district, courtId, local date, NTRP band, and a set of play types. For selected NTRP bands, compare interval overlap rather than the old single player rating:
 
 ~~~js
 const overlaps = sessionMax >= bandMin && sessionMin <= bandMax;
 ~~~
 
-  Treat an unspecified session range as a match, convert date filtering in Asia/Taipei, exclude nonfuture/terminal sessions, and sort ascending by startAt.
+  Treat an unspecified session range as a match, convert date filtering in Asia/Taipei, and exclude nonfuture/terminal sessions. Preserve the filtered set's order here. Export `sortSessionsForDrawer(sessions, userLocation)` for sessionController: with no location it sorts by startAt ascending; with an in-memory `{ lat, lng }` it calculates ephemeral straight-line distance and sorts by distance, then startAt. It returns new arrays and never writes location to a session or storage.
 
-- [ ] In src/dataApi.js, remove mapDiscoveryRow, mapRequestRow, loadDiscoveryPlayers, loadActivePartnerRequests, createPartnerRequest, and partnerRequestId reporting. Add narrow field lists and mappers for loadSessionDiscovery, loadSessionSummary, loadMySessions, loadSessionRoster, and loadSessionContacts.
+- [ ] In src/dataApi.js, remove mapDiscoveryRow, mapRequestRow, loadDiscoveryPlayers, loadActivePartnerRequests, createPartnerRequest, and partnerRequestId reporting. Add narrow field lists and mappers for loadSessionDiscovery, loadSessionSummary, loadMySessions, loadSessionRoster, and loadSessionContacts. The public discovery mapper maps only `host_nickname`, `host_ntrp`, and `host_profile_complete` into `hostNickname`, `hostNtrp`, and `hostProfileComplete`; the My Sessions mapper maps `updated_at` into `updatedAt` for history ordering. Neither mapper may spread a row or admit unexpected contact/profile identifier columns.
 - [ ] Make loadSessionDiscovery accept bounds, startAfter, and startBefore. Query session_discovery only with court_lat/court_lng bounds and start_at predicates, then map strictly to SessionSummary. Do not use select("*").
 - [ ] Add createSession, requestToJoinSession, acceptSessionParticipant, declineSessionParticipant, withdrawFromSession, cancelSession, markSessionPlayed, confirmSessionAttendance, and createReport RPC wrappers. Centralize Supabase errors into the documented action codes and never issue direct insert/update/delete calls for session lifecycle tables.
 - [ ] Replace saveCurrentProfile's browser-side delete/reinsert sequence with save_my_profile RPC followed by loadCurrentProfile. Keep loadCurrentProfile owner-only and map it to the existing profile form shape without is_public/share.
@@ -404,12 +410,12 @@ const overlaps = sessionMax >= bandMin && sessionMin <= bandMax;
 { "action": "create" }
 ~~~
 
-  Use a namespaced sessionStorage key. Never store LINE, an auth token, profile fields, or a draft note.
+  Use a namespaced sessionStorage key. Never store LINE, an auth token, profile fields, location, a draft note, or any form content.
 
 - [ ] Run mock Playwright tests and a local API fixture test. Verify every public mapper has an explicit allowlist of fields, not a spread of database rows.
 - [ ] Commit as: feat: define safe session client data boundary
 
-### Task 5: Build anonymous map/list session discovery before protected actions
+### Task 5: Build map-first anonymous discovery with a nearby-sessions drawer
 
 **Files:**
 - Create src/sessionViews.js
@@ -422,30 +428,35 @@ const overlaps = sessionMax >= bandMin && sessionMin <= bandMax;
 - Modify src/sheets.js
 - Modify src/style.css
 - Modify tests/smoke.spec.js
+- Modify tests/fixtures/fakeMaps.js
 
-- [ ] Replace the old player/demand smoke tests with failing anonymous tests for map/list toggle, session filters, session card, session sheet, empty/reset, base-court drawer, and Maps-auth fallback. Preserve the zero-console-error policy.
-- [ ] Change the map from role application to a labelled region. Add a visible 地圖 / 列表 segmented control, a session-list container, district/court/date filters, existing NTRP/type controls, a 台北市 location label, and an 開球局 button. Give dynamic controls these stable identifiers:
+- [ ] Replace the old player/demand smoke tests with failing anonymous tests for the initial map, a collapsed nearby-sessions drawer, drawer expansion, session filters, session card/sheet field order and CTA states, empty/reset actions, base-court drawer, explicit-location success/rejection/recenter, and Maps-auth fallback. Extend fakeMaps to record fitBounds/setCenter calls and user-marker creation. Assert the initial load does not call navigator.geolocation; it may call it exactly after the user presses the location control; a successful fixed coordinate produces an approximately 5 km fitted view and `你` marker; a second press gets a fresh coordinate and recenters; a denial keeps the drawer usable and does not trigger a second prompt. Assert the coordinate is absent from sessionStorage and every create/profile/report mutation payload; only the normal current-map-bounds discovery query may use the resulting viewport. Preserve the zero-console-error policy.
+- [ ] Change the map from role application to a labelled region. Do not add a 地圖／列表 segmented control. Add a `使用我的位置` button, a map-first layout, a collapsed nearby-sessions drawer, district/court/date filters, existing NTRP/type controls, a 台北市 location label, and an 開球局 button. The collapsed drawer shows `這個地圖範圍內 N 場可加入` before location or `附近 N 場可加入` after it, plus the nearest session's time/court/type/vacancy summary. Give dynamic controls these stable identifiers:
 
 ~~~text
-discovery-mode-map
-discovery-mode-list
+use-my-location
+nearby-sessions-drawer
+nearby-sessions-toggle
+nearby-sessions-summary
+nearby-sessions-list
 map-data-status
 map-retry
-session-list
 session-card
 session-sheet
 discovery-empty
 discovery-retry
 ~~~
 
-- [ ] Keep the existing shared sheet/modal shell in src/sheets.js, but remove openPlayerSheet, openDemandSheet, openQuickContactModal, and openPublishRequestModal. Export focus-aware mountSheet/mountDialog helpers; dialogs must use role=dialog, aria-modal=true, labelled headings, Escape/dimmer/close handling, focus trapping, and focus restoration.
-- [ ] Implement sessionViews renderDiscoveryList, openSessionSheet, openCourtSessionDrawer, and renderDiscoveryEmpty. A card and sheet show court, district, Taipei-local time, play type, NTRP range, remaining vacancies, notes, status, join control, and session report entry. They do not show any host identity or contact data.
-- [ ] Change map grouping to accept session items. A single session pin opens openSessionSheet; a same-court group opens a session-only court drawer. Replace the demand pin with a session pin labelled 局 or a vacancy count, never a name/contact. Keep lower-z-index base-court pins.
-- [ ] Add a map idle subscription that supplies bounds through a 250ms debounce. The controller uses TAIPEI_CITY_BOUNDS until the first idle event, loads sessions independently, and applies local filters to the current viewport result.
+- [ ] Keep the existing shared sheet/modal shell in src/sheets.js, but remove openPlayerSheet, openDemandSheet, openQuickContactModal, and openPublishRequestModal. Export focus-aware mountSheet/mountDialog helpers. The expanded nearby-sessions drawer, session detail, join confirmation, and create sheet all use a labelled semantic dialog/sheet with close, Escape, focus trap, and focus restoration; the collapsed drawer summary is its button opener. Each dialog uses role=dialog and aria-modal=true.
+- [ ] Implement sessionViews renderNearbySessionsDrawer, openSessionSheet, openJoinSessionConfirmation, openCourtSessionDrawer, and renderDiscoveryEmpty. The drawer is collapsed by default, can be tapped or swiped open, and renders the same session rows when expanded; a drawer row and its corresponding map pin must call the same `openSessionSheet(sessionId)` path. Without a user position, order rows by start time; with one, order by ephemeral distance then start time. The public detail sheet order is exact: court/district; Taipei-local date/time; play type/NTRP range/vacancies; host public nickname/NTRP/completion marker; notes; then the primary action. Its action state is `申請加入` for anonymous/incomplete/eligible users, waiting plus withdrawal for requested users, `查看聯絡方式` for accepted users, `已額滿` for full sessions, and a clear disabled reason for cancelled/expired/started sessions. `renderDiscoveryEmpty` renders `這個範圍暫時沒有可加入的球局` with both `擴大地圖範圍` and `開第一局` actions. Cards and sheets never show LINE, a profile ID/link, real name, usual courts, or any other participant data.
+- [ ] Change map grouping to accept session items. A single session pin opens openSessionSheet; two or more visible sessions at one court use a numeric count pin that opens a session-only court drawer. Replace the demand pin with a session pin labelled 局 or a vacancy count, never a nickname, NTRP, name, or contact. Keep lower-z-index base-court pins.
+- [ ] Add a map idle subscription that supplies bounds through a 250ms debounce. The controller uses TAIPEI_CITY_BOUNDS until the first idle event, loads sessions independently, and applies local filters to the current viewport result. The drawer always describes the current map bounds; the five-kilometre view is not a hard query radius.
+- [ ] Implement and export `setUserLocation({ lat, lng }, radiusMeters)` from src/map.js; it fits an approximately `LOCATION_INITIAL_RADIUS_METERS` viewport and renders/updates the `你` marker without adding the coordinate to a session pin or marker title. Implement requestCurrentLocation in sessionController and call navigator.geolocation.getCurrentPosition only from the `use-my-location` click handler. On success, retain `{ lat, lng }` only in controller memory, call `setUserLocation`, then refresh by the resulting map bounds. A later map pan/zoom continues with bounds discovery; pressing the control again recenters to the latest location. Never write the coordinate to sessionStorage, a profile, a session, a report, or analytics.
+- [ ] Handle location denial, timeout, and unavailable-location errors inline with `無法取得位置；你仍可移動地圖或依球場尋找球局。`; leave the map and drawer usable and do not repeat the permission request. The first discovery remains Taipei City bounds with the before-location drawer wording.
 - [ ] Refactor main.js boot sequence so init wires static controls, starts auth restoration, immediately loads Taipei courts, mounts map/base pins once courts resolve, and starts discovery without waiting for profile or session discovery. This makes a base-court drawer usable while the session query is slow.
-- [ ] On Maps script/key failure, keep the list mode usable and announce that the map is unavailable. Replace the public developer-only API-key instruction overlay with user-facing fallback copy; retain a development-only diagnostic in the console.
-- [ ] Add session.css for compact list cards, state badges, map/list switches, and 390px layouts. Remove legacy style rules only after searching confirms no caller remains.
-- [ ] Run npm run test:mock and verify an anonymous browser has neither a Line string nor an addressable profile identifier in session HTML, data attributes, marker titles, or captured JSON.
+- [ ] On Maps script/key failure, keep the nearby-sessions drawer usable and expanded as the session-list fallback, using the last successful bounds or TAIPEI_CITY_BOUNDS. Announce that the map is unavailable without exposing a developer-only API-key instruction overlay; retain a development-only diagnostic in the console.
+- [ ] Add session.css for the map-first shell, collapsed/expanded drawer, compact cards, state badges, location feedback, and 390px layouts. The drawer toggle exposes aria-expanded and aria-controls; no element may overflow a 390px viewport. Remove legacy style rules only after searching confirms no caller remains.
+- [ ] Run npm run test:mock and verify an anonymous browser sees the approved public nickname/NTRP only in session cards/sheets, while session HTML, data attributes, marker titles, and captured JSON contain neither LINE nor an addressable profile identifier.
 - [ ] Commit as: feat: replace public player pins with session discovery
 
 ### Task 6: Add profile completion, create-session, and auth-intent resume
@@ -460,13 +471,13 @@ discovery-retry
 - Modify tests/session.spec.js
 - Modify tests/smoke.spec.js
 
-- [ ] Start with tests for three cases: a signed-out visitor starts Join and returns to the same session after a simulated local auth restore; a signed-in incomplete profile saves then returns to a join confirmation; a full/cancelled/expired target clears the intent and shows a meaningful stale-target message.
+- [ ] Start with failing tests for five cases: a signed-out visitor starts Join and returns to the same session after a simulated local auth restore; a signed-in incomplete profile saves then returns to a join confirmation; a full/cancelled/expired target clears the intent and shows a meaningful stale-target message; the profile calls the nickname `公開暱稱` and discloses its public NTRP use; and the create sheet repeats that disclosure before submit.
 - [ ] Replace state.session with state.authSession in main.js. Make defaultProfile incomplete: empty nickname/LINE/courts/play types, valid editable NTRP default, no share flag. The completion check requires nickname, NTRP, LINE ID, one type, and one court.
-- [ ] Remove the public-player-card toggle from index.html and all profile code. Keep LINE input but change its hint to say that only an accepted host/guest pair can see it. Profile save calls the atomic RPC from Task 3.
-- [ ] Implement requireSessionAction in sessionController. Before opening the login modal or profile tab, save a join/create intent. Closing login or signing out clears the intent. After auth-state restoration and after a successful profile save, resumePendingIntent reloads the target and reopens only the join confirmation; it never sends a request automatically.
-- [ ] Implement openCreateSessionModal with test IDs session-create-modal, session-form, session-court, session-start-at, session-play-type, session-slots-total, and session-submit. Fields are Taipei City court, required datetime-local labelled 台北時間, one play type, optional NTRP min/max, required 1–3 vacancy count, and optional notes.
+- [ ] Remove the public-player-card toggle from index.html and all profile code. Relabel the nickname field `公開暱稱` and place this exact disclosure beside it: `開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。` Keep LINE input but change its hint to say that only an accepted host/guest pair can see it. Profile save calls the atomic RPC from Task 3.
+- [ ] Implement requireSessionAction in sessionController. Before opening the login modal or profile tab, save a join/create intent. On the incomplete-profile page, show the fixed return context `完成後將回到：{球場}・{開始時間}` for a join intent. Closing login, cancelling the join confirmation, or signing out clears the intent. After auth-state restoration and after a successful profile save, resumePendingIntent reloads the target and reopens only the join confirmation; it never sends a request automatically. If the target is now full, cancelled, expired, or started, clear the intent, explain why, and return to the nearby map/drawer instead of a dead detail surface.
+- [ ] Implement openCreateSessionSheet as one scrollable mobile bottom sheet, not a multi-step wizard, with test IDs session-create-modal, session-form, session-court, session-start-at, session-play-type, session-slots-total, and session-submit. Keep required fields in this first-screen order: Taipei City court, required datetime-local labelled 台北時間, one play type, then required 1–3 vacancy count. Place optional NTRP min/max and optional notes after those fields. Immediately before submit, repeat the exact `公開暱稱`/NTRP disclosure from the profile form.
 - [ ] Validate client-side before the RPC: time must be future, NTRP endpoints are 1.0–7.0 in 0.5 steps, minimum is not larger than maximum, and notes fit 500 characters. Convert input explicitly as Asia/Taipei to ISO. Retain the form and render role=alert on any RPC failure.
-- [ ] On create success, clear intent, close the modal, refresh discovery, route to My Sessions, and focus the created session card. In mock mode, show a clear local-demo unavailable message; never pretend a session was created.
+- [ ] On create success, clear intent, close the sheet, refresh the current map/drawer discovery, route to the My Sessions `即將打球` section, and focus the created session card. In mock mode, show a clear local-demo unavailable message; never pretend a session was created.
 - [ ] Run the new local session tests after the explicit reset, then npm run test:mock. Verify the configured Google OAuth flow remains hosted-only manual QA; local tests continue with e-mail/password sessions.
 - [ ] Commit as: feat: add session creation and recoverable auth intent
 
@@ -483,22 +494,24 @@ discovery-retry
 - Create tests/session.spec.js
 - Create tests/session-mobile.spec.js
 
-- [ ] Add a third bottom tab named 我的球局 with test ID my-sessions-tab and an actionable-host-request badge. The page has an explicit my-sessions-refresh control and separate containers my-hosted-sessions, my-requested-sessions, and my-accepted-sessions.
-- [ ] Implement a join confirmation in openSessionSheet with test IDs join-session and session-join-form. It displays the safe public summary, never submits before confirmation, and on success becomes 等待主揪回覆.
-- [ ] Render host cards with safe roster rows and participant-scoped test IDs participant-row, accept-participant-<participantId>, and decline-participant-<participantId>. Before acceptance, the host may see nickname/NTRP/types/usual courts but never the applicant's LINE.
-- [ ] Render guest cards with requested/declined/withdrawn/accepted state. Before start, accepted guests get withdraw-session; hosts get cancel-session. After start, hosts get confirm-played and accepted participants get confirm-attendance. Terminal status remains visible in My Sessions but disappears from public discovery.
+- [ ] Add a third bottom tab named 我的球局 with test ID my-sessions-tab, a my-sessions-refresh control, and a my-sessions-badge. Replace role-based containers with `my-needs-action`, `my-upcoming-sessions`, and `my-history`. The badge count includes only host-owned requested guests; a guest's own pending request never increments it.
+- [ ] Implement `groupMySessions(items, now)` in sessionController. It returns `{ needsAction, upcoming, history, pendingHostRequestCount }`: `needsAction` contains a host's requested guests and the viewer's own requested rows; `upcoming` contains non-terminal host rows and accepted guest rows; `history` contains played, cancelled, expired, declined, and withdrawn rows. Sort `upcoming` by startAt ascending and `history` descending by final/update time. `pendingHostRequestCount` counts only requested guest rows on sessions where the viewer role is host.
+- [ ] Implement a join confirmation in openSessionSheet with test IDs join-session and session-join-form. It repeats the full safe public summary, including public host nickname/NTRP/completion marker, never submits before confirmation, and on success becomes `已送出申請，等待主揪回覆。`.
+- [ ] Render `需要你處理` first. It contains host-owned requested guests with safe roster rows and participant-scoped test IDs participant-row, accept-participant-<participantId>, and decline-participant-<participantId>. Make the approved interpretation explicit: the viewer's own requested session also appears here solely to offer withdraw-session, but has a passive `等待主揪回覆` state and never contributes to the badge. Before acceptance, a host may see the applicant's nickname/NTRP/types/usual courts but never the applicant's LINE.
+- [ ] Render `即將打球` second, merging the viewer's non-terminal hosted sessions and accepted guest sessions in ascending start time. Mark each card `我是主揪` or `已核准加入`; hosts can view requests/cancel before start and accepted guests can view accepted-only contact/withdraw before start. A started, non-terminal session remains here long enough for host confirm-played and accepted-participant confirm-attendance actions.
+- [ ] Render `過去紀錄` last for played, cancelled, expired, declined, and withdrawn states, with a human-readable reason and no action that contradicts final state. Terminal status remains visible here but disappears from public discovery.
 - [ ] Call loadSessionContacts only after rendering accepted states. Each contact row uses session-contact-<profileId> and contains a copyable LINE/opening message. A host with multiple accepted guests sees one separate contact row per guest; guests never see one another.
 - [ ] Add session report flow through the retained report dialog. It calls createReport with sessionId, not any legacy request field. An authenticated user with a saved profile can report a public session; roster profile reporting is available only where a safe roster row exists.
 - [ ] For every lifecycle mutation, disable only the initiating button, retain the current surface on failure, show the mapped action error, refresh the session/discovery/My Sessions state, and restore focus. A full/cancelled/expired race must never show a false success.
 - [ ] Write desktop local-Supabase journeys in tests/session.spec.js:
 
-  1. anonymous browse and join-intent recovery, with a captured discovery REST payload proving no LINE;
-  2. host creates, guest requests, host sees safe roster, neither sees contact before acceptance;
+  1. anonymous browse and join-intent recovery, with a captured discovery REST payload proving public host nickname/NTRP is allowlisted while LINE and profile IDs are absent;
+  2. host creates, guest requests, host sees safe roster, the pending host review appears before upcoming cards with the only badge count, and neither sees contact before acceptance;
   3. host accepts, then only the host/that guest see each other's LINE;
   4. final slot becomes full, a remaining request is declined, and an accepted pre-start withdrawal reopens the session;
   5. host cancellation, post-start played reporting, attendance confirmation, report write, error/retry, and expiry invisibility.
 
-- [ ] Write tests/session-mobile.spec.js for a 390px Pixel 5 user: browse/list, sign in/resume, join, and My Sessions. Assert every dialog/card/action stays inside the viewport and remains keyboard reachable.
+- [ ] Write tests/session-mobile.spec.js for a 390px Pixel 5 user: browse through the collapsed/expanded drawer, sign in/resume, join, and action-first My Sessions. Assert every drawer/dialog/card/action stays inside the viewport and remains keyboard reachable.
 - [ ] Run the desktop and mobile local projects after an explicit reset. Then run npm run test:mock to prove the protected changes did not break anonymous fallback.
 - [ ] Commit as: feat: complete mutual-consent session lifecycle
 
@@ -513,11 +526,12 @@ discovery-retry
 - Modify src/sessionViews.js
 - Modify src/session.css
 
-- [ ] Add a delayed-discovery test that responds to courts immediately and delays session discovery by 2.5 seconds. Within one second, assert map/list shell readiness, a usable base-court drawer, and visible loading feedback. Then assert the delayed session result renders.
+- [ ] Add a delayed-discovery test that responds to courts immediately and delays session discovery by 2.5 seconds. Within one second, assert the map-first shell, collapsed nearby-sessions drawer, usable base-court drawer, and visible loading feedback. Then assert the delayed session result renders in the drawer.
 - [ ] Capture the REST discovery URL in tests/performance.spec.js. Assert it contains four viewport predicates and start_at lower/upper bounds derived from DISCOVERY_WINDOW_DAYS; assert a burst of fake bounds idle events results in one debounced request.
-- [ ] Make error, loading, empty, and success states semantic: map-data-status uses role=status with aria-live=polite; request/form errors use role=alert; retry controls maintain context; filters use aria-pressed; map/list and tab controls expose selected state and controls.
+- [ ] Make error, loading, empty, and success states semantic: map-data-status uses role=status with aria-live=polite; request/form errors use role=alert; retry controls maintain context; filters use aria-pressed; the nearby-sessions drawer toggle exposes aria-expanded/aria-controls; and tabs expose selected state and controls.
+- [ ] Add keyboard tests for the expanded nearby-sessions drawer, session detail, join confirmation, and create sheet: each opens as a labelled dialog, traps focus, closes on Escape, and returns focus to its original trigger. Verify the empty-state buttons, location error, and stale-join recovery leave a usable next action in the same context.
 - [ ] Add a direct race test using two isolated clients: create a one-vacancy session, create two requested guests, send two review_join_request acceptance calls concurrently, and require exactly one fulfilled response. Assert one accepted guest, session full, and no second contact disclosure.
-- [ ] Retain tests for asynchronous Google Maps authentication failure, but assert the list fallback rather than a developer setup overlay. Run the same zero-console-error capture on every successful mock journey.
+- [ ] Retain tests for asynchronous Google Maps authentication failure, but assert the expanded nearby-sessions drawer fallback rather than a developer setup overlay. Run the same zero-console-error capture on every successful mock journey.
 - [ ] Run npm run test:db, npm run test:mock, npm run test:local, and npm run build. The literal three-second mobile-network budget is additionally checked manually on the hosted preview with a 390px physical/device-emulation network profile; record the result in the release checklist.
 - [ ] Commit as: test: enforce responsive session discovery reliability
 
@@ -532,14 +546,14 @@ discovery-retry
 - Modify docs/mvp-plan.md
 - Create docs/tennis-ecosystem/README.md
 
-- [ ] Remove every claim that quick contact is a UI-only privacy gate. Document session_discovery, session_contacts, roster limits, lifecycle RPCs, city scope, pg_cron job, and the fact that LINE is a database-enforced secret. Keep CLAUDE.md at or below 200 lines.
+- [ ] Remove every claim that quick contact is a UI-only privacy gate. Document session_discovery's exact public host allowlist (public nickname, NTRP, completed-basic-profile marker only), session_contacts, roster limits, lifecycle RPCs, city scope, pg_cron job, and the fact that LINE is a database-enforced secret revealed only after acceptance. Keep CLAUDE.md at or below 200 lines.
 - [ ] Document the non-destructive local test workflow: npx supabase start, explicit confirmed reset, npm run test:db, npm run test:mock, npm run test:local, npm run build. State that normal npm test never resets a database.
-- [ ] Update README product copy and screenshots/instructions from player-demand pins to public sessions, join request, host review, and accepted-only contact. Include Google OAuth hosted QA, VITE_SUPPORT_EMAIL, and Maps-referrer configuration without committing secrets.
+- [ ] Update README product copy and screenshots/instructions from player-demand pins to map-first public sessions, the collapsed nearby-sessions drawer, explicit `使用我的位置`, join request, host review, and accepted-only contact. Include Google OAuth hosted QA, VITE_SUPPORT_EMAIL, and Maps-referrer configuration without committing secrets.
 - [ ] Add docs/tennis-ecosystem/README.md as a repeatable research template for 15 official-source court cards: court, district/transport, booking model, verified availability, fixed activity/course evidence, source URL, verification date, and pilot suitability. It must explicitly prohibit private-group scraping or unverified club-occupation claims.
 - [ ] Before hosted push, run the full local gate and git diff --check. Verify the generated court file with node scripts/generate-courts-seed.mjs --check.
 - [ ] Apply migrations to hosted only after the backup/count preflight. Run npx supabase migration list and require each local migration stamp to match remote.
-- [ ] In hosted QA, use an anonymous REST client to prove discovery has no line_id and raw sessions/participants/roster/contacts are denied. Then use two real QA accounts to prove the accepted pair sees only one another. Confirm the cron job exists and force a controlled stale-session check.
-- [ ] On the stable preview, manually test Google OAuth callback, 390px map/list fallback, create, join, host acceptance, contact disclosure, cancel, played report, report submission, and support/privacy links. Do not manufacture public sessions; remove QA sessions before sharing in communities.
+- [ ] In hosted QA, use an anonymous REST client to prove discovery returns only the documented safe fields, including public host nickname/NTRP/completion marker but no host profile ID, profile URL, LINE, or other profile data; raw sessions/participants/roster/contacts and retired public_profile_discovery are denied. Then use two real QA accounts to prove the accepted pair sees only one another. Confirm the cron job exists and force a controlled stale-session check.
+- [ ] On the stable preview, manually test Google OAuth callback, 390px map/drawer fallback, initial no-location-prompt behavior, explicit location success/rejection and ~5 km view, drawer expansion/empty state, create, join, host acceptance, contact disclosure, cancel, played report, report submission, and support/privacy links. Do not manufacture public sessions; remove QA sessions before sharing in communities.
 - [ ] Configure VITE_SUPPORT_EMAIL in the production environment and verify the rendered mailto target. This is a hard launch prerequisite, not a committed default.
 - [ ] Share the launch link only after all gates pass, first with approved Taipei tennis LINE/Facebook communities. For the first two weeks, query sessions/participants for the agreed funnel: real users, sessions, accepted joins, and played reports; make one evidence-based friction change per week.
 - [ ] Commit as: docs: publish Taipei session MVP release runbook
@@ -549,8 +563,9 @@ discovery-retry
 ### pgTAP requirements in supabase/tests/session_rls.sql
 
 - [ ] sessions, session_participants, sports, discovery, roster, contacts, and My Sessions views exist; public.partner_requests and reports.partner_request_id do not.
-- [ ] public_profile_discovery has no line_id if it remains present.
+- [ ] The retired public_profile_discovery view is unavailable to anon/authenticated; it is not an alternate route to profile IDs or contact data.
 - [ ] Anonymous can select safe future session_discovery rows but receives permission errors for raw sessions, raw participants, private legacy tables, roster, contacts, and My Sessions.
+- [ ] session_discovery's anonymous allowlist contains `host_nickname`, `host_ntrp`, and `host_profile_complete`, but excludes `host_profile_id`, profile URLs, LINE, real names, phone/e-mail, usual courts, and every other profile/participant field.
 - [ ] A complete host creates exactly one accepted host participant; incomplete profiles cannot create or request.
 - [ ] Direct browser-role DML for sessions, participants, and reports is denied.
 - [ ] Before acceptance, host and applicant receive zero contact rows; guest self-accept fails; host acceptance enables exactly one reciprocal host/guest contact pair.
@@ -562,11 +577,11 @@ discovery-retry
 
 ### Playwright requirements
 
-- [ ] Mock desktop/mobile: public session card/list/filter/sheet behavior, no contact leakage, base-court drawer, empty/reset, Maps failure fallback, and no console errors.
-- [ ] Local desktop: anonymous browse, intent recovery, atomic profile save, create, request, accept/decline, contact secrecy, reopen, cancel, played, attendance, report, retry, expiry, and acceptance race.
-- [ ] Local mobile: browse to login/profile completion to join to My Sessions at 390px.
-- [ ] Performance: first usable base-map/list state within one second despite a 2.5-second discovery delay; one bounds-request for a burst; bounded REST query predicates.
-- [ ] Hosted manual: OAuth, Maps, production referrer key, anonymous REST secrecy, cron schedule, two-account pair disclosure, support/privacy links, and 3-second mobile observation.
+- [ ] Mock desktop/mobile: map-first public discovery with a collapsed/expanded nearby-sessions drawer, initial no-location-prompt behavior, explicit location success/rejection, public host display fields without contact leakage, base-court drawer, empty/reset, Maps failure fallback, and no console errors.
+- [ ] Local desktop: anonymous browse, intent recovery, atomic profile save and public-disclosure copy, one-sheet creation, action-first My Sessions ordering/badge, request, accept/decline, contact secrecy, reopen, cancel, played, attendance, report, retry, expiry, and acceptance race.
+- [ ] Local mobile: collapsed/expanded drawer to login/profile completion to join to action-first My Sessions at 390px.
+- [ ] Performance: first usable base-map/drawer state within one second despite a 2.5-second discovery delay; one bounds-request for a burst; bounded REST query predicates.
+- [ ] Hosted manual: OAuth, Maps, initial no-location-prompt/explicit-location behavior, production referrer key, anonymous REST allowlist/secrecy, cron schedule, two-account pair disclosure, support/privacy links, and 3-second mobile observation.
 
 ## Final implementation command order
 
