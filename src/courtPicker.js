@@ -1,6 +1,5 @@
 // 球場選單:分區＋搜尋。選取值=球場名稱(跨後端 join key)。
 import { esc } from "./util.js";
-import { TAIPEI_DISTRICTS, NEW_TAIPEI_DISTRICTS } from "./districts.js";
 
 const CHECK_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9E23B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
 
@@ -38,14 +37,21 @@ export function mountCourtPicker(container, { getSelected, onToggle }) {
 
   function renderList() {
     const selected = getSelected();
-    const match = (c) => !query || c.name.includes(query) || c.district.includes(query);
-    const sections = [];
-    for (const [city, districts] of [["台北市", TAIPEI_DISTRICTS], ["新北市", NEW_TAIPEI_DISTRICTS]]) {
-      const groups = districts
-        .map((district) => ({ district, rows: courts.filter((c) => c.district === district && match(c)) }))
-        .filter((g) => g.rows.length);
-      if (groups.length) sections.push({ city, groups });
+    const match = (court) =>
+      !query || court.name.includes(query) || court.city?.includes(query) || court.district.includes(query);
+    const cities = new Map();
+    for (const court of courts) {
+      if (!match(court)) continue;
+      const city = court.city || "未分類";
+      if (!cities.has(city)) cities.set(city, new Map());
+      const districts = cities.get(city);
+      if (!districts.has(court.district)) districts.set(court.district, []);
+      districts.get(court.district).push(court);
     }
+    const sections = [...cities].map(([city, districts]) => ({
+      city,
+      groups: [...districts].map(([district, rows]) => ({ district, rows })),
+    }));
     if (!sections.length) {
       listBox.innerHTML = `<div class="court-picker__hint">找不到符合的球場</div>`;
       return;

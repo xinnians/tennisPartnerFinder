@@ -1,4 +1,5 @@
 import { COURTS, REGISTERED_PLAYERS, DEMAND_PINS } from "./mockData.js";
+import { LAUNCH_CITY } from "./config.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
 
 const slotLabels = {
@@ -123,13 +124,14 @@ export async function signOut() {
   if (error) throw error;
 }
 
-export async function loadCourts() {
-  if (!isSupabaseConfigured) return COURTS;
+export async function loadCourts(city = LAUNCH_CITY) {
+  if (!isSupabaseConfigured) return COURTS.filter((court) => court.city === city);
   const client = requireSupabase();
   const { data, error } = await client
     .from("courts")
-    .select("id,name,district,lat,lng")
+    .select("id,name,city,district,lat,lng")
     .eq("is_active", true)
+    .eq("city", city)
     .order("id");
   if (error) throw error;
   return data.map((court) => ({

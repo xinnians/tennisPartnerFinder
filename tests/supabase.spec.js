@@ -4,6 +4,7 @@ import { installFakeMaps } from "./fixtures/fakeMaps.js";
 import {
   courtIdByName,
   createProfile,
+  makeClient,
   setBrowserSession,
   signUpUser,
   SUPABASE_URL,
@@ -388,43 +389,40 @@ test("sign-out clears current profile and gates quick contact again", async ({ p
   await expect(page.getByText("登入後繼續")).toBeVisible();
 });
 
-test("profile court picker searches a New Taipei court, saves, and survives reload", async ({ page }) => {
+test("launch UI filters to Taipei City while the raw active catalogue retains New Taipei", async ({ page }) => {
   const catalog = JSON.parse(readFileSync("data/courts.json", "utf-8"));
   const newTaipeiCourt = catalog.courts.find((c) => c.city === "新北市");
-  if (!newTaipeiCourt) throw new Error("data/courts.json 缺少新北市球場,無法驗證分區清單");
+  if (!newTaipeiCourt) throw new Error("data/courts.json 缺少新北市球場,無法驗證首發範圍");
 
-  const email = `court-picker-${Date.now()}@example.test`;
-  const { session } = await signUpUser(email);
+  const client = makeClient();
+  const { data: rawCourt, error } = await client
+    .from("courts")
+    .select("id,name,city")
+    .eq("name", newTaipeiCourt.name)
+    .eq("is_active", true)
+    .single();
+  if (error) throw error;
+  expect(rawCourt.city).toBe("新北市");
 
   await installFakeMaps(page);
-  await setBrowserSession(page, session);
   await page.goto("/");
 
-  await page.getByRole("button", { name: /個人檔案/ }).click();
-  await page.getByLabel("暱稱").fill("Court Picker");
-  await page.getByPlaceholder("輸入你的 LINE ID").fill("court_picker_line");
+  await expect(page.getByRole("button", { name: "地圖圖釘 球場 青年公園網球場" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `地圖圖釘 球場 ${newTaipeiCourt.name}` })).toHaveCount(0);
 
+  await page.getByRole("button", { name: /個人檔案/ }).click();
   const search = page.getByLabel("搜尋球場");
   await search.fill(newTaipeiCourt.name);
-  await page.locator("#prof-courts .prof-court", { hasText: newTaipeiCourt.name }).click();
-  await expect(page.locator("#prof-courts .court-chip", { hasText: newTaipeiCourt.name })).toBeVisible();
-
-  await page.getByRole("button", { name: "儲存檔案" }).click();
-  await expect(page.getByText("已儲存到 Supabase")).toBeVisible();
-
-  await page.reload();
-  await page.getByRole("button", { name: /個人檔案/ }).click();
-  await expect(page.locator("#prof-courts .court-chip", { hasText: newTaipeiCourt.name })).toBeVisible();
+  await expect(page.locator("#prof-courts .prof-court")).toHaveCount(0);
 });
 
 test("court base pin for a court with no players or demands shows name, district, and an empty state", async ({
   page,
 }) => {
   const catalog = JSON.parse(readFileSync("data/courts.json", "utf-8"));
-  // index 1(而非第一筆)——第一筆新北市球場已被前一則測試存成球友的私人常打球場,
-  // 這裡要挑一座完全沒被寫入過 profile_courts / partner_requests 的球場。
-  const emptyCourt = catalog.courts.filter((c) => c.city === "新北市")[1];
-  if (!emptyCourt) throw new Error("data/courts.json 新北市球場不足,無法驗證空狀態");
+  // 首發 UI 僅顯示台北市;挑一座此 serial suite 未寫入資料的台北市球場。
+  const emptyCourt = catalog.courts.find((c) => c.name === "實踐大學網球場");
+  if (!emptyCourt) throw new Error("data/courts.json 缺少實踐大學網球場,無法驗證空狀態");
 
   const runtimeErrors = [];
   page.on("console", (msg) => {

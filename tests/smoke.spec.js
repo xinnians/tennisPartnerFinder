@@ -82,6 +82,28 @@ test("profile court picker searches, selects, and keeps search focus", async ({ 
   expect(runtimeErrors).toEqual([]);
 });
 
+test("court picker derives city groups from court data", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { mountCourtPicker } = await import("/src/courtPicker.js");
+    const container = document.createElement("div");
+    container.id = "city-picker-test";
+    document.body.append(container);
+    const picker = mountCourtPicker(container, {
+      getSelected: () => new Set(),
+      onToggle: () => {},
+    });
+    picker.setCourts([
+      { name: "資料驅動測試球場", city: "測試市", district: "測試區", lat: 25, lng: 121 },
+    ]);
+  });
+
+  await expect(page.locator("#city-picker-test .court-picker__city")).toHaveText("測試市");
+  await expect(page.locator("#city-picker-test .court-picker__district")).toHaveText("測試區");
+});
+
 test("external demand pins keep the source-link flow", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");
