@@ -1,200 +1,114 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 專案定位
 
-## What this is
+這是以 Vite 6 與原生 ES modules 製作的台北市網球公開球局 MVP。首頁是地圖，
+使用者可瀏覽未來球局、申請加入；主揪核准後，已接受的主揪與參與者才可互看
+LINE ID。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
+新北市球場開放為公開球局。
 
-A Vite + **vanilla-JavaScript (ES modules)** single-page prototype: a Taipei tennis
-"partner finder" map. No framework, no TypeScript, no bundled UI library, and **no
-linter/formatter/typecheck configured** — do not invent `lint`/`tsc` commands.
-The whole UI is two tabs (map + profile) driven by imperative DOM code in `src/`.
+產品與資料模型的來源依序是：
 
-`docs/mvp-plan.md` is the declared **planning source of truth** (scope, product
-decisions, milestone status). Update it when scope or data-model decisions change.
-Dated implementation plans/specs from past sessions live under
-`docs/superpowers/plans/` and `docs/superpowers/specs/`. `README.md` is the setup
-guide. Both `README.md` and all in-code comments/UI strings are in **Traditional
-Chinese (zh-TW)** — match that language when editing copy and comments.
+1. `docs/mvp-plan.md`：目前範圍、上線門檻與維運流程。
+2. `docs/superpowers/specs/2026-07-17-taipei-tennis-public-mvp-design.md`：產品與隱私決策。
+3. `supabase/migrations/` 與 `supabase/tests/`：已實作的資料庫契約。
 
-### Current direction — read before extending the schema or product flows
+舊的 player-card、partner-request、quick-contact 文件僅可視為歷史，不可拿來擴充
+目前產品。
 
-`docs/superpowers/plans/2026-07-08-dev-roadmap.md` is the approved batch
-schedule. **Batch 1 (courts DB expanded to all of 雙北) is done**; next up is
-Batch 2, the deep court guide + SEO landing pages, rolling out in waves; then
-`sessions` replace `partner_requests` outright with a mutual-consent LINE
-reveal that removes `line_id` from anon-readable discovery. Design detail:
-`2026-07-07-session-first-and-court-guide-plan.md` (same dir) — its §4 opens
-with three 2026-07-08 corrections; read them before writing the migration.
-Everything below documents **shipped** code; monetization stays deferred.
+## 不可破壞的產品與隱私邊界
 
-Product red lines (from the plans; easy to violate by accident): never scrape or
-auto-import from Facebook groups or LINE groups; any future demand aggregation is
-PTT public-board only, de-identified, linking back to the source post. No
-realtime chat, no payments/booking, no native app; player matching stays free.
+- 不要爬取、儲存或轉貼私人 LINE／Facebook 社群內容或身分資料。
+- 真實模式只呈現主揪自行建立的球局；`src/mockData.js` 只供本機 demo／測試。
+- 公開探索只透過 `public.session_discovery`。與主揪相關的公開資料**只有**
+  `host_nickname`、`host_ntrp`、`host_profile_complete`；不可增加 profile ID、連結、
+  真名、LINE、電話、email、常打球場、歷史或 roster 資料。
+- LINE 不是 UI 隱藏欄位。它只能由資料庫 definer view `public.session_contacts`
+  回傳給同一球局中、雙方皆為 `accepted` 的 host/guest 配對。主揪可看各已接受
+  guest；guest 只可看主揪，不能看其他 guest。
+- raw `sessions`、`session_participants`、`profiles` 與私有 legacy tables 不是
+  browser data API。所有前端讀寫都必須經過 `src/dataApi.js` 的 view/RPC 邊界。
+- 請勿加入聊天、訂場、付款、候補、評分、另一城市或另一運動的 UI；未來多運動
+  必須先有獨立產品與資料權限決策。
 
-## Commands
+更多 RLS、view、RPC 與 migration 規則見 `.claude/rules/supabase.md`。
+
+## 程式結構
+
+- `src/main.js`：應用程式入口、頁面切換、Maps/Auth 接線。
+- `src/sessionController.js`：探索、地圖 bounds、登入／檔案 gate、生命週期 refresh。
+- `src/sessionViews.js`：抽屜、球局、建立表單、My Sessions 與 contact 顯示。
+- `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
+- `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
+- `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
+- `src/mockData.js`：安全、未來日期的本機 demo `SessionSummary`。
+- `data/courts.json`：球場目錄單一來源；產生 migration／pgTAP fixture 的來源。
+
+以 `innerHTML` 產生 DOM 時，所有動態內容都必須使用 `esc()`；沒有框架、TypeScript、
+linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁體中文。
+
+## Session 資料流程
+
+公開流程：地圖 → 收合的「附近球局」抽屜 → 球局詳情 → 登入與完成檔案 →
+申請 → 主揪接受或婉拒 → My Sessions 的已接受聯絡資訊。
+
+- `create_session`：完整 profile 的主揪在台北市 active tennis court 建局；缺額 1–3。
+- `request_to_join_session`：完整 profile 申請；不可以申請自己的球局。
+- `review_join_request`：只有主揪可接受／婉拒。最後缺額的接受是資料庫鎖定的原子操作。
+- `withdraw_from_session`、`cancel_session`、`mark_session_played`、
+  `confirm_session_attendance`、`create_report`：只用對應 RPC，失敗後以權威資料重整。
+- `public.my_session_participations` 是登入者自己的生命週期清單；
+  `public.session_participant_roster` 對 host 顯示該局 roster、對 guest 僅顯示自己與 host，
+  但兩者都不含 LINE。
+- `expire-stale-tennis-sessions` pg_cron 每 15 分鐘將開始後超過 24 小時的 open/full
+  球局設為 expired；每個 lifecycle RPC 也立即檢查，UI 不可依賴 cron 延遲。
+
+## 本機開發與驗證
 
 ```bash
-npm install                 # install deps
-cp .env.example .env.local  # then fill in keys (see Environment)
-npm run dev                 # Vite dev server → http://localhost:5173
-npm run build               # production build → dist/
-npm run preview             # preview the built dist/
-npm test                    # Playwright E2E (auto-starts its own dev servers)
+npm install
+cp .env.example .env.local
+npm run dev
+
+npx supabase start
+CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test  # 明確確認後才可重置本機測試 DB
+npm run test:db
+npm run test:mock
+npm run test:local
+TENNIS_TEST_HARNESS_MODE=local npx playwright test --project=supabase-mobile-chromium
+node scripts/generate-courts-seed.mjs --check
+npm run build
+git diff --check
 ```
 
-Run a single Playwright project or test:
+`npm test` 等同 `npm run test:mock`，**不會**重置資料庫；`npm run test:local` 也不會。
+需要清空本機資料時，唯一標準入口是帶有 `CONFIRM_LOCAL_DB_RESET=1` 的 guarded 指令。
+測試規則、ports、Fake Maps 與本機登入 fixture 見 `.claude/rules/testing.md`。
 
-```bash
-npx playwright test tests/smoke.spec.js                            # one file
-npx playwright test --project=desktop-chromium                     # one project
-npx playwright test --project=supabase-chromium                    # needs local Supabase up
-npx playwright test -g "quick contact" --project=desktop-chromium  # by title substring
+## 環境與 hosted 操作
+
+`.env.local`（不提交）可設定：
+
+```text
+VITE_GOOGLE_MAPS_API_KEY=...
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_SUPPORT_EMAIL=...
 ```
 
-Before running or editing tests, read `.claude/rules/testing.md` (two dev
-servers, port conflicts, Maps stub, supabase sign-in — it auto-loads when
-touching `tests/**` or `playwright.config.js`, but a bare `npm test` run does
-**not** trigger it; read it explicitly first).
+瀏覽器 Maps key 必須設定 HTTP referrer 限制；只放 localhost、穩定 preview 與正式
+domain，不要把每個 immutable deploy URL 加進 allowlist。`VITE_SUPPORT_EMAIL` 在正式
+環境必填，不能提交或杜撰公開信箱。
 
-Local Supabase (requires Docker + Supabase CLI):
+任何 hosted migration、環境變數、部署或社群發布前，先完成
+`docs/mvp-plan.md` 的 release checklist：備份／count preflight、migration list 對齊、
+匿名 REST allowlist、兩帳號 accepted-only contact、cron、OAuth、390px 慢網路與
+support/privacy link 的人工檢查。未實際完成的 hosted gate 不可在文件中標記為完成。
 
-```bash
-npx supabase start                       # boot local stack
-npx supabase db reset                    # recreate DB + apply supabase/migrations
-npx supabase test db supabase/tests      # run pgTAP RLS tests
-npx supabase status -o env               # print local URL + ANON_KEY for .env.local
-```
+## 球場目錄與文件維護
 
-## Architecture
-
-### The mock-vs-Supabase fallback (most important concept)
-
-`src/supabaseClient.js` exports `isSupabaseConfigured` (true only when
-`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` are set and not the `___` placeholder).
-This one boolean gates the entire app:
-
-- **Not configured** → the app runs on `src/mockData.js` (6 real Taipei courts,
-  6 players, 6 demands). Auth is disabled, "save" is a toast, no network. Full
-  catalog SoT is `data/courts.json` (82 雙北 courts) — edit it, then run
-  `node scripts/generate-courts-seed.mjs --stamp <stamp>` to regenerate.
-- **Configured** → the app reads/writes real Supabase Auth + Postgres.
-
-`src/dataApi.js` is the **single data boundary**, but the mock fallback is
-**asymmetric**: only the three read loaders (`loadCourts`, `loadDiscoveryPlayers`,
-`loadActivePartnerRequests`) return mock data; `loadCurrentProfile` returns
-`null`, and the writes (`saveCurrentProfile`, `createPartnerRequest`,
-`createReport`) **throw** via `requireSupabase()`. Mock-mode UX lives in the
-`main.js` callers (the save button short-circuits to a toast; reporting is
-blocked) — a new dataApi write will not no-op in mock mode by itself. 發布需求
-(publish) is effectively Supabase-only: mock courts have no `id`, and the publish
-modal's `try/finally` swallows the resulting error.
-
-`mapDiscoveryRow`/`mapRequestRow`/`normalizeProfile` convert DB rows into the
-mock object shapes **plus** Supabase-only `profileId`/`requestId` — when those
-ids are absent (mock rows), tapping 檢舉 (report) early-returns with a toast
-instead of opening the report modal. When you add a
-field, keep the mock shape and the `dataApi` mapper in sync. Discovery is one row
-per (profile, court): a player with N home courts renders as N separate pins.
-
-**Court names are the cross-backend join key**: the profile tab's court picker
-(`src/courtPicker.js`, districted + searchable) renders whatever `loadCourts()`
-returns — mock mode still returns the 6-court `COURTS` demo set — and
-`saveCurrentProfile` converts checked names to DB ids by matching
-`courts.name`. Renaming or adding a court in only one place silently drops it
-from saves.
-
-### Runtime flow
-
-`src/main.js` is the entry point and the only stateful orchestrator. It holds an
-in-memory `state` object (`session`, `dataStatus`, `filters`, `profile`) — the
-prototype keeps app state in memory, so a refresh resets everything **except** what
-Supabase persists. `init()` wires tabs/filters/controls, initializes auth, calls
-`loadAppData()` (which fills `courts` + `dataSet`), then loads Google Maps and draws
-pins. Filters re-run `refreshPins()`, which pipes `filterData()` → `groupPinsByCourt()`
-→ `renderPins()`. Every filter change closes any open sheet and re-renders all
-markers from scratch — an intentional prototype simplification.
-
-Layer responsibilities:
-- `config.js` — Maps key + map center/zoom (Taipei).
-- `map.js` — loads Google Maps, applies the sage-green style, groups pins by court, draws markers.
-- `pins.js` — SVG for the three pin types.
-- `courtPicker.js` — the profile tab's districted + searchable court picker (mounts on `loadCourts()` results).
-- `filters.js` — pure filter functions + the NTRP `BANDS` / play-`TYPES` constants.
-- `sheets.js` — all bottom cards, the court drawer, and the login / quick-contact / publish / report modals.
-- `util.js` — `esc()` (HTML-escape), `safeUrl()` (http(s)-only hrefs), `sourceLabel()`, `ntrpDesc()`.
-- `style.css` — one stylesheet; design tokens live at the top.
-
-Filter semantics: the play-type chips intentionally filter **player pins only**
-(demands have no structured play type), and null-NTRP items always pass the band
-filter.
-
-### Three pin types
-
-Player pins (public registered players), demand pins (someone's partner request),
-and cluster pins (multiple items at one court). **Pins sit on court coordinates,
-never home addresses** ("圖釘=球場"). Multiple items at the same court auto-collapse
-into a cluster.
-
-### Auth
-
-Google OAuth only (PKCE flow), configured in `src/supabaseClient.js` with a custom
-`storageKey`. `getInitialSession()` in `dataApi.js` restores a session from
-`localStorage` manually if `getSession()` is empty. Email magic link and LINE/Apple
-login are intentionally **out of scope** (see `docs/mvp-plan.md`). When not
-configured, auth UI shows "原型" and is disabled.
-
-Quick contact (快速約球) and publish are gated on **viewer profile completeness**
-even in mock mode: the default profile (nick 「我」, empty LINE ID) fails the
-check, so a fresh load always toasts and bounces to the profile tab — any demo,
-screenshot, or E2E of quick contact must fill nick + LINE ID first.
-
-### Data model / privacy (Supabase)
-
-Schema, RLS boundaries, the `line_id` UI-gate product principle, and backend
-gotchas: see `.claude/rules/supabase.md` (auto-loads for `supabase/**`,
-`src/dataApi.js`, `src/supabaseClient.js`; read it first for any schema/RLS work).
-
-### Shared enums (keep in sync)
-
-These values are enforced by DB `CHECK` constraints and must match the frontend:
-
-- **play types** (`單打`, `雙打`, `對拉`, `練球`): the migration, `TYPES` in
-  `filters.js`, the hard-coded filter chips in `index.html`, and mock data.
-- **slot codes** (`wd-m`, `wd-a`, `wd-e`, `we-m`, `we-a`, `we-e`): the migration,
-  the slot grid + `defaultProfile` in `main.js`, and the `slotLabels` code→label
-  map in `dataApi.js`.
-
-## Conventions & gotchas
-
-- Build DOM via template strings + `innerHTML`; always wrap dynamic/user values in
-  `esc()` and URLs in `safeUrl()` from `util.js`.
-- Sheets, modals, and toasts mount into `#sheet-root`/`#modal-root`/`#toast-root`
-  and are torn down by innerHTML wipe — re-attach listeners on every render. Every
-  modal opener hides the floating 發布需求 button and `closeModal()` re-shows it;
-  keep that pairing for new modals.
-- No Google Maps key (or an invalid/referrer-blocked key) must **not** break the
-  page: `main.js` shows a placeholder overlay listing courts instead. Key failure
-  arrives **asynchronously** via the global `window.gm_authFailure` callback (not
-  a rejected promise), and `loadGoogleMaps` memoizes its promise — preserve both
-  when touching map init.
-- The Google Maps browser key is referrer-restricted in Google Cloud Console; keep the allowlist to stable entries only (local dev, production domain, the stable Vercel branch preview) — never per-deploy immutable hash URLs.
-- Deployment is Vercel (`npm run build` → `dist/`). Hosted Supabase project ref is `ttjzxhihctrtoqdsqxdb`; the stable branch-preview URL is the QA entrypoint, not per-deploy URLs.
-- Doc upkeep: after editing this file run `wc -l CLAUDE.md` — keep it ≤ 200 lines
-  (~10 KB). Over the cap, move the most situational section to `.claude/rules/`
-  (scope it with `paths` frontmatter) or `docs/` and leave a one-line pointer here.
-  One source of truth per rule: other files point to it, never copy it.
-
-## Environment
-
-`.env.local` (git-ignored), copied from `.env.example`:
-
-```
-VITE_GOOGLE_MAPS_API_KEY=___
-VITE_SUPABASE_URL=___
-VITE_SUPABASE_ANON_KEY=___
-```
-
-Leave the two Supabase vars as `___` to run the mock prototype. For the local
-Supabase path, set them to `http://127.0.0.1:54321` and the ANON_KEY from
-`npx supabase status -o env`.
+- 不可手改已套用的 generated catalogue migration；先改 `data/courts.json`，再以新 stamp
+  產生 migration 與 `supabase/tests/courts_catalog.sql`，並執行 `--check`。
+- `docs/tennis-ecosystem/README.md` 是 15 張官方來源球場研究卡模板；不得把私人社群傳聞
+  或未證實的俱樂部佔場說法寫成資料。
+- 保持本檔不超過 200 行；較細的資料庫／測試規則放在 `.claude/rules/`。

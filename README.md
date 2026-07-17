@@ -1,198 +1,124 @@
-# Tennis Partner Finder｜找球伴(原型)
+# 球局｜台北市網球
 
-以「球場」為單位的台北網球球伴地圖。視覺與版面對照 claude.ai/design 匯出的
-設計檔 **`Tennis Partner Finder.dc.html`**(深森林綠 × 萊姆、Baloo 2 +
-Noto Sans TC、底部卡片與聚合釘),地圖換成真正的 **Google Maps JavaScript API**。
+一個以地圖為起點的公開球局 MVP：想打球的人可找到附近、尚未開始的網球球局；
+有場地但缺球伴的人可開局。主揪接受申請後，雙方才在「我的球局」看到彼此的 LINE。
 
-地圖上的釘都釘在台北市真實球場的座標(不是住家),共三種:
+首發範圍是 **台北市、網球**。球場目錄保留雙北資料，並不代表新北市球場已開放建局或
+公開探索。
 
-- **球友釘**(萊姆圓+暱稱字首・主要):公開位置的註冊球友。點開底部卡片
-  顯示暱稱、NTRP、想打類型、固定時段與「快速約球」。LINE ID 只會在
-  按下快速約球後的聯絡面板顯示,並附可複製開場白。
-- **需求釘**(白底灰虛線框「徵」・次要):某球場附近有人徵球伴。點開顯示
-  區域、大概程度(如「約 3.5」/「程度未提供」)、需求原句與「查看原貼文」
-  連結;不顯示姓名或聯絡方式。
-- **聚合釘**(深綠圓+數量):同球場有多筆時聚合,點開球場抽屜逐筆查看。
+## 畫面與使用流程
 
-> 目前是 Vite 前端 + local Supabase MVP wiring。沒設定 Supabase env 時會退回
-> `src/mockData.js` 原型資料;設定 local Supabase 後會讀寫 Auth、profiles、
-> public discovery 與 partner requests。
+1. 首頁先顯示台北市地圖與收合的「附近球局」抽屜；載入時仍可使用地圖與球場圖釘。
+2. 瀏覽者可移動地圖、篩選行政區／球場／日期／程度／打法，或明確點選「使用我的位置」。
+   初次進站不會自動要求定位；位置只留在記憶體，使用後約以 5 km 範圍調整視野。
+3. 展開抽屜、點選球局卡，先看到球場、時間、打法、程度、缺額與主揪公開暱稱／NTRP。
+4. 申請加入需 Google 登入與完成基本檔案。主揪在「我的球局」審核申請；可接受或婉拒。
+5. 接受後，主揪與該 guest 才能在「我的球局」互看對方 LINE；guest 不會看到其他 guest。
 
-## 快速開始
+本機 mock 模式使用安全的假球局，僅供瀏覽與測試；已設定 Supabase 時才會讀取主揪建立的
+真實球局。
+
+## 隱私與安全邊界
+
+公開 `session_discovery` 只回傳球局／球場必要欄位與三個主揪欄位：
+`host_nickname`、`host_ntrp`、`host_profile_complete`。它不包含 profile ID、LINE、
+電話、email、真名、常打球場、roster 或 profile URL。
+
+LINE 的 disclosure 由資料庫 `session_contacts` 強制：同一球局的 host 與 guest 都是
+`accepted` 才能讀取對方；這不是前端藏欄位。完整 RLS／RPC 契約見
+[supabase/README.md](supabase/README.md)。
+
+請勿把私人 LINE／Facebook 社群貼文、名單或傳聞匯入本站；本站只承載主揪自行建立的球局。
+
+## 本機啟動
 
 ```bash
-npm install     # 安裝 Vite、Playwright 與 Supabase client 等前端依賴
+npm install
 cp .env.example .env.local
-npm run dev     # 啟動本機開發伺服器,預設 http://localhost:5173
+npm run dev
 ```
 
-### 填入 Google Maps API key(必要)
+`.env.local` 不會提交。開啟 Google Maps 與 Supabase 時填入自己的本機或 hosted 值：
 
-打開 **`.env.local`**,把 `___` 換成你的 key:
-
-```bash
-VITE_GOOGLE_MAPS_API_KEY=___
-VITE_SUPABASE_URL=___
-VITE_SUPABASE_ANON_KEY=___
+```text
+VITE_GOOGLE_MAPS_API_KEY=...
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+VITE_SUPPORT_EMAIL=...
 ```
 
-存檔後 Vite 會自動重新載入。**沒填 key(或 key 無效)時頁面不會壞**,
-會顯示說明蓋板與球場資料一覽。
+保留兩個 Supabase 值為 `___` 可跑本機 mock。正式環境必須設定
+`VITE_SUPPORT_EMAIL`；有值時 UI 才會顯示「聯絡支援」的 `mailto:` 連結。不要在 repo
+留下真實支援信箱或任何 secret。
 
-若只想看 mock 原型,`VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 可以保留
-`___`。若要跑 Milestone 3 的 local Supabase 前端流程,請改成:
+## Google Maps 與 OAuth
 
-```bash
-VITE_SUPABASE_URL=http://127.0.0.1:54321
-VITE_SUPABASE_ANON_KEY=<npx supabase status -o env 顯示的 ANON_KEY>
-```
-
-本機開發與測試以 local Supabase stack 為準;hosted Supabase project
-(ref `ttjzxhihctrtoqdsqxdb`)已建立並完成 beta QA,現況見下方
-「Supabase 本機驗證」一節與 `docs/mvp-plan.md`。
-
-> 注意:`.env.local` 不會進 git。Google Maps browser key 仍會在瀏覽器中可見,
-> 請務必在 Google Cloud Console 加上 HTTP referrer 限制;如果 key 曾經被提交或分享,
-> 建議旋轉成新 key。
-
-### 取得 Google Maps API key
-
-1. 到 [Google Cloud Console](https://console.cloud.google.com/) 建立(或選擇)一個專案。
-2. 在「API 和服務」啟用 **Maps JavaScript API**。
-3. 到「憑證」建立 **API 金鑰**。
-4. 建議在金鑰設定裡加上 HTTP referrer 限制。只維護會固定打開的入口,
-   不要逐一加入每次 Vercel redeploy 產生的 immutable hash URL。
-
-目前建議的 referrer:
+Google Maps JavaScript API key 是 browser key，必須在 Google Cloud Console 設定 HTTP
+referrer 限制。只加入穩定入口，例如：
 
 ```text
 http://localhost:5173/*
 http://127.0.0.1:5173/*
-https://tennis-partner-finder-git-cla-6f302a-xinnians-projects-c513dbd3.vercel.app/*
-https://tennis-partner-finder-inky.vercel.app/*
+https://<stable-preview-domain>/*
+https://<production-domain>/*
 ```
 
-其中 `tennis-partner-finder-git-cla-6f302a-...` 是目前固定 QA 的 branch
-preview URL。正式 production domain 確認後再加入 production URL。
+不要為每一個 immutable deployment URL 新增 allowlist。登入採 Google OAuth；hosted QA
+需檢查 Supabase callback、redirect allowlist，以及登入後的未完成檔案流程。這些是人工
+release gate，並非本 README 宣稱已完成的 hosted 驗證。
 
-## Supabase 本機驗證
+## 測試與 build
 
-後端 schema 草案放在 `supabase/migrations/`,RLS 驗證放在 `supabase/tests/`。
-本機驗證需要 Docker 與 Supabase CLI。官方文件:
-
-- [Local development overview](https://supabase.com/docs/guides/local-development/overview)
-- [Supabase CLI getting started](https://supabase.com/docs/guides/local-development/cli/getting-started)
-- [CLI reference](https://supabase.com/docs/reference/cli/introduction)
-
-常用流程:
+需要 Docker 與 Supabase CLI 的完整本機流程：
 
 ```bash
-npx supabase --version
-docker --version
 npx supabase start
-npx supabase db reset
-npx supabase test db supabase/tests
+CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test
+npm run test:db
+npm run test:mock
+npm run test:local
+TENNIS_TEST_HARNESS_MODE=local npx playwright test --project=supabase-mobile-chromium
+node scripts/generate-courts-seed.mjs --check
+npm run build
+git diff --check
 ```
 
-如果 Docker Desktop 尚未安裝或未啟動,`supabase start`、`db reset` 與
-`test db` 會先卡在本機容器前置環境,還不會進到 migration/RLS 驗證。
+`npm test` 是 mock suite，**不會**重置資料庫；`npm run test:local` 也不會。只有帶有
+`CONFIRM_LOCAL_DB_RESET=1` 的 guarded command 可重建 local test DB。更多細節見
+[.claude/rules/testing.md](.claude/rules/testing.md)。
 
-目前 local migration/RLS 已驗證通過,前端已接 Supabase Auth/Data,並已完成
-hosted Supabase + Vercel stable branch preview 的 beta QA。production alias 與公開
-beta 仍暫不啟用;後續先決定 private preview、share/bypass 或 production domain
-的測試入口。
+## Hosted 發布前的人工 gate
 
-目前 MVP 採 quick contact:公開球友資料 payload 可包含 LINE ID,但 UI 第一層不顯示;
-使用者按下「快速約球」後才顯示 LINE ID 與可複製開場白。
+本 repo 不會自動 push migration、設定 production env 或發布網站。獲得相應權限後，依
+[docs/mvp-plan.md](docs/mvp-plan.md) 的順序執行：
 
-### OAuth login QA
+1. 完成本機 gate、球場 generator check 與 `git diff --check`。
+2. 備份並記錄現有 sessions／participants count，執行 `npx supabase migration list`，
+   要求每個 local migration stamp 與 remote 一致後才可套用 migration。
+3. 以匿名 REST 驗證 discovery allowlist 與 raw table denial；用兩個 QA 帳號驗證
+   accepted-only contact；確認 `expire-stale-tennis-sessions` cron job。
+4. 在穩定 preview 手動驗證 OAuth、390px 慢網路的地圖／抽屜、位置權限、建立／申請／
+   審核／聯絡、取消／打成／檢舉、support link 與經核可的 privacy link。
+5. 設定 production `VITE_SUPPORT_EMAIL`、驗證 rendered `mailto:`，且所有 gate 成功後才可
+   對台北網球社群分享連結。QA 建立的球局要先清除，不能當作公開冷啟動內容。
 
-Beta 登入先採 Google OAuth。Email magic link 已從正式與 preview UI 移除,目前不導入
-自訂 SMTP。LINE Login 先不透過 Supabase Custom OAuth/OIDC 硬接;若後續確認必須支援,
-改評估 Auth0/Clerk 這類支援 LINE 的 auth broker。Apple 登入留到 iOS 原生或 App
-Store 需求明確時再加入。
-
-本機 Supabase 可繼續用測試 session 跑 Playwright;實際 Google OAuth 已在 hosted
-Supabase + Vercel preview 手動驗證。Preview QA 固定使用 branch alias:
+## 專案地圖
 
 ```text
-https://tennis-partner-finder-git-cla-6f302a-xinnians-projects-c513dbd3.vercel.app
+src/main.js                 入口、Auth/Maps/page 接線
+src/sessionController.js    探索、定位、狀態與 lifecycle orchestration
+src/sessionViews.js         抽屜、sheet、My Sessions、contact UI
+src/dataApi.js              唯一 browser data API
+supabase/migrations/        schema、view、RPC、cron
+supabase/tests/             pgTAP privacy/RLS/lifecycle contracts
+tests/                      mock、local Supabase、mobile、performance journeys
+data/courts.json            球場目錄單一來源
+docs/tennis-ecosystem/      官方來源球場研究卡模板
 ```
 
-```bash
-npx supabase start
-npx supabase status -o env
-```
+## 球場生態研究
 
-OAuth provider 設定重點:
-
-1. Google OAuth redirect URI 使用 Supabase callback:
-   `https://ttjzxhihctrtoqdsqxdb.supabase.co/auth/v1/callback`。
-2. 前端 Supabase client 使用 PKCE flow。
-3. Supabase Auth redirect allow list 需包含 local dev、Vercel preview 與 production URL。
-4. Preview QA 時確認登入返回 app 後,未完成 profile 仍會被導到個人檔案。
-
-## 專案結構
-
-```
-index.html          兩個分頁的骨架:地圖(浮層+chips)、個人檔案、tab bar
-.env.example        本機環境變數範本;複製成 .env.local 後填入 Maps key
-supabase/           Supabase migration 草案、本機驗證說明與 RLS 測試
-src/
-  config.js         讀取 VITE_GOOGLE_MAPS_API_KEY;地圖中心/縮放設定
-  mockData.js       假資料:6 座台北真實球場、6 位球友、6 則徵球伴需求
-  filters.js        篩選純函式(NTRP band、想打類型)
-  pins.js           三種圖釘的 SVG(球友/需求/聚合,樣式取自設計檔)
-  map.js            Maps 載入、鼠尾草色系地圖樣式、依球場分組與畫釘
-  supabaseClient.js Supabase browser client 與 env 判斷
-  dataApi.js        Auth/profile/discovery/partner requests 的資料邊界
-  sheets.js         底部卡片(球友/需求)、球場抽屜、快速聯絡 modal
-  main.js           進入點:分頁、篩選接線、快速約球、個人檔案表單
-  util.js           esc / URL 白名單 / 來源標籤 / NTRP 分級文案
-  style.css         全部樣式;開頭 design tokens 取自設計檔
-```
-
-## 假資料形狀
-
-`src/mockData.js` 匯出兩個陣列:
-
-```ts
-// 球友釘
-RegisteredPlayer: {
-  id, displayName, ntrp: number, goals: string[],   // 單打/對拉/雙打/練球
-  homeCourt: string, courtLat, courtLng,            // 釘在球場,不是住家
-  availability: string[], lineId
-}
-
-// 需求釘
-DemandPin: {
-  id, court: string, courtLat, courtLng,
-  ntrp: number | null,        // null = 沒有可換算的數字程度
-  rawSkill: string | null,    // 原貼文的程度描述,如「約 3.5」「中上」
-  demandText: string, sourceUrl
-}
-```
-
-卡片上的「大概程度」顯示 `rawSkill`;`rawSkill` 也是 `null` 才顯示「程度未提供」。
-球場清單(名稱/行政區/大約座標)在同檔案的 `COURTS`,新增資料時座標請從
-這裡拿,維持「圖釘=球場」的原則;同球場多筆會自動變聚合釘。
-
-## 篩選規則(沿用設計檔行為)
-
-- **程度**:下拉選 NTRP 區間 —— 全部 / ≤ 3.0 / 3.0–4.0 / 4.0–5.0 / 5.0+。
-  同時作用於球友釘與需求釘;`ntrp: null` 的需求釘一律通過(不因沒數字被濾掉)。
-- **想打類型**(單打/對拉/雙打/練球):chips 可複選,**未選任何 chip = 不限**。
-  只作用於球友釘 —— 需求釘沒有結構化的類型欄位(原句在 `demandText`),不受影響。
-- 篩選變更即時重畫圖釘;聚合數量也會跟著變(例如選 4.0–5.0 時,
-  台北網球中心的聚合釘會攤開成 Leo 的個別球友釘)。
-
-## 與設計檔的差異(刻意取捨)
-
-- 設計檔是 390×844 手機殼展示;原型改成滿版 RWD —— 地圖吃滿視窗,
-  卡片/彈窗/tab bar 在桌機上限寬 430px 置中,手機上就是原設計的樣子。
-- 設計檔的假地圖(SVG 街區)換成真 Google Maps,配色用地圖樣式
-  重現設計的鼠尾草色系(陸地 #ECEDE7 / 水域 #C4D8E2 / 公園 #D8E6C4)。
-- 原設計檔的站內邀請流程改成「快速約球」:球友卡第一層不直接露 LINE,
-  按下後才顯示 LINE ID、複製 LINE ID 與可複製開場白;真正溝通交給 LINE。
-- 設計檔的「完整檔案」第二層頁面未實作 —— 底部卡片已涵蓋原型需要的
-  全部欄位;之後要加再說。
+研究有助於挑選初期社群與球場引導，但不是公開上線的替代品。使用
+[docs/tennis-ecosystem/README.md](docs/tennis-ecosystem/README.md) 的 15 張官方來源
+研究卡，記錄訂場、可驗證空檔與活動證據；不要抓私人群組或把未證實的俱樂部佔場說法
+當成事實。
