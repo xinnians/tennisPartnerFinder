@@ -9,6 +9,85 @@ const drawerBindings = new WeakMap();
 const drawerIsolations = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 
+export const PROFILE_PUBLIC_DISCLOSURE =
+  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。";
+
+const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
+const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** Convert a datetime-local value by the product's fixed Taipei wall time. */
+export function taipeiLocalDateTimeToIso(value) {
+  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0"] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const local = new Date(localUtcMs);
+  if (
+    local.getUTCFullYear() !== year ||
+    local.getUTCMonth() !== month - 1 ||
+    local.getUTCDate() !== day ||
+    local.getUTCHours() !== hour ||
+    local.getUTCMinutes() !== minute ||
+    local.getUTCSeconds() !== second
+  ) {
+    return null;
+  }
+  return new Date(localUtcMs - TAIPEI_UTC_OFFSET_MS).toISOString();
+}
+
+function ntrpEndpoint(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 1 && number <= 7 && Number.isInteger(number * 2) ? number : null;
+}
+
+/** Validate the form before it crosses the data API boundary. */
+export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
+  const errors = {};
+  const courtId = Number(input.courtId);
+  const playType = String(input.playType ?? "");
+  const slotsTotal = Number(input.slotsTotal);
+  const notes = String(input.notes ?? "");
+  const startAt = taipeiLocalDateTimeToIso(input.startAtLocal);
+  const minText = String(input.ntrpMin ?? "").trim();
+  const maxText = String(input.ntrpMax ?? "").trim();
+  const hasRange = Boolean(minText || maxText);
+  const ntrpMin = minText ? ntrpEndpoint(minText) : null;
+  const ntrpMax = maxText ? ntrpEndpoint(maxText) : null;
+
+  if (!Number.isSafeInteger(courtId) || courtId <= 0) errors.courtId = "請選擇台北市球場。";
+  if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
+  if (!Number.isInteger(slotsTotal) || slotsTotal < 1 || slotsTotal > 3) errors.slotsTotal = "缺額請填 1 到 3 位。";
+  if (!startAt || new Date(startAt).getTime() <= new Date(now).getTime()) errors.startAtLocal = "開始時間必須是未來的台北時間。";
+  if (notes.length > 500) errors.notes = "備註最多 500 字。";
+  if (hasRange && (!ntrpMin || !ntrpMax)) {
+    if (!ntrpMin) errors.ntrpMin = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
+    if (!ntrpMax) errors.ntrpMax = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
+  }
+  if (ntrpMin != null && ntrpMax != null && ntrpMin > ntrpMax) {
+    errors.ntrpMax = "最高程度不可小於最低程度。";
+  }
+
+  return {
+    errors,
+    valid: Object.keys(errors).length === 0,
+    value: {
+      courtId,
+      ntrpMax: hasRange ? ntrpMax : null,
+      ntrpMin: hasRange ? ntrpMin : null,
+      notes: notes.trim() || null,
+      playType,
+      slotsTotal,
+      startAt,
+    },
+  };
+}
+
 function rememberFocusedSessionCard(root) {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !root.contains(active)) return;
@@ -73,6 +152,45 @@ function sessionCard(session, { compact = false } = {}) {
     <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</span>
     <span class="session-card__host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))}</span>
   </button>`;
+}
+
+/** Minimal Task-6 success destination; Task 7 expands it into full My Sessions grouping. */
+export function renderCreatedSessionDestination(root, { createdSessionId, onBack = () => {}, onOpenSession = () => {}, sessions = [] } = {}) {
+  const created = sessions.find((session) => String(session.sessionId) === String(createdSessionId)) ?? null;
+  const ordered = created
+    ? [created, ...sessions.filter((session) => String(session.sessionId) !== String(createdSessionId))]
+    : sessions;
+  root.innerHTML = `
+    <div class="my-sessions-shell__head">
+      <div><p class="surface__eyebrow">我的球局</p><h1>即將打球</h1></div>
+      <button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button>
+    </div>
+    <p class="surface__copy">${
+      created
+        ? "球局已建立，主揪身分已加入這一局。"
+        : createdSessionId
+          ? "球局已建立；正在更新你的球局清單。"
+          : "在這裡查看即將打球的球局。"
+    }</p>
+    <div id="my-upcoming-sessions" class="nearby-sessions__cards">
+      ${
+        ordered.length
+          ? ordered
+              .map(
+                (session) =>
+                  `<div${String(session.sessionId) === String(createdSessionId) ? ' data-created-session="true"' : ""}>${sessionCard(session)}</div>`
+              )
+              .join("")
+          : '<p class="surface__copy">尚未載入即將打球的球局。</p>'
+      }
+    </div>`;
+  root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
+  wireSessionCards(root, onOpenSession);
+  if (created) {
+    requestAnimationFrame(() => {
+      root.querySelector("[data-created-session] [data-session-id]")?.focus({ preventScroll: true });
+    });
+  }
 }
 
 function wireSessionCards(root, onOpenSession) {
@@ -309,10 +427,11 @@ export function openSessionSheet(session, { action, onPrimary = () => {}, onWith
 }
 
 /** Ask for an intentional confirmation before the join lifecycle RPC. */
-export function openJoinSessionConfirmation(session, { onConfirm = () => {} } = {}) {
+export function openJoinSessionConfirmation(session, { onClose = () => {}, onConfirm = () => {} } = {}) {
   const mounted = mountDialog({
     id: "join-session-confirmation",
     label: "確認申請加入",
+    onClose,
     html: `
       <div class="surface__head">
         <div><p class="surface__eyebrow">確認申請</p><h2>申請加入這一局？</h2></div>
@@ -340,6 +459,251 @@ export function openJoinSessionConfirmation(session, { onConfirm = () => {} } = 
     }
   });
   return mounted;
+}
+
+const PROFILE_PLAY_TYPES = ["單打", "雙打", "對拉", "練球"];
+const PROFILE_SLOTS = [
+  ["wd-m", "平日早上"],
+  ["wd-a", "平日下午"],
+  ["wd-e", "平日晚上"],
+  ["we-m", "週末早上"],
+  ["we-a", "週末下午"],
+  ["we-e", "週末晚上"],
+];
+
+function taipeiCourts(courts) {
+  return (Array.isArray(courts) ? courts : []).filter((court) => court?.city === "台北市");
+}
+
+function selectedCourtValues(select, fallback = new Set()) {
+  const selected = new Set([...(select?.selectedOptions ?? [])].map((option) => option.value));
+  return selected.size ? selected : new Set(fallback);
+}
+
+/** Replace only court options so delayed data never discards the user's draft. */
+function updateCourtSelect(select, status, courts, { ready = true, selected = new Set(), multiple = false } = {}) {
+  if (!select) return;
+  const nextCourts = taipeiCourts(courts);
+  const selectedValues = selected instanceof Set ? selected : new Set(selected ?? []);
+  const options = nextCourts
+    .map((court) => {
+      const isSelected = selectedValues.has(String(court.id)) || selectedValues.has(court.name);
+      return `<option value="${esc(court.id)}"${isSelected ? " selected" : ""}>${esc(court.name)}${
+        multiple ? "" : ` · ${esc(court.district ?? "台北市")}`
+      }</option>`;
+    })
+    .join("");
+  select.innerHTML = multiple ? options : `<option value="">請選擇球場</option>${options}`;
+  select.disabled = !ready || nextCourts.length === 0;
+  if (!status) return;
+  status.hidden = ready && nextCourts.length > 0;
+  status.textContent = !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。";
+}
+
+function selectedValues(form, name) {
+  return new Set([...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value));
+}
+
+function profileFormValue(form) {
+  const courts = new Set([...form.querySelectorAll("[name='profile-courts'] option:checked")].map((option) => option.value));
+  return {
+    courts,
+    lineId: form.querySelector("[name='profile-line-id']")?.value.trim() ?? "",
+    nick: form.querySelector("[name='profile-nickname']")?.value.trim() ?? "",
+    ntrp: Number(form.querySelector("[name='profile-ntrp']")?.value),
+    slots: selectedValues(form, "profile-slots"),
+    types: selectedValues(form, "profile-types"),
+  };
+}
+
+function validateProfileForm(profile) {
+  if (!profile.nick) return "請填寫公開暱稱。";
+  if (!Number.isFinite(profile.ntrp) || profile.ntrp < 1 || profile.ntrp > 7 || !Number.isInteger(profile.ntrp * 2)) {
+    return "NTRP 請選擇 1.0 到 7.0。";
+  }
+  if (!profile.lineId) return "請填寫 LINE ID。";
+  if (!profile.courts.size) return "請至少選一座常打球場。";
+  if (!profile.types.size) return "請至少選一種打法。";
+  if (!profile.slots.size) return "請至少選一個可打時段。";
+  return "";
+}
+
+function profileNtrpOptions(selected) {
+  return Array.from({ length: 13 }, (_, index) => 1 + index * 0.5)
+    .map((value) => `<option value="${value}"${Number(selected) === value ? " selected" : ""}>${value.toFixed(1)}</option>`)
+    .join("");
+}
+
+/** Open the private profile-completion sheet without leaking profile fields to public renderers. */
+export function openProfileCompletionSheet({
+  courts = [],
+  courtsReady = true,
+  onClose = () => {},
+  onSave = async () => {},
+  onSaved = async () => {},
+  profile = {},
+  returnSession = null,
+} = {}) {
+  const selectedCourts = profile.courts instanceof Set ? profile.courts : new Set(profile.courts ?? []);
+  const selectedTypes = profile.types instanceof Set ? profile.types : new Set(profile.types ?? []);
+  // The service requires one playable time slot. It is visible and editable,
+  // never an invisible default injected at submit time.
+  const selectedSlots = profile.slots instanceof Set && profile.slots.size ? profile.slots : new Set(["we-m"]);
+  let saved = false;
+  const mounted = mountSheet({
+    id: "profile-completion-sheet",
+    label: "完成個人檔案",
+    className: "profile-sheet",
+    onClose: (detail = {}) => onClose({ ...detail, saved }),
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">完成後即可繼續</p><h2>完成個人檔案</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉個人檔案">×</button>
+      </div>
+      ${
+        returnSession
+          ? `<p class="profile-return-context">完成後將回到：${esc(returnSession.court)}・${esc(taipeiDateTime(returnSession.startAt))}</p>`
+          : ""
+      }
+      <form class="profile-form" data-testid="profile-form" novalidate>
+        <label class="form-field" for="profile-nickname"><span>公開暱稱</span><input id="profile-nickname" name="profile-nickname" required value="${esc(
+          profile.nick ?? ""
+        )}" autocomplete="nickname" /></label>
+        <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
+        <label class="form-field" for="profile-ntrp"><span>NTRP 程度</span><select id="profile-ntrp" name="profile-ntrp">${profileNtrpOptions(
+          profile.ntrp ?? 3.5
+        )}</select></label>
+        <label class="form-field" for="profile-line-id"><span>LINE ID</span><input id="profile-line-id" name="profile-line-id" required value="${esc(
+          profile.lineId ?? ""
+        )}" autocomplete="off" /></label>
+        <p class="form-hint">只有已核准的主揪／球友配對可看見你的 LINE ID。</p>
+        <fieldset class="form-fieldset"><legend>常打球場</legend><select name="profile-courts" multiple size="4" aria-label="常打球場" disabled></select><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
+        <fieldset class="form-fieldset"><legend>常打類型</legend><div class="option-grid">${PROFILE_PLAY_TYPES.map(
+          (type) =>
+            `<label><input type="checkbox" name="profile-types" value="${esc(type)}"${selectedTypes.has(type) ? " checked" : ""} /> ${esc(
+              type
+            )}</label>`
+        ).join("")}</div></fieldset>
+        <fieldset class="form-fieldset"><legend>可打時段</legend><div class="option-grid">${PROFILE_SLOTS.map(
+          ([value, label]) =>
+            `<label><input type="checkbox" name="profile-slots" value="${esc(value)}"${selectedSlots.has(value) ? " checked" : ""} /> ${esc(
+              label
+            )}</label>`
+        ).join("")}</div></fieldset>
+        <p class="form-error" data-profile-error role="alert" hidden></p>
+        <button type="submit" class="session-primary" data-testid="profile-save">儲存並繼續</button>
+      </form>`,
+  });
+  const form = mounted.root.querySelector("[data-testid='profile-form']");
+  const error = mounted.root.querySelector("[data-profile-error]");
+  const submit = mounted.root.querySelector("[data-testid='profile-save']");
+  const courtSelect = mounted.root.querySelector("[name='profile-courts']");
+  const courtsStatus = mounted.root.querySelector("[data-profile-courts-status]");
+  const setCourts = (nextCourts, { ready = true } = {}) => {
+    updateCourtSelect(courtSelect, courtsStatus, nextCourts, {
+      multiple: true,
+      ready,
+      selected: selectedCourtValues(courtSelect, selectedCourts),
+    });
+  };
+  setCourts(courts, { ready: courtsReady });
+  let saving = false;
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    const nextProfile = profileFormValue(form);
+    const message = validateProfileForm(nextProfile);
+    if (message) {
+      error.hidden = false;
+      error.textContent = message;
+      return;
+    }
+    saving = true;
+    submit.disabled = true;
+    error.hidden = true;
+    try {
+      const savedProfile = await onSave(nextProfile);
+      saved = true;
+      mounted.close({ reason: "complete" });
+      await onSaved(savedProfile ?? nextProfile);
+    } catch (saveError) {
+      error.hidden = false;
+      error.textContent = saveError?.message || "個人檔案暫時無法儲存。";
+    } finally {
+      if (mounted.root.contains(submit)) {
+        saving = false;
+        submit.disabled = false;
+      }
+    }
+  });
+  return { ...mounted, setCourts };
+}
+
+/** A single, scrollable Taipei create-session sheet with all required fields first. */
+export function openCreateSessionSheet({ courts = [], courtsReady = true, onClose = () => {}, onSubmit = async () => {} } = {}) {
+  const mounted = mountSheet({
+    id: "session-create-modal",
+    label: "開球局",
+    className: "create-session-sheet",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">開球局</p><h2>建立你的下一場球局</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉開球局">×</button>
+      </div>
+      <form class="create-session-form" data-testid="session-form" novalidate>
+        <div class="form-field"><label for="session-court">台北市球場</label><select id="session-court" name="courtId" data-testid="session-court" required disabled></select><p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p></div>
+        <label class="form-field" for="session-start-at"><span>台北時間</span><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></label>
+        <label class="form-field" for="session-play-type"><span>打法</span><select id="session-play-type" name="playType" data-testid="session-play-type" required><option value="">請選擇打法</option>${PROFILE_PLAY_TYPES.map(
+          (type) => `<option value="${esc(type)}">${esc(type)}</option>`
+        ).join("")}</select></label>
+        <label class="form-field" for="session-slots-total"><span>缺額</span><select id="session-slots-total" name="slotsTotal" data-testid="session-slots-total" required><option value="">請選擇缺額</option><option value="1">1 位</option><option value="2">2 位</option><option value="3">3 位</option></select></label>
+        <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
+        <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
+        <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
+        <p class="form-error" data-create-error role="alert" hidden></p>
+        <button type="submit" class="session-primary" data-testid="session-submit">建立球局</button>
+      </form>`,
+  });
+  const form = mounted.root.querySelector("[data-testid='session-form']");
+  const error = mounted.root.querySelector("[data-create-error]");
+  const submit = mounted.root.querySelector("[data-testid='session-submit']");
+  const courtSelect = mounted.root.querySelector("[data-testid='session-court']");
+  const courtsStatus = mounted.root.querySelector("[data-create-courts-status]");
+  const setCourts = (nextCourts, { ready = true } = {}) => {
+    updateCourtSelect(courtSelect, courtsStatus, nextCourts, {
+      ready,
+      selected: selectedCourtValues(courtSelect),
+    });
+  };
+  setCourts(courts, { ready: courtsReady });
+  let submitting = false;
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submitting) return;
+    const formData = new FormData(form);
+    const validation = validateCreateSessionInput(Object.fromEntries(formData.entries()));
+    if (!validation.valid) {
+      error.hidden = false;
+      error.textContent = Object.values(validation.errors)[0];
+      return;
+    }
+    submitting = true;
+    submit.disabled = true;
+    error.hidden = true;
+    try {
+      await onSubmit(validation.value, () => mounted.close({ reason: "complete" }));
+    } catch (submitError) {
+      error.hidden = false;
+      error.textContent = submitError?.message || "建立球局失敗，請稍後再試。";
+    } finally {
+      if (mounted.root.contains(submit)) {
+        submitting = false;
+        submit.disabled = false;
+      }
+    }
+  });
+  return { ...mounted, setCourts };
 }
 
 /** Open a session-only list for the selected base court or aggregate marker. */

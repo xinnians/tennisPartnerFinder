@@ -590,34 +590,44 @@ function requireDefaultSupabase() {
   return supabase;
 }
 
+/**
+ * A null return is deliberately reserved for a confirmed anonymous state.
+ * Transport/refresh failures reject so callers can retain a recoverable
+ * post-login intent instead of treating a temporary auth failure as logout.
+ */
+export async function resolveInitialSession(client, storedSession = null) {
+  const { data, error } = await client.auth.getSession();
+  if (error) throw error;
+  if (data?.session) return data.session;
+  if (!storedSession) return null;
+
+  let session = null;
+  try {
+    session = JSON.parse(storedSession);
+  } catch {
+    return null;
+  }
+  if (!session?.access_token || !session?.refresh_token) return null;
+
+  const { data: restored, error: restoreError } = await client.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  });
+  if (restoreError) throw restoreError;
+  return restored?.session ?? null;
+}
+
 export async function getInitialSession() {
   if (!isSupabaseConfigured) return null;
   const client = requireDefaultSupabase();
-  const { data } = await client.auth.getSession();
-  if (data.session) return data.session;
-
   const stored = globalThis.localStorage?.getItem(SUPABASE_AUTH_STORAGE_KEY);
-  if (!stored) return null;
-
-  try {
-    const session = JSON.parse(stored);
-    if (!session?.access_token || !session?.refresh_token) return null;
-    const { data: restored, error } = await client.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
-    if (error) throw error;
-    return restored.session;
-  } catch (error) {
-    console.warn("無法還原 Supabase session", error);
-    return null;
-  }
+  return resolveInitialSession(client, stored);
 }
 
 export function onAuthStateChange(callback) {
   if (!isSupabaseConfigured) return () => {};
   const client = requireDefaultSupabase();
-  const { data } = client.auth.onAuthStateChange((_event, session) => callback(session));
+  const { data } = client.auth.onAuthStateChange((event, session) => callback(session, event));
   return () => data.subscription.unsubscribe();
 }
 

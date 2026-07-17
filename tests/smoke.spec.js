@@ -520,7 +520,14 @@ test("nested login modal restores focus and announces a failed provider start", 
   await sessionPin.focus();
   await sessionPin.press("Enter");
   const primary = page.locator("#session-sheet [data-session-action='primary']");
-  await primary.click();
+  await primary.focus();
+  // Mock mode deliberately does not expose an OAuth entry point. Exercise the
+  // reusable nested modal primitive directly so its focus/failed-provider
+  // behavior remains covered without contradicting that product rule.
+  await page.evaluate(async () => {
+    const { openLoginModal } = await import("/src/sheets.js");
+    openLoginModal({ onProvider: async () => Promise.reject(new Error("forced provider failure")) });
+  });
   await expect(page.locator("#login-dialog")).toBeVisible();
   await expect(page.locator("#sheet-root")).toHaveJSProperty("inert", true);
   const message = page.locator("[data-login-message]");
@@ -533,4 +540,157 @@ test("nested login modal restores focus and announces a failed provider start", 
   await page.keyboard.press("Escape");
   await expect(sessionPin).toBeFocused();
   expect(runtimeErrors).toEqual([]);
+});
+
+test("profile and create sheets disclose public nickname use and retain a local-demo create failure", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({
+      courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+      profile: { courts: new Set(), lineId: "", nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
+      returnSession: { court: "示範球場", startAt: "2026-07-18T01:30:00.000Z" },
+    });
+  });
+
+  const disclosure = "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。";
+  const profile = page.locator("#profile-completion-sheet");
+  await expect(profile).toBeVisible();
+  await expect(profile.getByLabel("公開暱稱")).toBeVisible();
+  await expect(profile.getByText(disclosure)).toBeVisible();
+  await expect(profile.getByText("只有已核准的主揪／球友配對可看見你的 LINE ID。")).toBeVisible();
+  await expect(profile).toContainText("完成後將回到：示範球場・");
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+      onSubmit: async () => {
+        throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
+      },
+    });
+  });
+
+  const createSheet = page.locator("#session-create-modal");
+  const form = createSheet.getByTestId("session-form");
+  await expect(createSheet).toBeVisible();
+  await expect(page.getByTestId("session-create-modal")).toBeVisible();
+  await expect(createSheet.getByText(disclosure)).toBeVisible();
+  const requiredOrder = await form
+    .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-total']")
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")));
+  expect(requiredOrder).toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-total"]);
+
+  await form.getByTestId("session-court").selectOption("8");
+  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByTestId("session-slots-total").selectOption("1");
+  await form.getByTestId("session-submit").click();
+  await expect(form.getByRole("alert")).toContainText("本機示範資料僅供瀏覽");
+  await expect(createSheet).toBeVisible();
+});
+
+test("delayed Taipei court options hydrate open profile and create forms without losing drafts", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    window.__delayedProfileSheet = openProfileCompletionSheet({
+      courts: [],
+      courtsReady: false,
+      profile: { courts: new Set(), lineId: "", nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
+    });
+  });
+  const profile = page.locator("#profile-completion-sheet");
+  const profileCourts = profile.getByLabel("常打球場");
+  await expect(profileCourts).toBeDisabled();
+  await profile.getByLabel("公開暱稱").fill("草稿球友");
+  await profile.getByLabel("LINE ID").fill("draft-line-id");
+  await profile.getByLabel("單打", { exact: true }).check();
+  await page.evaluate(() =>
+    window.__delayedProfileSheet.setCourts(
+      [
+        { city: "新北市", district: "新店區", id: 9, name: "不應出現球場" },
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+      ],
+      { ready: true }
+    )
+  );
+  await expect(profileCourts).toBeEnabled();
+  await expect(profileCourts.locator("option")).toHaveText(["示範球場"]);
+  await expect(profile.getByLabel("公開暱稱")).toHaveValue("草稿球友");
+  await expect(profile.getByLabel("LINE ID")).toHaveValue("draft-line-id");
+  await expect(profile.getByLabel("單打", { exact: true })).toBeChecked();
+  await profileCourts.selectOption("8");
+  await page.evaluate(() =>
+    window.__delayedProfileSheet.setCourts(
+      [
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+        { city: "台北市", district: "中山區", id: 10, name: "第二球場" },
+      ],
+      { ready: true }
+    )
+  );
+  await expect(profileCourts.locator("option:checked")).toHaveText(["示範球場"]);
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__delayedCreateSheet = openCreateSessionSheet({ courts: [], courtsReady: false });
+  });
+  const create = page.locator("#session-create-modal");
+  const form = create.getByTestId("session-form");
+  const createCourts = form.getByTestId("session-court");
+  await expect(createCourts).toBeDisabled();
+  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByTestId("session-slots-total").selectOption("2");
+  await form.locator("#session-ntrp-min").fill("3.0");
+  await form.locator("#session-ntrp-max").fill("4.0");
+  await form.locator("#session-notes").fill("保留這段草稿");
+  await page.evaluate(() =>
+    window.__delayedCreateSheet.setCourts(
+      [
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+        { city: "新北市", district: "新店區", id: 9, name: "不應出現球場" },
+      ],
+      { ready: true }
+    )
+  );
+  await expect(createCourts).toBeEnabled();
+  await expect(createCourts.locator("option")).toHaveText(["請選擇球場", "示範球場 · 大安區"]);
+  await expect(form.getByTestId("session-start-at")).toHaveValue("2099-07-18T09:30");
+  await expect(form.getByTestId("session-play-type")).toHaveValue("單打");
+  await expect(form.getByTestId("session-slots-total")).toHaveValue("2");
+  await expect(form.locator("#session-ntrp-min")).toHaveValue("3.0");
+  await expect(form.locator("#session-ntrp-max")).toHaveValue("4.0");
+  await expect(form.locator("#session-notes")).toHaveValue("保留這段草稿");
+  await createCourts.selectOption("8");
+  await page.evaluate(() =>
+    window.__delayedCreateSheet.setCourts(
+      [
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+        { city: "台北市", district: "中山區", id: 10, name: "第二球場" },
+      ],
+      { ready: true }
+    )
+  );
+  await expect(createCourts).toHaveValue("8");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("mock-mode create does not open OAuth or fabricate a new session", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+  const initialCardCount = await page.getByTestId("session-card").count();
+
+  await page.locator("#open-session").click();
+  await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
+  await expect(page.locator("#login-dialog")).toBeHidden();
+  await expect(page.getByTestId("session-card")).toHaveCount(initialCardCount);
 });

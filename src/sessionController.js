@@ -1,6 +1,6 @@
 import { LOCATION_INITIAL_RADIUS_METERS, MAP_IDLE_DEBOUNCE_MS, TAIPEI_CITY_BOUNDS } from "./config.js";
 import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "./filters.js";
-import { savePendingIntent } from "./sessionIntent.js";
+import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
 
 function cloneFilters() {
   return { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) };
@@ -89,12 +89,47 @@ function profileIsComplete(eligibility) {
   return eligibility?.complete === true;
 }
 
+function profileReadiness(eligibility) {
+  if (eligibility?.status === "loading") return "loading";
+  if (eligibility?.status === "error") return "error";
+  return "ready";
+}
+
+function profileUnavailableMessage(readiness) {
+  return readiness === "loading"
+    ? "正在讀取個人檔案，請稍候。"
+    : "個人檔案暫時無法載入，請重新整理後再試。";
+}
+
 function terminalAction(session) {
   const status = String(session.status || "").toLowerCase();
   if (status === "cancelled") return "球局已取消";
   if (status === "expired") return "球局已結束";
   if (status === "started") return "球局已開始";
   return null;
+}
+
+function samePendingIntent(left, right) {
+  if (!left || !right || left.action !== right.action) return false;
+  return left.action !== "join" || String(left.sessionId) === String(right.sessionId);
+}
+
+function staleIntentMessage(session) {
+  if (!session) return "球局已取消、結束或不再開放，已回到附近球局。";
+  const status = String(session.status || "").toLowerCase();
+  if (status === "full" || Number(session.slotsRemaining) <= 0) return "球局已額滿，已回到附近球局。";
+  if (status === "cancelled") return "球局已取消，已回到附近球局。";
+  if (status === "expired") return "球局已結束，已回到附近球局。";
+  if (status === "started") return "球局已開始，已回到附近球局。";
+  return null;
+}
+
+function browserIntentStore() {
+  return {
+    clear: () => clearPendingIntent(),
+    read: () => readPendingIntent(),
+    save: (intent) => savePendingIntent(intent),
+  };
 }
 
 const SESSION_DETAIL_FIELDS = [
@@ -142,14 +177,17 @@ export function createSessionController({
   openSession = () => {},
   openJoinConfirmation = () => {},
   openCourtDrawer = () => {},
-  openCreatePrompt = () => {},
+  openCreateSession = () => {},
   openLogin = () => {},
   promptProfile = () => {},
+  showCreatedSession = () => {},
+  intentStore = browserIntentStore(),
   toast = () => {},
 } = {}) {
   const state = {
     bounds: cloneBounds(TAIPEI_CITY_BOUNDS),
     courts: [],
+    courtsReady: false,
     sessions: [],
     filters: cloneFilters(),
     userLocation: null,
@@ -159,13 +197,14 @@ export function createSessionController({
     mapUnavailable: false,
     discoveryStatus: "idle",
     discoveryMessage: "",
-    session: null,
+    authSession: null,
     profile: null,
     mySessions: [],
   };
   let map = null;
   let idleTimer = null;
   let latestRequest = 0;
+  let latestParticipationRequest = 0;
   let latestLocationRequest = 0;
   let authEpoch = 0;
   let explicitViewportGeneration = 0;
@@ -175,7 +214,12 @@ export function createSessionController({
   let activeDetailActionKey = null;
   let activeCourtDrawer = null;
   let activeJoinConfirmation = null;
+  let activeJoinConfirmationSessionId = null;
+  let activeCreateSession = null;
+  let activeProfilePrompt = null;
   let lifecycleMutationGeneration = 0;
+  let intentVersion = 0;
+  const resumeInFlight = new Map();
   const inFlightLifecycleActions = new Map();
 
   function visibleSessions() {
@@ -204,7 +248,7 @@ export function createSessionController({
   }
 
   function currentParticipation(sessionId) {
-    if (!state.session) return null;
+    if (!state.authSession) return null;
     return state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
   }
 
@@ -223,18 +267,18 @@ export function createSessionController({
   }
 
   function captureAuthSnapshot() {
-    return { epoch: authEpoch, identity: sessionIdentity(state.session) };
+    return { epoch: authEpoch, identity: sessionIdentity(state.authSession) };
   }
 
   function isCurrentAuthSnapshot(snapshot) {
     return (
       Boolean(snapshot?.identity) &&
       snapshot.epoch === authEpoch &&
-      sessionIdentity(state.session) === snapshot.identity
+      sessionIdentity(state.authSession) === snapshot.identity
     );
   }
 
-  function lifecycleActionKey(sessionId, identity = sessionIdentity(state.session)) {
+  function lifecycleActionKey(sessionId, identity = sessionIdentity(state.authSession)) {
     if (!identity) return null;
     return JSON.stringify([String(identity), String(sessionId)]);
   }
@@ -256,16 +300,31 @@ export function createSessionController({
     return Boolean(key && inFlightLifecycleActions.has(key));
   }
 
-  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.session)) {
-    if (!state.session || !identity || typeof api?.loadMySessions !== "function") return false;
+  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.authSession)) {
+    if (!state.authSession || !identity || typeof api?.loadMySessions !== "function") return false;
+    const requestId = ++latestParticipationRequest;
     try {
       const sessions = await api.loadMySessions();
-      if (epoch !== authEpoch || !state.session || sessionIdentity(state.session) !== identity) return false;
+      if (
+        requestId !== latestParticipationRequest ||
+        epoch !== authEpoch ||
+        !state.authSession ||
+        sessionIdentity(state.authSession) !== identity
+      ) {
+        return false;
+      }
       state.mySessions = Array.isArray(sessions) ? sessions : [];
       reconcileActiveDetailParticipation();
       return true;
     } catch {
-      if (epoch !== authEpoch || !state.session || sessionIdentity(state.session) !== identity) return false;
+      if (
+        requestId !== latestParticipationRequest ||
+        epoch !== authEpoch ||
+        !state.authSession ||
+        sessionIdentity(state.authSession) !== identity
+      ) {
+        return false;
+      }
       state.mySessions = [];
       reconcileActiveDetailParticipation();
       return true;
@@ -303,8 +362,11 @@ export function createSessionController({
     publish();
   }
 
-  function setCourts(courts) {
+  function setCourts(courts, { ready = true } = {}) {
     state.courts = Array.isArray(courts) ? courts : [];
+    state.courtsReady = Boolean(ready);
+    activeCreateSession?.setCourts?.(state.courts, { ready: state.courtsReady });
+    activeProfilePrompt?.setCourts?.(state.courts, { ready: state.courtsReady });
     publish();
   }
 
@@ -417,13 +479,13 @@ export function createSessionController({
     activeCourtDrawer = drawer?.close ? drawer : null;
   }
 
-  function closeActiveDetail(detail = activeDetail) {
+  function closeActiveDetail(detail = activeDetail, options = {}) {
     if (!detail || activeDetail !== detail) return;
     activeDetail = null;
     activeDetailSession = null;
     activeDetailActionKey = null;
-    closeActiveJoinConfirmation();
-    detail.close?.();
+    closeActiveJoinConfirmation(undefined, options);
+    detail.close?.(options);
   }
 
   function reconcileActiveDetail(bounds = state.bounds) {
@@ -450,18 +512,134 @@ export function createSessionController({
     drawer?.close?.(options);
   }
 
-  function closeActiveJoinConfirmation(confirmation = activeJoinConfirmation) {
+  function closeActiveJoinConfirmation(confirmation = activeJoinConfirmation, options = {}) {
     if (!confirmation || activeJoinConfirmation !== confirmation) return;
     activeJoinConfirmation = null;
-    confirmation.close?.();
+    activeJoinConfirmationSessionId = null;
+    confirmation.close?.(options);
   }
 
-  function beginAnonymousIntent(intent) {
+  function closeActiveCreateSession(options = {}) {
+    const sheet = activeCreateSession;
+    activeCreateSession = null;
+    sheet?.close?.(options);
+  }
+
+  function closeActiveProfilePrompt(options = {}) {
+    const sheet = activeProfilePrompt;
+    activeProfilePrompt = null;
+    sheet?.close?.(options);
+  }
+
+  function readIntent() {
     try {
-      savePendingIntent(intent, globalThis.sessionStorage);
+      return intentStore?.read?.() ?? null;
     } catch {
-      // Pending intent is a convenience only; never block the visible prompt.
+      return null;
     }
+  }
+
+  function saveIntent(intent) {
+    try {
+      const savedIntent = intentStore?.save?.(intent) ?? intent;
+      intentVersion += 1;
+      return savedIntent;
+    } catch {
+      // An unavailable sessionStorage must not block the visible next step.
+      intentVersion += 1;
+      return intent;
+    }
+  }
+
+  function clearIntent(expectedIntent = null) {
+    const currentIntent = readIntent();
+    if (expectedIntent && !samePendingIntent(currentIntent, expectedIntent)) return false;
+    try {
+      intentStore?.clear?.();
+      intentVersion += 1;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function closeForStaleIntent(message) {
+    const options = { reason: "stale-intent", restoreFocus: false };
+    closeActiveJoinConfirmation(undefined, options);
+    closeActiveDetail(undefined, options);
+    state.drawerExpanded = true;
+    publish();
+    toast(message);
+  }
+
+  function openJoinConfirmationForSession(session, detail = null) {
+    const intent = { action: "join", sessionId: session.sessionId };
+    if (lifecycleActionIsInFlight(session.sessionId)) {
+      toast("這個球局的操作正在處理中。");
+      return null;
+    }
+    if (activeJoinConfirmation && String(activeJoinConfirmationSessionId) === String(session.sessionId)) {
+      return activeJoinConfirmation;
+    }
+    const confirmingAuth = captureAuthSnapshot();
+    closeActiveJoinConfirmation();
+    let confirmation = null;
+    confirmation = openJoinConfirmation(session, {
+      onClose: ({ reason = "dismiss" } = {}) => {
+        if (activeJoinConfirmation === confirmation) {
+          activeJoinConfirmation = null;
+          activeJoinConfirmationSessionId = null;
+        }
+        if (reason === "dismiss") clearIntent(intent);
+      },
+      onConfirm: (close) => requestJoin(session, close, detail, confirmingAuth, confirmation),
+    });
+    activeJoinConfirmation = confirmation?.close ? confirmation : null;
+    activeJoinConfirmationSessionId = activeJoinConfirmation ? session.sessionId : null;
+    return confirmation;
+  }
+
+  function openProfileForIntent(intent, { returnSession = null } = {}) {
+    if (activeProfilePrompt) return activeProfilePrompt;
+    let sheet = null;
+    sheet = promptProfile({
+      courts: state.courts,
+      courtsReady: state.courtsReady,
+      intent,
+      onClose: ({ reason = "dismiss", saved = false } = {}) => {
+        if (activeProfilePrompt === sheet) activeProfilePrompt = null;
+        if (!saved && reason === "dismiss") clearIntent(intent);
+      },
+      returnSession,
+    });
+    activeProfilePrompt = sheet?.close ? sheet : null;
+    return activeProfilePrompt;
+  }
+
+  function requireSessionAction(intent, { detail = null, session = null } = {}) {
+    const savedIntent = saveIntent(intent);
+    if (!state.authSession) {
+      openLogin({
+        onClose: ({ reason = "dismiss" } = {}) => {
+          if (reason === "dismiss") clearIntent(savedIntent);
+        },
+      });
+      return;
+    }
+    const readiness = profileReadiness(state.profile);
+    if (readiness !== "ready") {
+      toast(profileUnavailableMessage(readiness));
+      return;
+    }
+    if (!profileIsComplete(state.profile)) {
+      openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
+      return;
+    }
+    if (savedIntent.action === "create") {
+      openCreateSessionForIntent(savedIntent);
+      return;
+    }
+    if (session) openJoinConfirmationForSession(session, detail);
   }
 
   function startPrimaryAction(session, detail) {
@@ -472,27 +650,7 @@ export function createSessionController({
       toast("聯絡方式會在我的球局流程中提供。");
       return;
     }
-    if (!state.session) {
-      beginAnonymousIntent({ action: "join", sessionId: session.sessionId });
-      openLogin();
-      return;
-    }
-    if (!profileIsComplete(state.profile)) {
-      beginAnonymousIntent({ action: "join", sessionId: session.sessionId });
-      promptProfile();
-      return;
-    }
-    if (lifecycleActionIsInFlight(session.sessionId)) {
-      toast("這個球局的操作正在處理中。");
-      return;
-    }
-    const confirmingAuth = captureAuthSnapshot();
-    closeActiveJoinConfirmation();
-    let confirmation = null;
-    confirmation = openJoinConfirmation(session, {
-      onConfirm: (close) => requestJoin(session, close, detail, confirmingAuth, confirmation),
-    });
-    activeJoinConfirmation = confirmation?.close ? confirmation : null;
+    requireSessionAction({ action: "join", sessionId: session.sessionId }, { detail, session });
   }
 
   async function refreshAuthoritativeState(authSnapshot) {
@@ -517,7 +675,7 @@ export function createSessionController({
       close?.();
       closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
-      promptProfile();
+      requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
       return;
     }
     const mutation = beginLifecycleAction("join", session.sessionId, confirmingAuth);
@@ -530,6 +688,7 @@ export function createSessionController({
     try {
       const result = await api.requestToJoinSession(session.sessionId);
       if (!isCurrentAuthSnapshot(confirmingAuth)) return;
+      clearIntent({ action: "join", sessionId: session.sessionId });
       close?.();
       closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
@@ -569,6 +728,117 @@ export function createSessionController({
     } finally {
       finishLifecycleAction(mutation);
     }
+  }
+
+  async function submitCreateSession(input, close, sheet, openedAuthSnapshot = captureAuthSnapshot()) {
+    const authSnapshot = openedAuthSnapshot;
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsComplete(state.profile)) {
+      throw new Error("登入或個人檔案狀態已變更，請重新開啟表單。");
+    }
+    try {
+      const result = await api.createSession(input);
+      if (!isCurrentAuthSnapshot(authSnapshot)) {
+        throw new Error("登入狀態已變更，請重新開啟表單。");
+      }
+      clearIntent({ action: "create" });
+      if (activeCreateSession === sheet) activeCreateSession = null;
+      close?.();
+      await Promise.all([
+        loadDiscovery(state.bounds),
+        reloadParticipation(authSnapshot.epoch, authSnapshot.identity),
+      ]);
+      if (!isCurrentAuthSnapshot(authSnapshot)) return result;
+      showCreatedSession(result?.sessionId);
+      toast("已建立球局。");
+      return result;
+    } catch (error) {
+      if (error?.name === "DataApiUnavailableError") {
+        throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
+      }
+      throw error;
+    }
+  }
+
+  function openCreateSessionForIntent(intent = { action: "create" }) {
+    if (activeCreateSession) return activeCreateSession;
+    const openedAuthSnapshot = captureAuthSnapshot();
+    let sheet = null;
+    sheet = openCreateSession({
+      courts: state.courts,
+      courtsReady: state.courtsReady,
+      onClose: ({ reason = "dismiss" } = {}) => {
+        if (activeCreateSession === sheet) activeCreateSession = null;
+        if (reason === "dismiss") clearIntent(intent);
+      },
+      onSubmit: (input, close) => submitCreateSession(input, close, sheet, openedAuthSnapshot),
+    });
+    activeCreateSession = sheet?.close ? sheet : null;
+    return activeCreateSession;
+  }
+
+  function resumePendingIntent() {
+    const authSnapshot = captureAuthSnapshot();
+    if (!isCurrentAuthSnapshot(authSnapshot)) return Promise.resolve(false);
+    const intent = readIntent();
+    if (!intent) return Promise.resolve(false);
+    const resumeKey = JSON.stringify([
+      authSnapshot.epoch,
+      authSnapshot.identity,
+      intent.action,
+      intent.action === "join" ? intent.sessionId : null,
+    ]);
+    if (resumeInFlight.has(resumeKey)) return resumeInFlight.get(resumeKey);
+    const operation = (async () => {
+      if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
+
+      if (intent.action === "create") {
+        const readiness = profileReadiness(state.profile);
+        if (readiness !== "ready") {
+          if (readiness === "error") toast(profileUnavailableMessage(readiness));
+          return false;
+        }
+        if (!profileIsComplete(state.profile)) {
+          openProfileForIntent(intent);
+          return true;
+        }
+        openCreateSessionForIntent(intent);
+        return true;
+      }
+
+      if (intent.action !== "join" || typeof api?.loadSessionSummary !== "function") return false;
+      let target = null;
+      try {
+        target = await api.loadSessionSummary(intent.sessionId);
+      } catch {
+        if (isCurrentAuthSnapshot(authSnapshot) && samePendingIntent(readIntent(), intent)) {
+          toast("暫時無法確認這個球局，請稍後再試。");
+        }
+        return false;
+      }
+      if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
+
+      const staleMessage = staleIntentMessage(target);
+      if (staleMessage) {
+        clearIntent(intent);
+        closeForStaleIntent(staleMessage);
+        return false;
+      }
+      const readiness = profileReadiness(state.profile);
+      if (readiness !== "ready") {
+        if (readiness === "error") toast(profileUnavailableMessage(readiness));
+        return false;
+      }
+      if (!profileIsComplete(state.profile)) {
+        openProfileForIntent(intent, { returnSession: target });
+        return true;
+      }
+      openJoinConfirmationForSession(target);
+      return true;
+    })();
+    resumeInFlight.set(resumeKey, operation);
+    return operation.finally(() => {
+      if (resumeInFlight.get(resumeKey) === operation) resumeInFlight.delete(resumeKey);
+    });
   }
 
   function requestCurrentLocation() {
@@ -619,28 +889,51 @@ export function createSessionController({
   }
 
   function openCreateIntent() {
-    beginAnonymousIntent({ action: "create" });
-    openCreatePrompt({
-      signedIn: Boolean(state.session),
-      onContinue: () => (state.session ? promptProfile() : openLogin()),
-    });
+    requireSessionAction({ action: "create" });
   }
 
   async function setAuthState(session, profile = null) {
-    const epoch = ++authEpoch;
     const identity = sessionIdentity(session);
-    const identityChanged = sessionIdentity(state.session) !== identity;
-    const eligibilityWasLost = profileIsComplete(state.profile) && !profileIsComplete(profile);
-    if (identityChanged || eligibilityWasLost) {
-      closeActiveJoinConfirmation();
-      closeActiveDetail();
+    const previousIdentity = sessionIdentity(state.authSession);
+    const identityChanged = previousIdentity !== identity;
+    const signedOut = Boolean(previousIdentity) && !identity;
+    const accountChanged = Boolean(previousIdentity) && Boolean(identity) && previousIdentity !== identity;
+    const previousEligible = profileIsComplete(state.profile);
+    const nextEligible = profileIsComplete(profile);
+    const previousReadiness = profileReadiness(state.profile);
+    const nextReadiness = profileReadiness(profile);
+    const eligibilityChanged = previousEligible !== nextEligible;
+    const eligibilityWasLost = previousEligible && !nextEligible;
+    const readinessChanged = previousReadiness !== nextReadiness;
+    if (identityChanged || eligibilityChanged || readinessChanged) authEpoch += 1;
+    const epoch = authEpoch;
+
+    if (signedOut || accountChanged) clearIntent();
+    if (identityChanged) {
+      const options = { reason: "account-change", restoreFocus: false };
+      closeActiveCreateSession(options);
+      closeActiveProfilePrompt(options);
+      closeActiveJoinConfirmation(undefined, options);
+      closeActiveDetail(undefined, options);
+    } else if (eligibilityWasLost) {
+      const options = { reason: "profile-incomplete", restoreFocus: false };
+      closeActiveCreateSession(options);
+      closeActiveJoinConfirmation(undefined, options);
+      closeActiveDetail(undefined, options);
+    } else if (eligibilityChanged && nextEligible) {
+      // A previously incomplete profile may have completed in another tab or
+      // after the sheet's RPC returned. Do not leave that stale form beneath
+      // the resumed confirmation/create sheet.
+      closeActiveProfilePrompt({ reason: "profile-resolved", restoreFocus: false });
     }
-    state.session = session ?? null;
+
+    state.authSession = session ?? null;
     state.profile = profile ?? null;
-    state.mySessions = [];
+    if (identityChanged) state.mySessions = [];
     reconcileActiveDetailParticipation();
     publish();
     if (await reloadParticipation(epoch, identity)) publish();
+    if (epoch === authEpoch && isCurrentAuthSnapshot({ epoch, identity })) await resumePendingIntent();
   }
 
   function retryDiscovery() {
@@ -653,7 +946,11 @@ export function createSessionController({
 
   return {
     attachMap,
+    capturePendingIntentVersion: () => intentVersion,
+    clearPendingIntent: () => clearIntent(),
+    clearPendingIntentIfUnchanged: (version) => (version === intentVersion ? clearIntent() : false),
     expandBounds,
+    getMySessions: () => [...state.mySessions],
     getVisibleSessions: visibleSessions,
     loadDiscovery,
     openCourt,
@@ -661,6 +958,7 @@ export function createSessionController({
     openSession: openSessionById,
     requestCurrentLocation,
     resetFilters,
+    resumePendingIntent,
     retryDiscovery,
     setAuthState,
     setCourts,

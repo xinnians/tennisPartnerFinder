@@ -15,6 +15,7 @@ import {
   mapSessionContactRow,
   mapSessionRosterRow,
   mapSessionSummary,
+  resolveInitialSession,
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
 import { MOCK_SESSIONS } from "../src/mockData.js";
@@ -73,6 +74,33 @@ function session(overrides = {}) {
 function sortedKeys(value) {
   return Object.keys(value).sort();
 }
+
+test("initial auth restoration distinguishes a definitive anonymous result from a recoverable error", async () => {
+  const anonymousClient = {
+    auth: {
+      async getSession() {
+        return { data: { session: null }, error: null };
+      },
+    },
+  };
+  assert.equal(await resolveInitialSession(anonymousClient, null), null);
+
+  const restoreError = new Error("temporary refresh failure");
+  const restoringClient = {
+    auth: {
+      async getSession() {
+        return { data: { session: null }, error: null };
+      },
+      async setSession() {
+        return { data: { session: null }, error: restoreError };
+      },
+    },
+  };
+  await assert.rejects(
+    () => resolveInitialSession(restoringClient, JSON.stringify({ access_token: "access", refresh_token: "refresh" })),
+    restoreError
+  );
+});
 
 test("public and My Sessions mappers keep an explicit allowlist", () => {
   const row = {

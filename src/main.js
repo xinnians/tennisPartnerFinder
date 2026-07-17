@@ -13,27 +13,49 @@ import {
   setUserLocation,
   subscribeToMapIdle,
 } from "./map.js";
-import { getInitialSession, loadCourts, loadCurrentProfile, loadMySessions, loadSessionDiscovery, onAuthStateChange, requestToJoinSession, signInWithOAuthProvider, withdrawFromSession } from "./dataApi.js";
+import {
+  createSession,
+  getInitialSession,
+  loadCourts,
+  loadCurrentProfile,
+  loadMySessions,
+  loadSessionDiscovery,
+  loadSessionSummary,
+  onAuthStateChange,
+  requestToJoinSession,
+  saveCurrentProfile,
+  signInWithOAuthProvider,
+  withdrawFromSession,
+} from "./dataApi.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
 import { createSessionController } from "./sessionController.js";
 import {
   openCourtSessionDrawer,
+  openCreateSessionSheet,
   openJoinSessionConfirmation,
+  openProfileCompletionSheet,
   openSessionSheet,
+  renderCreatedSessionDestination,
   renderMapDataStatus,
   renderNearbySessionsDrawer,
 } from "./sessionViews.js";
-import { mountDialog, mountSheet, openLoginModal } from "./sheets.js";
+import { openLoginModal } from "./sheets.js";
 import { esc } from "./util.js";
 
 let google = null;
 let map = null;
 let courts = [];
+let courtsReady = false;
 let sessionMarkers = [];
 let courtMarkers = [];
 let controller;
 let authStateEpoch = 0;
 let currentAuthIdentity = null;
+let authSession = null;
+let currentProfile = null;
+let activeProfileCompletion = null;
+let profileLoadStatus = "idle";
+let profileRevision = 0;
 
 function toast(message) {
   const root = document.getElementById("toast-root");
@@ -42,43 +64,87 @@ function toast(message) {
   toast.timer = setTimeout(() => (root.innerHTML = ""), 2400);
 }
 
-function openSafeLogin() {
-  openLoginModal({
+const LOCAL_DEMO_UNAVAILABLE = "本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。";
+
+function defaultProfile() {
+  return {
+    courts: new Set(),
+    lineId: "",
+    nick: "",
+    ntrp: 3.5,
+    slots: new Set(["we-m"]),
+    types: new Set(),
+  };
+}
+
+function openSafeLogin({ onClose = () => {} } = {}) {
+  if (!isSupabaseConfigured) {
+    onClose();
+    toast(LOCAL_DEMO_UNAVAILABLE);
+    return null;
+  }
+  return openLoginModal({
+    onClose,
     onProvider: async (provider) => {
-      if (!isSupabaseConfigured) throw new Error("登入服務尚未啟用");
       await signInWithOAuthProvider(provider);
     },
   });
 }
 
-function openProfileCompletionPrompt() {
-  mountDialog({
-    id: "profile-completion-prompt",
-    label: "完成個人檔案",
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">完成後即可申請</p><h2>請先完成個人檔案</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉提示">×</button>
-      </div>
-      <p class="surface__copy">個人檔案設定會在登入後的流程中提供。</p>`,
-  });
+function closeActiveProfileCompletion(options = { reason: "account-change", restoreFocus: false }) {
+  const mounted = activeProfileCompletion;
+  activeProfileCompletion = null;
+  mounted?.close?.(options);
 }
 
-function openCreatePrompt({ signedIn, onContinue }) {
-  const mounted = mountSheet({
-    id: "create-session-prompt",
-    label: "開球局",
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">開球局</p><h2>建立你的下一場球局</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉開球局提示">×</button>
-      </div>
-      <p class="surface__copy">建立球局的表單會在${signedIn ? "完成個人檔案後" : "登入後"}提供。</p>
-      <button type="button" class="session-primary" data-create-continue>${signedIn ? "完成個人檔案" : "登入後繼續"}</button>`,
+function openProfileCompletion({ courts: selectableCourts, courtsReady: formCourtsReady, intent, onClose = () => {}, returnSession } = {}) {
+  const openedIdentity = authIdentity(authSession);
+  let mounted = null;
+  mounted = openProfileCompletionSheet({
+    courts: selectableCourts ?? courts,
+    courtsReady: formCourtsReady ?? courtsReady,
+    onClose: (detail) => {
+      if (activeProfileCompletion === mounted) {
+        activeProfileCompletion = null;
+      }
+      onClose(detail);
+    },
+    onSave: async (draft) => {
+      if (!isSupabaseConfigured) throw new Error(LOCAL_DEMO_UNAVAILABLE);
+      if (!openedIdentity || openedIdentity !== authIdentity(authSession)) {
+        throw new Error("登入狀態已變更，請重新開啟個人檔案。");
+      }
+      if (profileLoadStatus !== "ready") {
+        throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
+      }
+      const saved = await saveCurrentProfile(draft);
+      if (openedIdentity !== authIdentity(authSession)) {
+        throw new Error("登入狀態已變更，請重新開啟個人檔案。");
+      }
+      profileRevision += 1;
+      profileLoadStatus = "ready";
+      currentProfile = saved ?? draft;
+      return currentProfile;
+    },
+    onSaved: async (savedProfile) => {
+      if (openedIdentity !== authIdentity(authSession)) return;
+      currentProfile = savedProfile ?? currentProfile ?? defaultProfile();
+      if (!authSession) return;
+      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+    },
+    profile: currentProfile ?? defaultProfile(),
+    returnSession: intent?.action === "join" ? returnSession : null,
   });
-  mounted.root.querySelector("[data-create-continue]")?.addEventListener("click", () => {
-    mounted.close();
-    onContinue();
+  activeProfileCompletion = mounted;
+  return mounted;
+}
+
+function openCreateSession({ courts: selectableCourts, courtsReady: formCourtsReady, onClose, onSubmit } = {}) {
+  return openCreateSessionSheet({
+    courts: selectableCourts ?? courts,
+    courtsReady: formCourtsReady ?? courtsReady,
+    onClose,
+    onSubmit,
   });
 }
 
@@ -138,6 +204,23 @@ function renderDiscovery(view) {
   });
 }
 
+function showMapPage() {
+  document.getElementById("tab-map").hidden = false;
+  document.getElementById("my-sessions-page").hidden = true;
+}
+
+function showMySessionsPage(createdSessionId = null) {
+  document.getElementById("tab-map").hidden = true;
+  const page = document.getElementById("my-sessions-page");
+  page.hidden = false;
+  renderCreatedSessionDestination(document.getElementById("my-sessions-root"), {
+    createdSessionId,
+    onBack: showMapPage,
+    onOpenSession: controller.openSession,
+    sessions: controller.getMySessions(),
+  });
+}
+
 function populateCourtFilters(nextCourts) {
   const districts = [...new Set(nextCourts.map((court) => court.district).filter(Boolean))].sort();
   const district = document.getElementById("district-filter");
@@ -192,25 +275,34 @@ function wireFilters() {
 async function loadCourtsImmediately() {
   try {
     courts = await loadCourts();
-    controller.setCourts(courts);
+    courtsReady = true;
+    controller.setCourts(courts, { ready: true });
     populateCourtFilters(courts);
     renderBaseCourtPins();
   } catch {
     courts = [];
-    controller.setCourts([]);
+    courtsReady = true;
+    controller.setCourts([], { ready: true });
     toast("球場資料暫時無法載入。");
   }
 }
 
-function eligibilityFromPrivateProfile(profile) {
+function validNtrp(value) {
+  const ntrp = Number(value);
+  return Number.isFinite(ntrp) && ntrp >= 1 && ntrp <= 7 && Number.isInteger(ntrp * 2);
+}
+
+function eligibilityFromPrivateProfile(profile, { status = "ready" } = {}) {
   return {
     complete: Boolean(
       profile?.nick &&
-        Number.isFinite(Number(profile?.ntrp)) &&
+        validNtrp(profile?.ntrp) &&
         profile?.lineId &&
         (profile?.courts?.size ?? 0) > 0 &&
-        (profile?.types?.size ?? 0) > 0
+        (profile?.types?.size ?? 0) > 0 &&
+        (profile?.slots?.size ?? 0) > 0
     ),
+    status,
   };
 }
 
@@ -222,33 +314,74 @@ function authIdentity(session) {
 function applyAuthCandidate(session) {
   const epoch = ++authStateEpoch;
   const identity = authIdentity(session);
+  const previousIdentity = currentAuthIdentity;
+  const identityChanged = previousIdentity !== identity;
+  if (identityChanged) closeActiveProfileCompletion();
   currentAuthIdentity = identity;
-  // Clear prior participation immediately; profile loading must not leave an
-  // earlier account's CTA state visible while it is in flight.
-  void controller.setAuthState(session, null);
-  if (!session) return;
+  authSession = session ?? null;
+  // Only a genuinely different account may clear the controller's profile
+  // state. Auth token refreshes for the same account must not invalidate an
+  // open confirmation or turn a complete profile transiently incomplete.
+  if (identityChanged) {
+    profileRevision += 1;
+    currentProfile = defaultProfile();
+    profileLoadStatus = session ? "loading" : "idle";
+    void controller.setAuthState(session, session ? { complete: false, status: "loading" } : null);
+  }
+  if (!session) {
+    currentProfile = defaultProfile();
+    profileLoadStatus = "idle";
+    return;
+  }
+  const profileLoadRevision = profileRevision;
   void (async () => {
-    let eligibility = null;
+    let profile = null;
+    let loadFailed = false;
     try {
-      eligibility = eligibilityFromPrivateProfile(await loadCurrentProfile());
+      profile = await loadCurrentProfile();
     } catch {
-      eligibility = null;
+      loadFailed = true;
     }
-    if (epoch !== authStateEpoch || identity !== currentAuthIdentity) return;
-    void controller.setAuthState(session, eligibility);
+    if (epoch !== authStateEpoch || identity !== currentAuthIdentity || profileLoadRevision !== profileRevision) return;
+    if (loadFailed) {
+      // A refresh failure must never turn a previously known profile into an
+      // editable blank replacement form. Initial failures remain blocked
+      // until the next successful auth/profile load.
+      if (profileLoadStatus === "ready") return;
+      profileLoadStatus = "error";
+      void controller.setAuthState(authSession, { complete: false, status: "error" });
+      return;
+    }
+    currentProfile = profile ?? defaultProfile();
+    profileLoadStatus = "ready";
+    void controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
   })();
 }
 
 async function restoreAuth() {
-  onAuthStateChange((session) => applyAuthCandidate(session));
+  const bootstrapIntentVersion = controller.capturePendingIntentVersion();
+  onAuthStateChange((session, event) => {
+    if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
+    applyAuthCandidate(session);
+  });
   const initialEpoch = authStateEpoch;
   let initialSession = null;
+  let initialSessionResolved = false;
   try {
     initialSession = await getInitialSession();
+    initialSessionResolved = true;
   } catch {
-    initialSession = null;
+    // Preserve a recoverable join/create return intent when a token refresh
+    // or auth transport request is temporarily unavailable. A later auth
+    // event can still complete restoration without pretending this was logout.
   }
-  if (initialEpoch !== authStateEpoch) return;
+  // getInitialSession waits for Supabase's URL/session initialization. Clear a
+  // stale intent only after that result is definitively anonymous, so an OAuth
+  // callback cannot lose its return intent during client startup.
+  if (initialSessionResolved && !initialSession && !authSession) {
+    controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion);
+  }
+  if (!initialSessionResolved || initialEpoch !== authStateEpoch) return;
   applyAuthCandidate(initialSession);
 }
 
@@ -284,21 +417,30 @@ function startMap() {
 
 function init() {
   controller = createSessionController({
-    api: { loadSessionDiscovery, loadMySessions, requestToJoinSession, withdrawFromSession },
+    api: {
+      createSession,
+      loadMySessions,
+      loadSessionDiscovery,
+      loadSessionSummary,
+      requestToJoinSession,
+      withdrawFromSession,
+    },
     mapTools: { getMapBounds, subscribeToMapIdle, setUserLocation, fitTaipei: fitTaipeiBounds },
     render: renderDiscovery,
     renderPins: renderSessionMarkers,
     openSession: (session, handlers) => openSessionSheet(session, handlers),
     openJoinConfirmation: (session, handlers) => openJoinSessionConfirmation(session, handlers),
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
-    openCreatePrompt,
+    openCreateSession,
     openLogin: openSafeLogin,
-    promptProfile: openProfileCompletionPrompt,
+    promptProfile: openProfileCompletion,
+    showCreatedSession: showMySessionsPage,
     toast,
   });
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
   document.getElementById("open-session").addEventListener("click", () => controller.openCreateIntent());
+  document.getElementById("open-my-sessions").addEventListener("click", () => showMySessionsPage());
 
   // None of these awaits the others: court pins and discovery work before auth.
   loadCourtsImmediately();

@@ -57,12 +57,51 @@ function withNavigatorGeolocation(geolocation, run) {
     });
 }
 
+function createIntentStore(initial = null) {
+  let intent = initial;
+  const events = [];
+  return {
+    clear() {
+      events.push({ type: "clear" });
+      intent = null;
+    },
+    events,
+    read() {
+      events.push({ type: "read" });
+      return intent;
+    },
+    save(nextIntent) {
+      events.push({ intent: nextIntent, type: "save" });
+      intent = nextIntent;
+      return intent;
+    },
+    value: () => intent,
+  };
+}
+
+function createSurface(onClose = () => {}) {
+  return {
+    closeCalls: 0,
+    courtUpdates: [],
+    close(options) {
+      this.closeCalls += 1;
+      onClose(options);
+    },
+    setCourts(courts, options) {
+      this.courtUpdates.push({ courts, options });
+    },
+  };
+}
+
 function createHarness(overrides = {}) {
   const renders = [];
   const pinBatches = [];
   const opened = [];
   const confirmations = [];
   const courtDrawers = [];
+  const createSheets = [];
+  const loginPrompts = [];
+  const profilePrompts = [];
   const toasts = [];
   const session = overrides.session ?? futureSession();
   const api = {
@@ -78,23 +117,52 @@ function createHarness(overrides = {}) {
     render: (view) => renders.push(view),
     renderPins: (sessions) => pinBatches.push(sessions),
     openSession: (openedSession, handlers) => {
-      const detail = { closeCalls: 0, close() { this.closeCalls += 1; } };
+      const detail = createSurface();
       opened.push({ detail, handlers, session: openedSession });
       return detail;
     },
     openJoinConfirmation: (openedSession, handlers) => {
-      const detail = { closeCalls: 0, close() { this.closeCalls += 1; } };
+      const detail = createSurface(handlers.onClose);
       confirmations.push({ detail, handlers, session: openedSession });
       return detail;
     },
     openCourtDrawer: (court, sessions, handlers) => {
-      const detail = { closeCalls: 0, close() { this.closeCalls += 1; } };
+      const detail = createSurface();
       courtDrawers.push({ court, detail, handlers, sessions });
       return detail;
     },
+    openCreateSession: (handlers) => {
+      const detail = createSurface(handlers.onClose);
+      createSheets.push({ detail, handlers });
+      return detail;
+    },
+    openLogin: (handlers) => {
+      const detail = createSurface(handlers.onClose);
+      loginPrompts.push({ detail, handlers });
+      return detail;
+    },
+    promptProfile: (context) => {
+      const detail = createSurface(context.onClose);
+      profilePrompts.push({ ...context, detail });
+      return detail;
+    },
+    intentStore: overrides.intentStore,
     toast: (message) => toasts.push(message),
   });
-  return { api, confirmations, controller, courtDrawers, opened, pinBatches, renders, session, toasts };
+  return {
+    api,
+    confirmations,
+    controller,
+    courtDrawers,
+    createSheets,
+    loginPrompts,
+    opened,
+    pinBatches,
+    profilePrompts,
+    renders,
+    session,
+    toasts,
+  };
 }
 
 function openAction(harness, sessionId = harness.session.sessionId) {
@@ -835,4 +903,267 @@ test("base-court drawers receive the same locally filtered session set as pins a
   harness.controller.setFilter("types", new Set(["單打"]));
   harness.controller.openCourt({ id: 8, name: "示範球場" });
   assert.deepEqual(harness.courtDrawers.at(-1).sessions.map((item) => item.sessionId), [1]);
+});
+
+test("an anonymous Join intent restores the same target into confirmation without sending a request", async () => {
+  const intentStore = createIntentStore();
+  let targetLoads = 0;
+  let joinRequests = 0;
+  const harness = createHarness({
+    intentStore,
+    api: {
+      loadSessionSummary: async (sessionId) => {
+        targetLoads += 1;
+        assert.equal(sessionId, 41);
+        return futureSession();
+      },
+      requestToJoinSession: async () => {
+        joinRequests += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  openAction(harness).handlers.onPrimary();
+  assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
+  assert.equal(harness.loginPrompts.length, 1);
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  assert.equal(targetLoads, 1);
+  assert.equal(harness.confirmations.length, 1);
+  assert.equal(harness.confirmations[0].session.sessionId, 41);
+  assert.equal(joinRequests, 0, "resume must still require an intentional confirmation");
+});
+
+test("an incomplete profile retains Join context and resumes only after profile completion", async () => {
+  const intentStore = createIntentStore();
+  const harness = createHarness({
+    intentStore,
+    api: { loadSessionSummary: async () => futureSession() },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, null);
+  await harness.controller.loadDiscovery();
+  openAction(harness).handlers.onPrimary();
+
+  assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
+  assert.equal(harness.profilePrompts.length, 1);
+  assert.deepEqual(harness.profilePrompts[0].intent, { action: "join", sessionId: 41 });
+  assert.equal(harness.profilePrompts[0].returnSession.court, "示範球場");
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  assert.equal(harness.confirmations.length, 1);
+  assert.equal(intentStore.value().sessionId, 41);
+});
+
+test("a signed-in incomplete profile resumes an existing Join intent into profile completion", async () => {
+  const intentStore = createIntentStore({ action: "join", sessionId: 41 });
+  const harness = createHarness({
+    intentStore,
+    api: { loadSessionSummary: async () => futureSession() },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, null);
+
+  assert.equal(harness.profilePrompts.length, 1);
+  assert.deepEqual(harness.profilePrompts[0].intent, { action: "join", sessionId: 41 });
+  assert.equal(harness.profilePrompts[0].returnSession.court, "示範球場");
+  assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
+});
+
+test("a same-account auth refresh cannot strand an in-flight Join intent", async () => {
+  const intentStore = createIntentStore({ action: "join", sessionId: 41 });
+  const target = deferred();
+  const harness = createHarness({
+    intentStore,
+    api: { loadSessionSummary: () => target.promise },
+  });
+
+  const firstAuth = harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  await flush();
+  const refresh = harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  await flush();
+  target.resolve(futureSession());
+  await Promise.all([firstAuth, refresh]);
+
+  assert.equal(harness.confirmations.length, 1);
+  assert.equal(harness.confirmations[0].session.sessionId, 41);
+  assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
+});
+
+test("a same-account auth refresh keeps an already-open confirmation actionable", async () => {
+  let joinRequests = 0;
+  const harness = createHarness({
+    api: {
+      requestToJoinSession: async () => {
+        joinRequests += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  await harness.controller.loadDiscovery();
+  openAction(harness).handlers.onPrimary();
+  const confirmation = harness.confirmations.at(-1);
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  assert.equal(confirmation.detail.closeCalls, 0);
+  await confirmation.handlers.onConfirm(() => {});
+  assert.equal(joinRequests, 1);
+});
+
+test("the newest same-account participation refresh wins over an older late response", async () => {
+  const pendingLoads = [];
+  const harness = createHarness({
+    api: {
+      loadMySessions: () => {
+        const next = deferred();
+        pendingLoads.push(next);
+        return next.promise;
+      },
+    },
+  });
+
+  const first = harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  await flush();
+  const second = harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  await flush();
+  assert.equal(pendingLoads.length, 2);
+
+  pendingLoads[1].resolve([{ sessionId: 41, viewerParticipantStatus: "accepted" }]);
+  await second;
+  pendingLoads[0].resolve([]);
+  await first;
+
+  assert.deepEqual(harness.controller.getMySessions(), [{ sessionId: 41, viewerParticipantStatus: "accepted" }]);
+});
+
+test("profile loading and profile-load errors preserve intent without opening an editable blank form", async () => {
+  const intentStore = createIntentStore();
+  const harness = createHarness({ intentStore });
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: false, status: "loading" });
+  harness.controller.openCreateIntent();
+  assert.equal(harness.profilePrompts.length, 0);
+  assert.ok(harness.toasts.includes("正在讀取個人檔案，請稍候。"));
+  assert.deepEqual(intentStore.value(), { action: "create" });
+
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: false, status: "error" });
+  assert.equal(harness.profilePrompts.length, 0);
+  assert.ok(harness.toasts.includes("個人檔案暫時無法載入，請重新整理後再試。"));
+  assert.deepEqual(intentStore.value(), { action: "create" });
+});
+
+test("an account switch closes account-bound create and profile forms before they can be reused", async () => {
+  let createCalls = 0;
+  const createFlow = createHarness({
+    api: {
+      createSession: async () => {
+        createCalls += 1;
+        return { sessionId: 99 };
+      },
+    },
+  });
+
+  await createFlow.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  createFlow.controller.openCreateIntent();
+  const staleCreate = createFlow.createSheets.at(-1);
+  await createFlow.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+
+  assert.equal(staleCreate.detail.closeCalls, 1);
+  await assert.rejects(staleCreate.handlers.onSubmit({ courtId: 8 }, () => {}), /登入或個人檔案狀態已變更/);
+  assert.equal(createCalls, 0);
+
+  const profileHarness = createHarness();
+  await profileHarness.controller.setAuthState({ user: { id: "account-a" } }, null);
+  profileHarness.controller.openCreateIntent();
+  const staleProfile = profileHarness.profilePrompts.at(-1);
+  await profileHarness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+
+  assert.equal(staleProfile.detail.closeCalls, 1);
+});
+
+test("active profile and create forms receive courts loaded after they open", async () => {
+  const taipeiCourts = [{ id: 8, city: "台北市", district: "大安區", name: "示範球場" }];
+  const createFlow = createHarness();
+  await createFlow.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  createFlow.controller.openCreateIntent();
+  const createForm = createFlow.createSheets.at(-1);
+  createFlow.controller.setCourts(taipeiCourts);
+  assert.deepEqual(createForm.detail.courtUpdates.at(-1).courts, taipeiCourts);
+
+  const profileHarness = createHarness();
+  await profileHarness.controller.setAuthState({ user: { id: "account-a" } }, null);
+  profileHarness.controller.openCreateIntent();
+  const profileForm = profileHarness.profilePrompts.at(-1);
+  profileHarness.controller.setCourts(taipeiCourts);
+  assert.deepEqual(profileForm.detail.courtUpdates.at(-1).courts, taipeiCourts);
+});
+
+test("unavailable or full resume targets clear intent and leave the nearby drawer usable", async () => {
+  const fullIntent = createIntentStore({ action: "join", sessionId: 41 });
+  const fullHarness = createHarness({
+    intentStore: fullIntent,
+    api: { loadSessionSummary: async () => futureSession({ slotsRemaining: 0, status: "full" }) },
+  });
+  await fullHarness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  assert.equal(fullIntent.value(), null);
+  assert.deepEqual(fullHarness.toasts, ["球局已額滿，已回到附近球局。"]);
+  assert.equal(fullHarness.renders.at(-1).expanded, true);
+  assert.equal(fullHarness.confirmations.length, 0);
+
+  for (const [status, message] of [
+    ["cancelled", "球局已取消，已回到附近球局。"],
+    ["expired", "球局已結束，已回到附近球局。"],
+    ["started", "球局已開始，已回到附近球局。"],
+  ]) {
+    const intentStore = createIntentStore({ action: "join", sessionId: 41 });
+    const harness = createHarness({
+      intentStore,
+      api: { loadSessionSummary: async () => futureSession({ status }) },
+    });
+    await harness.controller.setAuthState({ user: { id: `guest-${status}` } }, { complete: true });
+    assert.equal(intentStore.value(), null, `${status} clears the original intent`);
+    assert.deepEqual(harness.toasts, [message]);
+    assert.equal(harness.confirmations.length, 0);
+  }
+
+  const unavailableIntent = createIntentStore({ action: "join", sessionId: 41 });
+  const unavailableHarness = createHarness({
+    intentStore: unavailableIntent,
+    api: { loadSessionSummary: async () => null },
+  });
+  await unavailableHarness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  assert.equal(unavailableIntent.value(), null);
+  assert.deepEqual(unavailableHarness.toasts, ["球局已取消、結束或不再開放，已回到附近球局。"]);
+  assert.equal(unavailableHarness.renders.at(-1).expanded, true);
+});
+
+test("closing login or a recovered join confirmation clears only its matching intent", async () => {
+  const intentStore = createIntentStore();
+  const harness = createHarness({ intentStore, api: { loadSessionSummary: async () => futureSession() } });
+  await harness.controller.loadDiscovery();
+  openAction(harness).handlers.onPrimary();
+  harness.loginPrompts[0].handlers.onClose();
+  assert.equal(intentStore.value(), null);
+
+  intentStore.save({ action: "join", sessionId: 41 });
+  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { complete: true });
+  harness.confirmations[0].handlers.onClose();
+  assert.equal(intentStore.value(), null);
+});
+
+test("replacing a login surface keeps its pending intent, while a dismissal clears it", async () => {
+  const intentStore = createIntentStore();
+  const harness = createHarness({ intentStore });
+  await harness.controller.loadDiscovery();
+  openAction(harness).handlers.onPrimary();
+
+  harness.loginPrompts[0].handlers.onClose({ reason: "replace" });
+  assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
+
+  harness.loginPrompts[0].handlers.onClose({ reason: "dismiss" });
+  assert.equal(intentStore.value(), null);
 });

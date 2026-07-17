@@ -21,6 +21,7 @@ export function createPlaywrightConfig({
     expect: { timeout: 5_000 },
     use: {
       baseURL: "http://127.0.0.1:5174",
+      timezoneId: "Asia/Taipei",
       trace: "on-first-retry",
     },
     webServer: {
@@ -51,12 +52,12 @@ export function createPlaywrightConfig({
       },
       {
         name: "supabase-chromium",
-        testMatch: /supabase\.spec\.js/,
+        testMatch: /session\.spec\.js/,
         use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:5175" },
       },
       {
         name: "supabase-mobile-chromium",
-        testMatch: /supabase\.spec\.js/,
+        testMatch: /session-mobile\.spec\.js/,
         use: {
           ...devices["Pixel 5"],
           baseURL: "http://127.0.0.1:5175",

@@ -29,15 +29,15 @@ function resolveRestoreTarget(target) {
   );
 }
 
-function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
+function mountSurface(root, { id, label, className = "", html, onClose, onMount } = {}) {
   const active = surfaces.get(root);
   // When a detail replaces a court sheet in the same root, retain the court
   // opener rather than the card about to be removed with the old surface.
   const previousFocus = active?.restoreFocus ?? captureRestoreTarget(document.activeElement);
-  closeSurface(root, { restoreFocus: false });
+  closeSurface(root, { reason: "replace", restoreFocus: false });
   root.innerHTML = `
     <div class="surface-backdrop" data-surface-dismiss></div>
-    <section id="${esc(id)}" class="surface ${esc(className)}" role="dialog" aria-modal="true" aria-label="${esc(
+    <section id="${esc(id)}" data-testid="${esc(id)}" class="surface ${esc(className)}" role="dialog" aria-modal="true" aria-label="${esc(
       label
     )}" tabindex="-1">
       ${html}
@@ -47,7 +47,7 @@ function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
   const releaseIsolation = pushSurfaceIsolation(root);
   let closed = false;
   let surfaceEntry = null;
-  const close = ({ restoreFocus = true } = {}) => {
+  const close = ({ reason = "dismiss", restoreFocus = true } = {}) => {
     if (closed) return;
     closed = true;
     document.removeEventListener("keydown", onKeyDown, true);
@@ -56,6 +56,7 @@ function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
     releaseIsolation();
     root.innerHTML = "";
     surfaces.delete(root);
+    onClose?.({ reason });
     if (restoreFocus) resolveRestoreTarget(previousFocus)?.focus({ preventScroll: true });
   };
 
@@ -96,15 +97,20 @@ function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
 
   onMount?.({ root, surface, close });
   requestAnimationFrame(() => {
-    if (!closed) (focusableNodes(surface)[0] ?? surface).focus({ preventScroll: true });
+    // Do not overwrite an intentional focus move made immediately after a
+    // surface opens (for example, a keyboard action selecting its primary
+    // CTA before the next animation frame).
+    if (!closed && !surface.contains(document.activeElement)) {
+      (focusableNodes(surface)[0] ?? surface).focus({ preventScroll: true });
+    }
   });
   return { root, surface, close };
 }
 
-function closeSurface(root, { restoreFocus = true } = {}) {
+function closeSurface(root, { reason = "dismiss", restoreFocus = true } = {}) {
   const active = surfaces.get(root);
   if (active) {
-    active.close({ restoreFocus });
+    active.close({ reason, restoreFocus });
   } else {
     root.innerHTML = "";
   }
@@ -128,11 +134,12 @@ export function closeModal() {
   closeSurface(modalRoot());
 }
 
-export function openLoginModal({ onProvider }) {
+export function openLoginModal({ onProvider, onClose } = {}) {
   const mounted = mountDialog({
     id: "login-dialog",
     label: "登入後繼續",
     className: "auth-dialog",
+    onClose,
     html: `
       <div class="surface__head">
         <div>

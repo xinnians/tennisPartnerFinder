@@ -26,6 +26,7 @@
         <div class="app-header__actions">
           <button type="button" id="use-my-location" class="location-button">使用我的位置</button>
           <button type="button" id="open-session" class="open-session-button">開球局</button>
+          <button type="button" id="open-my-sessions" class="my-sessions-button">我的球局</button>
         </div>
       </header>
 
@@ -66,6 +67,10 @@
         <aside id="nearby-sessions-drawer" class="nearby-sessions" aria-label="附近球局"></aside>
         <div id="map-data-status" aria-live="polite" hidden></div>
       </main>
+
+      <section id="my-sessions-page" class="my-sessions-page" aria-label="我的球局" hidden>
+        <div id="my-sessions-root" class="my-sessions-shell" tabindex="-1"></div>
+      </section>
 
       <div id="sheet-root"></div>
       <div id="modal-root"></div>
