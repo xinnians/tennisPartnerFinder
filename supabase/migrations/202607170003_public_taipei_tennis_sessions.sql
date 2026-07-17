@@ -14,6 +14,26 @@ alter table public.legacy_partner_requests set schema private;
 alter table public.reports rename to legacy_reports;
 alter table public.legacy_reports set schema private;
 
+-- Moving legacy tables private must preserve their history, not preserve their
+-- former cascade/set-null behavior.  A profile (including its auth-linked
+-- cascade) or legacy request therefore cannot silently erase or rewrite an
+-- archived record.
+alter table private.legacy_partner_requests
+  drop constraint if exists partner_requests_profile_id_fkey,
+  add constraint partner_requests_profile_id_fkey
+    foreign key (profile_id) references public.profiles (id) on delete restrict;
+
+alter table private.legacy_reports
+  drop constraint if exists reports_reporter_profile_id_fkey,
+  drop constraint if exists reports_reported_profile_id_fkey,
+  drop constraint if exists reports_partner_request_id_fkey,
+  add constraint reports_reporter_profile_id_fkey
+    foreign key (reporter_profile_id) references public.profiles (id) on delete restrict,
+  add constraint reports_reported_profile_id_fkey
+    foreign key (reported_profile_id) references public.profiles (id) on delete restrict,
+  add constraint reports_partner_request_id_fkey
+    foreign key (partner_request_id) references private.legacy_partner_requests (id) on delete restrict;
+
 revoke all on all tables in schema private from public, anon, authenticated;
 revoke all on all sequences in schema private from public, anon, authenticated;
 
@@ -230,16 +250,41 @@ security definer
 set search_path = ''
 as $$
 begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'open' or new.start_at <= now() then
+      raise exception 'INVALID_TRANSITION';
+    end if;
+
+    return new;
+  end if;
+
   if new.host_profile_id is distinct from old.host_profile_id then
     raise exception 'INVALID_TRANSITION';
   end if;
 
-  if new.status is distinct from old.status
-    and not (
+  if new.status is distinct from old.status then
+    if not (
       (old.status = 'open' and new.status in ('full', 'cancelled', 'played', 'expired'))
       or (old.status = 'full' and new.status in ('open', 'cancelled', 'played', 'expired'))
     ) then
-    raise exception 'INVALID_TRANSITION';
+      raise exception 'INVALID_TRANSITION';
+    end if;
+
+    if (
+      new.status in ('open', 'full', 'cancelled')
+      and new.start_at <= now()
+    ) or (
+      new.status = 'played'
+      and (
+        new.start_at > now()
+        or new.start_at <= now() - interval '24 hours'
+      )
+    ) or (
+      new.status = 'expired'
+      and new.start_at > now() - interval '24 hours'
+    ) then
+      raise exception 'INVALID_TRANSITION';
+    end if;
   end if;
 
   return new;
@@ -267,30 +312,37 @@ begin
     elsif new.status <> 'requested' then
       raise exception 'INVALID_TRANSITION';
     end if;
-
-    if new.status <> 'accepted' and new.played_confirmed then
+  else
+    if new.session_id is distinct from old.session_id
+      or new.profile_id is distinct from old.profile_id
+      or new.role is distinct from old.role then
       raise exception 'INVALID_TRANSITION';
     end if;
 
-    return new;
-  end if;
-
-  if new.session_id is distinct from old.session_id
-    or new.profile_id is distinct from old.profile_id
-    or new.role is distinct from old.role then
-    raise exception 'INVALID_TRANSITION';
-  end if;
-
-  if old.role = 'host' then
-    if new.status <> 'accepted' then
+    if old.role = 'host' then
+      if new.status <> 'accepted' then
+        raise exception 'INVALID_TRANSITION';
+      end if;
+    elsif new.status is distinct from old.status
+      and not (
+        (old.status = 'requested' and new.status in ('accepted', 'declined', 'withdrawn'))
+        or (old.status = 'accepted' and new.status = 'withdrawn')
+      ) then
       raise exception 'INVALID_TRANSITION';
     end if;
-  elsif new.status is distinct from old.status
-    and not (
-      (old.status = 'requested' and new.status in ('accepted', 'declined', 'withdrawn'))
-      or (old.status = 'accepted' and new.status = 'withdrawn')
-    ) then
-    raise exception 'INVALID_TRANSITION';
+  end if;
+
+  if new.role = 'guest' and new.status = 'requested' then
+    perform 1
+    from public.sessions session_row
+    where session_row.id = new.session_id
+      and session_row.status = 'open'
+      and session_row.start_at > now()
+    for update;
+
+    if not found then
+      raise exception 'INVALID_TRANSITION';
+    end if;
   end if;
 
   if new.status <> 'accepted' and new.played_confirmed then
@@ -341,7 +393,71 @@ begin
     and participant_row.status = 'accepted';
 
   if (session_status = 'open' and accepted_guest_count >= guest_slots)
-    or (session_status = 'full' and accepted_guest_count <> guest_slots) then
+    or (session_status = 'full' and accepted_guest_count <> guest_slots)
+    or (
+      session_status = 'full'
+      and exists (
+        select 1
+        from public.session_participants participant_row
+        where participant_row.session_id = target_session_id
+          and participant_row.role = 'guest'
+          and participant_row.status = 'requested'
+      )
+    ) then
+    raise exception 'INVALID_TRANSITION';
+  end if;
+
+  return null;
+end;
+$$;
+
+create or replace function private.enforce_session_host_invariant()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_session_id bigint;
+  session_host_profile_id bigint;
+  host_count bigint;
+  matching_host_count bigint;
+begin
+  if tg_table_name = 'sessions' then
+    if tg_op = 'DELETE' then
+      return null;
+    end if;
+    target_session_id := new.id;
+  elsif tg_op = 'DELETE' then
+    target_session_id := old.session_id;
+  else
+    target_session_id := new.session_id;
+  end if;
+
+  select session_row.host_profile_id
+  into session_host_profile_id
+  from public.sessions session_row
+  where session_row.id = target_session_id;
+
+  if not found then
+    return null;
+  end if;
+
+  select count(*)
+  into host_count
+  from public.session_participants participant_row
+  where participant_row.session_id = target_session_id
+    and participant_row.role = 'host';
+
+  select count(*)
+  into matching_host_count
+  from public.session_participants participant_row
+  where participant_row.session_id = target_session_id
+    and participant_row.role = 'host'
+    and participant_row.profile_id = session_host_profile_id
+    and participant_row.status = 'accepted';
+
+  if host_count <> 1 or matching_host_count <> 1 then
     raise exception 'INVALID_TRANSITION';
   end if;
 
@@ -351,7 +467,7 @@ $$;
 
 drop trigger if exists sessions_enforce_transition on public.sessions;
 create trigger sessions_enforce_transition
-before update on public.sessions
+before insert or update on public.sessions
 for each row execute function private.enforce_session_transition();
 
 drop trigger if exists session_participants_enforce_transition on public.session_participants;
@@ -370,6 +486,18 @@ create constraint trigger sessions_capacity_invariant
 after insert or update on public.sessions
 deferrable initially deferred
 for each row execute function private.enforce_session_capacity_invariant();
+
+drop trigger if exists session_participants_host_invariant on public.session_participants;
+create constraint trigger session_participants_host_invariant
+after insert or update or delete on public.session_participants
+deferrable initially deferred
+for each row execute function private.enforce_session_host_invariant();
+
+drop trigger if exists sessions_host_invariant on public.sessions;
+create constraint trigger sessions_host_invariant
+after insert or update or delete on public.sessions
+deferrable initially deferred
+for each row execute function private.enforce_session_host_invariant();
 
 alter table public.sports enable row level security;
 alter table public.sessions enable row level security;
@@ -587,12 +715,15 @@ declare
   locked_session public.sessions%rowtype;
   prior_status text;
 begin
-  guest_profile := private.require_complete_profile();
   locked_session := private.lock_and_expire_session(p_session_id);
 
   if locked_session.status = 'expired' then
     return 'SESSION_EXPIRED';
-  elsif locked_session.status = 'cancelled' then
+  end if;
+
+  guest_profile := private.require_complete_profile();
+
+  if locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
   elsif locked_session.status = 'full' then
     raise exception 'SESSION_FULL';
@@ -658,13 +789,15 @@ begin
   viewer_profile := private.viewer_profile_id();
   locked_session := private.lock_and_expire_session(p_session_id);
 
+  if locked_session.status = 'expired' then
+    return 'SESSION_EXPIRED';
+  end if;
+
   if viewer_profile is null or not private.is_session_host(locked_session.id, viewer_profile) then
     raise exception 'NOT_SESSION_HOST';
   end if;
 
-  if locked_session.status = 'expired' then
-    return 'SESSION_EXPIRED';
-  elsif locked_session.status = 'cancelled' then
+  if locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
   elsif locked_session.status not in ('open', 'full') then
     raise exception 'SESSION_NOT_OPEN';
@@ -800,13 +933,15 @@ begin
   viewer_profile := private.viewer_profile_id();
   locked_session := private.lock_and_expire_session(p_session_id);
 
+  if locked_session.status = 'expired' then
+    return 'SESSION_EXPIRED';
+  end if;
+
   if viewer_profile is null or not private.is_session_host(locked_session.id, viewer_profile) then
     raise exception 'NOT_SESSION_HOST';
   end if;
 
-  if locked_session.status = 'expired' then
-    return 'SESSION_EXPIRED';
-  elsif locked_session.status = 'cancelled' then
+  if locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
   elsif locked_session.status not in ('open', 'full') then
     raise exception 'INVALID_TRANSITION';
@@ -835,13 +970,15 @@ begin
   viewer_profile := private.viewer_profile_id();
   locked_session := private.lock_and_expire_session(p_session_id);
 
+  if locked_session.status = 'expired' then
+    return 'SESSION_EXPIRED';
+  end if;
+
   if viewer_profile is null or not private.is_session_host(locked_session.id, viewer_profile) then
     raise exception 'NOT_SESSION_HOST';
   end if;
 
-  if locked_session.status = 'expired' then
-    return 'SESSION_EXPIRED';
-  elsif locked_session.status = 'cancelled' then
+  if locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
   elsif locked_session.status not in ('open', 'full') then
     raise exception 'INVALID_TRANSITION';
@@ -871,6 +1008,9 @@ begin
   locked_session := private.lock_and_expire_session(p_session_id);
 
   if locked_session.status = 'expired' then
+    return 'SESSION_EXPIRED';
+  elsif locked_session.status = 'played'
+    and locked_session.start_at <= now() - interval '24 hours' then
     return 'SESSION_EXPIRED';
   elsif locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
@@ -1105,7 +1245,7 @@ left join public.profile_courts profile_court_row on profile_court_row.profile_i
 left join public.courts home_court_row on home_court_row.id = profile_court_row.court_id
 where viewer_participant.role = 'host'
   or (
-    viewer_participant.status = 'accepted'
+    viewer_participant.role = 'guest'
     and (participant_row.profile_id = viewer_participant.profile_id or participant_row.role = 'host')
   )
 group by
