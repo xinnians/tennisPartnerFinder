@@ -262,6 +262,10 @@ begin
     raise exception 'INVALID_TRANSITION';
   end if;
 
+  if new.start_at is distinct from old.start_at then
+    raise exception 'INVALID_TRANSITION';
+  end if;
+
   if new.status is distinct from old.status then
     if not (
       (old.status = 'open' and new.status in ('full', 'cancelled', 'played', 'expired'))
@@ -272,16 +276,16 @@ begin
 
     if (
       new.status in ('open', 'full', 'cancelled')
-      and new.start_at <= now()
+      and old.start_at <= now()
     ) or (
       new.status = 'played'
       and (
-        new.start_at > now()
-        or new.start_at <= now() - interval '24 hours'
+        old.start_at > now()
+        or old.start_at <= now() - interval '24 hours'
       )
     ) or (
       new.status = 'expired'
-      and new.start_at > now() - interval '24 hours'
+      and old.start_at > now() - interval '24 hours'
     ) then
       raise exception 'INVALID_TRANSITION';
     end if;
@@ -297,6 +301,10 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  parent_session public.sessions%rowtype;
+  accepted_guest_count bigint;
+  played_confirmation_is_new boolean;
 begin
   if tg_op = 'INSERT' then
     if new.role = 'host' then
@@ -332,21 +340,76 @@ begin
     end if;
   end if;
 
+  if tg_op = 'INSERT' then
+    played_confirmation_is_new := new.played_confirmed;
+  else
+    played_confirmation_is_new := new.played_confirmed and not old.played_confirmed;
+  end if;
+
   if new.role = 'guest' and new.status = 'requested' then
-    perform 1
+    select *
+    into parent_session
     from public.sessions session_row
     where session_row.id = new.session_id
-      and session_row.status = 'open'
-      and session_row.start_at > now()
     for update;
 
-    if not found then
+    if not found
+      or parent_session.status <> 'open'
+      or parent_session.start_at <= now() then
       raise exception 'INVALID_TRANSITION';
     end if;
   end if;
 
   if new.status <> 'accepted' and new.played_confirmed then
     raise exception 'INVALID_TRANSITION';
+  end if;
+
+  if tg_op = 'UPDATE'
+    and new.role = 'guest'
+    and new.status = 'accepted'
+    and new.status is distinct from old.status then
+    if old.status <> 'requested' then
+      raise exception 'INVALID_TRANSITION';
+    end if;
+
+    select *
+    into parent_session
+    from public.sessions session_row
+    where session_row.id = new.session_id
+    for update;
+
+    if not found
+      or parent_session.status <> 'open'
+      or parent_session.start_at <= now() then
+      raise exception 'INVALID_TRANSITION';
+    end if;
+
+    select count(*)
+    into accepted_guest_count
+    from public.session_participants participant_row
+    where participant_row.session_id = new.session_id
+      and participant_row.role = 'guest'
+      and participant_row.status = 'accepted';
+
+    if accepted_guest_count >= parent_session.slots_total then
+      raise exception 'INVALID_TRANSITION';
+    end if;
+  end if;
+
+  if played_confirmation_is_new then
+    select *
+    into parent_session
+    from public.sessions session_row
+    where session_row.id = new.session_id
+    for update;
+
+    if not found
+      or new.status <> 'accepted'
+      or parent_session.status <> 'played'
+      or parent_session.start_at > now()
+      or parent_session.start_at <= now() - interval '24 hours' then
+      raise exception 'INVALID_TRANSITION';
+    end if;
   end if;
 
   return new;
@@ -1014,7 +1077,7 @@ begin
     return 'SESSION_EXPIRED';
   elsif locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
-  elsif locked_session.status not in ('open', 'full', 'played') then
+  elsif locked_session.status <> 'played' then
     raise exception 'INVALID_TRANSITION';
   elsif locked_session.start_at > now() then
     raise exception 'INVALID_TRANSITION';
@@ -1181,7 +1244,7 @@ select
   ) as can_confirm_played,
   (
     viewer_participant.status = 'accepted'
-    and session_row.status in ('open', 'full', 'played')
+    and session_row.status = 'played'
     and session_row.start_at <= now()
     and session_row.start_at > now() - interval '24 hours'
   ) as can_confirm_attendance

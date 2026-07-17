@@ -14,7 +14,90 @@ exception when others then
 end;
 $$;
 
-select plan(178);
+-- Historical lifecycle fixtures require an authoritative clock setup, while
+-- production start_at values are intentionally immutable. This helper runs
+-- only inside pgTAP's rolled-back transaction and temporarily disables the
+-- one relevant transition trigger solely to construct naturally-aged records.
+create function pg_temp.set_session_fixture_state(
+  p_session_id bigint,
+  p_start_at timestamptz,
+  p_status text default null
+)
+returns void
+language plpgsql
+as $$
+begin
+  set constraints all immediate;
+  set constraints all deferred;
+  alter table public.sessions disable trigger sessions_enforce_transition;
+  alter table public.sessions disable trigger sessions_capacity_invariant;
+  alter table public.sessions disable trigger sessions_host_invariant;
+
+  begin
+    if p_status is null then
+      update public.sessions
+      set start_at = p_start_at
+      where id = p_session_id;
+    else
+      update public.sessions
+      set start_at = p_start_at,
+          status = p_status
+      where id = p_session_id;
+    end if;
+  exception when others then
+    alter table public.sessions enable trigger sessions_host_invariant;
+    alter table public.sessions enable trigger sessions_capacity_invariant;
+    alter table public.sessions enable trigger sessions_enforce_transition;
+    raise;
+  end;
+
+  alter table public.sessions enable trigger sessions_host_invariant;
+  alter table public.sessions enable trigger sessions_capacity_invariant;
+  alter table public.sessions enable trigger sessions_enforce_transition;
+end;
+$$;
+
+create function pg_temp.set_participant_fixture_status(
+  p_participant_id bigint,
+  p_status text
+)
+returns void
+language plpgsql
+as $$
+begin
+  set constraints all immediate;
+  set constraints all deferred;
+  alter table public.session_participants
+  disable trigger session_participants_enforce_transition;
+  alter table public.session_participants
+  disable trigger session_participants_capacity_invariant;
+  alter table public.session_participants
+  disable trigger session_participants_host_invariant;
+
+  begin
+    update public.session_participants
+    set status = p_status
+    where id = p_participant_id;
+  exception when others then
+    alter table public.session_participants
+    enable trigger session_participants_host_invariant;
+    alter table public.session_participants
+    enable trigger session_participants_capacity_invariant;
+    alter table public.session_participants
+    enable trigger session_participants_enforce_transition;
+    raise;
+  end;
+
+  alter table public.session_participants
+  enable trigger session_participants_host_invariant;
+  alter table public.session_participants
+  enable trigger session_participants_capacity_invariant;
+  alter table public.session_participants
+  enable trigger session_participants_enforce_transition;
+end;
+$$;
+
+select plan(192);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -784,9 +867,10 @@ select ok(
 );
 reset role;
 select set_config('pgtap.played_session_id', (select id::text from public.sessions where notes = '__pgtap_played_session__'), true);
-update public.sessions
-set start_at = now() - interval '1 hour'
-where id = current_setting('pgtap.played_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.played_session_id')::bigint,
+  now() - interval '1 hour'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
 select throws_ok(
@@ -857,14 +941,35 @@ select lives_ok(
   'host accepts the attendance guest'
 );
 reset role;
-update public.sessions
-set start_at = now() - interval '1 hour'
-where id = current_setting('pgtap.attendance_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.attendance_session_id')::bigint,
+  now() - interval '1 hour'
+);
+select throws_ok(
+  $$
+    insert into public.session_participants (session_id, profile_id, role, status)
+    values (
+      current_setting('pgtap.attendance_session_id')::bigint,
+      (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001006'),
+      'guest',
+      'requested'
+    )
+  $$,
+  'P0001', 'INVALID_TRANSITION', 'raw insert cannot create a requested waitlist row on a full session'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select is(
+  public.mark_session_played(current_setting('pgtap.attendance_session_id')::bigint),
+  'OK',
+  'attendance fixture can be marked played during the confirmation window'
+);
+reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001004', true);
 select throws_ok(
   $$select public.confirm_session_attendance(current_setting('pgtap.attendance_session_id')::bigint)$$,
-  'P0001', 'NOT_ACCEPTED_PARTICIPANT', 'non-accepted user cannot confirm attendance'
+  'P0001', 'NOT_ACCEPTED_PARTICIPANT', 'non-accepted user cannot confirm attendance after the session is played'
 );
 reset role;
 set local role authenticated;
@@ -886,33 +991,14 @@ select is(
 );
 select is(
   (select status from public.sessions where id = current_setting('pgtap.attendance_session_id')::bigint),
-  'full',
-  'attendance confirmation does not change session lifecycle status'
-);
-select throws_ok(
-  $$
-    insert into public.session_participants (session_id, profile_id, role, status)
-    values (
-      current_setting('pgtap.attendance_session_id')::bigint,
-      (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001006'),
-      'guest',
-      'requested'
-    )
-  $$,
-  'P0001', 'INVALID_TRANSITION', 'raw insert cannot create a requested waitlist row on a full session'
-);
-
-set local role authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
-select is(
-  public.mark_session_played(current_setting('pgtap.attendance_session_id')::bigint),
-  'OK',
-  'attendance fixture can be marked played during the confirmation window'
+  'played',
+  'attendance confirmation preserves the played lifecycle status'
 );
 reset role;
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.attendance_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.attendance_session_id')::bigint,
+  now() - interval '25 hours'
+);
 update public.session_participants
 set played_confirmed = false
 where id = current_setting('pgtap.attendance_guest_participant_id')::bigint;
@@ -958,9 +1044,10 @@ select ok(
 );
 reset role;
 select set_config('pgtap.stale_session_id', (select id::text from public.sessions where notes = '__pgtap_stale_session__'), true);
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.stale_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.stale_session_id')::bigint,
+  now() - interval '25 hours'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
 select is(
@@ -1021,9 +1108,10 @@ select ok(
 );
 reset role;
 select set_config('pgtap.cron_stale_session_id', (select id::text from public.sessions where notes = '__pgtap_cron_stale_session__'), true);
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.cron_stale_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.cron_stale_session_id')::bigint,
+  now() - interval '25 hours'
+);
 select is(
   private.expire_stale_sessions(),
   1,
@@ -1063,9 +1151,10 @@ select set_config(
   true
 );
 reset role;
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.non_host_stale_review_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.non_host_stale_review_session_id')::bigint,
+  now() - interval '25 hours'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
 select is(
@@ -1093,9 +1182,10 @@ select set_config(
   true
 );
 reset role;
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.non_host_stale_cancel_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.non_host_stale_cancel_session_id')::bigint,
+  now() - interval '25 hours'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
 select is(
@@ -1123,9 +1213,10 @@ select set_config(
   true
 );
 reset role;
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.non_host_stale_played_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.non_host_stale_played_session_id')::bigint,
+  now() - interval '25 hours'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
 select is(
@@ -1191,9 +1282,10 @@ select is(
   'full',
   'full-session expiry fixture reaches full before becoming stale'
 );
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.full_stale_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.full_stale_session_id')::bigint,
+  now() - interval '25 hours'
+);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
 select is(
@@ -1325,9 +1417,10 @@ select is(
   'full',
   'full cron fixture reaches full before worker expiry'
 );
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.cron_full_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.cron_full_session_id')::bigint,
+  now() - interval '25 hours'
+);
 select is(
   private.expire_stale_sessions(),
   1,
@@ -1382,7 +1475,62 @@ select set_config(
   )::text,
   true
 );
+select set_config(
+  'pgtap.raw_time_only_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '18 days', 3.0, 5.0, 1, '__pgtap_raw_time_only__'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.raw_combined_played_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '18 days', 3.0, 5.0, 1, '__pgtap_raw_combined_played__'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.raw_combined_expired_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '18 days', 3.0, 5.0, 1, '__pgtap_raw_combined_expired__'
+  )::text,
+  true
+);
 reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select set_config(
+  'pgtap.raw_started_accept_request_outcome',
+  public.request_to_join_session(current_setting('pgtap.raw_started_cancel_session_id')::bigint),
+  true
+);
+reset role;
+select set_config(
+  'pgtap.raw_started_accept_participant_id',
+  (
+    select participant_row.id::text
+    from public.session_participants participant_row
+    join public.profiles profile_row on profile_row.id = participant_row.profile_id
+    where participant_row.session_id = current_setting('pgtap.raw_started_cancel_session_id')::bigint
+      and profile_row.user_id = '00000000-0000-0000-0000-000000001006'
+  ),
+  true
+);
+select throws_ok(
+  $$update public.sessions set start_at = now() - interval '1 hour' where id = current_setting('pgtap.raw_time_only_session_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw time-only update cannot rewrite a session start'
+);
+select throws_ok(
+  $$update public.sessions set start_at = now() - interval '1 hour', status = 'played' where id = current_setting('pgtap.raw_combined_played_session_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw combined backdate and played transition cannot forge lifecycle timing'
+);
+select throws_ok(
+  $$update public.sessions set start_at = now() - interval '25 hours', status = 'expired' where id = current_setting('pgtap.raw_combined_expired_session_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw combined backdate and expiry transition cannot forge lifecycle timing'
+);
 select throws_ok(
   $$update public.sessions set status = 'played' where id = current_setting('pgtap.raw_future_played_session_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw future session cannot transition to played'
@@ -1391,12 +1539,14 @@ select throws_ok(
   $$update public.sessions set status = 'expired' where id = current_setting('pgtap.raw_future_expired_session_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw future session cannot transition to expired'
 );
-update public.sessions
-set start_at = now() - interval '1 hour'
-where id = current_setting('pgtap.raw_started_cancel_session_id')::bigint;
-update public.sessions
-set start_at = now() - interval '1 hour'
-where id = current_setting('pgtap.raw_recent_expired_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_started_cancel_session_id')::bigint,
+  now() - interval '1 hour'
+);
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_recent_expired_session_id')::bigint,
+  now() - interval '1 hour'
+);
 select throws_ok(
   $$update public.sessions set status = 'cancelled' where id = current_setting('pgtap.raw_started_cancel_session_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw started session cannot transition to cancelled'
@@ -1405,13 +1555,222 @@ select throws_ok(
   $$update public.sessions set status = 'expired' where id = current_setting('pgtap.raw_recent_expired_session_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw recently started session cannot transition to expired'
 );
-update public.sessions
-set start_at = now() - interval '25 hours'
-where id = current_setting('pgtap.raw_stale_played_session_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_stale_played_session_id')::bigint,
+  now() - interval '25 hours'
+);
 select throws_ok(
   $$update public.sessions set status = 'played' where id = current_setting('pgtap.raw_stale_played_session_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw stale session cannot transition to played'
 );
+
+-- A trusted raw participant write must not bypass the parent-session review
+-- contract. In particular, it must not create an accepted row that exposes a
+-- host LINE ID after a session has left its open, future, capacity-available
+-- state.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select set_config(
+  'pgtap.raw_accept_guard_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '18 days', 3.0, 5.0, 1, '__pgtap_raw_accept_guard__'
+  )::text,
+  true
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select set_config(
+  'pgtap.raw_accept_guard_request_outcome',
+  public.request_to_join_session(current_setting('pgtap.raw_accept_guard_session_id')::bigint),
+  true
+);
+reset role;
+select set_config(
+  'pgtap.raw_accept_guard_participant_id',
+  (
+    select participant_row.id::text
+    from public.session_participants participant_row
+    join public.profiles profile_row on profile_row.id = participant_row.profile_id
+    where participant_row.session_id = current_setting('pgtap.raw_accept_guard_session_id')::bigint
+      and profile_row.user_id = '00000000-0000-0000-0000-000000001006'
+  ),
+  true
+);
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_accept_guard_session_id')::bigint,
+  now() + interval '18 days',
+  'cancelled'
+);
+select throws_ok(
+  $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_accept_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur on a cancelled session'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select is(
+  (select count(*) from public.session_contacts where session_id = current_setting('pgtap.raw_accept_guard_session_id')::bigint),
+  0::bigint,
+  'cancelled-session raw acceptance cannot leak the host LINE contact'
+);
+reset role;
+select pg_temp.set_participant_fixture_status(
+  current_setting('pgtap.raw_accept_guard_participant_id')::bigint,
+  'requested'
+);
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_accept_guard_session_id')::bigint,
+  now() - interval '1 hour',
+  'played'
+);
+select throws_ok(
+  $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_accept_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur on a played session'
+);
+select pg_temp.set_participant_fixture_status(
+  current_setting('pgtap.raw_accept_guard_participant_id')::bigint,
+  'requested'
+);
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_accept_guard_session_id')::bigint,
+  now() - interval '25 hours',
+  'expired'
+);
+select throws_ok(
+  $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_accept_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur on an expired session'
+);
+select pg_temp.set_participant_fixture_status(
+  current_setting('pgtap.raw_accept_guard_participant_id')::bigint,
+  'requested'
+);
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_accept_guard_session_id')::bigint,
+  now() + interval '18 days',
+  'full'
+);
+select throws_ok(
+  $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_accept_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur on a full session'
+);
+select pg_temp.set_participant_fixture_status(
+  current_setting('pgtap.raw_accept_guard_participant_id')::bigint,
+  'requested'
+);
+delete from public.sessions
+where id = current_setting('pgtap.raw_accept_guard_session_id')::bigint;
+select throws_ok(
+  $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_started_accept_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur after an open session has started'
+);
+delete from public.sessions
+where id = current_setting('pgtap.raw_started_cancel_session_id')::bigint;
+
+-- Confirmation is a post-play attendance action, not an arbitrary participant
+-- flag. Raw writers receive the same accepted/played/24-hour boundary.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select set_config(
+  'pgtap.raw_confirm_guard_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '18 days', 3.0, 5.0, 1, '__pgtap_raw_confirm_guard__'
+  )::text,
+  true
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001003', true);
+select set_config(
+  'pgtap.raw_confirm_guard_request_outcome',
+  public.request_to_join_session(current_setting('pgtap.raw_confirm_guard_session_id')::bigint),
+  true
+);
+reset role;
+select set_config(
+  'pgtap.raw_confirm_guard_participant_id',
+  (
+    select participant_row.id::text
+    from public.session_participants participant_row
+    join public.profiles profile_row on profile_row.id = participant_row.profile_id
+    where participant_row.session_id = current_setting('pgtap.raw_confirm_guard_session_id')::bigint
+      and profile_row.user_id = '00000000-0000-0000-0000-000000001003'
+  ),
+  true
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select set_config(
+  'pgtap.raw_confirm_guard_review_outcome',
+  public.review_join_request(
+    current_setting('pgtap.raw_confirm_guard_session_id')::bigint,
+    current_setting('pgtap.raw_confirm_guard_participant_id')::bigint,
+    'accepted'
+  ),
+  true
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_confirm_guard_session_id')::bigint,
+  now() + interval '18 days',
+  'played'
+);
+select throws_ok(
+  $$update public.session_participants set played_confirmed = true where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw attendance confirmation cannot occur before a played session starts'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_confirm_guard_session_id')::bigint,
+  now() + interval '18 days',
+  'cancelled'
+);
+select throws_ok(
+  $$update public.session_participants set played_confirmed = true where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw attendance confirmation cannot occur on a cancelled session'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_confirm_guard_session_id')::bigint,
+  now() - interval '25 hours',
+  'expired'
+);
+select throws_ok(
+  $$update public.session_participants set played_confirmed = true where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw attendance confirmation cannot occur on an expired session'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_confirm_guard_session_id')::bigint,
+  now() - interval '25 hours',
+  'played'
+);
+select throws_ok(
+  $$update public.session_participants set played_confirmed = true where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw attendance confirmation cannot occur after the played-session window'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.raw_confirm_guard_session_id')::bigint,
+  now() - interval '1 hour',
+  'played'
+);
+select lives_ok(
+  $$update public.session_participants set played_confirmed = true where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
+  'raw attendance confirmation remains valid for an accepted guest during the played-session window'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint;
 
 -- A host-row constraint allows parent session deletes to cascade, but refuses
 -- a raw child deletion that would leave a live session orphaned.
