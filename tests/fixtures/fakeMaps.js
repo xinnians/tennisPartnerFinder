@@ -6,6 +6,8 @@ const fakeMapsScript = `
   const maps = [];
   const fitBoundsCalls = [];
   const setCenterCalls = [];
+  let userMarkerCreates = 0;
+  let userMarkerUpdates = 0;
 
   class Size {
     constructor(width, height) {
@@ -110,7 +112,7 @@ const fakeMapsScript = `
 
     fitBounds(bounds) {
       this.bounds = bounds;
-      fitBoundsCalls.push({});
+      fitBoundsCalls.push(bounds);
       for (const callback of this.listeners.idle ?? []) callback();
     }
   }
@@ -135,6 +137,7 @@ const fakeMapsScript = `
       this.el.style.overflow = "hidden";
       this.el.style.padding = "0";
       this.el.style.zIndex = String(options.zIndex || 1);
+      if (options.title === "你") userMarkerCreates += 1;
       markers.push(this);
       this.map?.el?.appendChild(this.el);
     }
@@ -152,16 +155,38 @@ const fakeMapsScript = `
 
     setPosition(position) {
       this.options.position = position;
+      if (this.options.title === "你") userMarkerUpdates += 1;
     }
+  }
+
+  function boundsSummary(bounds, index) {
+    const southWest = bounds.getSouthWest();
+    const northEast = bounds.getNorthEast();
+    const latitudeSpan = northEast.lat() - southWest.lat();
+    const longitudeSpan = northEast.lng() - southWest.lng();
+    const previous = fitBoundsCalls[index - 1];
+    const changedFromPrevious = Boolean(
+      previous &&
+        (previous.getSouthWest().lat() !== southWest.lat() ||
+          previous.getSouthWest().lng() !== southWest.lng() ||
+          previous.getNorthEast().lat() !== northEast.lat() ||
+          previous.getNorthEast().lng() !== northEast.lng())
+    );
+    return { latitudeSpan, longitudeSpan, changedFromPrevious };
   }
 
   window.__setFakeGoogleMapsBounds = (bounds) => {
     maps.forEach((map) => map.setTestBounds(bounds));
   };
   window.__fakeMapsSnapshot = () => ({
-    fitBoundsCalls: fitBoundsCalls.map(() => ({})),
+    fitBoundsCalls: fitBoundsCalls.map(boundsSummary),
     setCenterCalls: setCenterCalls.map(() => ({})),
     userMarkers: markers.filter((marker) => marker.options.title === "你").map(() => ({ title: "你" })),
+    userMarkerCreates,
+    userMarkerUpdates,
+    visibleMarkerOptions: markers
+      .filter((marker) => marker.map)
+      .map((marker) => ({ optimized: marker.options.optimized, title: marker.options.title })),
   });
   window.google = { maps: { LatLng, LatLngBounds, Map, Marker, Point, Size } };
   window.__onGoogleMapsReady?.();

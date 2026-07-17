@@ -1,8 +1,10 @@
 import { esc } from "./util.js";
+import { pushSurfaceIsolation } from "./modalIsolation.js";
 
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
 const surfaces = new WeakMap();
+const surfaceStack = [];
 
 function focusableNodes(surface) {
   return [...surface.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(
@@ -11,9 +13,11 @@ function focusableNodes(surface) {
 }
 
 function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
+  const active = surfaces.get(root);
+  // When a detail replaces a court sheet in the same root, retain the court
+  // opener rather than the card about to be removed with the old surface.
+  const previousFocus = active?.restoreFocus ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
   closeSurface(root, { restoreFocus: false });
-
-  const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   root.innerHTML = `
     <div class="surface-backdrop" data-surface-dismiss></div>
     <section id="${esc(id)}" class="surface ${esc(className)}" role="dialog" aria-modal="true" aria-label="${esc(
@@ -23,17 +27,23 @@ function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
     </section>`;
 
   const surface = root.querySelector(".surface");
+  const releaseIsolation = pushSurfaceIsolation(root);
   let closed = false;
-  const close = () => {
+  let surfaceEntry = null;
+  const close = ({ restoreFocus = true } = {}) => {
     if (closed) return;
     closed = true;
-    surface.removeEventListener("keydown", onKeyDown);
+    document.removeEventListener("keydown", onKeyDown, true);
+    const stackIndex = surfaceStack.indexOf(surfaceEntry);
+    if (stackIndex >= 0) surfaceStack.splice(stackIndex, 1);
+    releaseIsolation();
     root.innerHTML = "";
     surfaces.delete(root);
-    if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    if (restoreFocus && previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
   };
 
   const onKeyDown = (event) => {
+    if (surfaceStack.at(-1) !== surfaceEntry) return;
     if (event.key === "Escape") {
       event.preventDefault();
       close();
@@ -58,24 +68,26 @@ function mountSurface(root, { id, label, className = "", html, onMount } = {}) {
     }
   };
 
-  surface.addEventListener("keydown", onKeyDown);
+  surfaceEntry = { close, restoreFocus: previousFocus };
+  surfaceStack.push(surfaceEntry);
+  // Keep Escape and the tab loop scoped to the topmost surface even if a
+  // browser extension or an async state update moves focus to document.body.
+  document.addEventListener("keydown", onKeyDown, true);
   root.querySelector("[data-surface-dismiss]")?.addEventListener("click", close);
   root.querySelectorAll("[data-surface-close]").forEach((button) => button.addEventListener("click", close));
-  surfaces.set(root, { close });
+  surfaces.set(root, surfaceEntry);
 
   onMount?.({ root, surface, close });
-  requestAnimationFrame(() => (focusableNodes(surface)[0] ?? surface).focus({ preventScroll: true }));
+  requestAnimationFrame(() => {
+    if (!closed) (focusableNodes(surface)[0] ?? surface).focus({ preventScroll: true });
+  });
   return { root, surface, close };
 }
 
 function closeSurface(root, { restoreFocus = true } = {}) {
   const active = surfaces.get(root);
   if (active) {
-    if (restoreFocus) active.close();
-    else {
-      root.innerHTML = "";
-      surfaces.delete(root);
-    }
+    active.close({ restoreFocus });
   } else {
     root.innerHTML = "";
   }
@@ -113,7 +125,7 @@ export function openLoginModal({ onProvider }) {
         <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
       </div>
       <p class="surface__copy">我們只會在已接受的配對中提供聯絡方式。</p>
-      <p class="surface__message" data-login-message hidden></p>
+      <p class="surface__message" data-login-message role="status" aria-live="polite" aria-atomic="true"></p>
       <button type="button" class="session-primary" data-provider="google">使用 Google 登入</button>`,
   });
 
@@ -124,10 +136,8 @@ export function openLoginModal({ onProvider }) {
     try {
       await onProvider("google");
       message.textContent = "正在前往登入頁…";
-      message.hidden = false;
     } catch {
       message.textContent = "登入啟動失敗，請稍後再試。";
-      message.hidden = false;
       button.disabled = false;
     }
   });

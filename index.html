@@ -49,10 +49,10 @@
             程度：<b id="band-label">全部</b>
           </button>
           <div class="type-chips" role="group" aria-label="球局類型">
-            <button type="button" class="chip-type" data-type="單打">單打</button>
-            <button type="button" class="chip-type" data-type="對拉">對拉</button>
-            <button type="button" class="chip-type" data-type="雙打">雙打</button>
-            <button type="button" class="chip-type" data-type="練球">練球</button>
+            <button type="button" class="chip-type" data-type="單打" aria-pressed="false">單打</button>
+            <button type="button" class="chip-type" data-type="對拉" aria-pressed="false">對拉</button>
+            <button type="button" class="chip-type" data-type="雙打" aria-pressed="false">雙打</button>
+            <button type="button" class="chip-type" data-type="練球" aria-pressed="false">練球</button>
           </div>
           <button type="button" id="filters-reset" class="filters-reset">清除</button>
         </section>
@@ -62,6 +62,7 @@
           <div id="band-options"></div>
         </div>
 
+        <div id="nearby-sessions-backdrop" class="nearby-sessions__backdrop" aria-hidden="true" hidden></div>
         <aside id="nearby-sessions-drawer" class="nearby-sessions" aria-label="附近球局"></aside>
         <div id="map-data-status" aria-live="polite" hidden></div>
       </main>

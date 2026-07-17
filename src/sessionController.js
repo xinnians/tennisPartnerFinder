@@ -21,6 +21,18 @@ function validBounds(bounds) {
   return values.every(Number.isFinite) && values[0] <= values[2] && values[1] <= values[3];
 }
 
+function sameBounds(left, right) {
+  if (!validBounds(left) || !validBounds(right)) return false;
+  return ["south", "west", "north", "east"].every(
+    (key) => Math.abs(Number(left[key]) - Number(right[key])) < 0.000001
+  );
+}
+
+function sessionIdentity(session) {
+  const value = session?.user?.id ?? session?.access_token ?? null;
+  return value == null ? null : String(value);
+}
+
 function profileIsComplete(eligibility) {
   // Main reduces private profile data to this one boolean before it enters the
   // controller. It is never rendered or sent with a public action payload.
@@ -72,6 +84,10 @@ export function createSessionController({
   let map = null;
   let idleTimer = null;
   let latestRequest = 0;
+  let latestLocationRequest = 0;
+  let authEpoch = 0;
+  let lastExplicitMapBounds = null;
+  let activeDetail = null;
 
   function visibleSessions() {
     return sortSessionsForDrawer(filterSessions(state.sessions, state.filters), state.userLocation);
@@ -99,6 +115,7 @@ export function createSessionController({
   }
 
   function currentParticipation(sessionId) {
+    if (!state.session) return null;
     return state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
   }
 
@@ -116,25 +133,30 @@ export function createSessionController({
     return { label: "申請加入" };
   }
 
-  async function reloadParticipation() {
-    if (!state.session || typeof api?.loadMySessions !== "function") {
-      state.mySessions = [];
-      return;
-    }
+  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.session)) {
+    if (!state.session || !identity || typeof api?.loadMySessions !== "function") return false;
     try {
-      state.mySessions = await api.loadMySessions();
+      const sessions = await api.loadMySessions();
+      if (epoch !== authEpoch || !state.session || sessionIdentity(state.session) !== identity) return false;
+      state.mySessions = Array.isArray(sessions) ? sessions : [];
+      return true;
     } catch {
+      if (epoch !== authEpoch || !state.session || sessionIdentity(state.session) !== identity) return false;
       state.mySessions = [];
+      return true;
     }
   }
 
   async function loadDiscovery(bounds = state.bounds) {
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
+    const requestId = ++latestRequest;
     state.bounds = nextBounds;
+    // A viewport has changed, so rows from the previous one must not remain
+    // visible while its authoritative response is still in flight.
+    state.sessions = [];
     state.discoveryStatus = "loading";
     state.discoveryMessage = "";
     publish();
-    const requestId = ++latestRequest;
     try {
       const sessions = await api.loadSessionDiscovery({ bounds: nextBounds });
       if (requestId !== latestRequest) return;
@@ -179,30 +201,50 @@ export function createSessionController({
   function attachMap(nextMap) {
     map = nextMap;
     state.mapUnavailable = false;
+    // A location chosen before Maps was ready remains controller-only state.
+    // Replay it before subscribing so the fitBounds idle event cannot duplicate
+    // the explicit location refresh.
+    const replayBounds = state.userLocation
+      ? mapTools.setUserLocation?.(state.userLocation, LOCATION_INITIAL_RADIUS_METERS)
+      : null;
     mapTools.subscribeToMapIdle?.(map, () => {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         const bounds = mapTools.getMapBounds?.(map);
+        if (lastExplicitMapBounds && sameBounds(bounds, lastExplicitMapBounds)) {
+          lastExplicitMapBounds = null;
+          return;
+        }
+        lastExplicitMapBounds = null;
         if (validBounds(bounds)) loadDiscovery(bounds);
       }, MAP_IDLE_DEBOUNCE_MS);
     });
-    publish();
+    if (validBounds(replayBounds)) loadDiscovery(replayBounds);
+    else publish();
   }
 
   function openSessionById(sessionId) {
     const session = state.sessions.find((entry) => String(entry.sessionId) === String(sessionId));
     if (!session) return;
     const action = actionFor(session);
-    openSession(session, {
+    let detail = null;
+    detail = openSession(session, {
       action,
-      onPrimary: () => startPrimaryAction(session),
-      onWithdraw: () => withdraw(session),
+      onPrimary: () => startPrimaryAction(session, detail),
+      onWithdraw: () => withdraw(session, detail),
     });
+    activeDetail = detail?.close ? detail : null;
   }
 
   function openCourt(court, onlySessions = null) {
-    const sessions = onlySessions ?? state.sessions.filter((session) => String(session.courtId) === String(court.id));
+    const sessions = onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
     openCourtDrawer(court, sessions, { onOpenSession: openSessionById });
+  }
+
+  function closeActiveDetail(detail = activeDetail) {
+    if (!detail || activeDetail !== detail) return;
+    activeDetail = null;
+    detail.close?.();
   }
 
   function beginAnonymousIntent(intent) {
@@ -213,7 +255,7 @@ export function createSessionController({
     }
   }
 
-  function startPrimaryAction(session) {
+  function startPrimaryAction(session, detail) {
     const action = actionFor(session);
     if (action.disabled) return;
     const participation = currentParticipation(session.sessionId);
@@ -231,25 +273,40 @@ export function createSessionController({
       promptProfile();
       return;
     }
-    openJoinConfirmation(session, { onConfirm: (close) => requestJoin(session, close) });
+    openJoinConfirmation(session, { onConfirm: (close) => requestJoin(session, close, detail) });
   }
 
-  async function requestJoin(session, close) {
+  async function refreshAuthoritativeState() {
+    await Promise.all([reloadParticipation(), loadDiscovery(state.bounds)]);
+    publish();
+  }
+
+  async function requestJoin(session, close, detail) {
     try {
-      await api.requestToJoinSession(session.sessionId);
+      const result = await api.requestToJoinSession(session.sessionId);
       close?.();
+      closeActiveDetail(detail);
+      await refreshAuthoritativeState();
+      if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+        toast("球局狀態已更新，請重新載入。");
+        return;
+      }
       toast("已送出申請。");
-      await Promise.all([reloadParticipation(), loadDiscovery(state.bounds)]);
     } catch (error) {
       toast(error?.message || "申請失敗，請稍後再試。");
     }
   }
 
-  async function withdraw(session) {
+  async function withdraw(session, detail) {
     try {
-      await api.withdrawFromSession(session.sessionId);
+      const result = await api.withdrawFromSession(session.sessionId);
+      closeActiveDetail(detail);
+      await refreshAuthoritativeState();
+      if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+        toast("球局狀態已更新，請重新載入。");
+        return;
+      }
       toast("已撤回申請。");
-      await Promise.all([reloadParticipation(), loadDiscovery(state.bounds)]);
     } catch (error) {
       toast(error?.message || "撤回失敗，請稍後再試。");
     }
@@ -261,6 +318,7 @@ export function createSessionController({
       publish();
       return;
     }
+    const requestId = ++latestLocationRequest;
     const geolocation = globalThis.navigator?.geolocation;
     if (!geolocation?.getCurrentPosition) {
       state.locationBlocked = true;
@@ -268,28 +326,43 @@ export function createSessionController({
       publish();
       return;
     }
-    geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const lat = Number(coords?.latitude);
-        const lng = Number(coords?.longitude);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    try {
+      geolocation.getCurrentPosition(
+        ({ coords }) => {
+          if (requestId !== latestLocationRequest) return;
+          const lat = Number(coords?.latitude);
+          const lng = Number(coords?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            state.locationBlocked = true;
+            state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+            publish();
+            return;
+          }
+          state.userLocation = { lat, lng };
+          state.locationBlocked = false;
+          state.locationMessage = "";
+          const bounds = mapTools.setUserLocation?.({ lat, lng }, LOCATION_INITIAL_RADIUS_METERS);
+          if (validBounds(bounds)) {
+            lastExplicitMapBounds = cloneBounds(bounds);
+            loadDiscovery(bounds);
+          } else {
+            publish();
+          }
+        },
+        () => {
+          if (requestId !== latestLocationRequest) return;
           state.locationBlocked = true;
           state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
           publish();
-          return;
-        }
-        state.userLocation = { lat, lng };
-        state.locationMessage = "";
-        const bounds = mapTools.setUserLocation?.({ lat, lng }, LOCATION_INITIAL_RADIUS_METERS);
-        loadDiscovery(validBounds(bounds) ? bounds : state.bounds);
-      },
-      () => {
-        state.locationBlocked = true;
-        state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
-        publish();
-      },
-      { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }
-    );
+        },
+        { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }
+      );
+    } catch {
+      if (requestId !== latestLocationRequest) return;
+      state.locationBlocked = true;
+      state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+      publish();
+    }
   }
 
   function openCreateIntent() {
@@ -301,10 +374,13 @@ export function createSessionController({
   }
 
   async function setAuthState(session, profile = null) {
+    const epoch = ++authEpoch;
+    const identity = sessionIdentity(session);
     state.session = session ?? null;
     state.profile = profile ?? null;
-    await reloadParticipation();
+    state.mySessions = [];
     publish();
+    if (await reloadParticipation(epoch, identity)) publish();
   }
 
   function retryDiscovery() {

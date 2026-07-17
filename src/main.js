@@ -1,7 +1,7 @@
 import "./style.css";
 import "./session.css";
 import { GOOGLE_MAPS_API_KEY } from "./config.js";
-import { BANDS, TYPES } from "./filters.js";
+import { BANDS } from "./filters.js";
 import {
   createMap,
   fitTaipeiBounds,
@@ -32,6 +32,8 @@ let courts = [];
 let sessionMarkers = [];
 let courtMarkers = [];
 let controller;
+let authStateEpoch = 0;
+let currentAuthIdentity = null;
 
 function toast(message) {
   const root = document.getElementById("toast-root");
@@ -89,10 +91,14 @@ function renderFilters(filters) {
   if (date) date.value = filters.date || "";
   document.getElementById("band-label").textContent = BANDS.find((band) => band.key === filters.band)?.label ?? "全部";
   document.querySelectorAll(".chip-type").forEach((button) => {
-    button.classList.toggle("is-active", filters.types.has(button.dataset.type));
+    const selected = filters.types.has(button.dataset.type);
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
   });
   document.querySelectorAll("[data-band]").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.band === filters.band);
+    const selected = button.dataset.band === filters.band;
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
   });
 }
 
@@ -155,7 +161,10 @@ function wireFilters() {
   const chip = document.getElementById("level-chip");
   const popover = document.getElementById("level-popover");
   document.getElementById("band-options").innerHTML = BANDS.map(
-    (band) => `<button type="button" class="band-option${band.key === "all" ? " is-active" : ""}" data-band="${esc(band.key)}">${esc(band.label)}</button>`
+    (band) =>
+      `<button type="button" class="band-option${band.key === "all" ? " is-active" : ""}" data-band="${esc(
+        band.key
+      )}" aria-pressed="${band.key === "all"}">${esc(band.label)}</button>`
   ).join("");
   chip.addEventListener("click", () => {
     popover.hidden = !popover.hidden;
@@ -198,30 +207,52 @@ function eligibilityFromPrivateProfile(profile) {
       profile?.nick &&
         Number.isFinite(Number(profile?.ntrp)) &&
         profile?.lineId &&
-        (profile?.courts?.size ?? 0) > 0
+        (profile?.courts?.size ?? 0) > 0 &&
+        (profile?.types?.size ?? 0) > 0
     ),
   };
 }
 
+function authIdentity(session) {
+  const value = session?.user?.id ?? session?.access_token ?? null;
+  return value == null ? null : String(value);
+}
+
+function applyAuthCandidate(session) {
+  const epoch = ++authStateEpoch;
+  const identity = authIdentity(session);
+  currentAuthIdentity = identity;
+  // Clear prior participation immediately; profile loading must not leave an
+  // earlier account's CTA state visible while it is in flight.
+  void controller.setAuthState(session, null);
+  if (!session) return;
+  void (async () => {
+    let eligibility = null;
+    try {
+      eligibility = eligibilityFromPrivateProfile(await loadCurrentProfile());
+    } catch {
+      eligibility = null;
+    }
+    if (epoch !== authStateEpoch || identity !== currentAuthIdentity) return;
+    void controller.setAuthState(session, eligibility);
+  })();
+}
+
 async function restoreAuth() {
+  onAuthStateChange((session) => applyAuthCandidate(session));
+  const initialEpoch = authStateEpoch;
   let initialSession = null;
-  let profile = null;
   try {
     initialSession = await getInitialSession();
-    if (initialSession) profile = eligibilityFromPrivateProfile(await loadCurrentProfile());
   } catch {
-    // Discovery is deliberately independent from auth restoration.
+    initialSession = null;
   }
-  await controller.setAuthState(initialSession, profile);
-  onAuthStateChange(async (session) => {
-    let nextProfile = null;
-    try {
-      if (session) nextProfile = eligibilityFromPrivateProfile(await loadCurrentProfile());
-    } catch {
-      nextProfile = null;
-    }
-    await controller.setAuthState(session, nextProfile);
-  });
+  if (initialEpoch !== authStateEpoch) return;
+  applyAuthCandidate(initialSession);
+}
+
+function diagnoseMapFailure(message) {
+  if (import.meta.env?.DEV) console.warn(message);
 }
 
 function startMap() {
@@ -229,12 +260,15 @@ function startMap() {
     controller.setMapUnavailable();
     return;
   }
+  let authFailed = false;
   loadGoogleMaps(GOOGLE_MAPS_API_KEY, () => {
+    authFailed = true;
     // Keep this deliberately diagnostic-only: the public UI has a list fallback.
-    console.warn("Google Maps 驗證失敗；已切換為球局清單。");
+    diagnoseMapFailure("Google Maps 驗證失敗；已切換為球局清單。");
     controller.setMapUnavailable();
   })
     .then((mapsApi) => {
+      if (authFailed) return;
       google = mapsApi;
       map = createMap(google, document.getElementById("map"));
       controller.attachMap(map);
@@ -242,7 +276,7 @@ function startMap() {
       renderSessionMarkers(controller.getVisibleSessions());
     })
     .catch(() => {
-      console.warn("Google Maps 載入失敗；已切換為球局清單。");
+      diagnoseMapFailure("Google Maps 載入失敗；已切換為球局清單。");
       controller.setMapUnavailable();
     });
 }

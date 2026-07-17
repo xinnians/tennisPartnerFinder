@@ -1,9 +1,12 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
+import { pushDrawerIsolation } from "./modalIsolation.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { esc } from "./util.js";
 
 const dialogFocusable =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const drawerBindings = new WeakMap();
+const drawerIsolations = new WeakMap();
 
 function taipeiDateTime(value) {
   const date = new Date(value);
@@ -54,36 +57,74 @@ function wireSessionCards(root, onOpenSession) {
   });
 }
 
-function installDrawerDialogBehavior(root, { expanded, onToggle }) {
-  if (!expanded) return;
+function setDrawerModal(root, expanded) {
+  const backdrop = document.getElementById("nearby-sessions-backdrop");
+  const release = drawerIsolations.get(root);
+  const toggle = root.querySelector("#nearby-sessions-toggle");
+  if (expanded && !release) drawerIsolations.set(root, pushDrawerIsolation(toggle));
+  if (!expanded && release) {
+    release();
+    drawerIsolations.delete(root);
+  }
+  if (backdrop) backdrop.hidden = !expanded;
+}
+
+function wireDrawerInteractions(root, { expanded, onToggle }) {
+  drawerBindings.get(root)?.abort();
+  const bindings = new AbortController();
+  drawerBindings.set(root, bindings);
+  const { signal } = bindings;
   const panel = root.querySelector("[data-nearby-dialog]");
-  const opener = root.querySelector("#nearby-sessions-toggle");
-  if (!panel || !opener) return;
   const close = () => {
     onToggle(false);
     requestAnimationFrame(() => document.getElementById("nearby-sessions-toggle")?.focus({ preventScroll: true }));
   };
-  panel.querySelector("[data-nearby-close]")?.addEventListener("click", close);
-  panel.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const nodes = [...panel.querySelectorAll(dialogFocusable)].filter((node) => !node.hasAttribute("hidden"));
-    if (!nodes.length) return;
-    const first = nodes[0];
-    const last = nodes[nodes.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  });
-  requestAnimationFrame(() => panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true }));
+
+  if (expanded && panel) {
+    panel.querySelector("[data-nearby-close]")?.addEventListener("click", close, { signal });
+    document.getElementById("nearby-sessions-backdrop")?.addEventListener("click", close, { signal });
+    panel.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          close();
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const nodes = [...panel.querySelectorAll(dialogFocusable)].filter((node) => !node.hasAttribute("hidden"));
+        if (!nodes.length) return;
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      },
+      { signal }
+    );
+    requestAnimationFrame(() => panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true }));
+  }
+
+  let pointerStart = null;
+  root.addEventListener(
+    "pointerdown",
+    (event) => {
+      pointerStart = event.clientY;
+    },
+    { signal }
+  );
+  root.addEventListener(
+    "pointerup",
+    (event) => {
+      if (pointerStart != null && pointerStart - event.clientY > 44) onToggle(true);
+      pointerStart = null;
+    },
+    { signal }
+  );
 }
 
 /** Render the map-bound session summary and its expandable, keyboard-safe drawer. */
@@ -101,6 +142,9 @@ export function renderNearbySessionsDrawer(
     onRetry = () => {},
   } = {}
 ) {
+  // A render replaces the toggle node. Release its old inert state first, then
+  // apply a fresh layer to the newly rendered node below.
+  setDrawerModal(root, false);
   const count = sessions.length;
   const summary = `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
   const nearest = sessions[0]
@@ -136,16 +180,8 @@ export function renderNearbySessionsDrawer(
   root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
   root.querySelector("#discovery-retry")?.addEventListener("click", onRetry);
-  installDrawerDialogBehavior(root, { expanded, onToggle });
-
-  let pointerStart = null;
-  root.addEventListener("pointerdown", (event) => {
-    pointerStart = event.clientY;
-  });
-  root.addEventListener("pointerup", (event) => {
-    if (pointerStart != null && pointerStart - event.clientY > 44) onToggle(true);
-    pointerStart = null;
-  });
+  setDrawerModal(root, expanded);
+  wireDrawerInteractions(root, { expanded, onToggle });
 }
 
 /** Render the standard session-only empty state in the active drawer. */

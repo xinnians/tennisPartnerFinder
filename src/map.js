@@ -107,6 +107,8 @@ export function renderSessionPins(google, map, groups, { onSession = () => {}, o
       label: pin.label,
       title: multiple ? `球局 · ${court.name} · ${sessions.length} 場` : `球局 · ${court.name}`,
       zIndex: multiple ? 40 : 30,
+      // Legacy Marker needs a DOM-backed marker for reliable keyboard access.
+      optimized: false,
     });
     marker.addListener("click", () => (multiple ? onCluster(court, sessions) : onSession(sessions[0].sessionId)));
     return marker;
@@ -124,6 +126,7 @@ export function renderCourtBasePins(google, map, courts = [], onCourt = () => {}
       icon: pin.icon,
       title: `球場 ${court.name}`,
       zIndex: 10,
+      optimized: false,
     });
     marker.addListener("click", () => onCourt(court));
     return marker;
@@ -159,6 +162,7 @@ export function setUserLocation({ lat, lng }, radiusMeters) {
       icon: pin.icon,
       title: "你",
       zIndex: 50,
+      optimized: false,
     });
   } else {
     userMarker.setPosition?.({ lat: latitude, lng: longitude });
