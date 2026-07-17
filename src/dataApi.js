@@ -1,90 +1,602 @@
-import { COURTS, REGISTERED_PLAYERS, DEMAND_PINS } from "./mockData.js";
-import { LAUNCH_CITY } from "./config.js";
+import { DISCOVERY_WINDOW_DAYS, LAUNCH_CITY, TAIPEI_CITY_BOUNDS } from "./config.js";
+import { COURTS, MOCK_SESSIONS } from "./mockData.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
 
-const slotLabels = {
-  "wd-m": "平日早上",
-  "wd-a": "平日下午",
-  "wd-e": "平日晚上",
-  "we-m": "週末早上",
-  "we-a": "週末下午",
-  "we-e": "週末晚上",
+const SESSION_SUMMARY_COLUMNS = [
+  "session_id",
+  "sport_code",
+  "court_id",
+  "court",
+  "court_district",
+  "court_lat",
+  "court_lng",
+  "start_at",
+  "play_type",
+  "ntrp_min",
+  "ntrp_max",
+  "slots_total",
+  "slots_remaining",
+  "notes",
+  "host_nickname",
+  "host_ntrp",
+  "host_profile_complete",
+  "status",
+];
+
+const MY_SESSION_COLUMNS = [
+  ...SESSION_SUMMARY_COLUMNS,
+  "viewer_role",
+  "viewer_participant_status",
+  "viewer_played_confirmed",
+  "updated_at",
+  "can_cancel",
+  "can_withdraw",
+  "can_confirm_played",
+  "can_confirm_attendance",
+];
+
+const SESSION_ROSTER_COLUMNS = [
+  "session_id",
+  "participant_id",
+  "profile_id",
+  "nickname",
+  "ntrp",
+  "play_types",
+  "home_courts",
+  "role",
+  "status",
+];
+
+const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
+const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
+const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes"];
+
+export const SESSION_DISCOVERY_SELECT = SESSION_SUMMARY_COLUMNS.join(",");
+export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
+export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
+export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
+export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
+
+export const SESSION_ACTION_CODES = Object.freeze([
+  "PROFILE_INCOMPLETE",
+  "SESSION_NOT_FOUND",
+  "SESSION_NOT_OPEN",
+  "SESSION_FULL",
+  "SESSION_CANCELLED",
+  "SESSION_EXPIRED",
+  "SESSION_STARTED",
+  "ALREADY_REQUESTED",
+  "ALREADY_DECIDED",
+  "NOT_SESSION_HOST",
+  "NOT_ACCEPTED_PARTICIPANT",
+  "INVALID_TRANSITION",
+]);
+
+const ACTION_MESSAGES = {
+  PROFILE_INCOMPLETE: "請先完成個人檔案。",
+  SESSION_NOT_FOUND: "找不到這個球局。",
+  SESSION_NOT_OPEN: "這個球局目前無法操作。",
+  SESSION_FULL: "這個球局已額滿。",
+  SESSION_CANCELLED: "這個球局已取消。",
+  SESSION_EXPIRED: "球局狀態已更新，請重新載入。",
+  SESSION_STARTED: "球局已開始，無法進行這個操作。",
+  ALREADY_REQUESTED: "您已申請加入這個球局。",
+  ALREADY_DECIDED: "這筆申請已經處理。",
+  NOT_SESSION_HOST: "只有主揪可以執行這個操作。",
+  NOT_ACCEPTED_PARTICIPANT: "只有已接受的參與者可以執行這個操作。",
+  INVALID_TRANSITION: "目前的球局狀態不允許這個操作。",
+  UNKNOWN_ACTION_ERROR: "球局操作失敗，請重新載入後再試。",
 };
 
-function requireSupabase() {
-  if (!supabase) throw new Error("Supabase 尚未設定");
-  return supabase;
+export class SessionActionError extends Error {
+  constructor(code, cause = null) {
+    super(ACTION_MESSAGES[code] ?? ACTION_MESSAGES.UNKNOWN_ACTION_ERROR);
+    this.name = "SessionActionError";
+    this.code = code;
+    this.cause = cause;
+  }
+}
+
+export class DataApiUnavailableError extends Error {
+  constructor(message = "此操作需要已設定的 Supabase 環境。") {
+    super(message);
+    this.name = "DataApiUnavailableError";
+  }
 }
 
 function asNumber(value) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
 
-function withDefaultArray(value) {
+function asText(value, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asBoolean(value) {
+  return value === true || value === "true";
+}
+
+function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function mapDiscoveryRow(row) {
+function sessionSummaryValues(row = {}) {
   return {
-    id: `profile-${row.profile_id}-court-${row.court_id}`,
-    profileId: row.profile_id,
-    displayName: row.nickname,
-    ntrp: asNumber(row.ntrp) ?? 3.5,
-    goals: withDefaultArray(row.play_types),
-    homeCourt: row.court_name,
-    courtDistrict: row.court_district ?? "",
+    sessionId: asNumber(row.session_id),
+    sportCode: asText(row.sport_code),
+    courtId: asNumber(row.court_id),
+    court: asText(row.court),
+    courtDistrict: asText(row.court_district),
     courtLat: asNumber(row.court_lat),
     courtLng: asNumber(row.court_lng),
-    availability: withDefaultArray(row.slot_codes).map((code) => slotLabels[code] ?? code),
-    lineId: row.line_id ?? "",
+    startAt: asText(row.start_at),
+    playType: asText(row.play_type),
+    ntrpMin: asNumber(row.ntrp_min),
+    ntrpMax: asNumber(row.ntrp_max),
+    slotsTotal: asNumber(row.slots_total),
+    slotsRemaining: asNumber(row.slots_remaining),
+    notes: asText(row.notes),
+    hostNickname: asText(row.host_nickname),
+    hostNtrp: asNumber(row.host_ntrp),
+    hostProfileComplete: asBoolean(row.host_profile_complete),
+    status: asText(row.status),
   };
 }
 
-function mapRequestRow(row) {
-  const court = row.court;
-  const desired = row.desired_time_text ? `${row.desired_time_text}・` : "";
+/** Public-only mapper: every output field is intentionally named here. */
+export function mapSessionSummary(row) {
+  return sessionSummaryValues(row);
+}
+
+function mapMockSessionSummary(session = {}) {
   return {
-    id: `request-${row.id}`,
-    requestId: row.id,
-    court: court?.name ?? "台北市球場",
-    courtDistrict: court?.district ?? "",
-    courtLat: asNumber(court?.lat),
-    courtLng: asNumber(court?.lng),
-    ntrp: asNumber(row.ntrp_min),
-    rawSkill: row.raw_skill_text || null,
-    demandText: `${desired}${row.request_text}`,
-    sourceUrl: "",
+    sessionId: asNumber(session.sessionId),
+    sportCode: asText(session.sportCode),
+    courtId: asNumber(session.courtId),
+    court: asText(session.court),
+    courtDistrict: asText(session.courtDistrict),
+    courtLat: asNumber(session.courtLat),
+    courtLng: asNumber(session.courtLng),
+    startAt: asText(session.startAt),
+    playType: asText(session.playType),
+    ntrpMin: asNumber(session.ntrpMin),
+    ntrpMax: asNumber(session.ntrpMax),
+    slotsTotal: asNumber(session.slotsTotal),
+    slotsRemaining: asNumber(session.slotsRemaining),
+    notes: asText(session.notes),
+    hostNickname: asText(session.hostNickname),
+    hostNtrp: asNumber(session.hostNtrp),
+    hostProfileComplete: asBoolean(session.hostProfileComplete),
+    status: asText(session.status),
   };
 }
 
-function normalizeProfile(row, related) {
+/** Authenticated history mapper, still without contact/profile identifiers. */
+export function mapMySession(row = {}) {
+  const session = sessionSummaryValues(row);
   return {
-    id: row.id,
-    nick: row.nickname,
+    sessionId: session.sessionId,
+    sportCode: session.sportCode,
+    courtId: session.courtId,
+    court: session.court,
+    courtDistrict: session.courtDistrict,
+    courtLat: session.courtLat,
+    courtLng: session.courtLng,
+    startAt: session.startAt,
+    playType: session.playType,
+    ntrpMin: session.ntrpMin,
+    ntrpMax: session.ntrpMax,
+    slotsTotal: session.slotsTotal,
+    slotsRemaining: session.slotsRemaining,
+    notes: session.notes,
+    hostNickname: session.hostNickname,
+    hostNtrp: session.hostNtrp,
+    hostProfileComplete: session.hostProfileComplete,
+    status: session.status,
+    viewerRole: asText(row.viewer_role),
+    viewerParticipantStatus: asText(row.viewer_participant_status),
+    viewerPlayedConfirmed: asBoolean(row.viewer_played_confirmed),
+    updatedAt: asText(row.updated_at),
+    canCancel: asBoolean(row.can_cancel),
+    canWithdraw: asBoolean(row.can_withdraw),
+    canConfirmPlayed: asBoolean(row.can_confirm_played),
+    canConfirmAttendance: asBoolean(row.can_confirm_attendance),
+  };
+}
+
+/** Private roster mapper. It is never used for public discovery UI. */
+export function mapSessionRosterRow(row = {}) {
+  return {
+    sessionId: asNumber(row.session_id),
+    participantId: asNumber(row.participant_id),
+    profileId: asNumber(row.profile_id),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    playTypes: asArray(row.play_types).filter((value) => typeof value === "string"),
+    homeCourts: asArray(row.home_courts).filter((value) => typeof value === "string"),
+    role: asText(row.role),
+    status: asText(row.status),
+  };
+}
+
+/** Accepted-pair contact mapper. LINE may exist only in this private model. */
+export function mapSessionContactRow(row = {}) {
+  return {
+    sessionId: asNumber(row.session_id),
+    counterpartProfileId: asNumber(row.counterpart_profile_id),
+    nickname: asText(row.nickname),
+    lineId: asText(row.line_id),
+  };
+}
+
+function mapCourt(row = {}) {
+  return {
+    id: asNumber(row.id),
+    name: asText(row.name),
+    city: asText(row.city),
+    district: asText(row.district),
+    lat: asNumber(row.lat),
+    lng: asNumber(row.lng),
+  };
+}
+
+export function mapCurrentProfile(row = {}, courts = []) {
+  const courtNamesById = new Map(courts.map((court) => [String(court.id), court.name]));
+  const selectedCourts = asArray(row.court_ids)
+    .map((courtId) => courtNamesById.get(String(courtId)))
+    .filter((name) => typeof name === "string");
+
+  return {
+    nick: asText(row.nickname),
     ntrp: asNumber(row.ntrp) ?? 3.5,
-    types: new Set(related.playTypes),
-    courts: new Set(related.courts.map((court) => court.name)),
-    slots: new Set(related.slots),
-    share: Boolean(row.is_public),
-    lineId: row.line_id ?? "",
+    types: new Set(asArray(row.play_types).filter((value) => typeof value === "string")),
+    courts: new Set(selectedCourts),
+    slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string")),
+    lineId: asText(row.line_id),
   };
 }
 
-async function currentUserId() {
-  const client = requireSupabase();
-  const { data, error } = await client.auth.getUser();
-  if (error) throw error;
-  return data.user?.id ?? null;
+function asDate(value) {
+  if (value == null || value === "") return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isoForQuery(value, fallback) {
+  if (typeof value === "string" && asDate(value)) return value;
+  if (value instanceof Date && asDate(value)) return value.toISOString();
+  return fallback.toISOString();
+}
+
+function normalizedBounds(bounds) {
+  const candidate = bounds ?? TAIPEI_CITY_BOUNDS;
+  const south = asNumber(candidate.south);
+  const west = asNumber(candidate.west);
+  const north = asNumber(candidate.north);
+  const east = asNumber(candidate.east);
+
+  if (south == null || west == null || north == null || east == null || south > north || west > east) {
+    return TAIPEI_CITY_BOUNDS;
+  }
+
+  return { south, west, north, east };
+}
+
+function discoveryQuery(input = {}, now = new Date()) {
+  const currentTime = asDate(now) ?? new Date();
+  const defaultEnd = new Date(currentTime.getTime() + DISCOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  return {
+    bounds: normalizedBounds(input.bounds),
+    startAfter: isoForQuery(input.startAfter, currentTime),
+    startBefore: isoForQuery(input.startBefore, defaultEnd),
+  };
+}
+
+function withinDiscoveryQuery(session, query) {
+  const lat = asNumber(session.courtLat);
+  const lng = asNumber(session.courtLng);
+  const startAt = asDate(session.startAt);
+  const startAfter = asDate(query.startAfter);
+  const startBefore = asDate(query.startBefore);
+  return (
+    lat != null &&
+    lng != null &&
+    startAt &&
+    startAfter &&
+    startBefore &&
+    lat >= query.bounds.south &&
+    lat <= query.bounds.north &&
+    lng >= query.bounds.west &&
+    lng <= query.bounds.east &&
+    startAt > startAfter &&
+    startAt < startBefore
+  );
+}
+
+function codeFromSupabaseError(error) {
+  const errorText = [error?.message, error?.details, error?.hint, error?.code]
+    .filter((part) => typeof part === "string")
+    .join(" ")
+    .toUpperCase();
+  return SESSION_ACTION_CODES.find((code) => errorText.includes(code)) ?? "UNKNOWN_ACTION_ERROR";
+}
+
+function asSessionActionError(error) {
+  return error instanceof SessionActionError ? error : new SessionActionError(codeFromSupabaseError(error), error);
+}
+
+function profileValues(value) {
+  if (value instanceof Set) return [...value];
+  return Array.isArray(value) ? value : [];
+}
+
+function selectedCourtIds(profile, courts) {
+  const selected = profileValues(profile?.courts);
+  const ids = selected.map((selection) => {
+    const byId = courts.find((court) => String(court.id) === String(selection));
+    const byName = courts.find((court) => court.name === selection);
+    return (byId ?? byName)?.id ?? null;
+  });
+
+  if (ids.some((id) => id == null)) throw new SessionActionError("PROFILE_INCOMPLETE");
+  return [...new Set(ids)];
+}
+
+export function createDataApi({
+  client = supabase,
+  configured = isSupabaseConfigured,
+  mockSessions = MOCK_SESSIONS,
+  mockCourts = COURTS,
+  now = () => new Date(),
+} = {}) {
+  const currentTime = () => (typeof now === "function" ? now() : now);
+
+  function requireClient() {
+    if (!configured || !client) throw new DataApiUnavailableError();
+    return client;
+  }
+
+  async function callRpc(name, params) {
+    const activeClient = requireClient();
+    const { data, error } = await activeClient.rpc(name, params);
+    if (error) throw asSessionActionError(error);
+    return data;
+  }
+
+  async function callLifecycleRpc(name, params) {
+    const outcome = await callRpc(name, params);
+    if (outcome !== "OK" && outcome !== "SESSION_EXPIRED") {
+      throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    }
+    // SESSION_EXPIRED only says the RPC persisted a state change. It does not
+    // identify the final state; callers must refresh an authoritative view.
+    return { outcome, reloadRequired: outcome === "SESSION_EXPIRED" };
+  }
+
+  async function loadCourts(city = LAUNCH_CITY) {
+    if (!configured) return mockCourts.filter((court) => court.city === city).map(mapCourt);
+
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("courts")
+      .select(COURT_COLUMNS.join(","))
+      .eq("is_active", true)
+      .eq("city", city)
+      .order("id");
+    if (error) throw error;
+    return asArray(data).map(mapCourt);
+  }
+
+  async function loadSessionDiscovery(input = {}) {
+    const query = discoveryQuery(input, currentTime());
+    if (!configured) {
+      return asArray(mockSessions).filter((session) => withinDiscoveryQuery(session, query)).map(mapMockSessionSummary);
+    }
+
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("session_discovery")
+      .select(SESSION_DISCOVERY_SELECT)
+      .gte("court_lat", query.bounds.south)
+      .lte("court_lat", query.bounds.north)
+      .gte("court_lng", query.bounds.west)
+      .lte("court_lng", query.bounds.east)
+      .gt("start_at", query.startAfter)
+      .lt("start_at", query.startBefore)
+      .order("start_at", { ascending: true });
+    if (error) throw error;
+    // An empty configured database is a real empty state, never a demo fallback.
+    return asArray(data).map(mapSessionSummary);
+  }
+
+  async function loadSessionSummary(sessionId) {
+    if (!configured) {
+      const found = asArray(mockSessions).find((session) => String(session.sessionId) === String(sessionId));
+      return found ? mapMockSessionSummary(found) : null;
+    }
+
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("session_discovery")
+      .select(SESSION_DISCOVERY_SELECT)
+      .eq("session_id", sessionId)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? mapSessionSummary(data) : null;
+  }
+
+  async function loadMySessions() {
+    if (!configured) return [];
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("my_session_participations")
+      .select(MY_SESSIONS_SELECT)
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    return asArray(data).map(mapMySession);
+  }
+
+  async function loadSessionRoster(sessionId) {
+    if (!configured) return [];
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("session_participant_roster")
+      .select(SESSION_ROSTER_SELECT)
+      .eq("session_id", sessionId)
+      .order("participant_id");
+    if (error) throw error;
+    return asArray(data).map(mapSessionRosterRow);
+  }
+
+  async function loadSessionContacts(sessionId) {
+    if (!configured) return [];
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("session_contacts")
+      .select(SESSION_CONTACTS_SELECT)
+      .eq("session_id", sessionId)
+      .order("counterpart_profile_id");
+    if (error) throw error;
+    return asArray(data).map(mapSessionContactRow);
+  }
+
+  async function loadCurrentProfile() {
+    if (!configured) return null;
+    const activeClient = requireClient();
+    const { data, error } = await activeClient.from("my_profile").select(MY_PROFILE_SELECT).maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const courts = await loadCourts();
+    return mapCurrentProfile(data, courts);
+  }
+
+  async function saveCurrentProfile(profile) {
+    const courts = await loadCourts();
+    const courtIds = selectedCourtIds(profile, courts);
+    await callRpc("save_my_profile", {
+      p_nickname: asText(profile?.nick).trim(),
+      p_ntrp: asNumber(profile?.ntrp),
+      p_line_id: asText(profile?.lineId).trim(),
+      p_court_ids: courtIds,
+      p_play_types: profileValues(profile?.types).filter((value) => typeof value === "string"),
+      p_slot_codes: profileValues(profile?.slots).filter((value) => typeof value === "string"),
+    });
+    return loadCurrentProfile();
+  }
+
+  async function createSession({ courtId, playType, startAt, ntrpMin = null, ntrpMax = null, slotsTotal, notes = null }) {
+    const sessionId = await callRpc("create_session", {
+      p_court_id: asNumber(courtId),
+      p_play_type: playType,
+      p_start_at: startAt,
+      p_ntrp_min: ntrpMin == null ? null : asNumber(ntrpMin),
+      p_ntrp_max: ntrpMax == null ? null : asNumber(ntrpMax),
+      p_slots_total: asNumber(slotsTotal),
+      p_notes: notes == null ? null : asText(notes),
+    });
+    return { sessionId: asNumber(sessionId) };
+  }
+
+  async function requestToJoinSession(sessionId) {
+    return callLifecycleRpc("request_to_join_session", { p_session_id: sessionId });
+  }
+
+  async function acceptSessionParticipant(sessionId, participantId) {
+    return callLifecycleRpc("review_join_request", {
+      p_session_id: sessionId,
+      p_participant_id: participantId,
+      p_decision: "accepted",
+    });
+  }
+
+  async function declineSessionParticipant(sessionId, participantId) {
+    return callLifecycleRpc("review_join_request", {
+      p_session_id: sessionId,
+      p_participant_id: participantId,
+      p_decision: "declined",
+    });
+  }
+
+  async function withdrawFromSession(sessionId) {
+    return callLifecycleRpc("withdraw_from_session", { p_session_id: sessionId });
+  }
+
+  async function cancelSession(sessionId) {
+    return callLifecycleRpc("cancel_session", { p_session_id: sessionId });
+  }
+
+  async function markSessionPlayed(sessionId) {
+    return callLifecycleRpc("mark_session_played", { p_session_id: sessionId });
+  }
+
+  async function confirmSessionAttendance(sessionId) {
+    return callLifecycleRpc("confirm_session_attendance", { p_session_id: sessionId });
+  }
+
+  async function createReport({ sessionId = null, reportedProfileId = null, reason }) {
+    const reportId = await callRpc("create_report", {
+      p_session_id: sessionId,
+      p_reported_profile_id: reportedProfileId,
+      p_reason: asText(reason).trim(),
+    });
+    return { reportId: asNumber(reportId) };
+  }
+
+  return {
+    loadCourts,
+    loadSessionDiscovery,
+    loadSessionSummary,
+    loadMySessions,
+    loadSessionRoster,
+    loadSessionContacts,
+    loadCurrentProfile,
+    saveCurrentProfile,
+    createSession,
+    requestToJoinSession,
+    acceptSessionParticipant,
+    declineSessionParticipant,
+    withdrawFromSession,
+    cancelSession,
+    markSessionPlayed,
+    confirmSessionAttendance,
+    createReport,
+  };
+}
+
+const defaultDataApi = createDataApi();
+
+export const loadCourts = (...args) => defaultDataApi.loadCourts(...args);
+export const loadSessionDiscovery = (...args) => defaultDataApi.loadSessionDiscovery(...args);
+export const loadSessionSummary = (...args) => defaultDataApi.loadSessionSummary(...args);
+export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args);
+export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
+export const loadSessionContacts = (...args) => defaultDataApi.loadSessionContacts(...args);
+export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile(...args);
+export const saveCurrentProfile = (...args) => defaultDataApi.saveCurrentProfile(...args);
+export const createSession = (...args) => defaultDataApi.createSession(...args);
+export const requestToJoinSession = (...args) => defaultDataApi.requestToJoinSession(...args);
+export const acceptSessionParticipant = (...args) => defaultDataApi.acceptSessionParticipant(...args);
+export const declineSessionParticipant = (...args) => defaultDataApi.declineSessionParticipant(...args);
+export const withdrawFromSession = (...args) => defaultDataApi.withdrawFromSession(...args);
+export const cancelSession = (...args) => defaultDataApi.cancelSession(...args);
+export const markSessionPlayed = (...args) => defaultDataApi.markSessionPlayed(...args);
+export const confirmSessionAttendance = (...args) => defaultDataApi.confirmSessionAttendance(...args);
+export const createReport = (...args) => defaultDataApi.createReport(...args);
+
+function requireDefaultSupabase() {
+  if (!isSupabaseConfigured || !supabase) throw new DataApiUnavailableError();
+  return supabase;
 }
 
 export async function getInitialSession() {
   if (!isSupabaseConfigured) return null;
-  const client = requireSupabase();
+  const client = requireDefaultSupabase();
   const { data } = await client.auth.getSession();
   if (data.session) return data.session;
 
-  const stored = window.localStorage.getItem(SUPABASE_AUTH_STORAGE_KEY);
+  const stored = globalThis.localStorage?.getItem(SUPABASE_AUTH_STORAGE_KEY);
   if (!stored) return null;
 
   try {
@@ -104,187 +616,22 @@ export async function getInitialSession() {
 
 export function onAuthStateChange(callback) {
   if (!isSupabaseConfigured) return () => {};
-  const client = requireSupabase();
+  const client = requireDefaultSupabase();
   const { data } = client.auth.onAuthStateChange((_event, session) => callback(session));
   return () => data.subscription.unsubscribe();
 }
 
 export async function signInWithOAuthProvider(provider) {
-  const client = requireSupabase();
+  const client = requireDefaultSupabase();
   const { error } = await client.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: globalThis.location?.origin },
   });
   if (error) throw error;
 }
 
 export async function signOut() {
-  const client = requireSupabase();
+  const client = requireDefaultSupabase();
   const { error } = await client.auth.signOut();
-  if (error) throw error;
-}
-
-export async function loadCourts(city = LAUNCH_CITY) {
-  if (!isSupabaseConfigured) return COURTS.filter((court) => court.city === city);
-  const client = requireSupabase();
-  const { data, error } = await client
-    .from("courts")
-    .select("id,name,city,district,lat,lng")
-    .eq("is_active", true)
-    .eq("city", city)
-    .order("id");
-  if (error) throw error;
-  return data.map((court) => ({
-    ...court,
-    lat: asNumber(court.lat),
-    lng: asNumber(court.lng),
-  }));
-}
-
-export async function loadDiscoveryPlayers() {
-  if (!isSupabaseConfigured) return REGISTERED_PLAYERS;
-  const client = requireSupabase();
-  const { data, error } = await client.from("public_profile_discovery").select("*");
-  if (error) throw error;
-  return data.map(mapDiscoveryRow);
-}
-
-export async function loadActivePartnerRequests() {
-  if (!isSupabaseConfigured) return DEMAND_PINS;
-  const client = requireSupabase();
-  const { data, error } = await client
-    .from("partner_requests")
-    .select(
-      "id,desired_time_text,ntrp_min,ntrp_max,raw_skill_text,request_text,expires_at,court:courts(id,name,district,lat,lng)"
-    )
-    .eq("status", "open")
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data.map(mapRequestRow);
-}
-
-export async function loadCurrentProfile() {
-  if (!isSupabaseConfigured) return null;
-  const client = requireSupabase();
-  const userId = await currentUserId();
-  if (!userId) return null;
-
-  const { data: profile, error } = await client
-    .from("profiles")
-    .select("id,nickname,ntrp,line_id,is_public")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!profile) return null;
-
-  const [{ data: courtRows, error: courtsError }, { data: typeRows, error: typesError }, { data: slotRows, error: slotsError }] =
-    await Promise.all([
-      client.from("profile_courts").select("court:courts(id,name,district,lat,lng)").eq("profile_id", profile.id),
-      client.from("profile_play_types").select("play_type").eq("profile_id", profile.id),
-      client.from("profile_slots").select("slot_code").eq("profile_id", profile.id),
-    ]);
-
-  if (courtsError) throw courtsError;
-  if (typesError) throw typesError;
-  if (slotsError) throw slotsError;
-
-  return normalizeProfile(profile, {
-    courts: courtRows.map((row) => row.court).filter(Boolean),
-    playTypes: typeRows.map((row) => row.play_type),
-    slots: slotRows.map((row) => row.slot_code),
-  });
-}
-
-export async function saveCurrentProfile(profile) {
-  const client = requireSupabase();
-  const userId = await currentUserId();
-  if (!userId) throw new Error("請先登入");
-
-  const { data: saved, error } = await client
-    .from("profiles")
-    .upsert(
-      {
-        user_id: userId,
-        nickname: profile.nick,
-        ntrp: profile.ntrp,
-        line_id: profile.lineId,
-        is_public: profile.share,
-      },
-      { onConflict: "user_id" }
-    )
-    .select("id,nickname,ntrp,line_id,is_public")
-    .single();
-  if (error) throw error;
-
-  const profileId = saved.id;
-  const courts = await loadCourts();
-  const courtIds = courts.filter((court) => profile.courts.has(court.name)).map((court) => court.id);
-
-  const deleteSteps = [
-    client.from("profile_courts").delete().eq("profile_id", profileId),
-    client.from("profile_play_types").delete().eq("profile_id", profileId),
-    client.from("profile_slots").delete().eq("profile_id", profileId),
-  ];
-  const deleteResults = await Promise.all(deleteSteps);
-  const deleteError = deleteResults.find((result) => result.error)?.error;
-  if (deleteError) throw deleteError;
-
-  const insertSteps = [];
-  if (courtIds.length) {
-    insertSteps.push(
-      client.from("profile_courts").insert(courtIds.map((court_id) => ({ profile_id: profileId, court_id })))
-    );
-  }
-  if (profile.types.size) {
-    insertSteps.push(
-      client
-        .from("profile_play_types")
-        .insert([...profile.types].map((play_type) => ({ profile_id: profileId, play_type })))
-    );
-  }
-  if (profile.slots.size) {
-    insertSteps.push(
-      client.from("profile_slots").insert([...profile.slots].map((slot_code) => ({ profile_id: profileId, slot_code })))
-    );
-  }
-
-  const insertResults = await Promise.all(insertSteps);
-  const insertError = insertResults.find((result) => result.error)?.error;
-  if (insertError) throw insertError;
-
-  return loadCurrentProfile();
-}
-
-export async function createPartnerRequest({ courtId, desiredTimeText, rawSkillText, requestText }) {
-  const client = requireSupabase();
-  const profile = await loadCurrentProfile();
-  if (!profile?.id) throw new Error("請先建立個人檔案");
-
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { error } = await client.from("partner_requests").insert({
-    profile_id: profile.id,
-    court_id: courtId,
-    desired_time_text: desiredTimeText,
-    raw_skill_text: rawSkillText,
-    request_text: requestText,
-    status: "open",
-    expires_at: expiresAt,
-  });
-  if (error) throw error;
-}
-
-export async function createReport({ reportedProfileId = null, partnerRequestId = null, reason }) {
-  const client = requireSupabase();
-  const profile = await loadCurrentProfile();
-  if (!profile?.id) throw new Error("請先建立個人檔案");
-  if (!reportedProfileId && !partnerRequestId) throw new Error("缺少檢舉目標");
-
-  const { error } = await client.from("reports").insert({
-    reporter_profile_id: profile.id,
-    reported_profile_id: reportedProfileId,
-    partner_request_id: partnerRequestId,
-    reason,
-  });
   if (error) throw error;
 }

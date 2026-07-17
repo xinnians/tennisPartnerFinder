@@ -1,56 +1,168 @@
-// ============================================================
-//  篩選邏輯(純函式,不碰 DOM / 地圖,方便測試與重用)
-//  規則沿用設計檔:程度用 band 區間、類型 chips 未選 = 不限
-// ============================================================
+import { TAIPEI_TIME_ZONE } from "./config.js";
 
-// NTRP 程度區間(與設計檔的 bandOptions 一致)
+// Selected bands are ranges because a session advertises an acceptable NTRP
+// interval, not one host rating. Endpoints intentionally overlap.
 export const BANDS = [
   { key: "all", label: "全部" },
-  { key: "lo", label: "≤ 3.0" },
-  { key: "mid", label: "3.0 – 4.0" },
-  { key: "hi", label: "4.0 – 5.0" },
-  { key: "pro", label: "5.0 +" },
+  { key: "lo", label: "≤ 3.0", min: Number.NEGATIVE_INFINITY, max: 3 },
+  { key: "mid", label: "3.0 – 4.0", min: 3, max: 4 },
+  { key: "hi", label: "4.0 – 5.0", min: 4, max: 5 },
+  { key: "pro", label: "5.0 +", min: 5, max: Number.POSITIVE_INFINITY },
 ];
 
-// 想打類型 chips(與設計檔 TYPES 的 short 標籤一致)
 export const TYPES = ["單打", "對拉", "雙打", "練球"];
 
 export const DEFAULT_FILTER_STATE = {
-  band: "all", // 程度區間
-  types: new Set(), // 已選類型;空集合 = 不限(設計行為)
+  district: "",
+  courtId: null,
+  date: null,
+  band: "all",
+  types: new Set(),
 };
 
-/**
- * NTRP 是否落在指定 band。
- * ntrp 為 null(程度未提供)一律通過 —— 與設計檔 _bandMatch 相同,
- * 讓「約略程度」的需求釘不會因為沒數字就被誤濾掉。
- */
-export function bandMatch(ntrp, band) {
-  if (band === "all" || ntrp == null) return true;
-  if (band === "lo") return ntrp <= 3.0;
-  if (band === "mid") return ntrp > 3.0 && ntrp <= 4.0;
-  if (band === "hi") return ntrp > 4.0 && ntrp <= 5.0;
-  if (band === "pro") return ntrp > 5.0;
-  return true;
+function asFiniteNumber(value) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
-/** goals 與已選類型有交集才通過;未選任何類型 = 不限 */
-export function typeMatch(goals, types) {
-  if (types.size === 0) return true;
-  return goals.some((g) => types.has(g));
+function toDate(value) {
+  if (value == null || value === "") return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getTaipeiDateKey(value) {
+  const date = toDate(value);
+  if (!date) return null;
+
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: TAIPEI_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function selectedDateKey(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return getTaipeiDateKey(value);
+}
+
+function selectedTypes(types) {
+  if (types instanceof Set) return types;
+  return new Set(Array.isArray(types) ? types : []);
+}
+
+function matchesBand(session, bandKey) {
+  if (!bandKey || bandKey === "all") return true;
+  const band = BANDS.find((candidate) => candidate.key === bandKey);
+  if (!band || band.min == null || band.max == null) return true;
+
+  const sessionMin = asFiniteNumber(session.ntrpMin);
+  const sessionMax = asFiniteNumber(session.ntrpMax);
+  // A missing interval is deliberately inclusive: the server permits it and
+  // the UI must not silently hide a session whose host did not constrain NTRP.
+  if (sessionMin == null || sessionMax == null) return true;
+  return sessionMax >= band.min && sessionMin <= band.max;
+}
+
+function matchesDistrict(session, district) {
+  return !district || district === "all" || session.courtDistrict === district;
+}
+
+function matchesCourt(session, courtId) {
+  return courtId == null || courtId === "" || String(session.courtId) === String(courtId);
+}
+
+function matchesDate(session, date) {
+  const expected = selectedDateKey(date);
+  return !expected || getTaipeiDateKey(session.startAt) === expected;
+}
+
+function matchesTypes(session, types) {
+  const chosen = selectedTypes(types);
+  return chosen.size === 0 || chosen.has(session.playType);
+}
+
+function isDiscoverableFutureSession(session, now) {
+  const startAt = toDate(session.startAt);
+  const current = toDate(now) ?? new Date();
+  return Boolean(startAt) && startAt > current && (session.status === "open" || session.status === "full");
 }
 
 /**
- * 依篩選狀態過濾球友與需求資料。
- * - 球友釘:程度 band + 想打類型 都要通過。
- * - 需求釘:只看程度 band —— DemandPin 沒有結構化的類型欄位
- *   (原句在 demandText 裡),所以想打類型篩選不作用於需求釘。
+ * Filter public SessionSummary rows without changing their source order.
+ * Dates are compared in Asia/Taipei so a date picker does not flip a session
+ * around midnight in the viewer's local browser timezone.
  */
-export function filterData({ players, demands }, state) {
-  return {
-    players: players.filter(
-      (p) => bandMatch(p.ntrp, state.band) && typeMatch(p.goals, state.types)
-    ),
-    demands: demands.filter((d) => bandMatch(d.ntrp, state.band)),
-  };
+export function filterSessions(sessions, filters = DEFAULT_FILTER_STATE, now = new Date()) {
+  const source = Array.isArray(sessions) ? sessions : [];
+  const state = filters ?? DEFAULT_FILTER_STATE;
+
+  return source.filter(
+    (session) =>
+      isDiscoverableFutureSession(session, now) &&
+      matchesDistrict(session, state.district) &&
+      matchesCourt(session, state.courtId) &&
+      matchesDate(session, state.date) &&
+      matchesBand(session, state.band) &&
+      matchesTypes(session, state.types)
+  );
+}
+
+function compareStartAt(left, right) {
+  const leftTime = toDate(left.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
+  const rightTime = toDate(right.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
+  return leftTime - rightTime;
+}
+
+function distanceMeters(origin, session) {
+  const latitude = asFiniteNumber(session.courtLat);
+  const longitude = asFiniteNumber(session.courtLng);
+  if (latitude == null || longitude == null) return Number.POSITIVE_INFINITY;
+
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const earthRadiusMeters = 6_371_000;
+  const deltaLatitude = toRadians(latitude - origin.lat);
+  const deltaLongitude = toRadians(longitude - origin.lng);
+  const a =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(toRadians(origin.lat)) * Math.cos(toRadians(latitude)) * Math.sin(deltaLongitude / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function validLocation(location) {
+  const lat = asFiniteNumber(location?.lat);
+  const lng = asFiniteNumber(location?.lng);
+  return lat == null || lng == null ? null : { lat, lng };
+}
+
+/**
+ * Return a new drawer list. Location is used only for this in-memory sort;
+ * it is never persisted on a session or written to any browser storage.
+ */
+export function sortSessionsForDrawer(sessions, userLocation = null) {
+  const source = Array.isArray(sessions) ? sessions : [];
+  const location = validLocation(userLocation);
+
+  if (!location) return [...source].sort(compareStartAt);
+
+  return source
+    .map((session, index) => ({ session, index, distance: distanceMeters(location, session) }))
+    .sort((left, right) => {
+      const distanceDifference = left.distance - right.distance;
+      if (distanceDifference) return distanceDifference;
+      const startDifference = compareStartAt(left.session, right.session);
+      return startDifference || left.index - right.index;
+    })
+    .map(({ session }) => session);
 }

@@ -37,47 +37,21 @@ export async function courtIdByName(client, name) {
 }
 
 export async function createProfile(client, profile) {
-  const { data, error } = await client
-    .from("profiles")
-    .insert({
-      nickname: profile.nickname,
-      ntrp: profile.ntrp,
-      line_id: profile.lineId,
-      is_public: profile.isPublic,
-      user_id: profile.userId,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-
-  const profileId = data.id;
   const courtIds = [];
   for (const courtName of profile.courts ?? []) {
     courtIds.push(await courtIdByName(client, courtName));
   }
 
-  if (courtIds.length > 0) {
-    const { error: courtsError } = await client
-      .from("profile_courts")
-      .insert(courtIds.map((court_id) => ({ profile_id: profileId, court_id })));
-    if (courtsError) throw courtsError;
-  }
-
-  if ((profile.playTypes ?? []).length > 0) {
-    const { error: typesError } = await client
-      .from("profile_play_types")
-      .insert(profile.playTypes.map((play_type) => ({ profile_id: profileId, play_type })));
-    if (typesError) throw typesError;
-  }
-
-  if ((profile.slots ?? []).length > 0) {
-    const { error: slotsError } = await client
-      .from("profile_slots")
-      .insert(profile.slots.map((slot_code) => ({ profile_id: profileId, slot_code })));
-    if (slotsError) throw slotsError;
-  }
-
-  return profileId;
+  const { data, error } = await client.rpc("save_my_profile", {
+    p_nickname: profile.nickname,
+    p_ntrp: profile.ntrp,
+    p_line_id: profile.lineId,
+    p_court_ids: courtIds,
+    p_play_types: profile.playTypes ?? [],
+    p_slot_codes: profile.slots ?? [],
+  });
+  if (error) throw error;
+  return data;
 }
 
 export async function setBrowserSession(page, session) {

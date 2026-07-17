@@ -3,29 +3,21 @@
 // ============================================================
 import "./style.css";
 import { GOOGLE_MAPS_API_KEY, MAP_CENTER, MAP_ZOOM } from "./config.js";
-import { COURTS, REGISTERED_PLAYERS, DEMAND_PINS } from "./mockData.js";
-import { BANDS, TYPES, DEFAULT_FILTER_STATE, filterData } from "./filters.js";
+import { COURTS } from "./mockData.js";
+import { BANDS, TYPES, DEFAULT_FILTER_STATE } from "./filters.js";
 import { loadGoogleMaps, createMap, groupPinsByCourt, renderPins, renderCourtBasePins } from "./map.js";
 import {
-  openPlayerSheet,
-  openDemandSheet,
   openCourtDrawer,
-  openQuickContactModal,
   openLoginModal,
-  openPublishRequestModal,
-  openReportModal,
   closeSheet,
   closeModal,
 } from "./sheets.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
 import {
-  createPartnerRequest,
-  createReport,
   getInitialSession,
-  loadActivePartnerRequests,
   loadCourts,
   loadCurrentProfile,
-  loadDiscoveryPlayers,
+  loadSessionDiscovery,
   onAuthStateChange,
   saveCurrentProfile,
   signInWithOAuthProvider,
@@ -35,7 +27,10 @@ import { esc, ntrpDesc } from "./util.js";
 import { mountCourtPicker } from "./courtPicker.js";
 
 let courts = COURTS;
-let dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
+// Task 5 replaces the retired quick-contact map UI. Until then, the legacy
+// renderer only ever receives this explicit empty shape; SessionSummary is
+// never coerced into a player/demand payload.
+let dataSet = { players: [], demands: [] };
 let courtPicker = null;
 
 function defaultProfile() {
@@ -56,6 +51,7 @@ function defaultProfile() {
 const state = {
   session: null,
   dataStatus: "idle",
+  sessions: [],
   filters: { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) },
   profile: defaultProfile(),
 };
@@ -67,11 +63,12 @@ let markers = [];
 let baseMarkers = [];
 
 // ------------------------------------------------------------
-// 圖釘互動(球友 sheet → 快速聯絡 modal)
+// Task 5 replaces these legacy pin callbacks with SessionSummary cards. The
+// safe bridge deliberately has no path into quick contact or legacy reports.
 // ------------------------------------------------------------
 const pinHandlers = {
-  onPlayer: (p) => openPlayerSheet(p, { onQuickContact: startQuickContact, onReport: startPlayerReport }),
-  onDemand: (d) => openDemandSheet(d, { onReport: startDemandReport }),
+  onPlayer: () => showToast("新版球局介面即將提供。"),
+  onDemand: () => showToast("新版球局介面即將提供。"),
   onCluster: (court, items) => openCourtDrawer(court, items, pinHandlers),
 };
 
@@ -118,7 +115,7 @@ function updateMapDataStatus() {
   }
 
   if (state.dataStatus === "loading") {
-    setMapStatus("loading", "正在載入球友資料", "同步公開球友與徵球伴需求中");
+    setMapStatus("loading", "正在載入球局資料", "同步公開球局中");
     return;
   }
 
@@ -128,7 +125,7 @@ function updateMapDataStatus() {
   }
 
   if (state.dataStatus === "empty") {
-    setMapStatus("empty", "目前沒有公開球友或需求", "可以先建立自己的檔案或發布需求");
+    setMapStatus("empty", "目前沒有可加入球局", "新版球局介面會顯示建立與申請流程");
     return;
   }
 
@@ -147,104 +144,13 @@ function openAuthPrompt() {
   });
 }
 
-function ensureSignedInAndCompleteProfile() {
-  if (isSupabaseConfigured && !state.session) {
-    openAuthPrompt();
-    return false;
-  }
-
-  const missing = contactMissingFields(state.profile);
-  if (missing.length > 0) {
-    showToast(`先補齊 ${missing.join("、")}，開場白會比較自然。`);
-    switchTab("profile");
-    closeSheet();
-    return false;
-  }
-
-  return true;
-}
-
-function startQuickContact(p) {
-  if (!ensureSignedInAndCompleteProfile()) return;
-
-  openQuickContactModal(p, {
-    viewerProfile: state.profile,
-    onPublishRequest: () => startPublishRequest(),
-  });
-}
-
-function ensureCanReport() {
-  if (!isSupabaseConfigured) {
-    showToast("檢舉功能需要 Supabase 環境。");
-    return false;
-  }
-
-  if (!state.session) {
-    openAuthPrompt();
-    return false;
-  }
-
-  if (!state.profile.id) {
-    showToast("檢舉前請先建立個人檔案");
-    switchTab("profile");
-    closeSheet();
-    return false;
-  }
-
-  return true;
-}
-
-function startPlayerReport(player) {
-  if (!ensureCanReport()) return;
-  if (!player.profileId) {
-    showToast("目前不能檢舉這筆球友資料。");
-    return;
-  }
-
-  openReportModal(
-    {
-      title: `檢舉 ${player.displayName}`,
-      subtitle: `${player.homeCourt}・NTRP ${player.ntrp.toFixed(1)}`,
-    },
-    {
-      onSubmit: async (reason) => {
-        await createReport({ reportedProfileId: player.profileId, reason });
-        closeModal();
-        showToast("已收到檢舉");
-      },
-    }
-  );
-}
-
-function startDemandReport(demand) {
-  if (!ensureCanReport()) return;
-  if (!demand.requestId) {
-    showToast("目前不能檢舉這筆需求。");
-    return;
-  }
-
-  openReportModal(
-    {
-      title: "檢舉需求",
-      subtitle: `${demand.court}・${demand.rawSkill ?? "程度未提供"}`,
-    },
-    {
-      onSubmit: async (reason) => {
-        await createReport({ partnerRequestId: demand.requestId, reason });
-        closeModal();
-        showToast("已收到檢舉");
-      },
-    }
-  );
-}
-
 // ------------------------------------------------------------
 // 篩選列(程度 popover + 類型 chips)
 // ------------------------------------------------------------
 function refreshPins() {
   if (!map) return;
   closeSheet();
-  const groups = groupPinsByCourt(courts, filterData(dataSet, state.filters));
+  const groups = groupPinsByCourt(courts, dataSet);
   markers = renderPins(google, map, groups, pinHandlers, markers);
 }
 
@@ -256,7 +162,7 @@ function refreshBasePins() {
 }
 
 function openCourtFromBasePin(court) {
-  const groups = groupPinsByCourt([court], filterData(dataSet, state.filters));
+  const groups = groupPinsByCourt([court], dataSet);
   openCourtDrawer(court, groups[0]?.items ?? [], pinHandlers);
 }
 
@@ -334,32 +240,21 @@ function setupPublishRequest() {
 }
 
 async function loadAppData() {
-  if (!isSupabaseConfigured) {
-    state.dataStatus = "ready";
-    updateMapDataStatus();
-    courts = COURTS;
-    dataSet = { players: REGISTERED_PLAYERS, demands: DEMAND_PINS };
-    courtPicker?.setCourts(courts);
-    return;
-  }
-
   state.dataStatus = "loading";
   updateMapDataStatus();
 
   try {
-    const [nextCourts, players, demands] = await Promise.all([
-      loadCourts(),
-      loadDiscoveryPlayers(),
-      loadActivePartnerRequests(),
-    ]);
-    courts = nextCourts.length ? nextCourts : COURTS;
-    dataSet = { players, demands };
+    const [nextCourts, sessions] = await Promise.all([loadCourts(), loadSessionDiscovery()]);
+    courts = nextCourts;
+    state.sessions = sessions;
+    dataSet = { players: [], demands: [] };
     courtPicker?.setCourts(courts);
-    state.dataStatus = players.length === 0 && demands.length === 0 ? "empty" : "ready";
+    state.dataStatus = sessions.length === 0 ? "empty" : "ready";
     updateMapDataStatus();
   } catch (error) {
     console.error(error);
     courts = [];
+    state.sessions = [];
     dataSet = { players: [], demands: [] };
     state.dataStatus = "error";
     updateMapDataStatus();
@@ -373,22 +268,7 @@ async function refreshDataAndPins() {
 }
 
 async function startPublishRequest() {
-  if (!ensureSignedInAndCompleteProfile()) return;
-
-  openPublishRequestModal(courts, {
-    onSubmit: async (request) => {
-      const court = courts.find((item) => String(item.id ?? item.name) === String(request.courtId));
-      if (!court?.id) throw new Error("找不到可發布的球場");
-      await createPartnerRequest({
-        courtId: court.id,
-        desiredTimeText: request.desiredTimeText,
-        rawSkillText: request.rawSkillText,
-        requestText: request.requestText,
-      });
-      await refreshDataAndPins();
-      showToast("需求已發布");
-    },
-  });
+  showToast("新版球局建立介面即將提供。");
 }
 
 // ------------------------------------------------------------
@@ -449,13 +329,13 @@ function authDisplayName(user) {
 }
 
 function replaceProfile(profile) {
-  state.profile.id = profile.id;
+  delete state.profile.id;
   state.profile.nick = profile.nick;
   state.profile.ntrp = profile.ntrp;
   state.profile.types = new Set(profile.types);
   state.profile.courts = new Set(profile.courts);
   state.profile.slots = new Set(profile.slots);
-  state.profile.share = profile.share;
+  state.profile.share = false;
   state.profile.lineId = profile.lineId;
 }
 
@@ -658,16 +538,8 @@ function showPlaceholder() {
   const placeholder = document.getElementById("map-placeholder");
   if (!placeholder.hidden) return; // 已顯示過(可能由多個失敗路徑觸發)
   const list = document.getElementById("placeholder-courts");
-  for (const court of courts) {
-    const players = dataSet.players.filter((p) => p.homeCourt === court.name).length;
-    const demands = dataSet.demands.filter((d) => d.court === court.name).length;
-    if (players === 0 && demands === 0) continue; // 只列有球友/需求的球場
-    const li = document.createElement("li");
-    li.textContent = `${court.name}(${court.district})— 球友 ${players} 位・需求 ${demands} 則`;
-    list.appendChild(li);
-  }
   const summary = document.createElement("li");
-  summary.textContent = `共 ${courts.length} 座球場`;
+  summary.textContent = `共 ${courts.length} 座球場；新版介面會顯示安全球局清單。`;
   list.appendChild(summary);
   placeholder.hidden = false;
 }
