@@ -97,7 +97,7 @@ begin
 end;
 $$;
 
-select plan(192);
+select plan(206);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -808,6 +808,15 @@ select is(
   'open',
   'accepted pre-start withdrawal reopens a full session'
 );
+select throws_ok(
+  $$
+    update public.session_participants
+    set played_confirmed = true
+    where session_id = current_setting('pgtap.main_session_id')::bigint
+      and profile_id = (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001002')
+  $$,
+  'P0001', 'INVALID_TRANSITION', 'raw withdrawn participant cannot confirm attendance'
+);
 
 -- Host-only cancel, host-only post-start played, accepted-only attendance, and
 -- immediate expiry are all independent lifecycle paths.
@@ -945,6 +954,33 @@ select pg_temp.set_session_fixture_state(
   current_setting('pgtap.attendance_session_id')::bigint,
   now() - interval '1 hour'
 );
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001003', true);
+select is(
+  (select can_confirm_attendance from public.my_session_participations where session_id = current_setting('pgtap.attendance_session_id')::bigint),
+  true,
+  'My Sessions enables attendance confirmation for an accepted guest after a full session starts'
+);
+select is(
+  pg_temp.text_outcome(
+    $$select public.confirm_session_attendance(current_setting('pgtap.attendance_session_id')::bigint)$$
+  ),
+  'OK',
+  'accepted guest can confirm attendance after a full session starts'
+);
+reset role;
+select is(
+  (
+    select played_confirmed
+    from public.session_participants
+    where id = current_setting('pgtap.attendance_guest_participant_id')::bigint
+  ),
+  true,
+  'full-session attendance confirmation sets the accepted guest flag'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.attendance_guest_participant_id')::bigint;
 select throws_ok(
   $$
     insert into public.session_participants (session_id, profile_id, role, status)
@@ -1030,6 +1066,111 @@ select is(
   (select can_confirm_attendance from public.my_session_participations where session_id = current_setting('pgtap.attendance_session_id')::bigint),
   false,
   'My Sessions disables attendance confirmation after the 24-hour window'
+);
+reset role;
+
+-- Attendance is available to an accepted guest after a session starts even
+-- before the host records the optional played lifecycle transition.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select set_config(
+  'pgtap.open_attendance_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '11 days', 3.0, 5.0, 2, '__pgtap_open_attendance_session__'
+  )::text,
+  true
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select set_config(
+  'pgtap.open_attendance_request_outcome',
+  public.request_to_join_session(current_setting('pgtap.open_attendance_session_id')::bigint),
+  true
+);
+reset role;
+select set_config(
+  'pgtap.open_attendance_guest_participant_id',
+  (
+    select participant_row.id::text
+    from public.session_participants participant_row
+    join public.profiles profile_row on profile_row.id = participant_row.profile_id
+    where participant_row.session_id = current_setting('pgtap.open_attendance_session_id')::bigint
+      and profile_row.user_id = '00000000-0000-0000-0000-000000001006'
+  ),
+  true
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select set_config(
+  'pgtap.open_attendance_review_outcome',
+  public.review_join_request(
+    current_setting('pgtap.open_attendance_session_id')::bigint,
+    current_setting('pgtap.open_attendance_guest_participant_id')::bigint,
+    'accepted'
+  ),
+  true
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select is(
+  (select can_confirm_attendance from public.my_session_participations where session_id = current_setting('pgtap.open_attendance_session_id')::bigint),
+  false,
+  'My Sessions disables attendance confirmation before an open session starts'
+);
+select throws_ok(
+  $$select public.confirm_session_attendance(current_setting('pgtap.open_attendance_session_id')::bigint)$$,
+  'P0001', 'INVALID_TRANSITION', 'accepted guest cannot confirm attendance before an open session starts'
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.open_attendance_session_id')::bigint,
+  now() - interval '1 hour'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select is(
+  (select can_confirm_attendance from public.my_session_participations where session_id = current_setting('pgtap.open_attendance_session_id')::bigint),
+  true,
+  'My Sessions enables attendance confirmation for an accepted guest after an open session starts'
+);
+select is(
+  pg_temp.text_outcome(
+    $$select public.confirm_session_attendance(current_setting('pgtap.open_attendance_session_id')::bigint)$$
+  ),
+  'OK',
+  'accepted guest can confirm attendance after an open session starts'
+);
+reset role;
+select is(
+  (
+    select played_confirmed
+    from public.session_participants
+    where id = current_setting('pgtap.open_attendance_guest_participant_id')::bigint
+  ),
+  true,
+  'open-session attendance confirmation sets the accepted guest flag'
+);
+update public.session_participants
+set played_confirmed = false
+where id = current_setting('pgtap.open_attendance_guest_participant_id')::bigint;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.open_attendance_session_id')::bigint,
+  now() - interval '1 hour',
+  'cancelled'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001006', true);
+select is(
+  (select can_confirm_attendance from public.my_session_participations where session_id = current_setting('pgtap.open_attendance_session_id')::bigint),
+  false,
+  'My Sessions disables attendance confirmation for a cancelled session'
+);
+select throws_ok(
+  $$select public.confirm_session_attendance(current_setting('pgtap.open_attendance_session_id')::bigint)$$,
+  'P0001', 'SESSION_CANCELLED', 'accepted guest cannot confirm attendance for a cancelled session'
 );
 reset role;
 
@@ -1598,6 +1739,10 @@ select set_config(
   ),
   true
 );
+select throws_ok(
+  $$update public.session_participants set played_confirmed = true where id = current_setting('pgtap.raw_accept_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw requested participant cannot confirm attendance'
+);
 select pg_temp.set_session_fixture_state(
   current_setting('pgtap.raw_accept_guard_session_id')::bigint,
   now() + interval '18 days',
@@ -1664,11 +1809,15 @@ select throws_ok(
   $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_started_accept_participant_id')::bigint$$,
   'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur after an open session has started'
 );
+select throws_ok(
+  $$update public.session_participants set status = 'withdrawn' where id = current_setting('pgtap.raw_started_accept_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw requested guest cannot withdraw after an open session has started'
+);
 delete from public.sessions
 where id = current_setting('pgtap.raw_started_cancel_session_id')::bigint;
 
--- Confirmation is a post-play attendance action, not an arbitrary participant
--- flag. Raw writers receive the same accepted/played/24-hour boundary.
+-- Confirmation is a post-start attendance action, not an arbitrary participant
+-- flag. Raw writers receive the same accepted/status/window boundary.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
 select set_config(
@@ -1771,6 +1920,10 @@ select lives_ok(
 update public.session_participants
 set played_confirmed = false
 where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint;
+select throws_ok(
+  $$update public.session_participants set status = 'withdrawn' where id = current_setting('pgtap.raw_confirm_guard_participant_id')::bigint$$,
+  'P0001', 'INVALID_TRANSITION', 'raw accepted guest cannot withdraw after a played session starts'
+);
 
 -- A host-row constraint allows parent session deletes to cascade, but refuses
 -- a raw child deletion that would leave a live session orphaned.

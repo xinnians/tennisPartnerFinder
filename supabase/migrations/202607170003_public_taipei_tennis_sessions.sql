@@ -396,6 +396,23 @@ begin
     end if;
   end if;
 
+  if tg_op = 'UPDATE'
+    and new.role = 'guest'
+    and new.status = 'withdrawn'
+    and new.status is distinct from old.status then
+    select *
+    into parent_session
+    from public.sessions session_row
+    where session_row.id = new.session_id
+    for update;
+
+    if not found
+      or parent_session.status not in ('open', 'full')
+      or parent_session.start_at <= now() then
+      raise exception 'INVALID_TRANSITION';
+    end if;
+  end if;
+
   if played_confirmation_is_new then
     select *
     into parent_session
@@ -405,7 +422,7 @@ begin
 
     if not found
       or new.status <> 'accepted'
-      or parent_session.status <> 'played'
+      or parent_session.status not in ('open', 'full', 'played')
       or parent_session.start_at > now()
       or parent_session.start_at <= now() - interval '24 hours' then
       raise exception 'INVALID_TRANSITION';
@@ -1077,7 +1094,7 @@ begin
     return 'SESSION_EXPIRED';
   elsif locked_session.status = 'cancelled' then
     raise exception 'SESSION_CANCELLED';
-  elsif locked_session.status <> 'played' then
+  elsif locked_session.status not in ('open', 'full', 'played') then
     raise exception 'INVALID_TRANSITION';
   elsif locked_session.start_at > now() then
     raise exception 'INVALID_TRANSITION';
@@ -1244,7 +1261,7 @@ select
   ) as can_confirm_played,
   (
     viewer_participant.status = 'accepted'
-    and session_row.status = 'played'
+    and session_row.status in ('open', 'full', 'played')
     and session_row.start_at <= now()
     and session_row.start_at > now() - interval '24 hours'
   ) as can_confirm_attendance
