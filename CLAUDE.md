@@ -100,6 +100,14 @@ VITE_SUPPORT_EMAIL=...
 domain，不要把每個 immutable deploy URL 加進 allowlist。`VITE_SUPPORT_EMAIL` 在正式
 環境必填，不能提交或杜撰公開信箱。
 
+**部署一律用 git push 觸發，不要用 `vercel deploy`。** Vercel 有兩個各自獨立的穩定
+別名：`...-git-<branch>-...`（只有 Git integration 建置會更新，這個才是加進 Maps
+allowlist 與 Supabase Site URL 的 QA 入口）與 `...-xinnians-...`（CLI 部署才更新）。
+用 CLI 部署會讓 QA 入口停在舊版；2026-07-20 就因此讓線上站在套用 migration 後仍是
+舊前端，讀取路徑全失效。Supabase 的兩個 `VITE_SUPABASE_*` 只設在 Preview 且綁定
+工作分支，Production 環境沒有（2026-07-20 以 `vercel env ls` 查證），推 production
+會退回 mock 模式。
+
 任何 hosted migration、環境變數、部署或社群發布前，先完成
 `docs/mvp-plan.md` 的 release checklist：備份／count preflight、migration list 對齊、
 匿名 REST allowlist、兩帳號 accepted-only contact、cron、OAuth、390px 慢網路與
