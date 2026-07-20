@@ -519,3 +519,20 @@ test("after a session starts, the host can report it played and an accepted gues
   await attendanceButton.click();
   await expect(page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`)).toHaveCount(0);
 });
+
+test("signing out clears the private session view and restores the signed-out prompt", async ({ page }) => {
+  const { hostSession, sessionId } = await createPublishedSession();
+
+  await gotoWithSession(page, hostSession);
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toBeVisible();
+
+  const signOutButton = page.locator("[data-my-sessions-sign-out]");
+  await expect(signOutButton).toBeVisible();
+  await signOutButton.click();
+
+  await expect(page.locator("[data-my-sessions-sign-in]")).toBeVisible();
+  await expect(page.locator("[data-my-sessions-sign-out]")).toHaveCount(0);
+  await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toHaveCount(0);
+  await expect(page.locator("#toast-root")).toContainText("已登出");
+});

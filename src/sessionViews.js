@@ -568,6 +568,7 @@ export function renderMySessionsPage(
     onReportParticipant = () => {},
     onReportSession = () => {},
     onSignIn = () => {},
+    onSignOut = () => {},
     onWithdraw = () => {},
     authenticated = false,
     actionScopeKey = null,
@@ -582,7 +583,11 @@ export function renderMySessionsPage(
   root.innerHTML = `
     <div class="my-sessions-shell__head">
       <div><p class="surface__eyebrow">我的球局</p><h1 tabindex="-1" data-my-sessions-heading>下一步行動</h1></div>
-      <div class="my-sessions-shell__tools"><button type="button" id="my-sessions-refresh" class="session-secondary">重新整理</button><button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button></div>
+      <div class="my-sessions-shell__tools"><button type="button" id="my-sessions-refresh" class="session-secondary">重新整理</button><button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button>${
+        authenticated
+          ? '<button type="button" class="session-secondary" data-my-sessions-sign-out>登出</button>'
+          : ""
+      }</div>
     </div>
     <p class="surface__copy">${
       createdSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"
@@ -638,6 +643,7 @@ export function renderMySessionsPage(
 
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
+  root.querySelector("[data-my-sessions-sign-out]")?.addEventListener("click", onSignOut);
   root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
   root.querySelector("[data-retry-contacts]")?.addEventListener("click", () =>
     runMySessionAction(root.querySelector("[data-retry-contacts]"), onRefresh, root)

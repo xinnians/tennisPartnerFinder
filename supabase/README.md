@@ -69,10 +69,13 @@ browser write path。不要重新授權、搬回 public 或以它們建立旁路
 `session_discovery` 的完整 select list 是：
 
 ```text
-session_id, sport_code, court_id, court, court_district, court_lat, court_lng,
+id, session_id, sport_code, court_id, court, court_district, court_lat, court_lng,
 start_at, play_type, ntrp_min, ntrp_max, slots_total, slots_remaining, notes,
 host_nickname, host_ntrp, host_profile_complete, status
 ```
+
+`id` 與 `session_id` 同值（view 的冗餘欄位）。`supabase/tests/session_rls.sql` 對這 19 欄
+做完整有序比對，任何增刪都會讓 pgTAP 失敗。
 
 不得增加 profile ID、profile URL、真名、LINE、電話、email、常打球場、history 或 roster。
 LINE 僅存在 `session_contacts`；資料庫以雙方 `accepted` 的 host ↔ guest 條件強制，不是 UI

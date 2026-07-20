@@ -33,6 +33,7 @@ import {
   requestToJoinSession,
   saveCurrentProfile,
   signInWithOAuthProvider,
+  signOut,
   withdrawFromSession,
 } from "./dataApi.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
@@ -111,6 +112,15 @@ function openSafeLogin({ onClose = () => {} } = {}) {
       await signInWithOAuthProvider(provider);
     },
   });
+}
+
+async function handleSignOut() {
+  try {
+    await signOut();
+    toast("已登出。");
+  } catch {
+    toast("登出失敗，請稍後再試。");
+  }
 }
 
 function closeActiveProfileCompletion(options = { reason: "account-change", restoreFocus: false }) {
@@ -348,6 +358,7 @@ function renderMySessionsDestination() {
     onReportParticipant: controller.openRosterParticipantReport,
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin(),
+    onSignOut: handleSignOut,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
   });

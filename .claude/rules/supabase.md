@@ -32,10 +32,13 @@ role 不可讀寫。
 `session_discovery` 是 explicit security-definer view。它可回傳球局與球場必要欄位：
 
 ```text
-session_id, sport_code, court_id, court, court_district, court_lat, court_lng,
+id, session_id, sport_code, court_id, court, court_district, court_lat, court_lng,
 start_at, play_type, ntrp_min, ntrp_max, slots_total, slots_remaining, notes,
 host_nickname, host_ntrp, host_profile_complete, status
 ```
+
+`id` 與 `session_id` 同值，是 view 既有的冗餘欄位；`session_rls.sql` 以完整有序字串
+比對這 19 欄，改動任何一欄都會讓測試失敗。
 
 其中主揪 profile 相關欄位**精確地只有** `host_nickname`、`host_ntrp`、
 `host_profile_complete`。永遠不可增加 host/profile/participant ID、profile URL、真名、
