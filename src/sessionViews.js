@@ -747,6 +747,10 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
     );
     if (focusOnOpen) {
       const focusDrawerClose = () => {
+        // This callback can survive a synchronous drawer redraw that replaced
+        // the opening controls. A later render owns focus restoration, so an
+        // aborted binding must never reclaim focus from it.
+        if (signal.aborted) return;
         const active = document.activeElement;
         const opener = root.querySelector("#nearby-sessions-toggle");
         const livePanel = root.querySelector("[data-nearby-dialog]");

@@ -325,3 +325,26 @@ test("an empty-state reset keeps a keyboard user in the drawer with a next card"
   await expect(nextCard).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });
+
+test("a stale opening focus callback cannot steal focus after an immediate drawer redraw", async ({ page }) => {
+  test.skip(isLocalHarness, "The deterministic focus race is covered in the mock harness.");
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(() => {
+    const date = document.querySelector("#date-filter");
+    date.value = "2099-01-01";
+    date.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector("#nearby-sessions-toggle")?.click();
+    const reset = document.querySelector("#discovery-reset");
+    reset?.focus();
+    reset?.click();
+  });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+  const nextCard = page.locator("[data-testid='session-card']").first();
+  await expect(nextCard).toBeVisible();
+  await expect(nextCard).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
