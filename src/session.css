@@ -286,11 +286,15 @@
 }
 .bottom-navigation__item[aria-current="page"] { color: var(--blue); }
 .bottom-navigation__item > span:first-child { font-size: 20px; line-height: 1; }
-.support-link {
+.site-links {
   position: fixed;
   z-index: 19;
+  display: flex;
+  gap: 8px;
   left: clamp(12px, 3vw, 30px);
   bottom: calc(10px + var(--bottom-navigation-offset));
+}
+.site-link {
   padding: 7px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -301,7 +305,7 @@
   text-decoration: none;
   box-shadow: 0 5px 14px rgba(20, 44, 75, 0.12);
 }
-.support-link:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.site-link:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .my-sessions-badge {
   position: absolute;
   top: 7px;
