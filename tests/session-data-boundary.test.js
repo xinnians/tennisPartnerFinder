@@ -45,6 +45,7 @@ const SESSION_SUMMARY_KEYS = [
   "hostNtrp",
   "hostProfileComplete",
   "status",
+  "joinMode",
 ];
 
 function session(overrides = {}) {
@@ -67,6 +68,7 @@ function session(overrides = {}) {
     hostNtrp: 3.5,
     hostProfileComplete: true,
     status: "open",
+    joinMode: "approval",
     ...overrides,
   };
 }
@@ -122,6 +124,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     host_ntrp: "3.5",
     host_profile_complete: true,
     status: "open",
+    join_mode: "instant",
     line_id: "must-not-leak",
     host_profile_id: 99,
     profile_id: 98,
@@ -143,6 +146,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
   assert.equal(publicSummary.hostNickname, "示範海星");
   assert.equal(publicSummary.hostNtrp, 3.5);
   assert.equal(publicSummary.hostProfileComplete, true);
+  assert.equal(publicSummary.joinMode, "instant");
   assert.equal("lineId" in publicSummary, false);
   assert.equal("profileId" in publicSummary, false);
   assert.equal("realName" in publicSummary, false);
@@ -221,7 +225,9 @@ test("private roster/contact/profile mappers stay separate from public summaries
 });
 
 test("mock sessions and discovery payloads are future, local-demo-only SessionSummary data", async () => {
-  assert.ok(MOCK_SESSIONS.length >= 4 && MOCK_SESSIONS.length <= 6);
+  assert.equal(MOCK_SESSIONS.length, 6);
+  assert.equal(MOCK_SESSIONS.find((mock) => mock.sessionId === 9002)?.joinMode, "instant");
+  assert.ok(MOCK_SESSIONS.filter((mock) => mock.sessionId !== 9002).every((mock) => mock.joinMode === "approval"));
 
   for (const mock of MOCK_SESSIONS) {
     assert.deepEqual(sortedKeys(mock), [...SESSION_SUMMARY_KEYS].sort());
@@ -456,7 +462,11 @@ test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outco
     },
   });
 
-  assert.deepEqual(await api.requestToJoinSession(44), { outcome: "SESSION_EXPIRED", reloadRequired: true });
+  assert.deepEqual(await api.requestToJoinSession(44), {
+    outcome: "SESSION_EXPIRED",
+    accepted: false,
+    reloadRequired: true,
+  });
   assert.deepEqual(await api.acceptSessionParticipant(44, 91), { outcome: "OK", reloadRequired: false });
   assert.deepEqual(await api.declineSessionParticipant(44, 92), { outcome: "OK", reloadRequired: false });
   assert.deepEqual(await api.withdrawFromSession(44), { outcome: "OK", reloadRequired: false });
@@ -475,6 +485,55 @@ test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outco
   assert.deepEqual(calls[1][1], { p_session_id: 44, p_participant_id: 91, p_decision: "accepted" });
 });
 
+test("requestToJoinSession maps ACCEPTED outcome", async () => {
+  const api = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: "ACCEPTED", error: null }) },
+  });
+
+  assert.deepEqual(await api.requestToJoinSession(9001), {
+    outcome: "ACCEPTED",
+    accepted: true,
+    reloadRequired: false,
+  });
+});
+
+test("createSession defaults joinMode to approval", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: 81, error: null };
+      },
+    },
+  });
+
+  await api.createSession({
+    courtId: 101,
+    playType: "單打",
+    startAt: "2026-07-19T01:00:00.000Z",
+    slotsTotal: 1,
+  });
+
+  assert.deepEqual(calls, [
+    [
+      "create_session",
+      {
+        p_court_id: 101,
+        p_play_type: "單打",
+        p_start_at: "2026-07-19T01:00:00.000Z",
+        p_ntrp_min: null,
+        p_ntrp_max: null,
+        p_slots_total: 1,
+        p_notes: null,
+        p_join_mode: "approval",
+      },
+    ],
+  ]);
+});
+
 test("RPC failures are exposed as documented action codes", async () => {
   const api = createDataApi({
     configured: true,
@@ -488,6 +547,31 @@ test("RPC failures are exposed as documented action codes", async () => {
   await assert.rejects(
     () => api.requestToJoinSession(7),
     (error) => error instanceof SessionActionError && error.code === "SESSION_FULL"
+  );
+
+  const limitApi = createDataApi({
+    configured: true,
+    client: {
+      async rpc() {
+        return { data: null, error: { message: "SESSION_LIMIT" } };
+      },
+    },
+  });
+
+  await assert.rejects(
+    () =>
+      limitApi.createSession({
+        courtId: 101,
+        playType: "單打",
+        startAt: "2099-07-19T01:00:00.000Z",
+        slotsTotal: 1,
+      }),
+    (error) => {
+      assert.ok(error instanceof SessionActionError);
+      assert.equal(error.code, "SESSION_LIMIT");
+      assert.equal(error.message, "你同時開放中的球局已達上限，請先處理現有球局。");
+      return true;
+    }
   );
 });
 
@@ -552,6 +636,7 @@ test("session creation, reporting, and profile save use only their RPC contracts
       ntrpMax: 4,
       slotsTotal: 1,
       notes: "safe note",
+      joinMode: "instant",
       location: ephemeralLocation,
     }),
     { sessionId: 81 }
@@ -584,6 +669,7 @@ test("session creation, reporting, and profile save use only their RPC contracts
         p_ntrp_max: 4,
         p_slots_total: 1,
         p_notes: "safe note",
+        p_join_mode: "instant",
       },
     ],
     ["create_report", { p_session_id: 81, p_reported_profile_id: null, p_reason: "reason" }],

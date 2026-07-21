@@ -25,6 +25,7 @@ const publicKeys = [
   "hostNtrp",
   "hostProfileComplete",
   "status",
+  "joinMode",
 ].sort();
 
 test(
@@ -84,6 +85,10 @@ test(
     assert.equal("lineId" in summary, false);
     assert.equal("profileId" in summary, false);
 
-    assert.deepEqual(await guestApi.requestToJoinSession(sessionId), { outcome: "OK", reloadRequired: false });
+    assert.deepEqual(await guestApi.requestToJoinSession(sessionId), {
+      outcome: "OK",
+      accepted: false,
+      reloadRequired: false,
+    });
   }
 );

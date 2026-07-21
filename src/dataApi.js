@@ -21,6 +21,7 @@ const SESSION_SUMMARY_COLUMNS = [
   "host_ntrp",
   "host_profile_complete",
   "status",
+  "join_mode",
 ];
 
 const MY_SESSION_COLUMNS = [
@@ -65,6 +66,7 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "SESSION_CANCELLED",
   "SESSION_EXPIRED",
   "SESSION_STARTED",
+  "SESSION_LIMIT",
   "ALREADY_REQUESTED",
   "ALREADY_DECIDED",
   "NOT_SESSION_HOST",
@@ -80,6 +82,7 @@ const ACTION_MESSAGES = {
   SESSION_CANCELLED: "這個球局已取消。",
   SESSION_EXPIRED: "球局狀態已更新，請重新載入。",
   SESSION_STARTED: "球局已開始，無法進行這個操作。",
+  SESSION_LIMIT: "你同時開放中的球局已達上限，請先處理現有球局。",
   ALREADY_REQUESTED: "您已申請加入這個球局。",
   ALREADY_DECIDED: "這筆申請已經處理。",
   NOT_SESSION_HOST: "只有主揪可以執行這個操作。",
@@ -142,6 +145,7 @@ function sessionSummaryValues(row = {}) {
     hostNtrp: asNumber(row.host_ntrp),
     hostProfileComplete: asBoolean(row.host_profile_complete),
     status: asText(row.status),
+    joinMode: asText(row.join_mode),
   };
 }
 
@@ -170,6 +174,7 @@ function mapMockSessionSummary(session = {}) {
     hostNtrp: asNumber(session.hostNtrp),
     hostProfileComplete: asBoolean(session.hostProfileComplete),
     status: asText(session.status),
+    joinMode: asText(session.joinMode),
   };
 }
 
@@ -195,6 +200,7 @@ export function mapMySession(row = {}) {
     hostNtrp: session.hostNtrp,
     hostProfileComplete: session.hostProfileComplete,
     status: session.status,
+    joinMode: session.joinMode,
     viewerRole: asText(row.viewer_role),
     viewerParticipantStatus: asText(row.viewer_participant_status),
     viewerPlayedConfirmed: asBoolean(row.viewer_played_confirmed),
@@ -486,7 +492,16 @@ export function createDataApi({
     return loadCurrentProfile();
   }
 
-  async function createSession({ courtId, playType, startAt, ntrpMin = null, ntrpMax = null, slotsTotal, notes = null }) {
+  async function createSession({
+    courtId,
+    playType,
+    startAt,
+    ntrpMin = null,
+    ntrpMax = null,
+    slotsTotal,
+    notes = null,
+    joinMode = "approval",
+  }) {
     const sessionId = await callRpc("create_session", {
       p_court_id: asNumber(courtId),
       p_play_type: playType,
@@ -495,12 +510,17 @@ export function createDataApi({
       p_ntrp_max: ntrpMax == null ? null : asNumber(ntrpMax),
       p_slots_total: asNumber(slotsTotal),
       p_notes: notes == null ? null : asText(notes),
+      p_join_mode: joinMode,
     });
     return { sessionId: asNumber(sessionId) };
   }
 
   async function requestToJoinSession(sessionId) {
-    return callLifecycleRpc("request_to_join_session", { p_session_id: sessionId });
+    const outcome = await callRpc("request_to_join_session", { p_session_id: sessionId });
+    if (outcome !== "OK" && outcome !== "ACCEPTED" && outcome !== "SESSION_EXPIRED") {
+      throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    }
+    return { outcome, accepted: outcome === "ACCEPTED", reloadRequired: outcome === "SESSION_EXPIRED" };
   }
 
   async function acceptSessionParticipant(sessionId, participantId) {

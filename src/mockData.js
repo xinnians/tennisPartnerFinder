@@ -36,6 +36,7 @@ export const MOCK_SESSIONS = [
     hostNtrp: 3.5,
     hostProfileComplete: true,
     status: "open",
+    joinMode: "approval",
   },
   {
     sessionId: 9002,
@@ -56,6 +57,7 @@ export const MOCK_SESSIONS = [
     hostNtrp: 3.5,
     hostProfileComplete: true,
     status: "open",
+    joinMode: "instant",
   },
   {
     sessionId: 9003,
@@ -76,6 +78,7 @@ export const MOCK_SESSIONS = [
     hostNtrp: 4.5,
     hostProfileComplete: true,
     status: "full",
+    joinMode: "approval",
   },
   {
     sessionId: 9004,
@@ -96,6 +99,7 @@ export const MOCK_SESSIONS = [
     hostNtrp: 2.5,
     hostProfileComplete: true,
     status: "open",
+    joinMode: "approval",
   },
   {
     sessionId: 9005,
@@ -116,6 +120,7 @@ export const MOCK_SESSIONS = [
     hostNtrp: 4,
     hostProfileComplete: true,
     status: "open",
+    joinMode: "approval",
   },
   {
     sessionId: 9006,
@@ -136,5 +141,6 @@ export const MOCK_SESSIONS = [
     hostNtrp: 3,
     hostProfileComplete: true,
     status: "open",
+    joinMode: "approval",
   },
 ];
