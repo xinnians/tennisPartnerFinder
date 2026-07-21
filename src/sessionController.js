@@ -111,6 +111,7 @@ function terminalAction(session) {
 
 const MY_SESSION_FINAL_STATUSES = new Set(["cancelled", "expired", "played"]);
 const MY_SESSION_OPEN_STATUSES = new Set(["open", "full"]);
+const KIND_ORDER = { "host-request": 0, invite: 1, "guest-request": 2 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function timeValue(value, fallback = 0) {
@@ -158,6 +159,12 @@ export function groupMySessions(items = [], now = new Date()) {
       continue;
     }
 
+    if (viewerRole === "guest" && participantStatus === "invited") {
+      if (session?.canRespondInvite) needsAction.push({ kind: "invite", session });
+      else history.push(session);
+      continue;
+    }
+
     if (viewerRole === "guest" && participantStatus === "requested") {
       if (session?.canWithdraw) needsAction.push({ kind: "guest-request", session });
       else history.push(session);
@@ -178,7 +185,7 @@ export function groupMySessions(items = [], now = new Date()) {
   }
 
   needsAction.sort((left, right) => {
-    const kindOrder = left.kind === right.kind ? 0 : left.kind === "host-request" ? -1 : 1;
+    const kindOrder = (KIND_ORDER[left.kind] ?? 9) - (KIND_ORDER[right.kind] ?? 9);
     return (
       kindOrder ||
       compareSessionStart(left.session, right.session) ||

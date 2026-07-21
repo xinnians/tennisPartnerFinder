@@ -251,6 +251,75 @@ test("My Sessions groups private lifecycle rows by the next safe action", () => 
   assert.equal(groups.history[1].canConfirmAttendance, true, "played history can retain its server-authorized attendance action");
 });
 
+test("My Sessions puts a responsive guest invitation in needs action as an invite", () => {
+  const invitedSession = futureSession({
+    canRespondInvite: true,
+    sessionId: 7,
+    startAt: "2026-07-18T02:00:00.000Z",
+    viewerParticipantStatus: "invited",
+    viewerRole: "guest",
+  });
+
+  const groups = groupMySessions([invitedSession], new Date("2026-07-17T04:00:00.000Z"));
+
+  assert.deepEqual(
+    groups.needsAction.map((entry) => [entry.kind, entry.session.sessionId]),
+    [["invite", 7]]
+  );
+  assert.deepEqual(groups.history, []);
+});
+
+test("My Sessions puts an expired or cancelled guest invitation in history", () => {
+  const invitedSession = futureSession({
+    canRespondInvite: false,
+    sessionId: 8,
+    startAt: "2026-07-18T02:00:00.000Z",
+    viewerParticipantStatus: "invited",
+    viewerRole: "guest",
+  });
+
+  const groups = groupMySessions([invitedSession], new Date("2026-07-17T04:00:00.000Z"));
+
+  assert.deepEqual(groups.needsAction, []);
+  assert.deepEqual(groups.history.map((entry) => entry.sessionId), [8]);
+});
+
+test("My Sessions orders host requests, invites, then guest requests", () => {
+  const hostSession = futureSession({
+    canCancel: true,
+    pendingRequests: [{ participantId: 71, role: "guest", status: "requested" }],
+    sessionId: 9,
+    startAt: "2026-07-20T02:00:00.000Z",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const invitedSession = futureSession({
+    canRespondInvite: true,
+    sessionId: 10,
+    startAt: "2026-07-18T02:00:00.000Z",
+    viewerParticipantStatus: "invited",
+    viewerRole: "guest",
+  });
+  const requestedSession = futureSession({
+    canWithdraw: true,
+    sessionId: 11,
+    startAt: "2026-07-17T02:00:00.000Z",
+    viewerParticipantStatus: "requested",
+    viewerRole: "guest",
+  });
+
+  const groups = groupMySessions([requestedSession, invitedSession, hostSession], new Date("2026-07-17T01:00:00.000Z"));
+
+  assert.deepEqual(
+    groups.needsAction.map((entry) => [entry.kind, entry.session.sessionId]),
+    [
+      ["host-request", 9],
+      ["invite", 10],
+      ["guest-request", 11],
+    ]
+  );
+});
+
 test("My Sessions hydrates host-only rosters for the badge and defers contacts until the page requests them", async () => {
   const rosterCalls = [];
   const contactCalls = [];
