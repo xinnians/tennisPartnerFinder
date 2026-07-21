@@ -34,11 +34,13 @@ role 不可讀寫。
 ```text
 id, session_id, sport_code, court_id, court, court_district, court_lat, court_lng,
 start_at, play_type, ntrp_min, ntrp_max, slots_total, slots_remaining, notes,
-host_nickname, host_ntrp, host_profile_complete, status
+host_nickname, host_ntrp, host_profile_complete, status, join_mode
 ```
 
 `id` 與 `session_id` 同值，是 view 既有的冗餘欄位；`session_rls.sql` 以完整有序字串
-比對這 19 欄，改動任何一欄都會讓測試失敗。
+比對這 20 欄，改動任何一欄都會讓測試失敗。`join_mode` 只可為 `approval` 或 `instant`：
+前者由主揪審核加入申請，後者在有缺額時直接接受加入；它不會擴大任何 profile 或聯絡資料的
+公開範圍。
 
 其中主揪 profile 相關欄位**精確地只有** `host_nickname`、`host_ntrp`、
 `host_profile_complete`。永遠不可增加 host/profile/participant ID、profile URL、真名、
@@ -65,6 +67,11 @@ open/full、active tennis、台北市 court 的球局。
   `accepted`。
 - 接受最後一個缺額以 row lock 計算容量，並把其餘 requested guests decline；不要在客戶端
   先判斷可用缺額後直接寫入。
+- `create_session` 的 `join_mode` 只可為 `approval` 或 `instant`；同一主揪至多可有五個未來、
+  `open`／`full` 的球局，超過時 RPC 回傳 `SESSION_LIMIT`。
+- `request_to_join_session` 對 `approval` 局建立 `requested` participant 並回傳 `OK`；對
+  `instant` 局在有缺額時直接轉為 `accepted` 並回傳 `ACCEPTED`。LINE 的可見性模型不變：
+  仍只限雙方皆為 `accepted` 的 host ↔ guest 配對。
 - `withdraw_from_session` 對 accepted guest 在 pre-start full session 會重新開放；host 可在
   pre-start cancel，post-start 24 小時內 mark played，accepted users 可確認出席。
 
