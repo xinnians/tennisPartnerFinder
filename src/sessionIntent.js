@@ -28,6 +28,10 @@ function normalizedIntent(intent) {
     return { action: "create" };
   }
 
+  if (intent.action === "players" && keys.length === 1 && keys[0] === "action") {
+    return { action: "players" };
+  }
+
   return null;
 }
 

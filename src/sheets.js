@@ -70,6 +70,10 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount 
     if (surfaceStack.at(-1) !== surfaceEntry) return;
     if (event.key === "Escape") {
       event.preventDefault();
+      // The opener can still own focus until this surface's first animation
+      // frame. Consume Escape here so that same event cannot close an
+      // underlying drawer after this top surface restores its opener.
+      event.stopPropagation();
       close();
       return;
     }

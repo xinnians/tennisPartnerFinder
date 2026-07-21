@@ -9,6 +9,7 @@ import {
   groupSessionsByCourt,
   loadGoogleMaps,
   renderCourtBasePins,
+  renderPlayerPins,
   renderSessionPins,
   setUserLocation,
   subscribeToMapIdle,
@@ -44,12 +45,15 @@ import { isSupabaseConfigured } from "./supabaseClient.js";
 import { createSessionController } from "./sessionController.js";
 import {
   openCourtSessionDrawer,
+  openCourtPlayersDrawer,
   openCreateSessionSheet,
   openJoinSessionConfirmation,
   openProfileCompletionSheet,
+  openPlayerCardSheet,
   openReportDialog,
   openSessionSheet,
   renderMapDataStatus,
+  renderPlayerLayerToggle,
   renderMySessionsPage,
   renderNearbySessionsDrawer,
 } from "./sessionViews.js";
@@ -62,6 +66,8 @@ let courts = [];
 let courtsReady = false;
 let sessionMarkers = [];
 let courtMarkers = [];
+let playerMarkers = [];
+let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 let authStateEpoch = 0;
 let currentAuthIdentity = null;
@@ -216,6 +222,19 @@ function renderSessionMarkers(sessions) {
       onCluster: (court, groupedSessions) => controller.openCourt(court, groupedSessions),
     },
     sessionMarkers
+  );
+}
+
+function renderPlayerLayer(view) {
+  latestPlayerLayerView = view;
+  renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), view);
+  if (!google || !map) return;
+  playerMarkers = renderPlayerPins(
+    google,
+    map,
+    view.on ? view.groups : [],
+    (court, players) => controller.openPlayerCourt(court, players),
+    playerMarkers
   );
 }
 
@@ -595,6 +614,7 @@ function startMap() {
       controller.attachMap(map);
       renderBaseCourtPins();
       renderSessionMarkers(controller.getVisibleSessions());
+      renderPlayerLayer(latestPlayerLayerView);
     })
     .catch(() => {
       diagnoseMapFailure("Google Maps 載入失敗；已切換為球局清單。");
@@ -628,6 +648,7 @@ function init() {
     mapTools: { getMapBounds, subscribeToMapIdle, setUserLocation, fitTaipei: fitTaipeiBounds },
     render: renderDiscovery,
     renderPins: renderSessionMarkers,
+    renderPlayers: renderPlayerLayer,
     openSession: (session, handlers) => openSessionSheet(session, handlers),
     openJoinConfirmation: (session, handlers) =>
       openJoinSessionConfirmation(session, {
@@ -635,6 +656,8 @@ function init() {
         onViewMySessions: () => showMySessionsPage(null, { focus: true }),
       }),
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
+    openCourtPlayersDrawer: (court, players, handlers) => openCourtPlayersDrawer(court, players, handlers),
+    openPlayerCard: (player, handlers) => openPlayerCardSheet(player, handlers),
     openCreateSession,
     openLogin: openSafeLogin,
     openReport: (context) => openReportDialog(context),
@@ -654,6 +677,7 @@ function init() {
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
   document.getElementById("open-session").addEventListener("click", () => controller.openCreateIntent());
   document.getElementById("open-my-sessions").addEventListener("click", () => showMySessionsPage());
+  document.getElementById("player-layer-toggle").addEventListener("click", () => controller.togglePlayerLayer());
   document.querySelector(".app-brand").addEventListener("click", (event) => {
     event.preventDefault();
     showMapPage({ focus: true });

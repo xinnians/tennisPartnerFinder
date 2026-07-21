@@ -33,6 +33,11 @@
       <main id="tab-map" class="map-page">
         <div id="map" role="region" aria-label="台北市球局地圖"></div>
 
+        <div class="player-layer-control">
+          <button type="button" id="player-layer-toggle" data-testid="player-layer-toggle" class="session-secondary" aria-pressed="false">顯示球友</button>
+          <p id="player-layer-status" class="player-layer-status" role="status" aria-live="polite" hidden></p>
+        </div>
+
         <section class="map-toolbar" aria-label="尋找球局篩選">
           <label class="filter-control">
             <span>行政區</span>

@@ -92,6 +92,9 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.locator("#nearby-sessions-summary")).toContainText("這個地圖範圍內");
   await expect(page.locator("#nearby-sessions-list")).toBeHidden();
   await expect(page.locator("#open-session")).toBeVisible();
+  await expect(page.getByTestId("player-layer-toggle")).toBeVisible();
+  await expect(page.getByTestId("player-layer-toggle")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示球友");
   await expect(page.locator(".chip-type").first()).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "true");
   await page.locator(".chip-type[data-type='單打']").click();
@@ -256,6 +259,35 @@ test("opening the nearby drawer cannot steal focus from an immediate session-car
   });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
   await expect(page.locator("[data-testid='session-card']").first()).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a top sheet consumes Escape before the underlying nearby drawer", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  const result = await page.evaluate(() => {
+    const card = document.querySelector("[data-testid='session-card']");
+    card?.focus();
+    card?.click();
+    const sheetOpened = Boolean(document.querySelector("#session-sheet"));
+    card?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    return {
+      activeSessionId: document.activeElement?.getAttribute("data-session-id"),
+      drawerExpanded: document.querySelector("#nearby-sessions-toggle")?.getAttribute("aria-expanded"),
+      sheetOpened,
+      sheetPresent: Boolean(document.querySelector("#session-sheet")),
+    };
+  });
+
+  expect(result).toEqual({
+    activeSessionId: "9001",
+    drawerExpanded: "true",
+    sheetOpened: true,
+    sheetPresent: false,
+  });
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -917,6 +949,235 @@ test("drawer-card focus survives discovery rerenders and remains a logical sheet
   await page.waitForTimeout(310);
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-testid='session-card']").first()).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("player drawer and card escape every public value and render self and empty invitation states", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    const player = {
+      profileId: '\"><img id="profile-injection" src=x onerror=alert(1)>',
+      nickname: '<img id="nickname-injection" src=x onerror=alert(1)>',
+      ntrp: '3.5\"><img id="ntrp-injection">',
+      playTypes: ['單打<img id="type-injection">'],
+      slotCodes: ['we-m<img id="slot-injection">'],
+      courtName: '<img id="court-injection">',
+      courtDistrict: '<img id="district-injection">',
+      isSelf: false,
+    };
+    views.openCourtPlayersDrawer?.(
+      { id: 8, name: '<img id="drawer-court-injection">', district: '<img id="drawer-district-injection">' },
+      [player],
+      { onOpenPlayer: (selected) => { window.__selectedEscapedPlayer = selected.profileId; } }
+    );
+  });
+  await expect(page.locator("#court-players-sheet")).toBeVisible();
+  await expect(page.locator("#sheet-root img")).toHaveCount(0);
+  await page.locator("[data-player-id]").click();
+  expect(await page.evaluate(() => window.__selectedEscapedPlayer)).toContain("profile-injection");
+
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    views.openPlayerCardSheet?.({
+      profileId: 88,
+      nickname: '<img id="card-nickname-injection">',
+      ntrp: 3.5,
+      playTypes: ['單打<img id="card-type-injection">'],
+      slotCodes: ['we-a', 'mystery<img id="card-slot-injection">'],
+      courtName: '<img id="card-court-injection">',
+      courtDistrict: '<img id="card-district-injection">',
+      isSelf: true,
+    });
+  });
+  await expect(page.locator("#player-card-sheet")).toBeVisible();
+  await expect(page.locator("#player-card-sheet img")).toHaveCount(0);
+  await expect(page.locator("#player-card-sheet .player-profile")).toContainText('時段：週末下午、mystery<img id="card-slot-injection">');
+  await expect(page.locator("#player-card-sheet [data-player-invite]")).toHaveCount(0);
+
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    window.__createFromPlayer = 0;
+    views.openPlayerCardSheet?.(
+      { profileId: 89, nickname: "無球局球友", ntrp: 3, playTypes: [], slotCodes: [], courtName: "河濱", courtDistrict: "中山區", isSelf: false },
+      { myInvitableSessions: [], onCreate: () => { window.__createFromPlayer += 1; } }
+    );
+  });
+  await expect(page.getByText("你目前沒有可邀請的球局", { exact: true })).toBeVisible();
+  await page.getByTestId("player-create-session").click();
+  expect(await page.evaluate(() => window.__createFromPlayer)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("player invitation form escapes session fields and is pending-safe across success, errors, and stale surfaces", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    window.__inviteControls = {};
+    window.__inviteCalls = [];
+    const promise = new Promise((resolve, reject) => Object.assign(window.__inviteControls, { reject, resolve }));
+    views.openPlayerCardSheet?.(
+      { profileId: 91, nickname: "可邀球友", ntrp: 4, playTypes: ["雙打"], slotCodes: ["we-a"], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
+      {
+        myInvitableSessions: [{
+          sessionId: '\"><img id="session-id-injection">',
+          startAt: '2030-01-01T01:00:00.000Z<img id="date-injection">',
+          court: '<img id="session-court-injection">',
+          courtDistrict: '<img id="session-district-injection">',
+          playType: '<img id="session-type-injection">',
+          notes: '<img id="session-notes-injection">',
+        }],
+        onInvite: (sessionId) => { window.__inviteCalls.push(sessionId); return promise; },
+      }
+    );
+  });
+  await expect(page.locator("#player-card-sheet img")).toHaveCount(0);
+  await page.getByTestId("player-invite-session").check();
+  await page.getByTestId("player-invite-submit").click();
+  await expect(page.getByTestId("player-invite-submit")).toBeDisabled();
+  await page.evaluate(() => window.__inviteControls.resolve({ outcome: "OK" }));
+  await expect(page.getByText("邀請已送出", { exact: true })).toBeVisible();
+  expect((await page.evaluate(() => window.__inviteCalls))[0]).toContain("session-id-injection");
+
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    views.openPlayerCardSheet?.(
+      { profileId: 92, nickname: "錯誤球友", ntrp: 4, playTypes: [], slotCodes: [], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
+      { myInvitableSessions: [{ sessionId: 72, startAt: "2030-01-01T01:00:00.000Z", court: "大佳", courtDistrict: "中山區", playType: "雙打", notes: "" }], onInvite: async () => { throw new Error("邀請遭拒"); } }
+    );
+  });
+  await page.getByTestId("player-invite-session").check();
+  await page.getByTestId("player-invite-submit").click();
+  await expect(page.locator("#player-card-sheet [role='alert']")).toHaveText("邀請遭拒");
+  await expect(page.getByTestId("player-invite-submit")).toBeEnabled();
+
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    window.__staleInvite = {};
+    const promise = new Promise((resolve) => { window.__staleInvite.resolve = resolve; });
+    views.openPlayerCardSheet?.(
+      { profileId: 93, nickname: "晚到球友", ntrp: 3, playTypes: [], slotCodes: [], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
+      { myInvitableSessions: [{ sessionId: 73, startAt: "2030-01-01T01:00:00.000Z", court: "大佳", courtDistrict: "中山區", playType: "雙打", notes: "" }], onInvite: () => promise }
+    );
+  });
+  await page.getByTestId("player-invite-session").check();
+  await page.getByTestId("player-invite-submit").click();
+  await page.evaluate(async () => {
+    const views = await import("/src/sessionViews.js");
+    views.openCourtPlayersDrawer?.({ id: 8, name: "替代球場", district: "大安區" }, []);
+    window.__staleInvite.resolve({ outcome: "OK" });
+  });
+  await expect(page.locator("#court-players-sheet")).toBeVisible();
+  await expect(page.getByText("邀請已送出", { exact: true })).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("SESSION_EXPIRED player invitation refreshes choices and renders an inline error instead of success", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { createSessionController } = await import("/src/sessionController.js");
+    const views = await import("/src/sessionViews.js");
+    const hostSession = {
+      sessionId: 71,
+      viewerRole: "host",
+      status: "open",
+      startAt: "2030-01-01T01:00:00.000Z",
+      court: "大佳",
+      courtDistrict: "中山區",
+      playType: "雙打",
+      notes: "測試邀請",
+    };
+    const player = {
+      profileId: 91,
+      nickname: "可邀球友",
+      ntrp: 4,
+      playTypes: ["雙打"],
+      slotCodes: ["we-a"],
+      courtId: 8,
+      courtName: "大佳",
+      courtDistrict: "中山區",
+      courtLat: 25.03,
+      courtLng: 121.54,
+      isSelf: false,
+    };
+    let mySessionLoads = 0;
+    const controller = createSessionController({
+      api: {
+        inviteToSession: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
+        loadMySessions: async () => (++mySessionLoads === 1 ? [hostSession] : []),
+        loadPlayerDirectory: async () => [player],
+      },
+      openCourtPlayersDrawer: views.openCourtPlayersDrawer,
+      openPlayerCard: views.openPlayerCardSheet,
+    });
+    await controller.setAuthState({ user: { id: "host" } }, { complete: true });
+    await controller.togglePlayerLayer();
+    const group = controller.getPlayerLayerState().groups[0];
+    controller.openPlayerCourt(group.court, group.players);
+    window.__expiredInviteSessionLoads = () => mySessionLoads;
+  });
+
+  await page.locator("[data-player-id]").click();
+  await page.getByTestId("player-invite-session").check();
+  await page.getByTestId("player-invite-submit").click();
+  await expect(page.locator("#player-card-sheet")).toBeVisible();
+  await expect(page.locator("#player-card-sheet [role='alert']")).toContainText("球局狀態已更新");
+  await expect(page.getByText("邀請已送出", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("player-invite-session")).toHaveCount(0);
+  expect(await page.evaluate(() => window.__expiredInviteSessionLoads())).toBe(2);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("390px map controls keep the player layer and status below the wrapped toolbar", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
+      message: "球友資料暫時無法載入。",
+      on: true,
+      status: "error",
+    });
+    const mapStatus = document.getElementById("map-data-status");
+    mapStatus.hidden = false;
+    mapStatus.textContent = "球局資料暫時無法載入。";
+  });
+  const toolbar = await page.locator(".map-toolbar").boundingBox();
+  const playerControl = await page.locator(".player-layer-control").boundingBox();
+  const mapStatus = await page.locator("#map-data-status").boundingBox();
+  expect(playerControl.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height + 8);
+  expect(mapStatus.y).toBeGreaterThanOrEqual(playerControl.y + playerControl.height + 8);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("medium-width map status stays below the complete player layer control", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 550, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
+      message: "球友資料暫時無法載入。",
+      on: true,
+      status: "error",
+    });
+    const mapStatus = document.getElementById("map-data-status");
+    mapStatus.hidden = false;
+    mapStatus.textContent = "球局資料暫時無法載入。";
+  });
+
+  const playerControl = await page.locator(".player-layer-control").boundingBox();
+  const mapStatus = await page.locator("#map-data-status").boundingBox();
+  expect(mapStatus.y).toBeGreaterThanOrEqual(playerControl.y + playerControl.height + 8);
   expect(runtimeErrors).toEqual([]);
 });
 

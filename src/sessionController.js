@@ -271,9 +271,12 @@ export function createSessionController({
   mapTools = {},
   render = () => {},
   renderPins = () => {},
+  renderPlayers = () => {},
   openSession = () => {},
   openJoinConfirmation = () => {},
   openCourtDrawer = () => {},
+  openCourtPlayersDrawer = () => {},
+  openPlayerCard = () => {},
   openCreateSession = () => {},
   openLogin = () => {},
   openReport = () => {},
@@ -305,6 +308,10 @@ export function createSessionController({
     mySessionsStatus: "idle",
     mySessionContacts: new Map(),
     mySessionRosters: new Map(),
+    playerLayerOn: false,
+    playerLayerMessage: "",
+    playerLayerStatus: "idle",
+    players: [],
   };
   let map = null;
   let idleTimer = null;
@@ -313,6 +320,7 @@ export function createSessionController({
   let latestRosterRequest = 0;
   let latestContactRequest = 0;
   let latestLocationRequest = 0;
+  let latestPlayerRequest = 0;
   let authEpoch = 0;
   let mySessionsVersion = 0;
   let explicitViewportGeneration = 0;
@@ -326,6 +334,8 @@ export function createSessionController({
   let activeCreateSession = null;
   let activeProfilePrompt = null;
   let activeReportDialog = null;
+  let activePlayerDrawer = null;
+  let activePlayerCard = null;
   let lifecycleMutationGeneration = 0;
   let intentVersion = 0;
   const resumeInFlight = new Map();
@@ -333,6 +343,27 @@ export function createSessionController({
 
   function visibleSessions() {
     return sortSessionsForDrawer(filterSessions(state.sessions, state.filters), state.userLocation);
+  }
+
+  function playerGroups() {
+    const groups = new Map();
+    for (const player of state.players) {
+      const key = String(player?.courtId ?? "");
+      if (!key) continue;
+      const group = groups.get(key) ?? {
+        court: {
+          id: player.courtId,
+          name: player.courtName,
+          district: player.courtDistrict,
+          lat: Number(player.courtLat),
+          lng: Number(player.courtLng),
+        },
+        players: [],
+      };
+      group.players.push(player);
+      groups.set(key, group);
+    }
+    return [...groups.values()];
   }
 
   function mapStatus() {
@@ -354,6 +385,12 @@ export function createSessionController({
       locationMessage: state.locationMessage,
     });
     renderPins(sessions);
+    renderPlayers({
+      groups: state.playerLayerOn ? playerGroups() : [],
+      message: state.playerLayerMessage,
+      on: state.playerLayerOn,
+      status: state.playerLayerStatus,
+    });
   }
 
   function currentParticipation(sessionId) {
@@ -594,6 +631,72 @@ export function createSessionController({
     }
   }
 
+  function closeActivePlayerDrawer(options = {}) {
+    const drawer = activePlayerDrawer;
+    activePlayerDrawer = null;
+    drawer?.close?.(options);
+  }
+
+  function closeActivePlayerCard(options = {}) {
+    const card = activePlayerCard;
+    activePlayerCard = null;
+    card?.close?.(options);
+  }
+
+  function clearPlayerLayer({ turnOff = true, closeReason = "player-layer-clear" } = {}) {
+    latestPlayerRequest += 1;
+    const options = { reason: closeReason, restoreFocus: false };
+    closeActivePlayerDrawer(options);
+    closeActivePlayerCard(options);
+    if (turnOff) state.playerLayerOn = false;
+    state.players = [];
+    state.playerLayerStatus = "idle";
+    state.playerLayerMessage = "";
+  }
+
+  async function loadPlayers(bounds = state.bounds) {
+    if (!state.playerLayerOn || !state.authSession || !profileIsComplete(state.profile)) return false;
+    const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
+    const requestId = ++latestPlayerRequest;
+    const authSnapshot = captureAuthSnapshot();
+    closeActivePlayerDrawer({ reason: "player-refresh", restoreFocus: false });
+    closeActivePlayerCard({ reason: "player-refresh", restoreFocus: false });
+    state.players = [];
+    state.playerLayerStatus = "loading";
+    state.playerLayerMessage = "正在載入球友…";
+    publish();
+    try {
+      const players = await api.loadPlayerDirectory({ bounds: nextBounds });
+      if (
+        requestId !== latestPlayerRequest ||
+        !state.playerLayerOn ||
+        !profileIsComplete(state.profile) ||
+        !isCurrentAuthSnapshot(authSnapshot)
+      ) {
+        return false;
+      }
+      state.players = Array.isArray(players) ? players : [];
+      state.playerLayerStatus = "ready";
+      state.playerLayerMessage = "";
+      publish();
+      return true;
+    } catch {
+      if (
+        requestId !== latestPlayerRequest ||
+        !state.playerLayerOn ||
+        !profileIsComplete(state.profile) ||
+        !isCurrentAuthSnapshot(authSnapshot)
+      ) {
+        return false;
+      }
+      state.players = [];
+      state.playerLayerStatus = "error";
+      state.playerLayerMessage = "球友資料暫時無法載入。";
+      publish();
+      return false;
+    }
+  }
+
   async function loadDiscovery(bounds = state.bounds) {
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const requestId = ++latestRequest;
@@ -606,6 +709,7 @@ export function createSessionController({
     state.sessions = [];
     state.discoveryStatus = "loading";
     state.discoveryMessage = "";
+    const playerRefresh = state.playerLayerOn ? loadPlayers(nextBounds) : null;
     publish();
     try {
       const sessions = await api.loadSessionDiscovery({ bounds: nextBounds });
@@ -625,6 +729,7 @@ export function createSessionController({
       return false;
     }
     publish();
+    if (playerRefresh) await playerRefresh;
     return true;
   }
 
@@ -743,10 +848,94 @@ export function createSessionController({
   }
 
   function openCourt(court, onlySessions = null) {
+    activePlayerDrawer = null;
+    activePlayerCard = null;
     const sessions = onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
     closeActiveCourtDrawer({ restoreFocus: false });
     const drawer = openCourtDrawer(court, sessions, { onOpenSession: openSessionById });
     activeCourtDrawer = drawer?.close ? drawer : null;
+  }
+
+  function invitableSessions(now = Date.now()) {
+    return state.mySessions
+      .filter(
+        (session) =>
+          String(session?.viewerRole).toLowerCase() === "host" &&
+          String(session?.status).toLowerCase() === "open" &&
+          timeValue(session?.startAt, Number.NEGATIVE_INFINITY) > now
+      )
+      .sort(compareSessionStart);
+  }
+
+  function openPlayer(player) {
+    if (!state.playerLayerOn || !state.authSession || !profileIsComplete(state.profile)) return null;
+    activePlayerDrawer = null;
+    const openedAuth = captureAuthSnapshot();
+    let card = null;
+    card = openPlayerCard(player, {
+      myInvitableSessions: invitableSessions(),
+      onClose: () => {
+        if (activePlayerCard === card) activePlayerCard = null;
+      },
+      onCreate: () => {
+        if (activePlayerCard === card) activePlayerCard = null;
+        openCreateIntent();
+      },
+      onInvite: async (sessionId) => {
+        const target = invitableSessions().find((session) => String(session.sessionId) === String(sessionId));
+        if (
+          activePlayerCard !== card ||
+          !state.playerLayerOn ||
+          !profileIsComplete(state.profile) ||
+          !isCurrentAuthSnapshot(openedAuth)
+        ) {
+          throw new Error("登入狀態已變更，請重新開啟球友卡。");
+        }
+        if (!target) throw new Error("這個球局目前無法邀請球友。");
+        const result = await api.inviteToSession(target.sessionId, player.profileId);
+        if (
+          activePlayerCard !== card ||
+          !state.playerLayerOn ||
+          !profileIsComplete(state.profile) ||
+          !isCurrentAuthSnapshot(openedAuth)
+        ) {
+          throw new Error("登入狀態已變更，請重新開啟球友卡。");
+        }
+        if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+          const refreshed = await reloadParticipation(openedAuth.epoch, openedAuth.identity);
+          if (
+            activePlayerCard !== card ||
+            !state.playerLayerOn ||
+            !profileIsComplete(state.profile) ||
+            !isCurrentAuthSnapshot(openedAuth)
+          ) {
+            throw new Error("登入狀態已變更，請重新開啟球友卡。");
+          }
+          card?.setInvitableSessions?.(invitableSessions());
+          if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請稍後再試。");
+          throw new Error("球局狀態已更新，請重新選擇可邀請的球局。");
+        }
+        return result;
+      },
+    });
+    activePlayerCard = card?.close ? card : null;
+    return card;
+  }
+
+  function openPlayerCourt(court, onlyPlayers = null) {
+    if (!state.playerLayerOn || !state.authSession || !profileIsComplete(state.profile)) return null;
+    const players = onlyPlayers ?? state.players.filter((player) => String(player.courtId) === String(court.id));
+    closeActivePlayerDrawer({ restoreFocus: false });
+    closeActivePlayerCard({ restoreFocus: false });
+    let drawer = null;
+    drawer = openCourtPlayersDrawer(court, players, {
+      onClose: () => {
+        if (activePlayerDrawer === drawer) activePlayerDrawer = null;
+      },
+      onOpenPlayer: openPlayer,
+    });
+    activePlayerDrawer = drawer?.close ? drawer : null;
+    return drawer;
   }
 
   function closeActiveDetail(detail = activeDetail, options = {}) {
@@ -911,6 +1100,11 @@ export function createSessionController({
     if (!profileIsComplete(state.profile)) {
       openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
       return;
+    }
+    if (savedIntent.action === "players") {
+      clearIntent(savedIntent);
+      state.playerLayerOn = true;
+      return loadPlayers(state.bounds);
     }
     if (savedIntent.action === "create") {
       openCreateSessionForIntent(savedIntent);
@@ -1289,6 +1483,21 @@ export function createSessionController({
         return true;
       }
 
+      if (intent.action === "players") {
+        const readiness = profileReadiness(state.profile);
+        if (readiness !== "ready") {
+          if (readiness === "error") toast(profileUnavailableMessage(readiness));
+          return false;
+        }
+        if (!profileIsComplete(state.profile)) {
+          openProfileForIntent(intent);
+          return true;
+        }
+        clearIntent(intent);
+        state.playerLayerOn = true;
+        return loadPlayers(state.bounds);
+      }
+
       if (intent.action !== "join" || typeof api?.loadSessionSummary !== "function") return false;
       let target = null;
       try {
@@ -1376,6 +1585,19 @@ export function createSessionController({
     requireSessionAction({ action: "create" });
   }
 
+  function togglePlayerLayer() {
+    if (!state.playerLayerOn) {
+      if (!state.authSession || profileReadiness(state.profile) !== "ready" || !profileIsComplete(state.profile)) {
+        return requireSessionAction({ action: "players" });
+      }
+      state.playerLayerOn = true;
+      return loadPlayers(state.bounds);
+    }
+    clearPlayerLayer({ closeReason: "player-layer-off" });
+    publish();
+    return Promise.resolve(true);
+  }
+
   async function setAuthState(session, profile = null) {
     const identity = sessionIdentity(session);
     const previousIdentity = sessionIdentity(state.authSession);
@@ -1393,6 +1615,9 @@ export function createSessionController({
     const epoch = authEpoch;
 
     if (signedOut || accountChanged) clearIntent();
+    if (signedOut || accountChanged || eligibilityWasLost) {
+      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "profile-incomplete" });
+    }
     if (identityChanged) {
       const options = { reason: "account-change", restoreFocus: false };
       closeActiveCreateSession(options);
@@ -1458,10 +1683,17 @@ export function createSessionController({
       viewGeneration: authEpoch,
     }),
     getSessionContacts: (sessionId) => [...(state.mySessionContacts.get(sessionKey(sessionId)) ?? [])],
+    getPlayerLayerState: () => ({
+      groups: state.playerLayerOn ? playerGroups() : [],
+      message: state.playerLayerMessage,
+      on: state.playerLayerOn,
+      status: state.playerLayerStatus,
+    }),
     getVisibleSessions: visibleSessions,
     loadDiscovery,
     markMySessionPlayed,
     openCourt,
+    openPlayerCourt,
     openCreateIntent,
     openRosterParticipantReport,
     openSessionReport,
@@ -1479,6 +1711,7 @@ export function createSessionController({
     setFilter,
     setMapUnavailable,
     togglePlayerVisibility,
+    togglePlayerLayer,
     withdrawMySession,
   };
 }

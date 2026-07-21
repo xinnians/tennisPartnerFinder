@@ -1147,6 +1147,14 @@ const PROFILE_SLOTS = [
   ["we-a", "週末下午"],
   ["we-e", "週末晚上"],
 ];
+const PROFILE_SLOT_LABELS = new Map(PROFILE_SLOTS);
+
+function playerSlotLabels(slotCodes) {
+  return (Array.isArray(slotCodes) ? slotCodes : []).map((code) => {
+    const safeCode = String(code ?? "");
+    return PROFILE_SLOT_LABELS.get(safeCode) ?? safeCode;
+  });
+}
 
 function taipeiCourts(courts) {
   return (Array.isArray(courts) ? courts : []).filter((court) => court?.city === "台北市");
@@ -1404,6 +1412,148 @@ export function openCourtSessionDrawer(court, sessions, { onOpenSession = () => 
   });
   wireSessionCards(mounted.root, onOpenSession);
   return mounted;
+}
+
+/** Open the public player-directory rows for one court. */
+export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onOpenPlayer = () => {} } = {}) {
+  const mounted = mountSheet({
+    id: "court-players-sheet",
+    label: "球場球友",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">${esc(court.district || court.city || "台北市")}</p><h2>${esc(court.name)}・球友</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉球場球友">×</button>
+      </div>
+      <div class="nearby-sessions__cards">
+        ${players.length ? players.map((player) => `
+          <button type="button" class="player-card" data-testid="court-player-card-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
+            <strong>${esc(player.nickname)}</strong> · NTRP ${esc(Number(player.ntrp).toFixed(1))}
+            <span>${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
+          </button>`).join("") : '<p class="surface__copy">這座球場目前沒有開放的球友。</p>'}
+      </div>`,
+  });
+  mounted.root.querySelectorAll("[data-player-id]").forEach((node) => {
+    node.addEventListener("click", () => {
+      const target = players.find((player) => String(player.profileId) === node.dataset.playerId);
+      if (target) onOpenPlayer(target);
+    });
+  });
+  return mounted;
+}
+
+function playerInviteOption(session) {
+  return `<label class="player-invite-option">
+    <input type="radio" name="player-invite-session" value="${esc(session.sessionId)}" data-testid="player-invite-session" />
+    <strong>${esc(taipeiDateTime(session.startAt))}</strong>
+    <span>${esc(session.court)} · ${esc(session.courtDistrict)}</span>
+    <span>${esc(session.playType)} · ${esc(ntrpRange(session))}</span>
+    ${session.notes ? `<span>${esc(session.notes)}</span>` : ""}
+  </label>`;
+}
+
+function playerInviteChoices(sessions) {
+  return sessions.length
+    ? sessions.map(playerInviteOption).join("")
+    : `<div class="player-invite-empty">
+        <p class="surface__copy">你目前沒有可邀請的球局</p>
+        <button type="button" class="session-primary" data-player-create data-testid="player-create-session">去開球局</button>
+      </div>`;
+}
+
+/** Open one public player card and, for non-self rows, its host invitation entry point. */
+export function openPlayerCardSheet(
+  player,
+  { myInvitableSessions = [], onClose = () => {}, onCreate = () => {}, onInvite = async () => {} } = {}
+) {
+  const inviteSection = player.isSelf
+    ? ""
+    : myInvitableSessions.length
+      ? `<form class="player-invite-form" data-player-invite>
+          <fieldset class="form-fieldset">
+            <legend>邀請加入我的球局</legend>
+            <div class="player-invite-options" data-player-invite-options>${playerInviteChoices(myInvitableSessions)}</div>
+          </fieldset>
+          <p class="form-error" role="alert" data-player-invite-error hidden></p>
+          <p class="player-invite-success" role="status" data-player-invite-success hidden></p>
+          <button type="submit" class="session-primary" data-testid="player-invite-submit">送出邀請</button>
+        </form>`
+      : `<div class="player-invite-empty" data-player-invite>
+          <p class="surface__copy">你目前沒有可邀請的球局</p>
+          <button type="button" class="session-primary" data-player-create data-testid="player-create-session">去開球局</button>
+        </div>`;
+  const mounted = mountSheet({
+    id: "player-card-sheet",
+    label: "球友卡",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">${esc(player.courtDistrict || "台北市")}</p><h2>${esc(player.nickname)}</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉球友卡">×</button>
+      </div>
+      <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
+        <p><strong>NTRP ${esc(Number(player.ntrp).toFixed(1))}</strong></p>
+        <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>
+        <p>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</p>
+        <p>常打球場：${esc(player.courtName || "未填球場")}</p>
+      </div>
+      ${inviteSection}`,
+  });
+  const wirePlayerCreate = () => mounted.root.querySelector("[data-player-create]")?.addEventListener("click", onCreate);
+  wirePlayerCreate();
+  const form = mounted.root.querySelector(".player-invite-form");
+  const setInvitableSessions = (sessions = []) => {
+    const options = form?.querySelector("[data-player-invite-options]");
+    const submit = form?.querySelector("[type='submit']");
+    if (!options || !submit) return;
+    const nextSessions = Array.isArray(sessions) ? sessions : [];
+    options.innerHTML = playerInviteChoices(nextSessions);
+    submit.hidden = nextSessions.length === 0;
+    wirePlayerCreate();
+  };
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector("[type='submit']");
+    const error = form.querySelector("[data-player-invite-error]");
+    const success = form.querySelector("[data-player-invite-success]");
+    const selected = form.querySelector("input[name='player-invite-session']:checked");
+    error.hidden = true;
+    error.textContent = "";
+    success.hidden = true;
+    success.textContent = "";
+    if (!selected) {
+      error.textContent = "請選擇一個球局。";
+      error.hidden = false;
+      return;
+    }
+    submit.disabled = true;
+    try {
+      await onInvite(selected.value);
+      if (!mounted.root.contains(submit)) return;
+      success.textContent = "邀請已送出";
+      success.hidden = false;
+    } catch (inviteError) {
+      if (!mounted.root.contains(submit)) return;
+      error.textContent = inviteError?.message || "邀請失敗，請稍後再試。";
+      error.hidden = false;
+    } finally {
+      if (mounted.root.contains(submit)) submit.disabled = false;
+    }
+  });
+  return { ...mounted, setInvitableSessions };
+}
+
+/** Keep the persistent map chip synchronized with controller-owned layer state. */
+export function renderPlayerLayerToggle(button, { message = "", on = false, status = "idle" } = {}) {
+  if (!button) return;
+  button.setAttribute("aria-pressed", String(Boolean(on)));
+  button.classList.toggle("is-active", Boolean(on));
+  button.textContent = on ? "隱藏球友" : "顯示球友";
+  const statusRoot = document.getElementById("player-layer-status");
+  if (!statusRoot) return;
+  statusRoot.hidden = !message;
+  statusRoot.textContent = message;
+  statusRoot.setAttribute("role", status === "error" ? "alert" : "status");
 }
 
 /** Render only user-facing, non-sensitive loading/error/location messages. */

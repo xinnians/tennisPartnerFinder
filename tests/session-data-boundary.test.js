@@ -443,7 +443,7 @@ class MemorySessionStorage {
   }
 }
 
-test("pending intents persist only the two approved session shapes", () => {
+test("pending intents persist only the approved session-action shapes", () => {
   const storage = new MemorySessionStorage();
 
   assert.deepEqual(savePendingIntent({ action: "join", sessionId: 123 }, storage), { action: "join", sessionId: 123 });
@@ -460,6 +460,8 @@ test("pending intents persist only the two approved session shapes", () => {
   );
 
   assert.deepEqual(savePendingIntent({ action: "create" }, storage), { action: "create" });
+  assert.deepEqual(savePendingIntent({ action: "players" }, storage), { action: "players" });
+  assert.deepEqual(readPendingIntent(storage), { action: "players" });
   storage.setItem(PENDING_SESSION_INTENT_KEY, JSON.stringify({ action: "join", sessionId: 4, location: { lat: 1, lng: 2 } }));
   assert.equal(readPendingIntent(storage), null);
   assert.equal(storage.getItem(PENDING_SESSION_INTENT_KEY), null);

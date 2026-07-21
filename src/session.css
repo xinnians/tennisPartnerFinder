@@ -84,6 +84,11 @@
 
 #map { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; background: linear-gradient(140deg, #e9f1ee, #dfeefa 58%, #eff4dc); }
 
+.player-layer-control { position: absolute; z-index: 6; top: 112px; left: clamp(12px, 3vw, 30px); display: grid; justify-items: start; gap: 5px; }
+#player-layer-toggle { min-height: 38px; border-radius: 999px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 7px 20px rgba(20, 44, 75, 0.15); }
+#player-layer-toggle.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: rgba(20, 44, 75, 0.92); color: #fff; font-size: 12px; font-weight: 800; }
+
 .map-toolbar {
   position: absolute;
   z-index: 4;
@@ -189,6 +194,9 @@
 .session-card__meta,
 .session-card__host { overflow-wrap: anywhere; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
 .session-card--compact { padding: 11px; }
+.player-card { display: grid; width: 100%; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--navy); text-align: left; }
+.player-card:hover { border-color: var(--blue); background: #f8fbff; }
+.player-card span { color: var(--ink-muted); font-size: 12px; }
 .session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 800; line-height: 1.4; }
 .session-badge--instant {
   background: var(--lime);
@@ -390,6 +398,15 @@
 .session-detail p:nth-child(4) { color: var(--ink-muted); }
 .session-detail__actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
 .session-detail__actions .session-primary { flex: 1 1 160px; }
+.player-profile { display: grid; gap: 7px; margin-bottom: 16px; padding: 13px; border-radius: 12px; background: var(--mist); color: var(--navy); }
+.player-profile p { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.player-invite-form,
+.player-invite-options { display: grid; gap: 10px; }
+.player-invite-option { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--navy); }
+.player-invite-option input { grid-row: 1 / span 4; align-self: start; }
+.player-invite-option span { overflow-wrap: anywhere; color: var(--ink-muted); font-size: 12px; }
+.player-invite-success { margin: 0; padding: 9px 10px; border-radius: 8px; background: #eef8e7; color: #2d6a30; font-weight: 800; }
+.player-invite-empty { display: grid; justify-items: start; }
 
 #toast-root { position: fixed; z-index: 40; right: 16px; bottom: calc(16px + var(--bottom-navigation-offset)); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
 .toast { padding: 11px 14px; border-radius: 11px; background: var(--navy); color: #fff; box-shadow: var(--shadow); font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
@@ -405,6 +422,7 @@
   .my-sessions-button { min-height: 34px; padding: 0 8px; font-size: 12px; }
   .map-page { height: calc(100dvh - 60px); min-height: 620px; }
   .map-toolbar { top: 10px; left: 10px; right: 10px; gap: 6px; max-height: 137px; align-items: flex-end; flex-wrap: wrap; padding: 7px; }
+  .player-layer-control { top: 156px; left: 10px; }
   .filter-control { min-width: calc(33.333% - 5px); flex: 1 1 30%; }
   .filter-control--date { min-width: calc(33.333% - 5px); }
   .filter-chip,
@@ -415,7 +433,7 @@
   .nearby-sessions { right: 12px; bottom: calc(12px + var(--bottom-navigation-offset)); width: calc(100% - 24px); border-radius: 17px; }
   .nearby-sessions__toggle { min-height: 70px; padding: 11px 13px; }
   .nearby-sessions__list { max-height: min(58dvh, 500px); }
-  #map-data-status { right: 12px; left: 12px; bottom: auto; top: 155px; max-width: none; }
+  #map-data-status { right: 12px; left: 12px; bottom: auto; top: 240px; max-width: none; }
   .surface { width: calc(100vw - 20px); max-height: 80dvh; padding: 15px; }
   .surface--sheet { right: 10px; bottom: 10px; }
   .surface--dialog { top: 50%; }
@@ -432,8 +450,10 @@
   .filter-control { min-width: calc(50% - 4px); flex-basis: calc(50% - 4px); }
   .filter-control--date { min-width: calc(50% - 4px); }
   .map-toolbar { max-height: 178px; }
+  .player-layer-control { top: 186px; right: 10px; left: auto; justify-items: end; }
+  .player-layer-status { max-width: 180px; }
   .level-popover { top: 190px; }
-  #map-data-status { top: 196px; }
+  #map-data-status { top: 300px; }
   .discovery-empty__actions > * { flex: 1 1 120px; }
   .option-grid { grid-template-columns: 1fr; }
 }

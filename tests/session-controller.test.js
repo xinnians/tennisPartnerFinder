@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
+import * as mapModule from "../src/map.js";
+import * as pinModule from "../src/pins.js";
 import * as sessionController from "../src/sessionController.js";
 
 const { createSessionController, groupMySessions } = sessionController;
@@ -101,6 +103,9 @@ function createHarness(overrides = {}) {
   const opened = [];
   const confirmations = [];
   const courtDrawers = [];
+  const playerDrawers = [];
+  const playerCards = [];
+  const playerRenders = [];
   const createSheets = [];
   const loginPrompts = [];
   const profilePrompts = [];
@@ -120,6 +125,7 @@ function createHarness(overrides = {}) {
     mapTools: overrides.mapTools,
     render: (view) => renders.push(view),
     renderPins: (sessions) => pinBatches.push(sessions),
+    renderPlayers: (view) => playerRenders.push(view),
     openSession: (openedSession, handlers) => {
       const detail = createSurface();
       opened.push({ detail, handlers, session: openedSession });
@@ -133,6 +139,18 @@ function createHarness(overrides = {}) {
     openCourtDrawer: (court, sessions, handlers) => {
       const detail = createSurface();
       courtDrawers.push({ court, detail, handlers, sessions });
+      return detail;
+    },
+    openCourtPlayersDrawer: (court, players, handlers) => {
+      const detail = createSurface();
+      playerDrawers.push({ court, detail, handlers, players });
+      return detail;
+    },
+    openPlayerCard: (player, handlers) => {
+      const detail = createSurface();
+      detail.invitableUpdates = [];
+      detail.setInvitableSessions = (sessions) => detail.invitableUpdates.push(sessions);
+      playerCards.push({ detail, handlers, player });
       return detail;
     },
     openCreateSession: (handlers) => {
@@ -170,6 +188,9 @@ function createHarness(overrides = {}) {
     mySessionChanges,
     opened,
     pinBatches,
+    playerCards,
+    playerDrawers,
+    playerRenders,
     profilePrompts,
     reportDialogs,
     renders,
@@ -1706,4 +1727,248 @@ test("replacing a login surface keeps its pending intent, while a dismissal clea
 
   harness.loginPrompts[0].handlers.onClose({ reason: "dismiss" });
   assert.equal(intentStore.value(), null);
+});
+
+test("player layer uses the existing anonymous and incomplete-profile intent gate and resumes automatically", async () => {
+  const anonymousIntent = createIntentStore();
+  const anonymous = createHarness({
+    intentStore: anonymousIntent,
+    api: {
+      loadPlayerDirectory: async () => [{ profileId: 8, courtId: 3, courtName: "河濱球場", courtDistrict: "中山區", courtLat: 25.1, courtLng: 121.5 }],
+    },
+  });
+
+  await anonymous.controller.togglePlayerLayer?.();
+  assert.deepEqual(anonymousIntent.value(), { action: "players" });
+  assert.equal(anonymous.loginPrompts.length, 1);
+  assert.equal(anonymous.controller.getPlayerLayerState().on, false);
+
+  await anonymous.controller.setAuthState({ user: { id: "player-a" } }, { complete: true });
+  assert.equal(anonymous.playerRenders.at(-1)?.on, true);
+  assert.deepEqual(anonymous.playerRenders.at(-1)?.groups.map((group) => group.players.map((player) => player.profileId)), [[8]]);
+  assert.equal(anonymousIntent.value(), null, "a successfully resumed layer does not replay on every auth refresh");
+
+  const incompleteIntent = createIntentStore();
+  const incomplete = createHarness({
+    intentStore: incompleteIntent,
+    api: { loadPlayerDirectory: async () => [] },
+  });
+  await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { complete: false });
+  await incomplete.controller.togglePlayerLayer?.();
+  assert.deepEqual(incompleteIntent.value(), { action: "players" });
+  assert.equal(incomplete.profilePrompts.length, 1);
+  assert.deepEqual(incomplete.profilePrompts[0].intent, { action: "players" });
+
+  await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { complete: true });
+  assert.equal(incomplete.playerRenders.at(-1)?.on, true);
+  assert.equal(incompleteIntent.value(), null);
+});
+
+test("player directory latest bounds wins and off, signout, and API errors cannot publish stale authorized data", async () => {
+  const requests = [];
+  const harness = createHarness({
+    api: {
+      loadPlayerDirectory: ({ bounds }) => {
+        const request = deferred();
+        requests.push({ bounds, request });
+        return request.promise;
+      },
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "player-a" } }, { complete: true });
+
+  const opening = harness.controller.togglePlayerLayer?.();
+  await flush();
+  const latestBounds = { south: 25.1, west: 121.6, north: 25.12, east: 121.62 };
+  const refresh = harness.controller.loadDiscovery(latestBounds);
+  await flush();
+  assert.equal(requests.length, 2);
+  requests[1].request.resolve([{ profileId: 2, courtId: 9, courtName: "新球場", courtDistrict: "北投區", courtLat: 25.11, courtLng: 121.61 }]);
+  await refresh;
+  requests[0].request.resolve([{ profileId: 1, courtId: 8, courtName: "舊球場", courtDistrict: "大安區", courtLat: 25.03, courtLng: 121.54 }]);
+  await opening;
+  assert.deepEqual(harness.playerRenders.at(-1)?.groups.flatMap((group) => group.players.map((player) => player.profileId)), [2]);
+
+  const pendingOff = harness.controller.loadDiscovery({ south: 25, west: 121.5, north: 25.05, east: 121.55 });
+  await flush();
+  await harness.controller.togglePlayerLayer?.();
+  requests[2].request.resolve([{ profileId: 3, courtId: 10, courtName: "晚到球場", courtDistrict: "信義區", courtLat: 25.02, courtLng: 121.53 }]);
+  await pendingOff;
+  assert.equal(harness.playerRenders.at(-1)?.on, false);
+  assert.deepEqual(harness.playerRenders.at(-1)?.groups, []);
+
+  const reopen = harness.controller.togglePlayerLayer?.();
+  await flush();
+  await harness.controller.setAuthState(null, null);
+  requests[3].request.resolve([{ profileId: 4, courtId: 11, courtName: "私密球場", courtDistrict: "士林區", courtLat: 25.04, courtLng: 121.52 }]);
+  await reopen;
+  assert.equal(harness.playerRenders.at(-1)?.on, false);
+  assert.deepEqual(harness.playerRenders.at(-1)?.groups, []);
+
+  await harness.controller.setAuthState({ user: { id: "player-b" } }, { complete: true });
+  const failed = harness.controller.togglePlayerLayer?.();
+  await flush();
+  requests[4].request.reject(new Error("permission denied"));
+  await failed;
+  assert.equal(harness.playerRenders.at(-1)?.status, "error");
+  assert.match(harness.playerRenders.at(-1)?.message ?? "", /無法載入/);
+});
+
+test("same-court session and player pins have separate clickable anchors and player replacement preserves other layers", () => {
+  const created = [];
+  class Marker {
+    constructor(options) {
+      this.options = options;
+      this.setMapCalls = [];
+      created.push(this);
+    }
+    addListener(event, callback) {
+      this.listener = { callback, event };
+    }
+    setMap(value) {
+      this.setMapCalls.push(value);
+    }
+  }
+  class Point {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+    }
+  }
+  class Size {
+    constructor(width, height) {
+      this.width = width;
+      this.height = height;
+    }
+  }
+  const google = { maps: { Marker, Point, Size } };
+  const map = {};
+  const court = { id: 8, name: "示範球場", lat: 25.03, lng: 121.54 };
+  const playerGroups = [{
+    court,
+    players: [{ profileId: 1 }, { profileId: 2 }],
+  }];
+  const sessionGroups = [{ court, sessions: [futureSession({ courtId: court.id })] }];
+  const opened = { base: 0, playerIds: [], sessionIds: [] };
+
+  const baseMarkers = mapModule.renderCourtBasePins(google, map, [court], () => { opened.base += 1; });
+  const sessionMarkers = mapModule.renderSessionPins(
+    google,
+    map,
+    sessionGroups,
+    { onSession: (sessionId) => opened.sessionIds.push(sessionId) }
+  );
+  const playerMarkers = mapModule.renderPlayerPins(google, map, playerGroups, (_court, players) => {
+    opened.playerIds.push(...players.map((player) => player.profileId));
+  });
+  const sessionMarker = sessionMarkers[0];
+  const playerMarker = playerMarkers[0];
+
+  assert.deepEqual(sessionMarker.options.position, playerMarker.options.position, "both remain associated with the exact court coordinate");
+  const sessionVisualCenter = sessionMarker.options.icon.labelOrigin.x - sessionMarker.options.icon.anchor.x;
+  const playerVisualCenter = playerMarker.options.icon.labelOrigin.x - playerMarker.options.icon.anchor.x;
+  assert.ok(Math.abs(playerVisualCenter - sessionVisualCenter) >= 44, "visual anchors keep both full-size controls reachable");
+  assert.equal(playerMarker.options.label.text, "2");
+  assert.equal(playerMarker.options.optimized, false);
+  sessionMarker.listener.callback();
+  playerMarker.listener.callback();
+  assert.deepEqual(opened.sessionIds, [41]);
+  assert.deepEqual(opened.playerIds, [1, 2]);
+
+  mapModule.renderPlayerPins(google, map, playerGroups, () => {}, playerMarkers);
+  assert.deepEqual(playerMarker.setMapCalls, [null]);
+  assert.deepEqual(sessionMarker.setMapCalls, [], "session markers are not detached when player markers refresh");
+  assert.deepEqual(baseMarkers[0].setMapCalls, [], "base-court markers are not detached when player markers refresh");
+
+  const pin = pinModule.playerPin?.(google, 2);
+  assert.equal(pin?.label.text, "2");
+  assert.match(pin?.icon.url ?? "", /svg/);
+});
+
+test("player drawer opens a card with only future open hosted sessions and invitation authority stays in controller", async () => {
+  const futureHost = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
+  const futureGuest = futureSession({ sessionId: 72, viewerRole: "guest", status: "open" });
+  const fullHost = futureSession({ sessionId: 73, viewerRole: "host", status: "full" });
+  const pastHost = futureSession({ sessionId: 74, viewerRole: "host", status: "open", startAt: "2020-01-01T00:00:00.000Z" });
+  const inviteCalls = [];
+  const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
+  const harness = createHarness({
+    api: {
+      inviteToSession: async (...args) => {
+        inviteCalls.push(args);
+        return { outcome: "OK", reloadRequired: false };
+      },
+      loadMySessions: async () => [futureHost, futureGuest, fullHost, pastHost],
+      loadPlayerDirectory: async () => [player],
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await harness.controller.togglePlayerLayer?.();
+  const group = harness.playerRenders.at(-1)?.groups[0];
+  harness.controller.openPlayerCourt?.(group.court, group.players);
+  harness.playerDrawers.at(-1)?.handlers.onOpenPlayer(player);
+
+  assert.deepEqual(harness.playerCards.at(-1)?.handlers.myInvitableSessions.map((session) => session.sessionId), [71]);
+  await harness.playerCards.at(-1)?.handlers.onInvite(71);
+  assert.deepEqual(inviteCalls, [[71, 88]]);
+});
+
+test("SESSION_EXPIRED player invites refresh choices and reject inline without closing the current card", async () => {
+  const hostSession = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
+  const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
+  let mySessionLoads = 0;
+  const harness = createHarness({
+    api: {
+      inviteToSession: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
+      loadMySessions: async () => (++mySessionLoads === 1 ? [hostSession] : []),
+      loadPlayerDirectory: async () => [player],
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await harness.controller.togglePlayerLayer();
+  const group = harness.controller.getPlayerLayerState().groups[0];
+  harness.controller.openPlayerCourt(group.court, group.players);
+  harness.playerDrawers.at(-1).handlers.onOpenPlayer(player);
+  const card = harness.playerCards.at(-1);
+
+  await assert.rejects(card.handlers.onInvite(71), /球局狀態已更新/);
+  assert.equal(mySessionLoads, 2, "expired outcome rereads the authoritative host-session choices");
+  assert.equal(card.detail.closeCalls, 0, "the card remains mounted so its form can render the inline error");
+  assert.deepEqual(card.detail.invitableUpdates, [[]]);
+});
+
+test("account switches and profile eligibility loss close player surfaces and reject late invitation success", async () => {
+  const invitation = deferred();
+  const hostSession = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
+  const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
+  const harness = createHarness({
+    api: {
+      inviteToSession: () => invitation.promise,
+      loadMySessions: async () => [hostSession],
+      loadPlayerDirectory: async () => [player],
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  await harness.controller.togglePlayerLayer();
+  const firstGroup = harness.controller.getPlayerLayerState().groups[0];
+  harness.controller.openPlayerCourt(firstGroup.court, firstGroup.players);
+  harness.playerDrawers.at(-1).handlers.onOpenPlayer(player);
+  const staleCard = harness.playerCards.at(-1);
+  const pendingInvite = staleCard.handlers.onInvite(71);
+
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+  assert.equal(staleCard.detail.closeCalls, 1);
+  assert.equal(harness.controller.getPlayerLayerState().on, false);
+  invitation.resolve({ outcome: "OK", reloadRequired: false });
+  await assert.rejects(pendingInvite, /登入狀態已變更/);
+
+  await harness.controller.togglePlayerLayer();
+  const secondGroup = harness.controller.getPlayerLayerState().groups[0];
+  harness.controller.openPlayerCourt(secondGroup.court, secondGroup.players);
+  harness.playerDrawers.at(-1).handlers.onOpenPlayer(player);
+  const eligibilityCard = harness.playerCards.at(-1);
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: false });
+  assert.equal(eligibilityCard.detail.closeCalls, 1);
+  assert.equal(harness.controller.getPlayerLayerState().on, false);
+  assert.deepEqual(harness.controller.getPlayerLayerState().groups, []);
 });

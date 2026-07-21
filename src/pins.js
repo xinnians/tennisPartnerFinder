@@ -26,6 +26,12 @@ const USER_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
     <circle cx="14" cy="14" r="10" fill="${LIME}" stroke="${NAVY}" stroke-width="3"/>
   </svg>`);
+const PLAYER_PIN_URL = svgToDataUri(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="80" height="55" viewBox="0 0 80 55">
+    <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${BLUE}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="56" cy="23" r="20" fill="${SOFT_BLUE}" stroke="${BLUE}" stroke-width="3"/>
+    <path d="M49 40h14l-7 12z" fill="${BLUE}"/>
+  </svg>`);
 
 const font = "'Noto Sans TC', sans-serif";
 
@@ -58,8 +64,18 @@ export function courtPin(google) {
   return { icon: markerIcon(google, COURT_PIN_URL, 25, 25, 12.5, 12.5, 12.5, 12.5) };
 }
 
+/** A player-directory pin labels only the number of visible profiles at a court. */
+export function playerPin(google, count) {
+  return {
+    // The connector begins at the court coordinate while the full-size player
+    // control sits to the right of any session pin at that same court.
+    icon: markerIcon(google, PLAYER_PIN_URL, 80, 55, 2, 54, 56, 23),
+    label: { text: String(count), color: NAVY, fontFamily: font, fontSize: "15px", fontWeight: "800" },
+  };
+}
+
 export function userLocationPin(google) {
   return { icon: markerIcon(google, USER_PIN_URL, 28, 28, 14, 14, 14, 14) };
 }
 
-export { CLUSTER_PIN_URL, COURT_PIN_URL, SESSION_PIN_URL, SOFT_BLUE, USER_PIN_URL };
+export { CLUSTER_PIN_URL, COURT_PIN_URL, PLAYER_PIN_URL, SESSION_PIN_URL, SOFT_BLUE, USER_PIN_URL };

@@ -1,5 +1,5 @@
 import { MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
-import { courtPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
+import { courtPin, playerPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
 
 let loadPromise = null;
 let runtimeGoogle = null;
@@ -129,6 +129,25 @@ export function renderCourtBasePins(google, map, courts = [], onCourt = () => {}
       optimized: false,
     });
     marker.addListener("click", () => onCourt(court));
+    return marker;
+  });
+}
+
+/** Replace only player-directory markers, leaving session and base-court layers untouched. */
+export function renderPlayerPins(google, map, groups = [], onCourtPlayers = () => {}, oldMarkers = []) {
+  oldMarkers.forEach((marker) => marker.setMap(null));
+  return groups.map(({ court, players }) => {
+    const pin = playerPin(google, players.length);
+    const marker = new google.maps.Marker({
+      map,
+      position: { lat: court.lat, lng: court.lng },
+      icon: pin.icon,
+      label: pin.label,
+      title: `球友 · ${court.name} · ${players.length} 位`,
+      zIndex: 20,
+      optimized: false,
+    });
+    marker.addListener("click", () => onCourtPlayers(court, players));
     return marker;
   });
 }
