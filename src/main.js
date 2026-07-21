@@ -363,6 +363,7 @@ function renderMySessionsDestination() {
     errorMessage: state.error,
     groups: state.groups,
     onAccept: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "accepted"),
+    onAcceptInvite: (sessionId) => controller.respondInvite(sessionId, "accepted"),
     onBack: () => showMapPage({ focus: true }),
     onCancel: controller.cancelMySession,
     onConfirmAttendance: controller.confirmMySessionAttendance,
@@ -372,6 +373,7 @@ function renderMySessionsDestination() {
       return true;
     },
     onDecline: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
+    onDeclineInvite: (sessionId) => controller.respondInvite(sessionId, "declined"),
     onMarkPlayed: controller.markMySessionPlayed,
     onOpenSession: controller.openSession,
     onRefresh: async () => {

@@ -511,6 +511,217 @@ test("a host review uses an authorized roster request and refreshes My Sessions 
   assert.ok(harness.toasts.includes("已接受申請。"));
 });
 
+test("an invited guest can accept through the authorized My Sessions row and receive refreshed contacts", async () => {
+  const responses = [];
+  const contactCalls = [];
+  let participantStatus = "invited";
+  const invitedSession = futureSession({
+    canRespondInvite: true,
+    sessionId: 62,
+    viewerParticipantStatus: participantStatus,
+    viewerRole: "guest",
+  });
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [
+        {
+          ...invitedSession,
+          canRespondInvite: participantStatus === "invited",
+          viewerParticipantStatus: participantStatus,
+        },
+      ],
+      loadSessionContacts: async (sessionId) => {
+        contactCalls.push(sessionId);
+        return [{ counterpartProfileId: 99, lineId: "accepted-line", nickname: "邀請主揪", sessionId }];
+      },
+      respondToSessionInvite: async (sessionId, decision) => {
+        responses.push([sessionId, decision]);
+        participantStatus = decision;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "invited-guest" } }, { complete: true });
+  await harness.controller.respondInvite(62, "accepted");
+
+  assert.deepEqual(responses, [[62, "accepted"]]);
+  assert.deepEqual(contactCalls, [62]);
+  assert.deepEqual(harness.controller.getSessionContacts(62), [
+    { counterpartProfileId: 99, lineId: "accepted-line", nickname: "邀請主揪", sessionId: 62 },
+  ]);
+  assert.deepEqual(harness.controller.getMySessionGroups().upcoming.map((session) => session.sessionId), [62]);
+  assert.ok(harness.toasts.includes("已接受邀請。"));
+});
+
+test("an invited guest can decline without overfetching contacts", async () => {
+  const responses = [];
+  let participantStatus = "invited";
+  let contactCalls = 0;
+  const invitedSession = futureSession({
+    canRespondInvite: true,
+    sessionId: 63,
+    viewerParticipantStatus: participantStatus,
+    viewerRole: "guest",
+  });
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [
+        {
+          ...invitedSession,
+          canRespondInvite: participantStatus === "invited",
+          viewerParticipantStatus: participantStatus,
+        },
+      ],
+      loadSessionContacts: async () => {
+        contactCalls += 1;
+        return [];
+      },
+      respondToSessionInvite: async (sessionId, decision) => {
+        responses.push([sessionId, decision]);
+        participantStatus = decision;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "invited-guest" } }, { complete: true });
+  await harness.controller.respondInvite(63, "declined");
+
+  assert.deepEqual(responses, [[63, "declined"]]);
+  assert.equal(contactCalls, 0);
+  assert.deepEqual(harness.controller.getMySessionGroups().history.map((session) => session.sessionId), [63]);
+  assert.ok(harness.toasts.includes("已婉拒邀請。"));
+});
+
+test("invite responses require the current complete invited-guest authority and a supported decision", async () => {
+  const calls = [];
+  const baseApi = {
+    loadMySessions: async () => [
+      futureSession({
+        canRespondInvite: true,
+        sessionId: 64,
+        viewerParticipantStatus: "invited",
+        viewerRole: "guest",
+      }),
+    ],
+    respondToSessionInvite: async (...args) => {
+      calls.push(args);
+      return { outcome: "OK", reloadRequired: false };
+    },
+  };
+  const harness = createHarness({ api: baseApi });
+
+  await assert.rejects(harness.controller.respondInvite(64, "accepted"), /登入或個人檔案狀態已變更/);
+  await harness.controller.setAuthState({ user: { id: "invited-guest" } }, { complete: true });
+  await assert.rejects(harness.controller.respondInvite(64, "ignored"), /邀請已更新/);
+
+  const hostHarness = createHarness({
+    api: {
+      ...baseApi,
+      loadMySessions: async () => [
+        futureSession({
+          canRespondInvite: true,
+          sessionId: 64,
+          viewerParticipantStatus: "invited",
+          viewerRole: "host",
+        }),
+      ],
+    },
+  });
+  await hostHarness.controller.setAuthState({ user: { id: "host" } }, { complete: true });
+  await assert.rejects(hostHarness.controller.respondInvite(64, "accepted"), /球局的狀態已更新/);
+  assert.deepEqual(calls, []);
+});
+
+test("invite response refresh failures, expiry, and server errors never announce success", async () => {
+  const invitedSession = futureSession({
+    canRespondInvite: true,
+    sessionId: 65,
+    viewerParticipantStatus: "invited",
+    viewerRole: "guest",
+  });
+
+  let failedRefreshReads = 0;
+  const failedRefresh = createHarness({
+    api: {
+      loadMySessions: async () => {
+        failedRefreshReads += 1;
+        if (failedRefreshReads > 1) throw new Error("read failed");
+        return [invitedSession];
+      },
+      respondToSessionInvite: async () => ({ outcome: "OK", reloadRequired: false }),
+    },
+  });
+  await failedRefresh.controller.setAuthState({ user: { id: "refresh-failure" } }, { complete: true });
+  await assert.rejects(failedRefresh.controller.respondInvite(65, "accepted"), /球局狀態暫時無法重新載入/);
+  assert.equal(failedRefresh.toasts.includes("已接受邀請。"), false);
+
+  let expiredReads = 0;
+  const expired = createHarness({
+    api: {
+      loadMySessions: async () => {
+        expiredReads += 1;
+        return [invitedSession];
+      },
+      respondToSessionInvite: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
+    },
+  });
+  await expired.controller.setAuthState({ user: { id: "expired-invite" } }, { complete: true });
+  await assert.rejects(expired.controller.respondInvite(65, "declined"), /球局狀態已更新，請重新載入/);
+  assert.ok(expiredReads >= 2, "expired responses reload authoritative My Sessions");
+  assert.equal(expired.toasts.includes("已婉拒邀請。"), false);
+
+  let rejectionReads = 0;
+  const rejected = createHarness({
+    api: {
+      loadMySessions: async () => {
+        rejectionReads += 1;
+        return [invitedSession];
+      },
+      respondToSessionInvite: async () => {
+        throw new Error("邀請已由其他裝置處理。");
+      },
+    },
+  });
+  await rejected.controller.setAuthState({ user: { id: "rejected-invite" } }, { complete: true });
+  await assert.rejects(rejected.controller.respondInvite(65, "accepted"), /邀請已由其他裝置處理/);
+  assert.ok(rejectionReads >= 2, "server rejections reload authoritative My Sessions");
+  assert.equal(rejected.toasts.includes("已接受邀請。"), false);
+});
+
+test("a stale invite response cannot refresh or toast for the next account", async () => {
+  const response = deferred();
+  const loadIdentities = [];
+  const invitedSession = futureSession({
+    canRespondInvite: true,
+    sessionId: 66,
+    viewerParticipantStatus: "invited",
+    viewerRole: "guest",
+  });
+  let currentIdentity = "account-a";
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => {
+        loadIdentities.push(currentIdentity);
+        return currentIdentity === "account-a" ? [invitedSession] : [];
+      },
+      respondToSessionInvite: async () => response.promise,
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true });
+  const pending = harness.controller.respondInvite(66, "accepted");
+  currentIdentity = "account-b";
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true });
+  const loadsAfterSwitch = loadIdentities.length;
+
+  response.resolve({ outcome: "OK", reloadRequired: false });
+  await assert.rejects(pending, /登入狀態已變更/);
+  assert.equal(loadIdentities.length, loadsAfterSwitch, "the stale completion does not refresh account B");
+  assert.deepEqual(harness.toasts, []);
+});
+
 test("My Sessions refresh rereads authoritative rows and clears private output on sign-out", async () => {
   let rows = [
     futureSession({

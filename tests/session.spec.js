@@ -489,7 +489,9 @@ test("accepting the final vacancy declines the remaining request, and an accepte
 
   await switchBrowserSession(page, declinedGuest.session);
   await page.getByTestId("my-sessions-tab").click();
-  await expect(page.locator("#my-history")).toContainText("主揪婉拒了你的申請");
+  await expect(page.locator("#my-history")).toContainText("未加入");
+  await expect(page.locator("#my-history")).toContainText("這次參與未成立");
+  await expect(page.locator("#my-history")).not.toContainText("主揪婉拒");
   await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
 
   await switchBrowserSession(page, acceptedGuest.session);

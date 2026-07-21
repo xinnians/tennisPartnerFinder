@@ -12,9 +12,11 @@ const drawerLoadingFocusFallbacks = new WeakSet();
 const mySessionActionStates = new WeakMap();
 const MY_SESSION_LIFECYCLE_ACTIONS = new Set([
   "accept",
+  "accept-invite",
   "attendance",
   "cancel",
   "decline",
+  "decline-invite",
   "played",
   "refresh",
   "refresh-contacts",
@@ -274,7 +276,7 @@ function sessionCard(session, { compact = false } = {}) {
 function mySessionReason(session) {
   const status = String(session?.status ?? "").toLowerCase();
   const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-  if (participantStatus === "declined") return "主揪婉拒了你的申請";
+  if (participantStatus === "declined") return "這次參與未成立";
   if (participantStatus === "withdrawn") return "你已退出這一局";
   if (status === "played") return "本局已回報打成";
   if (status === "cancelled") return "主揪已取消這一局";
@@ -286,7 +288,7 @@ function mySessionRole(session) {
   if (String(session?.viewerRole) === "host") return "我是主揪";
   const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
   if (participantStatus === "requested") return "申請中";
-  if (participantStatus === "declined") return "未核准";
+  if (participantStatus === "declined") return "未加入";
   if (participantStatus === "withdrawn") return "已退出";
   return participantStatus === "accepted" ? "已核准加入" : "參與者";
 }
@@ -430,6 +432,19 @@ function hostRequestCard({ participant, session }) {
   </article>`;
 }
 
+function inviteCard({ session }) {
+  return `<article class="my-action-card" data-testid="invite-row" data-session-id="${esc(session.sessionId)}">
+    <p class="my-action-card__eyebrow">邀請你加入 · ${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
+    <h3>${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))}</h3>
+    <p>${esc(session.playType)} · 缺 ${esc(session.slotsRemaining)} 位${session.notes ? ` · ${esc(session.notes)}` : ""}</p>
+    <div class="my-session-card__actions">
+      <button type="button" class="session-primary" data-my-action="accept-invite" data-session-id="${esc(session.sessionId)}" data-testid="accept-invite-${esc(session.sessionId)}">接受邀請</button>
+      <button type="button" class="session-secondary" data-my-action="decline-invite" data-session-id="${esc(session.sessionId)}" data-testid="decline-invite-${esc(session.sessionId)}">婉拒</button>
+      <button type="button" class="session-tertiary" data-my-action="report-session" data-session-id="${esc(session.sessionId)}">檢舉此球局</button>
+    </div>
+  </article>`;
+}
+
 function guestRequestCard({ session }) {
   return `<article class="my-action-card" data-guest-request-session="${esc(session.sessionId)}">
     <p class="my-action-card__eyebrow">等待主揪回覆</p>
@@ -505,6 +520,13 @@ function showMySessionActionError(root, message) {
 }
 
 function focusMySessionActionResult(root, descriptor, { failed = false } = {}) {
+  if (failed && ["accept-invite", "decline-invite"].includes(descriptor.action)) {
+    const error = root.querySelector("[data-my-sessions-error]");
+    if (error && !error.hidden) {
+      error.focus({ preventScroll: true });
+      return;
+    }
+  }
   const currentButton = currentMySessionActionButton(root, descriptor);
   if (currentButton && !currentButton.disabled) {
     currentButton.focus({ preventScroll: true });
@@ -571,11 +593,13 @@ export function renderMySessionsPage(
     createdSessionId = null,
     groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
     onAccept = () => {},
+    onAcceptInvite = () => {},
     onBack = () => {},
     onCancel = () => {},
     onConfirmAttendance = () => {},
     onCreatedSessionFocus = () => true,
     onDecline = () => {},
+    onDeclineInvite = () => {},
     onMarkPlayed = () => {},
     onOpenSession = () => {},
     onRefresh = () => {},
@@ -632,7 +656,11 @@ export function renderMySessionsPage(
       <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
       <div id="my-needs-action" class="my-sessions-list">${
         needsAction.length
-          ? needsAction.map((entry) => (entry.kind === "host-request" ? hostRequestCard(entry) : guestRequestCard(entry))).join("")
+          ? needsAction
+              .map((entry) =>
+                entry.kind === "host-request" ? hostRequestCard(entry) : entry.kind === "invite" ? inviteCard(entry) : guestRequestCard(entry)
+              )
+              .join("")
           : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
       }</div>
     </section>
@@ -687,9 +715,11 @@ export function renderMySessionsPage(
       const profileId = button.dataset.profileId;
       const callbacks = {
         accept: () => onAccept(sessionId, participantId),
+        "accept-invite": () => onAcceptInvite(sessionId),
         attendance: () => onConfirmAttendance(sessionId),
         cancel: () => onCancel(sessionId),
         decline: () => onDecline(sessionId, participantId),
+        "decline-invite": () => onDeclineInvite(sessionId),
         played: () => onMarkPlayed(sessionId),
         "report-participant": () => onReportParticipant(sessionId, profileId),
         "report-session": () => onReportSession(sessionId),

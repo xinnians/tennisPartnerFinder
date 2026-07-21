@@ -476,6 +476,154 @@ test("My Sessions preserves the initiating action and its error across a private
   expect(runtimeErrors).toEqual([]);
 });
 
+test("My Sessions renders an escaped invite card with stable response testids", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const payload = '\"><img data-injected="invite-xss" src=x onerror="console.error(\'invite-xss\')">';
+    const session = {
+      canRespondInvite: true,
+      court: payload,
+      hostNickname: payload,
+      hostNtrp: payload,
+      notes: payload,
+      playType: payload,
+      sessionId: payload,
+      slotsRemaining: payload,
+      startAt: payload,
+      status: "open",
+      viewerParticipantStatus: "invited",
+      viewerRole: "guest",
+    };
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: { history: [], needsAction: [{ kind: "invite", session }], pendingHostRequestCount: 0, upcoming: [] },
+    });
+    window.__invitePayload = payload;
+  });
+
+  const card = page.getByTestId("invite-row");
+  const payload = await page.evaluate(() => window.__invitePayload);
+  await expect(card).toHaveAttribute("data-session-id", payload);
+  await expect(card).toContainText(payload);
+  await expect(card.locator("[data-injected='invite-xss']")).toHaveCount(0);
+  const accept = card.locator("[data-my-action='accept-invite']");
+  const decline = card.locator("[data-my-action='decline-invite']");
+  await expect(accept).toHaveAttribute("data-session-id", payload);
+  await expect(decline).toHaveAttribute("data-session-id", payload);
+  await expect(accept).toHaveAttribute("data-testid", `accept-invite-${payload}`);
+  await expect(decline).toHaveAttribute("data-testid", `decline-invite-${payload}`);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("invite response buttons dispatch, stay pending across replacement, and focus the alert on failure", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const session = {
+      canRespondInvite: true,
+      court: "青年公園網球場",
+      hostNickname: "邀請主揪",
+      hostNtrp: 3.5,
+      notes: "請帶新球",
+      playType: "雙打",
+      sessionId: 734,
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "invited",
+      viewerRole: "guest",
+    };
+    let rejectAccept;
+    const pendingAccept = new Promise((_, reject) => {
+      rejectAccept = reject;
+    });
+    const groups = { history: [], needsAction: [{ kind: "invite", session }], pendingHostRequestCount: 0, upcoming: [] };
+    const render = () =>
+      renderMySessionsPage(root, {
+        actionScopeKey: "account-a",
+        authenticated: true,
+        groups,
+        onAcceptInvite: async (sessionId) => {
+          window.__acceptInviteCalls = [...(window.__acceptInviteCalls ?? []), sessionId];
+          return pendingAccept;
+        },
+        onDeclineInvite: async (sessionId) => {
+          window.__declineInviteCalls = [...(window.__declineInviteCalls ?? []), sessionId];
+        },
+      });
+    window.__rerenderInvite = render;
+    window.__rejectAcceptInvite = rejectAccept;
+    render();
+  });
+
+  const accept = page.getByTestId("accept-invite-734");
+  await accept.click();
+  await expect.poll(() => page.evaluate(() => window.__acceptInviteCalls)).toEqual(["734"]);
+  await page.evaluate(() => window.__rerenderInvite());
+  await expect(accept).toBeDisabled();
+  await page.evaluate(() => window.__rejectAcceptInvite(new Error("球局狀態已更新，請重新載入。")));
+  const alert = page.locator("[data-my-sessions-error]");
+  await expect(alert).toContainText("球局狀態已更新，請重新載入");
+  await expect(accept).toBeEnabled();
+  await expect(alert).toBeFocused();
+
+  await page.getByTestId("decline-invite-734").click();
+  await expect.poll(() => page.evaluate(() => window.__declineInviteCalls)).toEqual(["734"]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("declined My Sessions history uses neutral participation wording", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: {
+        history: [{
+          court: "青年公園網球場",
+          courtDistrict: "萬華區",
+          hostNickname: "歷史主揪",
+          hostNtrp: 3.5,
+          ntrpMax: 4,
+          ntrpMin: 3,
+          playType: "雙打",
+          sessionId: 735,
+          slotsRemaining: 1,
+          startAt: "2099-07-19T01:00:00.000Z",
+          status: "open",
+          viewerParticipantStatus: "declined",
+          viewerRole: "guest",
+        }],
+        needsAction: [],
+        pendingHostRequestCount: 0,
+        upcoming: [],
+      },
+    });
+  });
+
+  const history = page.locator("#my-history");
+  await expect(history).toContainText("未加入");
+  await expect(history).toContainText("這次參與未成立");
+  await expect(history).not.toContainText("主揪婉拒");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("My Sessions renders the 球友卡 switch before needs-action and preserves pending and error state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

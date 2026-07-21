@@ -1289,6 +1289,28 @@ export function createSessionController({
     );
   }
 
+  async function respondInvite(sessionId, decision) {
+    const { authSnapshot, session } = requireMySessionAction(
+      sessionId,
+      (candidate) =>
+        String(candidate.viewerRole) === "guest" &&
+        String(candidate.viewerParticipantStatus) === "invited" &&
+        Boolean(candidate.canRespondInvite)
+    );
+    if (!["accepted", "declined"].includes(decision)) {
+      throw new Error("這筆邀請已更新，請重新整理後再試。");
+    }
+    if (typeof api?.respondToSessionInvite !== "function") throw new Error("目前無法回覆這筆邀請。");
+    return runMySessionMutation(
+      decision === "accepted" ? "accept-invite" : "decline-invite",
+      session,
+      authSnapshot,
+      () => api.respondToSessionInvite(session.sessionId, decision),
+      decision === "accepted" ? "已接受邀請。" : "已婉拒邀請。",
+      { includeContacts: decision === "accepted" }
+    );
+  }
+
   async function cancelMySession(sessionId) {
     const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canCancel));
     if (typeof api?.cancelSession !== "function") throw new Error("目前無法取消這個球局。");
@@ -1701,6 +1723,7 @@ export function createSessionController({
     requestCurrentLocation,
     refreshMySessionDetails,
     refreshMySessions,
+    respondInvite,
     reviewMySessionParticipant,
     resetFilters,
     resumePendingIntent,
