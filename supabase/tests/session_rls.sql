@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(243);
+select plan(260);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -272,7 +272,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'session_discovery'
   ),
-  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status',
+  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode',
   'discovery has the exact public SessionSummary allowlist'
 );
 select is(
@@ -280,9 +280,9 @@ select is(
     select 1
     from information_schema.columns
     where table_schema = 'public' and table_name = 'my_session_participations'
-      and column_name in ('viewer_role', 'viewer_participant_status', 'viewer_played_confirmed', 'updated_at', 'can_cancel', 'can_withdraw', 'can_confirm_played', 'can_confirm_attendance')
+      and column_name in ('viewer_role', 'viewer_participant_status', 'viewer_played_confirmed', 'updated_at', 'can_cancel', 'can_withdraw', 'can_confirm_played', 'can_confirm_attendance', 'join_mode')
     group by table_schema, table_name
-    having count(*) = 8
+    having count(*) = 9
   ),
   true,
   'my sessions includes viewer lifecycle and action fields'
@@ -1449,6 +1449,198 @@ select is(
   'expired',
   'non-host stale played transition persists expiry before returning'
 );
+
+-- === instant join mode ===
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  created_at,
+  updated_at,
+  raw_app_meta_data,
+  raw_user_meta_data
+)
+values
+  ('00000000-0000-0000-0000-000000002001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'instant-host@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000002002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'instant-guest-a@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000002003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'instant-guest-b@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000002004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'session-limit-host@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002001', true);
+select ok(
+  public.save_my_profile(
+    'Instant Host',
+    3.5,
+    'instant_host_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['單打']::text[],
+    array['we-a']::text[]
+  ) is not null,
+  'instant host saves a complete profile through the RPC'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002002', true);
+select ok(
+  public.save_my_profile(
+    'Instant Guest A',
+    3.0,
+    'instant_guest_a_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['單打']::text[],
+    array['we-a']::text[]
+  ) is not null,
+  'instant guest A saves a complete profile through the RPC'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002003', true);
+select ok(
+  public.save_my_profile(
+    'Instant Guest B',
+    4.0,
+    'instant_guest_b_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['單打']::text[],
+    array['we-a']::text[]
+  ) is not null,
+  'instant guest B saves a complete profile through the RPC'
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002004', true);
+select ok(
+  public.save_my_profile(
+    'Session Limit Host',
+    4.5,
+    'session_limit_host_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['單打']::text[],
+    array['we-a']::text[]
+  ) is not null,
+  'session-limit host saves a complete profile through the RPC'
+);
+reset role;
+
+-- instant host creates an instant session with one vacancy.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002001', true);
+select is(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '5 days', null, null, 1, '__pgtap_instant_session__', 'instant'
+  ) is not null, true,
+  'instant host creates an instant session'
+);
+reset role;
+select set_config(
+  'pgtap.instant_session_id',
+  (select id::text from public.sessions where notes = '__pgtap_instant_session__'),
+  true
+);
+
+-- join_mode invalid values are rejected.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002001', true);
+select throws_ok(
+  $$ select public.create_session(
+       (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+       '單打', now() + interval '5 days', null, null, 1, null, 'bogus') $$,
+  'P0001', 'INVALID_TRANSITION',
+  'create_session rejects an unknown join_mode'
+);
+reset role;
+
+-- guest A joins and is accepted immediately.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002002', true);
+select is(
+  public.request_to_join_session(current_setting('pgtap.instant_session_id')::bigint),
+  'ACCEPTED',
+  'instant join returns ACCEPTED immediately'
+);
+reset role;
+select is(
+  (select participant_row.status from public.session_participants participant_row
+   where participant_row.session_id = current_setting('pgtap.instant_session_id')::bigint
+     and participant_row.role = 'guest'),
+  'accepted',
+  'instant join persists an accepted guest row'
+);
+select is(
+  (select session_row.status from public.sessions session_row
+   where session_row.id = current_setting('pgtap.instant_session_id')::bigint),
+  'full',
+  'instant join fills the last slot atomically'
+);
+
+-- guest B cannot join the now-full instant session.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002003', true);
+select throws_ok(
+  $$ select public.request_to_join_session(current_setting('pgtap.instant_session_id')::bigint) $$,
+  'P0001', 'SESSION_FULL',
+  'joining a full instant session raises SESSION_FULL'
+);
+reset role;
+
+-- The accepted instant pair sees the normal single contact row from guest A's view.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002002', true);
+select is(
+  (select count(*)::integer from public.session_contacts
+   where session_id = current_setting('pgtap.instant_session_id')::bigint),
+  1,
+  'instant accepted pair exposes exactly one contact row to the guest'
+);
+reset role;
+
+-- === SESSION_LIMIT ===
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002004', true);
+select ok(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '6 days', null, null, 1, '__pgtap_limit_1__', 'approval'
+  ) is not null,
+  'session-limit host creates its first concurrent future session'
+);
+select ok(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '7 days', null, null, 1, '__pgtap_limit_2__', 'approval'
+  ) is not null,
+  'session-limit host creates its second concurrent future session'
+);
+select ok(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '8 days', null, null, 1, '__pgtap_limit_3__', 'approval'
+  ) is not null,
+  'session-limit host creates its third concurrent future session'
+);
+select ok(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '9 days', null, null, 1, '__pgtap_limit_4__', 'approval'
+  ) is not null,
+  'session-limit host creates its fourth concurrent future session'
+);
+select ok(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '10 days', null, null, 1, '__pgtap_limit_5__', 'approval'
+  ) is not null,
+  'session-limit host creates its fifth concurrent future session'
+);
+select throws_ok(
+  $$ select public.create_session(
+       (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+       '單打', now() + interval '6 days', null, null, 1, '__pgtap_limit_6__', 'approval') $$,
+  'P0001', 'SESSION_LIMIT',
+  'the sixth concurrent future session is rejected'
+);
+reset role;
 
 -- A full session exercises the complete six-RPC response protocol after its
 -- 24-hour expiry boundary.  No due call may perform its requested mutation.
