@@ -14,6 +14,15 @@ import {
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
 
+function captureRuntimeErrors(page) {
+  const errors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return errors;
+}
+
 async function createPublishedSession() {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const { client: hostClient, session: hostSession } = await signUpUser(context.host.email);
@@ -80,6 +89,32 @@ async function createCompleteActor(actor) {
   });
   return { client, profileId, session };
 }
+
+test("createSessionViaRpc defaults a missing joinMode to approval and preserves instant", async () => {
+  const calls = [];
+  const client = {
+    async rpc(name, args) {
+      calls.push({ args, name });
+      return { data: 123, error: null };
+    },
+  };
+  const session = {
+    courtId: 1,
+    startAt: "2099-07-18T01:30:00.000Z",
+    playType: "單打",
+    ntrpMin: 3,
+    ntrpMax: 4,
+    slotsTotal: 1,
+    notes: "direct helper fixture",
+  };
+
+  await createSessionViaRpc(client, session);
+  await createSessionViaRpc(client, { ...session, joinMode: "instant" });
+
+  expect(calls).toHaveLength(2);
+  expect(calls[0]).toMatchObject({ name: "create_session", args: { p_join_mode: "approval" } });
+  expect(calls[1]).toMatchObject({ name: "create_session", args: { p_join_mode: "instant" } });
+});
 
 test("anonymous Join resumes the same live target as a confirmation, never an automatic request", async ({ page }) => {
   const published = await createPublishedSession();
@@ -282,6 +317,67 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   await expect(page.locator("#my-upcoming-sessions [data-session-id]").first()).toBeFocused();
   await expect(page.locator("#my-upcoming-sessions")).toContainText(context.host.courts[0]);
   expect(createPayload?.p_start_at).toBe("2099-07-18T01:30:00.000Z");
+});
+
+test("instant local join accepts immediately and shares only reciprocal contacts without host review", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const observer = await createCompleteActor(context.observer);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({
+      courtId,
+      joinMode: "instant",
+      notes: `instant-${context.runId}`,
+      slotsTotal: 2,
+    })
+  );
+  expect(await requestToJoinSessionViaRpc(observer.client, sessionId)).toBe("ACCEPTED");
+
+  await gotoWithSession(page, guest.session);
+  await page.locator("#nearby-sessions-toggle").click();
+  const sessionCard = page.locator(`#nearby-sessions-list [data-session-id='${sessionId}']`).first();
+  await expect(sessionCard.locator(".session-badge--instant")).toHaveText("直接加入");
+  await sessionCard.click();
+
+  const detail = page.locator("#session-sheet");
+  await expect(detail.locator(".session-badge--instant")).toHaveText("直接加入");
+  await detail.getByRole("button", { name: "直接加入" }).click();
+
+  const confirmation = page.locator("#join-session-confirmation");
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation.getByTestId("join-session")).toHaveText("直接加入");
+  await confirmation.getByTestId("join-session").click();
+  await expect(confirmation.locator("[data-join-success]")).toHaveText("已加入球局！到我的球局查看聯絡方式。");
+  await confirmation.getByRole("button", { name: "前往我的球局" }).click();
+
+  const guestUpcoming = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`);
+  await expect(guestUpcoming).toBeVisible();
+  const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
+  await expect(guestContact).toBeVisible();
+  await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+  await expect(page.locator("#my-upcoming-sessions [data-testid^='session-contact-']")).toHaveCount(1);
+  await expect(page.getByTestId(`session-contact-${observer.profileId}`)).toHaveCount(0);
+  await expect(page.locator("#my-sessions-page")).not.toContainText(context.observer.nickname);
+  await expect(page.locator("#my-sessions-page")).not.toContainText(context.observer.lineId);
+  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(page.getByTestId("participant-row")).toHaveCount(0);
+  await expect(page.locator("#my-needs-action")).not.toContainText(context.guest.nickname);
+  await expect(page.locator("#my-sessions-badge")).toBeHidden();
+  const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
+  await expect(hostContact).toBeVisible();
+  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+  const observerContact = page.getByTestId(`session-contact-${observer.profileId}`);
+  await expect(observerContact).toBeVisible();
+  await expect(observerContact.getByLabel(`${context.observer.nickname} 的 LINE ID`)).toHaveValue(context.observer.lineId);
+  await expect(page.locator("#my-upcoming-sessions [data-testid^='session-contact-']")).toHaveCount(2);
+  await expect(runtimeErrors).toEqual([]);
 });
 
 test("host sees a safe requested roster first, can report it, then accepts and exchanges only approved contacts", async ({ page }) => {

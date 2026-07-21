@@ -53,6 +53,7 @@ export function createFutureSessionInput({ now = new Date(), startAt, courtId, .
     ntrpMax: 4.0,
     slotsTotal: 1,
     notes: "session fixture",
+    joinMode: "approval",
     ...overrides,
   };
 }
@@ -82,6 +83,7 @@ export async function createSessionViaRpc(client, session) {
     p_ntrp_max: session.ntrpMax,
     p_slots_total: session.slotsTotal,
     p_notes: session.notes,
+    p_join_mode: session?.joinMode ?? "approval",
   });
 }
 
