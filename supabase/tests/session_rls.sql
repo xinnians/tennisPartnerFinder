@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(290);
+select plan(297);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -511,6 +511,119 @@ select is(
   1::bigint,
   'session creation adds exactly one accepted host participant'
 );
+
+-- The player directory is an authenticated, complete-profile-only surface.
+-- These canaries deliberately keep a missing view as TAP failures so the
+-- transaction continues through every privacy contract assertion during RED.
+select is(
+  (
+    select string_agg(column_name, ',' order by ordinal_position)
+    from information_schema.columns
+    where table_schema = 'public' and table_name = 'player_directory'
+  ),
+  'profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self',
+  'player_directory has the exact allowlist'
+);
+select is(
+  to_regclass('public.player_directory') is not null
+  and not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'player_directory'
+      and column_name = 'line_id'
+  ),
+  true,
+  'player_directory never exposes line_id'
+);
+
+set local role anon;
+select throws_ok(
+  $$select * from public.player_directory$$,
+  '42501',
+  null,
+  'anon cannot read the player directory'
+);
+reset role;
+
+select set_config(
+  'pgtap.directory_court_id',
+  (
+    select id::text
+    from public.courts
+    where is_active and city = '台北市'
+    order by id
+    limit 1
+  ),
+  true
+);
+
+-- The completed host begins private. A second completed profile cannot find
+-- that target before opt-in, even though both share the expected Taipei court.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select exists (
+        select 1
+        from public.player_directory
+        where profile_id = current_setting('pgtap.host_profile_id')::bigint
+      )::text
+    $$
+  ),
+  'false',
+  'private player target is absent from the directory'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select public.set_player_visibility(true);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select (
+        count(*) = 1
+        and bool_and(court_id = current_setting('pgtap.directory_court_id')::bigint)
+        and bool_and(is_self = false)
+      )::text
+      from public.player_directory
+      where profile_id = current_setting('pgtap.host_profile_id')::bigint
+    $$
+  ),
+  'true',
+  'opted-in complete target appears at its expected active Taipei court'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select (count(*) = 1 and bool_and(is_self))::text
+      from public.player_directory
+      where profile_id = current_setting('pgtap.host_profile_id')::bigint
+    $$
+  ),
+  'true',
+  'directory marks the viewing player as self'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select is(
+  pg_temp.text_outcome($$select count(*)::text from public.player_directory$$),
+  '0',
+  'an incomplete viewer sees an empty directory'
+);
+reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
