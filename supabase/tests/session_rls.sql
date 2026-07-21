@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(260);
+select plan(263);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -1551,6 +1551,16 @@ select throws_ok(
 );
 reset role;
 
+-- A stale approval request must be declined when an instant join fills the session.
+insert into public.session_participants (session_id, profile_id, role, status)
+values (
+  current_setting('pgtap.instant_session_id')::bigint,
+  (select profile_row.id from public.profiles profile_row
+   where profile_row.user_id = '00000000-0000-0000-0000-000000002003'),
+  'guest',
+  'requested'
+);
+
 -- guest A joins and is accepted immediately.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002002', true);
@@ -1563,9 +1573,24 @@ reset role;
 select is(
   (select participant_row.status from public.session_participants participant_row
    where participant_row.session_id = current_setting('pgtap.instant_session_id')::bigint
-     and participant_row.role = 'guest'),
+     and participant_row.role = 'guest'
+     and participant_row.profile_id = (
+       select profile_row.id from public.profiles profile_row
+       where profile_row.user_id = '00000000-0000-0000-0000-000000002002'
+     )),
   'accepted',
   'instant join persists an accepted guest row'
+);
+select is(
+  (select participant_row.status from public.session_participants participant_row
+   where participant_row.session_id = current_setting('pgtap.instant_session_id')::bigint
+     and participant_row.role = 'guest'
+     and participant_row.profile_id = (
+       select profile_row.id from public.profiles profile_row
+       where profile_row.user_id = '00000000-0000-0000-0000-000000002003'
+     )),
+  'declined',
+  'instant join declines stale requested guests when filling the session'
 );
 select is(
   (select session_row.status from public.sessions session_row
@@ -1632,6 +1657,20 @@ select ok(
     '單打', now() + interval '10 days', null, null, 1, '__pgtap_limit_5__', 'approval'
   ) is not null,
   'session-limit host creates its fifth concurrent future session'
+);
+select throws_ok(
+  $$ select public.create_session(
+       (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+       '單打', now() - interval '1 day', null, null, 1, '__pgtap_limit_past__', 'approval') $$,
+  'P0001', 'SESSION_STARTED',
+  'a capped host still receives SESSION_STARTED for a past session'
+);
+select throws_ok(
+  $$ select public.create_session(
+       -1,
+       '單打', now() + interval '6 days', null, null, 1, '__pgtap_limit_invalid_court__', 'approval') $$,
+  'P0001', 'INVALID_TRANSITION',
+  'a capped host still receives INVALID_TRANSITION for an invalid court'
 );
 select throws_ok(
   $$ select public.create_session(
@@ -1881,6 +1920,7 @@ select set_config(
   )::text,
   true
 );
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
 select set_config(
   'pgtap.raw_stale_played_session_id',
   public.create_session(
