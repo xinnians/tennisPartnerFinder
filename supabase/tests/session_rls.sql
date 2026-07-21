@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(263);
+select plan(290);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -2684,6 +2684,584 @@ select lives_ok(
   $$set constraints session_participants_capacity_invariant deferred$$,
   'capacity invariant returns to deferred mode after cleanup'
 );
+
+-- Direct invitations reuse the session participant lifecycle. These fixtures
+-- keep lifecycle authorization, visibility, capacity, and rate limiting in one
+-- rolled-back scenario without exposing raw profile data to browser roles.
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  created_at,
+  updated_at,
+  raw_app_meta_data,
+  raw_user_meta_data
+)
+values
+  ('00000000-0000-0000-0000-000000003001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'invite-host@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000003002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'invite-guest@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000003003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'invite-observer@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003001', true);
+select set_config(
+  'pgtap.invite_host_profile_id',
+  public.save_my_profile(
+    'Invite Host', 3.5, 'invite_host_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.invite_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '23 days', 3.0, 5.0, 1, '__pgtap_invite_session__', 'approval'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.invite_session_two_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '24 days', 3.0, 5.0, 2, '__pgtap_invite_session_two__', 'approval'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.invite_started_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '25 days', 3.0, 5.0, 2, '__pgtap_invite_started__', 'approval'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.invite_capacity_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '26 days', 3.0, 5.0, 1, '__pgtap_invite_capacity__', 'approval'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.invite_full_pending_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '27 days', 3.0, 5.0, 1, '__pgtap_invite_full_pending__', 'approval'
+  )::text,
+  true
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003002', true);
+select set_config(
+  'pgtap.invitee_profile_id',
+  public.save_my_profile(
+    'Invite Guest', 3.5, 'invite_guest_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003003', true);
+select set_config(
+  'pgtap.observer_profile_id',
+  public.save_my_profile(
+    'Invite Observer', 4.0, 'invite_observer_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+reset role;
+
+-- An open session is still an invalid invitation parent once its start time
+-- has passed. This is independent of full-session capacity enforcement.
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.invite_started_session_id')::bigint,
+  now() - interval '1 hour',
+  'open'
+);
+select is(
+  (
+    select session_row.status = 'open' and session_row.start_at <= now()
+    from public.sessions session_row
+    where session_row.id = current_setting('pgtap.invite_started_session_id')::bigint
+  ),
+  true,
+  'started invite fixture remains open with a start time in the past'
+);
+select throws_ok(
+  $$
+    insert into public.session_participants (
+      session_id, profile_id, role, status, initiated_by
+    )
+    values (
+      current_setting('pgtap.invite_started_session_id')::bigint,
+      current_setting('pgtap.invitee_profile_id')::bigint,
+      'guest', 'invited', 'host'
+    )
+  $$,
+  'P0001', 'INVALID_TRANSITION',
+  'raw invited insert into an open but started session is rejected'
+);
+delete from public.sessions
+where id = current_setting('pgtap.invite_started_session_id')::bigint;
+
+-- A complete profile remains non-discoverable until its owner opts in.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003001', true);
+select throws_ok(
+  $$
+    select public.invite_to_session(
+      current_setting('pgtap.invite_session_id')::bigint,
+      current_setting('pgtap.invitee_profile_id')::bigint
+    )
+  $$,
+  'P0001', 'INVITEE_NOT_AVAILABLE',
+  'inviting a non-discoverable profile is rejected'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003002', true);
+select pg_temp.text_outcome($$select public.set_player_visibility(true)$$);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003001', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select public.invite_to_session(
+        current_setting('pgtap.invite_session_id')::bigint,
+        current_setting('pgtap.invitee_profile_id')::bigint
+      )
+    $$
+  ),
+  'OK',
+  'host invites a discoverable player'
+);
+select throws_ok(
+  $$
+    select public.invite_to_session(
+      current_setting('pgtap.invite_session_id')::bigint,
+      current_setting('pgtap.invitee_profile_id')::bigint
+    )
+  $$,
+  'P0001', 'ALREADY_INVITED', 'double invite is rejected'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003003', true);
+select pg_temp.text_outcome($$select public.set_player_visibility(true)$$);
+select throws_ok(
+  $$
+    select public.invite_to_session(
+      current_setting('pgtap.invite_session_id')::bigint,
+      current_setting('pgtap.observer_profile_id')::bigint
+    )
+  $$,
+  'P0001', 'NOT_SESSION_HOST', 'only the host can invite'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003001', true);
+select throws_ok(
+  $$
+    select public.invite_to_session(
+      current_setting('pgtap.invite_session_id')::bigint,
+      current_setting('pgtap.invite_host_profile_id')::bigint
+    )
+  $$,
+  'P0001', 'INVALID_TRANSITION', 'host cannot invite themselves'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003002', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select can_respond_invite::text
+      from public.my_session_participations
+      where session_id = current_setting('pgtap.invite_session_id')::bigint
+    $$
+  ),
+  'true',
+  'invitee sees an actionable invite in my sessions'
+);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select public.respond_to_session_invite(
+        current_setting('pgtap.invite_session_id')::bigint,
+        'accepted'
+      )
+    $$
+  ),
+  'OK',
+  'invitee accepts the invite'
+);
+reset role;
+select is(
+  (select status from public.sessions where id = current_setting('pgtap.invite_session_id')::bigint),
+  'full',
+  'accepting the last slot flips the session to full'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003002', true);
+select is(
+  (
+    select count(*)::integer
+    from public.session_contacts
+    where session_id = current_setting('pgtap.invite_session_id')::bigint
+  ),
+  1,
+  'accepted invite exposes the host contact to the guest'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003003', true);
+select throws_ok(
+  $$
+    select public.respond_to_session_invite(
+      current_setting('pgtap.invite_session_id')::bigint,
+      'accepted'
+    )
+  $$,
+  'P0001', 'NOT_INVITED', 'responding without an invite is rejected'
+);
+reset role;
+
+-- Privileged writers remain subject to the same capacity and transition
+-- invariants as the browser RPCs.
+select throws_ok(
+  $$
+    insert into public.session_participants (
+      session_id, profile_id, role, status, initiated_by
+    )
+    values (
+      current_setting('pgtap.invite_session_id')::bigint,
+      current_setting('pgtap.observer_profile_id')::bigint,
+      'guest', 'invited', 'host'
+    )
+  $$,
+  'P0001', 'INVALID_TRANSITION',
+  'raw invited insert into a full session violates the capacity invariant'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003001', true);
+select pg_temp.text_outcome(
+  $$
+    select public.invite_to_session(
+      current_setting('pgtap.invite_session_two_id')::bigint,
+      current_setting('pgtap.observer_profile_id')::bigint
+    )
+  $$
+);
+reset role;
+select throws_ok(
+  $$
+    update public.session_participants
+    set status = 'withdrawn'
+    where session_id = current_setting('pgtap.invite_session_two_id')::bigint
+      and status = 'invited'
+  $$,
+  'P0001', 'INVALID_TRANSITION',
+  'invited cannot jump to withdrawn'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003003', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select public.respond_to_session_invite(
+        current_setting('pgtap.invite_session_two_id')::bigint,
+        'declined'
+      )
+    $$
+  ),
+  'OK',
+  'invitee can decline a real pending invite'
+);
+reset role;
+select is(
+  (
+    select participant_row.status
+    from public.session_participants participant_row
+    where participant_row.session_id = current_setting('pgtap.invite_session_two_id')::bigint
+      and participant_row.profile_id = current_setting('pgtap.observer_profile_id')::bigint
+  ),
+  'declined',
+  'declining an invite persists the legal invited-to-declined transition'
+);
+
+-- The immediate participant transition guard must apply the existing capacity
+-- check when the source state is invited, not only when it is requested.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001002', true);
+select public.request_to_join_session(current_setting('pgtap.invite_capacity_session_id')::bigint);
+reset role;
+update public.session_participants participant_row
+set status = 'accepted'
+where participant_row.session_id = current_setting('pgtap.invite_capacity_session_id')::bigint
+  and participant_row.profile_id = (
+    select profile_row.id
+    from public.profiles profile_row
+    where profile_row.user_id = '00000000-0000-0000-0000-000000001002'
+  );
+select pg_temp.text_outcome(
+  $$
+    insert into public.session_participants (
+      session_id, profile_id, role, status, initiated_by
+    )
+    values (
+      current_setting('pgtap.invite_capacity_session_id')::bigint,
+      (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001003'),
+      'guest', 'invited', 'host'
+    )
+    returning 'OK'
+  $$
+);
+select is(
+  (
+    select
+      session_row.status = 'open'
+      and session_row.slots_total = 1
+      and count(participant_row.id) filter (
+        where participant_row.role = 'guest' and participant_row.status = 'accepted'
+      ) = 1
+      and count(participant_row.id) filter (
+        where participant_row.role = 'guest' and participant_row.status = 'invited'
+      ) = 1
+    from public.sessions session_row
+    left join public.session_participants participant_row
+      on participant_row.session_id = session_row.id
+    where session_row.id = current_setting('pgtap.invite_capacity_session_id')::bigint
+    group by session_row.id
+  ),
+  true,
+  'invited capacity fixture has one accepted guest and one real invited guest for one slot'
+);
+select throws_ok(
+  $$
+    update public.session_participants participant_row
+    set status = 'accepted'
+    where participant_row.session_id = current_setting('pgtap.invite_capacity_session_id')::bigint
+      and participant_row.profile_id = (
+        select profile_row.id
+        from public.profiles profile_row
+        where profile_row.user_id = '00000000-0000-0000-0000-000000001003'
+      )
+      and participant_row.status = 'invited'
+  $$,
+  'P0001', 'INVALID_TRANSITION',
+  'invited guest cannot be accepted after the sole slot is consumed'
+);
+delete from public.sessions
+where id = current_setting('pgtap.invite_capacity_session_id')::bigint;
+select lives_ok(
+  $$set constraints session_participants_capacity_invariant immediate$$,
+  'invited capacity fixture cleanup clears deferred work'
+);
+select lives_ok(
+  $$set constraints session_participants_capacity_invariant deferred$$,
+  'invited capacity fixture restores the capacity invariant to deferred mode'
+);
+
+-- Exercise the deferred full-session invariant separately from insertion: the
+-- invited row is real while the parent is open, then the parent becomes full.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001004', true);
+select public.request_to_join_session(current_setting('pgtap.invite_full_pending_session_id')::bigint);
+reset role;
+update public.session_participants participant_row
+set status = 'accepted'
+where participant_row.session_id = current_setting('pgtap.invite_full_pending_session_id')::bigint
+  and participant_row.profile_id = (
+    select profile_row.id
+    from public.profiles profile_row
+    where profile_row.user_id = '00000000-0000-0000-0000-000000001004'
+  );
+select pg_temp.text_outcome(
+  $$
+    insert into public.session_participants (
+      session_id, profile_id, role, status, initiated_by
+    )
+    values (
+      current_setting('pgtap.invite_full_pending_session_id')::bigint,
+      (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001006'),
+      'guest', 'invited', 'host'
+    )
+    returning 'OK'
+  $$
+);
+select is(
+  (
+    select
+      session_row.status = 'open'
+      and session_row.slots_total = 1
+      and count(participant_row.id) filter (
+        where participant_row.role = 'guest' and participant_row.status = 'accepted'
+      ) = 1
+      and count(participant_row.id) filter (
+        where participant_row.role = 'guest' and participant_row.status = 'invited'
+      ) = 1
+    from public.sessions session_row
+    left join public.session_participants participant_row
+      on participant_row.session_id = session_row.id
+    where session_row.id = current_setting('pgtap.invite_full_pending_session_id')::bigint
+    group by session_row.id
+  ),
+  true,
+  'full-pending fixture has one accepted guest and one real invited guest while open'
+);
+update public.sessions
+set status = 'full'
+where id = current_setting('pgtap.invite_full_pending_session_id')::bigint;
+select is(
+  (
+    select status
+    from public.sessions
+    where id = current_setting('pgtap.invite_full_pending_session_id')::bigint
+  ),
+  'full',
+  'full-pending fixture reaches full before deferred validation'
+);
+select throws_ok(
+  $$set constraints session_participants_capacity_invariant immediate$$,
+  'P0001', 'INVALID_TRANSITION',
+  'deferred capacity invariant rejects a full session retaining an invited row'
+);
+delete from public.sessions
+where id = current_setting('pgtap.invite_full_pending_session_id')::bigint;
+select lives_ok(
+  $$set constraints session_participants_capacity_invariant immediate$$,
+  'full-pending invited fixture cleanup clears deferred work'
+);
+select lives_ok(
+  $$set constraints session_participants_capacity_invariant deferred$$,
+  'full-pending invited fixture restores the capacity invariant to deferred mode'
+);
+
+-- Use the observer as an independent host so earlier lifecycle assertions do
+-- not consume this host's rolling invitation allowance.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003003', true);
+select set_config(
+  'pgtap.invite_limit_session_one_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '25 days', 3.0, 5.0, 3, '__pgtap_invite_limit_one__', 'approval'
+  )::text,
+  true
+);
+select set_config(
+  'pgtap.invite_limit_session_two_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '26 days', 3.0, 5.0, 3, '__pgtap_invite_limit_two__', 'approval'
+  )::text,
+  true
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003001', true);
+select pg_temp.text_outcome($$select public.set_player_visibility(true)$$);
+reset role;
+
+-- Seed nine valid host-initiated rows across two open future sessions. The
+-- unique(session_id, profile_id) boundary is preserved while the rolling count
+-- remains shared by the same host profile.
+select pg_temp.text_outcome(
+  $$
+    with inserted as (
+      insert into public.session_participants (
+        session_id, profile_id, role, status, initiated_by
+      )
+      select
+        current_setting('pgtap.invite_limit_session_one_id')::bigint,
+        profile_row.id,
+        'guest', 'invited', 'host'
+      from public.profiles profile_row
+      where profile_row.user_id in (
+        '00000000-0000-0000-0000-000000001001',
+        '00000000-0000-0000-0000-000000001002',
+        '00000000-0000-0000-0000-000000001003',
+        '00000000-0000-0000-0000-000000001004',
+        '00000000-0000-0000-0000-000000001006'
+      )
+      returning 1
+    )
+    select 'OK' from inserted limit 1
+  $$
+);
+select pg_temp.text_outcome(
+  $$
+    with inserted as (
+      insert into public.session_participants (
+        session_id, profile_id, role, status, initiated_by
+      )
+      select
+        current_setting('pgtap.invite_limit_session_two_id')::bigint,
+        profile_row.id,
+        'guest', 'invited', 'host'
+      from public.profiles profile_row
+      where profile_row.user_id in (
+        '00000000-0000-0000-0000-000000001001',
+        '00000000-0000-0000-0000-000000001002',
+        '00000000-0000-0000-0000-000000001003',
+        '00000000-0000-0000-0000-000000001004'
+      )
+      returning 1
+    )
+    select 'OK' from inserted limit 1
+  $$
+);
+
+select set_config(
+  'pgtap.extra_invitee_profile_id',
+  current_setting('pgtap.invite_host_profile_id'),
+  true
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003003', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select public.invite_to_session(
+        current_setting('pgtap.invite_limit_session_one_id')::bigint,
+        current_setting('pgtap.invitee_profile_id')::bigint
+      )
+    $$
+  ),
+  'OK',
+  'the tenth invite in 24h succeeds'
+);
+select throws_ok(
+  $$
+    select public.invite_to_session(
+      current_setting('pgtap.invite_limit_session_one_id')::bigint,
+      current_setting('pgtap.extra_invitee_profile_id')::bigint
+    )
+  $$,
+  'P0001', 'INVITE_LIMIT', 'the eleventh invite in 24h is rejected'
+);
+reset role;
 
 -- Reports derive their reporter from auth, and the RPC enforces one target.
 select set_config(

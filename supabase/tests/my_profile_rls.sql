@@ -1,6 +1,20 @@
 begin;
 
-select plan(16);
+create function pg_temp.text_outcome(p_statement text)
+returns text
+language plpgsql
+as $$
+declare
+  result_text text;
+begin
+  execute p_statement into result_text;
+  return result_text;
+exception when others then
+  return 'ERROR:' || sqlerrm;
+end;
+$$;
+
+select plan(19);
 
 select has_view('public', 'my_profile', 'owner-only profile form view exists');
 select is(
@@ -9,7 +23,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'my_profile'
   ),
-  'nickname,ntrp,line_id,court_ids,play_types,slot_codes',
+  'nickname,ntrp,line_id,court_ids,play_types,slot_codes,is_public',
   'my profile view has the exact form-field allowlist'
 );
 select is(has_table_privilege('authenticated', 'public.profiles', 'select'), false, 'authenticated has no raw profiles SELECT');
@@ -61,6 +75,28 @@ select is(
 );
 select throws_ok($$select * from public.profiles$$, '42501', null, 'authenticated cannot bypass the form contract through profiles');
 select throws_ok($$select * from public.profile_courts$$, '42501', null, 'authenticated cannot bypass the form contract through profile joins');
+
+select is(
+  pg_temp.text_outcome($$select public.set_player_visibility(true)$$),
+  'OK',
+  'complete profile can turn on player visibility'
+);
+select ok(
+  public.save_my_profile(
+    'My Nick',
+    3.5,
+    'my_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[],
+    array['we-a']::text[]
+  ) is not null,
+  'profile resave succeeds after visibility opt-in'
+);
+select is(
+  pg_temp.text_outcome($$select is_public::text from public.my_profile$$),
+  'true',
+  'resaving the profile keeps player visibility on'
+);
 reset role;
 
 insert into public.profiles (user_id, nickname, ntrp, line_id)
