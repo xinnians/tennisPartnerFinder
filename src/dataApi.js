@@ -1,5 +1,5 @@
 import { DISCOVERY_WINDOW_DAYS, LAUNCH_CITY, TAIPEI_CITY_BOUNDS } from "./config.js";
-import { COURTS, MOCK_SESSIONS } from "./mockData.js";
+import { COURTS, MOCK_PLAYERS, MOCK_SESSIONS } from "./mockData.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
 
 const SESSION_SUMMARY_COLUMNS = [
@@ -34,6 +34,7 @@ const MY_SESSION_COLUMNS = [
   "can_withdraw",
   "can_confirm_played",
   "can_confirm_attendance",
+  "can_respond_invite",
 ];
 
 const SESSION_ROSTER_COLUMNS = [
@@ -50,13 +51,27 @@ const SESSION_ROSTER_COLUMNS = [
 
 const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
-const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes"];
+const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public"];
+const PLAYER_DIRECTORY_COLUMNS = [
+  "profile_id",
+  "nickname",
+  "ntrp",
+  "play_types",
+  "slot_codes",
+  "court_id",
+  "court_name",
+  "court_district",
+  "court_lat",
+  "court_lng",
+  "is_self",
+];
 
 export const SESSION_DISCOVERY_SELECT = SESSION_SUMMARY_COLUMNS.join(",");
 export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
 export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
 export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
 export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
+export const PLAYER_DIRECTORY_SELECT = PLAYER_DIRECTORY_COLUMNS.join(",");
 
 export const SESSION_ACTION_CODES = Object.freeze([
   "PROFILE_INCOMPLETE",
@@ -72,6 +87,10 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "NOT_SESSION_HOST",
   "NOT_ACCEPTED_PARTICIPANT",
   "INVALID_TRANSITION",
+  "INVITEE_NOT_AVAILABLE",
+  "ALREADY_INVITED",
+  "NOT_INVITED",
+  "INVITE_LIMIT",
 ]);
 
 const ACTION_MESSAGES = {
@@ -88,6 +107,10 @@ const ACTION_MESSAGES = {
   NOT_SESSION_HOST: "只有主揪可以執行這個操作。",
   NOT_ACCEPTED_PARTICIPANT: "只有已接受的參與者可以執行這個操作。",
   INVALID_TRANSITION: "目前的球局狀態不允許這個操作。",
+  INVITEE_NOT_AVAILABLE: "這位球友目前未開放邀請。",
+  ALREADY_INVITED: "你已邀請過這位球友。",
+  NOT_INVITED: "找不到你的邀請，球局狀態可能已更新。",
+  INVITE_LIMIT: "24 小時內邀請次數已達上限。",
   UNKNOWN_ACTION_ERROR: "球局操作失敗，請重新載入後再試。",
 };
 
@@ -209,6 +232,7 @@ export function mapMySession(row = {}) {
     canWithdraw: asBoolean(row.can_withdraw),
     canConfirmPlayed: asBoolean(row.can_confirm_played),
     canConfirmAttendance: asBoolean(row.can_confirm_attendance),
+    canRespondInvite: asBoolean(row.can_respond_invite),
   };
 }
 
@@ -237,6 +261,23 @@ export function mapSessionContactRow(row = {}) {
   };
 }
 
+/** Public player-directory mapper: every output field is intentionally named here. */
+export function mapPlayerDirectoryRow(row = {}) {
+  return {
+    profileId: asNumber(row.profile_id),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    playTypes: asArray(row.play_types),
+    slotCodes: asArray(row.slot_codes),
+    courtId: asNumber(row.court_id),
+    courtName: asText(row.court_name),
+    courtDistrict: asText(row.court_district),
+    courtLat: asNumber(row.court_lat),
+    courtLng: asNumber(row.court_lng),
+    isSelf: asBoolean(row.is_self),
+  };
+}
+
 function mapCourt(row = {}) {
   return {
     id: asNumber(row.id),
@@ -261,6 +302,7 @@ export function mapCurrentProfile(row = {}, courts = []) {
     courts: new Set(selectedCourts),
     slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string")),
     lineId: asText(row.line_id),
+    isPublic: asBoolean(row.is_public),
   };
 }
 
@@ -321,6 +363,20 @@ function withinDiscoveryQuery(session, query) {
   );
 }
 
+function withinBounds(entry, bounds) {
+  if (!bounds) return true;
+  const lat = asNumber(entry.courtLat);
+  const lng = asNumber(entry.courtLng);
+  return (
+    lat != null &&
+    lng != null &&
+    lat >= bounds.south &&
+    lat <= bounds.north &&
+    lng >= bounds.west &&
+    lng <= bounds.east
+  );
+}
+
 function codeFromSupabaseError(error) {
   const errorText = [error?.message, error?.details, error?.hint, error?.code]
     .filter((part) => typeof part === "string")
@@ -354,6 +410,7 @@ export function createDataApi({
   client = supabase,
   configured = isSupabaseConfigured,
   mockSessions = MOCK_SESSIONS,
+  mockPlayers = MOCK_PLAYERS,
   mockCourts = COURTS,
   now = () => new Date(),
 } = {}) {
@@ -415,6 +472,25 @@ export function createDataApi({
     if (error) throw error;
     // An empty configured database is a real empty state, never a demo fallback.
     return asArray(data).map(mapSessionSummary);
+  }
+
+  async function loadPlayerDirectory({ bounds } = {}) {
+    if (!configured) {
+      return asArray(mockPlayers).filter((entry) => withinBounds(entry, bounds)).map((entry) => ({ ...entry }));
+    }
+
+    const activeClient = requireClient();
+    let query = activeClient.from("player_directory").select(PLAYER_DIRECTORY_SELECT);
+    if (bounds) {
+      query = query
+        .gte("court_lat", bounds.south)
+        .lte("court_lat", bounds.north)
+        .gte("court_lng", bounds.west)
+        .lte("court_lng", bounds.east);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return asArray(data).map(mapPlayerDirectoryRow);
   }
 
   async function loadSessionSummary(sessionId) {
@@ -523,6 +599,18 @@ export function createDataApi({
     return { outcome, accepted: outcome === "ACCEPTED", reloadRequired: outcome === "SESSION_EXPIRED" };
   }
 
+  async function inviteToSession(sessionId, profileId) {
+    return callLifecycleRpc("invite_to_session", { p_session_id: sessionId, p_profile_id: asNumber(profileId) });
+  }
+
+  async function respondToSessionInvite(sessionId, decision) {
+    return callLifecycleRpc("respond_to_session_invite", { p_session_id: sessionId, p_decision: decision });
+  }
+
+  async function setPlayerVisibility(visible) {
+    return callLifecycleRpc("set_player_visibility", { p_visible: Boolean(visible) });
+  }
+
   async function acceptSessionParticipant(sessionId, participantId) {
     return callLifecycleRpc("review_join_request", {
       p_session_id: sessionId,
@@ -567,6 +655,7 @@ export function createDataApi({
   return {
     loadCourts,
     loadSessionDiscovery,
+    loadPlayerDirectory,
     loadSessionSummary,
     loadMySessions,
     loadSessionRoster,
@@ -575,6 +664,9 @@ export function createDataApi({
     saveCurrentProfile,
     createSession,
     requestToJoinSession,
+    inviteToSession,
+    respondToSessionInvite,
+    setPlayerVisibility,
     acceptSessionParticipant,
     declineSessionParticipant,
     withdrawFromSession,
@@ -589,6 +681,7 @@ const defaultDataApi = createDataApi();
 
 export const loadCourts = (...args) => defaultDataApi.loadCourts(...args);
 export const loadSessionDiscovery = (...args) => defaultDataApi.loadSessionDiscovery(...args);
+export const loadPlayerDirectory = (...args) => defaultDataApi.loadPlayerDirectory(...args);
 export const loadSessionSummary = (...args) => defaultDataApi.loadSessionSummary(...args);
 export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args);
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
@@ -597,6 +690,9 @@ export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile
 export const saveCurrentProfile = (...args) => defaultDataApi.saveCurrentProfile(...args);
 export const createSession = (...args) => defaultDataApi.createSession(...args);
 export const requestToJoinSession = (...args) => defaultDataApi.requestToJoinSession(...args);
+export const inviteToSession = (...args) => defaultDataApi.inviteToSession(...args);
+export const respondToSessionInvite = (...args) => defaultDataApi.respondToSessionInvite(...args);
+export const setPlayerVisibility = (...args) => defaultDataApi.setPlayerVisibility(...args);
 export const acceptSessionParticipant = (...args) => defaultDataApi.acceptSessionParticipant(...args);
 export const declineSessionParticipant = (...args) => defaultDataApi.declineSessionParticipant(...args);
 export const withdrawFromSession = (...args) => defaultDataApi.withdrawFromSession(...args);

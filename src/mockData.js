@@ -11,6 +11,50 @@ export const COURTS = [
   { id: 106, name: "青年公園網球場", city: "台北市", district: "萬華區", lat: 25.02306, lng: 121.506928 },
 ];
 
+// Local-only player-directory examples. They are fictional and deliberately
+// contain only the public fields returned by player_directory.
+export const MOCK_PLAYERS = [
+  {
+    profileId: 8001,
+    nickname: "示範山嵐",
+    ntrp: 3.5,
+    playTypes: ["單打", "對拉"],
+    slotCodes: ["we-m", "we-a"],
+    courtId: 101,
+    courtName: "台北網球中心",
+    courtDistrict: "內湖區",
+    courtLat: 25.067446,
+    courtLng: 121.596648,
+    isSelf: false,
+  },
+  {
+    profileId: 8002,
+    nickname: "示範海風",
+    ntrp: 4.0,
+    playTypes: ["雙打"],
+    slotCodes: ["wd-e"],
+    courtId: 101,
+    courtName: "台北網球中心",
+    courtDistrict: "內湖區",
+    courtLat: 25.067446,
+    courtLng: 121.596648,
+    isSelf: false,
+  },
+  {
+    profileId: 8003,
+    nickname: "示範杉林",
+    ntrp: 2.5,
+    playTypes: ["練球"],
+    slotCodes: ["we-e"],
+    courtId: 102,
+    courtName: "大佳河濱公園網球場",
+    courtDistrict: "中山區",
+    courtLat: 25.074849,
+    courtLng: 121.531508,
+    isSelf: false,
+  },
+];
+
 const futureStartAt = (daysFromNow, hourOffset = 0) =>
   new Date(Date.now() + (daysFromNow * 24 + hourOffset) * 60 * 60 * 1000).toISOString();
 

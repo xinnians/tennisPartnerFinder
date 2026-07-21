@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   MY_PROFILE_SELECT,
   MY_SESSIONS_SELECT,
+  PLAYER_DIRECTORY_SELECT,
   SESSION_CONTACTS_SELECT,
   SESSION_DISCOVERY_SELECT,
   SESSION_ROSTER_SELECT,
@@ -12,13 +13,14 @@ import {
   createDataApi,
   mapCurrentProfile,
   mapMySession,
+  mapPlayerDirectoryRow,
   mapSessionContactRow,
   mapSessionRosterRow,
   mapSessionSummary,
   resolveInitialSession,
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
-import { MOCK_SESSIONS } from "../src/mockData.js";
+import { MOCK_PLAYERS, MOCK_SESSIONS } from "../src/mockData.js";
 import {
   PENDING_SESSION_INTENT_KEY,
   clearPendingIntent,
@@ -139,6 +141,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     can_withdraw: false,
     can_confirm_played: false,
     can_confirm_attendance: false,
+    can_respond_invite: true,
   };
 
   const publicSummary = mapSessionSummary(row);
@@ -163,8 +166,10 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     "canWithdraw",
     "canConfirmPlayed",
     "canConfirmAttendance",
+    "canRespondInvite",
   ].sort());
   assert.equal(mine.updatedAt, "2026-07-17T00:00:00.000Z");
+  assert.equal(mine.canRespondInvite, true);
   assert.equal("lineId" in mine, false);
   assert.equal("profileId" in mine, false);
 });
@@ -219,9 +224,82 @@ test("private roster/contact/profile mappers stay separate from public summaries
     },
     [{ id: 7, name: "青年公園網球場" }]
   );
-  assert.deepEqual(sortedKeys(profile), ["nick", "ntrp", "types", "courts", "slots", "lineId"].sort());
+  assert.deepEqual(sortedKeys(profile), ["nick", "ntrp", "types", "courts", "slots", "lineId", "isPublic"].sort());
   assert.equal("id" in profile, false);
   assert.equal("share" in profile, false);
+  assert.equal(profile.isPublic, true);
+});
+
+test("player directory mapper keeps its exact public allowlist", () => {
+  const directoryRow = {
+    profile_id: "8001",
+    nickname: "示範山嵐",
+    ntrp: "3.5",
+    play_types: ["單打", "對拉"],
+    slot_codes: ["we-m", "we-a"],
+    court_id: "101",
+    court_name: "台北網球中心",
+    court_district: "內湖區",
+    court_lat: "25.067446",
+    court_lng: "121.596648",
+    is_self: false,
+    line_id: "must-not-leak",
+    real_name: "must-not-leak",
+  };
+
+  assert.deepEqual(PLAYER_DIRECTORY_SELECT.split(","), [
+    "profile_id",
+    "nickname",
+    "ntrp",
+    "play_types",
+    "slot_codes",
+    "court_id",
+    "court_name",
+    "court_district",
+    "court_lat",
+    "court_lng",
+    "is_self",
+  ]);
+  assert.equal(PLAYER_DIRECTORY_SELECT.includes("*"), false);
+  assert.equal(PLAYER_DIRECTORY_SELECT.includes("line_id"), false);
+  assert.deepEqual(sortedKeys(mapPlayerDirectoryRow(directoryRow)), [
+    "profileId",
+    "nickname",
+    "ntrp",
+    "playTypes",
+    "slotCodes",
+    "courtId",
+    "courtName",
+    "courtDistrict",
+    "courtLat",
+    "courtLng",
+    "isSelf",
+  ].sort());
+  assert.deepEqual(mapPlayerDirectoryRow(directoryRow), {
+    profileId: 8001,
+    nickname: "示範山嵐",
+    ntrp: 3.5,
+    playTypes: ["單打", "對拉"],
+    slotCodes: ["we-m", "we-a"],
+    courtId: 101,
+    courtName: "台北網球中心",
+    courtDistrict: "內湖區",
+    courtLat: 25.067446,
+    courtLng: 121.596648,
+    isSelf: false,
+  });
+});
+
+test("player directory mock data is cloned and constrained to requested bounds", async () => {
+  assert.equal(MOCK_PLAYERS.length, 3);
+  const api = createDataApi({ configured: false, mockPlayers: MOCK_PLAYERS });
+  const entries = await api.loadPlayerDirectory({
+    bounds: { south: 25.06, west: 121.59, north: 25.08, east: 121.61 },
+  });
+
+  assert.deepEqual(entries.map((entry) => entry.profileId), [8001, 8002]);
+  assert.notEqual(entries[0], MOCK_PLAYERS[0]);
+  assert.equal("lineId" in entries[0], false);
 });
 
 test("mock sessions and discovery payloads are future, local-demo-only SessionSummary data", async () => {
@@ -450,6 +528,67 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.ok(client.calls.some((call) => call[0] === "lt" && call[1] === "start_at"));
 });
 
+test("configured player directory uses only its allowlist and four bounds predicates", async () => {
+  const calls = [];
+  const query = {
+    select(value) {
+      calls.push(["select", value]);
+      return this;
+    },
+    gte(column, value) {
+      calls.push(["gte", column, value]);
+      return this;
+    },
+    lte(column, value) {
+      calls.push(["lte", column, value]);
+      return this;
+    },
+    then(resolve) {
+      return Promise.resolve({
+        data: [
+          {
+            profile_id: 8001,
+            nickname: "示範山嵐",
+            ntrp: 3.5,
+            play_types: ["單打"],
+            slot_codes: ["we-m"],
+            court_id: 101,
+            court_name: "台北網球中心",
+            court_district: "內湖區",
+            court_lat: 25.067446,
+            court_lng: 121.596648,
+            is_self: false,
+          },
+        ],
+        error: null,
+      }).then(resolve);
+    },
+  };
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return query;
+      },
+    },
+  });
+
+  const entries = await api.loadPlayerDirectory({
+    bounds: { south: 25, west: 121.5, north: 25.1, east: 121.7 },
+  });
+
+  assert.deepEqual(entries.map((entry) => entry.profileId), [8001]);
+  assert.deepEqual(calls, [
+    ["from", "player_directory"],
+    ["select", PLAYER_DIRECTORY_SELECT],
+    ["gte", "court_lat", 25],
+    ["lte", "court_lat", 25.1],
+    ["gte", "court_lng", 121.5],
+    ["lte", "court_lng", 121.7],
+  ]);
+});
+
 test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outcome", async () => {
   const calls = [];
   const api = createDataApi({
@@ -473,6 +612,9 @@ test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outco
   assert.deepEqual(await api.cancelSession(44), { outcome: "OK", reloadRequired: false });
   assert.deepEqual(await api.markSessionPlayed(44), { outcome: "OK", reloadRequired: false });
   assert.deepEqual(await api.confirmSessionAttendance(44), { outcome: "OK", reloadRequired: false });
+  assert.deepEqual(await api.inviteToSession(44, "91"), { outcome: "OK", reloadRequired: false });
+  assert.deepEqual(await api.respondToSessionInvite(44, "accepted"), { outcome: "OK", reloadRequired: false });
+  assert.deepEqual(await api.setPlayerVisibility(true), { outcome: "OK", reloadRequired: false });
   assert.deepEqual(calls.map(([name]) => name), [
     "request_to_join_session",
     "review_join_request",
@@ -481,8 +623,14 @@ test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outco
     "cancel_session",
     "mark_session_played",
     "confirm_session_attendance",
+    "invite_to_session",
+    "respond_to_session_invite",
+    "set_player_visibility",
   ]);
   assert.deepEqual(calls[1][1], { p_session_id: 44, p_participant_id: 91, p_decision: "accepted" });
+  assert.deepEqual(calls[7][1], { p_session_id: 44, p_profile_id: 91 });
+  assert.deepEqual(calls[8][1], { p_session_id: 44, p_decision: "accepted" });
+  assert.deepEqual(calls[9][1], { p_visible: true });
 });
 
 test("requestToJoinSession maps ACCEPTED outcome", async () => {
@@ -573,6 +721,26 @@ test("RPC failures are exposed as documented action codes", async () => {
       return true;
     }
   );
+});
+
+test("player invitation RPC failures retain their documented error codes and messages", async () => {
+  const cases = [
+    ["INVITEE_NOT_AVAILABLE", "這位球友目前未開放邀請。"],
+    ["ALREADY_INVITED", "你已邀請過這位球友。"],
+    ["NOT_INVITED", "找不到你的邀請，球局狀態可能已更新。"],
+    ["INVITE_LIMIT", "24 小時內邀請次數已達上限。"],
+  ];
+
+  for (const [code, message] of cases) {
+    const api = createDataApi({
+      configured: true,
+      client: { rpc: async () => ({ data: null, error: { message: code } }) },
+    });
+    await assert.rejects(
+      () => api.inviteToSession(44, 91),
+      (error) => error instanceof SessionActionError && error.code === code && error.message === message
+    );
+  }
 });
 
 test("session creation, reporting, and profile save use only their RPC contracts", async () => {
