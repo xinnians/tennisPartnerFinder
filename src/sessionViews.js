@@ -256,6 +256,7 @@ function sessionCard(session, { compact = false } = {}) {
     <span class="session-card__time">${esc(taipeiDateTime(session.startAt))}</span>
     <span class="session-card__court">${esc(session.court)} · ${esc(session.courtDistrict)}</span>
     <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</span>
+    ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
     <span class="session-card__host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))}</span>
   </button>`;
 }
@@ -904,6 +905,7 @@ export function openSessionSheet(
         <p data-session-field="court"><strong>${esc(session.court)}</strong> · ${esc(session.courtDistrict)}</p>
         <p data-session-field="time">${esc(taipeiDateTime(session.startAt))}</p>
         <p data-session-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
+        ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
         <p data-session-field="host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))} · ${esc(
           completionLabel(session)
         )}</p>
@@ -963,10 +965,12 @@ export function openSessionSheet(
 
 /** Ask for an intentional confirmation before the join lifecycle RPC. */
 export function openJoinSessionConfirmation(session, { onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {} } = {}) {
+  const isInstant = session.joinMode === "instant";
+  const title = isInstant ? "直接加入這場球局？" : "申請加入這一局？";
   let joined = false;
   const mounted = mountDialog({
     id: "join-session-confirmation",
-    label: "確認申請加入",
+    label: isInstant ? title : "確認申請加入",
     onClose: (detail) => {
       onClose(detail);
       // Joining closes the public detail beneath this dialog. When the user
@@ -976,7 +980,7 @@ export function openJoinSessionConfirmation(session, { onClose = () => {}, onCon
     },
     html: `
       <div class="surface__head">
-        <div><p class="surface__eyebrow">確認申請</p><h2>申請加入這一局？</h2></div>
+        <div><p class="surface__eyebrow">${isInstant ? "確認加入" : "確認申請"}</p><h2>${title}</h2></div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉確認">×</button>
       </div>
       <form data-testid="session-join-form" class="join-session-form" novalidate>
@@ -989,9 +993,9 @@ export function openJoinSessionConfirmation(session, { onClose = () => {}, onCon
           )}</p>
           <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         </div>
-        <p class="surface__copy">送出後，主揪會在球局流程中處理申請。</p>
+        <p class="surface__copy">${isInstant ? "加入後你與主揪即可互相看到 LINE ID。" : "送出後，主揪會在球局流程中處理申請。"}</p>
         <p class="form-error" data-join-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-confirm-join data-testid="join-session">確認申請加入</button>
+        <button type="submit" class="session-primary" data-confirm-join data-testid="join-session">${isInstant ? "直接加入" : "確認申請加入"}</button>
       </form>
       <p class="surface__message" data-join-success role="status" aria-live="polite" tabindex="-1" hidden>已送出申請，等待主揪回覆。</p>
       <div class="session-detail__actions" data-join-success-actions hidden><button type="button" class="session-primary" data-join-view-my-sessions>前往我的球局</button></div>`,
@@ -1014,6 +1018,7 @@ export function openJoinSessionConfirmation(session, { onClose = () => {}, onCon
       if (result?.joinSubmitted && mounted.root.contains(form)) {
         joined = true;
         form.hidden = true;
+        success.textContent = result.accepted ? "已加入球局！到我的球局查看聯絡方式。" : "已送出申請，等待主揪回覆。";
         success.hidden = false;
         successActions.hidden = false;
         viewMySessions.focus({ preventScroll: true });

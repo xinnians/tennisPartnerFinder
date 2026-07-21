@@ -733,6 +733,18 @@ test("authoritative discovery changes close a detail whose session fields are no
   assert.equal(freshDetail.handlers.action.disabled, true);
 });
 
+test("eligible instant sessions use a direct-join action while approval sessions keep the request action", async () => {
+  const instantSession = futureSession({ joinMode: "instant" });
+  const instantHarness = createHarness({ session: instantSession });
+  await instantHarness.controller.loadDiscovery();
+  assert.equal(openAction(instantHarness).handlers.action.label, "直接加入");
+
+  const approvalSession = futureSession({ joinMode: "approval" });
+  const approvalHarness = createHarness({ session: approvalSession });
+  await approvalHarness.controller.loadDiscovery();
+  assert.equal(openAction(approvalHarness).handlers.action.label, "申請加入");
+});
+
 test("a session disappearing from the same viewport closes its stale public detail", async () => {
   let discoveryCall = 0;
   const harness = createHarness({

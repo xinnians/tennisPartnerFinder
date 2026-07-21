@@ -493,6 +493,7 @@ export function createSessionController({
     if (String(session.status).toLowerCase() === "full" || Number(session.slotsRemaining) <= 0) {
       return { label: "已額滿", disabled: true };
     }
+    if (String(session.joinMode) === "instant") return { label: "直接加入" };
     return { label: "申請加入" };
   }
 

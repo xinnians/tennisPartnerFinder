@@ -189,6 +189,14 @@
 .session-card__meta,
 .session-card__host { overflow-wrap: anywhere; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
 .session-card--compact { padding: 11px; }
+.session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 800; line-height: 1.4; }
+.session-badge--instant {
+  background: var(--lime);
+  color: var(--navy);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
 
 .discovery-empty { display: grid; gap: 12px; padding: 20px 8px 8px; color: var(--navy); text-align: center; }
 .discovery-empty p { margin: 0; font-weight: 800; }

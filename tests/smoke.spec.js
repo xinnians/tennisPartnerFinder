@@ -135,6 +135,22 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
+test("instant join session 9002 shows its badge and direct CTA on card and detail", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  const instantCard = page.locator("[data-session-id='9002']").first();
+  await expect(instantCard.locator(".session-badge--instant")).toHaveText("直接加入");
+  await instantCard.click();
+
+  const detail = page.locator("#session-sheet");
+  await expect(detail.locator(".session-badge--instant")).toHaveText("直接加入");
+  await expect(detail.getByRole("button", { name: "直接加入" })).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a configured support address renders a mailto contact link", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -325,6 +341,49 @@ test("join confirmation repeats the safe summary and becomes an in-place success
   await mySessionsCta.click();
   await expect(page.locator("#join-session-confirmation")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("instant join confirmation explains contact visibility and shows accepted success", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+    openJoinSessionConfirmation(
+      {
+        court: "大佳河濱公園網球場",
+        courtDistrict: "中山區",
+        hostNickname: "公開主揪",
+        hostNtrp: 3.5,
+        hostProfileComplete: true,
+        joinMode: "instant",
+        notes: "友善雙打輪轉",
+        ntrpMax: 4.5,
+        ntrpMin: 3,
+        playType: "雙打",
+        slotsRemaining: 2,
+        startAt: "2026-07-19T01:00:00.000Z",
+      },
+      {
+        onConfirm: async () => ({ accepted: true, joinSubmitted: true }),
+        onViewMySessions: () => {
+          window.__instantJoinSuccessDestinationCalls = (window.__instantJoinSuccessDestinationCalls ?? 0) + 1;
+        },
+      }
+    );
+  });
+
+  const confirmation = page.getByRole("dialog", { name: "直接加入這場球局？" });
+  await expect(confirmation.getByRole("heading", { name: "直接加入這場球局？" })).toBeVisible();
+  await expect(confirmation).toContainText("加入後你與主揪即可互相看到 LINE ID。");
+  await confirmation.getByRole("button", { name: "直接加入" }).click();
+  await expect(confirmation).toContainText("已加入球局！到我的球局查看聯絡方式。");
+  const mySessionsCta = confirmation.getByRole("button", { name: "前往我的球局" });
+  await expect(mySessionsCta).toBeFocused();
+  await mySessionsCta.click();
+  await expect(confirmation).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__instantJoinSuccessDestinationCalls)).toBe(1);
   expect(runtimeErrors).toEqual([]);
 });
 
