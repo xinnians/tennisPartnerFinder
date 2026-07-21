@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(297);
+select plan(303);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -280,9 +280,9 @@ select is(
     select 1
     from information_schema.columns
     where table_schema = 'public' and table_name = 'my_session_participations'
-      and column_name in ('viewer_role', 'viewer_participant_status', 'viewer_played_confirmed', 'updated_at', 'can_cancel', 'can_withdraw', 'can_confirm_played', 'can_confirm_attendance', 'join_mode')
+      and column_name in ('viewer_role', 'viewer_participant_status', 'viewer_played_confirmed', 'updated_at', 'can_cancel', 'can_withdraw', 'can_confirm_played', 'can_confirm_attendance', 'join_mode', 'can_respond_invite')
     group by table_schema, table_name
-    having count(*) = 9
+    having count(*) = 10
   ),
   true,
   'my sessions includes viewer lifecycle and action fields'
@@ -837,6 +837,21 @@ select is(
 );
 reset role;
 
+select lives_ok(
+  $$
+    insert into public.session_participants (session_id, profile_id, role, status, initiated_by)
+    values (
+      current_setting('pgtap.main_session_id')::bigint,
+      (select profile_row.id from public.profiles profile_row
+       where profile_row.user_id = '00000000-0000-0000-0000-000000001006'),
+      'guest',
+      'invited',
+      'host'
+    )
+  $$,
+  'review_join_request admits the residual invited fixture before final-slot cleanup'
+);
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
 select lives_ok(
@@ -850,6 +865,17 @@ select lives_ok(
   'host accepts the final vacancy'
 );
 reset role;
+select is(
+  (
+    select participant_row.status
+    from public.session_participants participant_row
+    join public.profiles profile_row on profile_row.id = participant_row.profile_id
+    where participant_row.session_id = current_setting('pgtap.main_session_id')::bigint
+      and profile_row.user_id = '00000000-0000-0000-0000-000000001006'
+  ),
+  'declined',
+  'review_join_request declines the residual invited guest when accepting the final slot'
+);
 select is(
   (select status from public.sessions where id = current_setting('pgtap.main_session_id')::bigint),
   'full',
@@ -1673,12 +1699,28 @@ values (
   'guest',
   'requested'
 );
+select lives_ok(
+  $$
+    insert into public.session_participants (session_id, profile_id, role, status, initiated_by)
+    values (
+      current_setting('pgtap.instant_session_id')::bigint,
+      (select profile_row.id from public.profiles profile_row
+       where profile_row.user_id = '00000000-0000-0000-0000-000000002004'),
+      'guest',
+      'invited',
+      'host'
+    )
+  $$,
+  'instant request_to_join_session admits the residual invited fixture before final-slot cleanup'
+);
 
 -- guest A joins and is accepted immediately.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002002', true);
 select is(
-  public.request_to_join_session(current_setting('pgtap.instant_session_id')::bigint),
+  pg_temp.text_outcome(
+    $$select public.request_to_join_session(current_setting('pgtap.instant_session_id')::bigint)$$
+  ),
   'ACCEPTED',
   'instant join returns ACCEPTED immediately'
 );
@@ -1704,6 +1746,17 @@ select is(
      )),
   'declined',
   'instant join declines stale requested guests when filling the session'
+);
+select is(
+  (select participant_row.status from public.session_participants participant_row
+   where participant_row.session_id = current_setting('pgtap.instant_session_id')::bigint
+     and participant_row.role = 'guest'
+     and participant_row.profile_id = (
+       select profile_row.id from public.profiles profile_row
+       where profile_row.user_id = '00000000-0000-0000-0000-000000002004'
+     )),
+  'declined',
+  'instant request_to_join_session declines the residual invited guest when filling the final slot'
 );
 select is(
   (select session_row.status from public.sessions session_row
@@ -3000,6 +3053,20 @@ select throws_ok(
 );
 reset role;
 
+select lives_ok(
+  $$
+    insert into public.session_participants (session_id, profile_id, role, status, initiated_by)
+    values (
+      current_setting('pgtap.invite_session_id')::bigint,
+      current_setting('pgtap.observer_profile_id')::bigint,
+      'guest',
+      'invited',
+      'host'
+    )
+  $$,
+  'respond_to_session_invite admits the residual invited fixture before final-slot cleanup'
+);
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003002', true);
 select is(
@@ -3026,6 +3093,16 @@ select is(
   'invitee accepts the invite'
 );
 reset role;
+select is(
+  (
+    select participant_row.status
+    from public.session_participants participant_row
+    where participant_row.session_id = current_setting('pgtap.invite_session_id')::bigint
+      and participant_row.profile_id = current_setting('pgtap.observer_profile_id')::bigint
+  ),
+  'declined',
+  'respond_to_session_invite declines the residual invited guest when accepting the final slot'
+);
 select is(
   (select status from public.sessions where id = current_setting('pgtap.invite_session_id')::bigint),
   'full',
