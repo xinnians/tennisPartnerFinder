@@ -46,6 +46,7 @@ test("create form accepts legal optional NTRP endpoints and produces the RPC-saf
   assert.equal(result.valid, true);
   assert.deepEqual(result.value, {
     courtId: 8,
+    joinMode: "approval",
     ntrpMax: 4,
     ntrpMin: 3.5,
     notes: "自備新球",
@@ -53,4 +54,13 @@ test("create form accepts legal optional NTRP endpoints and produces the RPC-saf
     slotsTotal: 2,
     startAt: "2026-07-18T01:30:00.000Z",
   });
+});
+
+test("joinMode 預設 approval 且只接受合法值", () => {
+  const base = { courtId: "101", playType: "單打", slotsTotal: "1", startAtLocal: "2099-07-18T09:30", notes: "" };
+  assert.equal(validateCreateSessionInput(base).value.joinMode, "approval");
+  assert.equal(validateCreateSessionInput({ ...base, joinMode: "instant" }).value.joinMode, "instant");
+  const invalid = validateCreateSessionInput({ ...base, joinMode: "bogus" });
+  assert.equal(invalid.valid, false);
+  assert.equal(invalid.errors.joinMode, "請選擇加入方式。");
 });

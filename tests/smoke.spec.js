@@ -855,12 +855,13 @@ test("profile and create sheets disclose public nickname use and retain a local-
     });
   });
 
-  const disclosure = "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。";
+  const disclosure =
+    "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在同一球局的主揪與已接受球友之間互相顯示。";
   const profile = page.locator("#profile-completion-sheet");
   await expect(profile).toBeVisible();
   await expect(profile.getByLabel("公開暱稱")).toBeVisible();
   await expect(profile.getByText(disclosure)).toBeVisible();
-  await expect(profile.getByText("只有已核准的主揪／球友配對可看見你的 LINE ID。")).toBeVisible();
+  await expect(profile.getByText("只有同一球局的主揪與已接受球友之間可看見彼此的 LINE ID。")).toBeVisible();
   await expect(profile).toContainText("完成後將回到：示範球場・");
   await page.keyboard.press("Escape");
 

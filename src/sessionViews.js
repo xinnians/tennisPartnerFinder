@@ -17,7 +17,7 @@ const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
 const DRAWER_ACTION_IDS = new Set(["discovery-reset", "discovery-retry", "drawer-map-retry", "discovery-expand", "discovery-first"]);
 
 export const PROFILE_PUBLIC_DISCLOSURE =
-  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在你核准加入者後顯示。";
+  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在同一球局的主揪與已接受球友之間互相顯示。";
 
 const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
 const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -57,6 +57,7 @@ function ntrpEndpoint(value) {
 export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
   const errors = {};
   const courtId = Number(input.courtId);
+  const joinMode = String(input.joinMode ?? "approval");
   const playType = String(input.playType ?? "");
   const slotsTotal = Number(input.slotsTotal);
   const notes = String(input.notes ?? "");
@@ -68,6 +69,7 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
   const ntrpMax = maxText ? ntrpEndpoint(maxText) : null;
 
   if (!Number.isSafeInteger(courtId) || courtId <= 0) errors.courtId = "請選擇台北市球場。";
+  if (!["approval", "instant"].includes(joinMode)) errors.joinMode = "請選擇加入方式。";
   if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
   if (!Number.isInteger(slotsTotal) || slotsTotal < 1 || slotsTotal > 3) errors.slotsTotal = "缺額請填 1 到 3 位。";
   if (!startAt || new Date(startAt).getTime() <= new Date(now).getTime()) errors.startAtLocal = "開始時間必須是未來的台北時間。";
@@ -85,6 +87,7 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
     valid: Object.keys(errors).length === 0,
     value: {
       courtId,
+      joinMode,
       ntrpMax: hasRange ? ntrpMax : null,
       ntrpMin: hasRange ? ntrpMin : null,
       notes: notes.trim() || null,
@@ -1219,7 +1222,7 @@ export function openProfileCompletionSheet({
         <label class="form-field" for="profile-line-id"><span>LINE ID</span><input id="profile-line-id" name="profile-line-id" required value="${esc(
           profile.lineId ?? ""
         )}" autocomplete="off" /></label>
-        <p class="form-hint">只有已核准的主揪／球友配對可看見你的 LINE ID。</p>
+        <p class="form-hint">只有同一球局的主揪與已接受球友之間可看見彼此的 LINE ID。</p>
         <fieldset class="form-fieldset"><legend>常打球場</legend><select name="profile-courts" multiple size="4" aria-label="常打球場" disabled></select><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
         <fieldset class="form-fieldset"><legend>常打類型</legend><div class="option-grid">${PROFILE_PLAY_TYPES.map(
           (type) =>
@@ -1301,6 +1304,11 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
           (type) => `<option value="${esc(type)}">${esc(type)}</option>`
         ).join("")}</select></label>
         <label class="form-field" for="session-slots-total"><span>缺額</span><select id="session-slots-total" name="slotsTotal" data-testid="session-slots-total" required><option value="">請選擇缺額</option><option value="1">1 位</option><option value="2">2 位</option><option value="3">3 位</option></select></label>
+        <fieldset class="form-fieldset"><legend>加入方式</legend>
+          <label><input type="radio" name="joinMode" value="approval" checked /> 需審核（你逐一核准申請者）</label>
+          <label><input type="radio" name="joinMode" value="instant" /> 直接加入（先到先得，立即成局）</label>
+          <p class="form-hint">選擇直接加入後，任何完成檔案的球友加入即成局，你們將互相看到 LINE ID。</p>
+        </fieldset>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
         <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
