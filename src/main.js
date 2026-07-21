@@ -363,6 +363,8 @@ function renderMySessionsDestination() {
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin(),
     onSignOut: handleSignOut,
+    onToggleVisibility: controller.togglePlayerVisibility,
+    profileIsPublic: state.isPublic,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
   });
@@ -480,6 +482,7 @@ function eligibilityFromPrivateProfile(profile, { status = "ready" } = {}) {
         (profile?.types?.size ?? 0) > 0 &&
         (profile?.slots?.size ?? 0) > 0
     ),
+    isPublic: profile?.isPublic === true,
     status,
   };
 }
@@ -489,8 +492,36 @@ function authIdentity(session) {
   return value == null ? null : String(value);
 }
 
+async function reloadCurrentProfile() {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  const profileLoadRevision = profileRevision;
+  let profile = null;
+  let loadFailed = false;
+  try {
+    profile = await loadCurrentProfile();
+  } catch {
+    loadFailed = true;
+  }
+  if (epoch !== authStateEpoch || identity !== currentAuthIdentity || profileLoadRevision !== profileRevision) return false;
+  if (loadFailed) {
+    // A refresh failure must never turn a previously known profile into an
+    // editable blank replacement form. Initial failures remain blocked
+    // until the next successful auth/profile load.
+    if (profileLoadStatus !== "ready") {
+      profileLoadStatus = "error";
+      await controller.setAuthState(authSession, { complete: false, status: "error" });
+    }
+    throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
+  }
+  currentProfile = profile ?? defaultProfile();
+  profileLoadStatus = "ready";
+  await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+  return true;
+}
+
 function applyAuthCandidate(session) {
-  const epoch = ++authStateEpoch;
+  ++authStateEpoch;
   const identity = authIdentity(session);
   const previousIdentity = currentAuthIdentity;
   const identityChanged = previousIdentity !== identity;
@@ -511,29 +542,7 @@ function applyAuthCandidate(session) {
     profileLoadStatus = "idle";
     return;
   }
-  const profileLoadRevision = profileRevision;
-  void (async () => {
-    let profile = null;
-    let loadFailed = false;
-    try {
-      profile = await loadCurrentProfile();
-    } catch {
-      loadFailed = true;
-    }
-    if (epoch !== authStateEpoch || identity !== currentAuthIdentity || profileLoadRevision !== profileRevision) return;
-    if (loadFailed) {
-      // A refresh failure must never turn a previously known profile into an
-      // editable blank replacement form. Initial failures remain blocked
-      // until the next successful auth/profile load.
-      if (profileLoadStatus === "ready") return;
-      profileLoadStatus = "error";
-      void controller.setAuthState(authSession, { complete: false, status: "error" });
-      return;
-    }
-    currentProfile = profile ?? defaultProfile();
-    profileLoadStatus = "ready";
-    void controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
-  })();
+  void reloadCurrentProfile().catch(() => {});
 }
 
 async function restoreAuth() {
@@ -630,6 +639,7 @@ function init() {
     openLogin: openSafeLogin,
     openReport: (context) => openReportDialog(context),
     promptProfile: openProfileCompletion,
+    reloadCurrentProfile,
     showCreatedSession: showMySessionsPage,
     onMySessionsChange: () => {
       if (!controller) return;

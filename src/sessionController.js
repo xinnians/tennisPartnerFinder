@@ -89,6 +89,10 @@ function profileIsComplete(eligibility) {
   return eligibility?.complete === true;
 }
 
+function profileIsPublic(eligibility) {
+  return eligibility?.isPublic === true;
+}
+
 function profileReadiness(eligibility) {
   if (eligibility?.status === "loading") return "loading";
   if (eligibility?.status === "error") return "error";
@@ -274,6 +278,7 @@ export function createSessionController({
   openLogin = () => {},
   openReport = () => {},
   promptProfile = () => {},
+  reloadCurrentProfile = async () => {},
   onMySessionsChange = () => {},
   showCreatedSession = () => {},
   intentStore = browserIntentStore(),
@@ -377,6 +382,7 @@ export function createSessionController({
       contactsError: state.mySessionContactsError,
       error: state.mySessionsError,
       groups: mySessionGroups(),
+      isPublic: profileIsPublic(state.profile),
       status: state.mySessionsStatus,
       viewGeneration: authEpoch,
     });
@@ -1116,6 +1122,38 @@ export function createSessionController({
     return runMySessionMutation("attendance", session, authSnapshot, () => api.confirmSessionAttendance(session.sessionId), "已確認到場。");
   }
 
+  async function togglePlayerVisibility() {
+    const authSnapshot = captureAuthSnapshot();
+    if (
+      !isCurrentAuthSnapshot(authSnapshot) ||
+      profileReadiness(state.profile) !== "ready" ||
+      !profileIsComplete(state.profile)
+    ) {
+      throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
+    }
+    if (typeof api?.setPlayerVisibility !== "function") throw new Error("目前無法更新球友卡設定。");
+
+    const nextVisibility = !profileIsPublic(state.profile);
+    await api.setPlayerVisibility(nextVisibility);
+    if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+
+    // The RPC is the authoritative write. Publish its committed value before
+    // the secondary profile read so My Sessions does not revert to the old
+    // consent setting when reconciliation is slow or unavailable.
+    state.profile = { ...state.profile, isPublic: nextVisibility };
+    notifyMySessions();
+
+    let reloaded = false;
+    try {
+      reloaded = await reloadCurrentProfile();
+    } catch {
+      if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+      throw new Error("球友卡設定已更新，但個人檔案同步失敗，請稍後重新整理。");
+    }
+    if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+    if (!reloaded) throw new Error("球友卡設定已更新，但個人檔案同步失敗，請稍後重新整理。");
+  }
+
   function requireReportAccess() {
     const authSnapshot = captureAuthSnapshot();
     if (
@@ -1415,6 +1453,7 @@ export function createSessionController({
       contactsError: state.mySessionContactsError,
       error: state.mySessionsError,
       groups: mySessionGroups(),
+      isPublic: profileIsPublic(state.profile),
       status: state.mySessionsStatus,
       viewGeneration: authEpoch,
     }),
@@ -1439,6 +1478,7 @@ export function createSessionController({
     setDrawerExpanded,
     setFilter,
     setMapUnavailable,
+    togglePlayerVisibility,
     withdrawMySession,
   };
 }

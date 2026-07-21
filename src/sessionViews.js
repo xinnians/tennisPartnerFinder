@@ -10,7 +10,17 @@ const drawerIsolations = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
 const mySessionActionStates = new WeakMap();
-const MY_SESSION_LIFECYCLE_ACTIONS = new Set(["accept", "attendance", "cancel", "decline", "played", "refresh", "refresh-contacts", "withdraw"]);
+const MY_SESSION_LIFECYCLE_ACTIONS = new Set([
+  "accept",
+  "attendance",
+  "cancel",
+  "decline",
+  "played",
+  "refresh",
+  "refresh-contacts",
+  "toggle-visibility",
+  "withdraw",
+]);
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
@@ -573,11 +583,13 @@ export function renderMySessionsPage(
     onReportSession = () => {},
     onSignIn = () => {},
     onSignOut = () => {},
+    onToggleVisibility = () => {},
     onWithdraw = () => {},
     authenticated = false,
     actionScopeKey = null,
     status = "idle",
     errorMessage = "",
+    profileIsPublic = false,
   } = {}
 ) {
   const needsAction = Array.isArray(groups.needsAction) ? groups.needsAction : [];
@@ -602,6 +614,19 @@ export function renderMySessionsPage(
       authenticated
         ? ""
         : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、查看已核准球友的聯絡方式，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
+    }
+    ${
+      authenticated
+        ? `<section class="player-visibility" aria-label="球友卡">
+      <div>
+        <h3>球友卡</h3>
+        <p class="form-hint">開啟後，完成檔案的球友可在地圖上你的常打球場看到你的暱稱、NTRP 與可打時段。LINE 不會顯示。</p>
+      </div>
+      <button type="button" class="session-secondary" data-my-action="toggle-visibility"
+        role="switch" aria-checked="${profileIsPublic ? "true" : "false"}"
+        data-testid="player-visibility-toggle">${profileIsPublic ? "已開啟" : "已關閉"}</button>
+    </section>`
+        : ""
     }
     <section class="my-sessions-section" aria-labelledby="my-needs-action-title">
       <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
@@ -668,6 +693,7 @@ export function renderMySessionsPage(
         played: () => onMarkPlayed(sessionId),
         "report-participant": () => onReportParticipant(sessionId, profileId),
         "report-session": () => onReportSession(sessionId),
+        "toggle-visibility": onToggleVisibility,
         withdraw: () => onWithdraw(sessionId),
       };
       runMySessionAction(button, callbacks[button.dataset.myAction], root);

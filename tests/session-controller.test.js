@@ -155,6 +155,7 @@ function createHarness(overrides = {}) {
       reportDialogs.push({ ...context, detail });
       return detail;
     },
+    reloadCurrentProfile: overrides.reloadCurrentProfile,
     onMySessionsChange: (nextState) => mySessionChanges.push(nextState),
     intentStore: overrides.intentStore,
     toast: (message) => toasts.push(message),
@@ -176,6 +177,97 @@ function createHarness(overrides = {}) {
     toasts,
   };
 }
+
+test("My Sessions visibility mutation commits the RPC-confirmed state before profile reconciliation finishes", async () => {
+  const events = [];
+  const profileReload = deferred();
+  let harness;
+  harness = createHarness({
+    api: {
+      setPlayerVisibility: async (visible) => {
+        events.push(["visibility", visible]);
+      },
+    },
+    reloadCurrentProfile: async () => {
+      events.push(["reload"]);
+      await profileReload.promise;
+      await harness.controller.setAuthState({ user: { id: "player" } }, { complete: true, isPublic: true });
+      return true;
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "player" } }, { complete: true, isPublic: false });
+  const toggled = harness.controller.togglePlayerVisibility();
+  await flush();
+
+  assert.deepEqual(events, [["visibility", true], ["reload"]]);
+  assert.equal(harness.controller.getMySessionState().isPublic, true);
+  assert.equal(harness.mySessionChanges.at(-1).isPublic, true);
+
+  profileReload.resolve();
+  await toggled;
+
+  assert.equal(harness.controller.getMySessionState().isPublic, true);
+  assert.equal(harness.mySessionChanges.at(-1).isPublic, true);
+});
+
+test("RPC success + profile reload failure keeps committed My Sessions visibility and reports reconciliation error", async () => {
+  const harness = createHarness({
+    api: {
+      setPlayerVisibility: async () => {},
+    },
+    reloadCurrentProfile: async () => false,
+  });
+
+  await harness.controller.setAuthState({ user: { id: "player" } }, { complete: true, isPublic: false });
+
+  await assert.rejects(
+    harness.controller.togglePlayerVisibility(),
+    /球友卡設定已更新，但個人檔案同步失敗/
+  );
+  assert.equal(harness.controller.getMySessionState().isPublic, true);
+  assert.equal(harness.mySessionChanges.at(-1).isPublic, true);
+});
+
+test("an account switch invalidates visibility reconciliation without publishing the prior account's committed value", async () => {
+  const profileReload = deferred();
+  const harness = createHarness({
+    api: {
+      setPlayerVisibility: async () => {},
+    },
+    reloadCurrentProfile: () => profileReload.promise,
+  });
+
+  await harness.controller.setAuthState({ user: { id: "account-a" } }, { complete: true, isPublic: false });
+  const toggled = harness.controller.togglePlayerVisibility();
+  await flush();
+  assert.equal(harness.controller.getMySessionState().isPublic, true);
+
+  await harness.controller.setAuthState({ user: { id: "account-b" } }, { complete: true, isPublic: false });
+  profileReload.resolve(false);
+
+  await assert.rejects(toggled, /登入狀態已變更/);
+  assert.equal(harness.controller.getMySessionState().isPublic, false);
+  assert.equal(harness.mySessionChanges.at(-1).isPublic, false);
+});
+
+test("a failed My Sessions visibility mutation preserves the authoritative public state", async () => {
+  const harness = createHarness({
+    api: {
+      setPlayerVisibility: async () => {
+        throw new Error("球友卡設定暫時無法更新。");
+      },
+    },
+    reloadCurrentProfile: async () => {
+      throw new Error("不應重新載入");
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "player" } }, { complete: true, isPublic: false });
+  await assert.rejects(harness.controller.togglePlayerVisibility(), /球友卡設定暫時無法更新/);
+
+  assert.equal(harness.controller.getMySessionState().isPublic, false);
+});
 
 function openAction(harness, sessionId = harness.session.sessionId) {
   harness.controller.openSession(sessionId);

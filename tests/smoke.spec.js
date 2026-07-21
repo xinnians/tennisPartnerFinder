@@ -444,6 +444,57 @@ test("My Sessions preserves the initiating action and its error across a private
   expect(runtimeErrors).toEqual([]);
 });
 
+test("My Sessions renders the 球友卡 switch before needs-action and preserves pending and error state", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    let release;
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    const render = () =>
+      renderMySessionsPage(root, {
+        authenticated: true,
+        groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+        onToggleVisibility: async () => {
+          window.__visibilityToggleCalls = (window.__visibilityToggleCalls ?? 0) + 1;
+          await pending;
+          throw new Error("球友卡設定暫時無法更新。");
+        },
+        profileIsPublic: false,
+      });
+    window.__rerenderVisibility = render;
+    window.__releaseVisibility = release;
+    render();
+  });
+
+  const toggle = page.getByTestId("player-visibility-toggle");
+  await expect(toggle).toHaveAttribute("role", "switch");
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(toggle).toHaveText("已關閉");
+  await expect(page.locator(".player-visibility")).toContainText(
+    "開啟後，完成檔案的球友可在地圖上你的常打球場看到你的暱稱、NTRP 與可打時段。LINE 不會顯示。"
+  );
+  expect(
+    await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
+  ).toBe(true);
+
+  await toggle.click();
+  await expect.poll(() => page.evaluate(() => window.__visibilityToggleCalls)).toBe(1);
+  await page.evaluate(() => window.__rerenderVisibility());
+  await expect(toggle).toBeDisabled();
+  await page.evaluate(() => window.__releaseVisibility());
+  await expect(page.locator("[data-my-sessions-error]")).toContainText("球友卡設定暫時無法更新");
+  await expect(toggle).toBeEnabled();
+  await expect(toggle).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("My Sessions moves focus to an updated card and scopes pending actions to the current account render", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
