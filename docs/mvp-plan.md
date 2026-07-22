@@ -128,6 +128,26 @@ git diff --check
 
 發布前若要補齊上述「未驗」項目，需再跑一次對應子項並更新本節，不可沿用本次紀錄。
 
+## Hosted migration 執行紀錄（2026-07-22：join_mode＋球友層）
+
+`202607210001_session_join_mode`、`202607210002_player_directory_invites` 於
+2026-07-22 套用至 hosted（負責人授權並親自執行 `supabase db push`）。備份與逐項輸出
+留存於 `~/tennisPartnerFinder-backups/20260722-153251/`。
+
+1. **備份與 count preflight**：**完成**。schema 與 data dump；migration 前筆數
+   courts 85、profiles 1、legacy_partner_requests 1、legacy_reports 2，與 2026-07-20
+   基線一致；sessions／session_participants 0 筆。
+2. **Migration list 對齊**：**完成**。套用前 remote 六個 stamp 無 drift；套用後八個
+   stamp local 與 remote 全數相符。
+3. **匿名安全（本次增量面）**：**完成**。匿名 REST 實測：`session_discovery` 的
+   `join_mode` 欄回 200；`line_id` 探測回 400（42703 不存在）；`player_directory`
+   回 401（42501 permission denied）；`set_player_visibility`、`invite_to_session`、
+   `respond_to_session_invite` 三個新 RPC 匿名呼叫皆回 401（42501）。
+4. **未驗（本次未執行）**：登入帳號的 `player_directory` 讀取與 opt-in 下架、兩帳號
+   邀請旅程（邀請 → 接受 → accepted-only 互看 LINE）、instant join 兩帳號旅程、
+   preview 前端手動 QA（Vercel 已由 git push 自動建置新前端）、cron 對新增球局的
+   到期驗證。以上均有本機 pgTAP 與 e2e 覆蓋，但未在 hosted 實測。
+
 本計畫不授權自動 deployment、hosted DB reset、環境變數寫入、migration push 或社群發文。
 
 ## 首兩週的社群與指標
