@@ -379,6 +379,7 @@ test("instant local join accepts immediately and shares only reciprocal contacts
   const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
   await expect(guestContact).toBeVisible();
   await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+  await expect(guestContact.locator("[data-contact-opening]")).toHaveText(/的球友。$/);
   await expect(page.locator("#my-upcoming-sessions [data-testid^='session-contact-']")).toHaveCount(1);
   await expect(page.getByTestId(`session-contact-${observer.profileId}`)).toHaveCount(0);
   await expect(page.locator("#my-sessions-page")).not.toContainText(context.observer.nickname);
@@ -393,6 +394,7 @@ test("instant local join accepts immediately and shares only reciprocal contacts
   const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
   await expect(hostContact).toBeVisible();
   await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+  await expect(hostContact.locator("[data-contact-opening]")).toHaveText(/的主揪。$/);
   const observerContact = page.getByTestId(`session-contact-${observer.profileId}`);
   await expect(observerContact).toBeVisible();
   await expect(observerContact.getByLabel(`${context.observer.nickname} 的 LINE ID`)).toHaveValue(context.observer.lineId);

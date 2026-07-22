@@ -1360,6 +1360,46 @@ test("nested login modal restores focus and announces a failed provider start", 
   expect(runtimeErrors).toEqual([]);
 });
 
+test("the login modal titles each gate entry point instead of always naming a join request", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const openLoginFor = async (action) => {
+    await page.evaluate(async (nextAction) => {
+      const { openLoginModal } = await import("/src/sheets.js");
+      openLoginModal(nextAction === null ? {} : { action: nextAction });
+    }, action);
+  };
+
+  for (const [action, title] of [
+    ["join", "登入以申請加入球局"],
+    ["create", "登入以開球局"],
+    ["players", "登入以查看球友"],
+    ["my-sessions", "登入以查看你的球局"],
+    [null, "登入以繼續"],
+  ]) {
+    await openLoginFor(action);
+    await expect(page.locator("#login-dialog h2")).toHaveText(title);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#login-dialog")).toHaveCount(0);
+  }
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a session without an NTRP range reads as unrestricted rather than NTRP 0.0", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const openRangeless = page.getByRole("button", { name: /地圖圖釘 球局 · 彩虹河濱公園網球場/ });
+  await openRangeless.click();
+  const details = page.locator("#session-sheet [data-session-field='details']");
+  await expect(details).toContainText("NTRP 不限");
+  await expect(details).not.toContainText("NTRP 0.0");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("profile and create sheets disclose public nickname use and retain a local-demo create failure", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

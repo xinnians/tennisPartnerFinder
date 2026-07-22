@@ -244,6 +244,8 @@ function taipeiDateTime(value) {
 }
 
 function ntrpRange(session) {
+  // Number(null) is 0 and passes isFinite, so the empty range must be rejected first.
+  if (session?.ntrpMin == null || session?.ntrpMax == null) return "NTRP 不限";
   const min = Number(session.ntrpMin);
   const max = Number(session.ntrpMax);
   if (!Number.isFinite(min) || !Number.isFinite(max)) return "NTRP 不限";
@@ -293,6 +295,11 @@ function mySessionRole(session) {
   return participantStatus === "accepted" ? "已核准加入" : "參與者";
 }
 
+/** Noun for the copyable opening message; mySessionRole returns status labels that do not fit the sentence. */
+function contactSelfNoun(session) {
+  return String(session?.viewerRole) === "host" ? "主揪" : "球友";
+}
+
 function mySessionStatus(session) {
   const status = String(session?.status ?? "").toLowerCase();
   const startTime = new Date(session?.startAt ?? "").getTime();
@@ -332,7 +339,7 @@ function contactRows(session, contacts) {
               <button type="button" class="session-secondary" data-copy-contact data-copy-kind="line">複製 LINE ID</button>
               <button type="button" class="session-secondary" data-copy-contact data-copy-kind="opening">複製開場訊息</button>
             </div>
-            <p data-contact-opening>你好，我是球局「${esc(session.court)}」的${esc(mySessionRole(session))}。</p>
+            <p data-contact-opening>你好，我是球局「${esc(session.court)}」的${esc(contactSelfNoun(session))}。</p>
             <p data-contact-copy-status role="status" aria-live="polite"></p>
           </div>`
       )

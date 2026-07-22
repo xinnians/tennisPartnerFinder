@@ -144,7 +144,14 @@ export function closeModal() {
   closeSurface(modalRoot());
 }
 
-export function openLoginModal({ onProvider, onClose } = {}) {
+const LOGIN_TITLES = {
+  join: "登入以申請加入球局",
+  create: "登入以開球局",
+  players: "登入以查看球友",
+  "my-sessions": "登入以查看你的球局",
+};
+
+export function openLoginModal({ action = "", onProvider, onClose } = {}) {
   const mounted = mountDialog({
     id: "login-dialog",
     label: "登入後繼續",
@@ -154,7 +161,7 @@ export function openLoginModal({ onProvider, onClose } = {}) {
       <div class="surface__head">
         <div>
           <p class="surface__eyebrow">登入後繼續</p>
-          <h2>登入以申請加入球局</h2>
+          <h2>${esc(LOGIN_TITLES[action] ?? "登入以繼續")}</h2>
         </div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
       </div>

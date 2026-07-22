@@ -110,13 +110,14 @@ function defaultProfile() {
   };
 }
 
-function openSafeLogin({ onClose = () => {} } = {}) {
+function openSafeLogin({ action = "", onClose = () => {} } = {}) {
   if (!isSupabaseConfigured) {
     onClose();
     toast(LOCAL_DEMO_UNAVAILABLE);
     return null;
   }
   return openLoginModal({
+    action,
     onClose,
     onProvider: async (provider) => {
       await signInWithOAuthProvider(provider);
@@ -382,7 +383,7 @@ function renderMySessionsDestination() {
     },
     onReportParticipant: controller.openRosterParticipantReport,
     onReportSession: controller.openSessionReport,
-    onSignIn: () => openSafeLogin(),
+    onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     onSignOut: handleSignOut,
     onToggleVisibility: controller.togglePlayerVisibility,
     profileIsPublic: state.isPublic,

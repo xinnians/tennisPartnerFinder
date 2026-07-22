@@ -1086,6 +1086,7 @@ export function createSessionController({
     const savedIntent = saveIntent(intent);
     if (!state.authSession) {
       openLogin({
+        action: intent?.action ?? "",
         onClose: ({ reason = "dismiss" } = {}) => {
           if (reason === "dismiss") clearIntent(savedIntent);
         },
