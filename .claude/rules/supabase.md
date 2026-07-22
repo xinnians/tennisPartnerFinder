@@ -14,14 +14,16 @@ role 不可讀寫。
 
 ## 只能使用的 browser 邊界
 
-- 匿名或登入探索：`public.session_discovery`。
+- 匿名公開探索：`public.session_discovery`；它是唯一匿名公開面。
+- 登入且完整 profile 的球友目錄：`public.player_directory`（authenticated-only，不是公開面）。
 - 登入者自己的清單：`public.my_session_participations`。
 - roster：`public.session_participant_roster`。
 - accepted-only LINE：`public.session_contacts`。
 - 個人檔案表單：`public.my_profile` 與 `save_my_profile(...)`。
 - lifecycle 寫入：`create_session`、`request_to_join_session`、
   `review_join_request`、`withdraw_from_session`、`cancel_session`、
-  `mark_session_played`、`confirm_session_attendance`、`create_report`。
+  `mark_session_played`、`confirm_session_attendance`、`create_report`、
+  `set_player_visibility`、`invite_to_session`、`respond_to_session_invite`。
 
 不可讓前端直接 select／insert／update／delete raw `profiles`、`sessions`、
 `session_participants`、`reports` 或 private legacy tables；`src/dataApi.js` 是唯一
@@ -47,6 +49,18 @@ host_nickname, host_ntrp, host_profile_complete, status, join_mode
 LINE、電話、email、常打球場、可用時段、歷史或 roster。`session_discovery` 僅包含未來、
 open/full、active tennis、台北市 court 的球局。
 
+`player_directory` 是獨立的 authenticated-only security-definer view，DB 亦以
+`private.has_complete_profile(auth.uid())` gate：不完整 viewer 即使已登入也只能得到 0 列。
+其欄位有序 allowlist **精確為**：
+
+```text
+profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self
+```
+
+它只列出已 opt-in（`profiles.is_public=true`）、卡片本人完整 profile、台北市 active 常打球場的
+球友；`is_public` 預設 false，只有完整 profile 本人可透過 `set_player_visibility(boolean)`
+變更，關閉後立即從目錄下架。它明確不包含 LINE／`line_id`、真名、email 或歷史球局。
+
 ## Roster 與 LINE
 
 - `session_participant_roster`：host 可看同局 roster；guest 只可看自己與 host。這是
@@ -63,15 +77,24 @@ open/full、active tennis、台北市 court 的球局。
 - `private.require_complete_profile()` 要求 nickname、LINE、有效 NTRP、至少一種打法與一座
   台北市 active court；create/join 由 RPC 強制，前端檢查不是授權。
 - `sessions.status`：`open`、`full`、`cancelled`、`played`、`expired`；guest participant
-  status：`requested`、`accepted`、`declined`、`withdrawn`。只有 host participant 是
+  status：`requested`、`invited`、`accepted`、`declined`、`withdrawn`。`initiated_by='guest'`
+  表示 guest request，`initiated_by='host'` 表示 host invite；host participant 的 status 固定為
   `accepted`。
-- 接受最後一個缺額以 row lock 計算容量，並把其餘 requested guests decline；不要在客戶端
-  先判斷可用缺額後直接寫入。
+- 接受最後一個缺額以 row lock 計算容量，並把其餘 pending `requested`／`invited` guests
+  decline；不要在客戶端先判斷可用缺額後直接寫入。
 - `create_session` 的 `join_mode` 只可為 `approval` 或 `instant`；同一主揪至多可有五個未來、
   `open`／`full` 的球局，超過時 RPC 回傳 `SESSION_LIMIT`。
 - `request_to_join_session` 對 `approval` 局建立 `requested` participant 並回傳 `OK`；對
   `instant` 局在有缺額時直接轉為 `accepted` 並回傳 `ACCEPTED`。LINE 的可見性模型不變：
   仍只限雙方皆為 `accepted` 的 host ↔ guest 配對。
+- `invite_to_session(session_id, profile_id)` 僅 host 可呼叫，對可發現、完整且 opt-in 的
+  其他球友建立 `invited`／`initiated_by='host'`；同一 host 在其名下所有球局的 host-initiated
+  invite 採滾動 24 小時計數，上限 10。migration 以該 host 的 profile-row lock 序列化此計數
+  與新增。`respond_to_session_invite(session_id, accepted|declined)` 僅處理 viewer 自己的
+  `invited` 列；接受沿用原子容量與補滿 cleanup，婉拒改為 `declined`。回傳成功皆為 `OK`；
+  `my_session_participations.can_respond_invite` 只在 invited、open/full、未開打時為 true。
+- 新錯誤碼：`INVITEE_NOT_AVAILABLE`、`ALREADY_INVITED`、`NOT_INVITED`、`INVITE_LIMIT`。
+  既有 `ALREADY_REQUESTED`、`ALREADY_DECIDED`、`SESSION_FULL` 等契約仍適用。
 - `withdraw_from_session` 對 accepted guest 在 pre-start full session 會重新開放；host 可在
   pre-start cancel，post-start 24 小時內 mark played，accepted users 可確認出席。
 
