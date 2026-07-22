@@ -143,10 +143,31 @@ git diff --check
    `join_mode` 欄回 200；`line_id` 探測回 400（42703 不存在）；`player_directory`
    回 401（42501 permission denied）；`set_player_visibility`、`invite_to_session`、
    `respond_to_session_invite` 三個新 RPC 匿名呼叫皆回 401（42501）。
-4. **未驗（本次未執行）**：登入帳號的 `player_directory` 讀取與 opt-in 下架、兩帳號
-   邀請旅程（邀請 → 接受 → accepted-only 互看 LINE）、instant join 兩帳號旅程、
-   preview 前端手動 QA（Vercel 已由 git push 自動建置新前端）、cron 對新增球局的
-   到期驗證。以上均有本機 pgTAP 與 e2e 覆蓋，但未在 hosted 實測。
+4. **兩帳號 hosted 旅程**：**完成**。同日以兩個 Google 帳號在 preview 穩定別名實測
+   （帳號 B 為新註冊的 QA 帳號，暱稱 QA測試B、LINE 為測試字串 `qa-test-b`）：
+
+   - 球友目錄：B 完成檔案後可讀 `player_directory` 並在地圖看到已 opt-in 的 A；
+     B 自己未 opt-in 故不在目錄中（opt-out 預設正確）。球友卡欄位為暱稱、NTRP、
+     打法、時段、常打球場，**無 LINE**。
+   - opt-in 下架：A 關閉球友卡後，同一 viewer 重載圖層即回空列表、pin 消失；重新
+     開啟後恢復。
+   - 邀請旅程：B 邀請 A → A 的「需要你處理」出現邀請卡（不含 LINE）→ A 接受 →
+     缺額 1 歸零並自動轉 `full` → 雙方各自看到對方 LINE（A 看到 `qa-test-b`、
+     B 看到 A 的 LINE）。重複邀請被擋（`ALREADY_INVITED`）；`invited` 期間不佔缺額。
+   - instant join：A 建「直接加入」局，詳情顯示 badge 與「直接加入」CTA，確認 dialog
+     揭露「加入後你與主揪即可互相看到 LINE ID」；B 直接加入後立即成局並互看 LINE，
+     全程無審核步驟。
+   - 生命週期與隱私連動：B 退出後、主揪取消球局後，對方卡片的聯絡方式區塊都不再
+     渲染，LINE 不再揭露。
+   - 前端：390px 與桌面佈局、圖層 toggle、未登入 gate 皆正常；全程無 `console.error`
+     或 `pageerror`。
+
+5. **資料清理**：**完成**。兩個 QA 球局皆已取消／退出，套用後匿名 `session_discovery`
+   實測回 0 筆（`content-range: */0`）。**殘留**：QA 帳號 B 的 auth user 與 profile
+   尚未刪除（需 service_role 或 Dashboard，未授權自動執行）；該帳號未 opt-in，
+   不會出現在球友目錄。
+
+6. **未驗（本次未執行）**：cron 對新增球局的到期驗證（本機 pgTAP 已覆蓋）。
 
 本計畫不授權自動 deployment、hosted DB reset、環境變數寫入、migration push 或社群發文。
 
