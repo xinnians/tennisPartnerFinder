@@ -1517,3 +1517,50 @@ test("mock-mode create does not open OAuth or fabricate a new session", async ({
   await expect(page.getByTestId("session-card")).toHaveCount(initialCardCount);
   expect(runtimeErrors).toEqual([]);
 });
+
+test("mock player layer renders directory pins and cards while the signed-out entry stays behind the demo login gate", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.getByTestId("player-layer-toggle").click();
+  await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
+
+  await page.evaluate(async () => {
+    const { renderPlayerPins } = await import("/src/map.js");
+    const { createDataApi } = await import("/src/dataApi.js");
+    const { createSessionController } = await import("/src/sessionController.js");
+    const { openCourtPlayersDrawer, openPlayerCardSheet, renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    const map = new window.google.maps.Map(document.getElementById("map"), {
+      center: { lat: 25.05, lng: 121.53 },
+      zoom: 12,
+    });
+    let playerMarkers = [];
+    let controller;
+    controller = createSessionController({
+      api: createDataApi(),
+      openCourtPlayersDrawer,
+      openPlayerCard: openPlayerCardSheet,
+      renderPlayers: (view) => {
+        renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), view);
+        playerMarkers = renderPlayerPins(
+          window.google,
+          map,
+          view.on ? view.groups : [],
+          (court, players) => controller.openPlayerCourt(court, players),
+          playerMarkers
+        );
+      },
+    });
+    await controller.setAuthState({ user: { id: "mock-player-host" } }, { complete: true });
+    await controller.togglePlayerLayer();
+  });
+
+  await expect(page.getByTitle("球友 · 台北網球中心 · 2 位")).toBeVisible();
+  await page.getByTitle("球友 · 台北網球中心 · 2 位").click();
+  const playerCard = page.getByTestId("court-player-card-8001");
+  await expect(playerCard).toContainText("示範山嵐");
+  await playerCard.click();
+  await expect(page.locator("#player-card-sheet")).toContainText("示範山嵐");
+  expect(runtimeErrors).toEqual([]);
+});

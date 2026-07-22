@@ -98,3 +98,14 @@ export function reviewJoinRequestViaRpc(client, { sessionId, participantId, deci
     p_decision: decision,
   });
 }
+
+export function setPlayerVisibilityViaRpc(client, visible) {
+  return callSessionRpc(client, "set_player_visibility", { p_visible: Boolean(visible) });
+}
+
+export function inviteViaRpc(client, sessionId, profileId) {
+  return callSessionRpc(client, "invite_to_session", {
+    p_session_id: sessionId,
+    p_profile_id: profileId,
+  });
+}

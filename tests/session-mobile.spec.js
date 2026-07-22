@@ -3,9 +3,25 @@ import { expect, test } from "@playwright/test";
 
 import { expectWithinViewport, installFakeMaps } from "./fixtures/fakeMaps.js";
 import { courtIdByName, createProfile, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
-import { createFutureSessionInput, createSessionTestContext, createSessionViaRpc, reviewJoinRequestViaRpc } from "./fixtures/sessionFactory.js";
+import {
+  createFutureSessionInput,
+  createSessionTestContext,
+  createSessionViaRpc,
+  inviteViaRpc,
+  reviewJoinRequestViaRpc,
+  setPlayerVisibilityViaRpc,
+} from "./fixtures/sessionFactory.js";
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
+
+function captureRuntimeErrors(page) {
+  const errors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  return errors;
+}
 
 async function createCompleteActor(actor) {
   const { client, session } = await signUpUser(actor.email);
@@ -92,6 +108,35 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   const upcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
   await expect(upcomingCard).toBeVisible();
   await expect(upcomingCard).toContainText("已核准加入");
-  await expectWithinViewport(page, upcomingCard);
+  await expect(page.getByTestId(`session-contact-${host.profileId}`)).toBeVisible();
+  const settledUpcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
+  await settledUpcomingCard.scrollIntoViewIfNeeded();
+  await expectWithinViewport(page, settledUpcomingCard);
   await expect(page.getByTestId("my-sessions-tab")).toBeFocused();
+});
+
+test("a 390px invited player can accept the invite card and read the host LINE contact", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const player = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
+  expect(await setPlayerVisibilityViaRpc(player.client, true)).toBe("OK");
+  expect(await inviteViaRpc(host.client, sessionId, player.profileId)).toBe("OK");
+
+  await installFakeMaps(page);
+  await setBrowserSession(page, player.session);
+  await page.goto("/");
+  await page.getByTestId("my-sessions-tab").click();
+  const invite = page.getByTestId("invite-row");
+  await expect(invite).toBeVisible();
+  await expectWithinViewport(page, invite);
+  const accept = page.getByTestId(`accept-invite-${sessionId}`);
+  await expectWithinViewport(page, accept);
+  await accept.click();
+  const contact = page.getByTestId(`session-contact-${host.profileId}`);
+  await expect(contact).toBeVisible();
+  await expect(contact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+  expect(runtimeErrors).toEqual([]);
 });

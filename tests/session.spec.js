@@ -8,8 +8,10 @@ import {
   createFutureSessionInput,
   createSessionTestContext,
   createSessionViaRpc,
+  inviteViaRpc,
   requestToJoinSessionViaRpc,
   reviewJoinRequestViaRpc,
+  setPlayerVisibilityViaRpc,
 } from "./fixtures/sessionFactory.js";
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
@@ -114,6 +116,24 @@ test("createSessionViaRpc defaults a missing joinMode to approval and preserves 
   expect(calls).toHaveLength(2);
   expect(calls[0]).toMatchObject({ name: "create_session", args: { p_join_mode: "approval" } });
   expect(calls[1]).toMatchObject({ name: "create_session", args: { p_join_mode: "instant" } });
+});
+
+test("player-directory fixture helpers call the authorized visibility and invitation RPCs", async () => {
+  const calls = [];
+  const client = {
+    async rpc(name, args) {
+      calls.push({ args, name });
+      return { data: "OK", error: null };
+    },
+  };
+
+  await setPlayerVisibilityViaRpc(client, 1);
+  await inviteViaRpc(client, 91, 42);
+
+  expect(calls).toEqual([
+    { args: { p_visible: true }, name: "set_player_visibility" },
+    { args: { p_profile_id: 42, p_session_id: 91 }, name: "invite_to_session" },
+  ]);
 });
 
 test("anonymous Join resumes the same live target as a confirmation, never an automatic request", async ({ page }) => {
@@ -633,4 +653,65 @@ test("signing out clears the private session view and restores the signed-out pr
   await expect(page.locator("[data-my-sessions-sign-out]")).toHaveCount(0);
   await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toHaveCount(0);
   await expect(page.locator("#toast-root")).toContainText("已登出");
+});
+
+test("a visible player can be invited, accept from My Sessions, exchange LINE contacts, and delist immediately", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const player = await createCompleteActor(context.guest);
+  const host = await createCompleteActor(context.host);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `player-invite-${context.runId}`, slotsTotal: 1 })
+  );
+  expect(await setPlayerVisibilityViaRpc(host.client, true)).toBe("OK");
+
+  await gotoWithSession(page, player.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const playerVisibility = page.getByTestId("player-visibility-toggle");
+  await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
+  await playerVisibility.click();
+  await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("player-layer-toggle").click();
+  const playerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
+  await expect(playerPin).toBeVisible();
+  await playerPin.click();
+  const playerCard = page.getByTestId(`court-player-card-${player.profileId}`);
+  await expect(playerCard).toContainText(context.guest.nickname);
+  await playerCard.click();
+  await expect(page.locator("#player-card-sheet")).toBeVisible();
+  await page.getByTestId("player-invite-session").check();
+  await page.getByTestId("player-invite-submit").click();
+  await expect(page.getByText("邀請已送出", { exact: true })).toBeVisible();
+
+  await switchBrowserSession(page, player.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const invite = page.getByTestId("invite-row");
+  await expect(invite).toContainText(context.host.nickname);
+  await page.getByTestId(`accept-invite-${sessionId}`).click();
+  const playerContact = page.getByTestId(`session-contact-${host.profileId}`);
+  await expect(playerContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const hostContact = page.getByTestId(`session-contact-${player.profileId}`);
+  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+
+  await switchBrowserSession(page, player.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
+  await playerVisibility.click();
+  await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("player-layer-toggle").click();
+  await expect(page.locator("#player-layer-status")).toBeHidden();
+  const refreshedPlayerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
+  await expect(refreshedPlayerPin).toBeVisible();
+  await refreshedPlayerPin.click();
+  await expect(page.getByTestId(`court-player-card-${player.profileId}`)).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
 });
