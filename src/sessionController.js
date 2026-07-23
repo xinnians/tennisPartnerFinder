@@ -360,8 +360,10 @@ export function createSessionController({
           lng: Number(player.courtLng),
         },
         players: [],
+        presenceCount: 0,
       };
       group.players.push(player);
+      if (player.isPresent) group.presenceCount += 1;
       groups.set(key, group);
     }
     return [...groups.values()];
@@ -667,7 +669,10 @@ export function createSessionController({
     state.playerLayerMessage = "正在載入球友…";
     publish();
     try {
-      const players = await api.loadPlayerDirectory({ bounds: nextBounds });
+      const [directory, presence] = await Promise.all([
+        api.loadPlayerDirectory({ bounds: nextBounds }),
+        typeof api.loadPlayerPresenceDirectory === "function" ? api.loadPlayerPresenceDirectory({ bounds: nextBounds }) : [],
+      ]);
       if (
         requestId !== latestPlayerRequest ||
         !state.playerLayerOn ||
@@ -676,7 +681,21 @@ export function createSessionController({
       ) {
         return false;
       }
-      state.players = Array.isArray(players) ? players : [];
+      const directoryByProfileId = new Map(
+        (Array.isArray(directory) ? directory : []).map((player) => [String(player?.profileId), player])
+      );
+      const presentPlayers = (Array.isArray(presence) ? presence : []).map((present) => {
+        const staticPlayer = directoryByProfileId.get(String(present?.profileId)) ?? {};
+        directoryByProfileId.delete(String(present?.profileId));
+        return {
+          ...staticPlayer,
+          ...present,
+          isPresent: true,
+          playTypes: Array.isArray(staticPlayer.playTypes) ? staticPlayer.playTypes : [],
+          slotCodes: Array.isArray(staticPlayer.slotCodes) ? staticPlayer.slotCodes : [],
+        };
+      });
+      state.players = [...presentPlayers, ...directoryByProfileId.values()].map((player) => ({ ...player, isPresent: player.isPresent === true }));
       state.playerLayerStatus = "ready";
       state.playerLayerMessage = "";
       publish();

@@ -89,6 +89,12 @@
 #player-layer-toggle.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
 .player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: rgba(20, 44, 75, 0.92); color: #fff; font-size: 12px; font-weight: 800; }
 
+.presence-settings { display: grid; gap: 10px; margin: 16px 0; padding: 16px; border: 1px solid #c8dc9d; border-radius: 14px; background: #f7fbe9; }
+.presence-settings h3 { margin: 0; color: var(--navy); }
+.presence-settings .form-hint { margin: 5px 0 0; }
+.presence-settings__greeting { display: flex; align-items: center; gap: 7px; color: var(--navy); font-weight: 800; }
+.player-presence, .player-greeting { color: #426713; font-weight: 800; }
+
 .map-toolbar {
   position: absolute;
   z-index: 4;

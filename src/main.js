@@ -29,6 +29,7 @@ import {
   loadMySessions,
   loadNotificationPreferences,
   loadPlayerDirectory,
+  loadPlayerPresenceDirectory,
   loadSessionContacts,
   loadSessionDiscovery,
   loadSessionRoster,
@@ -44,6 +45,9 @@ import {
   signInWithOAuthProvider,
   signOut,
   setPlayerVisibility,
+  setOpenToGreeting,
+  setPresenceSharing,
+  updateMyPresence,
   withdrawFromSession,
 } from "./dataApi.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
@@ -65,6 +69,7 @@ import {
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
 import { enableBrowserPush } from "./notificationPush.js";
+import { createPresenceTracker } from "./playerPresence.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
 
@@ -89,6 +94,8 @@ let createdSessionFocusId = null;
 let mySessionsRenderGeneration = 0;
 let pendingMySessionsFocus = null;
 let notificationSettings = defaultNotificationSettings();
+let presenceLocationStatus = "idle";
+let presenceTracker = null;
 let sessionHashRouteGeneration = 0;
 
 function toast(message) {
@@ -160,8 +167,79 @@ function defaultProfile() {
     nick: "",
     ntrp: 3.5,
     slots: new Set(["we-m"]),
+    openToGreeting: false,
+    sharePresence: false,
     types: new Set(),
   };
+}
+
+function presenceSettingsForProfile() {
+  return {
+    locationStatus: presenceLocationStatus,
+    openToGreeting: currentProfile?.openToGreeting === true,
+    sharePresence: currentProfile?.sharePresence === true,
+  };
+}
+
+function stopPresenceTracking() {
+  presenceTracker?.stop();
+  presenceTracker = null;
+}
+
+function updatePresenceLocationStatus(status) {
+  presenceLocationStatus = status;
+  if (activePage === "my-sessions") renderMySessionsDestination();
+}
+
+function reconcilePresenceTracking() {
+  const eligible = eligibilityFromPrivateProfile(currentProfile);
+  const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.complete && currentProfile?.sharePresence === true);
+  if (!canTrack) {
+    stopPresenceTracking();
+    return false;
+  }
+  if (!presenceTracker) {
+    presenceTracker = createPresenceTracker({
+      onError: updatePresenceLocationStatus,
+      onPosition: async ({ lat, lng }) => {
+        const epoch = authStateEpoch;
+        const identity = currentAuthIdentity;
+        await updateMyPresence({ lat, lng });
+        if (!notificationRequestIsCurrent({ epoch, identity })) return;
+        updatePresenceLocationStatus("active");
+      },
+    });
+  }
+  const started = presenceTracker.start();
+  if (started && presenceLocationStatus === "idle") presenceLocationStatus = "requesting";
+  return started;
+}
+
+async function updatePresenceSharing(shared) {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
+  await setPresenceSharing(shared === true);
+  if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
+  currentProfile = { ...(currentProfile ?? defaultProfile()), sharePresence: shared === true };
+  if (shared) reconcilePresenceTracking();
+  else {
+    stopPresenceTracking();
+    presenceLocationStatus = "idle";
+  }
+  rerenderVisibleNotificationSettings();
+  toast(shared ? "已開啟在場分享。" : "已隱藏在場狀態。");
+}
+
+async function updateOpenToGreetingSetting(open) {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
+  await setOpenToGreeting(open === true);
+  if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
+  currentProfile = { ...(currentProfile ?? defaultProfile()), openToGreeting: open === true };
+  rerenderVisibleNotificationSettings();
+  toast(open ? "已開啟接受現場問候。" : "已關閉接受現場問候。");
 }
 
 function defaultNotificationSettings() {
@@ -360,6 +438,8 @@ function captureMySessionsFocus(root) {
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
   if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
   if (active.matches("[data-notification-district]")) return { kind: "notification-district", district: active.value };
+  if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
+  if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches("[data-open-my-session]")) return { kind: "open-session", sessionId: active.dataset.sessionId };
   if (active.matches("[data-my-action]")) {
     return {
@@ -389,6 +469,8 @@ function resolveMySessionsFocus(root, focus) {
   if (focus.kind === "notification-district") {
     return [...root.querySelectorAll("[data-notification-district]")].find((input) => input.value === focus.district);
   }
+  if (focus.kind === "presence-sharing") return root.querySelector("[data-set-presence-sharing]");
+  if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
   if (focus.kind === "open-session") {
     return [...root.querySelectorAll("[data-open-my-session]")].find(
       (button) => String(button.dataset.sessionId) === String(focus.sessionId)
@@ -556,8 +638,11 @@ function renderMySessionsDestination() {
     onSignOut: handleSignOut,
     onSaveDistrictSubscriptions: updateDistrictSubscriptions,
     onSaveNotificationPreferences: updateNotificationPreferences,
+    onSetOpenToGreeting: updateOpenToGreetingSetting,
+    onSetPresenceSharing: updatePresenceSharing,
     onToggleVisibility: controller.togglePlayerVisibility,
     notificationSettings,
+    presenceSettings: presenceSettingsForProfile(),
     profileIsPublic: state.isPublic,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
@@ -712,6 +797,7 @@ async function reloadCurrentProfile() {
   currentProfile = profile ?? defaultProfile();
   profileLoadStatus = "ready";
   await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+  reconcilePresenceTracking();
   return true;
 }
 
@@ -727,6 +813,8 @@ function applyAuthCandidate(session) {
   // state. Auth token refreshes for the same account must not invalidate an
   // open confirmation or turn a complete profile transiently incomplete.
   if (identityChanged) {
+    stopPresenceTracking();
+    presenceLocationStatus = "idle";
     profileRevision += 1;
     currentProfile = defaultProfile();
     notificationSettings = defaultNotificationSettings();
@@ -734,6 +822,8 @@ function applyAuthCandidate(session) {
     void controller.setAuthState(session, session ? { complete: false, status: "loading" } : null);
   }
   if (!session) {
+    stopPresenceTracking();
+    presenceLocationStatus = "idle";
     currentProfile = defaultProfile();
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = "idle";
@@ -812,6 +902,7 @@ function init() {
       declineSessionParticipant,
       loadMySessions,
       loadPlayerDirectory,
+      loadPlayerPresenceDirectory,
       loadSessionContacts,
       loadSessionDiscovery,
       loadSessionRoster,
@@ -821,6 +912,9 @@ function init() {
       inviteToSession,
       respondToSessionInvite,
       setPlayerVisibility,
+      setOpenToGreeting,
+      setPresenceSharing,
+      updateMyPresence,
       withdrawFromSession,
     },
     mapTools: { getMapBounds, subscribeToMapIdle, setUserLocation, fitTaipei: fitTaipeiBounds },

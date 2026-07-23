@@ -1975,6 +1975,30 @@ test("player layer uses the existing anonymous and incomplete-profile intent gat
   assert.equal(incompleteIntent.value(), null);
 });
 
+test("player layer puts reciprocal presence rows first and carries an on-court count to the pin", async () => {
+  const harness = createHarness({
+    api: {
+      loadPlayerDirectory: async () => [
+        { profileId: 8001, nickname: "靜態同名", courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648 },
+        { profileId: 8002, nickname: "常打球友", courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648 },
+      ],
+      loadPlayerPresenceDirectory: async () => [
+        { profileId: 8001, nickname: "在場球友", ntrp: 3.5, openToGreeting: true, courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648, minutesAgo: 2, isSelf: false },
+      ],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "presence-viewer" } }, { complete: true });
+  await harness.controller.togglePlayerLayer();
+
+  const group = harness.controller.getPlayerLayerState().groups[0];
+  assert.equal(group.presenceCount, 1);
+  assert.deepEqual(group.players.map((player) => player.profileId), [8001, 8002]);
+  assert.equal(group.players[0].isPresent, true);
+  assert.equal(group.players[0].minutesAgo, 2);
+  assert.equal(group.players[0].openToGreeting, true);
+});
+
 test("player directory latest bounds wins and off, signout, and API errors cannot publish stale authorized data", async () => {
   const requests = [];
   const harness = createHarness({

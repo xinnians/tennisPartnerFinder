@@ -638,6 +638,24 @@ function notificationPushHint({ pushStatus, webPushConfigured }) {
   return "開啟後，只有這個裝置會收到你選擇的通知。";
 }
 
+function normalizedPresenceSettings(settings = {}) {
+  return {
+    locationStatus: typeof settings?.locationStatus === "string" ? settings.locationStatus : "idle",
+    openToGreeting: settings?.openToGreeting === true,
+    sharePresence: settings?.sharePresence === true,
+  };
+}
+
+function presenceLocationHint({ locationStatus, sharePresence }) {
+  if (!sharePresence) return "關閉後會立即移除你目前的在場狀態。";
+  if (locationStatus === "denied") return "你已拒絕定位權限；請到瀏覽器或系統設定開啟定位後，再重新開啟分享。";
+  if (locationStatus === "unsupported") return "此瀏覽器不支援定位，暫時無法更新在場狀態。";
+  if (locationStatus === "unavailable") return "目前無法取得定位；恢復後會自動嘗試更新。";
+  if (locationStatus === "update-failed") return "在場狀態暫時無法更新，請稍後再試。";
+  if (locationStatus === "active") return "定位已開啟；只有在球場 100 公尺內才會顯示在場狀態。";
+  return "開啟後會請求定位權限；只有在球場 100 公尺內才會顯示在場狀態。";
+}
+
 async function runNotificationSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-notification-control]")];
   const unlockedControls = controls.filter((control) => !control.disabled);
@@ -655,6 +673,34 @@ async function runNotificationSettingAction(root, callback) {
   } catch (cause) {
     if (error) {
       error.textContent = cause?.message || "通知設定暫時無法更新，請稍後再試。";
+      error.hidden = false;
+      error.focus({ preventScroll: true });
+    }
+    return false;
+  } finally {
+    unlockedControls.forEach((control) => {
+      control.disabled = false;
+    });
+  }
+}
+
+async function runPresenceSettingAction(root, callback) {
+  const controls = [...root.querySelectorAll("[data-presence-control]")];
+  const unlockedControls = controls.filter((control) => !control.disabled);
+  const error = root.querySelector("[data-presence-error]");
+  unlockedControls.forEach((control) => {
+    control.disabled = true;
+  });
+  if (error) {
+    error.hidden = true;
+    error.textContent = "";
+  }
+  try {
+    await callback();
+    return true;
+  } catch (cause) {
+    if (error) {
+      error.textContent = cause?.message || "在場設定暫時無法更新，請稍後再試。";
       error.hidden = false;
       error.focus({ preventScroll: true });
     }
@@ -692,6 +738,8 @@ export function renderMySessionsPage(
     onSignOut = () => {},
     onSaveDistrictSubscriptions = () => {},
     onSaveNotificationPreferences = () => {},
+    onSetOpenToGreeting = () => {},
+    onSetPresenceSharing = () => {},
     onToggleVisibility = () => {},
     onWithdraw = () => {},
     authenticated = false,
@@ -699,6 +747,7 @@ export function renderMySessionsPage(
     status = "idle",
     errorMessage = "",
     notificationSettings = {},
+    presenceSettings = {},
     profileIsPublic = false,
   } = {}
 ) {
@@ -706,6 +755,7 @@ export function renderMySessionsPage(
   const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
   const history = Array.isArray(groups.history) ? groups.history : [];
   const notification = normalizedNotificationSettings(notificationSettings);
+  const presence = normalizedPresenceSettings(presenceSettings);
   setMySessionActionScope(root, actionScopeKey);
   root.innerHTML = `
     <div class="my-sessions-shell__head">
@@ -736,6 +786,20 @@ export function renderMySessionsPage(
       <button type="button" class="session-secondary" data-my-action="toggle-visibility"
         role="switch" aria-checked="${profileIsPublic ? "true" : "false"}"
         data-testid="player-visibility-toggle">${profileIsPublic ? "已開啟" : "已關閉"}</button>
+    </section>
+    <section class="presence-settings" aria-labelledby="presence-settings-title">
+      <div>
+        <h3 id="presence-settings-title">在場狀態</h3>
+        <p class="form-hint">開啟期間你的所在球場對其他有開啟的完整檔案球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
+      </div>
+      <button type="button" class="session-secondary" data-set-presence-sharing data-presence-control
+        role="switch" aria-checked="${presence.sharePresence ? "true" : "false"}"
+        data-testid="presence-sharing-toggle">${presence.sharePresence ? "一鍵隱藏" : "開啟在場分享"}</button>
+      <p class="form-hint" data-testid="presence-location-status">${esc(presenceLocationHint(presence))}</p>
+      <label class="presence-settings__greeting"><input type="checkbox" data-open-to-greeting data-presence-control data-testid="open-to-greeting-toggle"${
+        presence.openToGreeting ? " checked" : ""
+      }> 接受現場問候</label>
+      <p class="form-error" data-presence-error role="alert" tabindex="-1" hidden></p>
     </section>
     <section class="notification-settings" aria-labelledby="notification-settings-title">
       <div class="notification-settings__head">
@@ -854,6 +918,16 @@ export function renderMySessionsPage(
           checkbox.checked = notification.districts.has(checkbox.value);
         });
       });
+    });
+  });
+  root.querySelector("[data-set-presence-sharing]")?.addEventListener("click", () => {
+    void runPresenceSettingAction(root, () => onSetPresenceSharing(!presence.sharePresence));
+  });
+  root.querySelector("[data-open-to-greeting]")?.addEventListener("change", (event) => {
+    const input = event.currentTarget;
+    const previousChecked = !input.checked;
+    void runPresenceSettingAction(root, () => onSetOpenToGreeting(input.checked)).then((saved) => {
+      if (!saved) input.checked = previousChecked;
     });
   });
   root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
@@ -1370,6 +1444,17 @@ function playerSlotLabels(slotCodes) {
   });
 }
 
+function playerPresenceLabel(player = {}) {
+  if (player?.isPresent !== true) return "";
+  const minutes = Number(player?.minutesAgo);
+  const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
+  return `在場・${safeMinutes} 分鐘前`;
+}
+
+function playerGreetingLabel(player = {}) {
+  return player?.openToGreeting === true ? "接受現場問候" : "";
+}
+
 function taipeiCourts(courts) {
   return (Array.isArray(courts) ? courts : []).filter((court) => court?.city === "台北市");
 }
@@ -1650,6 +1735,7 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
         ${players.length ? players.map((player) => `
           <button type="button" class="player-card" data-testid="court-player-card-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
             <strong>${esc(player.nickname)}</strong> · NTRP ${esc(Number(player.ntrp).toFixed(1))}
+            ${player.isPresent ? `<span class="player-presence">${esc(playerPresenceLabel(player))}${player.openToGreeting ? ` · ${esc(playerGreetingLabel(player))}` : ""}</span>` : ""}
             <span>${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
           </button>`).join("") : '<p class="surface__copy">這座球場目前沒有開放的球友。</p>'}
       </div>`,
@@ -1714,6 +1800,8 @@ export function openPlayerCardSheet(
       </div>
       <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
         <p><strong>NTRP ${esc(Number(player.ntrp).toFixed(1))}</strong></p>
+        ${player.isPresent ? `<p>在場狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
+        ${player.openToGreeting ? `<p class="player-greeting">${esc(playerGreetingLabel(player))}</p>` : ""}
         <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>
         <p>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</p>
         <p>常打球場：${esc(player.courtName || "未填球場")}</p>

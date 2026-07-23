@@ -55,6 +55,25 @@ export const MOCK_PLAYERS = [
   },
 ];
 
+// Local-only reciprocal presence examples. This is intentionally a separate
+// payload from MOCK_PLAYERS: it mirrors player_presence_directory exactly and
+// never contains a contact value or a raw device coordinate.
+export const MOCK_PLAYER_PRESENCE = [
+  {
+    profileId: 8001,
+    nickname: "示範山嵐",
+    ntrp: 3.5,
+    openToGreeting: true,
+    courtId: 101,
+    courtName: "台北網球中心",
+    courtDistrict: "內湖區",
+    courtLat: 25.067446,
+    courtLng: 121.596648,
+    minutesAgo: 2,
+    isSelf: false,
+  },
+];
+
 const futureStartAt = (daysFromNow, hourOffset = 0) =>
   new Date(Date.now() + (daysFromNow * 24 + hourOffset) * 60 * 60 * 1000).toISOString();
 const ongoingStartAt = (minutesAgo) => new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();

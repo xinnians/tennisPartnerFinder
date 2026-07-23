@@ -6,6 +6,7 @@ import {
   MY_PROFILE_SELECT,
   MY_SESSIONS_SELECT,
   PLAYER_DIRECTORY_SELECT,
+  PLAYER_PRESENCE_DIRECTORY_SELECT,
   SESSION_CONTACTS_SELECT,
   SESSION_DISCOVERY_SELECT,
   SESSION_ROSTER_SELECT,
@@ -14,13 +15,14 @@ import {
   mapCurrentProfile,
   mapMySession,
   mapPlayerDirectoryRow,
+  mapPlayerPresenceDirectoryRow,
   mapSessionContactRow,
   mapSessionRosterRow,
   mapSessionSummary,
   resolveInitialSession,
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
-import { MOCK_PLAYERS, MOCK_SESSIONS } from "../src/mockData.js";
+import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
 import {
   PENDING_SESSION_INTENT_KEY,
   clearPendingIntent,
@@ -224,10 +226,72 @@ test("private roster/contact/profile mappers stay separate from public summaries
     },
     [{ id: 7, name: "青年公園網球場" }]
   );
-  assert.deepEqual(sortedKeys(profile), ["nick", "ntrp", "types", "courts", "slots", "lineId", "isPublic"].sort());
+  assert.deepEqual(sortedKeys(profile), ["nick", "ntrp", "types", "courts", "slots", "lineId", "isPublic", "sharePresence", "openToGreeting"].sort());
   assert.equal("id" in profile, false);
   assert.equal("share" in profile, false);
   assert.equal(profile.isPublic, true);
+  assert.equal(profile.sharePresence, false);
+  assert.equal(profile.openToGreeting, false);
+});
+
+test("player presence mapper keeps the exact reciprocal-directory allowlist", () => {
+  const presenceRow = {
+    profile_id: "8001",
+    nickname: "示範山嵐",
+    ntrp: "3.5",
+    open_to_greeting: true,
+    court_id: "101",
+    court_name: "台北網球中心",
+    court_district: "內湖區",
+    court_lat: "25.067446",
+    court_lng: "121.596648",
+    minutes_ago: "3",
+    is_self: false,
+    line_id: "must-not-leak",
+    raw_lat: "must-not-leak",
+  };
+
+  assert.deepEqual(PLAYER_PRESENCE_DIRECTORY_SELECT.split(","), [
+    "profile_id",
+    "nickname",
+    "ntrp",
+    "open_to_greeting",
+    "court_id",
+    "court_name",
+    "court_district",
+    "court_lat",
+    "court_lng",
+    "minutes_ago",
+    "is_self",
+  ]);
+  assert.equal(PLAYER_PRESENCE_DIRECTORY_SELECT.includes("*"), false);
+  assert.equal(PLAYER_PRESENCE_DIRECTORY_SELECT.includes("line_id"), false);
+  assert.equal(PLAYER_PRESENCE_DIRECTORY_SELECT.includes("raw_lat"), false);
+  assert.deepEqual(mapPlayerPresenceDirectoryRow(presenceRow), {
+    profileId: 8001,
+    nickname: "示範山嵐",
+    ntrp: 3.5,
+    openToGreeting: true,
+    courtId: 101,
+    courtName: "台北網球中心",
+    courtDistrict: "內湖區",
+    courtLat: 25.067446,
+    courtLng: 121.596648,
+    minutesAgo: 3,
+    isSelf: false,
+  });
+});
+
+test("player presence mock fixture is independently bounded and has no LINE field", async () => {
+  assert.ok(MOCK_PLAYER_PRESENCE.length > 0);
+  const api = createDataApi({ configured: false, mockPlayerPresence: MOCK_PLAYER_PRESENCE });
+  const entries = await api.loadPlayerPresenceDirectory({
+    bounds: { south: 25.06, west: 121.59, north: 25.08, east: 121.61 },
+  });
+
+  assert.deepEqual(entries.map((entry) => entry.profileId), [8001]);
+  assert.equal("lineId" in entries[0], false);
+  assert.notEqual(entries[0], MOCK_PLAYER_PRESENCE[0]);
 });
 
 test("player directory mapper keeps its exact public allowlist", () => {

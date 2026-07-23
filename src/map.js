@@ -136,14 +136,14 @@ export function renderCourtBasePins(google, map, courts = [], onCourt = () => {}
 /** Replace only player-directory markers, leaving session and base-court layers untouched. */
 export function renderPlayerPins(google, map, groups = [], onCourtPlayers = () => {}, oldMarkers = []) {
   oldMarkers.forEach((marker) => marker.setMap(null));
-  return groups.map(({ court, players }) => {
-    const pin = playerPin(google, players.length);
+  return groups.map(({ court, players, presenceCount = 0 }) => {
+    const pin = playerPin(google, players.length, presenceCount);
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },
       icon: pin.icon,
       label: pin.label,
-      title: `球友 · ${court.name} · ${players.length} 位`,
+      title: `球友 · ${court.name} · ${players.length} 位${presenceCount > 0 ? ` · 在場 ${presenceCount} 人` : ""}`,
       zIndex: 20,
       optimized: false,
     });

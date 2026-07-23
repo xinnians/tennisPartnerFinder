@@ -64,13 +64,13 @@ export function courtPin(google) {
   return { icon: markerIcon(google, COURT_PIN_URL, 25, 25, 12.5, 12.5, 12.5, 12.5) };
 }
 
-/** A player-directory pin labels only the number of visible profiles at a court. */
-export function playerPin(google, count) {
+/** A player pin exposes the reciprocal on-court count without location detail. */
+export function playerPin(google, count, presenceCount = 0) {
   return {
     // The connector begins at the court coordinate while the full-size player
     // control sits to the right of any session pin at that same court.
     icon: markerIcon(google, PLAYER_PIN_URL, 80, 55, 2, 54, 56, 23),
-    label: { text: String(count), color: NAVY, fontFamily: font, fontSize: "15px", fontWeight: "800" },
+    label: { text: presenceCount > 0 ? `在${presenceCount}` : String(count), color: NAVY, fontFamily: font, fontSize: "15px", fontWeight: "800" },
   };
 }
 

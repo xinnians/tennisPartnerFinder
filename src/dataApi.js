@@ -1,5 +1,5 @@
 import { DISCOVERY_WINDOW_DAYS, LAUNCH_CITY, TAIPEI_CITY_BOUNDS } from "./config.js";
-import { COURTS, MOCK_PLAYERS, MOCK_SESSIONS } from "./mockData.js";
+import { COURTS, MOCK_PLAYER_PRESENCE, MOCK_PLAYERS, MOCK_SESSIONS } from "./mockData.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
 
 const SESSION_SUMMARY_COLUMNS = [
@@ -51,7 +51,7 @@ const SESSION_ROSTER_COLUMNS = [
 
 const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
-const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public"];
+const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public", "share_presence", "open_to_greeting"];
 const NOTIFICATION_PREFS_COLUMNS = ["host_new_request_enabled", "guest_request_reviewed_enabled", "guest_invited_enabled"];
 const DISTRICT_SUBSCRIPTION_COLUMNS = ["district"];
 const PLAYER_DIRECTORY_COLUMNS = [
@@ -67,6 +67,19 @@ const PLAYER_DIRECTORY_COLUMNS = [
   "court_lng",
   "is_self",
 ];
+const PLAYER_PRESENCE_DIRECTORY_COLUMNS = [
+  "profile_id",
+  "nickname",
+  "ntrp",
+  "open_to_greeting",
+  "court_id",
+  "court_name",
+  "court_district",
+  "court_lat",
+  "court_lng",
+  "minutes_ago",
+  "is_self",
+];
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export const SESSION_DISCOVERY_SELECT = SESSION_SUMMARY_COLUMNS.join(",");
@@ -75,6 +88,7 @@ export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
 export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
 export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
 export const PLAYER_DIRECTORY_SELECT = PLAYER_DIRECTORY_COLUMNS.join(",");
+export const PLAYER_PRESENCE_DIRECTORY_SELECT = PLAYER_PRESENCE_DIRECTORY_COLUMNS.join(",");
 export const NOTIFICATION_PREFS_SELECT = NOTIFICATION_PREFS_COLUMNS.join(",");
 export const DISTRICT_SUBSCRIPTIONS_SELECT = DISTRICT_SUBSCRIPTION_COLUMNS.join(",");
 
@@ -299,6 +313,23 @@ export function mapPlayerDirectoryRow(row = {}) {
   };
 }
 
+/** Presence view mapper: its source is reciprocal-only and excludes contacts. */
+export function mapPlayerPresenceDirectoryRow(row = {}) {
+  return {
+    profileId: asNumber(row.profile_id),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    openToGreeting: asBoolean(row.open_to_greeting),
+    courtId: asNumber(row.court_id),
+    courtName: asText(row.court_name),
+    courtDistrict: asText(row.court_district),
+    courtLat: asNumber(row.court_lat),
+    courtLng: asNumber(row.court_lng),
+    minutesAgo: asNumber(row.minutes_ago),
+    isSelf: asBoolean(row.is_self),
+  };
+}
+
 function mapCourt(row = {}) {
   return {
     id: asNumber(row.id),
@@ -324,6 +355,8 @@ export function mapCurrentProfile(row = {}, courts = []) {
     slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string")),
     lineId: asText(row.line_id),
     isPublic: asBoolean(row.is_public),
+    sharePresence: asBoolean(row.share_presence),
+    openToGreeting: asBoolean(row.open_to_greeting),
   };
 }
 
@@ -433,6 +466,7 @@ export function createDataApi({
   configured = isSupabaseConfigured,
   mockSessions = MOCK_SESSIONS,
   mockPlayers = MOCK_PLAYERS,
+  mockPlayerPresence = MOCK_PLAYER_PRESENCE,
   mockCourts = COURTS,
   now = () => new Date(),
 } = {}) {
@@ -513,6 +547,25 @@ export function createDataApi({
     const { data, error } = await query;
     if (error) throw error;
     return asArray(data).map(mapPlayerDirectoryRow);
+  }
+
+  async function loadPlayerPresenceDirectory({ bounds } = {}) {
+    if (!configured) {
+      return asArray(mockPlayerPresence).filter((entry) => withinBounds(entry, bounds)).map((entry) => ({ ...entry }));
+    }
+
+    const activeClient = requireClient();
+    let query = activeClient.from("player_presence_directory").select(PLAYER_PRESENCE_DIRECTORY_SELECT);
+    if (bounds) {
+      query = query
+        .gte("court_lat", bounds.south)
+        .lte("court_lat", bounds.north)
+        .gte("court_lng", bounds.west)
+        .lte("court_lng", bounds.east);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return asArray(data).map(mapPlayerPresenceDirectoryRow);
   }
 
   async function loadSessionSummary(sessionId) {
@@ -693,6 +746,24 @@ export function createDataApi({
     return callLifecycleRpc("set_player_visibility", { p_visible: Boolean(visible) });
   }
 
+  async function setPresenceSharing(shared) {
+    const outcome = await callRpc("set_presence_sharing", { p_enabled: Boolean(shared) });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
+  async function setOpenToGreeting(open) {
+    const outcome = await callRpc("set_open_to_greeting", { p_enabled: Boolean(open) });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
+  async function updateMyPresence({ lat, lng } = {}) {
+    const outcome = await callRpc("update_my_presence", { p_lat: asNumber(lat), p_lng: asNumber(lng) });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
   async function acceptSessionParticipant(sessionId, participantId) {
     return callLifecycleRpc("review_join_request", {
       p_session_id: sessionId,
@@ -738,6 +809,7 @@ export function createDataApi({
     loadCourts,
     loadSessionDiscovery,
     loadPlayerDirectory,
+    loadPlayerPresenceDirectory,
     loadSessionSummary,
     loadMySessions,
     loadSessionRoster,
@@ -755,6 +827,9 @@ export function createDataApi({
     inviteToSession,
     respondToSessionInvite,
     setPlayerVisibility,
+    setPresenceSharing,
+    setOpenToGreeting,
+    updateMyPresence,
     acceptSessionParticipant,
     declineSessionParticipant,
     withdrawFromSession,
@@ -770,6 +845,7 @@ const defaultDataApi = createDataApi();
 export const loadCourts = (...args) => defaultDataApi.loadCourts(...args);
 export const loadSessionDiscovery = (...args) => defaultDataApi.loadSessionDiscovery(...args);
 export const loadPlayerDirectory = (...args) => defaultDataApi.loadPlayerDirectory(...args);
+export const loadPlayerPresenceDirectory = (...args) => defaultDataApi.loadPlayerPresenceDirectory(...args);
 export const loadSessionSummary = (...args) => defaultDataApi.loadSessionSummary(...args);
 export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args);
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
@@ -787,6 +863,9 @@ export const requestToJoinSession = (...args) => defaultDataApi.requestToJoinSes
 export const inviteToSession = (...args) => defaultDataApi.inviteToSession(...args);
 export const respondToSessionInvite = (...args) => defaultDataApi.respondToSessionInvite(...args);
 export const setPlayerVisibility = (...args) => defaultDataApi.setPlayerVisibility(...args);
+export const setPresenceSharing = (...args) => defaultDataApi.setPresenceSharing(...args);
+export const setOpenToGreeting = (...args) => defaultDataApi.setOpenToGreeting(...args);
+export const updateMyPresence = (...args) => defaultDataApi.updateMyPresence(...args);
 export const acceptSessionParticipant = (...args) => defaultDataApi.acceptSessionParticipant(...args);
 export const declineSessionParticipant = (...args) => defaultDataApi.declineSessionParticipant(...args);
 export const withdrawFromSession = (...args) => defaultDataApi.withdrawFromSession(...args);

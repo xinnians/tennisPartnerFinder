@@ -90,3 +90,26 @@ test("notification mutation mappers use only the approved RPC contracts", async 
     ["set_district_subscriptions", { p_districts: ["大安區", "內湖區"] }],
   ]);
 });
+
+test("presence mutation mappers use the migration's p_enabled contract and transient coordinates only", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: "OK", error: null };
+      },
+    },
+  });
+
+  await api.setPresenceSharing(true);
+  await api.setOpenToGreeting(false);
+  await api.updateMyPresence({ lat: 25.067446, lng: 121.596648 });
+
+  assert.deepEqual(calls, [
+    ["set_presence_sharing", { p_enabled: true }],
+    ["set_open_to_greeting", { p_enabled: false }],
+    ["update_my_presence", { p_lat: 25.067446, p_lng: 121.596648 }],
+  ]);
+});

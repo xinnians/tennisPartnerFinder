@@ -706,7 +706,10 @@ test("My Sessions renders the 球友卡 and notification settings before needs-a
     "開啟後，完成檔案的球友可在地圖上你的常打球場看到你的暱稱、NTRP 與可打時段。LINE 不會顯示。"
   );
   expect(
-    await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.classList.contains("notification-settings") === true)
+    await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.classList.contains("presence-settings") === true)
+  ).toBe(true);
+  expect(
+    await page.locator(".presence-settings").evaluate((node) => node.nextElementSibling?.classList.contains("notification-settings") === true)
   ).toBe(true);
   expect(
     await page.locator(".notification-settings").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
@@ -720,6 +723,40 @@ test("My Sessions renders the 球友卡 and notification settings before needs-a
   await expect(page.locator("[data-my-sessions-error]")).toContainText("球友卡設定暫時無法更新");
   await expect(toggle).toBeEnabled();
   await expect(toggle).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions presence settings explain reciprocal visibility, request sharing, and offer one-tap hiding", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+      onSetOpenToGreeting: async (open) => {
+        window.__greetingValue = open;
+      },
+      onSetPresenceSharing: async (shared) => {
+        window.__sharingValue = shared;
+      },
+      presenceSettings: { locationStatus: "denied", openToGreeting: true, sharePresence: true },
+    });
+  });
+
+  const sharing = page.getByTestId("presence-sharing-toggle");
+  await expect(sharing).toHaveAttribute("role", "switch");
+  await expect(sharing).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("presence-location-status")).toContainText("拒絕");
+  await expect(page.locator(".presence-settings")).toContainText("開啟期間你的所在球場對其他有開啟的完整檔案球友可見");
+  await page.getByTestId("open-to-greeting-toggle").uncheck();
+  await expect.poll(() => page.evaluate(() => window.__greetingValue)).toBe(false);
+  await sharing.click();
+  await expect.poll(() => page.evaluate(() => window.__sharingValue)).toBe(false);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1703,11 +1740,15 @@ test("mock player layer renders directory pins and cards while the signed-out en
     await controller.togglePlayerLayer();
   });
 
-  await expect(page.getByTitle("球友 · 台北網球中心 · 2 位")).toBeVisible();
-  await page.getByTitle("球友 · 台北網球中心 · 2 位").click();
+  await expect(page.getByTitle("球友 · 台北網球中心 · 2 位 · 在場 1 人")).toBeVisible();
+  await page.getByTitle("球友 · 台北網球中心 · 2 位 · 在場 1 人").click();
   const playerCard = page.getByTestId("court-player-card-8001");
   await expect(playerCard).toContainText("示範山嵐");
+  await expect(playerCard).toContainText("在場・2 分鐘前");
+  await expect(playerCard).toContainText("接受現場問候");
   await playerCard.click();
   await expect(page.locator("#player-card-sheet")).toContainText("示範山嵐");
+  await expect(page.locator("#player-card-sheet")).toContainText("在場・2 分鐘前");
+  await expect(page.locator("#player-card-sheet")).toContainText("接受現場問候");
   expect(runtimeErrors).toEqual([]);
 });
