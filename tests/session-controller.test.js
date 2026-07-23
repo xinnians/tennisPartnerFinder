@@ -2118,6 +2118,10 @@ test("same-court session and player pins have separate clickable anchors and pla
   const pin = pinModule.playerPin?.(google, 2);
   assert.equal(pin?.label.text, "2");
   assert.match(pin?.icon.url ?? "", /svg/);
+
+  const presencePin = pinModule.playerPin?.(google, 2, 1);
+  assert.equal(presencePin?.label.text, "2", "the main label preserves the total player count when someone is present");
+  assert.match(decodeURIComponent(presencePin?.icon.url ?? ""), /在1/, "a separate presence badge carries the on-court count");
 });
 
 test("player drawer offers open hosted sessions through the now-start window and keeps invitation authority in controller", async () => {

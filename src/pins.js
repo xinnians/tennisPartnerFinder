@@ -27,7 +27,7 @@ const USER_PIN_URL = svgToDataUri(`
     <circle cx="14" cy="14" r="10" fill="${LIME}" stroke="${NAVY}" stroke-width="3"/>
   </svg>`);
 const PLAYER_PIN_URL = svgToDataUri(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="80" height="55" viewBox="0 0 80 55">
+  <svg xmlns="http://www.w3.org/2000/svg" width="86" height="55" viewBox="0 0 86 55">
     <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${BLUE}" stroke-width="3" stroke-linecap="round"/>
     <circle cx="56" cy="23" r="20" fill="${SOFT_BLUE}" stroke="${BLUE}" stroke-width="3"/>
     <path d="M49 40h14l-7 12z" fill="${BLUE}"/>
@@ -42,6 +42,20 @@ function markerIcon(google, url, width, height, anchorX, anchorY, labelX, labelY
     anchor: new google.maps.Point(anchorX, anchorY),
     labelOrigin: new google.maps.Point(labelX, labelY),
   };
+}
+
+function playerPresencePinUrl(presenceCount) {
+  const safePresenceCount = Number.isFinite(Number(presenceCount))
+    ? Math.max(0, Math.trunc(Number(presenceCount)))
+    : 0;
+  return svgToDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="86" height="55" viewBox="0 0 86 55">
+      <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${BLUE}" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="56" cy="23" r="20" fill="${SOFT_BLUE}" stroke="${BLUE}" stroke-width="3"/>
+      <path d="M49 40h14l-7 12z" fill="${BLUE}"/>
+      <circle cx="72" cy="10" r="12" fill="${LIME}" stroke="${NAVY}" stroke-width="2"/>
+      <text x="72" y="13" text-anchor="middle" fill="${NAVY}" font-family="Arial,sans-serif" font-size="10" font-weight="800">在${safePresenceCount}</text>
+    </svg>`);
 }
 
 /** A public session pin never derives a label from a person or profile. */
@@ -66,11 +80,12 @@ export function courtPin(google) {
 
 /** A player pin exposes the reciprocal on-court count without location detail. */
 export function playerPin(google, count, presenceCount = 0) {
+  const hasPresence = Number(presenceCount) > 0;
   return {
     // The connector begins at the court coordinate while the full-size player
     // control sits to the right of any session pin at that same court.
-    icon: markerIcon(google, PLAYER_PIN_URL, 80, 55, 2, 54, 56, 23),
-    label: { text: presenceCount > 0 ? `在${presenceCount}` : String(count), color: NAVY, fontFamily: font, fontSize: "15px", fontWeight: "800" },
+    icon: markerIcon(google, hasPresence ? playerPresencePinUrl(presenceCount) : PLAYER_PIN_URL, 86, 55, 2, 54, 56, 23),
+    label: { text: String(count), color: NAVY, fontFamily: font, fontSize: "15px", fontWeight: "800" },
   };
 }
 
