@@ -16,10 +16,13 @@ role 不可讀寫。
 
 - 匿名公開探索：`public.session_discovery`；它是唯一匿名公開面。
 - 登入且完整 profile 的球友目錄：`public.player_directory`（authenticated-only，不是公開面）。
+- 互惠在場目錄：`public.player_presence_directory`；匿名、不完整 profile、或本人未開
+  `share_presence` 時一律為 0 列。
 - 登入者自己的清單：`public.my_session_participations`。
 - roster：`public.session_participant_roster`。
 - accepted-only LINE：`public.session_contacts`。
 - 個人檔案表單：`public.my_profile` 與 `save_my_profile(...)`。
+- 在場設定／更新：`set_presence_sharing`、`set_open_to_greeting`、`update_my_presence` RPC。
 - 通知設定：本人 `notification_prefs`、`district_subscriptions` 的 explicit-column reads，及
   `save_push_subscription`、`remove_push_subscription`、`set_notification_prefs`、
   `set_district_subscriptions` RPC。
@@ -80,6 +83,22 @@ profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_distric
 它只列出已 opt-in（`profiles.is_public=true`）、卡片本人完整 profile、台北市 active 常打球場的
 球友；`is_public` 預設 false，只有完整 profile 本人可透過 `set_player_visibility(boolean)`
 變更，關閉後立即從目錄下架。它明確不包含 LINE／`line_id`、真名、email 或歷史球局。
+
+`player_presence` 是 browser 不可直讀、直寫的 raw 狀態表；它**只**允許 definer RPC 寫入
+`profile_id`、最近 active 台北球場的 `court_id` 與 `updated_at`。`update_my_presence` 收到的
+GPS 座標不可被任何表、view、payload 或 log 保存，距離任一球場超過 100 公尺時不寫入。關閉
+`set_presence_sharing(false)` 必須同步刪除本人列。`share_presence` 與
+`open_to_greeting` 預設皆為 false，且 `save_my_profile` 不得覆寫這兩個獨立同意欄位。
+
+`player_presence_directory` 是非匿名的 reciprocal definer view；完整 viewer 只有在自身
+`share_presence=true` 時才可取得 3 小時內的分享者（含本人）資料。它的有序 allowlist **精確為**：
+
+```text
+profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,court_lat,court_lng,minutes_ago,is_self
+```
+
+其中 `court_lat`／`court_lng` 是既有球場目錄座標，不是裝置 GPS；永遠不可加入 LINE、email、
+真名、raw GPS 或 presence 歷史。pgTAP 必須以完整有序字串守護這個 allowlist。
 
 ## Roster 與 LINE
 

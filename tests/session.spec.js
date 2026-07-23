@@ -11,7 +11,9 @@ import {
   inviteViaRpc,
   requestToJoinSessionViaRpc,
   reviewJoinRequestViaRpc,
+  setPresenceSharingViaRpc,
   setPlayerVisibilityViaRpc,
+  updateMyPresenceViaRpc,
 } from "./fixtures/sessionFactory.js";
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
@@ -799,5 +801,52 @@ test("a visible player can be invited, accept from My Sessions, exchange LINE co
   await expect(refreshedPlayerPin).toBeVisible();
   await refreshedPlayerPin.click();
   await expect(page.getByTestId(`court-player-card-${player.profileId}`)).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("reciprocal foreground presence shows only to sharing viewers and one-tap hiding removes it immediately", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const playerA = await createCompleteActor(context.host);
+  const playerB = await createCompleteActor(context.guest);
+  const playerC = await createCompleteActor(context.observer);
+  const { data: court, error: courtError } = await playerA.client
+    .from("courts")
+    .select("id,name,lat,lng")
+    .eq("name", context.host.courts[0])
+    .single();
+  if (courtError) throw courtError;
+
+  await gotoWithSession(page, playerA.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const sharing = page.getByTestId("presence-sharing-toggle");
+  await expect(sharing).toHaveAttribute("aria-checked", "false");
+  await sharing.click();
+  await expect(sharing).toHaveAttribute("aria-checked", "true");
+  expect(await updateMyPresenceViaRpc(playerA.client, { lat: court.lat, lng: court.lng })).toBe("OK");
+
+  expect(await setPresenceSharingViaRpc(playerB.client, true)).toBe("OK");
+  await switchBrowserSession(page, playerB.session);
+  await page.getByTestId("player-layer-toggle").click();
+  const presencePin = page.getByTitle(`球友 · ${court.name} · 1 位 · 在場 1 人`);
+  await expect(presencePin).toBeVisible();
+  await presencePin.click();
+  const presenceCard = page.getByTestId(`court-player-card-${playerA.profileId}`);
+  await expect(presenceCard).toContainText(context.host.nickname);
+  await expect(presenceCard).toContainText("在場・");
+
+  await switchBrowserSession(page, playerC.session);
+  await page.getByTestId("player-layer-toggle").click();
+  await expect(page.getByTitle(/^球友 · /)).toHaveCount(0);
+
+  await switchBrowserSession(page, playerA.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(sharing).toHaveAttribute("aria-checked", "true");
+  await sharing.click();
+  await expect(sharing).toHaveAttribute("aria-checked", "false");
+
+  await switchBrowserSession(page, playerB.session);
+  await page.getByTestId("player-layer-toggle").click();
+  await expect(page.getByTitle(/^球友 · /)).toHaveCount(0);
   expect(runtimeErrors).toEqual([]);
 });

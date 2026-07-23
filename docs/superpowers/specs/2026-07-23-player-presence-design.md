@@ -68,6 +68,11 @@
   C(未開)看不到任何人(反向 control);A 一鍵隱藏 → B 即刻看不到。
 - mock:MOCK_PLAYERS 補在場 fixture,驗圖層與抽屜顯示。
 
+## 實作 checkpoint(2026-07-23)
+
+- `create_report` 已驗證可用 `p_session_id = null` 與另一位完整 profile 的
+  `p_reported_profile_id` 成功建立檢舉；不需要為 presence 另加 report schema。
+
 ## 非目標(與長期方向)
 
 - **原生 app 背景真即時追蹤:長期方向**,user 已拍板想要;需 iOS/Android app 與

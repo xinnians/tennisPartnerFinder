@@ -103,6 +103,14 @@ export function setPlayerVisibilityViaRpc(client, visible) {
   return callSessionRpc(client, "set_player_visibility", { p_visible: Boolean(visible) });
 }
 
+export function setPresenceSharingViaRpc(client, enabled) {
+  return callSessionRpc(client, "set_presence_sharing", { p_enabled: Boolean(enabled) });
+}
+
+export function updateMyPresenceViaRpc(client, { lat, lng }) {
+  return callSessionRpc(client, "update_my_presence", { p_lat: Number(lat), p_lng: Number(lng) });
+}
+
 export function inviteViaRpc(client, sessionId, profileId) {
   return callSessionRpc(client, "invite_to_session", {
     p_session_id: sessionId,
