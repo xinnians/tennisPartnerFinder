@@ -23,7 +23,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'my_profile'
   ),
-  'nickname,ntrp,line_id,court_ids,play_types,slot_codes,is_public',
+  'nickname,ntrp,line_id,court_ids,play_types,slot_codes,is_public,share_presence,open_to_greeting',
   'my profile view has the exact form-field allowlist'
 );
 select is(has_table_privilege('authenticated', 'public.profiles', 'select'), false, 'authenticated has no raw profiles SELECT');
