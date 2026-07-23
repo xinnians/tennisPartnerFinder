@@ -302,14 +302,15 @@ test("player directory mock data is cloned and constrained to requested bounds",
   assert.equal("lineId" in entries[0], false);
 });
 
-test("mock sessions and discovery payloads are future, local-demo-only SessionSummary data", async () => {
+test("mock sessions and discovery payloads include an ongoing local-demo-only SessionSummary", async () => {
   assert.equal(MOCK_SESSIONS.length, 6);
   assert.equal(MOCK_SESSIONS.find((mock) => mock.sessionId === 9002)?.joinMode, "instant");
   assert.ok(MOCK_SESSIONS.filter((mock) => mock.sessionId !== 9002).every((mock) => mock.joinMode === "approval"));
+  assert.equal(MOCK_SESSIONS.filter((mock) => Date.parse(mock.startAt) <= Date.now()).length, 1);
 
   for (const mock of MOCK_SESSIONS) {
     assert.deepEqual(sortedKeys(mock), [...SESSION_SUMMARY_KEYS].sort());
-    assert.ok(Date.parse(mock.startAt) > Date.now(), `${mock.sessionId} must be future-dated`);
+    assert.ok(Date.parse(mock.startAt) > Date.now() - 2 * 60 * 60 * 1000, `${mock.sessionId} must be discoverable`);
     assert.match(mock.notes, /本機示範/);
     assert.equal("lineId" in mock, false);
     assert.equal("profileId" in mock, false);
@@ -321,7 +322,7 @@ test("mock sessions and discovery payloads are future, local-demo-only SessionSu
   const api = createDataApi({ configured: false, mockSessions: MOCK_SESSIONS });
   const discovery = await api.loadSessionDiscovery({
     bounds: { south: 24.95, west: 121.43, north: 25.18, east: 121.67 },
-    startAfter: new Date(Date.now() - 60_000).toISOString(),
+    startAfter: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     startBefore: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
   });
   assert.equal(discovery.length, MOCK_SESSIONS.length);
@@ -410,18 +411,21 @@ test("session filters use Taipei local date, range overlap, and preserve source 
   assert.deepEqual(allUpcoming.map((item) => item.sessionId), [1, 2, 3, 6]);
 });
 
-test("drawer sorting is a non-mutating ephemeral distance/start-time sort", () => {
+test("drawer sorting places ongoing sessions with vacancies ahead of distance and start time", () => {
+  const now = new Date("2026-07-17T00:00:00.000Z");
   const sessions = [
     session({ sessionId: 1, courtLat: 25.08, courtLng: 121.58, startAt: "2026-07-19T03:00:00.000Z" }),
     session({ sessionId: 2, courtLat: 25.031, courtLng: 121.541, startAt: "2026-07-19T05:00:00.000Z" }),
     session({ sessionId: 3, courtLat: 25.031, courtLng: 121.541, startAt: "2026-07-19T01:00:00.000Z" }),
+    session({ sessionId: 4, courtLat: 25.09, courtLng: 121.59, startAt: "2026-07-16T23:30:00.000Z", slotsRemaining: 1 }),
+    session({ sessionId: 5, courtLat: 25.0301, courtLng: 121.5401, startAt: "2026-07-16T23:40:00.000Z", slotsRemaining: 0 }),
   ];
   const original = structuredClone(sessions);
 
-  assert.deepEqual(sortSessionsForDrawer(sessions).map((item) => item.sessionId), [3, 1, 2]);
+  assert.deepEqual(sortSessionsForDrawer(sessions, null, now).map((item) => item.sessionId), [4, 5, 3, 1, 2]);
   assert.deepEqual(
-    sortSessionsForDrawer(sessions, { lat: 25.03, lng: 121.54 }).map((item) => item.sessionId),
-    [3, 2, 1]
+    sortSessionsForDrawer(sessions, { lat: 25.03, lng: 121.54 }, now).map((item) => item.sessionId),
+    [4, 5, 3, 2, 1]
   );
   assert.deepEqual(sessions, original);
   assert.equal("distance" in sessions[0], false);

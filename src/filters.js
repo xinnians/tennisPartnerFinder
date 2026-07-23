@@ -19,6 +19,7 @@ export const DEFAULT_FILTER_STATE = {
   band: "all",
   types: new Set(),
 };
+const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function asFiniteNumber(value) {
   if (value == null || value === "") return null;
@@ -93,10 +94,14 @@ function matchesTypes(session, types) {
   return chosen.size === 0 || chosen.has(session.playType);
 }
 
-function isDiscoverableFutureSession(session, now) {
+function isDiscoverableSession(session, now) {
   const startAt = toDate(session.startAt);
   const current = toDate(now) ?? new Date();
-  return Boolean(startAt) && startAt > current && (session.status === "open" || session.status === "full");
+  return (
+    Boolean(startAt) &&
+    startAt.getTime() > current.getTime() - NOW_START_DISCOVERY_WINDOW_MS &&
+    (session.status === "open" || session.status === "full")
+  );
 }
 
 /**
@@ -110,7 +115,7 @@ export function filterSessions(sessions, filters = DEFAULT_FILTER_STATE, now = n
 
   return source.filter(
     (session) =>
-      isDiscoverableFutureSession(session, now) &&
+      isDiscoverableSession(session, now) &&
       matchesDistrict(session, state.district) &&
       matchesCourt(session, state.courtId) &&
       matchesDate(session, state.date) &&
@@ -123,6 +128,19 @@ function compareStartAt(left, right) {
   const leftTime = toDate(left.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
   const rightTime = toDate(right.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
   return leftTime - rightTime;
+}
+
+function isOngoingSessionWithVacancy(session, now) {
+  const startAt = toDate(session?.startAt);
+  const current = toDate(now) ?? new Date();
+  const slotsRemaining = asFiniteNumber(session?.slotsRemaining);
+  return (
+    Boolean(startAt) &&
+    startAt <= current &&
+    slotsRemaining != null &&
+    slotsRemaining > 0 &&
+    String(session?.status).toLowerCase() === "open"
+  );
 }
 
 function distanceMeters(origin, session) {
@@ -150,15 +168,19 @@ function validLocation(location) {
  * Return a new drawer list. Location is used only for this in-memory sort;
  * it is never persisted on a session or written to any browser storage.
  */
-export function sortSessionsForDrawer(sessions, userLocation = null) {
+export function sortSessionsForDrawer(sessions, userLocation = null, now = new Date()) {
   const source = Array.isArray(sessions) ? sessions : [];
   const location = validLocation(userLocation);
+  const comparePriority = (left, right) =>
+    Number(isOngoingSessionWithVacancy(right, now)) - Number(isOngoingSessionWithVacancy(left, now));
 
-  if (!location) return [...source].sort(compareStartAt);
+  if (!location) return [...source].sort((left, right) => comparePriority(left, right) || compareStartAt(left, right));
 
   return source
     .map((session, index) => ({ session, index, distance: distanceMeters(location, session) }))
     .sort((left, right) => {
+      const priorityDifference = comparePriority(left.session, right.session);
+      if (priorityDifference) return priorityDifference;
       const distanceDifference = left.distance - right.distance;
       if (distanceDifference) return distanceDifference;
       const startDifference = compareStartAt(left.session, right.session);

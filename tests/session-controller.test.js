@@ -2096,11 +2096,17 @@ test("same-court session and player pins have separate clickable anchors and pla
   assert.match(pin?.icon.url ?? "", /svg/);
 });
 
-test("player drawer opens a card with only future open hosted sessions and invitation authority stays in controller", async () => {
+test("player drawer offers open hosted sessions through the now-start window and keeps invitation authority in controller", async () => {
   const futureHost = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
   const futureGuest = futureSession({ sessionId: 72, viewerRole: "guest", status: "open" });
   const fullHost = futureSession({ sessionId: 73, viewerRole: "host", status: "full" });
   const pastHost = futureSession({ sessionId: 74, viewerRole: "host", status: "open", startAt: "2020-01-01T00:00:00.000Z" });
+  const ongoingHost = futureSession({
+    sessionId: 75,
+    viewerRole: "host",
+    status: "open",
+    startAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+  });
   const inviteCalls = [];
   const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
   const harness = createHarness({
@@ -2109,7 +2115,7 @@ test("player drawer opens a card with only future open hosted sessions and invit
         inviteCalls.push(args);
         return { outcome: "OK", reloadRequired: false };
       },
-      loadMySessions: async () => [futureHost, futureGuest, fullHost, pastHost],
+      loadMySessions: async () => [futureHost, futureGuest, fullHost, pastHost, ongoingHost],
       loadPlayerDirectory: async () => [player],
     },
   });
@@ -2119,7 +2125,7 @@ test("player drawer opens a card with only future open hosted sessions and invit
   harness.controller.openPlayerCourt?.(group.court, group.players);
   harness.playerDrawers.at(-1)?.handlers.onOpenPlayer(player);
 
-  assert.deepEqual(harness.playerCards.at(-1)?.handlers.myInvitableSessions.map((session) => session.sessionId), [71]);
+  assert.deepEqual(harness.playerCards.at(-1)?.handlers.myInvitableSessions.map((session) => session.sessionId), [75, 71]);
   await harness.playerCards.at(-1)?.handlers.onInvite(71);
   assert.deepEqual(inviteCalls, [[71, 88]]);
 });

@@ -205,6 +205,14 @@
   padding: 2px 8px;
   font-size: 12px;
 }
+.session-badge--ongoing {
+  background: var(--blue);
+  color: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.session-ongoing-time { color: var(--blue); font-size: 12px; font-weight: 800; }
 
 .discovery-empty { display: grid; gap: 12px; padding: 20px 8px 8px; color: var(--navy); text-align: center; }
 .discovery-empty p { margin: 0; font-weight: 800; }
@@ -249,6 +257,8 @@
 .profile-form,
 .create-session-form { display: grid; gap: 13px; }
 .form-field { display: grid; gap: 6px; color: var(--navy); font-size: 13px; font-weight: 800; }
+.form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.form-field__label-row .session-secondary { min-height: 30px; font-size: 12px; }
 .form-field input,
 .form-field select,
 .form-field textarea,

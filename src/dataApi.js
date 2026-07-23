@@ -67,6 +67,7 @@ const PLAYER_DIRECTORY_COLUMNS = [
   "court_lng",
   "is_self",
 ];
+const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export const SESSION_DISCOVERY_SELECT = SESSION_SUMMARY_COLUMNS.join(",");
 export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
@@ -104,7 +105,7 @@ const ACTION_MESSAGES = {
   SESSION_FULL: "這個球局已額滿。",
   SESSION_CANCELLED: "這個球局已取消。",
   SESSION_EXPIRED: "球局狀態已更新，請重新載入。",
-  SESSION_STARTED: "球局已開始，無法進行這個操作。",
+  SESSION_STARTED: "球局已超過可加入時間。",
   SESSION_LIMIT: "你同時開放中的球局已達上限，請先處理現有球局。",
   ALREADY_REQUESTED: "您已申請加入這個球局。",
   ALREADY_DECIDED: "這筆申請已經處理。",
@@ -354,10 +355,11 @@ function normalizedBounds(bounds) {
 
 function discoveryQuery(input = {}, now = new Date()) {
   const currentTime = asDate(now) ?? new Date();
+  const defaultStart = new Date(currentTime.getTime() - NOW_START_DISCOVERY_WINDOW_MS);
   const defaultEnd = new Date(currentTime.getTime() + DISCOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   return {
     bounds: normalizedBounds(input.bounds),
-    startAfter: isoForQuery(input.startAfter, currentTime),
+    startAfter: isoForQuery(input.startAfter, defaultStart),
     startBefore: isoForQuery(input.startBefore, defaultEnd),
   };
 }

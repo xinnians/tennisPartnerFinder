@@ -34,6 +34,7 @@ export const PROFILE_PUBLIC_DISCLOSURE =
 
 const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
 const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
+const NOW_START_CREATE_GRACE_MS = 5 * 60 * 1000;
 
 /** Convert a datetime-local value by the product's fixed Taipei wall time. */
 export function taipeiLocalDateTimeToIso(value) {
@@ -61,6 +62,14 @@ export function taipeiLocalDateTimeToIso(value) {
   return new Date(localUtcMs - TAIPEI_UTC_OFFSET_MS).toISOString();
 }
 
+function taipeiNowStartValue(now = new Date()) {
+  const taipei = new Date(now.getTime() + TAIPEI_UTC_OFFSET_MS);
+  const padded = (value) => String(value).padStart(2, "0");
+  return `${taipei.getUTCFullYear()}-${padded(taipei.getUTCMonth() + 1)}-${padded(taipei.getUTCDate())}T${padded(
+    taipei.getUTCHours()
+  )}:${padded(taipei.getUTCMinutes())}`;
+}
+
 function ntrpEndpoint(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 1 && number <= 7 && Number.isInteger(number * 2) ? number : null;
@@ -85,7 +94,9 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
   if (!["approval", "instant"].includes(joinMode)) errors.joinMode = "請選擇加入方式。";
   if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
   if (!Number.isInteger(slotsTotal) || slotsTotal < 1 || slotsTotal > 3) errors.slotsTotal = "缺額請填 1 到 3 位。";
-  if (!startAt || new Date(startAt).getTime() <= new Date(now).getTime()) errors.startAtLocal = "開始時間必須是未來的台北時間。";
+  if (!startAt || new Date(startAt).getTime() < new Date(now).getTime() - NOW_START_CREATE_GRACE_MS) {
+    errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
+  }
   if (notes.length > 500) errors.notes = "備註最多 500 字。";
   if (hasRange && (!ntrpMin || !ntrpMax)) {
     if (!ntrpMin) errors.ntrpMin = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
@@ -264,11 +275,21 @@ function completionLabel(session) {
   return session.hostProfileComplete ? "檔案已完成" : "檔案待完成";
 }
 
+function nowStartSessionMarkup(session) {
+  const startAt = new Date(session?.startAt ?? "").getTime();
+  if (!Number.isFinite(startAt) || startAt > Date.now()) return "";
+  const minutes = Math.max(0, Math.floor((Date.now() - startAt) / 60_000));
+  return `<span class="session-badge session-badge--ongoing">進行中</span><span class="session-ongoing-time">${esc(
+    `已開打 ${minutes} 分鐘`
+  )}</span>`;
+}
+
 function sessionCard(session, { compact = false } = {}) {
   return `<button type="button" class="session-card${compact ? " session-card--compact" : ""}" data-testid="session-card" data-session-id="${esc(
     session.sessionId
   )}">
     <span class="session-card__time">${esc(taipeiDateTime(session.startAt))}</span>
+    ${nowStartSessionMarkup(session)}
     <span class="session-card__court">${esc(session.court)} · ${esc(session.courtDistrict)}</span>
     <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</span>
     ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
@@ -1094,6 +1115,7 @@ export function openSessionSheet(
       <div class="session-detail">
         <p data-session-field="court"><strong>${esc(session.court)}</strong> · ${esc(session.courtDistrict)}</p>
         <p data-session-field="time">${esc(taipeiDateTime(session.startAt))}</p>
+        ${nowStartSessionMarkup(session)}
         <p data-session-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
         ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
         <p data-session-field="host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))} · ${esc(
@@ -1530,7 +1552,7 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
       </div>
       <form class="create-session-form" data-testid="session-form" novalidate>
         <div class="form-field"><label for="session-court">台北市球場</label><select id="session-court" name="courtId" data-testid="session-court" required disabled></select><p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p></div>
-        <label class="form-field" for="session-start-at"><span>台北時間</span><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></label>
+        <div class="form-field"><div class="form-field__label-row"><label for="session-start-at">台北時間</label><button type="button" class="session-secondary" data-now-start data-testid="session-now-start">現在開打</button></div><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></div>
         <label class="form-field" for="session-play-type"><span>打法</span><select id="session-play-type" name="playType" data-testid="session-play-type" required><option value="">請選擇打法</option>${PROFILE_PLAY_TYPES.map(
           (type) => `<option value="${esc(type)}">${esc(type)}</option>`
         ).join("")}</select></label>
@@ -1550,6 +1572,8 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
   const form = mounted.root.querySelector("[data-testid='session-form']");
   const error = mounted.root.querySelector("[data-create-error]");
   const submit = mounted.root.querySelector("[data-testid='session-submit']");
+  const startAtInput = mounted.root.querySelector("[data-testid='session-start-at']");
+  const nowStartButton = mounted.root.querySelector("[data-now-start]");
   const courtSelect = mounted.root.querySelector("[data-testid='session-court']");
   const courtsStatus = mounted.root.querySelector("[data-create-courts-status]");
   const setCourts = (nextCourts, { ready = true } = {}) => {
@@ -1559,6 +1583,11 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
     });
   };
   setCourts(courts, { ready: courtsReady });
+  nowStartButton?.addEventListener("click", () => {
+    if (!(startAtInput instanceof HTMLInputElement)) return;
+    startAtInput.value = taipeiNowStartValue();
+    startAtInput.focus();
+  });
   let submitting = false;
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();

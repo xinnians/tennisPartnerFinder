@@ -182,6 +182,23 @@ test("instant join session 9002 shows its badge and direct CTA on card and detai
   expect(runtimeErrors).toEqual([]);
 });
 
+test("ongoing session 9001 shows its badge and elapsed time on card and detail", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  const ongoingCard = page.locator("[data-session-id='9001']").first();
+  await expect(ongoingCard.locator(".session-badge--ongoing")).toHaveText("進行中");
+  await expect(ongoingCard).toContainText(/已開打 \d+ 分鐘/);
+  await ongoingCard.click();
+
+  const detail = page.locator("#session-sheet");
+  await expect(detail.locator(".session-badge--ongoing")).toHaveText("進行中");
+  await expect(detail).toContainText(/已開打 \d+ 分鐘/);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a configured support address renders a mailto contact link", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -1530,6 +1547,9 @@ test("profile and create sheets disclose public nickname use and retain a local-
     .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-total']")
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")));
   expect(requiredOrder).toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-total"]);
+
+  await form.getByTestId("session-now-start").click();
+  await expect(form.getByTestId("session-start-at")).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 
   await form.getByTestId("session-court").selectOption("8");
   await form.getByTestId("session-start-at").fill("2099-07-18T09:30");

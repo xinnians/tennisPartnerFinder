@@ -117,6 +117,7 @@ const MY_SESSION_FINAL_STATUSES = new Set(["cancelled", "expired", "played"]);
 const MY_SESSION_OPEN_STATUSES = new Set(["open", "full"]);
 const KIND_ORDER = { "host-request": 0, invite: 1, "guest-request": 2 };
 const DAY_MS = 24 * 60 * 60 * 1000;
+const NOW_START_JOIN_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function timeValue(value, fallback = 0) {
   const time = new Date(value ?? "").getTime();
@@ -882,7 +883,7 @@ export function createSessionController({
         (session) =>
           String(session?.viewerRole).toLowerCase() === "host" &&
           String(session?.status).toLowerCase() === "open" &&
-          timeValue(session?.startAt, Number.NEGATIVE_INFINITY) > now
+          timeValue(session?.startAt, Number.NEGATIVE_INFINITY) > now - NOW_START_JOIN_WINDOW_MS
       )
       .sort(compareSessionStart);
   }

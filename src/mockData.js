@@ -57,6 +57,7 @@ export const MOCK_PLAYERS = [
 
 const futureStartAt = (daysFromNow, hourOffset = 0) =>
   new Date(Date.now() + (daysFromNow * 24 + hourOffset) * 60 * 60 * 1000).toISOString();
+const ongoingStartAt = (minutesAgo) => new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
 
 // Do not add contact data, profile identifiers, source links, or imported
 // social-post wording here. These payloads are deliberately render-safe.
@@ -69,7 +70,7 @@ export const MOCK_SESSIONS = [
     courtDistrict: "內湖區",
     courtLat: 25.067446,
     courtLng: 121.596648,
-    startAt: futureStartAt(1, 2),
+    startAt: ongoingStartAt(60),
     playType: "對拉",
     ntrpMin: 3,
     ntrpMax: 4,

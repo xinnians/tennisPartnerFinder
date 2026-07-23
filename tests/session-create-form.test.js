@@ -8,7 +8,7 @@ test("create form converts datetime-local as Asia/Taipei instead of the browser 
   assert.equal(taipeiLocalDateTimeToIso("2026-12-01T00:05"), "2026-11-30T16:05:00.000Z");
 });
 
-test("create form rejects invalid future time, NTRP steps, reversed ranges, and oversized notes", () => {
+test("create form rejects an over-five-minute past time, invalid NTRP steps, reversed ranges, and oversized notes", () => {
   const result = validateCreateSessionInput(
     {
       courtId: "8",
@@ -23,10 +23,28 @@ test("create form rejects invalid future time, NTRP steps, reversed ranges, and 
   );
 
   assert.equal(result.valid, false);
-  assert.match(result.errors.startAtLocal, /未來/);
+  assert.match(result.errors.startAtLocal, /5 分鐘/);
   assert.match(result.errors.ntrpMin, /0.5/);
   assert.match(result.errors.slotsTotal, /1 到 3/);
   assert.match(result.errors.notes, /500/);
+});
+
+test("create form accepts a now-start time and the five-minute clock-skew grace", () => {
+  const base = {
+    courtId: "8",
+    ntrpMax: "",
+    ntrpMin: "",
+    notes: "",
+    playType: "單打",
+    slotsTotal: "1",
+  };
+  const options = { now: new Date("2026-07-17T02:00:00.000Z") };
+
+  assert.equal(validateCreateSessionInput({ ...base, startAtLocal: "2026-07-17T10:00" }, options).valid, true);
+  assert.equal(validateCreateSessionInput({ ...base, startAtLocal: "2026-07-17T09:55" }, options).valid, true);
+  const tooOld = validateCreateSessionInput({ ...base, startAtLocal: "2026-07-17T09:54" }, options);
+  assert.equal(tooOld.valid, false);
+  assert.match(tooOld.errors.startAtLocal, /5 分鐘/);
 });
 
 test("create form accepts legal optional NTRP endpoints and produces the RPC-safe payload", () => {
