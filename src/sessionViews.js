@@ -1,4 +1,5 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
+import { TAIPEI_DISTRICTS } from "./districts.js";
 import { pushDrawerIsolation } from "./modalIsolation.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { esc } from "./util.js";
@@ -591,6 +592,59 @@ function runMySessionAction(button, callback, root) {
     });
 }
 
+function normalizedNotificationSettings(settings = {}) {
+  const preferences = settings?.prefs ?? {};
+  return {
+    districts: new Set(
+      (Array.isArray(settings?.districts) ? settings.districts : []).filter((district) => TAIPEI_DISTRICTS.includes(district))
+    ),
+    errorMessage: typeof settings?.errorMessage === "string" ? settings.errorMessage : "",
+    prefs: {
+      guestInvitedEnabled: preferences.guestInvitedEnabled !== false,
+      guestRequestReviewedEnabled: preferences.guestRequestReviewedEnabled !== false,
+      hostNewRequestEnabled: preferences.hostNewRequestEnabled !== false,
+    },
+    pushStatus: typeof settings?.pushStatus === "string" ? settings.pushStatus : "idle",
+    webPushConfigured: settings?.webPushConfigured === true,
+  };
+}
+
+function notificationPushHint({ pushStatus, webPushConfigured }) {
+  if (!webPushConfigured) return "這個環境尚未設定 Web Push 公鑰，暫時無法開啟推播。";
+  if (pushStatus === "unsupported") return "此瀏覽器不支援 Web Push，暫時無法在這個裝置開啟推播。";
+  if (pushStatus === "enabled") return "此裝置已開啟推播通知。";
+  if (pushStatus === "denied") return "你已拒絕通知權限。請到瀏覽器或系統設定重新開啟通知後，再回來按「開啟推播」。";
+  return "開啟後，只有這個裝置會收到你選擇的通知。";
+}
+
+async function runNotificationSettingAction(root, callback) {
+  const controls = [...root.querySelectorAll("[data-notification-control]")];
+  const unlockedControls = controls.filter((control) => !control.disabled);
+  const error = root.querySelector("[data-notification-error]");
+  unlockedControls.forEach((control) => {
+    control.disabled = true;
+  });
+  if (error) {
+    error.hidden = true;
+    error.textContent = "";
+  }
+  try {
+    await callback();
+    return true;
+  } catch (cause) {
+    if (error) {
+      error.textContent = cause?.message || "通知設定暫時無法更新，請稍後再試。";
+      error.hidden = false;
+      error.focus({ preventScroll: true });
+    }
+    return false;
+  } finally {
+    unlockedControls.forEach((control) => {
+      control.disabled = false;
+    });
+  }
+}
+
 /** Render the private, action-first My Sessions destination. */
 export function renderMySessionsPage(
   root,
@@ -607,6 +661,7 @@ export function renderMySessionsPage(
     onCreatedSessionFocus = () => true,
     onDecline = () => {},
     onDeclineInvite = () => {},
+    onEnablePush = () => {},
     onMarkPlayed = () => {},
     onOpenSession = () => {},
     onRefresh = () => {},
@@ -614,18 +669,22 @@ export function renderMySessionsPage(
     onReportSession = () => {},
     onSignIn = () => {},
     onSignOut = () => {},
+    onSaveDistrictSubscriptions = () => {},
+    onSaveNotificationPreferences = () => {},
     onToggleVisibility = () => {},
     onWithdraw = () => {},
     authenticated = false,
     actionScopeKey = null,
     status = "idle",
     errorMessage = "",
+    notificationSettings = {},
     profileIsPublic = false,
   } = {}
 ) {
   const needsAction = Array.isArray(groups.needsAction) ? groups.needsAction : [];
   const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
   const history = Array.isArray(groups.history) ? groups.history : [];
+  const notification = normalizedNotificationSettings(notificationSettings);
   setMySessionActionScope(root, actionScopeKey);
   root.innerHTML = `
     <div class="my-sessions-shell__head">
@@ -656,6 +715,45 @@ export function renderMySessionsPage(
       <button type="button" class="session-secondary" data-my-action="toggle-visibility"
         role="switch" aria-checked="${profileIsPublic ? "true" : "false"}"
         data-testid="player-visibility-toggle">${profileIsPublic ? "已開啟" : "已關閉"}</button>
+    </section>
+    <section class="notification-settings" aria-labelledby="notification-settings-title">
+      <div class="notification-settings__head">
+        <div>
+          <h3 id="notification-settings-title">通知設定</h3>
+          <p class="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
+        </div>
+        <button type="button" class="session-secondary" data-enable-push data-notification-control
+          data-testid="enable-push"${!notification.webPushConfigured || notification.pushStatus === "enabled" || notification.pushStatus === "unsupported" ? " disabled" : ""}>${
+            notification.pushStatus === "enabled" ? "此裝置已開啟" : "開啟推播"
+          }</button>
+      </div>
+      <p class="form-hint notification-settings__hint">${esc(notificationPushHint(notification))}</p>
+      <p class="form-hint notification-settings__ios-hint">若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。</p>
+      <p class="form-error" data-notification-error role="alert" tabindex="-1"${notification.errorMessage ? "" : " hidden"}>${esc(
+        notification.errorMessage
+      )}</p>
+      <fieldset class="notification-settings__fieldset">
+        <legend>事件通知</legend>
+        <label><input type="checkbox" data-notification-pref="hostNewRequestEnabled" data-notification-control data-testid="notification-host-new-request"${
+          notification.prefs.hostNewRequestEnabled ? " checked" : ""
+        }> 有人申請我的球局</label>
+        <label><input type="checkbox" data-notification-pref="guestRequestReviewedEnabled" data-notification-control data-testid="notification-guest-request-reviewed"${
+          notification.prefs.guestRequestReviewedEnabled ? " checked" : ""
+        }> 加入申請被處理</label>
+        <label><input type="checkbox" data-notification-pref="guestInvitedEnabled" data-notification-control data-testid="notification-guest-invited"${
+          notification.prefs.guestInvitedEnabled ? " checked" : ""
+        }> 收到球局邀請</label>
+      </fieldset>
+      <fieldset class="notification-settings__fieldset">
+        <legend>訂閱行政區的新球局</legend>
+        <p class="form-hint">可複選；未勾選的行政區不會收到新球局通知。</p>
+        <div class="notification-settings__districts">${TAIPEI_DISTRICTS.map(
+          (district) =>
+            `<label><input type="checkbox" value="${esc(district)}" data-notification-district data-notification-control data-testid="notification-district-${esc(
+              district
+            )}"${notification.districts.has(district) ? " checked" : ""}> ${esc(district)}</label>`
+        ).join("")}</div>
+      </fieldset>
     </section>`
         : ""
     }
@@ -708,6 +806,35 @@ export function renderMySessionsPage(
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
   root.querySelector("[data-my-sessions-sign-out]")?.addEventListener("click", onSignOut);
+  root.querySelector("[data-enable-push]")?.addEventListener("click", () => {
+    void runNotificationSettingAction(root, onEnablePush);
+  });
+  root.querySelectorAll("[data-notification-pref]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const previousChecked = !input.checked;
+      const preferences = {
+        hostNewRequestEnabled: root.querySelector('[data-notification-pref="hostNewRequestEnabled"]')?.checked === true,
+        guestRequestReviewedEnabled: root.querySelector('[data-notification-pref="guestRequestReviewedEnabled"]')?.checked === true,
+        guestInvitedEnabled: root.querySelector('[data-notification-pref="guestInvitedEnabled"]')?.checked === true,
+      };
+      void runNotificationSettingAction(root, () => onSaveNotificationPreferences(preferences)).then((saved) => {
+        if (!saved) input.checked = previousChecked;
+      });
+    });
+  });
+  root.querySelectorAll("[data-notification-district]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const districts = [...root.querySelectorAll("[data-notification-district]")]
+        .filter((checkbox) => checkbox.checked)
+        .map((checkbox) => checkbox.value);
+      void runNotificationSettingAction(root, () => onSaveDistrictSubscriptions(districts)).then((saved) => {
+        if (saved) return;
+        root.querySelectorAll("[data-notification-district]").forEach((checkbox) => {
+          checkbox.checked = notification.districts.has(checkbox.value);
+        });
+      });
+    });
+  });
   root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
   root.querySelector("[data-retry-contacts]")?.addEventListener("click", () =>
     runMySessionAction(root.querySelector("[data-retry-contacts]"), onRefresh, root)

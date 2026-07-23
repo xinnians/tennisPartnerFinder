@@ -624,7 +624,7 @@ test("declined My Sessions history uses neutral participation wording", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions renders the 球友卡 switch before needs-action and preserves pending and error state", async ({ page }) => {
+test("My Sessions renders the 球友卡 and notification settings before needs-action and preserves pending and error state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -661,7 +661,10 @@ test("My Sessions renders the 球友卡 switch before needs-action and preserves
     "開啟後，完成檔案的球友可在地圖上你的常打球場看到你的暱稱、NTRP 與可打時段。LINE 不會顯示。"
   );
   expect(
-    await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
+    await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.classList.contains("notification-settings") === true)
+  ).toBe(true);
+  expect(
+    await page.locator(".notification-settings").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
   ).toBe(true);
 
   await toggle.click();
@@ -672,6 +675,62 @@ test("My Sessions renders the 球友卡 switch before needs-action and preserves
   await expect(page.locator("[data-my-sessions-error]")).toContainText("球友卡設定暫時無法更新");
   await expect(toggle).toBeEnabled();
   await expect(toggle).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions notification settings save event preferences and Taipei district subscriptions", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+      notificationSettings: {
+        districts: ["大安區"],
+        prefs: {
+          guestInvitedEnabled: true,
+          guestRequestReviewedEnabled: true,
+          hostNewRequestEnabled: true,
+        },
+        pushStatus: "idle",
+        webPushConfigured: true,
+      },
+      onEnablePush: async () => {
+        window.__enablePushCalls = (window.__enablePushCalls ?? 0) + 1;
+      },
+      onSaveDistrictSubscriptions: async (districts) => {
+        window.__savedDistrictSubscriptions = districts;
+      },
+      onSaveNotificationPreferences: async (preferences) => {
+        window.__savedNotificationPreferences = preferences;
+      },
+    });
+  });
+
+  const settings = page.locator(".notification-settings");
+  await expect(settings).toContainText("通知設定");
+  await expect(settings).toContainText("加入主畫面");
+  await expect(settings).not.toContainText("LINE");
+  await expect(page.getByTestId("enable-push")).toHaveText("開啟推播");
+  await expect(page.getByTestId("notification-district-大安區")).toBeChecked();
+
+  await page.getByTestId("enable-push").click();
+  await expect.poll(() => page.evaluate(() => window.__enablePushCalls)).toBe(1);
+
+  await page.getByTestId("notification-host-new-request").uncheck();
+  await expect.poll(() => page.evaluate(() => window.__savedNotificationPreferences)).toEqual({
+    guestInvitedEnabled: true,
+    guestRequestReviewedEnabled: true,
+    hostNewRequestEnabled: false,
+  });
+
+  await page.getByTestId("notification-district-萬華區").check();
+  await expect.poll(() => page.evaluate(() => window.__savedDistrictSubscriptions)).toEqual(["大安區", "萬華區"]);
   expect(runtimeErrors).toEqual([]);
 });
 

@@ -1,6 +1,6 @@
 import "./style.css";
 import "./session.css";
-import { GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.js";
+import { GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
 import { BANDS } from "./filters.js";
 import {
   createMap,
@@ -25,7 +25,9 @@ import {
   inviteToSession,
   loadCourts,
   loadCurrentProfile,
+  loadDistrictSubscriptions,
   loadMySessions,
+  loadNotificationPreferences,
   loadPlayerDirectory,
   loadSessionContacts,
   loadSessionDiscovery,
@@ -36,6 +38,9 @@ import {
   requestToJoinSession,
   respondToSessionInvite,
   saveCurrentProfile,
+  saveDistrictSubscriptions,
+  saveNotificationPreferences,
+  savePushSubscription,
   signInWithOAuthProvider,
   signOut,
   setPlayerVisibility,
@@ -58,6 +63,7 @@ import {
   renderNearbySessionsDrawer,
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
+import { enableBrowserPush } from "./notificationPush.js";
 import { esc } from "./util.js";
 
 let google = null;
@@ -80,6 +86,7 @@ let activePage = "map";
 let createdSessionFocusId = null;
 let mySessionsRenderGeneration = 0;
 let pendingMySessionsFocus = null;
+let notificationSettings = defaultNotificationSettings();
 
 function toast(message) {
   const root = document.getElementById("toast-root");
@@ -107,6 +114,20 @@ function defaultProfile() {
     ntrp: 3.5,
     slots: new Set(["we-m"]),
     types: new Set(),
+  };
+}
+
+function defaultNotificationSettings() {
+  return {
+    districts: [],
+    errorMessage: "",
+    prefs: {
+      guestInvitedEnabled: true,
+      guestRequestReviewedEnabled: true,
+      hostNewRequestEnabled: true,
+    },
+    pushStatus: "idle",
+    webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
   };
 }
 
@@ -289,6 +310,9 @@ function captureMySessionsFocus(root) {
   if (active.matches("[data-my-sessions-heading]")) return { kind: "heading" };
   if (active.matches("[data-my-sessions-sign-in]")) return { kind: "sign-in" };
   if (active.matches("[data-retry-contacts]")) return { kind: "retry-contacts" };
+  if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
+  if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
+  if (active.matches("[data-notification-district]")) return { kind: "notification-district", district: active.value };
   if (active.matches("[data-open-my-session]")) return { kind: "open-session", sessionId: active.dataset.sessionId };
   if (active.matches("[data-my-action]")) {
     return {
@@ -309,6 +333,15 @@ function resolveMySessionsFocus(root, focus) {
   if (focus.kind === "heading") return root.querySelector("[data-my-sessions-heading]");
   if (focus.kind === "sign-in") return root.querySelector("[data-my-sessions-sign-in]");
   if (focus.kind === "retry-contacts") return root.querySelector("[data-retry-contacts]");
+  if (focus.kind === "enable-push") return root.querySelector("[data-enable-push]");
+  if (focus.kind === "notification-pref") {
+    return [...root.querySelectorAll("[data-notification-pref]")].find(
+      (input) => input.dataset.notificationPref === focus.preference
+    );
+  }
+  if (focus.kind === "notification-district") {
+    return [...root.querySelectorAll("[data-notification-district]")].find((input) => input.value === focus.district);
+  }
   if (focus.kind === "open-session") {
     return [...root.querySelectorAll("[data-open-my-session]")].find(
       (button) => String(button.dataset.sessionId) === String(focus.sessionId)
@@ -346,6 +379,94 @@ function restoreMySessionsFocus(root, focus, generation) {
   });
 }
 
+function notificationRequestIsCurrent({ epoch, identity }) {
+  return Boolean(authSession) && epoch === authStateEpoch && identity === currentAuthIdentity;
+}
+
+function rerenderVisibleNotificationSettings() {
+  if (activePage === "my-sessions") renderMySessionsDestination();
+}
+
+async function refreshNotificationSettings() {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  if (!identity || !authSession || !isSupabaseConfigured) return false;
+  try {
+    const [prefs, districts] = await Promise.all([loadNotificationPreferences(), loadDistrictSubscriptions()]);
+    if (!notificationRequestIsCurrent({ epoch, identity })) return false;
+    notificationSettings = {
+      ...notificationSettings,
+      districts,
+      errorMessage: "",
+      prefs,
+      webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
+    };
+  } catch {
+    if (!notificationRequestIsCurrent({ epoch, identity })) return false;
+    notificationSettings = {
+      ...notificationSettings,
+      errorMessage: "通知設定暫時無法載入，請稍後再試。",
+    };
+  }
+  rerenderVisibleNotificationSettings();
+  return true;
+}
+
+async function updateNotificationPreferences(preferences) {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  if (!identity || !authSession) throw new Error("請先登入後再調整通知設定。");
+  const nextPreferences = {
+    guestInvitedEnabled: preferences?.guestInvitedEnabled === true,
+    guestRequestReviewedEnabled: preferences?.guestRequestReviewedEnabled === true,
+    hostNewRequestEnabled: preferences?.hostNewRequestEnabled === true,
+  };
+  await saveNotificationPreferences(nextPreferences);
+  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  notificationSettings = { ...notificationSettings, errorMessage: "", prefs: nextPreferences };
+  rerenderVisibleNotificationSettings();
+  toast("通知偏好已儲存。");
+}
+
+async function updateDistrictSubscriptions(districts) {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  if (!identity || !authSession) throw new Error("請先登入後再調整通知設定。");
+  const nextDistricts = [...new Set((Array.isArray(districts) ? districts : []).filter((district) => typeof district === "string"))];
+  await saveDistrictSubscriptions(nextDistricts);
+  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  notificationSettings = { ...notificationSettings, districts: nextDistricts, errorMessage: "" };
+  rerenderVisibleNotificationSettings();
+  toast("行政區訂閱已儲存。");
+}
+
+async function enablePushNotifications() {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  if (!identity || !authSession) throw new Error("請先登入後再開啟推播。");
+  if (!WEB_PUSH_VAPID_PUBLIC_KEY.trim()) {
+    notificationSettings = { ...notificationSettings, pushStatus: "unsupported" };
+    rerenderVisibleNotificationSettings();
+    return;
+  }
+  const result = await enableBrowserPush({ vapidPublicKey: WEB_PUSH_VAPID_PUBLIC_KEY });
+  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  if (result.status !== "granted" || !result.subscription) {
+    notificationSettings = {
+      ...notificationSettings,
+      errorMessage: "",
+      pushStatus: result.status === "denied" ? "denied" : result.status === "unsupported" ? "unsupported" : "idle",
+    };
+    rerenderVisibleNotificationSettings();
+    return;
+  }
+  await savePushSubscription(result.subscription);
+  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  notificationSettings = { ...notificationSettings, errorMessage: "", pushStatus: "enabled" };
+  rerenderVisibleNotificationSettings();
+  toast("已開啟推播通知。");
+}
+
 function renderMySessionsDestination() {
   if (!controller) return;
   const state = controller.getMySessionState();
@@ -375,6 +496,7 @@ function renderMySessionsDestination() {
     },
     onDecline: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
     onDeclineInvite: (sessionId) => controller.respondInvite(sessionId, "declined"),
+    onEnablePush: enablePushNotifications,
     onMarkPlayed: controller.markMySessionPlayed,
     onOpenSession: controller.openSession,
     onRefresh: async () => {
@@ -385,7 +507,10 @@ function renderMySessionsDestination() {
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     onSignOut: handleSignOut,
+    onSaveDistrictSubscriptions: updateDistrictSubscriptions,
+    onSaveNotificationPreferences: updateNotificationPreferences,
     onToggleVisibility: controller.togglePlayerVisibility,
+    notificationSettings,
     profileIsPublic: state.isPublic,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
@@ -416,6 +541,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   void controller.refreshMySessions({ includeContacts: true }).then(() => {
     if (activePage === "my-sessions") renderMySessionsDestination();
   });
+  void refreshNotificationSettings();
   if (focus) {
     requestAnimationFrame(() => {
       document.querySelector("#my-sessions-root [data-my-sessions-heading]")?.focus({ preventScroll: true });
@@ -556,11 +682,13 @@ function applyAuthCandidate(session) {
   if (identityChanged) {
     profileRevision += 1;
     currentProfile = defaultProfile();
+    notificationSettings = defaultNotificationSettings();
     profileLoadStatus = session ? "loading" : "idle";
     void controller.setAuthState(session, session ? { complete: false, status: "loading" } : null);
   }
   if (!session) {
     currentProfile = defaultProfile();
+    notificationSettings = defaultNotificationSettings();
     profileLoadStatus = "idle";
     return;
   }
