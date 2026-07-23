@@ -128,9 +128,10 @@ test("configured discovery uses one debounced, bounded viewport request", async 
   expect(upper).toBeTruthy();
   const lowerTime = new Date(lower.slice(3)).getTime();
   const upperTime = new Date(upper.slice(3)).getTime();
-  expect(lowerTime).toBeGreaterThan(Date.now() - 20_000);
-  expect(lowerTime).toBeLessThan(Date.now() + 5_000);
-  expect(upperTime - lowerTime).toBe(DISCOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1_000);
+  const nowStartWindowMs = 2 * 60 * 60 * 1_000;
+  expect(lowerTime).toBeGreaterThan(Date.now() - nowStartWindowMs - 20_000);
+  expect(lowerTime).toBeLessThan(Date.now() - nowStartWindowMs + 5_000);
+  expect(upperTime - lowerTime).toBe(DISCOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1_000 + nowStartWindowMs);
   expect(runtimeErrors).toEqual([]);
 });
 

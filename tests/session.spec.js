@@ -364,6 +364,65 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   expect(createPayload?.p_start_at).toBe("2099-07-18T01:30:00.000Z");
 });
 
+test("a host creates a now-start direct session in the form, then a guest joins and both see reciprocal LINE", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const notes = `now-start-${context.runId}`;
+
+  await gotoWithSession(page, host.session);
+  await page.locator("#open-session").click();
+  const form = page.locator("#session-create-modal").getByTestId("session-form");
+  await expect(form).toBeVisible();
+  await form.getByTestId("session-court").selectOption(String(courtId));
+  await form.getByTestId("session-now-start").click();
+  await expect(form.getByTestId("session-start-at")).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByTestId("session-slots-total").selectOption("1");
+  await form.locator("input[name='joinMode'][value='instant']").check();
+  await form.getByLabel("備註（選填，最多 500 字）").fill(notes);
+  await form.getByTestId("session-submit").click();
+
+  await expect(page.locator("#my-sessions-page")).toBeVisible();
+  const { data: created, error: createdError } = await host.client
+    .from("session_discovery")
+    .select("session_id")
+    .eq("notes", notes)
+    .maybeSingle();
+  if (createdError) throw createdError;
+  expect(created?.session_id).toBeTruthy();
+  const sessionId = created.session_id;
+
+  await switchBrowserSession(page, guest.session);
+  await page.locator("#nearby-sessions-toggle").click();
+  const sessionCard = page.locator(`#nearby-sessions-list [data-session-id='${sessionId}']`).first();
+  await expect(sessionCard.locator(".session-badge--ongoing")).toHaveText("進行中");
+  await expect(sessionCard.locator(".session-badge--instant")).toHaveText("直接加入");
+  await sessionCard.click();
+
+  const detail = page.locator("#session-sheet");
+  await expect(detail.locator(".session-badge--ongoing")).toHaveText("進行中");
+  await detail.getByRole("button", { name: "直接加入" }).click();
+  const confirmation = page.locator("#join-session-confirmation");
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByTestId("join-session").click();
+  await expect(confirmation.locator("[data-join-success]")).toBeVisible();
+  await confirmation.getByRole("button", { name: "前往我的球局" }).click();
+
+  const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
+  await expect(guestContact).toBeVisible();
+  await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+
+  await switchBrowserSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
+  await expect(hostContact).toBeVisible();
+  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("instant local join accepts immediately and shares only reciprocal contacts without host review", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
