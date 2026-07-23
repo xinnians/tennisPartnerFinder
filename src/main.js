@@ -65,6 +65,7 @@ import {
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
 import { enableBrowserPush } from "./notificationPush.js";
+import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
 
 let google = null;
@@ -95,13 +96,6 @@ function toast(message) {
   root.innerHTML = `<div class="toast">${esc(message)}</div>`;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => (root.innerHTML = ""), 2400);
-}
-
-function sessionIdFromHash(hash = globalThis.location?.hash ?? "") {
-  const match = String(hash).match(/^#\/session\/([1-9]\d*)$/);
-  if (!match) return null;
-  const sessionId = Number(match[1]);
-  return Number.isSafeInteger(sessionId) ? sessionId : null;
 }
 
 function sessionShareLink(sessionId) {
@@ -139,12 +133,12 @@ async function copySessionShareLink(sessionId) {
 }
 
 async function openSessionHashRoute() {
-  const sessionId = sessionIdFromHash();
+  const sessionId = sessionIdFromHash(globalThis.location?.hash);
   if (!sessionId || !controller) return;
   const generation = ++sessionHashRouteGeneration;
   showMapPage();
   const result = await controller.openSessionFromLink(sessionId);
-  if (generation !== sessionHashRouteGeneration || sessionId !== sessionIdFromHash()) return;
+  if (generation !== sessionHashRouteGeneration || sessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
   if (result?.status !== "opened") openSessionUnavailableSheet();
 }
 
