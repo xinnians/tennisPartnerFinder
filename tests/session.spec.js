@@ -748,60 +748,67 @@ test("a visible player can be invited, accept from My Sessions, exchange LINE co
   const context = createSessionTestContext({ suffix: randomUUID() });
   const player = await createCompleteActor(context.guest);
   const host = await createCompleteActor(context.host);
-  const courtId = await courtIdByName(host.client, context.host.courts[0]);
-  const sessionId = await createSessionViaRpc(
-    host.client,
-    createFutureSessionInput({ courtId, notes: `player-invite-${context.runId}`, slotsTotal: 1 })
-  );
-  expect(await setPlayerVisibilityViaRpc(host.client, true)).toBe("OK");
+  try {
+    const courtId = await courtIdByName(host.client, context.host.courts[0]);
+    const sessionId = await createSessionViaRpc(
+      host.client,
+      createFutureSessionInput({ courtId, notes: `player-invite-${context.runId}`, slotsTotal: 1 })
+    );
+    expect(await setPlayerVisibilityViaRpc(host.client, true)).toBe("OK");
 
-  await gotoWithSession(page, player.session);
-  await page.getByTestId("my-sessions-tab").click();
-  const playerVisibility = page.getByTestId("player-visibility-toggle");
-  await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
-  await playerVisibility.click();
-  await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
+    await gotoWithSession(page, player.session);
+    await page.getByTestId("my-sessions-tab").click();
+    const playerVisibility = page.getByTestId("player-visibility-toggle");
+    await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
+    await playerVisibility.click();
+    await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
 
-  await switchBrowserSession(page, host.session);
-  await page.getByTestId("player-layer-toggle").click();
-  const playerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
-  await expect(playerPin).toBeVisible();
-  await playerPin.click();
-  const playerCard = page.getByTestId(`court-player-card-${player.profileId}`);
-  await expect(playerCard).toContainText(context.guest.nickname);
-  await playerCard.click();
-  await expect(page.locator("#player-card-sheet")).toBeVisible();
-  await page.getByTestId("player-invite-session").check();
-  await page.getByTestId("player-invite-submit").click();
-  await expect(page.getByText("邀請已送出", { exact: true })).toBeVisible();
+    await switchBrowserSession(page, host.session);
+    await page.getByTestId("player-layer-toggle").click();
+    const playerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
+    await expect(playerPin).toBeVisible();
+    await playerPin.click();
+    const playerCard = page.getByTestId(`court-player-card-${player.profileId}`);
+    await expect(playerCard).toContainText(context.guest.nickname);
+    await playerCard.click();
+    await expect(page.locator("#player-card-sheet")).toBeVisible();
+    await page.getByTestId("player-invite-session").check();
+    await page.getByTestId("player-invite-submit").click();
+    await expect(page.getByText("邀請已送出", { exact: true })).toBeVisible();
 
-  await switchBrowserSession(page, player.session);
-  await page.getByTestId("my-sessions-tab").click();
-  const invite = page.getByTestId("invite-row");
-  await expect(invite).toContainText(context.host.nickname);
-  await page.getByTestId(`accept-invite-${sessionId}`).click();
-  const playerContact = page.getByTestId(`session-contact-${host.profileId}`);
-  await expect(playerContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+    await switchBrowserSession(page, player.session);
+    await page.getByTestId("my-sessions-tab").click();
+    const invite = page.getByTestId("invite-row");
+    await expect(invite).toContainText(context.host.nickname);
+    await page.getByTestId(`accept-invite-${sessionId}`).click();
+    const playerContact = page.getByTestId(`session-contact-${host.profileId}`);
+    await expect(playerContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
 
-  await switchBrowserSession(page, host.session);
-  await page.getByTestId("my-sessions-tab").click();
-  const hostContact = page.getByTestId(`session-contact-${player.profileId}`);
-  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+    await switchBrowserSession(page, host.session);
+    await page.getByTestId("my-sessions-tab").click();
+    const hostContact = page.getByTestId(`session-contact-${player.profileId}`);
+    await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
 
-  await switchBrowserSession(page, player.session);
-  await page.getByTestId("my-sessions-tab").click();
-  await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
-  await playerVisibility.click();
-  await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
+    await switchBrowserSession(page, player.session);
+    await page.getByTestId("my-sessions-tab").click();
+    await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
+    await playerVisibility.click();
+    await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
 
-  await switchBrowserSession(page, host.session);
-  await page.getByTestId("player-layer-toggle").click();
-  await expect(page.locator("#player-layer-status")).toBeHidden();
-  const refreshedPlayerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
-  await expect(refreshedPlayerPin).toBeVisible();
-  await refreshedPlayerPin.click();
-  await expect(page.getByTestId(`court-player-card-${player.profileId}`)).toHaveCount(0);
-  expect(runtimeErrors).toEqual([]);
+    await switchBrowserSession(page, host.session);
+    await page.getByTestId("player-layer-toggle").click();
+    await expect(page.locator("#player-layer-status")).toBeHidden();
+    const refreshedPlayerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
+    await expect(refreshedPlayerPin).toBeVisible();
+    await refreshedPlayerPin.click();
+    await expect(page.getByTestId(`court-player-card-${player.profileId}`)).toHaveCount(0);
+    expect(runtimeErrors).toEqual([]);
+  } finally {
+    await Promise.allSettled([
+      setPlayerVisibilityViaRpc(player.client, false),
+      setPlayerVisibilityViaRpc(host.client, false),
+    ]);
+  }
 });
 
 test("reciprocal foreground presence shows only to sharing viewers and one-tap hiding removes it immediately", async ({ page }) => {
