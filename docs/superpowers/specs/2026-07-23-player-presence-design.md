@@ -43,8 +43,8 @@
 - 新 view `player_presence_directory`,有序欄位 allowlist(pgTAP 全字串比對):
   `profile_id, nickname, ntrp, open_to_greeting, court_id, court_name,
   court_district, court_lat, court_lng, minutes_ago, is_self`。明確不含 LINE、
-  email、真名、raw 座標。gate:viewer 完整 profile + viewer share_presence = true,
-  否則 0 列;匿名永遠 0 列。
+  email、真名、raw 座標。此 view 只 grant `authenticated`；匿名 SELECT 一律被拒。gate:
+  viewer 完整 profile + viewer share_presence = true，否則登入 viewer 為 0 列。
 - RPC:`update_my_presence(lat double precision, lng double precision)`、
   `set_presence_sharing(boolean)`、`set_open_to_greeting(boolean)`。
 
@@ -59,10 +59,10 @@
 
 ## 測試
 
-- pgTAP:匿名 0 列;不完整 viewer 0 列;未開 share_presence 的 viewer 0 列
-  (互惠);TTL 過期 0 列;100 公尺外 update 不寫入;`player_presence` 無任何
-  座標欄(schema 斷言);allowlist 全字串;save_my_profile 回歸(兩開關保留);
-  set_presence_sharing(false) 後列即刪。先紅後綠、掃描集非空。
+- pgTAP:presence fixture 存在後匿名 direct SELECT 被拒;不完整 viewer 0 列;未開
+  share_presence 的 viewer 0 列(互惠);TTL 過期 0 列;100 公尺外 update 不寫入;
+  `player_presence` 無任何座標欄(schema 斷言);allowlist 全字串;save_my_profile 回歸
+  (兩開關保留);set_presence_sharing(false) 後列即刪。先紅後綠、掃描集非空。
 - unit:節流邏輯、dataApi mapper、開關狀態機。
 - e2e(local):A 開分享+模擬座標於球場內 → B(有開)看到 A 在場;
   C(未開)看不到任何人(反向 control);A 一鍵隱藏 → B 即刻看不到。

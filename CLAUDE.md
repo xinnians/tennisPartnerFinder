@@ -26,10 +26,11 @@
 - 登入且完整 profile 的球友目錄走另一個 authenticated-only 面
   `public.player_directory`，不是匿名公開探索；使用者預設不出現在目錄，僅能透過
   `set_player_visibility` 自行 opt-in，關閉後立即下架。
-- 在場狀態是獨立、預設關閉的互惠面 `public.player_presence_directory`：viewer 自己必須是
-  完整 profile 且已開 `share_presence` 才可讀到其他分享者。`player_presence` 原表不可給
-  browser 讀寫；raw GPS 座標只在前景 `watchPosition` 呼叫期間短暫存在，RPC 只可落地最近
-  台北 active court 的 `court_id + updated_at`，不可進任何表、view、payload 或 log。
+- 在場狀態是獨立、預設關閉、authenticated-only 的互惠面
+  `public.player_presence_directory`：匿名沒有 SELECT 權限；viewer 自己必須是完整 profile 且已開
+  `share_presence` 才可讀到其他分享者。`player_presence` 原表不可給 browser 讀寫；raw GPS
+  座標只在前景 `watchPosition` 呼叫期間短暫存在，RPC 只可落地最近台北 active court 的
+  `court_id + updated_at`，不可進任何表、view、payload 或 log。
 - LINE 不是 UI 隱藏欄位。它只能由資料庫 definer view `public.session_contacts`
   回傳給同一球局中、雙方皆為 `accepted` 的 host/guest 配對。主揪可看各已接受
   guest；guest 只可看主揪，不能看其他 guest。

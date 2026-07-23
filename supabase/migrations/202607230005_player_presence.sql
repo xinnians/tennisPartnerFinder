@@ -243,4 +243,4 @@ where presence_row.updated_at > now() - interval '3 hours'
   );
 
 revoke all on table public.player_presence_directory from public, anon, authenticated;
-grant select on table public.player_presence_directory to anon, authenticated;
+grant select on table public.player_presence_directory to authenticated;

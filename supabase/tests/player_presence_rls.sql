@@ -14,7 +14,7 @@ exception when others then
 end;
 $$;
 
-select plan(37);
+select plan(38);
 
 select has_table('public', 'player_presence', 'player presence is stored in its own table');
 select has_view('public', 'player_presence_directory', 'presence has a dedicated directory view');
@@ -167,23 +167,6 @@ select ok(
 );
 reset role;
 
-set local role anon;
-select is(
-  pg_temp.text_outcome($$select count(*)::text from public.player_presence_directory$$),
-  '0',
-  'anonymous viewer receives zero presence rows'
-);
-reset role;
-
-set local role authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005004', true);
-select is(
-  pg_temp.text_outcome($$select count(*)::text from public.player_presence_directory$$),
-  '0',
-  'incomplete viewer receives zero presence rows'
-);
-reset role;
-
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005001', true);
 select is(
@@ -227,6 +210,29 @@ select is(
   '1',
   'A has exactly one court-level presence row'
 );
+
+select ok(
+  (select count(*) from public.player_presence) > 0,
+  'presence boundary scan runs after at least one raw presence row exists'
+);
+
+set local role anon;
+select throws_ok(
+  $$select * from public.player_presence_directory$$,
+  '42501',
+  null,
+  'anonymous viewer is denied the presence directory even when a presence row exists'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005004', true);
+select is(
+  pg_temp.text_outcome($$select count(*)::text from public.player_presence_directory$$),
+  '0',
+  'incomplete viewer receives zero presence rows when a presence row exists'
+);
+reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005002', true);
