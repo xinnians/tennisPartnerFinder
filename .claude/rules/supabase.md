@@ -20,6 +20,9 @@ role 不可讀寫。
 - roster：`public.session_participant_roster`。
 - accepted-only LINE：`public.session_contacts`。
 - 個人檔案表單：`public.my_profile` 與 `save_my_profile(...)`。
+- 通知設定：本人 `notification_prefs`、`district_subscriptions` 的 explicit-column reads，及
+  `save_push_subscription`、`remove_push_subscription`、`set_notification_prefs`、
+  `set_district_subscriptions` RPC。
 - lifecycle 寫入：`create_session`、`request_to_join_session`、
   `review_join_request`、`withdraw_from_session`、`cancel_session`、
   `mark_session_played`、`confirm_session_attendance`、`create_report`、
@@ -28,6 +31,22 @@ role 不可讀寫。
 不可讓前端直接 select／insert／update／delete raw `profiles`、`sessions`、
 `session_participants`、`reports` 或 private legacy tables；`src/dataApi.js` 是唯一
 前端資料邊界。
+
+## Web Push 與通知 outbox
+
+- `push_subscriptions`、`notification_prefs`、`district_subscriptions` 都是 owner-only；通知
+  設定只要求登入，不得藉此取消既有球局／球友目錄的完整 profile gate。行政區只接受台北市
+  12 區，browser 只以既有 RPC 儲存。
+- `notification_outbox` 是 service-only queue：anon 與 authenticated 不可 select、insert、
+  update、delete，也不可新增 browser view 或 RPC 旁路。它的欄位順序與 payload allowlist 受
+  pgTAP 守護。
+- 事件 `host_new_request`、`guest_request_reviewed`、`guest_invited`、`district_new_session`
+  只能由既有 lifecycle RPC best-effort enqueue。payload 精確只用 `court`、`start_at`、
+  `slots_remaining`、`message`、`url`；LINE／`line_id`、任何他人個資與 subscription key
+  都不可進 payload 或 log。
+- `notification-outbox-dispatch` Edge Function 以 service role 讀 outbox、每筆最多嘗試三次；
+  410/404 必須刪除失效 endpoint。每分鐘 scheduler 只可經 pg_cron + pg_net，並在 Vault lookup
+  project URL、publishable key、cron secret；不要把任何 secret 放進 migration 或 browser。
 
 ## 公開資料 allowlist
 
