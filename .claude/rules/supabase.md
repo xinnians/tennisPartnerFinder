@@ -103,8 +103,8 @@ profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_distric
 - 接受最後一個缺額以 row lock 計算容量，並把其餘 pending `requested`／`invited` guests
   decline；不要在客戶端先判斷可用缺額後直接寫入。
 - `create_session` 的 `join_mode` 只可為 `approval` 或 `instant`；開始時間可早至現在前 5 分鐘。
-  同一主揪至多可有五個未來、`open`／`full` 的球局，超過時 RPC 回傳 `SESSION_LIMIT`；已開打的
-  局不計入此未來球局上限。
+  同一主揪至多可有五個仍在可加入窗口內的 `open`／`full` 球局（未來或開打後兩小時內），超過時
+  RPC 回傳 `SESSION_LIMIT`；開打超過兩小時，或已是 `cancelled`、`played`、`expired` 的局不計入。
 - `request_to_join_session` 對 `approval` 局建立 `requested` participant 並回傳 `OK`；對
   `instant` 局在有缺額時直接轉為 `accepted` 並回傳 `ACCEPTED`。LINE 的可見性模型不變：
   仍只限雙方皆為 `accepted` 的 host ↔ guest 配對。申請、直接加入、主揪邀請與受邀回覆只可在
