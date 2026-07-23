@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(303);
+select plan(347);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -176,6 +176,10 @@ select has_table('public', 'sessions', 'sessions table exists');
 select has_table('public', 'session_participants', 'session participants table exists');
 select has_table('public', 'sports', 'sports table exists');
 select has_table('public', 'reports', 'new reports table exists');
+select has_table('public', 'notification_outbox', 'notification outbox table exists');
+select has_table('public', 'push_subscriptions', 'push subscriptions table exists');
+select has_table('public', 'notification_prefs', 'notification preferences table exists');
+select has_table('public', 'district_subscriptions', 'district subscriptions table exists');
 select has_table('private', 'legacy_partner_requests', 'legacy partner requests are private');
 select has_table('private', 'legacy_reports', 'legacy reports are private');
 select has_view('public', 'session_discovery', 'public session discovery view exists');
@@ -263,6 +267,19 @@ select is((select relrowsecurity from pg_class where oid = 'public.sports'::regc
 select is((select relrowsecurity from pg_class where oid = 'public.sessions'::regclass), true, 'sessions RLS is enabled');
 select is((select relrowsecurity from pg_class where oid = 'public.session_participants'::regclass), true, 'participants RLS is enabled');
 select is((select relrowsecurity from pg_class where oid = 'public.reports'::regclass), true, 'reports RLS is enabled');
+select is((select relrowsecurity from pg_class where oid = 'public.push_subscriptions'::regclass), true, 'push subscriptions RLS is enabled');
+select is((select relrowsecurity from pg_class where oid = 'public.notification_prefs'::regclass), true, 'notification preferences RLS is enabled');
+select is((select relrowsecurity from pg_class where oid = 'public.district_subscriptions'::regclass), true, 'district subscriptions RLS is enabled');
+select is((select relrowsecurity from pg_class where oid = 'public.notification_outbox'::regclass), true, 'notification outbox RLS is enabled');
+select is(
+  (
+    select string_agg(column_name, ',' order by ordinal_position)
+    from information_schema.columns
+    where table_schema = 'public' and table_name = 'notification_outbox'
+  ),
+  'id,event_type,recipient_profile_id,session_id,payload,created_at,sent_at,attempts',
+  'notification outbox has the exact service-only column contract'
+);
 
 -- The discovery projection is deliberately exact: no profile identifier or
 -- profile detail can be smuggled into an anonymous response.
@@ -3632,6 +3649,406 @@ select is(
 select throws_ok(
   $$set constraints session_participants_host_invariant immediate$$,
   'P0001', 'INVALID_TRANSITION', 'raw host deletion cannot commit an orphaned live session'
+);
+
+-- Web Push is a service boundary: no browser role may inspect or mutate the
+-- queue, even when a matching profile owns a subscription.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select throws_ok($$select * from public.notification_outbox$$, '42501', null, 'authenticated cannot select notification outbox');
+select throws_ok(
+  $$insert into public.notification_outbox (event_type, recipient_profile_id, session_id, payload) values ('host_new_request', 1, 1, '{}'::jsonb)$$,
+  '42501', null, 'authenticated cannot insert notification outbox'
+);
+select throws_ok($$update public.notification_outbox set attempts = attempts + 1$$, '42501', null, 'authenticated cannot update notification outbox');
+select throws_ok($$delete from public.notification_outbox$$, '42501', null, 'authenticated cannot delete notification outbox');
+reset role;
+
+set local role anon;
+select throws_ok($$select * from public.notification_outbox$$, '42501', null, 'anon cannot select notification outbox');
+select throws_ok(
+  $$insert into public.notification_outbox (event_type, recipient_profile_id, session_id, payload) values ('host_new_request', 1, 1, '{}'::jsonb)$$,
+  '42501', null, 'anon cannot insert notification outbox'
+);
+select throws_ok($$update public.notification_outbox set attempts = attempts + 1$$, '42501', null, 'anon cannot update notification outbox');
+select throws_ok($$delete from public.notification_outbox$$, '42501', null, 'anon cannot delete notification outbox');
+reset role;
+
+-- A signed-in but incomplete account receives a private profile skeleton only
+-- for notification ownership. It remains ineligible for every session flow.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select is(
+  public.save_push_subscription('https://push.example/incomplete', 'p256dh-incomplete', 'auth-incomplete'),
+  'OK',
+  'incomplete authenticated user can save a push subscription'
+);
+reset role;
+select is(
+  (
+    select (nickname is null and ntrp is null)::text
+    from public.profiles
+    where user_id = '00000000-0000-0000-0000-000000001005'
+  ),
+  'true',
+  'push subscription creates an incomplete profile skeleton without profile data'
+);
+select is(
+  (
+    select concat_ws(
+      ',',
+      private.notification_pref_enabled(
+        (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001005'),
+        'host_new_request'
+      ),
+      private.notification_pref_enabled(
+        (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001005'),
+        'guest_request_reviewed'
+      ),
+      private.notification_pref_enabled(
+        (select id from public.profiles where user_id = '00000000-0000-0000-0000-000000001005'),
+        'guest_invited'
+      )
+    )
+  ),
+  't,t,t',
+  'event notification preferences default to enabled without a stored row'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select is(
+  public.set_notification_prefs(false, true, false),
+  'OK',
+  'authenticated owner can save event notification preferences'
+);
+select is(
+  (
+    select concat_ws(',', host_new_request_enabled, guest_request_reviewed_enabled, guest_invited_enabled)
+    from public.notification_prefs
+  ),
+  'f,t,f',
+  'saved event notification preferences retain each event boundary'
+);
+select is(
+  public.set_district_subscriptions(array['大安區', '內湖區']),
+  'OK',
+  'authenticated owner can save multiple Taipei district subscriptions'
+);
+select ok(
+  (select count(*) from public.district_subscriptions) > 0,
+  'district subscription scan has a non-empty fixture set'
+);
+select throws_ok(
+  $$select public.set_district_subscriptions(array['板橋區'])$$,
+  'P0001', 'INVALID_NOTIFICATION_DISTRICT', 'district subscriptions reject a non-Taipei district'
+);
+select is(
+  public.set_district_subscriptions(array[]::text[]),
+  'OK',
+  'district subscription owner can clear all subscriptions'
+);
+reset role;
+
+-- Use fresh actors so this notification contract is independent of prior
+-- session lifecycle fixtures and invitation limits.
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  created_at, updated_at, raw_app_meta_data, raw_user_meta_data
+)
+values
+  ('00000000-0000-0000-0000-000000005001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'notification-requester@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000005002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'notification-invitee@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000005003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'notification-district-match@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000005004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'notification-district-miss@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select set_config(
+  'pgtap.notification_host_profile_id',
+  public.save_my_profile(
+    'Notification Host', 3.5, 'notification_host_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+select public.set_notification_prefs(true, true, true);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005001', true);
+select set_config(
+  'pgtap.notification_requester_profile_id',
+  public.save_my_profile(
+    'Notification Requester', 3.0, 'notification_requester_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005002', true);
+select set_config(
+  'pgtap.notification_invitee_profile_id',
+  public.save_my_profile(
+    'Notification Invitee', 4.0, 'notification_invitee_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+select public.set_player_visibility(true);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005003', true);
+select set_config(
+  'pgtap.notification_district_match_profile_id',
+  public.save_my_profile(
+    'Notification District Match', 4.0, 'notification_match_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+select is(
+  public.set_district_subscriptions(array['大安區']),
+  'OK',
+  'district fan-out recipient subscribes to the session district'
+);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005004', true);
+select set_config(
+  'pgtap.notification_district_miss_profile_id',
+  public.save_my_profile(
+    'Notification District Miss', 4.0, 'notification_miss_line',
+    array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+    array['雙打']::text[], array['we-a']::text[]
+  )::text,
+  true
+);
+select is(
+  public.set_district_subscriptions(array['中正區']),
+  'OK',
+  'non-matching district subscriber stores a different district'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005003', true);
+select is(
+  (select count(*) from public.push_subscriptions where endpoint = 'https://push.example/incomplete'),
+  0::bigint,
+  'a different authenticated user cannot read another push subscription'
+);
+reset role;
+
+delete from public.notification_outbox;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select set_config(
+  'pgtap.notification_request_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '31 days', 3.0, 5.0, 3, '__pgtap_notification_request__', 'approval'
+  )::text,
+  true
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005001', true);
+select is(
+  public.request_to_join_session(current_setting('pgtap.notification_request_session_id')::bigint),
+  'OK',
+  'request RPC writes its normal outcome before notification delivery'
+);
+reset role;
+select set_config(
+  'pgtap.notification_request_participant_id',
+  (
+    select id::text
+    from public.session_participants
+    where session_id = current_setting('pgtap.notification_request_session_id')::bigint
+      and profile_id = current_setting('pgtap.notification_requester_profile_id')::bigint
+  ),
+  true
+);
+select is(
+  (
+    select count(*)
+    from public.notification_outbox
+    where event_type = 'host_new_request'
+      and recipient_profile_id = current_setting('pgtap.notification_host_profile_id')::bigint
+      and session_id = current_setting('pgtap.notification_request_session_id')::bigint
+  ),
+  1::bigint,
+  'request notification targets only the session host'
+);
+select is(
+  (
+    select (payload ? 'line_id' = false and payload->>'url' = '#/session/' || session_id::text)::text
+    from public.notification_outbox
+    where event_type = 'host_new_request'
+      and session_id = current_setting('pgtap.notification_request_session_id')::bigint
+  ),
+  'true',
+  'request payload has a deep link and no LINE field'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select is(public.set_notification_prefs(false, true, true), 'OK', 'host can disable request notifications');
+select set_config(
+  'pgtap.notification_prefs_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '32 days', 3.0, 5.0, 3, '__pgtap_notification_prefs__', 'approval'
+  )::text,
+  true
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005001', true);
+select lives_ok(
+  $$select public.request_to_join_session(current_setting('pgtap.notification_prefs_session_id')::bigint)$$,
+  'request remains successful when its notification preference is disabled'
+);
+reset role;
+select is(
+  (
+    select count(*)
+    from public.notification_outbox
+    where event_type = 'host_new_request'
+      and session_id = current_setting('pgtap.notification_prefs_session_id')::bigint
+  ),
+  0::bigint,
+  'disabled request preference prevents an outbox row'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select public.set_notification_prefs(true, true, true);
+select is(
+  public.review_join_request(
+    current_setting('pgtap.notification_request_session_id')::bigint,
+    current_setting('pgtap.notification_request_participant_id')::bigint,
+    'accepted'
+  ),
+  'OK',
+  'review RPC keeps its normal outcome before notification delivery'
+);
+reset role;
+select is(
+  (
+    select count(*)
+    from public.notification_outbox
+    where event_type = 'guest_request_reviewed'
+      and recipient_profile_id = current_setting('pgtap.notification_requester_profile_id')::bigint
+      and session_id = current_setting('pgtap.notification_request_session_id')::bigint
+  ),
+  1::bigint,
+  'review notification targets only the reviewed requester'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select set_config(
+  'pgtap.notification_invite_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '33 days', 3.0, 5.0, 3, '__pgtap_notification_invite__', 'approval'
+  )::text,
+  true
+);
+select is(
+  public.invite_to_session(
+    current_setting('pgtap.notification_invite_session_id')::bigint,
+    current_setting('pgtap.notification_invitee_profile_id')::bigint
+  ),
+  'OK',
+  'invite RPC keeps its normal outcome before notification delivery'
+);
+reset role;
+select is(
+  (
+    select count(*)
+    from public.notification_outbox
+    where event_type = 'guest_invited'
+      and recipient_profile_id = current_setting('pgtap.notification_invitee_profile_id')::bigint
+      and session_id = current_setting('pgtap.notification_invite_session_id')::bigint
+  ),
+  1::bigint,
+  'invite notification targets only the invited player'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select set_config(
+  'pgtap.notification_broadcast_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' and district = '大安區' order by id limit 1),
+    '雙打', now() + interval '34 days', 3.0, 5.0, 3, '__pgtap_notification_broadcast__', 'approval'
+  )::text,
+  true
+);
+reset role;
+select ok(
+  (
+    select count(*)
+    from public.notification_outbox
+    where event_type = 'district_new_session'
+      and session_id = current_setting('pgtap.notification_broadcast_session_id')::bigint
+  ) > 0,
+  'district fan-out scan has a non-empty recipient set'
+);
+select is(
+  (
+    select array_agg(recipient_profile_id order by recipient_profile_id)::text
+    from public.notification_outbox
+    where event_type = 'district_new_session'
+      and session_id = current_setting('pgtap.notification_broadcast_session_id')::bigint
+  ),
+  format('{%s}', current_setting('pgtap.notification_district_match_profile_id')),
+  'district fan-out targets only subscribers to the new session district'
+);
+select is(
+  (
+    select count(*)
+    from public.notification_outbox
+    where payload::text like '%line_id%'
+  ),
+  0::bigint,
+  'notification payload scan finds no LINE field'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
+select set_config(
+  'pgtap.notification_instant_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '雙打', now() + interval '35 days', 3.0, 5.0, 3, '__pgtap_notification_instant__', 'instant'
+  )::text,
+  true
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005004', true);
+select is(
+  public.request_to_join_session(current_setting('pgtap.notification_instant_session_id')::bigint),
+  'ACCEPTED',
+  'instant join keeps its accepted outcome before host notification delivery'
+);
+reset role;
+select is(
+  (
+    select payload->>'message'
+    from public.notification_outbox
+    where event_type = 'host_new_request'
+      and recipient_profile_id = current_setting('pgtap.notification_host_profile_id')::bigint
+      and session_id = current_setting('pgtap.notification_instant_session_id')::bigint
+  ),
+  '有球友直接加入你的球局。',
+  'instant join uses the existing host notification type with direct-join copy'
 );
 
 select * from finish();
