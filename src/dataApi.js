@@ -52,6 +52,8 @@ const SESSION_ROSTER_COLUMNS = [
 const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
 const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public"];
+const NOTIFICATION_PREFS_COLUMNS = ["host_new_request_enabled", "guest_request_reviewed_enabled", "guest_invited_enabled"];
+const DISTRICT_SUBSCRIPTION_COLUMNS = ["district"];
 const PLAYER_DIRECTORY_COLUMNS = [
   "profile_id",
   "nickname",
@@ -72,6 +74,8 @@ export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
 export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
 export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
 export const PLAYER_DIRECTORY_SELECT = PLAYER_DIRECTORY_COLUMNS.join(",");
+export const NOTIFICATION_PREFS_SELECT = NOTIFICATION_PREFS_COLUMNS.join(",");
+export const DISTRICT_SUBSCRIPTIONS_SELECT = DISTRICT_SUBSCRIPTION_COLUMNS.join(",");
 
 export const SESSION_ACTION_CODES = Object.freeze([
   "PROFILE_INCOMPLETE",
@@ -146,6 +150,22 @@ function asBoolean(value) {
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function defaultNotificationPreferences() {
+  return {
+    guestInvitedEnabled: true,
+    guestRequestReviewedEnabled: true,
+    hostNewRequestEnabled: true,
+  };
+}
+
+function mapNotificationPreferences(row = {}) {
+  return {
+    hostNewRequestEnabled: row.host_new_request_enabled !== false,
+    guestRequestReviewedEnabled: row.guest_request_reviewed_enabled !== false,
+    guestInvitedEnabled: row.guest_invited_enabled !== false,
+  };
 }
 
 function sessionSummaryValues(row = {}) {
@@ -554,6 +574,30 @@ export function createDataApi({
     return mapCurrentProfile(data, courts);
   }
 
+  async function loadNotificationPreferences() {
+    if (!configured) return defaultNotificationPreferences();
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("notification_prefs")
+      .select(NOTIFICATION_PREFS_SELECT)
+      .maybeSingle();
+    if (error) throw error;
+    return mapNotificationPreferences(data ?? {});
+  }
+
+  async function loadDistrictSubscriptions() {
+    if (!configured) return [];
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("district_subscriptions")
+      .select(DISTRICT_SUBSCRIPTIONS_SELECT)
+      .order("district");
+    if (error) throw error;
+    return asArray(data)
+      .map((row) => asText(row?.district).trim())
+      .filter(Boolean);
+  }
+
   async function saveCurrentProfile(profile) {
     const courts = await loadCourts();
     const courtIds = selectedCourtIds(profile, courts);
@@ -566,6 +610,42 @@ export function createDataApi({
       p_slot_codes: profileValues(profile?.slots).filter((value) => typeof value === "string"),
     });
     return loadCurrentProfile();
+  }
+
+  async function savePushSubscription(subscription) {
+    const endpoint = asText(subscription?.endpoint).trim();
+    const p256dh = asText(subscription?.keys?.p256dh).trim();
+    const auth = asText(subscription?.keys?.auth).trim();
+    const outcome = await callRpc("save_push_subscription", {
+      p_endpoint: endpoint,
+      p_p256dh: p256dh,
+      p_auth: auth,
+    });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
+  async function removePushSubscription(endpoint) {
+    const outcome = await callRpc("remove_push_subscription", { p_endpoint: asText(endpoint).trim() });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
+  async function saveNotificationPreferences(preferences = {}) {
+    const outcome = await callRpc("set_notification_prefs", {
+      p_host_new_request_enabled: preferences.hostNewRequestEnabled === true,
+      p_guest_request_reviewed_enabled: preferences.guestRequestReviewedEnabled === true,
+      p_guest_invited_enabled: preferences.guestInvitedEnabled === true,
+    });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
+  async function saveDistrictSubscriptions(districts) {
+    const normalizedDistricts = [...new Set(asArray(districts).map((district) => asText(district).trim()).filter(Boolean))];
+    const outcome = await callRpc("set_district_subscriptions", { p_districts: normalizedDistricts });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
   }
 
   async function createSession({
@@ -661,7 +741,13 @@ export function createDataApi({
     loadSessionRoster,
     loadSessionContacts,
     loadCurrentProfile,
+    loadNotificationPreferences,
+    loadDistrictSubscriptions,
     saveCurrentProfile,
+    savePushSubscription,
+    removePushSubscription,
+    saveNotificationPreferences,
+    saveDistrictSubscriptions,
     createSession,
     requestToJoinSession,
     inviteToSession,
@@ -687,7 +773,13 @@ export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
 export const loadSessionContacts = (...args) => defaultDataApi.loadSessionContacts(...args);
 export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile(...args);
+export const loadNotificationPreferences = (...args) => defaultDataApi.loadNotificationPreferences(...args);
+export const loadDistrictSubscriptions = (...args) => defaultDataApi.loadDistrictSubscriptions(...args);
 export const saveCurrentProfile = (...args) => defaultDataApi.saveCurrentProfile(...args);
+export const savePushSubscription = (...args) => defaultDataApi.savePushSubscription(...args);
+export const removePushSubscription = (...args) => defaultDataApi.removePushSubscription(...args);
+export const saveNotificationPreferences = (...args) => defaultDataApi.saveNotificationPreferences(...args);
+export const saveDistrictSubscriptions = (...args) => defaultDataApi.saveDistrictSubscriptions(...args);
 export const createSession = (...args) => defaultDataApi.createSession(...args);
 export const requestToJoinSession = (...args) => defaultDataApi.requestToJoinSession(...args);
 export const inviteToSession = (...args) => defaultDataApi.inviteToSession(...args);

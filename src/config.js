@@ -19,6 +19,8 @@ export const MAP_IDLE_DEBOUNCE_MS = 250;
 export const LOCATION_INITIAL_RADIUS_METERS = 5000;
 // 生產環境必須設定;不可提交虛構公開聯絡信箱。
 export const SUPPORT_EMAIL = env.VITE_SUPPORT_EMAIL ?? "";
+// 僅含 VAPID 公鑰；私鑰只存在 Edge Function 的 secrets。
+export const WEB_PUSH_VAPID_PUBLIC_KEY = env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
 
 // 地圖初始視野:以台北市為中心,zoom 12 大約可看到整個市區
 export const MAP_CENTER = { lat: 25.03, lng: 121.55 };

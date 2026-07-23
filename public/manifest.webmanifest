@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "球局｜台北市網球",
+  "short_name": "球局",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#142c4b",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
