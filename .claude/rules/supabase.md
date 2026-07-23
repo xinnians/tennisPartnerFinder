@@ -65,8 +65,9 @@ host_nickname, host_ntrp, host_profile_complete, status, join_mode
 
 其中主揪 profile 相關欄位**精確地只有** `host_nickname`、`host_ntrp`、
 `host_profile_complete`。永遠不可增加 host/profile/participant ID、profile URL、真名、
-LINE、電話、email、常打球場、可用時段、歷史或 roster。`session_discovery` 僅包含未來、
-open/full、active tennis、台北市 court 的球局。
+LINE、電話、email、常打球場、可用時段、歷史或 roster。`session_discovery` 包含未來與開始後
+兩小時內、open/full、active tennis、台北市 court 的球局；是否進行中一律由 `start_at` 推導，
+不可新增欄位。
 
 `player_directory` 是獨立的 authenticated-only security-definer view，DB 亦以
 `private.has_complete_profile(auth.uid())` gate：不完整 viewer 即使已登入也只能得到 0 列。
@@ -101,13 +102,16 @@ profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_distric
   `accepted`。
 - 接受最後一個缺額以 row lock 計算容量，並把其餘 pending `requested`／`invited` guests
   decline；不要在客戶端先判斷可用缺額後直接寫入。
-- `create_session` 的 `join_mode` 只可為 `approval` 或 `instant`；同一主揪至多可有五個未來、
-  `open`／`full` 的球局，超過時 RPC 回傳 `SESSION_LIMIT`。
+- `create_session` 的 `join_mode` 只可為 `approval` 或 `instant`；開始時間可早至現在前 5 分鐘。
+  同一主揪至多可有五個未來、`open`／`full` 的球局，超過時 RPC 回傳 `SESSION_LIMIT`；已開打的
+  局不計入此未來球局上限。
 - `request_to_join_session` 對 `approval` 局建立 `requested` participant 並回傳 `OK`；對
   `instant` 局在有缺額時直接轉為 `accepted` 並回傳 `ACCEPTED`。LINE 的可見性模型不變：
-  仍只限雙方皆為 `accepted` 的 host ↔ guest 配對。
+  仍只限雙方皆為 `accepted` 的 host ↔ guest 配對。申請、直接加入、主揪邀請與受邀回覆只可在
+  開始後兩小時內進行；既有取消、退出與出席回報窗口不因此延長。
 - `invite_to_session(session_id, profile_id)` 僅 host 可呼叫，對可發現、完整且 opt-in 的
-  其他球友建立 `invited`／`initiated_by='host'`；同一 host 在其名下所有球局的 host-initiated
+  其他球友建立 `invited`／`initiated_by='host'`；受邀者可在開始後兩小時內回覆。同一 host 在其
+  名下所有球局的 host-initiated
   invite 採滾動 24 小時計數，上限 10。migration 以該 host 的 profile-row lock 序列化此計數
   與新增。`respond_to_session_invite(session_id, accepted|declined)` 僅處理 viewer 自己的
   `invited` 列；接受沿用原子容量與補滿 cleanup，婉拒改為 `declined`。回傳成功皆為 `OK`；

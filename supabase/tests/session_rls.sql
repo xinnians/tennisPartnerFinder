@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(352);
+select plan(362);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -1811,14 +1811,125 @@ select is(
 );
 reset role;
 
+-- === NOW-START DISCOVERY AND JOIN WINDOW ===
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002001', true);
+select ok(
+  pg_temp.text_outcome(
+    $$ select public.create_session(
+         (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+         '單打', now(), null, null, 1, '__pgtap_now_start_create__', 'instant'
+       ) $$
+  ) !~ '^ERROR:',
+  'now-start create_session accepts a session starting now'
+);
+select throws_ok(
+  $$ select public.create_session(
+       (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+       '單打', now() - interval '10 minutes', null, null, 1, '__pgtap_now_start_past__', 'instant'
+     ) $$,
+  'P0001', 'SESSION_STARTED',
+  'now-start create_session still rejects a session ten minutes in the past'
+);
+select set_config(
+  'pgtap.now_start_join_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '12 days', null, null, 1, '__pgtap_now_start_join__', 'instant'
+  )::text,
+  true
+);
+select ok(
+  current_setting('pgtap.now_start_join_session_id')::bigint > 0,
+  'now-start join fixture is created through create_session'
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.now_start_join_session_id')::bigint,
+  now() - interval '1 hour 59 minutes',
+  'open'
+);
+select is(
+  (select count(*) from public.session_discovery
+   where session_id = current_setting('pgtap.now_start_join_session_id')::bigint),
+  1::bigint,
+  'a session started one hour and fifty-nine minutes ago remains in discovery'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002002', true);
+select is(
+  pg_temp.text_outcome(
+    $$ select public.request_to_join_session(current_setting('pgtap.now_start_join_session_id')::bigint) $$
+  ),
+  'ACCEPTED',
+  'a guest can directly join a now-start session one hour and fifty-nine minutes after start'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002001', true);
+select set_config(
+  'pgtap.now_start_closed_session_id',
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '13 days', null, null, 1, '__pgtap_now_start_closed__', 'approval'
+  )::text,
+  true
+);
+select ok(
+  current_setting('pgtap.now_start_closed_session_id')::bigint > 0,
+  'now-start closed-window fixture is created through create_session'
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.now_start_closed_session_id')::bigint,
+  now() - interval '2 hours 1 minute',
+  'open'
+);
+select is(
+  (select count(*) from public.session_discovery
+   where session_id = current_setting('pgtap.now_start_closed_session_id')::bigint),
+  0::bigint,
+  'a session started two hours and one minute ago is absent from discovery'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002003', true);
+select throws_ok(
+  $$ select public.request_to_join_session(current_setting('pgtap.now_start_closed_session_id')::bigint) $$,
+  'P0001', 'SESSION_STARTED',
+  'a session started two hours and one minute ago rejects a new join'
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.now_start_closed_session_id')::bigint,
+  now() - interval '24 hours 1 minute',
+  'open'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002003', true);
+select is(
+  pg_temp.text_outcome(
+    $$ select public.request_to_join_session(current_setting('pgtap.now_start_closed_session_id')::bigint) $$
+  ),
+  'SESSION_EXPIRED',
+  'the existing twenty-four-hour expiry still wins after the now-start join window'
+);
+reset role;
+
 -- === SESSION_LIMIT ===
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002004', true);
-select ok(
+select set_config(
+  'pgtap.session_limit_first_id',
   public.create_session(
     (select id from public.courts where is_active and city = '台北市' order by id limit 1),
     '單打', now() + interval '6 days', null, null, 1, '__pgtap_limit_1__', 'approval'
-  ) is not null,
+  )::text,
+  true
+);
+select ok(
+  current_setting('pgtap.session_limit_first_id')::bigint > 0,
   'session-limit host creates its first concurrent future session'
 );
 select ok(
@@ -1869,6 +1980,21 @@ select throws_ok(
        '單打', now() + interval '6 days', null, null, 1, '__pgtap_limit_6__', 'approval') $$,
   'P0001', 'SESSION_LIMIT',
   'the sixth concurrent future session is rejected'
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.session_limit_first_id')::bigint,
+  now() - interval '1 hour',
+  'open'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002004', true);
+select ok(
+  public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '16 days', null, null, 1, '__pgtap_limit_after_started__', 'approval'
+  ) is not null,
+  'an open session already in progress does not count toward the five future-session limit'
 );
 reset role;
 
@@ -2309,9 +2435,9 @@ select pg_temp.set_participant_fixture_status(
 );
 delete from public.sessions
 where id = current_setting('pgtap.raw_accept_guard_session_id')::bigint;
-select throws_ok(
+select lives_ok(
   $$update public.session_participants set status = 'accepted' where id = current_setting('pgtap.raw_started_accept_participant_id')::bigint$$,
-  'P0001', 'INVALID_TRANSITION', 'raw acceptance cannot occur after an open session has started'
+  'raw acceptance remains valid during the now-start join window'
 );
 select throws_ok(
   $$update public.session_participants set status = 'withdrawn' where id = current_setting('pgtap.raw_started_accept_participant_id')::bigint$$,
@@ -2821,8 +2947,8 @@ select is(
 );
 select is(
   (select count(*) from public.session_discovery where session_id = current_setting('pgtap.started_profile_cascade_session_id')::bigint),
-  0::bigint,
-  'started profile cascade reopen remains excluded from discovery'
+  1::bigint,
+  'started profile cascade reopen remains discoverable during the now-start window'
 );
 delete from public.sessions
 where id = current_setting('pgtap.started_profile_cascade_session_id')::bigint;
@@ -2973,11 +3099,10 @@ select set_config(
 );
 reset role;
 
--- An open session is still an invalid invitation parent once its start time
--- has passed. This is independent of full-session capacity enforcement.
+-- A session outside the now-start window remains an invalid invitation parent.
 select pg_temp.set_session_fixture_state(
   current_setting('pgtap.invite_started_session_id')::bigint,
-  now() - interval '1 hour',
+  now() - interval '2 hours 1 minute',
   'open'
 );
 select is(
@@ -2987,7 +3112,7 @@ select is(
     where session_row.id = current_setting('pgtap.invite_started_session_id')::bigint
   ),
   true,
-  'started invite fixture remains open with a start time in the past'
+  'closed-window invite fixture remains open with a start time in the past'
 );
 select throws_ok(
   $$
@@ -3001,7 +3126,7 @@ select throws_ok(
     )
   $$,
   'P0001', 'INVALID_TRANSITION',
-  'raw invited insert into an open but started session is rejected'
+  'raw invited insert outside the now-start window is rejected'
 );
 delete from public.sessions
 where id = current_setting('pgtap.invite_started_session_id')::bigint;

@@ -49,8 +49,14 @@
 ## 測試
 
 - pgTAP:now 建局成功;過去 10 分鐘建局被拒;`start+1h59m` 可加入、`start+2h01m`
-  加入被拒且不在 discovery;24 小時 expiry 行為不變;host 上限計數把進行中局算入
-  「未來 open/full」的既有語意確認(以實測為準,結果寫回本 spec)。先紅後綠。
+  加入被拒且不在 discovery;24 小時 expiry 行為不變;host 上限計數語意以實測為準。先紅後綠。
+
+### Host 5 局上限 checkpoint(結果寫回本 spec)
+
+實測結果：`create_session` 維持以 `start_at > now()` 計算 `open`／`full` 上限。因此，仍在兩小時
+可發現窗口內、但已開打的 `open` 球局**不計入**五個未來球局上限；把五局中的一局調成開始後一小時
+後，可再成功建立一個未來球局。此語意由 `session_rls.sql` 的
+`an open session already in progress does not count toward the five future-session limit` 斷言固定。
 - unit:表單驗證接受現在時間、拒過去時間;排序把進行中排前。
 - e2e(local):A 開「現在開打」局 → B 直接加入 → 互看 LINE → 2 小時窗口外
   以 SQL 調時間驗下架(或以 pgTAP 覆蓋,e2e 驗 UI 標示即可)。
