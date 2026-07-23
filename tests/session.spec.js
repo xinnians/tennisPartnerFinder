@@ -171,6 +171,31 @@ test("anonymous Join resumes the same live target as a confirmation, never an au
   await expect(page.locator("#join-session-confirmation")).toBeHidden();
 });
 
+test("a hash session link survives the login gate and resumes the same live session", async ({ page }) => {
+  const published = await createPublishedSession();
+  const { client: guestClient, session: guestSession } = await signUpUser(published.context.guest.email);
+  await createProfile(guestClient, {
+    courts: published.context.guest.courts,
+    lineId: published.context.guest.lineId,
+    nickname: published.context.guest.nickname,
+    ntrp: published.context.guest.ntrp,
+    playTypes: published.context.guest.playTypes,
+    slots: published.context.guest.slots,
+  });
+
+  await installFakeMaps(page);
+  await page.goto(`/#/session/${published.sessionId}`);
+  await expect(page.locator("#session-sheet")).toBeVisible();
+  await expect(page.locator("#session-sheet")).toContainText(published.context.host.courts[0]);
+  await page.locator("#session-sheet [data-session-action='primary']").click();
+  await expect(page.locator("#login-dialog")).toBeVisible();
+
+  await setBrowserSession(page, guestSession);
+  await page.reload();
+  await expect(page.locator("#join-session-confirmation")).toBeVisible();
+  await expect(page.locator("#join-session-confirmation")).toContainText(published.context.host.courts[0]);
+});
+
 test("an initial signed-out bootstrap clears an old session intent before another account can resume it", async ({ page }) => {
   const published = await createPublishedSession();
   const { client: guestClient, session: guestSession } = await signUpUser(published.context.guest.email);

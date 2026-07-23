@@ -824,14 +824,11 @@ export function createSessionController({
     else publish();
   }
 
-  function openSessionById(sessionId) {
+  function openSessionDetail(session) {
     // mountSheet replaces a court drawer in the same root and preserves that
     // drawer's original opener for focus restoration. Forget the controller
     // reference without closing the surface ahead of that hand-off.
     activeCourtDrawer = null;
-    const session =
-      state.sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
-      state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
     if (!session) return;
     const action = actionFor(session);
     let detail = null;
@@ -845,6 +842,29 @@ export function createSessionController({
     activeDetail = detail?.close ? detail : null;
     activeDetailSession = activeDetail ? session : null;
     activeDetailActionKey = activeDetail ? actionKey(action) : null;
+    return activeDetail;
+  }
+
+  function openSessionById(sessionId) {
+    const session =
+      state.sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
+      state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
+    return openSessionDetail(session);
+  }
+
+  async function openSessionFromLink(sessionId) {
+    const normalizedSessionId = Number(sessionId);
+    if (!Number.isSafeInteger(normalizedSessionId) || normalizedSessionId <= 0 || typeof api?.loadSessionSummary !== "function") {
+      return { status: "unavailable" };
+    }
+    try {
+      const session = await api.loadSessionSummary(normalizedSessionId);
+      if (!session) return { status: "unavailable" };
+      openSessionDetail(session);
+      return { session, status: "opened" };
+    } catch {
+      return { status: "unavailable" };
+    }
   }
 
   function openCourt(court, onlySessions = null) {
@@ -1719,6 +1739,7 @@ export function createSessionController({
     openPlayerCourt,
     openCreateIntent,
     openRosterParticipantReport,
+    openSessionFromLink,
     openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,

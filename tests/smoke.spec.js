@@ -138,6 +138,34 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.__copiedSessionLink = value;
+        },
+      },
+    });
+  });
+  await installFakeMaps(page);
+  await page.goto("/#/session/9001");
+
+  const detail = page.locator("#session-sheet");
+  await expect(detail).toBeVisible();
+  await expect(detail).toContainText("台北網球中心");
+  await detail.locator("[data-session-action='copy-link']").click();
+  await expect.poll(() => page.evaluate(() => window.__copiedSessionLink)).toBe("http://127.0.0.1:5174/#/session/9001");
+  await expect(page.locator("#toast-root")).toContainText("球局連結已複製");
+
+  await page.goto("/#/session/999999");
+  await expect(page.locator("#session-unavailable-sheet")).toBeVisible();
+  await expect(page.locator("#session-unavailable-sheet")).toContainText("找不到這個球局");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("instant join session 9002 shows its badge and direct CTA on card and detail", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -963,7 +991,7 @@ test("drawer, filters, session sheet, and empty reset preserve the session-only 
   const fieldOrder = await sheet.locator("[data-session-field], [data-session-action]").evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("data-session-field") ?? node.getAttribute("data-session-action"))
   );
-  expect(fieldOrder).toEqual(["court", "time", "details", "host", "notes", "primary"]);
+  expect(fieldOrder).toEqual(["court", "time", "details", "host", "notes", "copy-link", "primary"]);
   await expectWithinViewport(page, sheet);
 
   await page.keyboard.press("Escape");

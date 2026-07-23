@@ -1080,7 +1080,7 @@ export function renderDiscoveryEmpty({ onReset = () => {}, onExpandBounds = () =
 /** Open a public session detail sheet with the privacy-reviewed field order. */
 export function openSessionSheet(
   session,
-  { action, canReport = false, onPrimary = () => {}, onReport = () => {}, onWithdraw = () => {} } = {}
+  { action, canReport = false, onCopyLink = () => {}, onPrimary = () => {}, onReport = () => {}, onWithdraw = () => {} } = {}
 ) {
   const primaryDisabled = action?.disabled ? " disabled" : "";
   const mounted = mountSheet({
@@ -1102,6 +1102,7 @@ export function openSessionSheet(
         <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         <p class="form-error" data-session-report-error role="alert" hidden></p>
         <div class="session-detail__actions">
+          <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
           <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
             action?.label ?? "申請加入"
           )}</button>
@@ -1119,6 +1120,19 @@ export function openSessionSheet(
       </div>`,
   });
   mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
+  const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
+  copyLinkButton?.addEventListener("click", async () => {
+    copyLinkButton.disabled = true;
+    try {
+      await onCopyLink();
+    } catch (copyError) {
+      const error = mounted.root.querySelector("[data-session-report-error]");
+      error.textContent = copyError?.message || "目前無法複製連結，請手動複製網址。";
+      error.hidden = false;
+    } finally {
+      if (mounted.root.contains(copyLinkButton)) copyLinkButton.disabled = false;
+    }
+  });
   const reportButton = mounted.root.querySelector('[data-session-action="report"]');
   reportButton?.addEventListener("click", async () => {
     const error = mounted.root.querySelector("[data-session-report-error]");
@@ -1151,6 +1165,20 @@ export function openSessionSheet(
     }
   });
   return mounted;
+}
+
+/** Explain a public deep link that no longer resolves to an available session. */
+export function openSessionUnavailableSheet() {
+  return mountSheet({
+    id: "session-unavailable-sheet",
+    label: "找不到球局",
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">球局連結</p><h2>找不到這個球局</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉找不到球局訊息">×</button>
+      </div>
+      <p class="surface__message">這個球局可能已下架、不再開放，或連結有誤。</p>`,
+  });
 }
 
 /** Ask for an intentional confirmation before the join lifecycle RPC. */

@@ -57,6 +57,7 @@ import {
   openPlayerCardSheet,
   openReportDialog,
   openSessionSheet,
+  openSessionUnavailableSheet,
   renderMapDataStatus,
   renderPlayerLayerToggle,
   renderMySessionsPage,
@@ -87,12 +88,64 @@ let createdSessionFocusId = null;
 let mySessionsRenderGeneration = 0;
 let pendingMySessionsFocus = null;
 let notificationSettings = defaultNotificationSettings();
+let sessionHashRouteGeneration = 0;
 
 function toast(message) {
   const root = document.getElementById("toast-root");
   root.innerHTML = `<div class="toast">${esc(message)}</div>`;
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => (root.innerHTML = ""), 2400);
+}
+
+function sessionIdFromHash(hash = globalThis.location?.hash ?? "") {
+  const match = String(hash).match(/^#\/session\/([1-9]\d*)$/);
+  if (!match) return null;
+  const sessionId = Number(match[1]);
+  return Number.isSafeInteger(sessionId) ? sessionId : null;
+}
+
+function sessionShareLink(sessionId) {
+  const normalizedSessionId = Number(sessionId);
+  if (!Number.isSafeInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+    throw new Error("目前無法產生這個球局的連結。");
+  }
+  return `${globalThis.location.origin}${globalThis.location.pathname}#/session/${normalizedSessionId}`;
+}
+
+function fallbackCopyText(value) {
+  const field = document.createElement("textarea");
+  field.value = value;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.opacity = "0";
+  document.body.append(field);
+  try {
+    field.select();
+    return document.execCommand?.("copy") === true;
+  } finally {
+    field.remove();
+  }
+}
+
+async function copySessionShareLink(sessionId) {
+  const link = sessionShareLink(sessionId);
+  try {
+    if (globalThis.navigator?.clipboard?.writeText) await globalThis.navigator.clipboard.writeText(link);
+    else if (!fallbackCopyText(link)) throw new Error("copy unavailable");
+  } catch {
+    if (!fallbackCopyText(link)) throw new Error("目前無法複製連結，請手動複製網址。");
+  }
+  toast("球局連結已複製。");
+}
+
+async function openSessionHashRoute() {
+  const sessionId = sessionIdFromHash();
+  if (!sessionId || !controller) return;
+  const generation = ++sessionHashRouteGeneration;
+  showMapPage();
+  const result = await controller.openSessionFromLink(sessionId);
+  if (generation !== sessionHashRouteGeneration || sessionId !== sessionIdFromHash()) return;
+  if (result?.status !== "opened") openSessionUnavailableSheet();
 }
 
 function renderSupportContact() {
@@ -780,7 +833,11 @@ function init() {
     render: renderDiscovery,
     renderPins: renderSessionMarkers,
     renderPlayers: renderPlayerLayer,
-    openSession: (session, handlers) => openSessionSheet(session, handlers),
+    openSession: (session, handlers) =>
+      openSessionSheet(session, {
+        ...handlers,
+        onCopyLink: () => copySessionShareLink(session.sessionId),
+      }),
     openJoinConfirmation: (session, handlers) =>
       openJoinSessionConfirmation(session, {
         ...handlers,
@@ -816,6 +873,9 @@ function init() {
   document.getElementById("map-tab").addEventListener("click", () => showMapPage());
   document.getElementById("create-session-tab").addEventListener("click", () => controller.openCreateIntent());
   document.getElementById("my-sessions-tab").addEventListener("click", () => showMySessionsPage());
+  globalThis.addEventListener("hashchange", () => {
+    void openSessionHashRoute();
+  });
   syncBottomNavigation();
 
   // None of these awaits the others: court pins and discovery work before auth.
@@ -823,6 +883,7 @@ function init() {
   controller.loadDiscovery();
   restoreAuth();
   startMap();
+  void openSessionHashRoute();
 }
 
 init();
