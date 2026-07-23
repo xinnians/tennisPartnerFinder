@@ -66,6 +66,43 @@
 - Edge Function:本機 `supabase functions serve` 實測一次真實派送(或以 mock
   push service 驗 payload 結構),不可只寫不跑。
 
+## 本機 Edge Function 實測證據(2026-07-23)
+
+已以 local Supabase 實跑 `notification-outbox-dispatch` 的 Deno `serve` handler。
+使用暫存於 `/tmp` 的 function env（`WEB_PUSH_TRANSPORT=mock`、
+`PUSH_TEST_URL=http://notification-push-mock:8788`；不使用或修改專案 `.env*`），
+並在同一個 Supabase Docker network 啟動 `notification-push-mock`；mock 依序回傳
+201 與 410。測試前以 postgres service-only 路徑建立一個 subscription 與兩筆合法
+outbox fixture，然後執行：
+
+```bash
+npx supabase start
+CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test
+npx supabase functions serve notification-outbox-dispatch --no-verify-jwt \
+  --env-file /tmp/notification-dispatch-proof.<temporary>
+curl --silent --show-error --fail-with-body --request POST \
+  --header 'content-type: application/json' \
+  --header 'x-notification-cron-secret: <local temporary value>' \
+  --data '{"scheduled_at":"2026-07-23T10:00:00.000Z"}' \
+  http://127.0.0.1:54321/functions/v1/notification-outbox-dispatch
+```
+
+實際輸出如下（測試值與 endpoint 均為本機 fixture）：
+
+```text
+{"claimed":2,"sent":2,"staleSubscriptions":1}
+mock-push listening on 8788
+{"call":1,"payloadKeys":["court","message","slots_remaining","start_at","title","url"],"hasLineId":false,"status":201}
+{"call":2,"payloadKeys":["court","message","slots_remaining","start_at","title","url"],"hasLineId":false,"status":410}
+1:host_new_request:attempts=1:sent=true
+2:guest_invited:attempts=1:sent=true
+subscriptions=0
+payload_line_id_keys=0
+```
+
+此結果證明 Deno handler 實際 claim 並派送 outbox、201 會寫入 `sent_at` 且 attempts
+遞增、410 會刪除 subscription；mock 收到的實際派送 payload 沒有 `line_id`。
+
 ## 非目標
 
 - email/LINE 官方帳號管道(候選後續,本版不做)。
