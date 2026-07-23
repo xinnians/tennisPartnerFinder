@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(347);
+select plan(352);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -271,6 +271,14 @@ select is((select relrowsecurity from pg_class where oid = 'public.push_subscrip
 select is((select relrowsecurity from pg_class where oid = 'public.notification_prefs'::regclass), true, 'notification preferences RLS is enabled');
 select is((select relrowsecurity from pg_class where oid = 'public.district_subscriptions'::regclass), true, 'district subscriptions RLS is enabled');
 select is((select relrowsecurity from pg_class where oid = 'public.notification_outbox'::regclass), true, 'notification outbox RLS is enabled');
+select ok(
+  has_table_privilege('service_role', 'public.notification_outbox', 'select,update'),
+  'service role can claim and mark notification outbox rows'
+);
+select ok(
+  has_table_privilege('service_role', 'public.push_subscriptions', 'select,delete'),
+  'service role can dispatch to and remove push subscriptions'
+);
 select is(
   (
     select string_agg(column_name, ',' order by ordinal_position)
@@ -4049,6 +4057,24 @@ select is(
   ),
   '有球友直接加入你的球局。',
   'instant join uses the existing host notification type with direct-join copy'
+);
+select is(
+  (select count(*) from cron.job where jobname = 'dispatch-notification-outbox'),
+  1::bigint,
+  'pg_cron schedules exactly one notification dispatch job'
+);
+select is(
+  (select schedule from cron.job where jobname = 'dispatch-notification-outbox'),
+  '* * * * *',
+  'notification dispatch job runs every minute'
+);
+select ok(
+  (
+    select position('notification-outbox-dispatch' in command) > 0
+    from cron.job
+    where jobname = 'dispatch-notification-outbox'
+  ),
+  'notification dispatch job invokes the Edge Function route'
 );
 
 select * from finish();

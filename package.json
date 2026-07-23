@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "pretest": "node scripts/generate-courts-seed.mjs --check",
     "test": "npm run test:mock",
-    "test:session-unit": "node --test tests/session-controller.test.js tests/session-create-form.test.js tests/session-data-boundary.test.js tests/local-supabase-config.test.js tests/reset-local-test-db.test.js",
+    "test:session-unit": "node --test tests/session-controller.test.js tests/session-create-form.test.js tests/session-data-boundary.test.js tests/local-supabase-config.test.js tests/notification-dispatch.test.js tests/reset-local-test-db.test.js",
     "test:mock": "npm run test:session-unit && TENNIS_TEST_HARNESS_MODE=mock playwright test --project=desktop-chromium --project=mobile-chromium",
     "test:db": "npx supabase test db supabase/tests",
     "test:local": "RUN_LOCAL_SUPABASE_API_TEST=1 node --test tests/session-data-local-api.test.js && TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-chromium",
