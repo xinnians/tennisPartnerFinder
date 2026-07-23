@@ -292,7 +292,7 @@ begin
   from public.sessions session_row
   where session_row.host_profile_id = host_profile
     and session_row.status in ('open', 'full')
-    and session_row.start_at > now();
+    and session_row.start_at + interval '2 hours' > now();
 
   if host_open_session_count >= 5 then
     raise exception 'SESSION_LIMIT';

@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(362);
+select plan(363);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -1989,12 +1989,27 @@ select pg_temp.set_session_fixture_state(
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002004', true);
+select throws_ok(
+  $$ select public.create_session(
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    '單打', now() + interval '16 days', null, null, 1, '__pgtap_limit_inside_now_start_window__', 'approval') $$,
+  'P0001', 'SESSION_LIMIT',
+  'an open session one hour into the now-start join window still counts toward the five-session limit'
+);
+reset role;
+select pg_temp.set_session_fixture_state(
+  current_setting('pgtap.session_limit_first_id')::bigint,
+  now() - interval '2 hours 1 minute',
+  'open'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002004', true);
 select ok(
   public.create_session(
     (select id from public.courts where is_active and city = '台北市' order by id limit 1),
-    '單打', now() + interval '16 days', null, null, 1, '__pgtap_limit_after_started__', 'approval'
+    '單打', now() + interval '16 days', null, null, 1, '__pgtap_limit_after_now_start_window__', 'approval'
   ) is not null,
-  'an open session already in progress does not count toward the five future-session limit'
+  'an open session outside the now-start join window no longer counts toward the five-session limit'
 );
 reset role;
 
@@ -2314,9 +2329,11 @@ select pg_temp.set_session_fixture_state(
   current_setting('pgtap.raw_started_cancel_session_id')::bigint,
   now() - interval '1 hour'
 );
+-- This fixture only exercises expiry denial, so leave the now-start join
+-- window before creating the following host fixture.
 select pg_temp.set_session_fixture_state(
   current_setting('pgtap.raw_recent_expired_session_id')::bigint,
-  now() - interval '1 hour'
+  now() - interval '2 hours 1 minute'
 );
 select throws_ok(
   $$update public.sessions set status = 'cancelled' where id = current_setting('pgtap.raw_started_cancel_session_id')::bigint$$,
