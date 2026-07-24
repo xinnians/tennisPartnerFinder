@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { classifyPushStatus, safePushPayload } from "../supabase/functions/notification-outbox-dispatch/dispatch.js";
+import {
+  classifyPushStatus,
+  safePushPayload,
+  toWebPushSubscription,
+} from "../supabase/functions/notification-outbox-dispatch/dispatch.js";
 
 test("push payload uses the summary allowlist and removes LINE", () => {
   const payload = safePushPayload({
@@ -31,4 +35,14 @@ test("gone push endpoints are removed without retrying the outbox row", () => {
 test("successful and transient push statuses keep distinct outbox outcomes", () => {
   assert.deepEqual(classifyPushStatus(201), { delivered: true, removeSubscription: false, retry: false });
   assert.deepEqual(classifyPushStatus(503), { delivered: false, removeSubscription: false, retry: true });
+});
+
+test("flat DB subscription rows are wrapped into the web-push keys shape", () => {
+  // 回歸:漏掉 keys 包裝時 web-push 會在發送前拋
+  // 「subscription must have 'auth' and 'p256dh' keys」,且因無 statusCode 而被靜默吞掉。
+  assert.deepEqual(
+    toWebPushSubscription({ auth: "auth-b64u", endpoint: "https://push.example/e1", p256dh: "p256dh-b64u", profile_id: 9 }),
+    { endpoint: "https://push.example/e1", keys: { auth: "auth-b64u", p256dh: "p256dh-b64u" } },
+  );
+  assert.throws(() => toWebPushSubscription({ endpoint: "https://push.example/e1" }), /INVALID_PUSH_SUBSCRIPTION_ROW/);
 });

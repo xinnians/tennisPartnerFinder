@@ -23,6 +23,15 @@ export function safePushPayload(payload = {}) {
   return safe;
 }
 
+/** web-push 要求 { endpoint, keys: { p256dh, auth } };DB 列是扁平欄位,缺這層轉換會在發送前拋錯。 */
+export function toWebPushSubscription(row) {
+  const endpoint = text(row?.endpoint);
+  const p256dh = text(row?.p256dh);
+  const auth = text(row?.auth);
+  if (!endpoint || !p256dh || !auth) throw new Error("INVALID_PUSH_SUBSCRIPTION_ROW");
+  return { endpoint, keys: { p256dh, auth } };
+}
+
 export function classifyPushStatus(status) {
   if (status === 404 || status === 410) return { delivered: false, removeSubscription: true, retry: false };
   if (Number.isInteger(status) && status >= 200 && status < 300) {

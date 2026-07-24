@@ -385,6 +385,11 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# 派送 function 的守門是 x-notification-cron-secret(pg_cron 呼叫端不帶 Authorization),
+# gateway JWT 驗證必須關閉;部署時 CLI 會讀取此設定,勿再手動加 --no-verify-jwt。
+[functions.notification-outbox-dispatch]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

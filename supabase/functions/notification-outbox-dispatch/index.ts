@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.0";
 import webpush from "npm:web-push@3.6.7";
 
-import { classifyPushStatus, notificationTitle, safePushPayload } from "./dispatch.js";
+import { classifyPushStatus, notificationTitle, safePushPayload, toWebPushSubscription } from "./dispatch.js";
 
 const MAX_BATCH_SIZE = 100;
 
@@ -46,7 +46,7 @@ async function sendWebPush(subscription: Record<string, unknown>, message: Recor
   if (!subject || !publicKey || !privateKey) throw new Error("WEB_PUSH_VAPID_CONFIG_REQUIRED");
 
   webpush.setVapidDetails(subject, publicKey, privateKey);
-  const response = await webpush.sendNotification(subscription, JSON.stringify(message));
+  const response = await webpush.sendNotification(toWebPushSubscription(subscription), JSON.stringify(message));
   return Number(response.statusCode);
 }
 
@@ -127,6 +127,14 @@ Deno.serve(async (request) => {
       try {
         result = classifyPushStatus(await sendPush(subscription, message));
       } catch (error) {
+        // 只記名稱/狀態/短訊息;endpoint 與 payload 屬敏感內容不可進 log。
+        const err = error as { name?: unknown; statusCode?: unknown; message?: unknown };
+        console.error(
+          "[dispatch] send failed:",
+          String(err?.name ?? "Error"),
+          Number(err?.statusCode) || null,
+          String(err?.message ?? "").slice(0, 160),
+        );
         result = classifyPushStatus(statusFromError(error));
       }
 
