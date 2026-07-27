@@ -589,7 +589,7 @@ begin
     from public.profiles profile_row
     where profile_row.id = p_profile_id
       and profile_row.is_public
-      and private.has_complete_profile(profile_row.user_id)
+      and private.profile_meets_gate(profile_row.id, 'directory')
   ) then
     raise exception 'INVITEE_NOT_AVAILABLE';
   end if;

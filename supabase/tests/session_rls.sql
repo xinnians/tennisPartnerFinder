@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(393);
+select plan(395);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -4301,6 +4301,34 @@ select is(
   ),
   'true',
   'directory exposes a no-LINE, no-play-types target to a matching Stage-1 viewer'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009001', true);
+select is(
+  pg_temp.text_outcome(
+    $$
+      select public.invite_to_session(
+        current_setting('pgtap.stage1_gate_session_id')::bigint,
+        current_setting('pgtap.stage1_ntrp_profile_id')::bigint
+      )
+    $$
+  ),
+  'OK',
+  'directory-visible no-LINE, no-play-types player can be invited'
+);
+select is(
+  (
+    select count(*)
+    from public.session_participant_roster participant_row
+    where participant_row.session_id = current_setting('pgtap.stage1_gate_session_id')::bigint
+      and participant_row.profile_id = current_setting('pgtap.stage1_ntrp_profile_id')::bigint
+      and participant_row.role = 'guest'
+      and participant_row.status = 'invited'
+  ),
+  1::bigint,
+  'successful directory-visible invitation creates an invited roster row'
 );
 reset role;
 
