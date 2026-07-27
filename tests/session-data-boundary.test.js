@@ -50,6 +50,9 @@ const SESSION_SUMMARY_KEYS = [
   "hostProfileComplete",
   "status",
   "joinMode",
+  "venueType",
+  "rangeEnd",
+  "candidateCourtIds",
 ];
 
 function session(overrides = {}) {
@@ -144,6 +147,9 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     can_confirm_played: false,
     can_confirm_attendance: false,
     can_respond_invite: true,
+    venue_type: "booked",
+    range_end: null,
+    decided_at: null,
   };
 
   const publicSummary = mapSessionSummary(row);
@@ -159,7 +165,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
 
   const mine = mapMySession(row);
   assert.deepEqual(sortedKeys(mine), [
-    ...SESSION_SUMMARY_KEYS,
+    ...SESSION_SUMMARY_KEYS.filter((key) => key !== "candidateCourtIds"),
     "viewerRole",
     "viewerParticipantStatus",
     "viewerPlayedConfirmed",
@@ -169,6 +175,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     "canConfirmPlayed",
     "canConfirmAttendance",
     "canRespondInvite",
+    "decidedAt",
   ].sort());
   assert.equal(mine.updatedAt, "2026-07-17T00:00:00.000Z");
   assert.equal(mine.canRespondInvite, true);
@@ -587,6 +594,7 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.deepEqual(discovered, []);
   assert.deepEqual(client.calls[0], ["from", "session_discovery"]);
   assert.ok(SESSION_DISCOVERY_SELECT.includes("host_nickname"));
+  assert.ok(SESSION_DISCOVERY_SELECT.includes("venue_type,range_end,candidate_court_ids"));
   assert.equal(SESSION_DISCOVERY_SELECT.includes("*"), false);
   assert.equal(MY_SESSIONS_SELECT.includes("*"), false);
   assert.equal(SESSION_ROSTER_SELECT.includes("*"), false);
@@ -596,6 +604,51 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.ok(client.calls.some((call) => call[0] === "lte" && call[1] === "court_lng" && call[2] === 121.7));
   assert.ok(client.calls.some((call) => call[0] === "gt" && call[1] === "start_at"));
   assert.ok(client.calls.some((call) => call[0] === "lt" && call[1] === "start_at"));
+});
+
+test("discovery mapper exposes the Stage 1 venue contract without extra fields", () => {
+  const mapped = mapSessionSummary({
+    session_id: 8,
+    venue_type: "candidates",
+    range_end: "2026-07-19T03:00:00.000Z",
+    candidate_court_ids: [12, "14"],
+  });
+  assert.deepEqual(sortedKeys(mapped), [...SESSION_SUMMARY_KEYS].sort());
+  assert.equal(mapped.venueType, "candidates");
+  assert.equal(mapped.rangeEnd, "2026-07-19T03:00:00.000Z");
+  assert.deepEqual(mapped.candidateCourtIds, [12, 14]);
+});
+
+test("nickname-only profile save normalizes optional fields for the RPC", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: 7, error: null };
+      },
+      from(table) {
+        if (table === "courts") {
+          return { select() { return this; }, eq() { return this; }, order: async () => ({ data: [], error: null }) };
+        }
+        if (table === "my_profile") {
+          return { select() { return this; }, maybeSingle: async () => ({ data: null, error: null }) };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      },
+    },
+  });
+
+  await api.saveCurrentProfile({ nick: "暱稱即可" });
+  assert.deepEqual(calls, [["save_my_profile", {
+    p_nickname: "暱稱即可",
+    p_ntrp: null,
+    p_line_id: null,
+    p_court_ids: [],
+    p_play_types: [],
+    p_slot_codes: [],
+  }]]);
 });
 
 test("configured player directory uses only its allowlist and four bounds predicates", async () => {

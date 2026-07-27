@@ -26,6 +26,9 @@ const publicKeys = [
   "hostProfileComplete",
   "status",
   "joinMode",
+  "venueType",
+  "rangeEnd",
+  "candidateCourtIds",
 ].sort();
 
 test(

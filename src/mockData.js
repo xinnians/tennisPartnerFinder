@@ -101,6 +101,9 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "approval",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
   },
   {
     sessionId: 9002,
@@ -122,6 +125,9 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "instant",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
   },
   {
     sessionId: 9003,
@@ -143,6 +149,9 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "full",
     joinMode: "approval",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
   },
   {
     sessionId: 9004,
@@ -164,6 +173,9 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "approval",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
   },
   {
     sessionId: 9005,
@@ -185,6 +197,9 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "approval",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
   },
   {
     sessionId: 9006,
@@ -206,5 +221,8 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "approval",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
   },
 ];

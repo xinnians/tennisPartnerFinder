@@ -91,6 +91,41 @@ test("notification mutation mappers use only the approved RPC contracts", async 
   ]);
 });
 
+test("court subscription reads and writes use the owner-only table and RPC boundaries", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return {
+          select(columns) {
+            calls.push(["select", columns]);
+            return this;
+          },
+          order(column) {
+            calls.push(["order", column]);
+            return Promise.resolve({ data: [{ court_id: 9 }, { court_id: 12 }], error: null });
+          },
+        };
+      },
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: "OK", error: null };
+      },
+    },
+  });
+
+  assert.deepEqual(await api.loadCourtSubscriptions(), [9, 12]);
+  assert.deepEqual(await api.saveCourtSubscriptions(["9", 12, ""]), { outcome: "OK" });
+  assert.deepEqual(calls, [
+    ["from", "court_subscriptions"],
+    ["select", "court_id"],
+    ["order", "court_id"],
+    ["set_court_subscriptions", { p_court_ids: [9, 12] }],
+  ]);
+});
+
 test("presence mutation mappers use the migration's p_enabled contract and transient coordinates only", async () => {
   const calls = [];
   const api = createDataApi({
