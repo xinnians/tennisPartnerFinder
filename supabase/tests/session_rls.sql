@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(363);
+select plan(390);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -297,7 +297,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'session_discovery'
   ),
-  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode',
+  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids',
   'discovery has the exact public SessionSummary allowlist'
 );
 select is(
@@ -4218,6 +4218,79 @@ select ok(
   ),
   'notification dispatch job invokes the Edge Function route'
 );
+
+-- Stage 1: venue types, profile gates, and court subscriptions. These use
+-- separate actors and an observable session fixture so each gate is tested at
+-- its browser-RPC boundary rather than through raw production writes.
+select has_table('public', 'session_candidate_courts', 'candidate courts have a dedicated table');
+select has_table('public', 'court_subscriptions', 'court subscriptions have a dedicated table');
+
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'select') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'anonymous cannot select candidate courts raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'insert') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'anonymous cannot insert candidate courts raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'update') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'anonymous cannot update candidate courts raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'delete') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'anonymous cannot delete candidate courts raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'select') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'anonymous cannot select court subscriptions raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'insert') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'anonymous cannot insert court subscriptions raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'update') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'anonymous cannot update court subscriptions raw table');
+select is(coalesce((select has_table_privilege('anon', class_row.oid, 'delete') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'anonymous cannot delete court subscriptions raw table');
+select is(coalesce((select has_table_privilege('authenticated', class_row.oid, 'insert') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'authenticated cannot insert candidate courts raw table');
+select is(coalesce((select has_table_privilege('authenticated', class_row.oid, 'update') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'authenticated cannot update candidate courts raw table');
+select is(coalesce((select has_table_privilege('authenticated', class_row.oid, 'delete') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'session_candidate_courts'), false), false, 'authenticated cannot delete candidate courts raw table');
+select is(coalesce((select has_table_privilege('authenticated', class_row.oid, 'insert') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'authenticated cannot insert court subscriptions raw table');
+select is(coalesce((select has_table_privilege('authenticated', class_row.oid, 'update') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'authenticated cannot update court subscriptions raw table');
+select is(coalesce((select has_table_privilege('authenticated', class_row.oid, 'delete') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'court_subscriptions'), false), false, 'authenticated cannot delete court subscriptions raw table');
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+values
+  ('00000000-0000-0000-0000-000000009001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage1-host@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000009002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage1-nickname@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000009003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage1-ntrp@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000009004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage1-observer@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+insert into public.profiles (user_id, nickname, ntrp, line_id)
+values
+  ('00000000-0000-0000-0000-000000009001', 'Stage One Host', 3.5, 'stage1-host-line'),
+  ('00000000-0000-0000-0000-000000009003', 'Stage One NTRP', 3.5, null),
+  ('00000000-0000-0000-0000-000000009004', 'Stage One Observer', 3.5, null)
+on conflict (user_id) do nothing;
+
+select set_config('pgtap.stage1_host_profile_id', (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000009001'), true);
+select set_config('pgtap.stage1_ntrp_profile_id', (select id::text from public.profiles where user_id = '00000000-0000-0000-0000-000000009003'), true);
+
+insert into public.sessions (sport_id, host_profile_id, court_id, play_type, start_at, ntrp_min, ntrp_max, slots_total, notes, join_mode)
+values ((select id from public.sports where code = 'tennis'), current_setting('pgtap.stage1_host_profile_id')::bigint, (select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '90 days', 3.0, 5.0, 3, '__pgtap_stage1_gate__', 'approval')
+;
+select set_config('pgtap.stage1_gate_session_id', (select id::text from public.sessions where notes = '__pgtap_stage1_gate__'), true);
+insert into public.session_participants (session_id, profile_id, role, status)
+values (current_setting('pgtap.stage1_gate_session_id')::bigint, current_setting('pgtap.stage1_host_profile_id')::bigint, 'host', 'accepted');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009002', true);
+select ok(pg_temp.text_outcome($$select public.save_my_profile('Stage One Nickname', null, null, null, null, null)::text$$) not like 'ERROR:%', 'save_my_profile accepts a nickname-only profile');
+select is(pg_temp.text_outcome($$select public.request_to_join_session(current_setting('pgtap.stage1_gate_session_id')::bigint)$$), 'OK', 'nickname-only profile can request to join');
+select throws_ok($$select public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '91 days', 3.0, 5.0, 1, '__pgtap_stage1_nickname_create__')$$, 'P0001', 'PROFILE_INCOMPLETE', 'nickname-only profile cannot create a session');
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009003', true);
+select ok(pg_temp.text_outcome($$select public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '92 days', 3.0, 5.0, 1, '__pgtap_stage1_ntrp_create__')::text$$) not like 'ERROR:%', 'nickname plus NTRP profile can create a session');
+select throws_ok($$select public.set_player_visibility(true)$$, 'P0001', 'PROFILE_INCOMPLETE', 'directory opt-in rejects a profile without an active Taipei frequent court');
+reset role;
+
+select ok(pg_temp.text_outcome($$insert into public.sessions (sport_id, host_profile_id, court_id, play_type, start_at, ntrp_min, ntrp_max, slots_total, notes, venue_type) values ((select id from public.sports where code = 'tennis'), current_setting('pgtap.stage1_host_profile_id')::bigint, (select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '93 days', 3.0, 5.0, 1, '__pgtap_stage1_bad_candidate__', 'candidates')$$) like '%sessions_venue_time_shape%', 'candidate session without range_end violates sessions_venue_time_shape');
+select is(pg_temp.text_outcome($$select (count(*) > 0)::text from public.session_discovery where venue_type = 'booked'$$), 'true', 'existing discovered booked sessions remain nonempty after the venue default');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009003', true);
+select is(public.set_court_subscriptions(array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]), 'OK', 'subscription owner saves a court subscription through the RPC');
+select is(pg_temp.text_outcome($$select count(*)::text from public.court_subscriptions$$), '1', 'subscription owner can read a nonempty court subscription result');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009004', true);
+select is(pg_temp.text_outcome($$select count(*)::text from public.court_subscriptions$$), '0', 'another authenticated user cannot read an owner subscription');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009003', true);
+select ok(pg_temp.text_outcome($$select public.set_court_subscriptions(array(select id from public.courts where is_active and city = '台北市' order by id limit 11))$$) like 'ERROR:INVALID_TRANSITION%', 'set_court_subscriptions rejects eleven requested courts');
+reset role;
 
 select * from finish();
 
