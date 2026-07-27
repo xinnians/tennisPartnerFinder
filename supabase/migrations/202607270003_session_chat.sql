@@ -305,7 +305,7 @@ begin
         and participant_row.profile_id = viewer_profile
         and participant_row.status = 'accepted'
     ) then
-    raise exception 'NOT_ACCEPTED_PARTICIPANT';
+    raise exception 'NOT_SESSION_MEMBER';
   end if;
 
   if locked_session.status not in ('open', 'full') then

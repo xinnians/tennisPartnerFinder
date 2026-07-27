@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(69);
+select plan(70);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -152,6 +152,12 @@ begin
   -- Feed gate: these are the Stage 3 three-beat canary assertions.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'non-member sees zero session message feed rows');
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, 'non-member post'),
+    'P0001',
+    'NOT_SESSION_MEMBER',
+    'non-member post_session_message raises NOT_SESSION_MEMBER'
+  );
   perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id), 'host sees a non-empty session message feed');
   perform set_config('request.jwt.claim.sub', accepted_user::text, true);

@@ -796,7 +796,7 @@ test("session messages load only from the ordered safe feed and map its allowlis
   assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
 });
 
-test("postSessionMessage uses only its exact RPC contract and preserves SESSION_ARCHIVED", async () => {
+test("postSessionMessage uses only its exact RPC contract and preserves Stage 3 action codes", async () => {
   const calls = [];
   const api = createDataApi({
     configured: true,
@@ -819,6 +819,15 @@ test("postSessionMessage uses only its exact RPC contract and preserves SESSION_
   await assert.rejects(
     () => archivedApi.postSessionMessage(81, "封存局訊息"),
     (error) => error instanceof SessionActionError && error.code === "SESSION_ARCHIVED"
+  );
+
+  const nonMemberApi = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: null, error: { message: "NOT_SESSION_MEMBER" } }) },
+  });
+  await assert.rejects(
+    () => nonMemberApi.postSessionMessage(81, "非成員訊息"),
+    (error) => error instanceof SessionActionError && error.code === "NOT_SESSION_MEMBER"
   );
 });
 
