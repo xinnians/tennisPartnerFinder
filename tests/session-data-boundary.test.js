@@ -53,6 +53,7 @@ const SESSION_SUMMARY_KEYS = [
   "venueType",
   "rangeEnd",
   "candidateCourtIds",
+  "feeNote",
 ];
 
 function session(overrides = {}) {
@@ -150,6 +151,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     venue_type: "booked",
     range_end: null,
     decided_at: null,
+    fee_note: "每人 120 元",
   };
 
   const publicSummary = mapSessionSummary(row);
@@ -800,6 +802,10 @@ test("createSession defaults joinMode to approval", async () => {
         p_slots_total: 1,
         p_notes: null,
         p_join_mode: "approval",
+        p_venue_type: "booked",
+        p_candidate_court_ids: null,
+        p_range_end: null,
+        p_fee_note: null,
       },
     ],
   ]);
@@ -961,6 +967,10 @@ test("session creation, reporting, and profile save use only their RPC contracts
         p_slots_total: 1,
         p_notes: "safe note",
         p_join_mode: "instant",
+        p_venue_type: "booked",
+        p_candidate_court_ids: null,
+        p_range_end: null,
+        p_fee_note: null,
       },
     ],
     ["create_report", { p_session_id: 81, p_reported_profile_id: null, p_reason: "reason" }],

@@ -29,6 +29,7 @@ const publicKeys = [
   "venueType",
   "rangeEnd",
   "candidateCourtIds",
+  "feeNote",
 ].sort();
 
 test(

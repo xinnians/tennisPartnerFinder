@@ -104,6 +104,7 @@ export const MOCK_SESSIONS = [
     venueType: "booked",
     rangeEnd: "",
     candidateCourtIds: [],
+    feeNote: "",
   },
   {
     sessionId: 9002,
@@ -128,6 +129,7 @@ export const MOCK_SESSIONS = [
     venueType: "booked",
     rangeEnd: "",
     candidateCourtIds: [],
+    feeNote: "",
   },
   {
     sessionId: 9003,
@@ -152,6 +154,7 @@ export const MOCK_SESSIONS = [
     venueType: "booked",
     rangeEnd: "",
     candidateCourtIds: [],
+    feeNote: "",
   },
   {
     sessionId: 9004,
@@ -176,6 +179,7 @@ export const MOCK_SESSIONS = [
     venueType: "booked",
     rangeEnd: "",
     candidateCourtIds: [],
+    feeNote: "",
   },
   {
     sessionId: 9005,
@@ -200,6 +204,7 @@ export const MOCK_SESSIONS = [
     venueType: "booked",
     rangeEnd: "",
     candidateCourtIds: [],
+    feeNote: "",
   },
   {
     sessionId: 9006,
@@ -224,5 +229,6 @@ export const MOCK_SESSIONS = [
     venueType: "booked",
     rangeEnd: "",
     candidateCourtIds: [],
+    feeNote: "",
   },
 ];

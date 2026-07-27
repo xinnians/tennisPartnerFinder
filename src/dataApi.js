@@ -23,7 +23,7 @@ const SESSION_SUMMARY_COLUMNS = [
   "status",
   "join_mode",
 ];
-const SESSION_DISCOVERY_VENUE_COLUMNS = ["venue_type", "range_end", "candidate_court_ids"];
+const SESSION_DISCOVERY_VENUE_COLUMNS = ["venue_type", "range_end", "candidate_court_ids", "fee_note"];
 
 const MY_SESSION_COLUMNS = [
   ...SESSION_SUMMARY_COLUMNS,
@@ -39,6 +39,7 @@ const MY_SESSION_COLUMNS = [
   "venue_type",
   "range_end",
   "decided_at",
+  "fee_note",
 ];
 
 const SESSION_ROSTER_COLUMNS = [
@@ -111,6 +112,8 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "NOT_SESSION_HOST",
   "NOT_ACCEPTED_PARTICIPANT",
   "INVALID_TRANSITION",
+  "INVALID_VENUE_INPUT",
+  "INVALID_DECISION",
   "INVITEE_NOT_AVAILABLE",
   "ALREADY_INVITED",
   "NOT_INVITED",
@@ -131,6 +134,8 @@ const ACTION_MESSAGES = {
   NOT_SESSION_HOST: "只有主揪可以執行這個操作。",
   NOT_ACCEPTED_PARTICIPANT: "只有已接受的參與者可以執行這個操作。",
   INVALID_TRANSITION: "目前的球局狀態不允許這個操作。",
+  INVALID_VENUE_INPUT: "場地或候選球場資料不符合規則。",
+  INVALID_DECISION: "候選球場或定案時間不符合規則。",
   INVITEE_NOT_AVAILABLE: "這位球友目前未開放邀請。",
   ALREADY_INVITED: "你已邀請過這位球友。",
   NOT_INVITED: "找不到你的邀請，球局狀態可能已更新。",
@@ -212,6 +217,7 @@ function sessionSummaryValues(row = {}) {
     venueType: asText(row.venue_type),
     rangeEnd: asText(row.range_end),
     candidateCourtIds: asArray(row.candidate_court_ids).map(asNumber).filter((courtId) => courtId != null),
+    feeNote: asText(row.fee_note),
   };
 }
 
@@ -244,6 +250,7 @@ function mapMockSessionSummary(session = {}) {
     venueType: asText(session.venueType, "booked"),
     rangeEnd: asText(session.rangeEnd),
     candidateCourtIds: asArray(session.candidateCourtIds).map(asNumber).filter((courtId) => courtId != null),
+    feeNote: asText(session.feeNote),
   };
 }
 
@@ -273,6 +280,7 @@ export function mapMySession(row = {}) {
     venueType: session.venueType,
     rangeEnd: session.rangeEnd,
     decidedAt: asText(row.decided_at),
+    feeNote: asText(row.fee_note),
     viewerRole: asText(row.viewer_role),
     viewerParticipantStatus: asText(row.viewer_participant_status),
     viewerPlayedConfirmed: asBoolean(row.viewer_played_confirmed),
@@ -744,6 +752,10 @@ export function createDataApi({
     slotsTotal,
     notes = null,
     joinMode = "approval",
+    venueType = "booked",
+    candidateCourtIds = null,
+    rangeEnd = null,
+    feeNote = null,
   }) {
     const sessionId = await callRpc("create_session", {
       p_court_id: asNumber(courtId),
@@ -754,16 +766,32 @@ export function createDataApi({
       p_slots_total: asNumber(slotsTotal),
       p_notes: notes == null ? null : asText(notes),
       p_join_mode: joinMode,
+      p_venue_type: venueType,
+      p_candidate_court_ids: candidateCourtIds == null ? null : asArray(candidateCourtIds).map(asNumber).filter((id) => id != null),
+      p_range_end: rangeEnd == null ? null : asText(rangeEnd),
+      p_fee_note: feeNote == null ? null : asText(feeNote),
     });
     return { sessionId: asNumber(sessionId) };
   }
 
   async function requestToJoinSession(sessionId) {
     const outcome = await callRpc("request_to_join_session", { p_session_id: sessionId });
-    if (outcome !== "OK" && outcome !== "ACCEPTED" && outcome !== "SESSION_EXPIRED") {
+    if (!["OK", "ACCEPTED", "OK_NTRP_MISSING", "OK_NTRP_OUT_OF_RANGE", "SESSION_EXPIRED"].includes(outcome)) {
       throw new SessionActionError("UNKNOWN_ACTION_ERROR");
     }
     return { outcome, accepted: outcome === "ACCEPTED", reloadRequired: outcome === "SESSION_EXPIRED" };
+  }
+
+  async function updateSession({ sessionId, startAt, courtId, slotsMissing, ntrpMin = null, ntrpMax = null, playType, feeNote = null, notes = null }) {
+    return callLifecycleRpc("update_session", {
+      p_session_id: asNumber(sessionId), p_start_at: startAt, p_court_id: asNumber(courtId), p_slots_missing: asNumber(slotsMissing),
+      p_ntrp_min: ntrpMin == null ? null : asNumber(ntrpMin), p_ntrp_max: ntrpMax == null ? null : asNumber(ntrpMax),
+      p_play_type: playType, p_fee_note: feeNote == null ? null : asText(feeNote), p_note: notes == null ? null : asText(notes),
+    });
+  }
+
+  async function decideSessionCourt(sessionId, courtId, startAt) {
+    return callLifecycleRpc("decide_session_court", { p_session_id: asNumber(sessionId), p_court_id: asNumber(courtId), p_start_at: startAt });
   }
 
   async function inviteToSession(sessionId, profileId) {
@@ -858,6 +886,8 @@ export function createDataApi({
     saveCourtSubscriptions,
     createSession,
     requestToJoinSession,
+    updateSession,
+    decideSessionCourt,
     inviteToSession,
     respondToSessionInvite,
     setPlayerVisibility,
@@ -896,6 +926,8 @@ export const saveDistrictSubscriptions = (...args) => defaultDataApi.saveDistric
 export const saveCourtSubscriptions = (...args) => defaultDataApi.saveCourtSubscriptions(...args);
 export const createSession = (...args) => defaultDataApi.createSession(...args);
 export const requestToJoinSession = (...args) => defaultDataApi.requestToJoinSession(...args);
+export const updateSession = (...args) => defaultDataApi.updateSession(...args);
+export const decideSessionCourt = (...args) => defaultDataApi.decideSessionCourt(...args);
 export const inviteToSession = (...args) => defaultDataApi.inviteToSession(...args);
 export const respondToSessionInvite = (...args) => defaultDataApi.respondToSessionInvite(...args);
 export const setPlayerVisibility = (...args) => defaultDataApi.setPlayerVisibility(...args);
