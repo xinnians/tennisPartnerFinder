@@ -55,6 +55,16 @@ const SESSION_ROSTER_COLUMNS = [
 ];
 
 const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
+const SESSION_MESSAGE_FEED_COLUMNS = [
+  "message_id",
+  "session_id",
+  "sender_profile_id",
+  "sender_nickname",
+  "kind",
+  "body",
+  "created_at",
+  "is_self",
+];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
 const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public", "share_presence", "open_to_greeting"];
 const NOTIFICATION_PREFS_COLUMNS = ["host_new_request_enabled", "guest_request_reviewed_enabled", "guest_invited_enabled"];
@@ -91,6 +101,7 @@ export const SESSION_DISCOVERY_SELECT = [...SESSION_SUMMARY_COLUMNS, ...SESSION_
 export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
 export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
 export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
+export const SESSION_MESSAGE_FEED_SELECT = SESSION_MESSAGE_FEED_COLUMNS.join(",");
 export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
 export const PLAYER_DIRECTORY_SELECT = PLAYER_DIRECTORY_COLUMNS.join(",");
 export const PLAYER_PRESENCE_DIRECTORY_SELECT = PLAYER_PRESENCE_DIRECTORY_COLUMNS.join(",");
@@ -315,6 +326,20 @@ export function mapSessionContactRow(row = {}) {
     counterpartProfileId: asNumber(row.counterpart_profile_id),
     nickname: asText(row.nickname),
     lineId: asText(row.line_id),
+  };
+}
+
+/** Authenticated chat-feed mapper: every output field is intentionally named here. */
+export function mapSessionMessageRow(row = {}) {
+  return {
+    messageId: asNumber(row.message_id),
+    sessionId: asNumber(row.session_id),
+    senderProfileId: asNumber(row.sender_profile_id),
+    senderNickname: asText(row.sender_nickname),
+    kind: asText(row.kind),
+    body: asText(row.body),
+    createdAt: asText(row.created_at),
+    isSelf: asBoolean(row.is_self),
   };
 }
 
@@ -641,6 +666,19 @@ export function createDataApi({
     return asArray(data).map(mapSessionContactRow);
   }
 
+  async function loadSessionMessages(sessionId) {
+    if (!configured) return [];
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("session_message_feed")
+      .select(SESSION_MESSAGE_FEED_SELECT)
+      .eq("session_id", asNumber(sessionId))
+      .order("created_at", { ascending: true })
+      .order("message_id", { ascending: true });
+    if (error) throw error;
+    return asArray(data).map(mapSessionMessageRow);
+  }
+
   async function loadCurrentProfile() {
     if (!configured) return null;
     const activeClient = requireClient();
@@ -856,11 +894,29 @@ export function createDataApi({
     return callLifecycleRpc("confirm_session_attendance", { p_session_id: sessionId });
   }
 
-  async function createReport({ sessionId = null, reportedProfileId = null, reason }) {
+  async function postSessionMessage(sessionId, body) {
+    const messageId = await callRpc("post_session_message", {
+      p_session_id: asNumber(sessionId),
+      p_body: asText(body).trim(),
+    });
+    return { messageId: asNumber(messageId) };
+  }
+
+  async function setPlayerBlock(profileId, blocked) {
+    const outcome = await callRpc("set_player_block", {
+      p_profile_id: asNumber(profileId),
+      p_blocked: Boolean(blocked),
+    });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
+  async function createReport({ sessionId = null, reportedProfileId = null, reason, messageId = null }) {
     const reportId = await callRpc("create_report", {
       p_session_id: sessionId,
       p_reported_profile_id: reportedProfileId,
       p_reason: asText(reason).trim(),
+      p_message_id: messageId == null ? null : asNumber(messageId),
     });
     return { reportId: asNumber(reportId) };
   }
@@ -874,6 +930,7 @@ export function createDataApi({
     loadMySessions,
     loadSessionRoster,
     loadSessionContacts,
+    loadSessionMessages,
     loadCurrentProfile,
     loadNotificationPreferences,
     loadDistrictSubscriptions,
@@ -900,6 +957,8 @@ export function createDataApi({
     cancelSession,
     markSessionPlayed,
     confirmSessionAttendance,
+    postSessionMessage,
+    setPlayerBlock,
     createReport,
   };
 }
@@ -914,6 +973,7 @@ export const loadSessionSummary = (...args) => defaultDataApi.loadSessionSummary
 export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args);
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
 export const loadSessionContacts = (...args) => defaultDataApi.loadSessionContacts(...args);
+export const loadSessionMessages = (...args) => defaultDataApi.loadSessionMessages(...args);
 export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile(...args);
 export const loadNotificationPreferences = (...args) => defaultDataApi.loadNotificationPreferences(...args);
 export const loadDistrictSubscriptions = (...args) => defaultDataApi.loadDistrictSubscriptions(...args);
@@ -940,6 +1000,8 @@ export const withdrawFromSession = (...args) => defaultDataApi.withdrawFromSessi
 export const cancelSession = (...args) => defaultDataApi.cancelSession(...args);
 export const markSessionPlayed = (...args) => defaultDataApi.markSessionPlayed(...args);
 export const confirmSessionAttendance = (...args) => defaultDataApi.confirmSessionAttendance(...args);
+export const postSessionMessage = (...args) => defaultDataApi.postSessionMessage(...args);
+export const setPlayerBlock = (...args) => defaultDataApi.setPlayerBlock(...args);
 export const createReport = (...args) => defaultDataApi.createReport(...args);
 
 function requireDefaultSupabase() {

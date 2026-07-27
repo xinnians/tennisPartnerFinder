@@ -714,6 +714,109 @@ test("configured player directory uses only its allowlist and four bounds predic
   ]);
 });
 
+test("session messages load only from the ordered safe feed and map its allowlist", async () => {
+  const calls = [];
+  const query = {
+    select(value) {
+      calls.push(["select", value]);
+      return this;
+    },
+    eq(column, value) {
+      calls.push(["eq", column, value]);
+      return this;
+    },
+    order(column, options) {
+      calls.push(["order", column, options]);
+      return this;
+    },
+    then(resolve) {
+      return Promise.resolve({
+        data: [
+          {
+            message_id: "901",
+            session_id: "81",
+            sender_profile_id: "92",
+            sender_nickname: "示範山嵐",
+            kind: "message",
+            body: "一起打球嗎？",
+            created_at: "2026-07-27T01:30:00.000Z",
+            is_self: false,
+            line_id: "must-not-leak",
+          },
+        ],
+        error: null,
+      }).then(resolve);
+    },
+  };
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return query;
+      },
+    },
+  });
+
+  assert.deepEqual(await api.loadSessionMessages("81"), [
+    {
+      messageId: 901,
+      sessionId: 81,
+      senderProfileId: 92,
+      senderNickname: "示範山嵐",
+      kind: "message",
+      body: "一起打球嗎？",
+      createdAt: "2026-07-27T01:30:00.000Z",
+      isSelf: false,
+    },
+  ]);
+  assert.deepEqual(calls, [
+    ["from", "session_message_feed"],
+    ["select", "message_id,session_id,sender_profile_id,sender_nickname,kind,body,created_at,is_self"],
+    ["eq", "session_id", 81],
+    ["order", "created_at", { ascending: true }],
+    ["order", "message_id", { ascending: true }],
+  ]);
+  assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
+});
+
+test("chat post, block, and message report wrappers use only their exact RPC contracts", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        if (name === "post_session_message") return { data: 901, error: null };
+        if (name === "set_player_block") return { data: "OK", error: null };
+        if (name === "create_report") return { data: 902, error: null };
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    },
+  });
+
+  assert.deepEqual(await api.postSessionMessage("81", " 一起打球嗎？ "), { messageId: 901 });
+  assert.deepEqual(await api.setPlayerBlock("92", true), { outcome: "OK" });
+  assert.deepEqual(
+    await api.createReport({ sessionId: 81, reportedProfileId: 92, reason: " 不當訊息 ", messageId: "901" }),
+    { reportId: 902 }
+  );
+  assert.deepEqual(calls, [
+    ["post_session_message", { p_session_id: 81, p_body: "一起打球嗎？" }],
+    ["set_player_block", { p_profile_id: 92, p_blocked: true }],
+    ["create_report", { p_session_id: 81, p_reported_profile_id: 92, p_reason: "不當訊息", p_message_id: 901 }],
+  ]);
+
+  const failedBlockApi = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: "ALREADY_BLOCKED", error: null }) },
+  });
+  await assert.rejects(
+    () => failedBlockApi.setPlayerBlock(92, false),
+    (error) => error instanceof SessionActionError && error.code === "UNKNOWN_ACTION_ERROR"
+  );
+});
+
 test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outcome", async () => {
   const calls = [];
   const api = createDataApi({
@@ -1068,7 +1171,7 @@ test("session creation, reporting, and profile save use only their RPC contracts
         p_fee_note: null,
       },
     ],
-    ["create_report", { p_session_id: 81, p_reported_profile_id: null, p_reason: "reason" }],
+    ["create_report", { p_session_id: 81, p_reported_profile_id: null, p_reason: "reason", p_message_id: null }],
     [
       "save_my_profile",
       {
@@ -1085,10 +1188,11 @@ test("session creation, reporting, and profile save use only their RPC contracts
   assert.doesNotMatch(capturedMutationJson, /25\.031234|121\.551234/);
 });
 
-test("data API contains no direct browser lifecycle or profile-join writes", async () => {
+test("data API keeps raw lifecycle, chat, block, and report tables outside browser access", async () => {
   const source = await readFile(new URL("../src/dataApi.js", import.meta.url), "utf8");
   assert.doesNotMatch(
     source,
     /\.from\(\s*["'](?:sessions|session_participants|reports|profiles|profile_courts|profile_play_types|profile_slots)["']\s*\)\s*\.(?:insert|update|delete)\b/
   );
+  assert.doesNotMatch(source, /\.from\(\s*["'](?:session_messages|player_blocks|reports)["']\s*\)/);
 });
