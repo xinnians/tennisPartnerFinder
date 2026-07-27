@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(390);
+select plan(391);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -4290,6 +4290,20 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009003', true);
 select ok(pg_temp.text_outcome($$select public.set_court_subscriptions(array(select id from public.courts where is_active and city = '台北市' order by id limit 11))$$) like 'ERROR:INVALID_TRANSITION%', 'set_court_subscriptions rejects eleven requested courts');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009002', true);
+select is(
+  pg_temp.text_outcome(
+    $$select public.invite_to_session(
+      current_setting('pgtap.cron_stale_session_id')::bigint,
+      current_setting('pgtap.stage1_ntrp_profile_id')::bigint
+    )$$
+  ),
+  'SESSION_EXPIRED',
+  'expired sessions retain invite precedence before the caller profile gate'
+);
 reset role;
 
 select * from finish();
