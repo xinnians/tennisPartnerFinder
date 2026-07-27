@@ -234,6 +234,7 @@ begin
   if locked_session.status='expired' then return 'SESSION_EXPIRED'; end if;
   if viewer_profile is null or not private.is_session_host(locked_session.id,viewer_profile) then raise exception 'NOT_SESSION_HOST'; end if;
   if locked_session.status not in ('open','full') then raise exception 'SESSION_NOT_OPEN'; end if;
+  if not (locked_session.venue_type='candidates' and locked_session.decided_at is null) and locked_session.start_at + interval '2 hours' <= now() then raise exception 'SESSION_STARTED'; end if;
   if locked_session.venue_type='candidates' and p_court_id is distinct from locked_session.court_id then raise exception 'INVALID_VENUE_INPUT'; end if;
   if locked_session.venue_type='candidates' and locked_session.decided_at is null and p_start_at is distinct from locked_session.start_at then raise exception 'INVALID_VENUE_INPUT'; end if;
   if p_start_at is null or p_start_at < now() - interval '5 minutes' or p_slots_missing not between 1 and 3 or p_play_type not in ('單打','雙打','對拉','練球') or ((p_ntrp_min is null) <> (p_ntrp_max is null)) or (p_ntrp_min is not null and (p_ntrp_min not between 1 and 7 or p_ntrp_max not between 1 and 7 or p_ntrp_min>p_ntrp_max)) or (p_note is not null and char_length(p_note)>500) or (p_fee_note is not null and char_length(p_fee_note)>500) then raise exception 'INVALID_TRANSITION'; end if;
@@ -254,6 +255,7 @@ begin
   viewer_profile := private.viewer_profile_id(); locked_session := private.lock_and_expire_session(p_session_id);
   if locked_session.status='expired' then return 'SESSION_EXPIRED'; end if;
   if viewer_profile is null or not private.is_session_host(locked_session.id,viewer_profile) then raise exception 'NOT_SESSION_HOST'; end if;
+  if locked_session.status not in ('open','full') then raise exception 'SESSION_NOT_OPEN'; end if;
   if locked_session.venue_type <> 'candidates' or locked_session.decided_at is not null or p_start_at is null or p_start_at < locked_session.start_at or p_start_at > locked_session.range_end or not exists(select 1 from public.session_candidate_courts where session_id=locked_session.id and court_id=p_court_id) then raise exception 'INVALID_DECISION'; end if;
   perform set_config('private.allow_session_time_change','1',true);
   update public.sessions set court_id=p_court_id,start_at=p_start_at,decided_at=now() where id=locked_session.id;

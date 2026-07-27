@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(447);
+select plan(449);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -4506,16 +4506,18 @@ select ok((select payload->>'court' in (select name from public.courts where id 
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true);
-select is(public.update_session(current_setting('pgtap.stage2_instant_session')::bigint,now()+interval '110 days',(select id from public.courts where is_active and city='台北市' order by id limit 1),3,3,4,'雙打','120 元','stage2-updated'),'OK','update fixture changes a session with accepted guests');
+select is(public.update_session(current_setting('pgtap.stage2_instant_session')::bigint,now()+interval '110 days 30 minutes',(select id from public.courts where is_active and city='台北市' order by id limit 1),3,3,4,'雙打','120 元','stage2-updated'),'OK','update fixture changes a session with accepted guests');
 reset role;
+select is((select start_at > now()+interval '109 days' from public.sessions where id=current_setting('pgtap.stage2_instant_session')::bigint),true,'update_session persists a genuinely changed future start_at');
 select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) from public.notification_outbox where event_type='session_updated' and session_id=current_setting('pgtap.stage2_instant_session')::bigint order by id desc limit 1),true,'session_updated payload passes the key allowlist');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true);
 select set_config('pgtap.stage2_payload_decide',public.create_session(null,'雙打',now()+interval '190 days',3,4,2,'stage2-payload-decide','approval','candidates',array(select id from public.courts where is_active and city='台北市' order by id limit 2),now()+interval '191 days')::text,true);
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009102',true); select public.request_to_join_session(current_setting('pgtap.stage2_payload_decide')::bigint);
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true); select public.review_join_request(current_setting('pgtap.stage2_payload_decide')::bigint,(select participant_id from public.session_participant_roster where session_id=current_setting('pgtap.stage2_payload_decide')::bigint and nickname='Stage Two In'),'accepted');
-select is(public.decide_session_court(current_setting('pgtap.stage2_payload_decide')::bigint,(select id from public.courts where is_active and city='台北市' order by id limit 1),now()+interval '190 days'),'OK','decision fixture has an accepted guest');
+select is(public.decide_session_court(current_setting('pgtap.stage2_payload_decide')::bigint,(select id from public.courts where is_active and city='台北市' order by id limit 1),now()+interval '190 days 30 minutes'),'OK','decision fixture has an accepted guest');
 reset role;
+select is((select start_at > now()+interval '189 days' from public.sessions where id=current_setting('pgtap.stage2_payload_decide')::bigint),true,'decide_session_court persists a distinct in-range start_at');
 select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) and payload->>'url'='#/session/'||current_setting('pgtap.stage2_payload_decide') from public.notification_outbox where event_type='session_decided' and session_id=current_setting('pgtap.stage2_payload_decide')::bigint order by id desc limit 1),true,'session_decided payload passes allowlist and carries the deep link');
 set local role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true); select is(public.cancel_session(current_setting('pgtap.stage2_instant_session')::bigint),'OK','cancel fixture cancels a session with accepted guests');
 reset role;
