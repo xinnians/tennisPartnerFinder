@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(60);
+select plan(67);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -68,10 +68,12 @@ declare
   guest_message_id bigint;
   unreported_message_id bigint;
   reported_message_id bigint;
+  posted_body text := 'private body must not be pushed';
+  fixture_line text := 'chat-host-line';
 begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 58);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 65);
     return;
   end if;
 
@@ -94,7 +96,7 @@ begin
 
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', host_user::text, true);
-  perform public.save_my_profile('Chat Host', 3.5, 'chat-host-line', array[court_id], array['雙打'], array['we-a']);
+  perform public.save_my_profile('Chat Host', 3.5, fixture_line, array[court_id], array['雙打'], array['we-a']);
   perform set_config('request.jwt.claim.sub', accepted_user::text, true);
   perform public.save_my_profile('Chat Accepted', 3.5, 'chat-accepted-line', array[court_id], array['雙打'], array['we-a']);
   perform set_config('request.jwt.claim.sub', requested_user::text, true);
@@ -126,7 +128,7 @@ begin
   select public.create_session(court_id, '雙打', now() + interval '14 days', 3, 4, 3, '__pgtap_chat_main__', 'approval', 'booked', null, null, null) into main_session_id;
   execute 'reset role';
   select count(*) into baseline_system_count from public.session_messages where session_id = main_session_id and kind = 'system';
-  return next is(baseline_system_count, 0::bigint, 'host session creation does not produce a guest-join system message');
+  return next is((select count(*) from public.session_messages where session_id = main_session_id and kind = 'system' and body = 'Chat Host 加入了球局'), 0::bigint, 'host session creation does not produce its forbidden guest-join system message');
 
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(main_session_id); execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -194,10 +196,17 @@ begin
   perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next is((select count(*) from public.session_message_feed where message_id = guest_message_id), 0::bigint, 'guest-to-host block also filters guest user message for host');
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'reverse feed still retains system messages');
+  perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  perform public.set_player_block(host_id, false);
+  return next is((select count(*) from public.session_message_feed where message_id = host_message_id), 1::bigint, 'unblocking guest-to-host restores the host user message');
+  perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.set_player_block(accepted_id, true);
-  execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  perform set_config('request.jwt.claim.sub', accepted_user::text, true);
   return next is((select count(*) from public.session_message_feed where message_id = host_message_id), 0::bigint, 'host-to-guest block filters host user message for guest');
+  return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'host-to-guest block leaves system messages visible to guest');
+  perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is((select count(*) from public.session_message_feed where message_id = guest_message_id), 0::bigint, 'host-to-guest block also filters guest user message for host');
+  return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'host-to-guest block leaves system messages visible to host');
   execute 'reset role';
 
   -- A block forbids new joins/invites but cannot alter an accepted row.
@@ -219,12 +228,15 @@ begin
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = outbox_session_id and profile_id = accepted_id;
   perform public.review_join_request(outbox_session_id, participant_id, 'accepted');
-  perform public.post_session_message(outbox_session_id, 'private body must not be pushed');
+  perform public.post_session_message(outbox_session_id, posted_body);
   execute 'reset role';
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = host_id), 0::bigint, 'chat outbox excludes sender');
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), 1::bigint, 'chat outbox fans out exactly once to the other accepted member');
   return next ok((select payload - array['court', 'message', 'slots_remaining', 'start_at', 'url'] = '{}'::jsonb from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), 'chat outbox payload uses the exact allowlist');
+  return next is((select payload->>'message' from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), '群組有新訊息', 'chat outbox payload uses the constant summary message');
   return next is((select payload ? 'body' from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), false, 'chat outbox payload never contains message body');
+  return next is((select position(posted_body in payload::text) from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), 0, 'chat outbox payload never contains the posted body sentinel');
+  return next is((select position(fixture_line in payload::text) from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), 0, 'chat outbox payload never contains the fixture LINE sentinel');
   update public.notification_outbox set sent_at = now() - interval '1 hour' where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id;
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.post_session_message(outbox_session_id, 'second private body must not be pushed'); execute 'reset role';
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), 1::bigint, 'chat throttle ignores sent_at and suppresses a second recipient row within five minutes');
