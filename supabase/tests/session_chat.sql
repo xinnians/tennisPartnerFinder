@@ -16,17 +16,13 @@ language plpgsql
 as $$
 begin
   set constraints all immediate;
+  perform set_config('private.allow_session_time_change', '1', true);
+  update public.sessions
+  set start_at = now() - interval '25 hours'
+  where id = p_session_id;
+  perform set_config('private.allow_session_time_change', '', true);
+  set constraints all immediate;
   set constraints all deferred;
-  alter table public.sessions disable trigger sessions_enforce_transition;
-  begin
-    update public.sessions
-    set start_at = now() - interval '25 hours'
-    where id = p_session_id;
-  exception when others then
-    alter table public.sessions enable trigger sessions_enforce_transition;
-    raise;
-  end;
-  alter table public.sessions enable trigger sessions_enforce_transition;
 end;
 $$;
 
