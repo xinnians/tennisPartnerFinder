@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(422);
+select plan(429);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -4427,6 +4427,16 @@ select is(public.request_to_join_session(current_setting('pgtap.stage2_instant_s
 select is(public.request_to_join_session(current_setting('pgtap.stage2_approval_session')::bigint), 'OK', 'approval join requests regardless of NTRP');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009101', true);
 select is(public.review_join_request(current_setting('pgtap.stage2_instant_session')::bigint, (select participant_id from public.session_participant_roster where session_id=current_setting('pgtap.stage2_instant_session')::bigint and profile_id=current_setting('pgtap.stage2_out_profile_id')::bigint), 'accepted'), 'OK', 'host can approve an out-of-range requested guest');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009102', true);
+select throws_ok($$select public.update_session(current_setting('pgtap.stage2_instant_session')::bigint, now()+interval '112 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), 1, 3, 4, '雙打', null, 'no-host')$$, 'P0001', 'NOT_SESSION_HOST', 'non-host cannot update a session');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009101', true);
+select throws_ok($$select public.update_session(current_setting('pgtap.stage2_instant_session')::bigint, now()+interval '112 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), 0, 3, 4, '雙打', null, 'below-capacity')$$, 'P0001', 'INVALID_TRANSITION', 'update rejects capacity below accepted guests');
+select set_config('pgtap.stage2_candidate_session', public.create_session(null, '雙打', now()+interval '113 days', 3, 4, 2, 'stage2-decide', 'approval', 'candidates', array(select id from public.courts where is_active and city='台北市' order by id limit 2), now()+interval '114 days')::text, true);
+select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_approval_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '111 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide a non-candidate session');
+select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, -1, now()+interval '113 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide with a court outside the candidates');
+select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '115 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide outside the candidate time range');
+select is(public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '113 days'), 'OK', 'host can decide an in-range candidate court');
+select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '113 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide the candidate session twice');
 reset role;
 
 select * from finish();
