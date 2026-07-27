@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(395);
+select plan(417);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -297,7 +297,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'session_discovery'
   ),
-  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids',
+  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note',
   'discovery has the exact public SessionSummary allowlist'
 );
 select is(
@@ -681,7 +681,7 @@ select throws_ok(
     )
   $$,
   'P0001',
-  'INVALID_TRANSITION',
+  'INVALID_VENUE_INPUT',
   'session creation rejects an active New Taipei court'
 );
 reset role;
@@ -1971,8 +1971,8 @@ select throws_ok(
   $$ select public.create_session(
        -1,
        '單打', now() + interval '6 days', null, null, 1, '__pgtap_limit_invalid_court__', 'approval') $$,
-  'P0001', 'INVALID_TRANSITION',
-  'a capped host still receives INVALID_TRANSITION for an invalid court'
+  'P0001', 'INVALID_VENUE_INPUT',
+  'a capped host still receives INVALID_VENUE_INPUT for an invalid court'
 );
 select throws_ok(
   $$ select public.create_session(
@@ -4147,8 +4147,8 @@ select ok(
     from public.notification_outbox
     where event_type = 'district_new_session'
       and session_id = current_setting('pgtap.notification_broadcast_session_id')::bigint
-  ) > 0,
-  'district fan-out scan has a non-empty recipient set'
+  ) = 0,
+  'district fan-out is absent from the Stage 2 create-session path'
 );
 select is(
   (
@@ -4157,8 +4157,8 @@ select is(
     where event_type = 'district_new_session'
       and session_id = current_setting('pgtap.notification_broadcast_session_id')::bigint
   ),
-  format('{%s}', current_setting('pgtap.notification_district_match_profile_id')),
-  'district fan-out targets only subscribers to the new session district'
+  null,
+  'district subscriptions receive no new-session fan-out after Stage 2'
 );
 select is(
   (
@@ -4360,6 +4360,50 @@ select is(
   'SESSION_EXPIRED',
   'expired sessions retain invite precedence before the caller profile gate'
 );
+reset role;
+
+-- Stage 2 contract: these declarations are intentionally added before the
+-- migration so the first replay demonstrates the missing public boundary.
+select has_column('public', 'sessions', 'fee_note', 'sessions retain an optional fee note');
+select has_function('public', 'update_session', array['bigint','timestamp with time zone','bigint','integer','numeric','numeric','text','text','text'], 'update session RPC exists with no venue or join mode input');
+select has_function('public', 'decide_session_court', array['bigint','bigint','timestamp with time zone'], 'candidate decision RPC exists');
+select has_function('private', 'try_enqueue_court_new_session', array['bigint'], 'court subscription fan-out helper exists');
+select is(
+  (select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_schema = 'public' and table_name = 'session_discovery'),
+  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note',
+  'session discovery has the exact 24-column Stage 2 allowlist'
+);
+select is(
+  pg_temp.text_outcome($$select private.notification_pref_enabled((select id from public.profiles limit 1), 'court_new_session')::text$$),
+  'true',
+  'court session event is not preference-suppressed'
+);
+select ok(position('court_new_session' in (select pg_get_constraintdef(oid) from pg_constraint where conname = 'notification_outbox_event_type_check')) > 0, 'court session event passes the outbox event allowlist');
+select is(
+  pg_temp.text_outcome($$insert into public.notification_outbox (event_type, recipient_profile_id, session_id, payload) select 'court_new_session', host_profile_id, id, jsonb_build_object('line_id','forbidden') from public.sessions limit 1$$) like 'ERROR:%',
+  'true',
+  'payload allowlist canary rejects line_id'
+);
+select has_function('private', 'expire_stale_sessions', array[]::text[], 'expiry cron helper remains available');
+select has_function('private', 'lock_and_expire_session', array['bigint'], 'lifecycle expiry guard remains available');
+select has_function('public', 'cancel_session', array['bigint'], 'cancellation RPC remains available with Stage 2 notifications');
+select has_function('public', 'review_join_request', array['bigint','bigint','text'], 'host can approve requested out-of-range applicants');
+select is((select count(*) > 0 from public.session_discovery where venue_type = 'booked'), true, 'discovery scan set is nonempty before Stage 2 changes');
+select is((select count(*) > 0 from public.courts where is_active and city = '台北市'), true, 'Taipei active-court scan set is nonempty for venue validation');
+select is(pg_temp.text_outcome($$select public.update_session(0, now(), null, 1, null, null, '單打', null, null)$$) like 'ERROR:%', 'true', 'update session rejects an invalid session');
+select is(pg_temp.text_outcome($$select public.decide_session_court(0, 0, now())$$) like 'ERROR:%', 'true', 'decision rejects an invalid candidate session');
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+values ('00000000-0000-0000-0000-000000009101', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage2-host@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009101', true);
+select public.save_my_profile('Stage Two Host', 3.5, null, null, null, null);
+select throws_ok($$select public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'one', 'approval', 'candidates', array[(select id from public.courts where is_active and city='台北市' order by id limit 1)], now()+interval '101 days')$$, 'P0001', 'INVALID_VENUE_INPUT', 'candidate session rejects one court');
+select throws_ok($$select public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'four', 'approval', 'candidates', array(select id from public.courts where is_active and city='台北市' order by id limit 4), now()+interval '101 days')$$, 'P0001', 'INVALID_VENUE_INPUT', 'candidate session rejects four courts');
+select throws_ok($$select public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'duplicate', 'approval', 'candidates', array[(select id from public.courts where is_active and city='台北市' order by id limit 1),(select id from public.courts where is_active and city='台北市' order by id limit 1)], now()+interval '101 days')$$, 'P0001', 'INVALID_VENUE_INPUT', 'candidate session rejects duplicate courts');
+select throws_ok($$select public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'other-city', 'approval', 'candidates', array[(select id from public.courts where is_active and city='台北市' order by id limit 1),(select id from public.courts where is_active and city='新北市' order by id limit 1)], now()+interval '101 days')$$, 'P0001', 'INVALID_VENUE_INPUT', 'candidate session rejects a non-Taipei court');
+select throws_ok($$select public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1), '雙打', now()+interval '100 days', 3, 5, 1, 'booked-candidates', 'approval', 'booked', array[(select id from public.courts where is_active and city='台北市' order by id limit 1)], null)$$, 'P0001', 'INVALID_VENUE_INPUT', 'booked session rejects candidate inputs');
+select ok(public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'valid-candidate', 'approval', 'candidates', array(select id from public.courts where is_active and city='台北市' order by id limit 2), now()+interval '101 days') > 0, 'candidate session accepts two distinct Taipei courts');
 reset role;
 
 select * from finish();
