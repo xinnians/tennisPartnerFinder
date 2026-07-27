@@ -80,6 +80,31 @@ begin
 end;
 $$;
 
+-- The legacy transition guard required every expiry to wait 24 hours. A
+-- candidate session has a distinct expiry anchor: its undecided range start.
+create or replace function private.enforce_session_transition()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'open' or new.start_at < now() - interval '5 minutes' then raise exception 'INVALID_TRANSITION'; end if;
+    return new;
+  end if;
+  if new.host_profile_id is distinct from old.host_profile_id or new.start_at is distinct from old.start_at then raise exception 'INVALID_TRANSITION'; end if;
+  if new.status is distinct from old.status then
+    if not ((old.status='open' and new.status in ('full','cancelled','played','expired')) or (old.status='full' and new.status in ('open','cancelled','played','expired'))) then raise exception 'INVALID_TRANSITION'; end if;
+    if (
+      new.status in ('open','full','cancelled') and old.start_at <= now() and not ((old.status='full' and new.status='open' and pg_trigger_depth()>1 and (select count(*) from public.session_participants where session_id=new.id and role='guest' and status='accepted') < new.slots_total) or (old.status='open' and new.status='full' and (select count(*) from public.session_participants where session_id=new.id and role='guest' and status='accepted') >= new.slots_total))
+    ) or (
+      new.status='played' and (old.start_at > now() or old.start_at <= now()-interval '24 hours')
+    ) or (
+      new.status='expired' and old.start_at > now()-interval '24 hours'
+      and not (old.venue_type='candidates' and old.decided_at is null and old.start_at <= now())
+    ) then raise exception 'INVALID_TRANSITION'; end if;
+  end if;
+  return new;
+end;
+$$;
+
 create or replace function private.lock_and_expire_session(p_session_id bigint)
 returns public.sessions language plpgsql security definer set search_path = '' as $$
 declare locked_session public.sessions%rowtype; recipient_row record;
