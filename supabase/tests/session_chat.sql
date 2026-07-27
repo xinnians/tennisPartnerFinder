@@ -131,21 +131,21 @@ begin
   return next is((select count(*) from public.session_messages where session_id = main_session_id and kind = 'system' and body = 'Chat Host 加入了球局'), 0::bigint, 'host session creation does not produce its forbidden guest-join system message');
 
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(main_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = main_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(main_session_id, participant_id, 'accepted');
   execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = main_session_id and kind = 'system'), 1::bigint, 'guest acceptance produces exactly one system message');
 
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true); perform public.request_to_join_session(main_session_id); execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', declined_user::text, true); perform public.request_to_join_session(main_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = main_session_id and profile_id = declined_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(main_session_id, participant_id, 'declined');
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', withdrawn_user::text, true); perform public.request_to_join_session(main_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = main_session_id and profile_id = withdrawn_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(main_session_id, participant_id, 'accepted');
   execute 'reset role';
   select count(*) into old_system_count from public.session_messages where session_id = main_session_id and kind = 'system';
@@ -172,10 +172,12 @@ begin
   select public.create_session(court_id, '雙打', now() + interval '15 days', 3, 4, 2, '__pgtap_chat_archive__', 'approval', 'booked', null, null, null) into archive_session_id;
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(archive_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = archive_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(archive_session_id, participant_id, 'accepted');
+  execute 'reset role';
   select count(*) into old_system_count from public.session_messages where session_id = archive_session_id and kind = 'system';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.cancel_session(archive_session_id);
   execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = archive_session_id and kind = 'system'), old_system_count + 1, 'cancellation produces exactly one system message');
@@ -225,8 +227,8 @@ begin
   select public.create_session(court_id, '雙打', now() + interval '16 days', 3, 4, 2, '__pgtap_chat_outbox__', 'approval', 'booked', null, null, null) into outbox_session_id;
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(outbox_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = outbox_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(outbox_session_id, participant_id, 'accepted');
   perform public.post_session_message(outbox_session_id, posted_body);
   execute 'reset role';
@@ -248,10 +250,12 @@ begin
   select public.create_session(court_id, '雙打', now() + interval '17 days', 3, 4, 2, '__pgtap_chat_update__', 'approval', 'booked', null, null, null) into update_session_id;
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(update_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = update_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(update_session_id, participant_id, 'accepted');
+  execute 'reset role';
   select count(*) into old_system_count from public.session_messages where session_id = update_session_id and kind = 'system';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.update_session(update_session_id, now() + interval '18 days', court_id, 2, 3, 4, '雙打', null, 'updated');
   execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = update_session_id and kind = 'system'), old_system_count + 1, 'session update produces exactly one system message');
@@ -260,10 +264,12 @@ begin
   select public.create_session(court_id, '雙打', now() + interval '19 days', 3, 4, 2, '__pgtap_chat_candidate__', 'approval', 'candidates', array[court_id, second_court_id], now() + interval '19 days 2 hours', null) into candidate_session_id;
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(candidate_session_id); execute 'reset role';
-  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select id into participant_id from public.session_participants where session_id = candidate_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.review_join_request(candidate_session_id, participant_id, 'accepted');
+  execute 'reset role';
   select count(*) into old_system_count from public.session_messages where session_id = candidate_session_id and kind = 'system';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.decide_session_court(candidate_session_id, second_court_id, now() + interval '19 days 1 hour');
   execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = candidate_session_id and kind = 'system'), old_system_count + 1, 'candidate decision produces exactly one system message');
