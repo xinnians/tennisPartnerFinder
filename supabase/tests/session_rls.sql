@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(435);
+select plan(441);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -4481,6 +4481,28 @@ select throws_ok($$select public.decide_session_court(current_setting('pgtap.sta
 select is(public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '113 days'), 'OK', 'host can decide an in-range candidate court');
 select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '113 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide the candidate session twice');
 reset role;
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+values
+ ('00000000-0000-0000-0000-000000009301','00000000-0000-0000-0000-000000000000','authenticated','authenticated','stage2-notify-host@example.test','test',now(),now(),now(),'{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb),
+ ('00000000-0000-0000-0000-000000009302','00000000-0000-0000-0000-000000000000','authenticated','authenticated','stage2-notify-sub@example.test','test',now(),now(),now(),'{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb),
+ ('00000000-0000-0000-0000-000000009303','00000000-0000-0000-0000-000000000000','authenticated','authenticated','stage2-notify-none@example.test','test',now(),now(),now(),'{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true); select public.save_my_profile('Notify Host',3.5,null,null,null,null);
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009302',true); select set_config('pgtap.stage2_notify_sub',public.save_my_profile('Notify Subscriber',3.5,null,null,null,null)::text,true); select is(public.set_court_subscriptions(array(select id from public.courts where is_active and city='台北市' order by id limit 2)),'OK','subscriber saves both candidate courts');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009303',true); select set_config('pgtap.stage2_notify_none',public.save_my_profile('Notify Non Subscriber',3.5,null,null,null,null)::text,true);
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true);
+select set_config('pgtap.stage2_booked_notify',public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()+interval '180 days',3,4,2,'stage2-booked-notify','approval')::text,true);
+reset role;
+select is((select count(*) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_booked_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_sub')::bigint),1::bigint,'booked court subscriber receives exactly one new-session event');
+select is((select count(*) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_booked_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_none')::bigint),0::bigint,'non-subscriber receives no booked new-session event');
+select is((select count(*) from public.notification_outbox where event_type='district_new_session' and session_id=current_setting('pgtap.stage2_booked_notify')::bigint),0::bigint,'booked create has no district fan-out');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true);
+select set_config('pgtap.stage2_candidates_notify',public.create_session(null,'雙打',now()+interval '181 days',3,4,2,'stage2-candidates-notify','approval','candidates',array(select id from public.courts where is_active and city='台北市' order by id limit 2),now()+interval '182 days')::text,true);
+reset role;
+select is((select count(*) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_candidates_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_sub')::bigint),1::bigint,'candidate subscriber to both courts receives one union-deduplicated event');
+select ok((select payload->>'court' in (select name from public.courts where id in (select court_id from public.court_subscriptions where profile_id=current_setting('pgtap.stage2_notify_sub')::bigint)) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_candidates_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_sub')::bigint),'candidate event payload court is a subscribed court');
 
 select * from finish();
 
