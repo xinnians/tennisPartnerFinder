@@ -168,7 +168,50 @@ begin
 end;
 $$;
 
-select plan(429);
+select plan(435);
+
+-- Stage 2 aged-candidate fixtures are built before this file creates any
+-- deferred session events.  They model a legitimate host plus accepted guest.
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+values
+ ('00000000-0000-0000-0000-000000009201','00000000-0000-0000-0000-000000000000','authenticated','authenticated','stage2-aged-host@example.test','test',now(),now(),now(),'{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb),
+ ('00000000-0000-0000-0000-000000009202','00000000-0000-0000-0000-000000000000','authenticated','authenticated','stage2-aged-guest@example.test','test',now(),now(),now(),'{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb),
+ ('00000000-0000-0000-0000-000000009203','00000000-0000-0000-0000-000000000000','authenticated','authenticated','stage2-aged-requester@example.test','test',now(),now(),now(),'{"provider":"email","providers":["email"]}'::jsonb,'{}'::jsonb);
+insert into public.profiles (user_id,nickname,ntrp) values
+ ('00000000-0000-0000-0000-000000009201','Aged Host',3.5),
+ ('00000000-0000-0000-0000-000000009202','Aged Guest',3.5),
+ ('00000000-0000-0000-0000-000000009203','Aged Requester',3.5);
+alter table public.sessions disable trigger sessions_enforce_transition;
+alter table public.sessions disable trigger sessions_capacity_invariant;
+alter table public.sessions disable trigger sessions_host_invariant;
+alter table public.session_participants disable trigger session_participants_enforce_transition;
+alter table public.session_participants disable trigger session_participants_capacity_invariant;
+alter table public.session_participants disable trigger session_participants_host_invariant;
+insert into public.sessions (sport_id,host_profile_id,court_id,play_type,start_at,ntrp_min,ntrp_max,slots_total,notes,join_mode,venue_type,range_end)
+values ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '1 minute',3,4,2,'__pgtap_stage2_lifecycle_expire__','instant','candidates',now()+interval '1 hour'),
+ ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '1 minute',3,4,2,'__pgtap_stage2_cron_expire__','instant','candidates',now()+interval '1 hour');
+select set_config('pgtap.stage2_lifecycle_expire_id',(select id::text from public.sessions where notes='__pgtap_stage2_lifecycle_expire__'),true);
+select set_config('pgtap.stage2_cron_expire_id',(select id::text from public.sessions where notes='__pgtap_stage2_cron_expire__'),true);
+insert into public.session_candidate_courts(session_id,court_id,position)
+select fixture.session_id,court.id,fixture.position::smallint from (select current_setting('pgtap.stage2_lifecycle_expire_id')::bigint session_id,1 position union all select current_setting('pgtap.stage2_lifecycle_expire_id')::bigint,2 union all select current_setting('pgtap.stage2_cron_expire_id')::bigint,1 union all select current_setting('pgtap.stage2_cron_expire_id')::bigint,2) fixture join lateral (select id from public.courts where is_active and city='台北市' order by id offset fixture.position-1 limit 1) court on true;
+insert into public.session_participants(session_id,profile_id,role,status)
+select session_id,(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),'host','accepted' from (values(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),(current_setting('pgtap.stage2_cron_expire_id')::bigint)) as fixtures(session_id)
+union all select session_id,(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009202'),'guest','accepted' from (values(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),(current_setting('pgtap.stage2_cron_expire_id')::bigint)) as fixtures(session_id);
+alter table public.session_participants enable trigger session_participants_host_invariant;
+alter table public.session_participants enable trigger session_participants_capacity_invariant;
+alter table public.session_participants enable trigger session_participants_enforce_transition;
+alter table public.sessions enable trigger sessions_host_invariant;
+alter table public.sessions enable trigger sessions_capacity_invariant;
+alter table public.sessions enable trigger sessions_enforce_transition;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009203',true);
+select is(public.request_to_join_session(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),'SESSION_EXPIRED','lifecycle RPC expires an aged undecided candidate');
+reset role;
+select is((select payload->>'message' from public.notification_outbox where session_id=current_setting('pgtap.stage2_lifecycle_expire_id')::bigint and event_type='session_updated' order by id desc limit 1),'候選球局逾期未定案,已下架','lifecycle expiry sends the exact accepted-guest message');
+select is(private.expire_stale_sessions(),1,'cron expires the remaining aged undecided candidate');
+select is((select status from public.sessions where id=current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),'expired','lifecycle persists the candidate expiry');
+select is((select status from public.sessions where id=current_setting('pgtap.stage2_cron_expire_id')::bigint),'expired','cron persists the candidate expiry');
+select is((select payload->>'message' from public.notification_outbox where session_id=current_setting('pgtap.stage2_cron_expire_id')::bigint and event_type='session_updated' order by id desc limit 1),'候選球局逾期未定案,已下架','cron expiry sends the exact accepted-guest message');
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
