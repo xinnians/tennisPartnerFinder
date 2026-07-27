@@ -209,6 +209,7 @@ begin
   perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next is((select count(*) from public.session_message_feed where message_id = guest_message_id), 0::bigint, 'host-to-guest block also filters guest user message for host');
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'host-to-guest block leaves system messages visible to host');
+  perform public.set_player_block(accepted_id, false);
   execute 'reset role';
 
   -- A block forbids new joins/invites but cannot alter an accepted row.
