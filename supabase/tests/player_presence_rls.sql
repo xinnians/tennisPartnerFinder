@@ -14,7 +14,7 @@ exception when others then
 end;
 $$;
 
-select plan(38);
+select plan(39);
 
 select has_table('public', 'player_presence', 'player presence is stored in its own table');
 select has_view('public', 'player_presence_directory', 'presence has a dedicated directory view');
@@ -365,6 +365,28 @@ select is(
   ),
   '0',
   'mutual viewer loses A immediately after the one-click hide'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005001', true);
+select public.save_my_profile('在場甲 Stage 1', 3.5, null, null, null, null);
+select public.set_presence_sharing(true);
+select public.update_my_presence(
+  (select lat from public.courts where is_active and city = '台北市' order by id limit 1),
+  (select lng from public.courts where is_active and city = '台北市' order by id limit 1)
+);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005002', true);
+select public.save_my_profile('在場乙 Stage 1', 4.0, null, null, null, null);
+select public.set_presence_sharing(true);
+select is(
+  pg_temp.text_outcome(
+    $$select (count(*) = 1 and bool_and(nickname = '在場甲 Stage 1'))::text
+      from public.player_presence_directory
+      where profile_id = current_setting('pgtap.presence_a_profile_id')::bigint$$
+  ),
+  'true',
+  'presence exposes a no-LINE, no-play-types subject to a matching Stage-1 viewer'
 );
 reset role;
 

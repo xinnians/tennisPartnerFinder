@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(391);
+select plan(393);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -4274,6 +4274,34 @@ select throws_ok($$select public.create_session((select id from public.courts wh
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009003', true);
 select ok(pg_temp.text_outcome($$select public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '92 days', 3.0, 5.0, 1, '__pgtap_stage1_ntrp_create__')::text$$) not like 'ERROR:%', 'nickname plus NTRP profile can create a session');
 select throws_ok($$select public.set_player_visibility(true)$$, 'P0001', 'PROFILE_INCOMPLETE', 'directory opt-in rejects a profile without an active Taipei frequent court');
+
+select public.save_my_profile(
+  'Stage One Directory Target',
+  3.5,
+  null,
+  array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+  null,
+  null
+);
+select is(public.set_player_visibility(true), 'OK', 'directory profile without LINE or play types can opt in');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009004', true);
+select public.save_my_profile(
+  'Stage One Directory Viewer',
+  3.5,
+  null,
+  array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+  null,
+  null
+);
+select is(
+  pg_temp.text_outcome(
+    $$select (count(*) = 1 and bool_and(nickname = 'Stage One Directory Target'))::text
+      from public.player_directory
+      where profile_id = current_setting('pgtap.stage1_ntrp_profile_id')::bigint$$
+  ),
+  'true',
+  'directory exposes a no-LINE, no-play-types target to a matching Stage-1 viewer'
+);
 reset role;
 
 select ok(pg_temp.text_outcome($$insert into public.sessions (sport_id, host_profile_id, court_id, play_type, start_at, ntrp_min, ntrp_max, slots_total, notes, venue_type) values ((select id from public.sports where code = 'tennis'), current_setting('pgtap.stage1_host_profile_id')::bigint, (select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '93 days', 3.0, 5.0, 1, '__pgtap_stage1_bad_candidate__', 'candidates')$$) like '%sessions_venue_time_shape%', 'candidate session without range_end violates sessions_venue_time_shape');

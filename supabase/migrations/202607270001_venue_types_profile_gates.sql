@@ -253,11 +253,13 @@ begin
   from public.profiles profile_row
   where profile_row.id = host_profile
   for update;
-  select count(*) into host_open_session_count
+  select count(*)
+  into host_open_session_count
   from public.sessions session_row
   where session_row.host_profile_id = host_profile
     and session_row.status in ('open', 'full')
     and session_row.start_at + interval '2 hours' > now();
+
   if host_open_session_count >= 5 then
     raise exception 'SESSION_LIMIT';
   end if;
@@ -785,6 +787,82 @@ group by
   viewer_participant.status,
   viewer_participant.played_confirmed,
   session_row.join_mode;
+
+create or replace view public.player_directory
+with (security_barrier = true, security_invoker = false)
+as
+select
+  profile_row.id as profile_id,
+  profile_row.nickname,
+  profile_row.ntrp,
+  coalesce(
+    (select array_agg(play_type_row.play_type order by play_type_row.play_type)
+     from public.profile_play_types play_type_row
+     where play_type_row.profile_id = profile_row.id),
+    '{}'::text[]
+  ) as play_types,
+  coalesce(
+    (select array_agg(slot_row.slot_code order by slot_row.slot_code)
+     from public.profile_slots slot_row
+     where slot_row.profile_id = profile_row.id),
+    '{}'::text[]
+  ) as slot_codes,
+  court_row.id as court_id,
+  court_row.name as court_name,
+  court_row.district as court_district,
+  court_row.lat as court_lat,
+  court_row.lng as court_lng,
+  (profile_row.user_id = auth.uid()) as is_self
+from public.profiles profile_row
+join public.profile_courts profile_court_row on profile_court_row.profile_id = profile_row.id
+join public.courts court_row on court_row.id = profile_court_row.court_id
+where profile_row.is_public
+  and court_row.is_active
+  and court_row.city = '台北市'
+  and private.profile_meets_gate(profile_row.id, 'directory')
+  and exists (
+    select 1
+    from public.profiles viewer_profile
+    where viewer_profile.user_id = auth.uid()
+      and private.profile_meets_gate(viewer_profile.id, 'directory')
+  );
+
+revoke all on table public.player_directory from public, anon, authenticated;
+grant select on table public.player_directory to authenticated;
+
+create or replace view public.player_presence_directory
+with (security_barrier = true, security_invoker = false)
+as
+select
+  profile_row.id as profile_id,
+  profile_row.nickname,
+  profile_row.ntrp,
+  profile_row.open_to_greeting,
+  court_row.id as court_id,
+  court_row.name as court_name,
+  court_row.district as court_district,
+  court_row.lat as court_lat,
+  court_row.lng as court_lng,
+  floor(extract(epoch from now() - presence_row.updated_at) / 60)::integer as minutes_ago,
+  (profile_row.user_id = auth.uid()) as is_self
+from public.player_presence presence_row
+join public.profiles profile_row on profile_row.id = presence_row.profile_id
+join public.courts court_row on court_row.id = presence_row.court_id
+where presence_row.updated_at > now() - interval '3 hours'
+  and profile_row.share_presence
+  and court_row.is_active
+  and court_row.city = '台北市'
+  and private.profile_meets_gate(profile_row.id, 'ntrp')
+  and exists (
+    select 1
+    from public.profiles viewer_profile
+    where viewer_profile.user_id = auth.uid()
+      and viewer_profile.share_presence
+      and private.profile_meets_gate(viewer_profile.id, 'ntrp')
+  );
+
+revoke all on table public.player_presence_directory from public, anon, authenticated;
+grant select on table public.player_presence_directory to authenticated;
 
 create or replace function public.set_court_subscriptions(p_court_ids bigint[])
 returns text
