@@ -184,6 +184,11 @@ as $$
 declare
   court_name text;
 begin
+  if new.status in ('played', 'expired')
+    and new.status is distinct from old.status then
+    return new;
+  end if;
+
   if new.status = 'cancelled'
     and new.status is distinct from old.status then
     perform private.post_system_message(
@@ -559,6 +564,7 @@ declare
   reporter_profile bigint;
   created_report_id bigint;
   visible_message_sender bigint;
+  visible_message_kind text;
 begin
   reporter_profile := private.viewer_profile_id();
 
@@ -592,13 +598,17 @@ begin
   end if;
 
   if p_message_id is not null then
-    select feed_row.sender_profile_id
-    into visible_message_sender
+    select feed_row.sender_profile_id, feed_row.kind
+    into visible_message_sender, visible_message_kind
     from public.session_message_feed feed_row
     where feed_row.message_id = p_message_id;
 
     if not found then
       raise exception 'MESSAGE_NOT_VISIBLE';
+    end if;
+
+    if visible_message_kind <> 'user' then
+      raise exception 'INVALID_TRANSITION';
     end if;
 
     if p_reported_profile_id is not null

@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(67);
+select plan(69);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -62,6 +62,7 @@ declare
   old_system_count bigint;
   host_message_id bigint;
   guest_message_id bigint;
+  visible_system_message_id bigint;
   unreported_message_id bigint;
   reported_message_id bigint;
   posted_body text := 'private body must not be pushed';
@@ -69,7 +70,7 @@ declare
 begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 65);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 67);
     return;
   end if;
 
@@ -161,6 +162,16 @@ begin
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'declined guest sees zero session message feed rows');
   perform set_config('request.jwt.claim.sub', withdrawn_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'withdrawn guest sees zero session message feed rows');
+  execute 'reset role';
+
+  select id into visible_system_message_id from public.session_messages where session_id = main_session_id and kind = 'system' order by id limit 1;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next throws_ok(
+    format('select public.create_report(null, null, %L, %s)', 'system messages are not reportable', visible_system_message_id),
+    'P0001',
+    'INVALID_TRANSITION',
+    'visible system message cannot be reported through create_report'
+  );
   execute 'reset role';
 
   -- Archived members retain the feed but cannot post.
@@ -274,8 +285,14 @@ begin
   -- All three archival transitions set archived_at through real lifecycle paths.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select public.create_session(court_id, '雙打', now() - interval '1 minute', 3, 4, 2, '__pgtap_chat_played__', 'approval', 'booked', null, null, null) into played_session_id;
-  perform public.mark_session_played(played_session_id);
   execute 'reset role';
+  select count(*) into old_system_count from public.session_messages where session_id = played_session_id and kind = 'system';
+  update public.sessions set status = 'played', court_id = second_court_id where id = played_session_id;
+  return next is(
+    (select count(*) from public.session_messages where session_id = played_session_id and kind = 'system'),
+    old_system_count,
+    'played transition suppresses system messages even when session fields also change'
+  );
   return next ok((select archived_at is not null from public.sessions where id = played_session_id), 'played session populates archived_at');
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select public.create_session(court_id, '雙打', now() + interval '20 days', 3, 4, 2, '__pgtap_chat_expired__', 'approval', 'booked', null, null, null) into expired_session_id;
