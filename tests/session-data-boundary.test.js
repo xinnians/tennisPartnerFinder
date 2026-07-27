@@ -803,18 +803,18 @@ test("postSessionMessage uses only its exact RPC contract and preserves Stage 3 
     client: {
       async rpc(name, params) {
         calls.push([name, params]);
-        if (name === "post_session_message") return { data: 901, error: null };
+        if (name === "post_session_message") return { data: "OK", error: null };
         throw new Error(`Unexpected RPC ${name}`);
       },
     },
   });
 
-  assert.deepEqual(await api.postSessionMessage("81", " 一起打球嗎？ "), { messageId: 901 });
+  assert.deepEqual(await api.postSessionMessage("81", " 一起打球嗎？ "), { outcome: "OK" });
   assert.deepEqual(calls, [["post_session_message", { p_session_id: 81, p_body: "一起打球嗎？" }]]);
 
   const archivedApi = createDataApi({
     configured: true,
-    client: { rpc: async () => ({ data: null, error: { message: "SESSION_ARCHIVED" } }) },
+    client: { rpc: async () => ({ data: "SESSION_ARCHIVED", error: null }) },
   });
   await assert.rejects(
     () => archivedApi.postSessionMessage(81, "封存局訊息"),
@@ -873,7 +873,7 @@ test("message reports use their exact RPC contract and preserve MESSAGE_NOT_VISI
     { reportId: 902 }
   );
   assert.deepEqual(calls, [
-    ["create_report", { p_session_id: 81, p_reported_profile_id: 92, p_reason: "不當訊息", p_message_id: 901 }],
+    ["create_report", { p_session_id: null, p_reported_profile_id: 92, p_reason: "不當訊息", p_message_id: 901 }],
   ]);
 
   const hiddenMessageApi = createDataApi({

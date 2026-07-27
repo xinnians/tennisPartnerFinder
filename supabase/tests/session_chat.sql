@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(70);
+select plan(84);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -23,6 +23,17 @@ begin
   perform set_config('private.allow_session_time_change', '', true);
   set constraints all immediate;
   set constraints all deferred;
+end;
+$$;
+
+create function pg_temp.post_session_message_outcome(p_session_id bigint, p_body text)
+returns text
+language plpgsql
+as $$
+begin
+  return public.post_session_message(p_session_id, p_body)::text;
+exception when others then
+  return 'EXCEPTION:' || sqlerrm;
 end;
 $$;
 
@@ -50,9 +61,11 @@ declare
   court_id bigint;
   second_court_id bigint;
   main_session_id bigint;
+  long_nickname_session_id bigint;
   archive_session_id bigint;
   update_session_id bigint;
   candidate_session_id bigint;
+  post_expiry_session_id bigint;
   played_session_id bigint;
   expired_session_id bigint;
   outbox_session_id bigint;
@@ -60,17 +73,27 @@ declare
   participant_id bigint;
   baseline_system_count bigint;
   old_system_count bigint;
+  update_start_at timestamptz;
+  update_court_id bigint;
+  update_slots integer;
+  update_ntrp_min numeric;
+  update_ntrp_max numeric;
+  update_play_type text;
+  update_note text;
+  update_fee_note text;
   host_message_id bigint;
   guest_message_id bigint;
   visible_system_message_id bigint;
   unreported_message_id bigint;
   reported_message_id bigint;
+  closed_reported_message_id bigint;
+  closed_report_id bigint;
   posted_body text := 'private body must not be pushed';
   fixture_line text := 'chat-host-line';
 begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 67);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 82);
     return;
   end if;
 
@@ -149,6 +172,20 @@ begin
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', withdrawn_user::text, true); perform public.withdraw_from_session(main_session_id); execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = main_session_id and kind = 'system'), old_system_count + 1, 'guest withdrawal produces exactly one system message');
 
+  -- Stage 1 permits a long nickname; its generated system message must not
+  -- turn an otherwise valid acceptance into a 1000-character CHECK failure.
+  update public.profiles set nickname = repeat('長', 1000) where id = observer_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '14 days 1 hour', 3, 4, 2, '__pgtap_chat_long_nickname__', 'approval', 'booked', null, null, null) into long_nickname_session_id;
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true); perform public.request_to_join_session(long_nickname_session_id); execute 'reset role';
+  select id into participant_id from public.session_participants where session_id = long_nickname_session_id and profile_id = observer_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next lives_ok(format('select public.review_join_request(%s, %s, %L)', long_nickname_session_id, participant_id, 'accepted'), 'long-nickname guest can be accepted without a system-message CHECK failure');
+  execute 'reset role';
+  return next ok((select char_length(body) = 1000 and right(body, char_length(' 加入了球局')) = ' 加入了球局' from public.session_messages where session_id = long_nickname_session_id and kind = 'system' order by id desc limit 1), 'long-nickname system message is capped and retains its lifecycle suffix');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.cancel_session(long_nickname_session_id); execute 'reset role';
+
   -- Feed gate: these are the Stage 3 three-beat canary assertions.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'non-member sees zero session message feed rows');
@@ -196,7 +233,7 @@ begin
   return next is((select count(*) from public.session_messages where session_id = archive_session_id and kind = 'system'), old_system_count + 1, 'cancellation produces exactly one system message');
   return next ok((select archived_at is not null from public.sessions where id = archive_session_id), 'cancelled session populates archived_at');
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
-  return next throws_ok(format('select public.post_session_message(%s, %L)', archive_session_id, 'archived write'), 'P0001', 'SESSION_ARCHIVED', 'archived session rejects post_session_message with SESSION_ARCHIVED');
+  return next is(pg_temp.post_session_message_outcome(archive_session_id, 'archived write'), 'SESSION_ARCHIVED', 'archived session returns SESSION_ARCHIVED from post_session_message');
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = archive_session_id), 'accepted member can still read archived session feed');
   execute 'reset role';
 
@@ -205,6 +242,7 @@ begin
   select id into host_message_id from public.session_messages where session_id = main_session_id and kind = 'user' and sender_profile_id = host_id order by id desc limit 1;
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.post_session_message(main_session_id, 'accepted user message'); perform public.set_player_block(host_id, true); execute 'reset role';
   select id into guest_message_id from public.session_messages where session_id = main_session_id and kind = 'user' and sender_profile_id = accepted_id order by id desc limit 1;
+  return next is((select status from public.session_participants where session_id = main_session_id and profile_id = accepted_id), 'accepted', 'block leaves its own pre-existing accepted pair unchanged');
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
   return next is((select count(*) from public.session_message_feed where message_id = host_message_id), 0::bigint, 'guest-to-host block filters blocked host user message');
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'guest-to-host block does not filter system messages');
@@ -223,7 +261,10 @@ begin
   return next is((select count(*) from public.session_message_feed where message_id = guest_message_id), 0::bigint, 'host-to-guest block also filters guest user message for host');
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'host-to-guest block leaves system messages visible to host');
   perform public.set_player_block(accepted_id, false);
+  return next ok(public.create_report(null, accepted_id, 'visible message report', guest_message_id) is not null, 'create_report accepts a visible user message without a session target');
+  perform public.create_report(null, null, 'message report derives its sender', host_message_id);
   execute 'reset role';
+  return next is((select reported_profile_id from public.reports where message_id = host_message_id order by id desc limit 1), host_id, 'message-only report derives the visible sender as its profile target');
 
   -- A block forbids new joins/invites but cannot alter an accepted row.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true); perform public.set_player_block(host_id, true);
@@ -258,6 +299,7 @@ begin
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = outbox_session_id and recipient_profile_id = accepted_id), 1::bigint, 'chat throttle ignores sent_at and suppresses a second recipient row within five minutes');
   return next throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('chat_message',%s,%s,'{"court":"x","message":"群組有新訊息","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1","body":"leak"}'::jsonb)$q$, accepted_id, outbox_session_id), '23514', null, 'payload CHECK rejects otherwise-valid body payload');
   return next throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('chat_message',%s,%s,'{"court":"x","message":"群組有新訊息","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1","line_id":"leak"}'::jsonb)$q$, accepted_id, outbox_session_id), '23514', null, 'payload CHECK rejects otherwise-valid line_id payload');
+  return next throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('chat_message',%s,%s,'{"court":"x","message":"private body must not be pushed","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1"}'::jsonb)$q$, accepted_id, outbox_session_id), '23514', null, 'payload CHECK rejects chat body smuggled through message');
 
   -- Update and candidate-decision system events.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -273,6 +315,43 @@ begin
   perform public.update_session(update_session_id, now() + interval '18 days', court_id, 2, 3, 4, '雙打', null, 'updated');
   execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = update_session_id and kind = 'system'), old_system_count + 1, 'session update produces exactly one system message');
+  select count(*) into old_system_count from public.session_messages where session_id = update_session_id and kind = 'system';
+  select session_for_fee.start_at, session_for_fee.court_id, session_for_fee.slots_total, session_for_fee.ntrp_min, session_for_fee.ntrp_max, session_for_fee.play_type, session_for_fee.notes
+  into update_start_at, update_court_id, update_slots, update_ntrp_min, update_ntrp_max, update_play_type, update_note
+  from public.sessions session_for_fee where session_for_fee.id = update_session_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.update_session(
+    update_session_id,
+    update_start_at,
+    update_court_id,
+    update_slots,
+    update_ntrp_min,
+    update_ntrp_max,
+    update_play_type,
+    'fee-only system update',
+    update_note
+  );
+  execute 'reset role';
+  return next is((select count(*) from public.session_messages where session_id = update_session_id and kind = 'system'), old_system_count + 1, 'fee-only session update produces exactly one system message');
+  update_fee_note := 'fee-only system update';
+  select count(*) into old_system_count from public.session_messages where session_id = update_session_id and kind = 'system';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.update_session(update_session_id, update_start_at, update_court_id, update_slots, 3.25, update_ntrp_max, update_play_type, update_fee_note, update_note);
+  execute 'reset role';
+  return next is((select count(*) from public.session_messages where session_id = update_session_id and kind = 'system'), old_system_count + 1, 'NTRP-only session update produces exactly one system message');
+  update_ntrp_min := 3.25;
+  select count(*) into old_system_count from public.session_messages where session_id = update_session_id and kind = 'system';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.update_session(update_session_id, update_start_at, update_court_id, update_slots, update_ntrp_min, update_ntrp_max, '單打', update_fee_note, update_note);
+  execute 'reset role';
+  return next is((select count(*) from public.session_messages where session_id = update_session_id and kind = 'system'), old_system_count + 1, 'play-type-only session update produces exactly one system message');
+  update_play_type := '單打';
+  select count(*) into old_system_count from public.session_messages where session_id = update_session_id and kind = 'system';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.update_session(update_session_id, update_start_at, update_court_id, update_slots, update_ntrp_min, update_ntrp_max, update_play_type, update_fee_note, 'notes-only system update');
+  execute 'reset role';
+  return next is((select count(*) from public.session_messages where session_id = update_session_id and kind = 'system'), old_system_count + 1, 'notes-only session update produces exactly one system message');
+  update_note := 'notes-only system update';
 
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select public.create_session(court_id, '雙打', now() + interval '19 days', 3, 4, 2, '__pgtap_chat_candidate__', 'approval', 'candidates', array[court_id, second_court_id], now() + interval '19 days 2 hours', null) into candidate_session_id;
@@ -287,6 +366,17 @@ begin
   perform public.decide_session_court(candidate_session_id, second_court_id, now() + interval '19 days 1 hour');
   execute 'reset role';
   return next is((select count(*) from public.session_messages where session_id = candidate_session_id and kind = 'system'), old_system_count + 1, 'candidate decision produces exactly one system message');
+
+  -- Lifecycle RPC entry: an overdue undecided candidate must archive before a
+  -- member can post, even when the cron sweep has not run.
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '19 days', 3, 4, 2, '__pgtap_chat_post_expiry__', 'approval', 'candidates', array[court_id, second_court_id], now() + interval '19 days 2 hours', null) into post_expiry_session_id;
+  execute 'reset role';
+  perform pg_temp.age_chat_session_for_expiry(post_expiry_session_id);
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true);
+  return next is(pg_temp.post_session_message_outcome(post_expiry_session_id, 'late candidate post'), 'SESSION_ARCHIVED', 'overdue undecided candidate returns SESSION_ARCHIVED from post_session_message');
+  execute 'reset role';
+  return next is((select status from public.sessions where id = post_expiry_session_id), 'expired', 'post_session_message lifecycle entry expires overdue undecided candidate');
 
   -- All three archival transitions set archived_at through real lifecycle paths.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -320,13 +410,20 @@ begin
   insert into public.session_messages(session_id, sender_profile_id, kind, body)
   values (purge_session_id, accepted_id, 'user', 'reported retain body') returning id into reported_message_id;
   insert into public.session_messages(session_id, sender_profile_id, kind, body)
+  values (purge_session_id, accepted_id, 'user', 'closed report purge body') returning id into closed_reported_message_id;
+  insert into public.session_messages(session_id, sender_profile_id, kind, body)
   values (purge_session_id, null, 'system', 'system purge body');
   insert into public.reports(reporter_profile_id, reported_profile_id, reason, message_id)
   values (host_id, accepted_id, 'test report retains its message', reported_message_id);
+  insert into public.reports(reporter_profile_id, reported_profile_id, reason, message_id, status)
+  values (host_id, accepted_id, 'closed report permits purge', closed_reported_message_id, 'reviewed')
+  returning id into closed_report_id;
   return next ok(exists(select 1 from public.session_messages message_row join public.sessions session_row on session_row.id = message_row.session_id where session_row.id = purge_session_id and session_row.archived_at < now() - interval '90 days'), 'purge scan has a non-empty archived-message candidate set');
   return next ok(private.purge_archived_session_messages() > 0, 'purge removes at least one aged archived message');
   return next is((select count(*) from public.session_messages where id = unreported_message_id), 0::bigint, 'purge removes unreported user message from aged archive');
   return next is((select count(*) from public.session_messages where id = reported_message_id), 1::bigint, 'purge preserves user message linked by reports.message_id');
+  return next is((select count(*) from public.session_messages where id = closed_reported_message_id), 0::bigint, 'purge removes message after its report is closed');
+  return next is((select message_id from public.reports where id = closed_report_id), null::bigint, 'purge preserves the closed report audit record after removing its message');
   return next is((select count(*) from public.session_messages where session_id = purge_session_id and kind = 'system'), 0::bigint, 'purge removes system messages from aged archive');
 
   -- Browser grants: raw tables stay RPC-only and the feed is never anonymous.

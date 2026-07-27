@@ -34,7 +34,7 @@ alter table public.sessions
   add column archived_at timestamptz;
 
 alter table public.reports
-  add column message_id bigint references public.session_messages(id);
+  add column message_id bigint references public.session_messages(id) on delete set null;
 alter table public.reports
   drop constraint reports_check;
 alter table public.reports
@@ -46,6 +46,7 @@ alter table public.reports
     or (
       message_id is not null
       and session_id is null
+      and reported_profile_id is not null
     )
   );
 
@@ -70,6 +71,10 @@ alter table public.notification_outbox
     and payload ?| array['court', 'message', 'slots_remaining', 'start_at', 'url']
     and not (payload ? 'line_id')
     and payload - array['court', 'message', 'slots_remaining', 'start_at', 'url'] = '{}'::jsonb
+    and (
+      event_type <> 'chat_message'
+      or payload @> '{"message":"群組有新訊息"}'::jsonb
+    )
   );
 
 create index notification_outbox_chat_throttle_idx
@@ -105,7 +110,7 @@ set search_path = ''
 as $$
 begin
   insert into public.session_messages (session_id, sender_profile_id, kind, body)
-  values (p_session_id, null, 'system', p_body);
+  values (p_session_id, null, 'system', left(p_body, 1000));
 end;
 $$;
 
@@ -151,7 +156,7 @@ begin
 
     perform private.post_system_message(
       new.session_id,
-      participant_nickname || ' 加入了球局'
+      left(coalesce(participant_nickname, '球友'), 1000 - char_length(' 加入了球局')) || ' 加入了球局'
     );
   elsif tg_op = 'UPDATE'
     and old.status = 'accepted'
@@ -163,7 +168,7 @@ begin
 
     perform private.post_system_message(
       new.session_id,
-      participant_nickname || ' 退出了球局'
+      left(coalesce(participant_nickname, '球友'), 1000 - char_length(' 退出了球局')) || ' 退出了球局'
     );
   end if;
 
@@ -208,7 +213,12 @@ begin
     );
   elsif new.start_at is distinct from old.start_at
     or new.court_id is distinct from old.court_id
-    or new.slots_total is distinct from old.slots_total then
+    or new.slots_total is distinct from old.slots_total
+    or new.ntrp_min is distinct from old.ntrp_min
+    or new.ntrp_max is distinct from old.ntrp_max
+    or new.play_type is distinct from old.play_type
+    or new.fee_note is distinct from old.fee_note
+    or new.notes is distinct from old.notes then
     perform private.post_system_message(
       new.id,
       '球局資訊已更新'
@@ -274,7 +284,7 @@ create or replace function public.post_session_message(
   p_session_id bigint,
   p_body text
 )
-returns bigint
+returns text
 language plpgsql
 security definer
 set search_path = ''
@@ -283,19 +293,9 @@ declare
   viewer_profile bigint;
   locked_session public.sessions%rowtype;
   recipient_row record;
-  created_message_id bigint;
 begin
   viewer_profile := private.viewer_profile_id();
-
-  select *
-  into locked_session
-  from public.sessions session_row
-  where session_row.id = p_session_id
-  for update;
-
-  if not found then
-    raise exception 'SESSION_NOT_FOUND';
-  end if;
+  locked_session := private.lock_and_expire_session(p_session_id);
 
   if viewer_profile is null
     or not exists (
@@ -309,7 +309,7 @@ begin
   end if;
 
   if locked_session.status not in ('open', 'full') then
-    raise exception 'SESSION_ARCHIVED';
+    return 'SESSION_ARCHIVED';
   end if;
 
   insert into public.session_messages (
@@ -323,8 +323,7 @@ begin
     viewer_profile,
     'user',
     p_body
-  )
-  returning id into created_message_id;
+  );
 
   for recipient_row in
     select participant_row.profile_id
@@ -357,7 +356,7 @@ begin
     end;
   end loop;
 
-  return created_message_id;
+  return 'OK';
 end;
 $$;
 
@@ -615,6 +614,12 @@ begin
       and p_reported_profile_id is distinct from visible_message_sender then
       raise exception 'INVALID_TRANSITION';
     end if;
+
+    if visible_message_sender is null then
+      raise exception 'INVALID_TRANSITION';
+    end if;
+
+    p_reported_profile_id := visible_message_sender;
   end if;
 
   insert into public.reports (
@@ -658,6 +663,7 @@ begin
           select 1
           from public.reports report_row
           where report_row.message_id = message_row.id
+            and report_row.status = 'open'
         )
       )
     );
@@ -676,6 +682,8 @@ from public, anon, authenticated;
 revoke all on function private.record_session_message()
 from public, anon, authenticated;
 revoke all on function private.purge_archived_session_messages()
+from public, anon, authenticated;
+revoke all on function private.notification_pref_enabled(bigint, text)
 from public, anon, authenticated;
 
 revoke all on function public.post_session_message(bigint, text)

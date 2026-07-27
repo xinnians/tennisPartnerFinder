@@ -903,11 +903,14 @@ export function createDataApi({
   }
 
   async function postSessionMessage(sessionId, body) {
-    const messageId = await callRpc("post_session_message", {
+    const outcome = await callRpc("post_session_message", {
       p_session_id: asNumber(sessionId),
       p_body: asText(body).trim(),
     });
-    return { messageId: asNumber(messageId) };
+    if (outcome !== "OK") {
+      throw new SessionActionError(SESSION_ACTION_CODES.includes(outcome) ? outcome : "UNKNOWN_ACTION_ERROR");
+    }
+    return { outcome };
   }
 
   async function setPlayerBlock(profileId, blocked) {
@@ -920,11 +923,12 @@ export function createDataApi({
   }
 
   async function createReport({ sessionId = null, reportedProfileId = null, reason, messageId = null }) {
+    const normalizedMessageId = messageId == null ? null : asNumber(messageId);
     const reportId = await callRpc("create_report", {
-      p_session_id: sessionId,
+      p_session_id: normalizedMessageId == null ? sessionId : null,
       p_reported_profile_id: reportedProfileId,
       p_reason: asText(reason).trim(),
-      p_message_id: messageId == null ? null : asNumber(messageId),
+      p_message_id: normalizedMessageId,
     });
     return { reportId: asNumber(reportId) };
   }
