@@ -116,6 +116,7 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "SESSION_FULL",
   "SESSION_CANCELLED",
   "SESSION_EXPIRED",
+  "SESSION_ARCHIVED",
   "SESSION_STARTED",
   "SESSION_LIMIT",
   "ALREADY_REQUESTED",
@@ -129,6 +130,8 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "ALREADY_INVITED",
   "NOT_INVITED",
   "INVITE_LIMIT",
+  "BLOCKED",
+  "MESSAGE_NOT_VISIBLE",
 ]);
 
 const ACTION_MESSAGES = {
@@ -138,6 +141,7 @@ const ACTION_MESSAGES = {
   SESSION_FULL: "這個球局已額滿。",
   SESSION_CANCELLED: "這個球局已取消。",
   SESSION_EXPIRED: "球局狀態已更新，請重新載入。",
+  SESSION_ARCHIVED: "這個球局已封存，無法再傳送訊息。",
   SESSION_STARTED: "球局已超過可加入時間。",
   SESSION_LIMIT: "你同時開放中的球局已達上限，請先處理現有球局。",
   ALREADY_REQUESTED: "您已申請加入這個球局。",
@@ -151,6 +155,8 @@ const ACTION_MESSAGES = {
   ALREADY_INVITED: "你已邀請過這位球友。",
   NOT_INVITED: "找不到你的邀請，球局狀態可能已更新。",
   INVITE_LIMIT: "24 小時內邀請次數已達上限。",
+  BLOCKED: "此操作因封鎖關係無法完成。",
+  MESSAGE_NOT_VISIBLE: "這則訊息目前無法檢舉。",
   UNKNOWN_ACTION_ERROR: "球局操作失敗，請重新載入後再試。",
 };
 

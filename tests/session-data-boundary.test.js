@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -10,8 +10,10 @@ import {
   SESSION_CONTACTS_SELECT,
   SESSION_DISCOVERY_SELECT,
   SESSION_ROSTER_SELECT,
+  DataApiUnavailableError,
   SessionActionError,
   createDataApi,
+  loadSessionMessages,
   mapCurrentProfile,
   mapMySession,
   mapPlayerDirectoryRow,
@@ -19,7 +21,9 @@ import {
   mapSessionContactRow,
   mapSessionRosterRow,
   mapSessionSummary,
+  postSessionMessage,
   resolveInitialSession,
+  setPlayerBlock,
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
@@ -83,6 +87,18 @@ function session(overrides = {}) {
 
 function sortedKeys(value) {
   return Object.keys(value).sort();
+}
+
+async function readJavaScriptSources(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const sources = await Promise.all(
+    entries.map((entry) => {
+      const entryUrl = new URL(entry.name, directory);
+      if (entry.isDirectory()) return readJavaScriptSources(new URL(`${entry.name}/`, directory));
+      return entry.name.endsWith(".js") ? readFile(entryUrl, "utf8") : [];
+    })
+  );
+  return sources.flat();
 }
 
 test("initial auth restoration distinguishes a definitive anonymous result from a recoverable error", async () => {
@@ -780,7 +796,7 @@ test("session messages load only from the ordered safe feed and map its allowlis
   assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
 });
 
-test("chat post, block, and message report wrappers use only their exact RPC contracts", async () => {
+test("postSessionMessage uses only its exact RPC contract and preserves SESSION_ARCHIVED", async () => {
   const calls = [];
   const api = createDataApi({
     configured: true,
@@ -788,24 +804,38 @@ test("chat post, block, and message report wrappers use only their exact RPC con
       async rpc(name, params) {
         calls.push([name, params]);
         if (name === "post_session_message") return { data: 901, error: null };
-        if (name === "set_player_block") return { data: "OK", error: null };
-        if (name === "create_report") return { data: 902, error: null };
         throw new Error(`Unexpected RPC ${name}`);
       },
     },
   });
 
   assert.deepEqual(await api.postSessionMessage("81", " 一起打球嗎？ "), { messageId: 901 });
-  assert.deepEqual(await api.setPlayerBlock("92", true), { outcome: "OK" });
-  assert.deepEqual(
-    await api.createReport({ sessionId: 81, reportedProfileId: 92, reason: " 不當訊息 ", messageId: "901" }),
-    { reportId: 902 }
+  assert.deepEqual(calls, [["post_session_message", { p_session_id: 81, p_body: "一起打球嗎？" }]]);
+
+  const archivedApi = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: null, error: { message: "SESSION_ARCHIVED" } }) },
+  });
+  await assert.rejects(
+    () => archivedApi.postSessionMessage(81, "封存局訊息"),
+    (error) => error instanceof SessionActionError && error.code === "SESSION_ARCHIVED"
   );
-  assert.deepEqual(calls, [
-    ["post_session_message", { p_session_id: 81, p_body: "一起打球嗎？" }],
-    ["set_player_block", { p_profile_id: 92, p_blocked: true }],
-    ["create_report", { p_session_id: 81, p_reported_profile_id: 92, p_reason: "不當訊息", p_message_id: 901 }],
-  ]);
+});
+
+test("setPlayerBlock uses only its exact RPC contract and accepts only OK", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: "OK", error: null };
+      },
+    },
+  });
+
+  assert.deepEqual(await api.setPlayerBlock("92", true), { outcome: "OK" });
+  assert.deepEqual(calls, [["set_player_block", { p_profile_id: 92, p_blocked: true }]]);
 
   const failedBlockApi = createDataApi({
     configured: true,
@@ -815,6 +845,54 @@ test("chat post, block, and message report wrappers use only their exact RPC con
     () => failedBlockApi.setPlayerBlock(92, false),
     (error) => error instanceof SessionActionError && error.code === "UNKNOWN_ACTION_ERROR"
   );
+});
+
+test("message reports use their exact RPC contract and preserve MESSAGE_NOT_VISIBLE", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: 902, error: null };
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await api.createReport({ sessionId: 81, reportedProfileId: 92, reason: " 不當訊息 ", messageId: "901" }),
+    { reportId: 902 }
+  );
+  assert.deepEqual(calls, [
+    ["create_report", { p_session_id: 81, p_reported_profile_id: 92, p_reason: "不當訊息", p_message_id: 901 }],
+  ]);
+
+  const hiddenMessageApi = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: null, error: { message: "MESSAGE_NOT_VISIBLE" } }) },
+  });
+  await assert.rejects(
+    () => hiddenMessageApi.createReport({ sessionId: 81, reportedProfileId: 92, reason: "不當訊息", messageId: 901 }),
+    (error) => error instanceof SessionActionError && error.code === "MESSAGE_NOT_VISIBLE"
+  );
+});
+
+test("lifecycle wrappers preserve BLOCKED instead of replacing it with UNKNOWN_ACTION_ERROR", async () => {
+  const api = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: null, error: { message: "BLOCKED" } }) },
+  });
+
+  await assert.rejects(
+    () => api.requestToJoinSession(81),
+    (error) => error instanceof SessionActionError && error.code === "BLOCKED"
+  );
+});
+
+test("module-level chat exports forward to the project default data API", async () => {
+  assert.deepEqual(await loadSessionMessages(81), []);
+  await assert.rejects(() => postSessionMessage(81, "預設 API 訊息"), DataApiUnavailableError);
+  await assert.rejects(() => setPlayerBlock(92, true), DataApiUnavailableError);
 });
 
 test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outcome", async () => {
@@ -1188,8 +1266,8 @@ test("session creation, reporting, and profile save use only their RPC contracts
   assert.doesNotMatch(capturedMutationJson, /25\.031234|121\.551234/);
 });
 
-test("data API keeps raw lifecycle, chat, block, and report tables outside browser access", async () => {
-  const source = await readFile(new URL("../src/dataApi.js", import.meta.url), "utf8");
+test("browser source keeps raw lifecycle, chat, block, and report tables outside all src access", async () => {
+  const source = (await readJavaScriptSources(new URL("../src/", import.meta.url))).join("\n");
   assert.doesNotMatch(
     source,
     /\.from\(\s*["'](?:sessions|session_participants|reports|profiles|profile_courts|profile_play_types|profile_slots)["']\s*\)\s*\.(?:insert|update|delete)\b/
