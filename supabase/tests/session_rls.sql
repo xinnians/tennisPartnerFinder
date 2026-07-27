@@ -168,7 +168,7 @@ begin
 end;
 $$;
 
-select plan(417);
+select plan(422);
 
 -- Structural boundary: the quick-contact tables are archived, while the
 -- session boundary is the only public product model.
@@ -4404,6 +4404,29 @@ select throws_ok($$select public.create_session(null, '雙打', now()+interval '
 select throws_ok($$select public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'other-city', 'approval', 'candidates', array[(select id from public.courts where is_active and city='台北市' order by id limit 1),(select id from public.courts where is_active and city='新北市' order by id limit 1)], now()+interval '101 days')$$, 'P0001', 'INVALID_VENUE_INPUT', 'candidate session rejects a non-Taipei court');
 select throws_ok($$select public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1), '雙打', now()+interval '100 days', 3, 5, 1, 'booked-candidates', 'approval', 'booked', array[(select id from public.courts where is_active and city='台北市' order by id limit 1)], null)$$, 'P0001', 'INVALID_VENUE_INPUT', 'booked session rejects candidate inputs');
 select ok(public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'valid-candidate', 'approval', 'candidates', array(select id from public.courts where is_active and city='台北市' order by id limit 2), now()+interval '101 days') > 0, 'candidate session accepts two distinct Taipei courts');
+reset role;
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
+values
+  ('00000000-0000-0000-0000-000000009102', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage2-in@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000009103', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage2-missing@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000009104', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'stage2-out@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009102', true); select public.save_my_profile('Stage Two In', 3.5, null, null, null, null);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009103', true); select public.save_my_profile('Stage Two Missing', null, null, null, null, null);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009104', true); select set_config('pgtap.stage2_out_profile_id', public.save_my_profile('Stage Two Out', 6.5, null, null, null, null)::text, true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009101', true);
+select set_config('pgtap.stage2_instant_session', public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1), '雙打', now()+interval '110 days', 3, 4, 3, 'stage2-instant', 'instant')::text, true);
+select set_config('pgtap.stage2_approval_session', public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1), '雙打', now()+interval '111 days', 3, 4, 3, 'stage2-approval', 'approval')::text, true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009102', true);
+select is(public.request_to_join_session(current_setting('pgtap.stage2_instant_session')::bigint), 'ACCEPTED', 'instant join accepts an in-range NTRP guest');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009103', true);
+select is(public.request_to_join_session(current_setting('pgtap.stage2_instant_session')::bigint), 'OK_NTRP_MISSING', 'instant join requests when NTRP is missing');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009104', true);
+select is(public.request_to_join_session(current_setting('pgtap.stage2_instant_session')::bigint), 'OK_NTRP_OUT_OF_RANGE', 'instant join requests when NTRP is out of range');
+select is(public.request_to_join_session(current_setting('pgtap.stage2_approval_session')::bigint), 'OK', 'approval join requests regardless of NTRP');
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009101', true);
+select is(public.review_join_request(current_setting('pgtap.stage2_instant_session')::bigint, (select participant_id from public.session_participant_roster where session_id=current_setting('pgtap.stage2_instant_session')::bigint and profile_id=current_setting('pgtap.stage2_out_profile_id')::bigint), 'accepted'), 'OK', 'host can approve an out-of-range requested guest');
 reset role;
 
 select * from finish();

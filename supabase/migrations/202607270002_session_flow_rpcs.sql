@@ -40,7 +40,7 @@ returns void language plpgsql security definer set search_path = '' as $$
 declare recipient_row record;
 begin
   for recipient_row in
-    select distinct subscription_row.profile_id, court_row.name
+    select subscription_row.profile_id, min(court_row.name) as name
     from public.court_subscriptions subscription_row
     join public.courts court_row on court_row.id = subscription_row.court_id
     where subscription_row.court_id in (
@@ -49,6 +49,7 @@ begin
       left join public.session_candidate_courts candidate_row on candidate_row.session_id = session_row.id
       where session_row.id = p_session_id
     )
+    group by subscription_row.profile_id
   loop
     perform private.enqueue_notification(
       'court_new_session', recipient_row.profile_id, p_session_id,
@@ -148,7 +149,7 @@ begin
   else
     candidate_count := cardinality(p_candidate_court_ids);
     duplicate_count := (select count(*) - count(distinct court_id) from unnest(p_candidate_court_ids) as candidate(court_id));
-    if candidate_count not between 2 and 3 or duplicate_count <> 0 or p_range_end is null or p_range_end <= p_start_at then raise exception 'INVALID_VENUE_INPUT'; end if;
+    if candidate_count is null or candidate_count not between 2 and 3 or duplicate_count <> 0 or p_range_end is null or p_range_end <= p_start_at then raise exception 'INVALID_VENUE_INPUT'; end if;
     if (select count(*) from public.courts where id = any(p_candidate_court_ids) and is_active and city = '台北市') <> candidate_count then raise exception 'INVALID_VENUE_INPUT'; end if;
     taipei_court_id := p_candidate_court_ids[1];
   end if;
@@ -177,6 +178,7 @@ begin
   guest_profile := private.require_profile_gate('nickname');
   if locked_session.status = 'cancelled' then raise exception 'SESSION_CANCELLED'; elsif locked_session.status = 'full' then raise exception 'SESSION_FULL'; elsif locked_session.status <> 'open' then raise exception 'SESSION_NOT_OPEN';
   elsif (locked_session.venue_type = 'candidates' and locked_session.decided_at is null and locked_session.start_at <= now()) or (not (locked_session.venue_type = 'candidates' and locked_session.decided_at is null) and locked_session.start_at + interval '2 hours' <= now()) then raise exception 'SESSION_STARTED'; end if;
+  if not exists (select 1 from public.courts court_row join public.sports sport_row on sport_row.id=locked_session.sport_id where court_row.id=locked_session.court_id and court_row.is_active and court_row.city='台北市' and sport_row.code='tennis' and sport_row.is_active) then raise exception 'INVALID_TRANSITION'; end if;
   if locked_session.host_profile_id = guest_profile then raise exception 'INVALID_TRANSITION'; end if;
   select status into prior_status from public.session_participants where session_id=locked_session.id and profile_id=guest_profile;
   if found then if prior_status='requested' then raise exception 'ALREADY_REQUESTED'; end if; raise exception 'ALREADY_DECIDED'; end if;
