@@ -89,7 +89,8 @@ begin
     if new.status <> 'open' or new.start_at < now() - interval '5 minutes' then raise exception 'INVALID_TRANSITION'; end if;
     return new;
   end if;
-  if new.host_profile_id is distinct from old.host_profile_id or new.start_at is distinct from old.start_at then raise exception 'INVALID_TRANSITION'; end if;
+  if new.host_profile_id is distinct from old.host_profile_id
+    or (new.start_at is distinct from old.start_at and coalesce(current_setting('private.allow_session_time_change', true), '') <> '1') then raise exception 'INVALID_TRANSITION'; end if;
   if new.status is distinct from old.status then
     if not ((old.status='open' and new.status in ('full','cancelled','played','expired')) or (old.status='full' and new.status in ('open','cancelled','played','expired'))) then raise exception 'INVALID_TRANSITION'; end if;
     if (
@@ -227,16 +228,20 @@ $$;
 
 create or replace function public.update_session(p_session_id bigint, p_start_at timestamptz, p_court_id bigint, p_slots_missing integer, p_ntrp_min numeric, p_ntrp_max numeric, p_play_type text, p_fee_note text, p_note text)
 returns text language plpgsql security definer set search_path = '' as $$
-declare viewer_profile bigint; locked_session public.sessions%rowtype; recipient_row record;
+declare viewer_profile bigint; locked_session public.sessions%rowtype; recipient_row record; accepted_guest_count integer;
 begin
   viewer_profile := private.viewer_profile_id(); locked_session := private.lock_and_expire_session(p_session_id);
   if locked_session.status='expired' then return 'SESSION_EXPIRED'; end if;
   if viewer_profile is null or not private.is_session_host(locked_session.id,viewer_profile) then raise exception 'NOT_SESSION_HOST'; end if;
   if locked_session.status not in ('open','full') then raise exception 'SESSION_NOT_OPEN'; end if;
-  if locked_session.venue_type='candidates' and locked_session.decided_at is null and (p_start_at is distinct from locked_session.start_at or p_court_id is distinct from locked_session.court_id) then raise exception 'INVALID_VENUE_INPUT'; end if;
+  if locked_session.venue_type='candidates' and p_court_id is distinct from locked_session.court_id then raise exception 'INVALID_VENUE_INPUT'; end if;
+  if locked_session.venue_type='candidates' and locked_session.decided_at is null and p_start_at is distinct from locked_session.start_at then raise exception 'INVALID_VENUE_INPUT'; end if;
   if p_start_at is null or p_start_at < now() - interval '5 minutes' or p_slots_missing not between 1 and 3 or p_play_type not in ('單打','雙打','對拉','練球') or ((p_ntrp_min is null) <> (p_ntrp_max is null)) or (p_ntrp_min is not null and (p_ntrp_min not between 1 and 7 or p_ntrp_max not between 1 and 7 or p_ntrp_min>p_ntrp_max)) or (p_note is not null and char_length(p_note)>500) or (p_fee_note is not null and char_length(p_fee_note)>500) then raise exception 'INVALID_TRANSITION'; end if;
   if locked_session.venue_type in ('booked','walk_on') and not exists(select 1 from public.courts where id=p_court_id and is_active and city='台北市') then raise exception 'INVALID_VENUE_INPUT'; end if;
-  update public.sessions set start_at=p_start_at, court_id=p_court_id, slots_total=p_slots_missing::smallint, ntrp_min=p_ntrp_min, ntrp_max=p_ntrp_max, play_type=p_play_type, fee_note=p_fee_note, notes=p_note where id=locked_session.id;
+  select count(*) into accepted_guest_count from public.session_participants where session_id=locked_session.id and role='guest' and status='accepted';
+  perform set_config('private.allow_session_time_change','1',true);
+  update public.sessions set start_at=p_start_at, court_id=p_court_id, slots_total=p_slots_missing::smallint, ntrp_min=p_ntrp_min, ntrp_max=p_ntrp_max, play_type=p_play_type, fee_note=p_fee_note, notes=p_note, status=case when accepted_guest_count >= p_slots_missing then 'full' else 'open' end where id=locked_session.id;
+  perform set_config('private.allow_session_time_change','',true);
   for recipient_row in select profile_id from public.session_participants where session_id=locked_session.id and role='guest' and status='accepted' loop perform private.try_enqueue_session_notification('session_updated',recipient_row.profile_id,locked_session.id,'球局資訊已更新。'); end loop;
   return 'OK';
 end;
@@ -250,7 +255,9 @@ begin
   if locked_session.status='expired' then return 'SESSION_EXPIRED'; end if;
   if viewer_profile is null or not private.is_session_host(locked_session.id,viewer_profile) then raise exception 'NOT_SESSION_HOST'; end if;
   if locked_session.venue_type <> 'candidates' or locked_session.decided_at is not null or p_start_at is null or p_start_at < locked_session.start_at or p_start_at > locked_session.range_end or not exists(select 1 from public.session_candidate_courts where session_id=locked_session.id and court_id=p_court_id) then raise exception 'INVALID_DECISION'; end if;
+  perform set_config('private.allow_session_time_change','1',true);
   update public.sessions set court_id=p_court_id,start_at=p_start_at,decided_at=now() where id=locked_session.id;
+  perform set_config('private.allow_session_time_change','',true);
   for recipient_row in select profile_id from public.session_participants where session_id=locked_session.id and role='guest' and status='accepted' loop perform private.try_enqueue_session_notification('session_decided',recipient_row.profile_id,locked_session.id,'候選球局已定案。'); end loop;
   return 'OK';
 end;
