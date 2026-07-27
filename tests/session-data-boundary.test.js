@@ -811,6 +811,101 @@ test("createSession defaults joinMode to approval", async () => {
   ]);
 });
 
+test("createSession maps the candidates venue contract and both requested NTRP outcomes", async () => {
+  const calls = [];
+  const joinOutcomes = ["OK_NTRP_MISSING", "OK_NTRP_OUT_OF_RANGE"];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        if (name === "create_session") return { data: 82, error: null };
+        if (name === "request_to_join_session") return { data: joinOutcomes.shift(), error: null };
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await api.createSession({
+      courtId: null,
+      playType: "雙打",
+      startAt: "2026-09-01T01:00:00.000Z",
+      slotsTotal: 2,
+      venueType: "candidates",
+      candidateCourtIds: [101, "102"],
+      rangeEnd: "2026-09-01T03:00:00.000Z",
+      feeNote: "每人 120 元",
+    }),
+    { sessionId: 82 }
+  );
+  assert.deepEqual(calls[0], [
+    "create_session",
+    {
+      p_court_id: null,
+      p_play_type: "雙打",
+      p_start_at: "2026-09-01T01:00:00.000Z",
+      p_ntrp_min: null,
+      p_ntrp_max: null,
+      p_slots_total: 2,
+      p_notes: null,
+      p_join_mode: "approval",
+      p_venue_type: "candidates",
+      p_candidate_court_ids: [101, 102],
+      p_range_end: "2026-09-01T03:00:00.000Z",
+      p_fee_note: "每人 120 元",
+    },
+  ]);
+  assert.deepEqual(await api.requestToJoinSession(82), { outcome: "OK_NTRP_MISSING", accepted: false, reloadRequired: false });
+  assert.deepEqual(await api.requestToJoinSession(83), { outcome: "OK_NTRP_OUT_OF_RANGE", accepted: false, reloadRequired: false });
+});
+
+test("updateSession and decideSessionCourt use only their Stage 2 RPC contracts", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      async rpc(name, params) {
+        calls.push([name, params]);
+        return { data: "OK", error: null };
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await api.updateSession({
+      sessionId: "91",
+      startAt: "2026-09-01T02:00:00.000Z",
+      courtId: "102",
+      slotsMissing: "3",
+      ntrpMin: "3",
+      ntrpMax: "4.5",
+      playType: "雙打",
+      feeNote: "每人 120 元",
+      notes: "請提早到",
+    }),
+    { outcome: "OK", reloadRequired: false }
+  );
+  assert.deepEqual(await api.decideSessionCourt("92", "103", "2026-09-01T02:30:00.000Z"), { outcome: "OK", reloadRequired: false });
+  assert.deepEqual(calls, [
+    [
+      "update_session",
+      {
+        p_session_id: 91,
+        p_start_at: "2026-09-01T02:00:00.000Z",
+        p_court_id: 102,
+        p_slots_missing: 3,
+        p_ntrp_min: 3,
+        p_ntrp_max: 4.5,
+        p_play_type: "雙打",
+        p_fee_note: "每人 120 元",
+        p_note: "請提早到",
+      },
+    ],
+    ["decide_session_court", { p_session_id: 92, p_court_id: 103, p_start_at: "2026-09-01T02:30:00.000Z" }],
+  ]);
+});
+
 test("RPC failures are exposed as documented action codes", async () => {
   const api = createDataApi({
     configured: true,

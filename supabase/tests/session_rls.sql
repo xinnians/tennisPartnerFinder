@@ -14,6 +14,29 @@ exception when others then
 end;
 $$;
 
+create function pg_temp.stage2_capacity_update_outcome()
+returns text
+language plpgsql
+as $$
+begin
+  perform public.update_session(
+    current_setting('pgtap.stage2_instant_session')::bigint,
+    now() + interval '112 days',
+    (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+    1,
+    3,
+    4,
+    '雙打',
+    null,
+    'below-capacity'
+  );
+  set constraints all immediate;
+  return 'OK';
+exception when others then
+  return 'ERROR:' || sqlerrm;
+end;
+$$;
+
 create function pg_temp.delete_participant_and_force_constraints(p_participant_id bigint)
 returns void
 language plpgsql
@@ -168,7 +191,7 @@ begin
 end;
 $$;
 
-select plan(449);
+select plan(461);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -188,14 +211,16 @@ alter table public.session_participants disable trigger session_participants_enf
 alter table public.session_participants disable trigger session_participants_capacity_invariant;
 alter table public.session_participants disable trigger session_participants_host_invariant;
 insert into public.sessions (sport_id,host_profile_id,court_id,play_type,start_at,ntrp_min,ntrp_max,slots_total,notes,join_mode,venue_type,range_end)
-values ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '1 minute',3,4,2,'__pgtap_stage2_lifecycle_expire__','instant','candidates',now()+interval '1 hour'),
- ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '1 minute',3,4,2,'__pgtap_stage2_cron_expire__','instant','candidates',now()+interval '1 hour');
+ values ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '1 minute',3,4,2,'__pgtap_stage2_lifecycle_expire__','instant','candidates',now()+interval '1 hour'),
+ ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '1 minute',3,4,2,'__pgtap_stage2_cron_expire__','instant','candidates',now()+interval '1 hour'),
+ ((select id from public.sports where code='tennis'),(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),(select id from public.courts where is_active and city='台北市' order by id limit 1),'雙打',now()-interval '2 hours',3,4,2,'__pgtap_stage2_walk_on_window__','instant','walk_on',null);
 select set_config('pgtap.stage2_lifecycle_expire_id',(select id::text from public.sessions where notes='__pgtap_stage2_lifecycle_expire__'),true);
 select set_config('pgtap.stage2_cron_expire_id',(select id::text from public.sessions where notes='__pgtap_stage2_cron_expire__'),true);
+select set_config('pgtap.stage2_walk_on_window_id',(select id::text from public.sessions where notes='__pgtap_stage2_walk_on_window__'),true);
 insert into public.session_candidate_courts(session_id,court_id,position)
 select fixture.session_id,court.id,fixture.position::smallint from (select current_setting('pgtap.stage2_lifecycle_expire_id')::bigint session_id,1 position union all select current_setting('pgtap.stage2_lifecycle_expire_id')::bigint,2 union all select current_setting('pgtap.stage2_cron_expire_id')::bigint,1 union all select current_setting('pgtap.stage2_cron_expire_id')::bigint,2) fixture join lateral (select id from public.courts where is_active and city='台北市' order by id offset fixture.position-1 limit 1) court on true;
 insert into public.session_participants(session_id,profile_id,role,status)
-select session_id,(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),'host','accepted' from (values(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),(current_setting('pgtap.stage2_cron_expire_id')::bigint)) as fixtures(session_id)
+ select session_id,(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009201'),'host','accepted' from (values(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),(current_setting('pgtap.stage2_cron_expire_id')::bigint),(current_setting('pgtap.stage2_walk_on_window_id')::bigint)) as fixtures(session_id)
 union all select session_id,(select id from public.profiles where user_id='00000000-0000-0000-0000-000000009202'),'guest','accepted' from (values(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),(current_setting('pgtap.stage2_cron_expire_id')::bigint)) as fixtures(session_id);
 alter table public.session_participants enable trigger session_participants_host_invariant;
 alter table public.session_participants enable trigger session_participants_capacity_invariant;
@@ -206,6 +231,7 @@ alter table public.sessions enable trigger sessions_enforce_transition;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009203',true);
 select is(public.request_to_join_session(current_setting('pgtap.stage2_lifecycle_expire_id')::bigint),'SESSION_EXPIRED','lifecycle RPC expires an aged undecided candidate');
+select throws_ok($$select public.request_to_join_session(current_setting('pgtap.stage2_walk_on_window_id')::bigint)$$,'P0001','SESSION_STARTED','walk_on join window closes two hours after its start');
 reset role;
 select is((select payload->>'message' from public.notification_outbox where session_id=current_setting('pgtap.stage2_lifecycle_expire_id')::bigint and event_type='session_updated' order by id desc limit 1),'候選球局逾期未定案,已下架','lifecycle expiry sends the exact accepted-guest message');
 select is(private.expire_stale_sessions(),1,'cron expires the remaining aged undecided candidate');
@@ -4422,10 +4448,10 @@ select is(
   'court session event is not preference-suppressed'
 );
 select ok(position('court_new_session' in (select pg_get_constraintdef(oid) from pg_constraint where conname = 'notification_outbox_event_type_check')) > 0, 'court session event passes the outbox event allowlist');
-select is(
-  pg_temp.text_outcome($$insert into public.notification_outbox (event_type, recipient_profile_id, session_id, payload) select 'court_new_session', host_profile_id, id, jsonb_build_object('line_id','forbidden') from public.sessions limit 1$$) like 'ERROR:%',
-  'true',
-  'payload allowlist canary rejects line_id'
+select throws_ok(
+  $$insert into public.notification_outbox (event_type, recipient_profile_id, session_id, payload) select 'court_new_session', host_profile_id, id, jsonb_build_object('court','valid','line_id','forbidden') from public.sessions limit 1$$,
+  '23514', null,
+  'payload allowlist canary rejects line_id despite an otherwise valid payload'
 );
 select has_function('private', 'expire_stale_sessions', array[]::text[], 'expiry cron helper remains available');
 select has_function('private', 'lock_and_expire_session', array['bigint'], 'lifecycle expiry guard remains available');
@@ -4447,6 +4473,9 @@ select throws_ok($$select public.create_session(null, '雙打', now()+interval '
 select throws_ok($$select public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'other-city', 'approval', 'candidates', array[(select id from public.courts where is_active and city='台北市' order by id limit 1),(select id from public.courts where is_active and city='新北市' order by id limit 1)], now()+interval '101 days')$$, 'P0001', 'INVALID_VENUE_INPUT', 'candidate session rejects a non-Taipei court');
 select throws_ok($$select public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1), '雙打', now()+interval '100 days', 3, 5, 1, 'booked-candidates', 'approval', 'booked', array[(select id from public.courts where is_active and city='台北市' order by id limit 1)], null)$$, 'P0001', 'INVALID_VENUE_INPUT', 'booked session rejects candidate inputs');
 select ok(public.create_session(null, '雙打', now()+interval '100 days', 3, 5, 1, 'valid-candidate', 'approval', 'candidates', array(select id from public.courts where is_active and city='台北市' order by id limit 2), now()+interval '101 days') > 0, 'candidate session accepts two distinct Taipei courts');
+select set_config('pgtap.stage2_walk_on_session', public.create_session((select id from public.courts where is_active and city='台北市' order by id limit 1), '雙打', now()+interval '102 days', 3, 5, 1, 'valid-walk-on', 'approval', 'walk_on')::text, true);
+reset role;
+select is((select venue_type from public.sessions where id=current_setting('pgtap.stage2_walk_on_session')::bigint), 'walk_on', 'walk_on session accepts one active Taipei court without candidate inputs');
 reset role;
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
@@ -4473,13 +4502,19 @@ select is(public.review_join_request(current_setting('pgtap.stage2_instant_sessi
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009102', true);
 select throws_ok($$select public.update_session(current_setting('pgtap.stage2_instant_session')::bigint, now()+interval '112 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), 1, 3, 4, '雙打', null, 'no-host')$$, 'P0001', 'NOT_SESSION_HOST', 'non-host cannot update a session');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009101', true);
-select throws_ok($$select public.update_session(current_setting('pgtap.stage2_instant_session')::bigint, now()+interval '112 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), 0, 3, 4, '雙打', null, 'below-capacity')$$, 'P0001', 'INVALID_TRANSITION', 'update rejects capacity below accepted guests');
+select is(pg_temp.stage2_capacity_update_outcome(), 'ERROR:INVALID_TRANSITION', 'update rejects a valid-range capacity below two accepted guests through the deferred invariant');
+select throws_ok($$select public.update_session(current_setting('pgtap.stage2_approval_session')::bigint, now()+interval '112 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), null, 3, 4, '雙打', null, 'null-slots')$$, 'P0001', 'INVALID_TRANSITION', 'update rejects a null slots value with the RPC transition code');
+select throws_ok($$select public.update_session(current_setting('pgtap.stage2_approval_session')::bigint, now()+interval '112 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), 1, 3, 4, null, null, 'null-play')$$, 'P0001', 'INVALID_TRANSITION', 'update rejects a null play type with the RPC transition code');
 select set_config('pgtap.stage2_candidate_session', public.create_session(null, '雙打', now()+interval '113 days', 3, 4, 2, 'stage2-decide', 'approval', 'candidates', array(select id from public.courts where is_active and city='台北市' order by id limit 2), now()+interval '114 days')::text, true);
 select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_approval_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '111 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide a non-candidate session');
 select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, -1, now()+interval '113 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide with a court outside the candidates');
 select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '115 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide outside the candidate time range');
 select is(public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '113 days'), 'OK', 'host can decide an in-range candidate court');
 select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_candidate_session')::bigint, (select id from public.courts where is_active and city='台北市' order by id limit 1), now()+interval '113 days')$$, 'P0001', 'INVALID_DECISION', 'cannot decide the candidate session twice');
+select throws_ok($$select public.update_session(current_setting('pgtap.stage2_candidate_session')::bigint, now()+interval '113 days', (select id from public.courts where is_active and city='台北市' order by id offset 2 limit 1), 2, 3, 4, '雙打', null, 'must-not-move-candidate')$$, 'P0001', 'INVALID_VENUE_INPUT', 'a decided candidate cannot be moved to a non-candidate court through update');
+select is(public.update_session(current_setting('pgtap.stage2_candidate_session')::bigint, now()+interval '115 days', (select id from public.courts where is_active and city='台北市' order by id limit 1), 2, 3, 4, '雙打', null, 'decided-time-edit'),'OK','a decided candidate can edit time beyond its historical candidate range');
+reset role;
+select is((select start_at = now()+interval '115 days' from public.sessions where id=current_setting('pgtap.stage2_candidate_session')::bigint),true,'decided candidate persists its ordinary fixed-time edit');
 reset role;
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data)
@@ -4503,18 +4538,30 @@ select set_config('pgtap.stage2_candidates_notify',public.create_session(null,'�
 reset role;
 select is((select count(*) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_candidates_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_sub')::bigint),1::bigint,'candidate subscriber to both courts receives one union-deduplicated event');
 select ok((select payload->>'court' in (select name from public.courts where id in (select court_id from public.court_subscriptions where profile_id=current_setting('pgtap.stage2_notify_sub')::bigint)) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_candidates_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_sub')::bigint),'candidate event payload court is a subscribed court');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true);
+select set_config('pgtap.stage2_cancelled_candidate',public.create_session(null,'雙打',now()+interval '183 days',3,4,2,'stage2-cancelled-candidate','approval','candidates',array(select id from public.courts where is_active and city='台北市' order by id limit 2),now()+interval '184 days')::text,true);
+select is(public.cancel_session(current_setting('pgtap.stage2_cancelled_candidate')::bigint),'OK','host cancels an undecided candidate session');
+select throws_ok($$select public.decide_session_court(current_setting('pgtap.stage2_cancelled_candidate')::bigint,(select id from public.courts where is_active and city='台北市' order by id limit 1),now()+interval '183 days')$$,'P0001','SESSION_NOT_OPEN','cancelled candidate sessions cannot be decided');
+reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true);
-select is(public.update_session(current_setting('pgtap.stage2_instant_session')::bigint,now()+interval '110 days 30 minutes',(select id from public.courts where is_active and city='台北市' order by id limit 1),3,3,4,'雙打','120 元','stage2-updated'),'OK','update fixture changes a session with accepted guests');
+select is(public.update_session(current_setting('pgtap.stage2_instant_session')::bigint,now()+interval '110 days',(select id from public.courts where is_active and city='台北市' order by id offset 1 limit 1),2,3,4,'雙打',null,'stage2-full'),'OK','update to accepted capacity marks a session full');
 reset role;
-select is((select start_at > now()+interval '109 days' from public.sessions where id=current_setting('pgtap.stage2_instant_session')::bigint),true,'update_session persists a genuinely changed future start_at');
-select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) from public.notification_outbox where event_type='session_updated' and session_id=current_setting('pgtap.stage2_instant_session')::bigint order by id desc limit 1),true,'session_updated payload passes the key allowlist');
+select is((select status from public.sessions where id=current_setting('pgtap.stage2_instant_session')::bigint), 'full', 'capacity equal to accepted guests makes the session full');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true);
+select is(public.update_session(current_setting('pgtap.stage2_instant_session')::bigint,now()+interval '110 days 30 minutes',(select id from public.courts where is_active and city='台北市' order by id offset 1 limit 1),3,3,4,'雙打','120 元','stage2-updated'),'OK','increasing capacity reopens and changes a session with accepted guests');
+reset role;
+select is((select status from public.sessions where id=current_setting('pgtap.stage2_instant_session')::bigint), 'open', 'increasing capacity reopens a full session');
+select is((select start_at = now()+interval '110 days 30 minutes' from public.sessions where id=current_setting('pgtap.stage2_instant_session')::bigint),true,'update_session persists a genuinely changed future start_at');
+select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) from public.notification_outbox where event_type='session_updated' and session_id=current_setting('pgtap.stage2_instant_session')::bigint order by id desc limit 1),true,'session_updated payload passes the key allowlist');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true);
 select set_config('pgtap.stage2_payload_decide',public.create_session(null,'雙打',now()+interval '190 days',3,4,2,'stage2-payload-decide','approval','candidates',array(select id from public.courts where is_active and city='台北市' order by id limit 2),now()+interval '191 days')::text,true);
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009102',true); select public.request_to_join_session(current_setting('pgtap.stage2_payload_decide')::bigint);
-select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true); select public.review_join_request(current_setting('pgtap.stage2_payload_decide')::bigint,(select participant_id from public.session_participant_roster where session_id=current_setting('pgtap.stage2_payload_decide')::bigint and nickname='Stage Two In'),'accepted');
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true); select public.review_join_request(current_setting('pgtap.stage2_payload_decide')::bigint,(select participant_id from public.session_participant_roster where session_id=current_setting('pgtap.stage2_payload_decide')::bigint and nickname='Stage Two In'),'accepted');
 select is(public.decide_session_court(current_setting('pgtap.stage2_payload_decide')::bigint,(select id from public.courts where is_active and city='台北市' order by id limit 1),now()+interval '190 days 30 minutes'),'OK','decision fixture has an accepted guest');
 reset role;
 select is((select start_at > now()+interval '189 days' from public.sessions where id=current_setting('pgtap.stage2_payload_decide')::bigint),true,'decide_session_court persists a distinct in-range start_at');

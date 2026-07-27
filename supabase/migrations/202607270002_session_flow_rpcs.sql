@@ -3,6 +3,15 @@
 
 alter table public.sessions add column fee_note text;
 
+-- An undecided candidate uses range_end as the decision window. Once decided,
+-- it returns to the ordinary fixed-time edit flow, so the historical range
+-- must not prevent a later host edit of the confirmed start time.
+alter table public.sessions drop constraint sessions_venue_time_shape;
+alter table public.sessions add constraint sessions_venue_time_shape check (
+  (venue_type = 'candidates' and range_end is not null and (decided_at is not null or range_end > start_at))
+  or (venue_type in ('booked','walk_on') and range_end is null and decided_at is null)
+);
+
 alter table public.notification_outbox drop constraint notification_outbox_event_type_check;
 alter table public.notification_outbox
   add constraint notification_outbox_event_type_check check (event_type in (
@@ -51,13 +60,15 @@ begin
     )
     group by subscription_row.profile_id
   loop
-    perform private.enqueue_notification(
-      'court_new_session', recipient_row.profile_id, p_session_id,
-      (private.notification_session_payload(p_session_id, '你訂閱的球場有新球局。') || jsonb_build_object('court', recipient_row.name))
-    );
+    begin
+      perform private.enqueue_notification(
+        'court_new_session', recipient_row.profile_id, p_session_id,
+        (private.notification_session_payload(p_session_id, '你訂閱的球場有新球局。') || jsonb_build_object('court', recipient_row.name))
+      );
+    exception when others then
+      raise warning 'court notification recipient skipped for session %', p_session_id;
+    end;
   end loop;
-exception when others then
-  raise warning 'court notification fan-out skipped';
 end;
 $$;
 
@@ -163,7 +174,7 @@ begin
   if p_start_at is null or p_start_at < now() - interval '5 minutes' then raise exception 'SESSION_STARTED'; end if;
   if p_play_type is null or p_play_type not in ('單打','雙打','對拉','練球') or p_slots_total is null or p_slots_total not between 1 and 3
     or (p_notes is not null and char_length(p_notes) > 500) or (p_fee_note is not null and char_length(p_fee_note) > 500)
-    or p_join_mode is null or p_join_mode not in ('approval','instant') or p_venue_type not in ('booked','walk_on','candidates')
+    or p_join_mode is null or p_join_mode not in ('approval','instant') or p_venue_type is null or p_venue_type not in ('booked','walk_on','candidates')
     or ((p_ntrp_min is null) <> (p_ntrp_max is null)) or (p_ntrp_min is not null and (p_ntrp_min not between 1.0 and 7.0 or p_ntrp_max not between 1.0 and 7.0 or p_ntrp_min > p_ntrp_max))
   then raise exception 'INVALID_TRANSITION'; end if;
   select id into tennis_sport_id from public.sports where code = 'tennis' and is_active;
@@ -237,7 +248,7 @@ begin
   if not (locked_session.venue_type='candidates' and locked_session.decided_at is null) and locked_session.start_at + interval '2 hours' <= now() then raise exception 'SESSION_STARTED'; end if;
   if locked_session.venue_type='candidates' and p_court_id is distinct from locked_session.court_id then raise exception 'INVALID_VENUE_INPUT'; end if;
   if locked_session.venue_type='candidates' and locked_session.decided_at is null and p_start_at is distinct from locked_session.start_at then raise exception 'INVALID_VENUE_INPUT'; end if;
-  if p_start_at is null or p_start_at < now() - interval '5 minutes' or p_slots_missing not between 1 and 3 or p_play_type not in ('單打','雙打','對拉','練球') or ((p_ntrp_min is null) <> (p_ntrp_max is null)) or (p_ntrp_min is not null and (p_ntrp_min not between 1 and 7 or p_ntrp_max not between 1 and 7 or p_ntrp_min>p_ntrp_max)) or (p_note is not null and char_length(p_note)>500) or (p_fee_note is not null and char_length(p_fee_note)>500) then raise exception 'INVALID_TRANSITION'; end if;
+  if p_start_at is null or p_start_at < now() - interval '5 minutes' or p_slots_missing is null or p_slots_missing not between 1 and 3 or p_play_type is null or p_play_type not in ('單打','雙打','對拉','練球') or ((p_ntrp_min is null) <> (p_ntrp_max is null)) or (p_ntrp_min is not null and (p_ntrp_min not between 1 and 7 or p_ntrp_max not between 1 and 7 or p_ntrp_min>p_ntrp_max)) or (p_note is not null and char_length(p_note)>500) or (p_fee_note is not null and char_length(p_fee_note)>500) then raise exception 'INVALID_TRANSITION'; end if;
   if locked_session.venue_type in ('booked','walk_on') and not exists(select 1 from public.courts where id=p_court_id and is_active and city='台北市') then raise exception 'INVALID_VENUE_INPUT'; end if;
   select count(*) into accepted_guest_count from public.session_participants where session_id=locked_session.id and role='guest' and status='accepted';
   perform set_config('private.allow_session_time_change','1',true);
