@@ -227,6 +227,14 @@ begin
     null,
     'player blocks CHECK rejects self-blocking'
   );
+  delete from public.session_messages
+  where session_id = main_session_id
+    and sender_profile_id = host_id
+    and kind = 'user'
+    and body = '';
+  delete from public.player_blocks
+  where blocker_profile_id = host_id
+    and blocked_profile_id = host_id;
   select count(*) into baseline_system_count from public.session_messages where session_id = main_session_id and kind = 'system';
   return next is((select count(*) from public.session_messages where session_id = main_session_id and kind = 'system' and body = 'Chat Host 加入了球局'), 0::bigint, 'host session creation does not produce its forbidden guest-join system message');
 
