@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(165);
+select plan(167);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -158,7 +158,7 @@ begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null
     or to_regclass('public.my_player_blocks') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 162);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 164);
     return;
   end if;
 
@@ -666,6 +666,10 @@ begin
   return next ok(exists(select 1 from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id), 'reverse blocked-recipient chat outbox scan is non-empty for the unblocked third member');
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = host_id), 0::bigint, 'accepted member message does not enqueue chat outbox for the blocker host');
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = observer_id), 1::bigint, 'accepted member message still enqueues chat outbox for the unblocked third member');
+  delete from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true); perform public.post_session_message(block_outbox_session_id, 'third-member-across-block'); execute 'reset role';
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = host_id), 1::bigint, 'third-member message still enqueues chat outbox for the blocker host');
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = accepted_id), 1::bigint, 'third-member message still enqueues chat outbox for the blocked accepted member');
   delete from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id;
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.set_player_block(accepted_id, false); perform public.post_session_message(block_outbox_session_id, 'unblocked-three-member-control'); execute 'reset role';
   return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = accepted_id), 1::bigint, 'unblocked three-member control enqueues chat outbox for the accepted member');
