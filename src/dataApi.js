@@ -134,6 +134,8 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "NOT_INVITED",
   "INVITE_LIMIT",
   "BLOCKED",
+  "SESSION_UNAVAILABLE",
+  "GUEST_UNAVAILABLE",
   "MESSAGE_NOT_VISIBLE",
   "INVALID_MESSAGE",
 ]);
@@ -501,11 +503,10 @@ function withinBounds(entry, bounds) {
 }
 
 function codeFromSupabaseError(error) {
-  const errorText = [error?.message, error?.hint, error?.code]
-    .filter((part) => typeof part === "string")
-    .join(" ")
-    .toUpperCase();
-  return SESSION_ACTION_CODES.find((code) => errorText.includes(code)) ?? "UNKNOWN_ACTION_ERROR";
+  if (error?.code !== "P0001" || typeof error?.message !== "string") {
+    return "UNKNOWN_ACTION_ERROR";
+  }
+  return SESSION_ACTION_CODES.includes(error.message) ? error.message : "UNKNOWN_ACTION_ERROR";
 }
 
 function asSessionActionError(error) {

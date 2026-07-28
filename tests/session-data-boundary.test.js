@@ -874,7 +874,7 @@ test("postSessionMessage uses only its exact RPC contract and preserves Stage 3 
 
   const nonMemberApi = createDataApi({
     configured: true,
-    client: { rpc: async () => ({ data: null, error: { message: "NOT_SESSION_MEMBER" } }) },
+    client: { rpc: async () => ({ data: null, error: { code: "P0001", message: "NOT_SESSION_MEMBER" } }) },
   });
   await assert.rejects(
     () => nonMemberApi.postSessionMessage(81, "非成員訊息"),
@@ -895,7 +895,7 @@ test("postSessionMessage uses only its exact RPC contract and preserves Stage 3 
     client: {
       rpc: async () => ({
         data: null,
-        error: { message: "database validation failed", details: "user text says BLOCKED and SESSION_EXPIRED" },
+        error: { code: "P0001", message: "database validation failed", details: "user text says BLOCKED and SESSION_EXPIRED" },
       }),
     },
   });
@@ -952,7 +952,7 @@ test("message reports use their exact RPC contract and preserve MESSAGE_NOT_VISI
 
   const hiddenMessageApi = createDataApi({
     configured: true,
-    client: { rpc: async () => ({ data: null, error: { message: "MESSAGE_NOT_VISIBLE" } }) },
+    client: { rpc: async () => ({ data: null, error: { code: "P0001", message: "MESSAGE_NOT_VISIBLE" } }) },
   });
   await assert.rejects(
     () => hiddenMessageApi.createReport({ sessionId: 81, reportedProfileId: 92, reason: "不當訊息", messageId: 901 }),
@@ -963,13 +963,43 @@ test("message reports use their exact RPC contract and preserve MESSAGE_NOT_VISI
 test("lifecycle wrappers preserve BLOCKED instead of replacing it with UNKNOWN_ACTION_ERROR", async () => {
   const api = createDataApi({
     configured: true,
-    client: { rpc: async () => ({ data: null, error: { message: "BLOCKED" } }) },
+    client: { rpc: async () => ({ data: null, error: { code: "P0001", message: "BLOCKED" } }) },
   });
 
   await assert.rejects(
     () => api.requestToJoinSession(81),
     (error) => error instanceof SessionActionError && error.code === "BLOCKED"
   );
+});
+
+test("Supabase error decoding accepts only exact P0001 session action messages", async () => {
+  const cases = [
+    ["exact BLOCKED", { code: "P0001", message: "BLOCKED" }, "BLOCKED"],
+    ["exact SESSION_UNAVAILABLE", { code: "P0001", message: "SESSION_UNAVAILABLE" }, "SESSION_UNAVAILABLE"],
+    ["exact GUEST_UNAVAILABLE", { code: "P0001", message: "GUEST_UNAVAILABLE" }, "GUEST_UNAVAILABLE"],
+    ["exact existing INVALID_MESSAGE", { code: "P0001", message: "INVALID_MESSAGE" }, "INVALID_MESSAGE"],
+    ["missing SQLSTATE", { message: "BLOCKED" }, "UNKNOWN_ACTION_ERROR"],
+    ["wrong SQLSTATE", { code: "23503", message: "BLOCKED" }, "UNKNOWN_ACTION_ERROR"],
+    ["prefixed action", { code: "P0001", message: "failure: BLOCKED" }, "UNKNOWN_ACTION_ERROR"],
+    ["suffixed action", { code: "P0001", message: "BLOCKED failure" }, "UNKNOWN_ACTION_ERROR"],
+    ["lowercase action", { code: "P0001", message: "blocked" }, "UNKNOWN_ACTION_ERROR"],
+    ["action only in hint", { code: "P0001", message: "database validation failed", hint: "BLOCKED" }, "UNKNOWN_ACTION_ERROR"],
+    ["action only in details", { code: "P0001", message: "database validation failed", details: "BLOCKED" }, "UNKNOWN_ACTION_ERROR"],
+    ["actions only in hint and details", { code: "P0001", message: "database validation failed", hint: "SESSION_EXPIRED", details: "BLOCKED" }, "UNKNOWN_ACTION_ERROR"],
+    ["player block FK collision", { code: "23503", message: "player_blocks_blocked_profile_id_fkey" }, "UNKNOWN_ACTION_ERROR"],
+  ];
+
+  for (const [label, rpcError, expectedCode] of cases) {
+    const api = createDataApi({
+      configured: true,
+      client: { rpc: async () => ({ data: null, error: rpcError }) },
+    });
+    await assert.rejects(
+      () => api.requestToJoinSession(81),
+      (error) => error instanceof SessionActionError && error.code === expectedCode,
+      label
+    );
+  }
 });
 
 test("module-level chat exports forward to the project default data API", async () => {
@@ -1176,7 +1206,7 @@ test("RPC failures are exposed as documented action codes", async () => {
     configured: true,
     client: {
       async rpc() {
-        return { data: null, error: { message: "SESSION_FULL" } };
+        return { data: null, error: { code: "P0001", message: "SESSION_FULL" } };
       },
     },
   });
@@ -1190,7 +1220,7 @@ test("RPC failures are exposed as documented action codes", async () => {
     configured: true,
     client: {
       async rpc() {
-        return { data: null, error: { message: "SESSION_LIMIT" } };
+        return { data: null, error: { code: "P0001", message: "SESSION_LIMIT" } };
       },
     },
   });
@@ -1223,7 +1253,7 @@ test("player invitation RPC failures retain their documented error codes and mes
   for (const [code, message] of cases) {
     const api = createDataApi({
       configured: true,
-      client: { rpc: async () => ({ data: null, error: { message: code } }) },
+      client: { rpc: async () => ({ data: null, error: { code: "P0001", message: code } }) },
     });
     await assert.rejects(
       () => api.inviteToSession(44, 91),

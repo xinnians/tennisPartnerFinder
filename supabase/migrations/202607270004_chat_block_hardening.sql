@@ -2,7 +2,8 @@
 
 update public.sessions
 set archived_at = coalesce(archived_at, updated_at)
-where status in ('cancelled', 'played', 'expired');
+where status in ('cancelled', 'played', 'expired')
+  and archived_at is null;
 
 create or replace view public.my_player_blocks
 with (security_barrier = true, security_invoker = false)
@@ -25,7 +26,42 @@ revoke all on table public.my_player_blocks
 from public, anon, authenticated;
 grant select on table public.my_player_blocks to authenticated;
 
--- Retain the current invite-response definition, adding the bidirectional
+-- Retain the effective Stage 3 join definition, splitting only its block
+-- predicate by the caller's direction.
+create or replace function public.request_to_join_session(p_session_id bigint)
+returns text language plpgsql security definer set search_path = '' as $$
+declare guest_profile bigint; locked_session public.sessions%rowtype; prior_status text; accepted_guest_count integer; guest_ntrp numeric; outcome text := 'OK';
+begin
+  locked_session := private.lock_and_expire_session(p_session_id);
+  if locked_session.status = 'expired' then return 'SESSION_EXPIRED'; end if;
+  guest_profile := private.require_profile_gate('nickname');
+  if locked_session.status = 'cancelled' then raise exception 'SESSION_CANCELLED'; elsif locked_session.status = 'full' then raise exception 'SESSION_FULL'; elsif locked_session.status <> 'open' then raise exception 'SESSION_NOT_OPEN';
+  elsif (locked_session.venue_type = 'candidates' and locked_session.decided_at is null and locked_session.start_at <= now()) or (not (locked_session.venue_type = 'candidates' and locked_session.decided_at is null) and locked_session.start_at + interval '2 hours' <= now()) then raise exception 'SESSION_STARTED'; end if;
+  if not exists (select 1 from public.courts court_row join public.sports sport_row on sport_row.id=locked_session.sport_id where court_row.id=locked_session.court_id and court_row.is_active and court_row.city='台北市' and sport_row.code='tennis' and sport_row.is_active) then raise exception 'INVALID_TRANSITION'; end if;
+  if locked_session.host_profile_id = guest_profile then raise exception 'INVALID_TRANSITION'; end if;
+  if exists (select 1 from public.player_blocks block_row where block_row.blocker_profile_id=guest_profile and block_row.blocked_profile_id=locked_session.host_profile_id) then raise exception 'BLOCKED';
+  elsif exists (select 1 from public.player_blocks block_row where block_row.blocker_profile_id=locked_session.host_profile_id and block_row.blocked_profile_id=guest_profile) then raise exception 'SESSION_UNAVAILABLE'; end if;
+  select status into prior_status from public.session_participants where session_id=locked_session.id and profile_id=guest_profile;
+  if found then if prior_status='requested' then raise exception 'ALREADY_REQUESTED'; end if; raise exception 'ALREADY_DECIDED'; end if;
+  select ntrp into guest_ntrp from public.profiles where id=guest_profile;
+  if locked_session.join_mode = 'instant' and guest_ntrp is not null and (locked_session.ntrp_min is null or guest_ntrp between locked_session.ntrp_min and locked_session.ntrp_max) then
+    select count(*) into accepted_guest_count from public.session_participants where session_id=locked_session.id and role='guest' and status='accepted';
+    if accepted_guest_count >= locked_session.slots_total then update public.sessions set status='full' where id=locked_session.id and status='open'; raise exception 'SESSION_FULL'; end if;
+    insert into public.session_participants(session_id,profile_id,role,status) values(locked_session.id,guest_profile,'guest','requested');
+    update public.session_participants set status='accepted' where session_id=locked_session.id and profile_id=guest_profile;
+    if accepted_guest_count + 1 = locked_session.slots_total then update public.sessions set status='full' where id=locked_session.id; update public.session_participants set status='declined' where session_id=locked_session.id and role='guest' and status in ('requested','invited'); end if;
+    perform private.try_enqueue_session_notification('host_new_request',locked_session.host_profile_id,locked_session.id,'有球友直接加入你的球局。');
+    return 'ACCEPTED';
+  end if;
+  insert into public.session_participants(session_id,profile_id,role,status) values(locked_session.id,guest_profile,'guest','requested');
+  if locked_session.join_mode='instant' and guest_ntrp is null then outcome := 'OK_NTRP_MISSING';
+  elsif locked_session.join_mode='instant' then outcome := 'OK_NTRP_OUT_OF_RANGE'; end if;
+  perform private.try_enqueue_session_notification('host_new_request',locked_session.host_profile_id,locked_session.id,'有人申請加入你的球局。');
+  return outcome;
+end;
+$$;
+
+-- Retain the current invite-response definition, adding the directional
 -- block guard only to the accepted branch.
 create or replace function public.respond_to_session_invite(
   p_session_id bigint,
@@ -84,16 +120,17 @@ begin
   if exists (
     select 1
     from public.player_blocks block_row
-    where (
-      block_row.blocker_profile_id = locked_session.host_profile_id
-      and block_row.blocked_profile_id = viewer_profile
-    )
-    or (
-      block_row.blocker_profile_id = viewer_profile
+    where block_row.blocker_profile_id = viewer_profile
       and block_row.blocked_profile_id = locked_session.host_profile_id
-    )
   ) then
     raise exception 'BLOCKED';
+  elsif exists (
+    select 1
+    from public.player_blocks block_row
+    where block_row.blocker_profile_id = locked_session.host_profile_id
+      and block_row.blocked_profile_id = viewer_profile
+  ) then
+    raise exception 'SESSION_UNAVAILABLE';
   end if;
 
   if locked_session.status = 'full' then
@@ -137,7 +174,7 @@ begin
 end;
 $$;
 
--- Retain the current join-review definition, adding the bidirectional block
+-- Retain the current join-review definition, adding the directional block
 -- guard only to the accepted branch.
 create or replace function public.review_join_request(
   p_session_id bigint,
@@ -205,16 +242,17 @@ begin
     if exists (
       select 1
       from public.player_blocks block_row
-      where (
-        block_row.blocker_profile_id = locked_session.host_profile_id
+      where block_row.blocker_profile_id = viewer_profile
         and block_row.blocked_profile_id = requested_participant.profile_id
-      )
-      or (
-        block_row.blocker_profile_id = requested_participant.profile_id
-        and block_row.blocked_profile_id = locked_session.host_profile_id
-      )
     ) then
       raise exception 'BLOCKED';
+    elsif exists (
+      select 1
+      from public.player_blocks block_row
+      where block_row.blocker_profile_id = requested_participant.profile_id
+        and block_row.blocked_profile_id = viewer_profile
+    ) then
+      raise exception 'GUEST_UNAVAILABLE';
     end if;
 
     select count(*)
@@ -318,16 +356,17 @@ begin
   if exists (
     select 1
     from public.player_blocks block_row
-    where (
-      block_row.blocker_profile_id = viewer_profile
+    where block_row.blocker_profile_id = viewer_profile
       and block_row.blocked_profile_id = p_profile_id
-    )
-    or (
-      block_row.blocker_profile_id = p_profile_id
-      and block_row.blocked_profile_id = viewer_profile
-    )
   ) then
     raise exception 'BLOCKED';
+  elsif exists (
+    select 1
+    from public.player_blocks block_row
+    where block_row.blocker_profile_id = p_profile_id
+      and block_row.blocked_profile_id = viewer_profile
+  ) then
+    raise exception 'INVITEE_NOT_AVAILABLE';
   end if;
 
   select participant_row.status
@@ -399,35 +438,13 @@ begin
     raise exception 'INVALID_TRANSITION';
   end if;
 
-  if not exists (
-    select 1
-    from public.profiles profile_row
-    where profile_row.id = p_profile_id
-      and (
-        (
-          profile_row.is_public
-          and private.profile_meets_gate(viewer_profile, 'directory')
-          and private.profile_meets_gate(profile_row.id, 'directory')
-        )
-        or exists (
-          select 1
-          from public.session_participants viewer_participant
-          join public.session_participants target_participant
-            on target_participant.session_id = viewer_participant.session_id
-          where viewer_participant.profile_id = viewer_profile
-            and viewer_participant.status = 'accepted'
-            and target_participant.profile_id = profile_row.id
-            and target_participant.status = 'accepted'
-        )
-        or exists (
-          select 1
-          from public.player_blocks block_row
-          where block_row.blocker_profile_id = viewer_profile
-            and block_row.blocked_profile_id = profile_row.id
-        )
-      )
-  ) then
-    raise exception 'INVALID_TRANSITION';
+  perform 1
+  from public.profiles profile_row
+  where profile_row.id = p_profile_id
+  for key share;
+
+  if not found then
+    return 'OK';
   end if;
 
   if p_blocked then
@@ -478,7 +495,7 @@ begin
 
   p_body := btrim(
     p_body,
-    chr(32) || chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(12288)
+    chr(32) || chr(9) || chr(10) || chr(11) || chr(12) || chr(13) || chr(12288) || chr(160) || chr(8203) || chr(65279)
   );
   if p_body is null or p_body = '' or char_length(p_body) > 1000 then
     raise exception 'INVALID_MESSAGE';
