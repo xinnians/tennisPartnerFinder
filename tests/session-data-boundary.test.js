@@ -614,7 +614,7 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.deepEqual(discovered, []);
   assert.deepEqual(client.calls[0], ["from", "session_discovery"]);
   assert.ok(SESSION_DISCOVERY_SELECT.includes("host_nickname"));
-  assert.ok(SESSION_DISCOVERY_SELECT.includes("venue_type,range_end,candidate_court_ids"));
+  assert.ok(SESSION_DISCOVERY_SELECT.includes("venue_type,range_end,candidate_court_ids,fee_note,decided_at"));
   assert.equal(SESSION_DISCOVERY_SELECT.includes("*"), false);
   assert.equal(MY_SESSIONS_SELECT.includes("*"), false);
   assert.equal(SESSION_ROSTER_SELECT.includes("*"), false);
