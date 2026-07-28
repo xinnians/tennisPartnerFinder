@@ -10,6 +10,7 @@ import {
   SESSION_CONTACTS_SELECT,
   SESSION_DISCOVERY_SELECT,
   SESSION_ROSTER_SELECT,
+  SESSION_ACTION_CODES,
   DataApiUnavailableError,
   SessionActionError,
   createDataApi,
@@ -989,6 +990,16 @@ test("neutral block-unavailable action codes use their terminal non-disclosing m
   assert.equal(new SessionActionError("GUEST_UNAVAILABLE").message, "這位球友目前無法加入這個球局。");
   assert.notEqual(new SessionActionError("SESSION_UNAVAILABLE").message, new SessionActionError("UNKNOWN_ACTION_ERROR").message);
   assert.notEqual(new SessionActionError("GUEST_UNAVAILABLE").message, new SessionActionError("UNKNOWN_ACTION_ERROR").message);
+});
+
+test("every supported session action code has its own user-facing message", () => {
+  const unknownMessage = new SessionActionError("UNKNOWN_ACTION_ERROR").message;
+
+  for (const code of SESSION_ACTION_CODES) {
+    const message = new SessionActionError(code).message;
+    assert.notEqual(message, "", `${code} must have a non-empty action message`);
+    assert.notEqual(message, unknownMessage, `${code} must not fall back to UNKNOWN_ACTION_ERROR`);
+  }
 });
 
 test("Supabase error decoding accepts only exact P0001 session action messages", async () => {
