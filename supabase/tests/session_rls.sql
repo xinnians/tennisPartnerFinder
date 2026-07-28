@@ -191,7 +191,7 @@ begin
 end;
 $$;
 
-select plan(461);
+select plan(463);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -366,7 +366,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'session_discovery'
   ),
-  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note',
+  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note,decided_at',
   'discovery has the exact public SessionSummary allowlist'
 );
 select is(
@@ -4439,8 +4439,8 @@ select has_function('public', 'decide_session_court', array['bigint','bigint','t
 select has_function('private', 'try_enqueue_court_new_session', array['bigint'], 'court subscription fan-out helper exists');
 select is(
   (select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_schema = 'public' and table_name = 'session_discovery'),
-  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note',
-  'session discovery has the exact 24-column Stage 2 allowlist'
+  'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note,decided_at',
+  'session discovery has the exact 25-column Stage 4A allowlist'
 );
 select is(
   pg_temp.text_outcome($$select private.notification_pref_enabled((select id from public.profiles limit 1), 'court_new_session')::text$$),
@@ -4566,6 +4566,8 @@ select is(public.decide_session_court(current_setting('pgtap.stage2_payload_deci
 reset role;
 select is((select start_at > now()+interval '189 days' from public.sessions where id=current_setting('pgtap.stage2_payload_decide')::bigint),true,'decide_session_court persists a distinct in-range start_at');
 select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) and payload->>'url'='#/session/'||current_setting('pgtap.stage2_payload_decide') from public.notification_outbox where event_type='session_decided' and session_id=current_setting('pgtap.stage2_payload_decide')::bigint order by id desc limit 1),true,'session_decided payload passes allowlist and carries the deep link');
+select is((select decided_at is null from public.session_discovery where session_id=current_setting('pgtap.stage2_candidates_notify')::bigint),true,'undecided candidate discovery row exposes a NULL decided_at');
+select is((select decided_at is not null from public.session_discovery where session_id=current_setting('pgtap.stage2_candidate_session')::bigint),true,'decided candidate discovery row exposes a non-NULL decided_at');
 set local role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true); select is(public.cancel_session(current_setting('pgtap.stage2_instant_session')::bigint),'OK','cancel fixture cancels a session with accepted guests');
 reset role;
 select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) from public.notification_outbox where event_type='session_cancelled' and session_id=current_setting('pgtap.stage2_instant_session')::bigint order by id desc limit 1),true,'session_cancelled payload passes the key allowlist');

@@ -23,7 +23,7 @@ const SESSION_SUMMARY_COLUMNS = [
   "status",
   "join_mode",
 ];
-const SESSION_DISCOVERY_VENUE_COLUMNS = ["venue_type", "range_end", "candidate_court_ids", "fee_note"];
+const SESSION_DISCOVERY_VENUE_COLUMNS = ["venue_type", "range_end", "candidate_court_ids", "fee_note", "decided_at"];
 
 const MY_SESSION_COLUMNS = [
   ...SESSION_SUMMARY_COLUMNS,
@@ -246,6 +246,7 @@ function sessionSummaryValues(row = {}) {
     rangeEnd: asText(row.range_end),
     candidateCourtIds: asArray(row.candidate_court_ids).map(asNumber).filter((courtId) => courtId != null),
     feeNote: asText(row.fee_note),
+    decidedAt: asText(row.decided_at),
   };
 }
 
@@ -279,6 +280,7 @@ function mapMockSessionSummary(session = {}) {
     rangeEnd: asText(session.rangeEnd),
     candidateCourtIds: asArray(session.candidateCourtIds).map(asNumber).filter((courtId) => courtId != null),
     feeNote: asText(session.feeNote),
+    decidedAt: asText(session.decidedAt),
   };
 }
 

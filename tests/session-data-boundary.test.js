@@ -59,6 +59,7 @@ const SESSION_SUMMARY_KEYS = [
   "rangeEnd",
   "candidateCourtIds",
   "feeNote",
+  "decidedAt",
 ];
 
 function session(overrides = {}) {
@@ -184,7 +185,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
 
   const mine = mapMySession(row);
   assert.deepEqual(sortedKeys(mine), [
-    ...SESSION_SUMMARY_KEYS.filter((key) => key !== "candidateCourtIds"),
+    ...SESSION_SUMMARY_KEYS.filter((key) => key !== "candidateCourtIds" && key !== "decidedAt"),
     "viewerRole",
     "viewerParticipantStatus",
     "viewerPlayedConfirmed",
@@ -625,17 +626,28 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.ok(client.calls.some((call) => call[0] === "lt" && call[1] === "start_at"));
 });
 
-test("discovery mapper exposes the Stage 1 venue contract without extra fields", () => {
+test("discovery mapper exposes the Stage 4A venue decision contract without extra fields", () => {
   const mapped = mapSessionSummary({
     session_id: 8,
     venue_type: "candidates",
     range_end: "2026-07-19T03:00:00.000Z",
     candidate_court_ids: [12, "14"],
+    decided_at: "2026-07-19T01:30:00.000Z",
   });
   assert.deepEqual(sortedKeys(mapped), [...SESSION_SUMMARY_KEYS].sort());
   assert.equal(mapped.venueType, "candidates");
   assert.equal(mapped.rangeEnd, "2026-07-19T03:00:00.000Z");
   assert.deepEqual(mapped.candidateCourtIds, [12, 14]);
+  assert.equal(mapped.decidedAt, "2026-07-19T01:30:00.000Z");
+});
+
+test("mock discovery keeps both undecided and decided candidate timestamps", async () => {
+  const api = createDataApi({ configured: false, mockSessions: MOCK_SESSIONS });
+  const discovery = await api.loadSessionDiscovery();
+  const candidates = discovery.filter((summary) => summary.venueType === "candidates");
+
+  assert.ok(candidates.some((summary) => summary.decidedAt === ""));
+  assert.ok(candidates.some((summary) => !Number.isNaN(Date.parse(summary.decidedAt))));
 });
 
 test("nickname-only profile save normalizes optional fields for the RPC", async () => {

@@ -105,6 +105,7 @@ export const MOCK_SESSIONS = [
     rangeEnd: "",
     candidateCourtIds: [],
     feeNote: "",
+    decidedAt: "",
   },
   {
     sessionId: 9002,
@@ -130,6 +131,7 @@ export const MOCK_SESSIONS = [
     rangeEnd: "",
     candidateCourtIds: [],
     feeNote: "",
+    decidedAt: "",
   },
   {
     sessionId: 9003,
@@ -155,6 +157,7 @@ export const MOCK_SESSIONS = [
     rangeEnd: "",
     candidateCourtIds: [],
     feeNote: "",
+    decidedAt: "",
   },
   {
     sessionId: 9004,
@@ -180,6 +183,7 @@ export const MOCK_SESSIONS = [
     rangeEnd: "",
     candidateCourtIds: [],
     feeNote: "",
+    decidedAt: "",
   },
   {
     sessionId: 9005,
@@ -201,10 +205,11 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "approval",
-    venueType: "booked",
-    rangeEnd: "",
-    candidateCourtIds: [],
+    venueType: "candidates",
+    rangeEnd: futureStartAt(5, 4),
+    candidateCourtIds: [105, 106],
     feeNote: "",
+    decidedAt: "",
   },
   {
     sessionId: 9006,
@@ -226,9 +231,10 @@ export const MOCK_SESSIONS = [
     hostProfileComplete: true,
     status: "open",
     joinMode: "approval",
-    venueType: "booked",
-    rangeEnd: "",
-    candidateCourtIds: [],
+    venueType: "candidates",
+    rangeEnd: futureStartAt(6, 4),
+    candidateCourtIds: [106, 105],
     feeNote: "",
+    decidedAt: futureStartAt(5, 1),
   },
 ];
