@@ -13,6 +13,7 @@ import {
   DataApiUnavailableError,
   SessionActionError,
   createDataApi,
+  loadMyPlayerBlocks,
   loadSessionMessages,
   mapCurrentProfile,
   mapMySession,
@@ -796,6 +797,56 @@ test("session messages load only from the ordered safe feed and map its allowlis
   assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
 });
 
+test("my player blocks load only from the ordered safe view and map its allowlist", async () => {
+  const calls = [];
+  const query = {
+    select(value) {
+      calls.push(["select", value]);
+      return this;
+    },
+    order(column, options) {
+      calls.push(["order", column, options]);
+      return this;
+    },
+    then(resolve) {
+      return Promise.resolve({
+        data: [
+          {
+            blocked_profile_id: "92",
+            blocked_nickname: "示範山嵐",
+            created_at: "2026-07-28T01:30:00.000Z",
+            line_id: "must-not-leak",
+          },
+        ],
+        error: null,
+      }).then(resolve);
+    },
+  };
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return query;
+      },
+    },
+  });
+
+  assert.deepEqual(await api.loadMyPlayerBlocks(), [
+    {
+      blockedProfileId: 92,
+      blockedNickname: "示範山嵐",
+      createdAt: "2026-07-28T01:30:00.000Z",
+    },
+  ]);
+  assert.deepEqual(calls, [
+    ["from", "my_player_blocks"],
+    ["select", "blocked_profile_id,blocked_nickname,created_at"],
+    ["order", "created_at", { ascending: false }],
+  ]);
+  assert.deepEqual(await createDataApi({ configured: false }).loadMyPlayerBlocks(), []);
+});
+
 test("postSessionMessage uses only its exact RPC contract and preserves Stage 3 action codes", async () => {
   const calls = [];
   const api = createDataApi({
@@ -828,6 +879,29 @@ test("postSessionMessage uses only its exact RPC contract and preserves Stage 3 
   await assert.rejects(
     () => nonMemberApi.postSessionMessage(81, "非成員訊息"),
     (error) => error instanceof SessionActionError && error.code === "NOT_SESSION_MEMBER"
+  );
+
+  const invalidMessageApi = createDataApi({
+    configured: true,
+    client: { rpc: async () => ({ data: "INVALID_MESSAGE", error: null }) },
+  });
+  await assert.rejects(
+    () => invalidMessageApi.postSessionMessage(81, "   "),
+    (error) => error instanceof SessionActionError && error.code === "INVALID_MESSAGE"
+  );
+
+  const poisonedDetailsApi = createDataApi({
+    configured: true,
+    client: {
+      rpc: async () => ({
+        data: null,
+        error: { message: "database validation failed", details: "user text says BLOCKED and SESSION_EXPIRED" },
+      }),
+    },
+  });
+  await assert.rejects(
+    () => poisonedDetailsApi.postSessionMessage(81, "正常訊息"),
+    (error) => error instanceof SessionActionError && error.code === "UNKNOWN_ACTION_ERROR"
   );
 });
 
@@ -900,6 +974,7 @@ test("lifecycle wrappers preserve BLOCKED instead of replacing it with UNKNOWN_A
 
 test("module-level chat exports forward to the project default data API", async () => {
   assert.deepEqual(await loadSessionMessages(81), []);
+  assert.deepEqual(await loadMyPlayerBlocks(), []);
   await assert.rejects(() => postSessionMessage(81, "預設 API 訊息"), DataApiUnavailableError);
   await assert.rejects(() => setPlayerBlock(92, true), DataApiUnavailableError);
 });

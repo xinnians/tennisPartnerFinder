@@ -5,10 +5,11 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(84);
+select plan(116);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
+select has_view('public', 'my_player_blocks', 'my player blocks view exists');
 
 create function pg_temp.age_chat_session_for_expiry(p_session_id bigint)
 returns void
@@ -34,6 +35,46 @@ begin
   return public.post_session_message(p_session_id, p_body)::text;
 exception when others then
   return 'EXCEPTION:' || sqlerrm;
+end;
+$$;
+
+create function pg_temp.expect_blocked_invite_accept(p_session_id bigint)
+returns void
+language plpgsql
+as $$
+begin
+  begin
+    perform public.respond_to_session_invite(p_session_id, 'accepted');
+    raise exception 'TEST_ACCEPTED';
+  exception when others then
+    if sqlerrm = 'BLOCKED' then
+      raise exception 'BLOCKED';
+    elsif sqlerrm = 'TEST_ACCEPTED' then
+      raise exception 'TEST_ACCEPTED';
+    else
+      raise;
+    end if;
+  end;
+end;
+$$;
+
+create function pg_temp.expect_blocked_request_accept(p_session_id bigint, p_participant_id bigint)
+returns void
+language plpgsql
+as $$
+begin
+  begin
+    perform public.review_join_request(p_session_id, p_participant_id, 'accepted');
+    raise exception 'TEST_ACCEPTED';
+  exception when others then
+    if sqlerrm = 'BLOCKED' then
+      raise exception 'BLOCKED';
+    elsif sqlerrm = 'TEST_ACCEPTED' then
+      raise exception 'TEST_ACCEPTED';
+    else
+      raise;
+    end if;
+  end;
 end;
 $$;
 
@@ -70,7 +111,10 @@ declare
   expired_session_id bigint;
   outbox_session_id bigint;
   purge_session_id bigint;
+  invite_accept_session_id bigint;
+  review_block_session_id bigint;
   participant_id bigint;
+  review_participant_id bigint;
   baseline_system_count bigint;
   old_system_count bigint;
   update_start_at timestamptz;
@@ -88,14 +132,38 @@ declare
   reported_message_id bigint;
   closed_reported_message_id bigint;
   closed_report_id bigint;
+  open_purge_message_id bigint;
+  recent_archive_message_id bigint;
+  old_system_message_id bigint;
   posted_body text := 'private body must not be pushed';
   fixture_line text := 'chat-host-line';
 begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 82);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 113);
     return;
   end if;
+
+  return next is(
+    (
+      select string_agg(column_name, ',' order by ordinal_position)
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'session_message_feed'
+    ),
+    'message_id,session_id,sender_profile_id,sender_nickname,kind,body,created_at,is_self',
+    'session message feed keeps its exact ordered allowlist'
+  );
+  return next is(
+    (
+      select string_agg(column_name, ',' order by ordinal_position)
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'my_player_blocks'
+    ),
+    'blocked_profile_id,blocked_nickname,created_at',
+    'my player blocks keeps its exact ordered allowlist'
+  );
 
   insert into auth.users (
     id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -147,6 +215,18 @@ begin
   perform set_config('request.jwt.claim.sub', host_user::text, true);
   select public.create_session(court_id, '雙打', now() + interval '14 days', 3, 4, 3, '__pgtap_chat_main__', 'approval', 'booked', null, null, null) into main_session_id;
   execute 'reset role';
+  return next throws_ok(
+    format('insert into public.session_messages(session_id, sender_profile_id, kind, body) values (%s, %s, %L, %L)', main_session_id, host_id, 'user', ''),
+    '23514',
+    null,
+    'session messages body CHECK rejects an empty body'
+  );
+  return next throws_ok(
+    format('insert into public.player_blocks(blocker_profile_id, blocked_profile_id) values (%s, %s)', host_id, host_id),
+    '23514',
+    null,
+    'player blocks CHECK rejects self-blocking'
+  );
   select count(*) into baseline_system_count from public.session_messages where session_id = main_session_id and kind = 'system';
   return next is((select count(*) from public.session_messages where session_id = main_session_id and kind = 'system' and body = 'Chat Host 加入了球局'), 0::bigint, 'host session creation does not produce its forbidden guest-join system message');
 
@@ -186,6 +266,47 @@ begin
   return next ok((select char_length(body) = 1000 and right(body, char_length(' 加入了球局')) = ' 加入了球局' from public.session_messages where session_id = long_nickname_session_id and kind = 'system' order by id desc limit 1), 'long-nickname system message is capped and retains its lifecycle suffix');
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.cancel_session(long_nickname_session_id); execute 'reset role';
 
+  -- A pre-block invitation/request is not an existing accepted relationship:
+  -- only its accepted branch is blocked; either party may still decline it.
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '14 days 2 hours', 3, 4, 2, '__pgtap_chat_block_invite_accept__', 'approval', 'booked', null, null, null) into invite_accept_session_id;
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', invite_target_user::text, true); perform public.set_player_visibility(true); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.invite_to_session(invite_accept_session_id, invite_target_id); perform public.set_player_block(invite_target_id, true); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', invite_target_user::text, true);
+  return next throws_ok(
+    format('select pg_temp.expect_blocked_invite_accept(%s)', invite_accept_session_id),
+    'P0001',
+    'BLOCKED',
+    'blocked invitee cannot accept a pre-existing invitation'
+  );
+  execute 'reset role';
+  return next is((select status from public.session_participants where session_id = invite_accept_session_id and profile_id = invite_target_id), 'invited', 'blocked invitation acceptance leaves the participant invited');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', invite_target_user::text, true);
+  return next is(public.respond_to_session_invite(invite_accept_session_id, 'declined'), 'OK', 'blocked invitee can decline a pre-existing invitation');
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.set_player_block(invite_target_id, false); perform public.cancel_session(invite_accept_session_id); execute 'reset role';
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '14 days 3 hours', 3, 4, 2, '__pgtap_chat_block_review_accept__', 'approval', 'booked', null, null, null) into review_block_session_id;
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true); perform public.request_to_join_session(review_block_session_id); perform public.set_player_block(host_id, true); execute 'reset role';
+  select id into review_participant_id from public.session_participants where session_id = review_block_session_id and profile_id = requested_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next throws_ok(
+    format('select pg_temp.expect_blocked_request_accept(%s, %s)', review_block_session_id, review_participant_id),
+    'P0001',
+    'BLOCKED',
+    'host cannot accept a request after requester blocks the host'
+  );
+  execute 'reset role';
+  return next is((select status from public.session_participants where id = review_participant_id), 'requested', 'blocked request acceptance leaves the participant requested');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is(public.review_join_request(review_block_session_id, review_participant_id, 'declined'), 'OK', 'host can decline a request after requester blocks the host');
+  perform public.cancel_session(review_block_session_id);
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true); perform public.set_player_block(host_id, false); execute 'reset role';
+
   -- Feed gate: these are the Stage 3 three-beat canary assertions.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'non-member sees zero session message feed rows');
@@ -201,10 +322,46 @@ begin
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id), 'Stage 3 three-beat canary: accepted member feed gate returns rows');
   perform set_config('request.jwt.claim.sub', requested_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'requested guest sees zero session message feed rows');
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, 'requested guest post'),
+    'P0001',
+    'NOT_SESSION_MEMBER',
+    'requested guest cannot post_session_message'
+  );
   perform set_config('request.jwt.claim.sub', declined_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'declined guest sees zero session message feed rows');
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, 'declined guest post'),
+    'P0001',
+    'NOT_SESSION_MEMBER',
+    'declined guest cannot post_session_message'
+  );
   perform set_config('request.jwt.claim.sub', withdrawn_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'withdrawn guest sees zero session message feed rows');
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, 'withdrawn guest post'),
+    'P0001',
+    'NOT_SESSION_MEMBER',
+    'withdrawn guest cannot post_session_message'
+  );
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.invite_to_session(main_session_id, invite_target_id); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', invite_target_user::text, true);
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, 'invited guest post'),
+    'P0001',
+    'NOT_SESSION_MEMBER',
+    'invited guest cannot post_session_message'
+  );
+  execute 'reset role';
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next throws_ok(
+    'select public.set_player_block(-1, true)',
+    'P0001',
+    'INVALID_TRANSITION',
+    'set_player_block rejects a nonexistent profile without leaking a foreign-key error'
+  );
   execute 'reset role';
 
   select id into visible_system_message_id from public.session_messages where session_id = main_session_id and kind = 'system' order by id limit 1;
@@ -254,7 +411,31 @@ begin
   return next is((select count(*) from public.session_message_feed where message_id = host_message_id), 1::bigint, 'unblocking guest-to-host restores the host user message');
   perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.set_player_block(accepted_id, true);
+  if to_regclass('public.my_player_blocks') is null then
+    return next ok(false, 'blocker can read their own narrow player-block row');
+  else
+    return next is(
+      (
+        select count(*)
+        from public.my_player_blocks block_row
+        where block_row.blocked_profile_id = accepted_id
+          and block_row.blocked_nickname = 'Chat Accepted'
+          and block_row.created_at is not null
+      ),
+      1::bigint,
+      'blocker can read their own narrow player-block row'
+    );
+  end if;
   perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  if to_regclass('public.my_player_blocks') is null then
+    return next ok(false, 'another authenticated player cannot read the host block row');
+  else
+    return next is(
+      (select count(*) from public.my_player_blocks where blocked_profile_id = accepted_id),
+      0::bigint,
+      'another authenticated player cannot read the host block row'
+    );
+  end if;
   return next is((select count(*) from public.session_message_feed where message_id = host_message_id), 0::bigint, 'host-to-guest block filters host user message for guest');
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id and kind = 'system'), 'host-to-guest block leaves system messages visible to guest');
   perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -276,6 +457,24 @@ begin
   return next throws_ok(format('select public.invite_to_session(%s, %s)', main_session_id, invite_target_id), 'P0001', 'BLOCKED', 'block makes invite_to_session raise BLOCKED');
   execute 'reset role';
   return next is((select status from public.session_participants where session_id = main_session_id and profile_id = accepted_id), 'accepted', 'blocked invite leaves existing accepted participant unchanged');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true); perform public.set_player_block(host_id, true); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next throws_ok(
+    format('select public.invite_to_session(%s, %s)', main_session_id, observer_id),
+    'P0001',
+    'INVITEE_NOT_AVAILABLE',
+    'a hidden profile returns unavailable even when it blocks the host'
+  );
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true); perform public.set_player_block(host_id, false); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next throws_ok(
+    format('select public.invite_to_session(%s, %s)', main_session_id, observer_id),
+    'P0001',
+    'INVITEE_NOT_AVAILABLE',
+    'an unblocked hidden profile remains unavailable for invitation'
+  );
+  execute 'reset role';
 
   -- Outbox fan-out and its five-minute, sent_at-independent throttle.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -412,7 +611,12 @@ begin
   insert into public.session_messages(session_id, sender_profile_id, kind, body)
   values (purge_session_id, accepted_id, 'user', 'closed report purge body') returning id into closed_reported_message_id;
   insert into public.session_messages(session_id, sender_profile_id, kind, body)
-  values (purge_session_id, null, 'system', 'system purge body');
+  values (purge_session_id, null, 'system', 'system purge body') returning id into old_system_message_id;
+  insert into public.session_messages(session_id, sender_profile_id, kind, body)
+  values (main_session_id, host_id, 'user', 'open purge retain body') returning id into open_purge_message_id;
+  update public.sessions set archived_at = now() - interval '89 days' where id = archive_session_id;
+  insert into public.session_messages(session_id, sender_profile_id, kind, body)
+  values (archive_session_id, host_id, 'user', 'recent archive retain body') returning id into recent_archive_message_id;
   insert into public.reports(reporter_profile_id, reported_profile_id, reason, message_id)
   values (host_id, accepted_id, 'test report retains its message', reported_message_id);
   insert into public.reports(reporter_profile_id, reported_profile_id, reason, message_id, status)
@@ -424,7 +628,10 @@ begin
   return next is((select count(*) from public.session_messages where id = reported_message_id), 1::bigint, 'purge preserves user message linked by reports.message_id');
   return next is((select count(*) from public.session_messages where id = closed_reported_message_id), 0::bigint, 'purge removes message after its report is closed');
   return next is((select message_id from public.reports where id = closed_report_id), null::bigint, 'purge preserves the closed report audit record after removing its message');
-  return next is((select count(*) from public.session_messages where session_id = purge_session_id and kind = 'system'), 0::bigint, 'purge removes system messages from aged archive');
+  return next is((select count(*) from public.session_messages where id = old_system_message_id), 0::bigint, 'purge removes the system message from an aged archive');
+  return next is((select count(*) from public.session_messages where id = open_purge_message_id), 1::bigint, 'purge preserves a message from an unarchived open session');
+  return next is((select count(*) from public.session_messages where id = recent_archive_message_id), 1::bigint, 'purge preserves a message from an archive newer than ninety days');
+  return next is((select count(*) from public.sessions where status in ('cancelled', 'played', 'expired') and archived_at is null), 0::bigint, 'terminal sessions have a non-null archived_at anchor');
 
   -- Browser grants: raw tables stay RPC-only and the feed is never anonymous.
   return next is(has_table_privilege('anon', 'public.session_messages', 'select'), false, 'anon cannot select session_messages');
@@ -439,6 +646,16 @@ begin
   return next is(has_table_privilege('anon', 'public.session_message_feed', 'insert'), false, 'anon cannot insert session_message_feed');
   return next is(has_table_privilege('anon', 'public.session_message_feed', 'update'), false, 'anon cannot update session_message_feed');
   return next is(has_table_privilege('anon', 'public.session_message_feed', 'delete'), false, 'anon cannot delete session_message_feed');
+  return next is(
+    coalesce((select has_table_privilege('anon', class_row.oid, 'select') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'my_player_blocks'), false),
+    false,
+    'anon cannot select my_player_blocks'
+  );
+  return next is(
+    coalesce((select has_table_privilege('authenticated', class_row.oid, 'select') from pg_class class_row join pg_namespace namespace_row on namespace_row.oid = class_row.relnamespace where namespace_row.nspname = 'public' and class_row.relname = 'my_player_blocks'), false),
+    true,
+    'authenticated can select my_player_blocks'
+  );
   return next is(has_table_privilege('authenticated', 'public.session_messages', 'select'), false, 'authenticated cannot directly select session_messages');
   return next is(has_table_privilege('authenticated', 'public.session_messages', 'insert'), false, 'authenticated cannot directly insert session_messages');
   return next is(has_table_privilege('authenticated', 'public.session_messages', 'update'), false, 'authenticated cannot directly update session_messages');
@@ -447,6 +664,41 @@ begin
   return next is(has_table_privilege('authenticated', 'public.player_blocks', 'insert'), false, 'authenticated cannot directly insert player_blocks');
   return next is(has_table_privilege('authenticated', 'public.player_blocks', 'update'), false, 'authenticated cannot directly update player_blocks');
   return next is(has_table_privilege('authenticated', 'public.player_blocks', 'delete'), false, 'authenticated cannot directly delete player_blocks');
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next throws_ok(
+    format('select public.post_session_message(%s, %s)', main_session_id, 'null'),
+    'P0001',
+    'INVALID_MESSAGE',
+    'post_session_message rejects a null body with INVALID_MESSAGE'
+  );
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, '   '),
+    'P0001',
+    'INVALID_MESSAGE',
+    'post_session_message rejects ASCII-whitespace-only input with INVALID_MESSAGE'
+  );
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, repeat(chr(12288), 3)),
+    'P0001',
+    'INVALID_MESSAGE',
+    'post_session_message rejects fullwidth-whitespace-only input with INVALID_MESSAGE'
+  );
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, ''),
+    'P0001',
+    'INVALID_MESSAGE',
+    'post_session_message rejects an empty body with INVALID_MESSAGE'
+  );
+  return next throws_ok(
+    format('select public.post_session_message(%s, %L)', main_session_id, repeat('x', 1001)),
+    'P0001',
+    'INVALID_MESSAGE',
+    'post_session_message rejects a body longer than one thousand characters with INVALID_MESSAGE'
+  );
+  return next is(public.post_session_message(main_session_id, '  normalized chat body  '), 'OK', 'post_session_message accepts a normalized valid body');
+  execute 'reset role';
+  return next is((select body from public.session_messages where session_id = main_session_id and body = 'normalized chat body' order by id desc limit 1), 'normalized chat body', 'post_session_message stores the btrim-normalized body');
 end;
 $$;
 
