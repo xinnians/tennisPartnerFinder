@@ -65,6 +65,7 @@ const SESSION_MESSAGE_FEED_COLUMNS = [
   "created_at",
   "is_self",
 ];
+const MY_PLAYER_BLOCKS_COLUMNS = ["blocked_profile_id", "blocked_nickname", "created_at"];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
 const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public", "share_presence", "open_to_greeting"];
 const NOTIFICATION_PREFS_COLUMNS = ["host_new_request_enabled", "guest_request_reviewed_enabled", "guest_invited_enabled"];
@@ -102,6 +103,7 @@ export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
 export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
 export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
 export const SESSION_MESSAGE_FEED_SELECT = SESSION_MESSAGE_FEED_COLUMNS.join(",");
+export const MY_PLAYER_BLOCKS_SELECT = MY_PLAYER_BLOCKS_COLUMNS.join(",");
 export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
 export const PLAYER_DIRECTORY_SELECT = PLAYER_DIRECTORY_COLUMNS.join(",");
 export const PLAYER_PRESENCE_DIRECTORY_SELECT = PLAYER_PRESENCE_DIRECTORY_COLUMNS.join(",");
@@ -133,6 +135,7 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "INVITE_LIMIT",
   "BLOCKED",
   "MESSAGE_NOT_VISIBLE",
+  "INVALID_MESSAGE",
 ]);
 
 const ACTION_MESSAGES = {
@@ -159,6 +162,7 @@ const ACTION_MESSAGES = {
   INVITE_LIMIT: "24 小時內邀請次數已達上限。",
   BLOCKED: "此操作因封鎖關係無法完成。",
   MESSAGE_NOT_VISIBLE: "這則訊息目前無法檢舉。",
+  INVALID_MESSAGE: "訊息不可為空白或超過 1000 字。",
   UNKNOWN_ACTION_ERROR: "球局操作失敗，請重新載入後再試。",
 };
 
@@ -351,6 +355,15 @@ export function mapSessionMessageRow(row = {}) {
   };
 }
 
+/** Authenticated block-list mapper: only the blocked profile's safe display fields are exposed. */
+export function mapMyPlayerBlockRow(row = {}) {
+  return {
+    blockedProfileId: asNumber(row.blocked_profile_id),
+    blockedNickname: asText(row.blocked_nickname),
+    createdAt: asText(row.created_at),
+  };
+}
+
 /** Public player-directory mapper: every output field is intentionally named here. */
 export function mapPlayerDirectoryRow(row = {}) {
   return {
@@ -488,7 +501,7 @@ function withinBounds(entry, bounds) {
 }
 
 function codeFromSupabaseError(error) {
-  const errorText = [error?.message, error?.details, error?.hint, error?.code]
+  const errorText = [error?.message, error?.hint, error?.code]
     .filter((part) => typeof part === "string")
     .join(" ")
     .toUpperCase();
@@ -685,6 +698,17 @@ export function createDataApi({
       .order("message_id", { ascending: true });
     if (error) throw error;
     return asArray(data).map(mapSessionMessageRow);
+  }
+
+  async function loadMyPlayerBlocks() {
+    if (!configured) return [];
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("my_player_blocks")
+      .select(MY_PLAYER_BLOCKS_SELECT)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return asArray(data).map(mapMyPlayerBlockRow);
   }
 
   async function loadCurrentProfile() {
@@ -943,6 +967,7 @@ export function createDataApi({
     loadSessionRoster,
     loadSessionContacts,
     loadSessionMessages,
+    loadMyPlayerBlocks,
     loadCurrentProfile,
     loadNotificationPreferences,
     loadDistrictSubscriptions,
@@ -986,6 +1011,7 @@ export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
 export const loadSessionContacts = (...args) => defaultDataApi.loadSessionContacts(...args);
 export const loadSessionMessages = (...args) => defaultDataApi.loadSessionMessages(...args);
+export const loadMyPlayerBlocks = (...args) => defaultDataApi.loadMyPlayerBlocks(...args);
 export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile(...args);
 export const loadNotificationPreferences = (...args) => defaultDataApi.loadNotificationPreferences(...args);
 export const loadDistrictSubscriptions = (...args) => defaultDataApi.loadDistrictSubscriptions(...args);
