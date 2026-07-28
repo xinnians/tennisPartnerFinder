@@ -424,7 +424,7 @@ export function mapCurrentProfile(row = {}, courts = []) {
 
   return {
     nick: asText(row.nickname),
-    ntrp: asNumber(row.ntrp) ?? 3.5,
+    ntrp: asNumber(row.ntrp),
     types: new Set(asArray(row.play_types).filter((value) => typeof value === "string")),
     courts: new Set(selectedCourts),
     slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string")),

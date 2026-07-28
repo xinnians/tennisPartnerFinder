@@ -1405,7 +1405,7 @@ test("SESSION_EXPIRED player invitation refreshes choices and renders an inline 
       openCourtPlayersDrawer: views.openCourtPlayersDrawer,
       openPlayerCard: views.openPlayerCardSheet,
     });
-    await controller.setAuthState({ user: { id: "host" } }, { complete: true });
+    await controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
     await controller.togglePlayerLayer();
     const group = controller.getPlayerLayerState().groups[0];
     controller.openPlayerCourt(group.court, group.players);
@@ -1598,6 +1598,72 @@ test("profile and create sheets disclose public nickname use and retain a local-
   expect(runtimeErrors).toEqual([]);
 });
 
+test("profile completion explains targeted gate requirements", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({ intent: { action: "create" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
+  });
+  const createProfile = page.locator("#profile-completion-sheet");
+  await expect(createProfile).toContainText("要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。");
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({ intent: { action: "players" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
+  });
+  await expect(page.locator("#profile-completion-sheet")).toContainText(
+    "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。"
+  );
+  await page.keyboard.press("Escape");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a 390px profile sheet saves a nickname-only draft without horizontal overflow", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "this assertion exercises the requested 390px viewport");
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({
+      onSave: async (draft) => {
+        window.__nicknameOnlyProfile = {
+          ...draft,
+          courts: [...draft.courts],
+          slots: [...draft.slots],
+          types: [...draft.types],
+        };
+        return draft;
+      },
+      profile: { courts: new Set(), lineId: "", nick: "", ntrp: null, slots: new Set(), types: new Set() },
+    });
+  });
+  const profile = page.locator("#profile-completion-sheet");
+  await profile.getByLabel("公開暱稱").fill("暱稱即可");
+  await profile.getByTestId("profile-save").click();
+  await expect(profile).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__nicknameOnlyProfile)).toEqual({
+    courts: [],
+    lineId: "",
+    nick: "暱稱即可",
+    ntrp: null,
+    slots: [],
+    types: [],
+  });
+  const width = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(width.client).toBe(390);
+  expect(width.scroll).toBeLessThanOrEqual(390);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("delayed Taipei court options hydrate open profile and create forms without losing drafts", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -1736,7 +1802,7 @@ test("mock player layer renders directory pins and cards while the signed-out en
         );
       },
     });
-    await controller.setAuthState({ user: { id: "mock-player-host" } }, { complete: true });
+    await controller.setAuthState({ user: { id: "mock-player-host" } }, { directory: true, nickname: true, ntrp: true });
     await controller.togglePlayerLayer();
   });
 

@@ -20,24 +20,30 @@ import {
   confirmSessionAttendance,
   createReport,
   createSession,
+  decideSessionCourt,
   declineSessionParticipant,
   getInitialSession,
   inviteToSession,
   loadCourts,
+  loadCourtSubscriptions,
   loadCurrentProfile,
   loadDistrictSubscriptions,
   loadMySessions,
+  loadMyPlayerBlocks,
   loadNotificationPreferences,
   loadPlayerDirectory,
   loadPlayerPresenceDirectory,
   loadSessionContacts,
   loadSessionDiscovery,
+  loadSessionMessages,
   loadSessionRoster,
   loadSessionSummary,
   markSessionPlayed,
   onAuthStateChange,
+  postSessionMessage,
   requestToJoinSession,
   respondToSessionInvite,
+  saveCourtSubscriptions,
   saveCurrentProfile,
   saveDistrictSubscriptions,
   saveNotificationPreferences,
@@ -46,7 +52,9 @@ import {
   signOut,
   setPlayerVisibility,
   setOpenToGreeting,
+  setPlayerBlock,
   setPresenceSharing,
+  updateSession,
   updateMyPresence,
   withdrawFromSession,
 } from "./dataApi.js";
@@ -165,8 +173,8 @@ function defaultProfile() {
     courts: new Set(),
     lineId: "",
     nick: "",
-    ntrp: 3.5,
-    slots: new Set(["we-m"]),
+    ntrp: null,
+    slots: new Set(),
     openToGreeting: false,
     sharePresence: false,
     types: new Set(),
@@ -193,7 +201,7 @@ function updatePresenceLocationStatus(status) {
 
 function reconcilePresenceTracking() {
   const eligible = eligibilityFromPrivateProfile(currentProfile);
-  const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.complete && currentProfile?.sharePresence === true);
+  const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && currentProfile?.sharePresence === true);
   if (!canTrack) {
     stopPresenceTracking();
     return false;
@@ -219,6 +227,9 @@ async function updatePresenceSharing(shared) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
+  if (!eligibilityFromPrivateProfile(currentProfile).ntrp) {
+    throw new Error("要調整在場分享，請到個人檔案填寫公開暱稱與 NTRP（1.0–7.0）。");
+  }
   await setPresenceSharing(shared === true);
   if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
   currentProfile = { ...(currentProfile ?? defaultProfile()), sharePresence: shared === true };
@@ -235,6 +246,9 @@ async function updateOpenToGreetingSetting(open) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
+  if (!eligibilityFromPrivateProfile(currentProfile).ntrp) {
+    throw new Error("要調整接受現場問候設定，請到個人檔案填寫公開暱稱與 NTRP（1.0–7.0）。");
+  }
   await setOpenToGreeting(open === true);
   if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
   currentProfile = { ...(currentProfile ?? defaultProfile()), openToGreeting: open === true };
@@ -321,6 +335,7 @@ function openProfileCompletion({ courts: selectableCourts, courtsReady: formCour
       if (!authSession) return;
       await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
     },
+    intent,
     profile: currentProfile ?? defaultProfile(),
     returnSession: intent?.action === "join" ? returnSession : null,
   });
@@ -737,6 +752,9 @@ async function loadCourtsImmediately() {
     courts = await loadCourts();
     courtsReady = true;
     controller.setCourts(courts, { ready: true });
+    if (authSession && profileLoadStatus === "ready") {
+      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+    }
     populateCourtFilters(courts);
     renderBaseCourtPins();
   } catch {
@@ -749,20 +767,26 @@ async function loadCourtsImmediately() {
 
 function validNtrp(value) {
   const ntrp = Number(value);
-  return Number.isFinite(ntrp) && ntrp >= 1 && ntrp <= 7 && Number.isInteger(ntrp * 2);
+  return Number.isFinite(ntrp) && ntrp >= 1 && ntrp <= 7;
 }
 
 function eligibilityFromPrivateProfile(profile, { status = "ready" } = {}) {
+  const nickname = String(profile?.nick ?? "").trim() !== "";
+  const ntrp = nickname && validNtrp(profile?.ntrp);
+  const selectedCourts = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
+  const activeTaipeiCourts = new Set(
+    courts
+      .filter((court) => court?.city === "台北市")
+      .flatMap((court) => [String(court?.id ?? ""), String(court?.name ?? "")])
+  );
+  const directory =
+    ntrp &&
+    [...selectedCourts].some((court) => activeTaipeiCourts.has(String(court)));
   return {
-    complete: Boolean(
-      profile?.nick &&
-        validNtrp(profile?.ntrp) &&
-        profile?.lineId &&
-        (profile?.courts?.size ?? 0) > 0 &&
-        (profile?.types?.size ?? 0) > 0 &&
-        (profile?.slots?.size ?? 0) > 0
-    ),
+    directory,
     isPublic: profile?.isPublic === true,
+    nickname,
+    ntrp,
     status,
   };
 }
@@ -790,7 +814,7 @@ async function reloadCurrentProfile() {
     // until the next successful auth/profile load.
     if (profileLoadStatus !== "ready") {
       profileLoadStatus = "error";
-      await controller.setAuthState(authSession, { complete: false, status: "error" });
+      await controller.setAuthState(authSession, { directory: false, nickname: false, ntrp: false, status: "error" });
     }
     throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
   }
@@ -811,7 +835,7 @@ function applyAuthCandidate(session) {
   authSession = session ?? null;
   // Only a genuinely different account may clear the controller's profile
   // state. Auth token refreshes for the same account must not invalidate an
-  // open confirmation or turn a complete profile transiently incomplete.
+  // open confirmation or temporarily make an eligible profile unavailable.
   if (identityChanged) {
     stopPresenceTracking();
     presenceLocationStatus = "idle";
@@ -819,7 +843,7 @@ function applyAuthCandidate(session) {
     currentProfile = defaultProfile();
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = session ? "loading" : "idle";
-    void controller.setAuthState(session, session ? { complete: false, status: "loading" } : null);
+    void controller.setAuthState(session, session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null);
   }
   if (!session) {
     stopPresenceTracking();
@@ -899,12 +923,15 @@ function init() {
       confirmSessionAttendance,
       createReport,
       createSession,
+      decideSessionCourt,
       declineSessionParticipant,
       loadMySessions,
+      loadMyPlayerBlocks,
       loadPlayerDirectory,
       loadPlayerPresenceDirectory,
       loadSessionContacts,
       loadSessionDiscovery,
+      loadSessionMessages,
       loadSessionRoster,
       loadSessionSummary,
       markSessionPlayed,
@@ -912,8 +939,13 @@ function init() {
       inviteToSession,
       respondToSessionInvite,
       setPlayerVisibility,
+      setPlayerBlock,
       setOpenToGreeting,
       setPresenceSharing,
+      loadCourtSubscriptions,
+      saveCourtSubscriptions,
+      postSessionMessage,
+      updateSession,
       updateMyPresence,
       withdrawFromSession,
     },

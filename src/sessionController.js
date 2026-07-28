@@ -83,10 +83,15 @@ function sessionIdentity(session) {
   return value == null ? null : String(value);
 }
 
-function profileIsComplete(eligibility) {
-  // Main reduces private profile data to this one boolean before it enters the
-  // controller. It is never rendered or sent with a public action payload.
-  return eligibility?.complete === true;
+function profileMeetsGate(eligibility, level) {
+  return eligibility?.[level] === true;
+}
+
+function profileGateForIntent(intent) {
+  if (intent?.action === "create") return "ntrp";
+  if (["players", "visibility"].includes(intent?.action)) return "directory";
+  if (intent?.action === "join") return "nickname";
+  return null;
 }
 
 function profileIsPublic(eligibility) {
@@ -249,6 +254,7 @@ const SESSION_DETAIL_FIELDS = [
   "hostNickname",
   "hostNtrp",
   "hostProfileComplete",
+  "decidedAt",
 ];
 
 const EXPLICIT_VIEWPORT_IDLE_GRACE_MS = MAP_IDLE_DEBOUNCE_MS * 8;
@@ -334,6 +340,7 @@ export function createSessionController({
   let activeJoinConfirmationSessionId = null;
   let activeCreateSession = null;
   let activeProfilePrompt = null;
+  let activeProfileIntent = null;
   let activeReportDialog = null;
   let activePlayerDrawer = null;
   let activePlayerCard = null;
@@ -658,7 +665,7 @@ export function createSessionController({
   }
 
   async function loadPlayers(bounds = state.bounds) {
-    if (!state.playerLayerOn || !state.authSession || !profileIsComplete(state.profile)) return false;
+    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "directory")) return false;
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const requestId = ++latestPlayerRequest;
     const authSnapshot = captureAuthSnapshot();
@@ -676,7 +683,7 @@ export function createSessionController({
       if (
         requestId !== latestPlayerRequest ||
         !state.playerLayerOn ||
-        !profileIsComplete(state.profile) ||
+        !profileMeetsGate(state.profile, "directory") ||
         !isCurrentAuthSnapshot(authSnapshot)
       ) {
         return false;
@@ -704,7 +711,7 @@ export function createSessionController({
       if (
         requestId !== latestPlayerRequest ||
         !state.playerLayerOn ||
-        !profileIsComplete(state.profile) ||
+        !profileMeetsGate(state.profile, "directory") ||
         !isCurrentAuthSnapshot(authSnapshot)
       ) {
         return false;
@@ -855,7 +862,7 @@ export function createSessionController({
     detail = openSession(session, {
       action,
       onPrimary: () => startPrimaryAction(session, detail),
-      canReport: Boolean(state.authSession && profileReadiness(state.profile) === "ready" && profileIsComplete(state.profile)),
+      canReport: Boolean(state.authSession && profileReadiness(state.profile) === "ready"),
       onReport: () => openSessionReport(session.sessionId),
       onWithdraw: () => withdraw(session, detail),
     });
@@ -908,7 +915,7 @@ export function createSessionController({
   }
 
   function openPlayer(player) {
-    if (!state.playerLayerOn || !state.authSession || !profileIsComplete(state.profile)) return null;
+    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "directory")) return null;
     activePlayerDrawer = null;
     const openedAuth = captureAuthSnapshot();
     let card = null;
@@ -926,7 +933,8 @@ export function createSessionController({
         if (
           activePlayerCard !== card ||
           !state.playerLayerOn ||
-          !profileIsComplete(state.profile) ||
+          !profileMeetsGate(state.profile, "directory") ||
+          !profileMeetsGate(state.profile, "ntrp") ||
           !isCurrentAuthSnapshot(openedAuth)
         ) {
           throw new Error("登入狀態已變更，請重新開啟球友卡。");
@@ -936,7 +944,8 @@ export function createSessionController({
         if (
           activePlayerCard !== card ||
           !state.playerLayerOn ||
-          !profileIsComplete(state.profile) ||
+          !profileMeetsGate(state.profile, "directory") ||
+          !profileMeetsGate(state.profile, "ntrp") ||
           !isCurrentAuthSnapshot(openedAuth)
         ) {
           throw new Error("登入狀態已變更，請重新開啟球友卡。");
@@ -946,7 +955,8 @@ export function createSessionController({
           if (
             activePlayerCard !== card ||
             !state.playerLayerOn ||
-            !profileIsComplete(state.profile) ||
+            !profileMeetsGate(state.profile, "directory") ||
+            !profileMeetsGate(state.profile, "ntrp") ||
             !isCurrentAuthSnapshot(openedAuth)
           ) {
             throw new Error("登入狀態已變更，請重新開啟球友卡。");
@@ -963,7 +973,7 @@ export function createSessionController({
   }
 
   function openPlayerCourt(court, onlyPlayers = null) {
-    if (!state.playerLayerOn || !state.authSession || !profileIsComplete(state.profile)) return null;
+    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "directory")) return null;
     const players = onlyPlayers ?? state.players.filter((player) => String(player.courtId) === String(court.id));
     closeActivePlayerDrawer({ restoreFocus: false });
     closeActivePlayerCard({ restoreFocus: false });
@@ -1028,6 +1038,7 @@ export function createSessionController({
   function closeActiveProfilePrompt(options = {}) {
     const sheet = activeProfilePrompt;
     activeProfilePrompt = null;
+    activeProfileIntent = null;
     sheet?.close?.(options);
   }
 
@@ -1113,12 +1124,16 @@ export function createSessionController({
       courtsReady: state.courtsReady,
       intent,
       onClose: ({ reason = "dismiss", saved = false } = {}) => {
-        if (activeProfilePrompt === sheet) activeProfilePrompt = null;
+        if (activeProfilePrompt === sheet) {
+          activeProfilePrompt = null;
+          activeProfileIntent = null;
+        }
         if (!saved && reason === "dismiss") clearIntent(intent);
       },
       returnSession,
     });
     activeProfilePrompt = sheet?.close ? sheet : null;
+    activeProfileIntent = activeProfilePrompt ? intent : null;
     return activeProfilePrompt;
   }
 
@@ -1138,7 +1153,8 @@ export function createSessionController({
       toast(profileUnavailableMessage(readiness));
       return;
     }
-    if (!profileIsComplete(state.profile)) {
+    const requiredGate = profileGateForIntent(savedIntent);
+    if (requiredGate && !profileMeetsGate(state.profile, requiredGate)) {
       openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
       return;
     }
@@ -1183,12 +1199,12 @@ export function createSessionController({
       toast("登入狀態已變更，請重新開啟球局。");
       return { joinError: "登入狀態已變更，請重新開啟球局。" };
     }
-    if (!profileIsComplete(state.profile)) {
+    if (!profileMeetsGate(state.profile, "nickname")) {
       close?.();
       closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
       requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
-      return { joinError: "請先完成個人檔案。" };
+      return { joinError: "請先填寫公開暱稱。" };
     }
     const mutation = beginLifecycleAction("join", session.sessionId, confirmingAuth);
     if (!mutation) {
@@ -1269,11 +1285,7 @@ export function createSessionController({
 
   function requireMySessionAction(sessionId, predicate) {
     const authSnapshot = captureAuthSnapshot();
-    if (
-      !isCurrentAuthSnapshot(authSnapshot) ||
-      profileReadiness(state.profile) !== "ready" ||
-      !profileIsComplete(state.profile)
-    ) {
+    if (!isCurrentAuthSnapshot(authSnapshot) || profileReadiness(state.profile) !== "ready") {
       throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
     }
     const session = mySessionForAction(sessionId);
@@ -1379,12 +1391,12 @@ export function createSessionController({
     return runMySessionMutation("attendance", session, authSnapshot, () => api.confirmSessionAttendance(session.sessionId), "已確認到場。");
   }
 
-  async function togglePlayerVisibility() {
+  async function commitPlayerVisibility() {
     const authSnapshot = captureAuthSnapshot();
     if (
       !isCurrentAuthSnapshot(authSnapshot) ||
       profileReadiness(state.profile) !== "ready" ||
-      !profileIsComplete(state.profile)
+      !profileMeetsGate(state.profile, "directory")
     ) {
       throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
     }
@@ -1411,14 +1423,21 @@ export function createSessionController({
     if (!reloaded) throw new Error("球友卡設定已更新，但個人檔案同步失敗，請稍後重新整理。");
   }
 
+  function togglePlayerVisibility() {
+    if (
+      !state.authSession ||
+      profileReadiness(state.profile) !== "ready" ||
+      !profileMeetsGate(state.profile, "directory")
+    ) {
+      return requireSessionAction({ action: "visibility" });
+    }
+    return commitPlayerVisibility();
+  }
+
   function requireReportAccess() {
     const authSnapshot = captureAuthSnapshot();
-    if (
-      !isCurrentAuthSnapshot(authSnapshot) ||
-      profileReadiness(state.profile) !== "ready" ||
-      !profileIsComplete(state.profile)
-    ) {
-      throw new Error("請先登入並完成個人檔案後再檢舉。");
+    if (!isCurrentAuthSnapshot(authSnapshot) || profileReadiness(state.profile) !== "ready") {
+      throw new Error("請先登入後再檢舉。");
     }
     if (typeof api?.createReport !== "function") throw new Error("目前無法送出檢舉。");
     return authSnapshot;
@@ -1435,7 +1454,7 @@ export function createSessionController({
       onSubmit: async (reason) => {
         const normalizedReason = String(reason ?? "").trim();
         if (!normalizedReason) throw new Error("請選擇檢舉原因。");
-        if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsComplete(state.profile)) {
+        if (!isCurrentAuthSnapshot(authSnapshot) || profileReadiness(state.profile) !== "ready") {
           throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
         }
         const result = await api.createReport({ reportedProfileId, reason: normalizedReason, sessionId });
@@ -1473,7 +1492,7 @@ export function createSessionController({
 
   async function submitCreateSession(input, close, sheet, openedAuthSnapshot = captureAuthSnapshot()) {
     const authSnapshot = openedAuthSnapshot;
-    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsComplete(state.profile)) {
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileMeetsGate(state.profile, "ntrp")) {
       throw new Error("登入或個人檔案狀態已變更，請重新開啟表單。");
     }
     try {
@@ -1538,7 +1557,7 @@ export function createSessionController({
           if (readiness === "error") toast(profileUnavailableMessage(readiness));
           return false;
         }
-        if (!profileIsComplete(state.profile)) {
+        if (!profileMeetsGate(state.profile, "ntrp")) {
           openProfileForIntent(intent);
           return true;
         }
@@ -1552,13 +1571,28 @@ export function createSessionController({
           if (readiness === "error") toast(profileUnavailableMessage(readiness));
           return false;
         }
-        if (!profileIsComplete(state.profile)) {
+        if (!profileMeetsGate(state.profile, "directory")) {
           openProfileForIntent(intent);
           return true;
         }
         clearIntent(intent);
         state.playerLayerOn = true;
         return loadPlayers(state.bounds);
+      }
+
+      if (intent.action === "visibility") {
+        const readiness = profileReadiness(state.profile);
+        if (readiness !== "ready") {
+          if (readiness === "error") toast(profileUnavailableMessage(readiness));
+          return false;
+        }
+        if (!profileMeetsGate(state.profile, "directory")) {
+          openProfileForIntent(intent);
+          return true;
+        }
+        clearIntent(intent);
+        await commitPlayerVisibility();
+        return true;
       }
 
       if (intent.action !== "join" || typeof api?.loadSessionSummary !== "function") return false;
@@ -1584,7 +1618,7 @@ export function createSessionController({
         if (readiness === "error") toast(profileUnavailableMessage(readiness));
         return false;
       }
-      if (!profileIsComplete(state.profile)) {
+      if (!profileMeetsGate(state.profile, "nickname")) {
         openProfileForIntent(intent, { returnSession: target });
         return true;
       }
@@ -1650,7 +1684,7 @@ export function createSessionController({
 
   function togglePlayerLayer() {
     if (!state.playerLayerOn) {
-      if (!state.authSession || profileReadiness(state.profile) !== "ready" || !profileIsComplete(state.profile)) {
+      if (!state.authSession || profileReadiness(state.profile) !== "ready" || !profileMeetsGate(state.profile, "directory")) {
         return requireSessionAction({ action: "players" });
       }
       state.playerLayerOn = true;
@@ -1667,19 +1701,22 @@ export function createSessionController({
     const identityChanged = previousIdentity !== identity;
     const signedOut = Boolean(previousIdentity) && !identity;
     const accountChanged = Boolean(previousIdentity) && Boolean(identity) && previousIdentity !== identity;
-    const previousEligible = profileIsComplete(state.profile);
-    const nextEligible = profileIsComplete(profile);
+    const gateLevels = ["nickname", "ntrp", "directory"];
+    const previousGates = Object.fromEntries(gateLevels.map((level) => [level, profileMeetsGate(state.profile, level)]));
+    const nextGates = Object.fromEntries(gateLevels.map((level) => [level, profileMeetsGate(profile, level)]));
     const previousReadiness = profileReadiness(state.profile);
     const nextReadiness = profileReadiness(profile);
-    const eligibilityChanged = previousEligible !== nextEligible;
-    const eligibilityWasLost = previousEligible && !nextEligible;
+    const gatesChanged = gateLevels.some((level) => previousGates[level] !== nextGates[level]);
+    const nicknameWasLost = previousGates.nickname && !nextGates.nickname;
+    const ntrpWasLost = previousGates.ntrp && !nextGates.ntrp;
+    const directoryWasLost = previousGates.directory && !nextGates.directory;
     const readinessChanged = previousReadiness !== nextReadiness;
-    if (identityChanged || eligibilityChanged || readinessChanged) authEpoch += 1;
+    if (identityChanged || gatesChanged || readinessChanged) authEpoch += 1;
     const epoch = authEpoch;
 
     if (signedOut || accountChanged) clearIntent();
-    if (signedOut || accountChanged || eligibilityWasLost) {
-      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "profile-incomplete" });
+    if (signedOut || accountChanged || directoryWasLost) {
+      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "directory-gate-lost" });
     }
     if (identityChanged) {
       const options = { reason: "account-change", restoreFocus: false };
@@ -1688,17 +1725,13 @@ export function createSessionController({
       closeActiveReportDialog(options);
       closeActiveJoinConfirmation(undefined, options);
       closeActiveDetail(undefined, options);
-    } else if (eligibilityWasLost) {
-      const options = { reason: "profile-incomplete", restoreFocus: false };
-      closeActiveCreateSession(options);
-      closeActiveJoinConfirmation(undefined, options);
-      closeActiveReportDialog(options);
-      closeActiveDetail(undefined, options);
-    } else if (eligibilityChanged && nextEligible) {
-      // A previously incomplete profile may have completed in another tab or
-      // after the sheet's RPC returned. Do not leave that stale form beneath
-      // the resumed confirmation/create sheet.
-      closeActiveProfilePrompt({ reason: "profile-resolved", restoreFocus: false });
+    } else {
+      if (ntrpWasLost) closeActiveCreateSession({ reason: "ntrp-gate-lost", restoreFocus: false });
+      if (nicknameWasLost) closeActiveJoinConfirmation(undefined, { reason: "nickname-gate-lost", restoreFocus: false });
+      const promptGate = profileGateForIntent(activeProfileIntent);
+      if (activeProfilePrompt && promptGate && !previousGates[promptGate] && nextGates[promptGate]) {
+        closeActiveProfilePrompt({ reason: "profile-gate-resolved", restoreFocus: false });
+      }
     }
 
     state.authSession = session ?? null;

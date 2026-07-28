@@ -32,6 +32,10 @@ function normalizedIntent(intent) {
     return { action: "players" };
   }
 
+  if (intent.action === "visibility" && keys.length === 1 && keys[0] === "action") {
+    return { action: "visibility" };
+  }
+
   return null;
 }
 

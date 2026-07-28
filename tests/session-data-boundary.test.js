@@ -262,6 +262,43 @@ test("private roster/contact/profile mappers stay separate from public summaries
   assert.equal(profile.openToGreeting, false);
 });
 
+test("my-profile mapping preserves an absent NTRP instead of inventing a default", () => {
+  const profile = mapCurrentProfile({ nickname: "暱稱即可" }, []);
+  assert.equal(profile.ntrp, null);
+});
+
+test("main forwards every Stage 1–3 data API capability into the session controller", async () => {
+  const expectedKeys = [
+    "updateSession",
+    "decideSessionCourt",
+    "loadSessionMessages",
+    "postSessionMessage",
+    "setPlayerBlock",
+    "loadMyPlayerBlocks",
+    "loadCourtSubscriptions",
+    "saveCourtSubscriptions",
+  ];
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const apiBlock = source.match(/controller = createSessionController\(\{\n    api: \{([\s\S]*?)\n    \},\n    mapTools:/)?.[1] ?? "";
+  const api = createDataApi({ configured: false });
+
+  for (const key of expectedKeys) {
+    assert.match(apiBlock, new RegExp(`\\b${key},`), `${key} is passed to createSessionController`);
+    assert.equal(typeof api[key], "function", `${key} remains available from dataApi`);
+  }
+});
+
+test("presence-setting writes require the NTRP gate before either toggle direction reaches the RPC", async () => {
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const sharing = source.match(/async function updatePresenceSharing\(shared\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  const greeting = source.match(/async function updateOpenToGreetingSetting\(open\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+
+  assert.match(sharing, /if \(!eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\) \{/);
+  assert.doesNotMatch(sharing, /if \(shared === true && !eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\)/);
+  assert.match(greeting, /if \(!eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\) \{/);
+  assert.doesNotMatch(greeting, /if \(open === true && !eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\)/);
+});
+
 test("player presence mapper keeps the exact reciprocal-directory allowlist", () => {
   const presenceRow = {
     profile_id: "8001",
@@ -557,7 +594,8 @@ test("pending intents persist only the approved session-action shapes", () => {
 
   assert.deepEqual(savePendingIntent({ action: "create" }, storage), { action: "create" });
   assert.deepEqual(savePendingIntent({ action: "players" }, storage), { action: "players" });
-  assert.deepEqual(readPendingIntent(storage), { action: "players" });
+  assert.deepEqual(savePendingIntent({ action: "visibility" }, storage), { action: "visibility" });
+  assert.deepEqual(readPendingIntent(storage), { action: "visibility" });
   storage.setItem(PENDING_SESSION_INTENT_KEY, JSON.stringify({ action: "join", sessionId: 4, location: { lat: 1, lng: 2 } }));
   assert.equal(readPendingIntent(storage), null);
   assert.equal(storage.getItem(PENDING_SESSION_INTENT_KEY), null);

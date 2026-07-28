@@ -1490,32 +1490,41 @@ function selectedValues(form, name) {
 
 function profileFormValue(form) {
   const courts = new Set([...form.querySelectorAll("[name='profile-courts'] option:checked")].map((option) => option.value));
+  const ntrpValue = form.querySelector("[name='profile-ntrp']")?.value.trim() ?? "";
   return {
     courts,
     lineId: form.querySelector("[name='profile-line-id']")?.value.trim() ?? "",
     nick: form.querySelector("[name='profile-nickname']")?.value.trim() ?? "",
-    ntrp: Number(form.querySelector("[name='profile-ntrp']")?.value),
+    ntrp: ntrpValue === "" ? null : Number(ntrpValue),
     slots: selectedValues(form, "profile-slots"),
     types: selectedValues(form, "profile-types"),
   };
 }
 
-function validateProfileForm(profile) {
-  if (!profile.nick) return "請填寫公開暱稱。";
-  if (!Number.isFinite(profile.ntrp) || profile.ntrp < 1 || profile.ntrp > 7 || !Number.isInteger(profile.ntrp * 2)) {
-    return "NTRP 請選擇 1.0 到 7.0。";
-  }
-  if (!profile.lineId) return "請填寫 LINE ID。";
-  if (!profile.courts.size) return "請至少選一座常打球場。";
-  if (!profile.types.size) return "請至少選一種打法。";
-  if (!profile.slots.size) return "請至少選一個可打時段。";
-  return "";
+function profileGateForIntent(intent) {
+  if (intent?.action === "create") return "ntrp";
+  if (["players", "visibility"].includes(intent?.action)) return "directory";
+  return "nickname";
 }
 
-function profileNtrpOptions(selected) {
-  return Array.from({ length: 13 }, (_, index) => 1 + index * 0.5)
-    .map((value) => `<option value="${value}"${Number(selected) === value ? " selected" : ""}>${value.toFixed(1)}</option>`)
-    .join("");
+function profileGateHint(gate) {
+  if (gate === "ntrp") return "要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。";
+  if (gate === "directory") return "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。";
+  return "要加入球局，請填寫公開暱稱。";
+}
+
+function validProfileNtrp(value) {
+  return Number.isFinite(value) && value >= 1 && value <= 7;
+}
+
+function validateProfileForm(profile, requiredGate) {
+  if (!profile.nick) return "請填寫公開暱稱。";
+  if (profile.ntrp != null && !validProfileNtrp(profile.ntrp)) {
+    return "NTRP 請填寫 1.0 到 7.0，或留白。";
+  }
+  if (requiredGate === "ntrp" && !validProfileNtrp(profile.ntrp)) return profileGateHint("ntrp");
+  if (requiredGate === "directory" && (!validProfileNtrp(profile.ntrp) || !profile.courts.size)) return profileGateHint("directory");
+  return "";
 }
 
 /** Open the private profile-completion sheet without leaking profile fields to public renderers. */
@@ -1525,14 +1534,15 @@ export function openProfileCompletionSheet({
   onClose = () => {},
   onSave = async () => {},
   onSaved = async () => {},
+  intent = null,
   profile = {},
   returnSession = null,
 } = {}) {
   const selectedCourts = profile.courts instanceof Set ? profile.courts : new Set(profile.courts ?? []);
   const selectedTypes = profile.types instanceof Set ? profile.types : new Set(profile.types ?? []);
-  // The service requires one playable time slot. It is visible and editable,
-  // never an invisible default injected at submit time.
-  const selectedSlots = profile.slots instanceof Set && profile.slots.size ? profile.slots : new Set(["we-m"]);
+  const selectedSlots = profile.slots instanceof Set ? profile.slots : new Set(profile.slots ?? []);
+  const requiredGate = profileGateForIntent(intent);
+  const gateHint = intent ? profileGateHint(requiredGate) : "";
   let saved = false;
   const mounted = mountSheet({
     id: "profile-completion-sheet",
@@ -1549,15 +1559,16 @@ export function openProfileCompletionSheet({
           ? `<p class="profile-return-context">完成後將回到：${esc(returnSession.court)}・${esc(taipeiDateTime(returnSession.startAt))}</p>`
           : ""
       }
+      ${gateHint ? `<p class="form-hint">${esc(gateHint)}</p>` : ""}
       <form class="profile-form" data-testid="profile-form" novalidate>
         <label class="form-field" for="profile-nickname"><span>公開暱稱</span><input id="profile-nickname" name="profile-nickname" required value="${esc(
           profile.nick ?? ""
         )}" autocomplete="nickname" /></label>
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
-        <label class="form-field" for="profile-ntrp"><span>NTRP 程度</span><select id="profile-ntrp" name="profile-ntrp">${profileNtrpOptions(
-          profile.ntrp ?? 3.5
-        )}</select></label>
-        <label class="form-field" for="profile-line-id"><span>LINE ID</span><input id="profile-line-id" name="profile-line-id" required value="${esc(
+        <label class="form-field" for="profile-ntrp"><span>NTRP 程度（選填）</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="any" value="${esc(
+          profile.ntrp ?? ""
+        )}" inputmode="decimal" placeholder="尚未填寫" /></label>
+        <label class="form-field" for="profile-line-id"><span>LINE ID（選填）</span><input id="profile-line-id" name="profile-line-id" value="${esc(
           profile.lineId ?? ""
         )}" autocomplete="off" /></label>
         <p class="form-hint">只有同一球局的主揪與已接受球友之間可看見彼此的 LINE ID。</p>
@@ -1596,7 +1607,7 @@ export function openProfileCompletionSheet({
     event.preventDefault();
     if (saving) return;
     const nextProfile = profileFormValue(form);
-    const message = validateProfileForm(nextProfile);
+    const message = validateProfileForm(nextProfile, requiredGate);
     if (message) {
       error.hidden = false;
       error.textContent = message;

@@ -30,6 +30,7 @@ const publicKeys = [
   "rangeEnd",
   "candidateCourtIds",
   "feeNote",
+  "decidedAt",
 ].sort();
 
 test(

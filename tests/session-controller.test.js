@@ -5,6 +5,7 @@ import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
 import * as mapModule from "../src/map.js";
 import * as pinModule from "../src/pins.js";
 import * as sessionController from "../src/sessionController.js";
+import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
 
 const { createSessionController, groupMySessions } = sessionController;
 
@@ -61,6 +62,33 @@ function withNavigatorGeolocation(geolocation, run) {
     });
 }
 
+function withSessionStorage(storage, run) {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: storage });
+  return Promise.resolve()
+    .then(run)
+    .finally(() => {
+      if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
+      else delete globalThis.sessionStorage;
+    });
+}
+
+class MemorySessionStorage {
+  values = new Map();
+
+  getItem(key) {
+    return this.values.get(key) ?? null;
+  }
+
+  removeItem(key) {
+    this.values.delete(key);
+  }
+
+  setItem(key, value) {
+    this.values.set(key, String(value));
+  }
+}
+
 function createIntentStore(initial = null) {
   let intent = initial;
   const events = [];
@@ -97,6 +125,18 @@ function createSurface(onClose = () => {}) {
   };
 }
 
+function normalizeLegacyFixtureProfile(profile) {
+  if (!profile || !Object.hasOwn(profile, "complete")) return profile;
+  const { complete, ...explicitProfile } = profile;
+  const legacyEligible = complete === true;
+  return {
+    ...explicitProfile,
+    directory: explicitProfile.directory ?? legacyEligible,
+    nickname: explicitProfile.nickname ?? legacyEligible,
+    ntrp: explicitProfile.ntrp ?? legacyEligible,
+  };
+}
+
 function createHarness(overrides = {}) {
   const renders = [];
   const pinBatches = [];
@@ -120,7 +160,7 @@ function createHarness(overrides = {}) {
     withdrawFromSession: async () => ({ outcome: "OK", reloadRequired: false }),
     ...overrides.api,
   };
-  const controller = createSessionController({
+  const rawController = createSessionController({
     api,
     mapTools: overrides.mapTools,
     render: (view) => renders.push(view),
@@ -178,6 +218,10 @@ function createHarness(overrides = {}) {
     intentStore: overrides.intentStore,
     toast: (message) => toasts.push(message),
   });
+  const controller = {
+    ...rawController,
+    setAuthState: (session, profile) => rawController.setAuthState(session, normalizeLegacyFixtureProfile(profile)),
+  };
   return {
     api,
     confirmations,
@@ -2216,4 +2260,140 @@ test("account switches and profile eligibility loss close player surfaces and re
   assert.equal(eligibilityCard.detail.closeCalls, 1);
   assert.equal(harness.controller.getPlayerLayerState().on, false);
   assert.deepEqual(harness.controller.getPlayerLayerState().groups, []);
+});
+
+test("explicit profile gates allow nickname-only joins and NTRP-ready creation without legacy complete", async () => {
+  let joinRequests = 0;
+  const joinHarness = createHarness({
+    api: {
+      requestToJoinSession: async () => {
+        joinRequests += 1;
+        return { outcome: "OK_NTRP_MISSING", reloadRequired: false };
+      },
+    },
+  });
+
+  await joinHarness.controller.setAuthState(
+    { user: { id: "nickname-only" } },
+    { directory: false, nickname: true, ntrp: false }
+  );
+  await joinHarness.controller.loadDiscovery();
+  openAction(joinHarness).handlers.onPrimary();
+  assert.equal(joinHarness.confirmations.length, 1, "a nickname-only profile reaches the Join confirmation");
+  await joinHarness.confirmations.at(-1).handlers.onConfirm(() => {});
+  assert.equal(joinRequests, 1, "the Join request reaches its nickname-gated RPC");
+
+  const createHarnessForNtrp = createHarness();
+  await createHarnessForNtrp.controller.setAuthState(
+    { user: { id: "ntrp-ready" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  createHarnessForNtrp.controller.openCreateIntent();
+  assert.equal(createHarnessForNtrp.createSheets.length, 1, "nickname plus NTRP reaches the create sheet");
+});
+
+test("the production controller consumes explicit gates instead of a legacy complete flag", async () => {
+  const prompts = [];
+  const controller = createSessionController({
+    api: { loadMySessions: async () => [] },
+    promptProfile: (context) => {
+      prompts.push(context);
+      return createSurface(context.onClose);
+    },
+  });
+
+  await controller.setAuthState({ user: { id: "explicit-gates-only" } }, { complete: true });
+  controller.openCreateIntent();
+
+  assert.deepEqual(prompts.map((prompt) => prompt.intent), [{ action: "create" }]);
+});
+
+test("a persisted visibility intent resumes once after the directory gate is restored", async () => {
+  await withSessionStorage(new MemorySessionStorage(), async () => {
+    const visibilityWrites = [];
+    const controller = createSessionController({
+      api: {
+        loadMySessions: async () => [],
+        setPlayerVisibility: async (visible) => visibilityWrites.push(visible),
+      },
+      promptProfile: (context) => createSurface(context.onClose),
+      reloadCurrentProfile: async () => true,
+    });
+
+    await controller.setAuthState(
+      { user: { id: "visibility-resume" } },
+      { directory: false, isPublic: false, nickname: true, ntrp: true }
+    );
+    controller.togglePlayerVisibility();
+    assert.equal(globalThis.sessionStorage.getItem(PENDING_SESSION_INTENT_KEY), JSON.stringify({ action: "visibility" }));
+
+    await controller.setAuthState(
+      { user: { id: "visibility-resume" } },
+      { directory: true, isPublic: false, nickname: true, ntrp: true }
+    );
+
+    assert.deepEqual(visibilityWrites, [true]);
+    assert.equal(globalThis.sessionStorage.getItem(PENDING_SESSION_INTENT_KEY), null);
+  });
+});
+
+test("directory actions prompt for the directory gate while reporting and lifecycle actions retain their own authority", async () => {
+  const directoryHarness = createHarness({
+    api: {
+      setPlayerVisibility: async () => {
+        throw new Error("the directory gate must prompt before writing");
+      },
+    },
+  });
+  await directoryHarness.controller.setAuthState(
+    { user: { id: "directory-missing" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  await directoryHarness.controller.togglePlayerLayer();
+  assert.deepEqual(directoryHarness.profilePrompts.at(-1).intent, { action: "players" });
+  directoryHarness.profilePrompts.at(-1).detail.close({ reason: "dismiss" });
+  await directoryHarness.controller.togglePlayerVisibility();
+  assert.deepEqual(directoryHarness.profilePrompts.at(-1).intent, { action: "visibility" });
+
+  const hostSession = futureSession({
+    canCancel: true,
+    sessionId: 411,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const lifecycleCalls = [];
+  const lifecycleHarness = createHarness({
+    session: hostSession,
+    api: {
+      cancelSession: async (sessionId) => {
+        lifecycleCalls.push(sessionId);
+        return { outcome: "OK", reloadRequired: false };
+      },
+      createReport: async () => ({ reportId: 1 }),
+      loadMySessions: async () => [hostSession],
+    },
+  });
+  await lifecycleHarness.controller.setAuthState(
+    { user: { id: "authority-only" } },
+    { directory: false, nickname: false, ntrp: false }
+  );
+  await lifecycleHarness.controller.loadDiscovery();
+  const detail = openAction(lifecycleHarness, 411);
+  assert.equal(detail.handlers.canReport, true, "reporting has no profile gate in its RPC");
+  lifecycleHarness.controller.openSessionReport(411);
+  await lifecycleHarness.reportDialogs.at(-1).onSubmit("不實球局");
+  await lifecycleHarness.controller.cancelMySession(411);
+  assert.deepEqual(lifecycleCalls, [411], "a host lifecycle action keeps its server-side authority check");
+});
+
+test("an open discovery detail refreshes when a candidate decision timestamp changes", async () => {
+  let sessions = [futureSession({ decidedAt: "", sessionId: 601, venueType: "candidates" })];
+  const harness = createHarness({ api: { loadSessionDiscovery: async () => sessions } });
+
+  await harness.controller.loadDiscovery();
+  const opened = openAction(harness, 601);
+  sessions = [futureSession({ decidedAt: "2026-07-19T01:30:00.000Z", sessionId: 601, venueType: "candidates" })];
+  await harness.controller.loadDiscovery();
+
+  assert.equal(opened.detail.closeCalls, 1, "a decided candidate cannot leave an old detail sheet open");
 });
