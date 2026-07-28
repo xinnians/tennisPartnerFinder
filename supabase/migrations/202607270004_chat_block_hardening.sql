@@ -403,6 +403,29 @@ begin
     select 1
     from public.profiles profile_row
     where profile_row.id = p_profile_id
+      and (
+        (
+          profile_row.is_public
+          and private.profile_meets_gate(viewer_profile, 'directory')
+          and private.profile_meets_gate(profile_row.id, 'directory')
+        )
+        or exists (
+          select 1
+          from public.session_participants viewer_participant
+          join public.session_participants target_participant
+            on target_participant.session_id = viewer_participant.session_id
+          where viewer_participant.profile_id = viewer_profile
+            and viewer_participant.status = 'accepted'
+            and target_participant.profile_id = profile_row.id
+            and target_participant.status = 'accepted'
+        )
+        or exists (
+          select 1
+          from public.player_blocks block_row
+          where block_row.blocker_profile_id = viewer_profile
+            and block_row.blocked_profile_id = profile_row.id
+        )
+      )
   ) then
     raise exception 'INVALID_TRANSITION';
   end if;

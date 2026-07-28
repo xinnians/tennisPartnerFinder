@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(116);
+select plan(120);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -297,6 +297,7 @@ begin
 
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   select public.create_session(court_id, '雙打', now() + interval '14 days 3 hours', 3, 4, 2, '__pgtap_chat_block_review_accept__', 'approval', 'booked', null, null, null) into review_block_session_id;
+  perform public.set_player_visibility(true);
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true); perform public.request_to_join_session(review_block_session_id); perform public.set_player_block(host_id, true); execute 'reset role';
   select id into review_participant_id from public.session_participants where session_id = review_block_session_id and profile_id = requested_id;
@@ -369,6 +370,29 @@ begin
     'P0001',
     'INVALID_TRANSITION',
     'set_player_block rejects a nonexistent profile without leaking a foreign-key error'
+  );
+  return next throws_ok(
+    format('select public.set_player_block(%s, true)', blocked_join_id),
+    'P0001',
+    'INVALID_TRANSITION',
+    'set_player_block cannot use a hidden known profile as a block-oracle target'
+  );
+  return next throws_ok(
+    'select public.set_player_block(-1, false)',
+    'P0001',
+    'INVALID_TRANSITION',
+    'set_player_block reject-unblock path keeps a nonexistent profile indistinguishable'
+  );
+  return next throws_ok(
+    format('select public.set_player_block(%s, false)', blocked_join_id),
+    'P0001',
+    'INVALID_TRANSITION',
+    'set_player_block reject-unblock path keeps a hidden known profile indistinguishable'
+  );
+  return next is(
+    (select count(*) from public.my_player_blocks where blocked_profile_id = blocked_join_id),
+    0::bigint,
+    'rejected hidden-target probes do not expose a blocked nickname through my_player_blocks'
   );
   execute 'reset role';
 
