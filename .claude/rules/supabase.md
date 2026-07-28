@@ -140,9 +140,14 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
   `my_session_participations.can_respond_invite` 只在 invited、open/full、未開打時為 true。
 - 新錯誤碼：`INVITEE_NOT_AVAILABLE`、`ALREADY_INVITED`、`NOT_INVITED`、`INVITE_LIMIT`、
   `SESSION_ARCHIVED`、`NOT_SESSION_MEMBER`、`INVALID_MESSAGE`、`BLOCKED`、
-  `SESSION_UNAVAILABLE`、`GUEST_UNAVAILABLE`。`SESSION_UNAVAILABLE` 與
+  `MESSAGE_NOT_VISIBLE`、`SESSION_UNAVAILABLE`、`GUEST_UNAVAILABLE`。`SESSION_UNAVAILABLE` 與
   `GUEST_UNAVAILABLE` 是終局狀態：UI 不可誘導重試，也不可揭露封鎖關係；既有
   `ALREADY_REQUESTED`、`ALREADY_DECIDED`、`SESSION_FULL` 等契約仍適用。
+- 封鎖方向的中性錯誤碼對應：呼叫者已封鎖對方時回 `BLOCKED`；呼叫者被對方封鎖時，
+  `request_to_join_session`／`respond_to_session_invite` 回 `SESSION_UNAVAILABLE`，
+  `invite_to_session` 回 `INVITEE_NOT_AVAILABLE`，`review_join_request` 回
+  `GUEST_UNAVAILABLE`；雙向封鎖時回呼叫者側的 `BLOCKED`。`declined` 與 `withdrawn`
+  決定不受封鎖阻擋。
 - `withdraw_from_session` 對 accepted guest 在 pre-start full session 會重新開放；host 可在
   pre-start cancel，post-start 24 小時內 mark played，accepted users 可確認出席。
 
