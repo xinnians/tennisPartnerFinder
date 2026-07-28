@@ -134,6 +134,7 @@ export const SESSION_ACTION_CODES = Object.freeze([
   "NOT_INVITED",
   "INVITE_LIMIT",
   "BLOCKED",
+  // 刻意不揭露封鎖，不要改成「你已被封鎖」。
   "SESSION_UNAVAILABLE",
   "GUEST_UNAVAILABLE",
   "MESSAGE_NOT_VISIBLE",
@@ -163,6 +164,8 @@ const ACTION_MESSAGES = {
   NOT_INVITED: "找不到你的邀請，球局狀態可能已更新。",
   INVITE_LIMIT: "24 小時內邀請次數已達上限。",
   BLOCKED: "此操作因封鎖關係無法完成。",
+  SESSION_UNAVAILABLE: "這個球局目前無法加入。",
+  GUEST_UNAVAILABLE: "這位球友目前無法加入這個球局。",
   MESSAGE_NOT_VISIBLE: "這則訊息目前無法檢舉。",
   INVALID_MESSAGE: "訊息不可為空白或超過 1000 字。",
   UNKNOWN_ACTION_ERROR: "球局操作失敗，請重新載入後再試。",

@@ -972,6 +972,13 @@ test("lifecycle wrappers preserve BLOCKED instead of replacing it with UNKNOWN_A
   );
 });
 
+test("neutral block-unavailable action codes use their terminal non-disclosing messages", () => {
+  assert.equal(new SessionActionError("SESSION_UNAVAILABLE").message, "這個球局目前無法加入。");
+  assert.equal(new SessionActionError("GUEST_UNAVAILABLE").message, "這位球友目前無法加入這個球局。");
+  assert.notEqual(new SessionActionError("SESSION_UNAVAILABLE").message, new SessionActionError("UNKNOWN_ACTION_ERROR").message);
+  assert.notEqual(new SessionActionError("GUEST_UNAVAILABLE").message, new SessionActionError("UNKNOWN_ACTION_ERROR").message);
+});
+
 test("Supabase error decoding accepts only exact P0001 session action messages", async () => {
   const cases = [
     ["exact BLOCKED", { code: "P0001", message: "BLOCKED" }, "BLOCKED"],

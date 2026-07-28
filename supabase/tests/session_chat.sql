@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(138);
+select plan(165);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -114,6 +114,7 @@ declare
   played_session_id bigint;
   expired_session_id bigint;
   outbox_session_id bigint;
+  block_outbox_session_id bigint;
   purge_session_id bigint;
   invite_accept_session_id bigint;
   review_block_session_id bigint;
@@ -157,7 +158,7 @@ begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null
     or to_regclass('public.my_player_blocks') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 135);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 162);
     return;
   end if;
 
@@ -282,9 +283,14 @@ begin
   return next is(public.set_player_block(withdrawn_id, true), 'OK', 'host can block a former member after withdrawal');
   return next is((select count(*) from public.session_message_feed where message_id = withdrawn_message_id), 0::bigint, 'blocking a former member hides their historical user message');
   execute 'reset role';
+  return next is((select count(*) from public.player_blocks where blocker_profile_id = host_id and blocked_profile_id = withdrawn_id), 1::bigint, 'former-member block materializes a player_blocks row');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = withdrawn_id), 'Chat Withdrawn', 'withdrawn shared-session participant row exposes the true nickname regardless of status');
+  execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', withdrawn_user::text, true);
   return next is(public.set_player_block(host_id, true), 'OK', 'former member can block after leaving the group');
   execute 'reset role';
+  return next is((select count(*) from public.player_blocks where blocker_profile_id = withdrawn_id and blocked_profile_id = host_id), 1::bigint, 'former-member post-withdrawal block materializes a player_blocks row');
 
   -- Stage 1 permits a long nickname; its generated system message must not
   -- turn an otherwise valid acceptance into a 1000-character CHECK failure.
@@ -319,12 +325,22 @@ begin
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', invite_target_user::text, true);
   return next is(pg_temp.respond_to_session_invite_outcome(invite_accept_session_id, 'declined'), 'OK', 'blocked invitee can decline a pre-existing invitation');
   return next is(public.set_player_block(host_id, true), 'OK', 'invitee can block the hidden inviter before an accepted relationship');
+  execute 'reset role';
+  return next is((select count(*) from public.player_blocks where blocker_profile_id = invite_target_id and blocked_profile_id = host_id), 1::bigint, 'hidden-inviter block materializes a player_blocks row');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', invite_target_user::text, true);
   perform public.set_player_block(host_id, false);
   perform public.set_player_visibility(false);
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next is(public.set_player_block(invite_target_id, false), 'OK', 'host can unblock an invitee after they opt out of the directory');
+  execute 'reset role';
+  return next is((select count(*) from public.player_blocks where blocker_profile_id = host_id and blocked_profile_id = invite_target_id), 0::bigint, 'opt-out unblock removes the player_blocks row');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next is(public.set_player_block(invite_target_id, true), 'OK', 'host can block an invitee again after directory opt-out');
+  -- Anchor: c1759ee allowed the preceding unblock; this re-block protects the regression.
+  execute 'reset role';
+  return next is((select count(*) from public.player_blocks where blocker_profile_id = host_id and blocked_profile_id = invite_target_id), 1::bigint, 'opt-out re-block anchor materializes a player_blocks row');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.set_player_block(invite_target_id, false);
   perform public.cancel_session(invite_accept_session_id);
   execute 'reset role';
@@ -335,6 +351,9 @@ begin
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true); perform public.request_to_join_session(review_block_session_id); execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next is(public.set_player_block(requested_id, true), 'OK', 'host can block a hidden requester before acceptance');
+  execute 'reset role';
+  return next is((select count(*) from public.player_blocks where blocker_profile_id = host_id and blocked_profile_id = requested_id), 1::bigint, 'hidden-requester block materializes a player_blocks row');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   perform public.set_player_block(requested_id, false);
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true); perform public.set_player_block(host_id, true); execute 'reset role';
@@ -426,6 +445,33 @@ begin
     'hidden unrelated target appears in my_player_blocks'
   );
   execute 'reset role';
+  return next is(
+    (
+      select count(*)
+      from public.session_participants viewer_participant
+      join public.session_participants blocked_participant
+        on blocked_participant.session_id = viewer_participant.session_id
+      where viewer_participant.profile_id = host_id
+        and blocked_participant.profile_id = blocked_join_id
+    ),
+    0::bigint,
+    'hidden block-list fixture has no shared session-participant relationship'
+  );
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), '已封鎖的使用者', 'unrelated hidden block-list row uses the fixed nickname placeholder');
+  return next isnt((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), 'Chat Blocked Join', 'unrelated hidden block-list row never reveals the target true nickname');
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true); perform public.set_player_visibility(true); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), 'Chat Blocked Join', 'directory-visible block-list row exposes the target true nickname without a shared session');
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true); perform public.set_player_visibility(false); execute 'reset role';
+  delete from public.profile_courts where profile_id = blocked_join_id;
+  update public.profiles set is_public = true where id = blocked_join_id;
+  return next ok((select is_public and not private.profile_meets_gate(id, 'directory') from public.profiles where id = blocked_join_id), 'public block-list fixture deliberately fails the directory gate');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), '已封鎖的使用者', 'public directory-gate-ineligible block-list row keeps the fixed nickname placeholder');
+  execute 'reset role';
 
   select id into visible_system_message_id from public.session_messages where session_id = main_session_id and kind = 'system' order by id limit 1;
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -486,7 +532,7 @@ begin
           and block_row.created_at is not null
       ),
       1::bigint,
-      'blocker can read their own narrow player-block row'
+      'shared-session block-list row exposes the target true nickname'
     );
   end if;
   perform set_config('request.jwt.claim.sub', accepted_user::text, true);
@@ -601,6 +647,30 @@ begin
   return next throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('chat_message',%s,%s,'{"court":"x","message":"群組有新訊息","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1","body":"leak"}'::jsonb)$q$, accepted_id, outbox_session_id), '23514', null, 'payload CHECK rejects otherwise-valid body payload');
   return next throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('chat_message',%s,%s,'{"court":"x","message":"群組有新訊息","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1","line_id":"leak"}'::jsonb)$q$, accepted_id, outbox_session_id), '23514', null, 'payload CHECK rejects otherwise-valid line_id payload');
   return next throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('chat_message',%s,%s,'{"court":"x","message":"private body must not be pushed","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1"}'::jsonb)$q$, accepted_id, outbox_session_id), '23514', null, 'payload CHECK rejects chat body smuggled through message');
+
+  -- Chat push recipients use the same bidirectional block rule as the feed.
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '16 days 1 hour', 3, 4, 3, '__pgtap_chat_block_outbox__', 'approval', 'booked', null, null, null) into block_outbox_session_id;
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(block_outbox_session_id); execute 'reset role';
+  select id into participant_id from public.session_participants where session_id = block_outbox_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.review_join_request(block_outbox_session_id, participant_id, 'accepted'); execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true); perform public.request_to_join_session(block_outbox_session_id); execute 'reset role';
+  select id into participant_id from public.session_participants where session_id = block_outbox_session_id and profile_id = observer_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.review_join_request(block_outbox_session_id, participant_id, 'accepted'); perform public.set_player_block(accepted_id, true); perform public.post_session_message(block_outbox_session_id, 'host-to-blocked-recipient'); execute 'reset role';
+  return next ok(exists(select 1 from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id), 'blocked-recipient chat outbox scan is non-empty for the unblocked third member');
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = accepted_id), 0::bigint, 'host message does not enqueue chat outbox for the blocked accepted member');
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = observer_id), 1::bigint, 'host message still enqueues chat outbox for the unblocked third member');
+  delete from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.post_session_message(block_outbox_session_id, 'blocked-recipient-to-host'); execute 'reset role';
+  return next ok(exists(select 1 from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id), 'reverse blocked-recipient chat outbox scan is non-empty for the unblocked third member');
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = host_id), 0::bigint, 'accepted member message does not enqueue chat outbox for the blocker host');
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = observer_id), 1::bigint, 'accepted member message still enqueues chat outbox for the unblocked third member');
+  delete from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.set_player_block(accepted_id, false); perform public.post_session_message(block_outbox_session_id, 'unblocked-three-member-control'); execute 'reset role';
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = accepted_id), 1::bigint, 'unblocked three-member control enqueues chat outbox for the accepted member');
+  return next is((select count(*) from public.notification_outbox where event_type = 'chat_message' and session_id = block_outbox_session_id and recipient_profile_id = observer_id), 1::bigint, 'unblocked three-member control enqueues chat outbox for the third member');
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.cancel_session(block_outbox_session_id); execute 'reset role';
 
   -- Update and candidate-decision system events.
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
@@ -819,9 +889,15 @@ begin
   );
   return next is(public.post_session_message(main_session_id, '  normalized chat body  '), 'OK', 'post_session_message accepts a normalized valid body');
   perform public.post_session_message(main_session_id, chr(12288) || 'fullwidth trimmed body' || chr(12288));
+  return next is(pg_temp.post_session_message_outcome(main_session_id, chr(160) || 'nbsp-edge' || chr(160) || 'nbsp-inner' || chr(160)), 'OK', 'post_session_message trims only the NBSP edges');
+  return next is(pg_temp.post_session_message_outcome(main_session_id, chr(8203) || 'zwsp-edge' || chr(8203) || 'zwsp-inner' || chr(8203)), 'OK', 'post_session_message trims only the zero-width-space edges');
+  return next is(pg_temp.post_session_message_outcome(main_session_id, chr(65279) || 'bom-edge' || chr(65279) || 'bom-inner' || chr(65279)), 'OK', 'post_session_message trims only the byte-order-mark edges');
   execute 'reset role';
   return next is((select body from public.session_messages where session_id = main_session_id and body = 'normalized chat body' order by id desc limit 1), 'normalized chat body', 'post_session_message stores the btrim-normalized body');
   return next is((select body from public.session_messages where session_id = main_session_id and body = 'fullwidth trimmed body' order by id desc limit 1), 'fullwidth trimmed body', 'fullwidth leading and trailing whitespace is normalized while content remains');
+  return next is((select body from public.session_messages where session_id = main_session_id and sender_profile_id = host_id and body = 'nbsp-edge' || chr(160) || 'nbsp-inner' order by id desc limit 1), 'nbsp-edge' || chr(160) || 'nbsp-inner', 'NBSP edges are trimmed while the inner NBSP and content remain');
+  return next is((select body from public.session_messages where session_id = main_session_id and sender_profile_id = host_id and body = 'zwsp-edge' || chr(8203) || 'zwsp-inner' order by id desc limit 1), 'zwsp-edge' || chr(8203) || 'zwsp-inner', 'zero-width-space edges are trimmed while the inner character and content remain');
+  return next is((select body from public.session_messages where session_id = main_session_id and sender_profile_id = host_id and body = 'bom-edge' || chr(65279) || 'bom-inner' order by id desc limit 1), 'bom-edge' || chr(65279) || 'bom-inner', 'byte-order-mark edges are trimmed while the inner character and content remain');
 end;
 $$;
 

@@ -1,5 +1,9 @@
 -- Stage 3 supplement: accept-seam block enforcement and chat safety hardening.
 
+-- One-shot migration backfill: only fill missing anchors so sessions_set_updated_at
+-- cannot reorder already archived sessions. pgTAP runs after migrations and cannot
+-- recreate pre-004 rows, so this migration-time guard is documented rather than
+-- duplicated as copy-SQL test coverage; runtime archive tests cover the invariant.
 update public.sessions
 set archived_at = coalesce(archived_at, updated_at)
 where status in ('cancelled', 'played', 'expired')
@@ -10,7 +14,20 @@ with (security_barrier = true, security_invoker = false)
 as
 select
   block_row.blocked_profile_id,
-  blocked_profile.nickname as blocked_nickname,
+  case
+    when exists (
+      select 1
+      from public.session_participants viewer_participant
+      join public.session_participants blocked_participant
+        on blocked_participant.session_id = viewer_participant.session_id
+      where viewer_participant.profile_id = viewer_profile.id
+        and blocked_participant.profile_id = block_row.blocked_profile_id
+    ) or (
+      blocked_profile.is_public
+      and private.profile_meets_gate(blocked_profile.id, 'directory')
+    ) then blocked_profile.nickname
+    else '已封鎖的使用者'
+  end as blocked_nickname,
   block_row.created_at
 from public.player_blocks block_row
 join public.profiles blocked_profile
@@ -520,6 +537,17 @@ begin
     where participant_row.session_id = locked_session.id
       and participant_row.status = 'accepted'
       and participant_row.profile_id <> viewer_profile
+      and not exists (
+        select 1
+        from public.player_blocks block_row
+        where (
+          block_row.blocker_profile_id = participant_row.profile_id
+          and block_row.blocked_profile_id = viewer_profile
+        ) or (
+          block_row.blocker_profile_id = viewer_profile
+          and block_row.blocked_profile_id = participant_row.profile_id
+        )
+      )
   loop
     begin
       if not exists (

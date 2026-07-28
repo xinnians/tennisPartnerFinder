@@ -21,6 +21,8 @@ role 不可讀寫。
 - 登入者自己的清單：`public.my_session_participations`。
 - roster：`public.session_participant_roster`。
 - accepted-only LINE：`public.session_contacts`。
+- 群聊與封鎖讀取：`public.session_message_feed`、`public.my_player_blocks`；寫入只能使用
+  `post_session_message`、`set_player_block`、`create_report(..., p_message_id)` RPC。
 - 個人檔案表單：`public.my_profile` 與 `save_my_profile(...)`。
 - 在場設定／更新：`set_presence_sharing`、`set_open_to_greeting`、`update_my_presence` RPC。
 - 通知設定：本人 `notification_prefs`、`district_subscriptions` 的 explicit-column reads，及
@@ -136,8 +138,11 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
   與新增。`respond_to_session_invite(session_id, accepted|declined)` 僅處理 viewer 自己的
   `invited` 列；接受沿用原子容量與補滿 cleanup，婉拒改為 `declined`。回傳成功皆為 `OK`；
   `my_session_participations.can_respond_invite` 只在 invited、open/full、未開打時為 true。
-- 新錯誤碼：`INVITEE_NOT_AVAILABLE`、`ALREADY_INVITED`、`NOT_INVITED`、`INVITE_LIMIT`。
-  既有 `ALREADY_REQUESTED`、`ALREADY_DECIDED`、`SESSION_FULL` 等契約仍適用。
+- 新錯誤碼：`INVITEE_NOT_AVAILABLE`、`ALREADY_INVITED`、`NOT_INVITED`、`INVITE_LIMIT`、
+  `SESSION_ARCHIVED`、`NOT_SESSION_MEMBER`、`INVALID_MESSAGE`、`BLOCKED`、
+  `SESSION_UNAVAILABLE`、`GUEST_UNAVAILABLE`。`SESSION_UNAVAILABLE` 與
+  `GUEST_UNAVAILABLE` 是終局狀態：UI 不可誘導重試，也不可揭露封鎖關係；既有
+  `ALREADY_REQUESTED`、`ALREADY_DECIDED`、`SESSION_FULL` 等契約仍適用。
 - `withdraw_from_session` 對 accepted guest 在 pre-start full session 會重新開放；host 可在
   pre-start cancel，post-start 24 小時內 mark played，accepted users 可確認出席。
 
