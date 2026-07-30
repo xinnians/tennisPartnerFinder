@@ -1488,8 +1488,11 @@ function selectedValues(form, name) {
   return new Set([...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value));
 }
 
-function profileFormValue(form) {
-  const courts = new Set([...form.querySelectorAll("[name='profile-courts'] option:checked")].map((option) => option.value));
+function profileFormValue(form, fallbackCourts = new Set()) {
+  const courtSelect = form.querySelector("[name='profile-courts']");
+  const courts = courtSelect?.options.length
+    ? new Set([...courtSelect.querySelectorAll("option:checked")].map((option) => option.value))
+    : new Set(fallbackCourts);
   const ntrpValue = form.querySelector("[name='profile-ntrp']")?.value.trim() ?? "";
   return {
     courts,
@@ -1606,7 +1609,7 @@ export function openProfileCompletionSheet({
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (saving) return;
-    const nextProfile = profileFormValue(form);
+    const nextProfile = profileFormValue(form, selectedCourts);
     const message = validateProfileForm(nextProfile, requiredGate);
     if (message) {
       error.hidden = false;

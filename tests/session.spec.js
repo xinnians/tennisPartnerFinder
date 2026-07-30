@@ -248,6 +248,53 @@ test("an incomplete signed-in profile saves atomically and returns to the Join c
   await expect(page.locator("#join-session-confirmation")).toContainText(published.context.host.courts[0]);
 });
 
+test("saving a profile before court options are ready preserves its existing court", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.guest.email);
+  const courtName = context.guest.courts[0];
+  const courtId = await courtIdByName(client, courtName);
+  await createProfile(client, {
+    courts: [courtName],
+    lineId: "",
+    nickname: context.guest.nickname,
+    ntrp: null,
+    playTypes: [],
+    slots: [],
+  });
+  await gotoWithSession(page, session);
+
+  await page.evaluate(
+    async ({ nickname, savedCourt }) => {
+      const { saveCurrentProfile } = await import("/src/dataApi.js");
+      const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+      openProfileCompletionSheet({
+        courts: [],
+        courtsReady: false,
+        onSave: saveCurrentProfile,
+        profile: {
+          courts: new Set([savedCourt]),
+          lineId: "",
+          nick: nickname,
+          ntrp: null,
+          slots: new Set(),
+          types: new Set(),
+        },
+      });
+    },
+    { nickname: context.guest.nickname, savedCourt: courtName }
+  );
+
+  const profile = page.locator("#profile-completion-sheet");
+  await expect(profile).toBeVisible();
+  await expect(profile).toContainText("正在載入台北市球場");
+  await profile.getByTestId("profile-save").click();
+  await expect(profile).toBeHidden();
+
+  const { data, error } = await client.from("my_profile").select("court_ids").single();
+  if (error) throw error;
+  expect(data.court_ids).toEqual([courtId]);
+});
+
 test("a stale Join rejection returns keyboard focus from closing surfaces to the nearby drawer", async ({ page }) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
