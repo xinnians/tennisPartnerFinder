@@ -1728,8 +1728,12 @@ test("an existing one-decimal NTRP can save a nickname-only edit unchanged", asy
 
   const profile = page.locator("#profile-completion-sheet");
   const ntrp = profile.getByLabel("NTRP 程度（選填）");
-  await expect(ntrp).toHaveAttribute("step", "0.5");
   await expect(ntrp).toHaveValue("3.7");
+  await ntrp.focus();
+  await ntrp.press("ArrowUp");
+  await expect(ntrp).toHaveValue("3.8");
+  await expect(ntrp).toHaveAttribute("step", "0.1");
+  await ntrp.fill("3.7");
   await profile.getByLabel("公開暱稱").fill("新暱稱");
   await profile.getByTestId("profile-save").click();
   await expect(profile).toBeHidden();
