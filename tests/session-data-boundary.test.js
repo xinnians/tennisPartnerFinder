@@ -302,6 +302,7 @@ test("private-profile eligibility enforces each nickname and NTRP boundary witho
   const options = { courts: [{ city: "台北市", id: 1, name: "測試球場" }], courtsReady: true };
   const cases = [
     [null, false],
+    ["", false],
     [0.9, false],
     [1, true],
     [7, true],
@@ -314,6 +315,10 @@ test("private-profile eligibility enforces each nickname and NTRP boundary witho
     assert.equal(eligibility.nickname, true, `nickname gate for ${String(ntrpValue)}`);
     assert.equal(eligibility.ntrp, expected, `NTRP gate for ${String(ntrpValue)}`);
   }
+
+  const missingNickname = eligibilityFromPrivateProfile({ ...baseProfile, nick: "  ", ntrp: 3.5 }, options);
+  assert.equal(missingNickname.nickname, false);
+  assert.equal(missingNickname.ntrp, false);
 });
 
 test("directory eligibility requires a stored court and validates it when the Taipei catalogue is ready", () => {

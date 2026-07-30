@@ -1642,6 +1642,49 @@ test("My Sessions explains a missing LINE ID without rendering a dead copy contr
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a host request card names an absent NTRP instead of displaying NTRP 0.0", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: {
+        history: [],
+        needsAction: [
+          {
+            kind: "host-request",
+            participant: {
+              homeCourts: [],
+              nickname: "未填程度球友",
+              ntrp: null,
+              participantId: 95,
+              playTypes: [],
+              profileId: 96,
+            },
+            session: {
+              court: "青年公園網球場",
+              sessionId: 740,
+              startAt: "2099-07-19T01:00:00.000Z",
+            },
+          },
+        ],
+        pendingHostRequestCount: 1,
+        upcoming: [],
+      },
+    });
+  });
+
+  const request = page.getByTestId("participant-row");
+  await expect(request).toContainText("未填程度球友 · 尚未填寫 NTRP");
+  await expect(request).not.toContainText("NTRP 0.0");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("profile completion explains targeted gate requirements", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -1871,6 +1914,40 @@ test("delayed Taipei court options hydrate open profile and create forms without
     )
   );
   await expect(createCourts).toHaveValue("8");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a mock profile save preserves existing courts while the catalogue has no options", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    window.__mockSavedProfileCourts = null;
+    openProfileCompletionSheet({
+      courts: [],
+      courtsReady: false,
+      onSave: async (draft) => {
+        window.__mockSavedProfileCourts = [...draft.courts];
+        return draft;
+      },
+      profile: {
+        courts: new Set(["既有台北球場"]),
+        lineId: "",
+        nick: "保留球場球友",
+        ntrp: null,
+        slots: new Set(),
+        types: new Set(),
+      },
+    });
+  });
+
+  const profile = page.locator("#profile-completion-sheet");
+  await expect(profile.getByLabel("常打球場")).toBeDisabled();
+  await profile.getByTestId("profile-save").click();
+  await expect(profile).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__mockSavedProfileCourts)).toEqual(["既有台北球場"]);
   expect(runtimeErrors).toEqual([]);
 });
 

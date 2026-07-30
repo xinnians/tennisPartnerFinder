@@ -890,6 +890,53 @@ test("nickname-only presence controls open the NTRP profile sheet without writin
   expect(data).toEqual({ open_to_greeting: false, share_presence: false });
 });
 
+test("a nickname-only profile cannot bypass the NTRP gate while turning presence sharing off", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.host.email);
+
+  try {
+    await createProfile(client, {
+      courts: context.host.courts,
+      lineId: "",
+      nickname: context.host.nickname,
+      ntrp: context.host.ntrp,
+      playTypes: [],
+      slots: [],
+    });
+    expect(await setPresenceSharingViaRpc(client, true)).toBe("OK");
+    await createProfile(client, {
+      courts: context.host.courts,
+      lineId: "",
+      nickname: context.host.nickname,
+      ntrp: null,
+      playTypes: [],
+      slots: [],
+    });
+
+    await gotoWithSession(page, session);
+    await page.getByTestId("my-sessions-tab").click();
+    const sharing = page.getByTestId("presence-sharing-toggle");
+    await expect(sharing).toHaveAttribute("aria-checked", "true");
+    await sharing.click();
+
+    await expect(page.locator("#profile-completion-sheet")).toBeVisible();
+    await expect(sharing).toHaveAttribute("aria-checked", "true");
+    const { data, error } = await client.from("my_profile").select("share_presence").single();
+    if (error) throw error;
+    expect(data.share_presence).toBe(true);
+  } finally {
+    await createProfile(client, {
+      courts: context.host.courts,
+      lineId: "",
+      nickname: context.host.nickname,
+      ntrp: context.host.ntrp,
+      playTypes: [],
+      slots: [],
+    });
+    await setPresenceSharingViaRpc(client, false);
+  }
+});
+
 test("reciprocal foreground presence shows only to sharing viewers and one-tap hiding removes it immediately", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
