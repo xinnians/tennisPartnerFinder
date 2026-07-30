@@ -29,7 +29,7 @@ import {
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
-import { formatNtrp } from "../src/profile.js";
+import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.js";
 import {
   PENDING_SESSION_INTENT_KEY,
   clearPendingIntent,
@@ -297,14 +297,60 @@ test("NTRP formatting keeps one decimal place for a valid value", () => {
   assert.equal(formatNtrp(3.5), "NTRP 3.5");
 });
 
+test("private-profile eligibility enforces each nickname and NTRP boundary without requiring LINE", () => {
+  const baseProfile = { courts: new Set(["1"]), lineId: "", nick: "分級球友" };
+  const options = { courts: [{ city: "台北市", id: 1, name: "測試球場" }], courtsReady: true };
+  const cases = [
+    [null, false],
+    [0.9, false],
+    [1, true],
+    [7, true],
+    [7.1, false],
+    ["不是數字", false],
+  ];
+
+  for (const [ntrpValue, expected] of cases) {
+    const eligibility = eligibilityFromPrivateProfile({ ...baseProfile, ntrp: ntrpValue }, options);
+    assert.equal(eligibility.nickname, true, `nickname gate for ${String(ntrpValue)}`);
+    assert.equal(eligibility.ntrp, expected, `NTRP gate for ${String(ntrpValue)}`);
+  }
+});
+
+test("directory eligibility requires a stored court and validates it when the Taipei catalogue is ready", () => {
+  const profile = { courts: new Set(["1"]), lineId: "", nick: "目錄球友", ntrp: 3.5 };
+  const activeTaipeiCourt = { city: "台北市", id: 1, name: "測試球場" };
+
+  assert.equal(eligibilityFromPrivateProfile({ ...profile, courts: new Set() }).directory, false);
+  assert.equal(
+    eligibilityFromPrivateProfile(profile, { courts: [activeTaipeiCourt], courtsReady: true }).directory,
+    true
+  );
+  assert.equal(
+    eligibilityFromPrivateProfile(profile, {
+      courts: [{ city: "新北市", id: 1, name: "測試球場" }],
+      courtsReady: true,
+    }).directory,
+    false
+  );
+});
+
+test("directory eligibility preserves a previously validated stored court while the catalogue is unavailable", () => {
+  const profile = { courts: new Set(["測試球場"]), lineId: "", nick: "離線目錄球友", ntrp: 3.5 };
+
+  assert.equal(
+    eligibilityFromPrivateProfile(profile, { courts: [], courtsReady: false }).directory,
+    true
+  );
+});
+
 test("presence-setting writes require the NTRP gate before either toggle direction reaches the RPC", async () => {
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const sharing = source.match(/async function updatePresenceSharing\(shared\) \{[\s\S]*?\n\}/)?.[0] ?? "";
   const greeting = source.match(/async function updateOpenToGreetingSetting\(open\) \{[\s\S]*?\n\}/)?.[0] ?? "";
 
-  assert.match(sharing, /if \(!eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\) \{/);
+  assert.match(sharing, /if \(!eligibilityFromPrivateProfile\(currentProfile, \{ courts, courtsReady \}\)\.ntrp\) \{/);
   assert.doesNotMatch(sharing, /if \(shared === true && !eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\)/);
-  assert.match(greeting, /if \(!eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\) \{/);
+  assert.match(greeting, /if \(!eligibilityFromPrivateProfile\(currentProfile, \{ courts, courtsReady \}\)\.ntrp\) \{/);
   assert.doesNotMatch(greeting, /if \(open === true && !eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\)/);
 });
 

@@ -2292,6 +2292,20 @@ test("explicit profile gates allow nickname-only joins and NTRP-ready creation w
   assert.equal(createHarnessForNtrp.createSheets.length, 1, "nickname plus NTRP reaches the create sheet");
 });
 
+test("a nickname-only profile is prompted for NTRP instead of opening the create sheet", async () => {
+  const harness = createHarness();
+  await harness.controller.setAuthState(
+    { user: { id: "nickname-only-create" } },
+    { directory: false, nickname: true, ntrp: false }
+  );
+
+  harness.controller.openCreateIntent();
+
+  assert.equal(harness.profilePrompts.length, 1);
+  assert.deepEqual(harness.profilePrompts[0].intent, { action: "create" });
+  assert.equal(harness.createSheets.length, 0);
+});
+
 test("the production controller consumes explicit gates instead of a legacy complete flag", async () => {
   const prompts = [];
   const controller = createSessionController({

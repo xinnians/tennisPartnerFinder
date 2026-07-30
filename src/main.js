@@ -78,8 +78,11 @@ import {
 import { openLoginModal } from "./sheets.js";
 import { enableBrowserPush } from "./notificationPush.js";
 import { createPresenceTracker } from "./playerPresence.js";
+import { eligibilityFromPrivateProfile } from "./profile.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
+
+export { eligibilityFromPrivateProfile } from "./profile.js";
 
 let google = null;
 let map = null;
@@ -200,7 +203,7 @@ function updatePresenceLocationStatus(status) {
 }
 
 function reconcilePresenceTracking() {
-  const eligible = eligibilityFromPrivateProfile(currentProfile);
+  const eligible = eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady });
   const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && currentProfile?.sharePresence === true);
   if (!canTrack) {
     stopPresenceTracking();
@@ -227,7 +230,7 @@ async function updatePresenceSharing(shared) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
-  if (!eligibilityFromPrivateProfile(currentProfile).ntrp) {
+  if (!eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }).ntrp) {
     throw new Error("要調整在場分享，請到個人檔案填寫公開暱稱與 NTRP（1.0–7.0）。");
   }
   await setPresenceSharing(shared === true);
@@ -246,7 +249,7 @@ async function updateOpenToGreetingSetting(open) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
-  if (!eligibilityFromPrivateProfile(currentProfile).ntrp) {
+  if (!eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }).ntrp) {
     throw new Error("要調整接受現場問候設定，請到個人檔案填寫公開暱稱與 NTRP（1.0–7.0）。");
   }
   await setOpenToGreeting(open === true);
@@ -333,7 +336,7 @@ function openProfileCompletion({ courts: selectableCourts, courtsReady: formCour
       if (openedIdentity !== authIdentity(authSession)) return;
       currentProfile = savedProfile ?? currentProfile ?? defaultProfile();
       if (!authSession) return;
-      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
     },
     intent,
     profile: currentProfile ?? defaultProfile(),
@@ -753,7 +756,7 @@ async function loadCourtsImmediately() {
     courtsReady = true;
     controller.setCourts(courts, { ready: true });
     if (authSession && profileLoadStatus === "ready") {
-      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
     }
     populateCourtFilters(courts);
     renderBaseCourtPins();
@@ -763,32 +766,6 @@ async function loadCourtsImmediately() {
     controller.setCourts([], { ready: true });
     toast("球場資料暫時無法載入。");
   }
-}
-
-function validNtrp(value) {
-  const ntrp = Number(value);
-  return Number.isFinite(ntrp) && ntrp >= 1 && ntrp <= 7;
-}
-
-function eligibilityFromPrivateProfile(profile, { status = "ready" } = {}) {
-  const nickname = String(profile?.nick ?? "").trim() !== "";
-  const ntrp = nickname && validNtrp(profile?.ntrp);
-  const selectedCourts = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
-  const activeTaipeiCourts = new Set(
-    courts
-      .filter((court) => court?.city === "台北市")
-      .flatMap((court) => [String(court?.id ?? ""), String(court?.name ?? "")])
-  );
-  const directory =
-    ntrp &&
-    [...selectedCourts].some((court) => activeTaipeiCourts.has(String(court)));
-  return {
-    directory,
-    isPublic: profile?.isPublic === true,
-    nickname,
-    ntrp,
-    status,
-  };
 }
 
 function authIdentity(session) {
@@ -820,7 +797,7 @@ async function reloadCurrentProfile() {
   }
   currentProfile = profile ?? defaultProfile();
   profileLoadStatus = "ready";
-  await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile));
+  await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
   reconcilePresenceTracking();
   return true;
 }
