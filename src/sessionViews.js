@@ -1533,8 +1533,8 @@ function validateProfileForm(profile, requiredGate, intent = null) {
   if (profile.ntrp != null && !validProfileNtrp(profile.ntrp)) {
     return "NTRP 請填寫 1.0 到 7.0，或留白。";
   }
-  if (profile.ntrp != null && !Number.isInteger(Number(profile.ntrp) * 2)) {
-    return "NTRP 請以 0.5 為級距填寫，或留白。";
+  if (profile.ntrp != null && !Number.isInteger(Number(profile.ntrp) * 10)) {
+    return "NTRP 最多一位小數，或留白。";
   }
   if (requiredGate === "ntrp" && !validProfileNtrp(profile.ntrp)) return profileGateHint("ntrp", intent);
   if (requiredGate === "directory" && (!validProfileNtrp(profile.ntrp) || !profile.courts.size)) return profileGateHint("directory");

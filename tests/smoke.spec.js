@@ -1666,36 +1666,77 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("profile NTRP accepts only half-point increments before saving", async ({ page }) => {
+test("an existing one-decimal NTRP can save a nickname-only edit unchanged", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
 
   await page.evaluate(async () => {
     const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
-    window.__profileNtrpSaves = 0;
+    window.__savedOneDecimalProfile = null;
     openProfileCompletionSheet({
       onSave: async (draft) => {
-        window.__profileNtrpSaves += 1;
+        window.__savedOneDecimalProfile = { nick: draft.nick, ntrp: draft.ntrp };
         return draft;
       },
-      profile: { courts: new Set(), lineId: "", nick: "", ntrp: null, slots: new Set(), types: new Set() },
+      profile: { courts: new Set(), lineId: "", nick: "原暱稱", ntrp: 3.7, slots: new Set(), types: new Set() },
     });
   });
 
   const profile = page.locator("#profile-completion-sheet");
   const ntrp = profile.getByLabel("NTRP 程度（選填）");
   await expect(ntrp).toHaveAttribute("step", "0.5");
-  await profile.getByLabel("公開暱稱").fill("半級距球友");
-  await ntrp.fill("3.7");
-  await profile.getByTestId("profile-save").click();
-  await expect(profile.getByRole("alert")).toContainText("0.5");
-  await expect.poll(() => page.evaluate(() => window.__profileNtrpSaves)).toBe(0);
-
-  await ntrp.fill("3.5");
+  await expect(ntrp).toHaveValue("3.7");
+  await profile.getByLabel("公開暱稱").fill("新暱稱");
   await profile.getByTestId("profile-save").click();
   await expect(profile).toBeHidden();
-  await expect.poll(() => page.evaluate(() => window.__profileNtrpSaves)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__savedOneDecimalProfile)).toEqual({
+    nick: "新暱稱",
+    ntrp: 3.7,
+  });
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("profile NTRP accepts 1.0 and 7.0 but rejects excess precision and out-of-range values", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const submitNtrp = async (value) => {
+    await page.evaluate(async (nextValue) => {
+      const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+      window.__profileNtrpResults = window.__profileNtrpResults ?? [];
+      openProfileCompletionSheet({
+        onSave: async (draft) => {
+          window.__profileNtrpResults.push(draft.ntrp);
+          return draft;
+        },
+        profile: { courts: new Set(), lineId: "", nick: "邊界球友", ntrp: nextValue, slots: new Set(), types: new Set() },
+      });
+    }, Number(value));
+    const profile = page.locator("#profile-completion-sheet");
+    await expect(profile).toBeVisible();
+    await profile.getByLabel("NTRP 程度（選填）").fill(value);
+    await profile.getByTestId("profile-save").click();
+    return profile;
+  };
+
+  const excessPrecision = await submitNtrp("3.77");
+  await expect(excessPrecision.getByRole("alert")).toContainText("最多一位小數");
+  await page.keyboard.press("Escape");
+
+  for (const valid of ["1.0", "7.0"]) {
+    const profile = await submitNtrp(valid);
+    await expect(profile).toBeHidden();
+  }
+
+  for (const invalid of ["0.9", "7.1"]) {
+    const profile = await submitNtrp(invalid);
+    await expect(profile.getByRole("alert")).toContainText("1.0 到 7.0");
+    await page.keyboard.press("Escape");
+  }
+
+  await expect.poll(() => page.evaluate(() => window.__profileNtrpResults)).toEqual([1, 7]);
   expect(runtimeErrors).toEqual([]);
 });
 
