@@ -39,6 +39,11 @@ function futureSession(overrides = {}) {
     hostNtrp: 3.5,
     hostProfileComplete: true,
     status: "open",
+    venueType: "booked",
+    rangeEnd: "",
+    candidateCourtIds: [],
+    feeNote: "",
+    decidedAt: "",
     ...overrides,
   };
 }

@@ -54,6 +54,10 @@ export function createFutureSessionInput({ now = new Date(), startAt, courtId, .
     slotsTotal: 1,
     notes: "session fixture",
     joinMode: "approval",
+    venueType: "booked",
+    candidateCourtIds: null,
+    rangeEnd: null,
+    feeNote: null,
     ...overrides,
   };
 }
@@ -84,6 +88,10 @@ export async function createSessionViaRpc(client, session) {
     p_slots_total: session.slotsTotal,
     p_notes: session.notes,
     p_join_mode: session?.joinMode ?? "approval",
+    p_venue_type: session?.venueType ?? "booked",
+    p_candidate_court_ids: session?.candidateCourtIds ?? null,
+    p_range_end: session?.rangeEnd ?? null,
+    p_fee_note: session?.feeNote ?? null,
   });
 }
 

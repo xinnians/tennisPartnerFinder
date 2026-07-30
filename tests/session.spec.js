@@ -122,8 +122,33 @@ test("createSessionViaRpc defaults a missing joinMode to approval and preserves 
   await createSessionViaRpc(client, { ...session, joinMode: "instant" });
 
   expect(calls).toHaveLength(2);
-  expect(calls[0]).toMatchObject({ name: "create_session", args: { p_join_mode: "approval" } });
-  expect(calls[1]).toMatchObject({ name: "create_session", args: { p_join_mode: "instant" } });
+  expect(calls[0]).toEqual({
+    name: "create_session",
+    args: {
+      p_candidate_court_ids: null,
+      p_court_id: 1,
+      p_fee_note: null,
+      p_join_mode: "approval",
+      p_notes: "direct helper fixture",
+      p_ntrp_max: 4,
+      p_ntrp_min: 3,
+      p_play_type: "單打",
+      p_range_end: null,
+      p_slots_total: 1,
+      p_start_at: "2099-07-18T01:30:00.000Z",
+      p_venue_type: "booked",
+    },
+  });
+  expect(calls[1]).toMatchObject({
+    name: "create_session",
+    args: {
+      p_candidate_court_ids: null,
+      p_fee_note: null,
+      p_join_mode: "instant",
+      p_range_end: null,
+      p_venue_type: "booked",
+    },
+  });
 });
 
 test("player-directory fixture helpers call the authorized visibility and invitation RPCs", async () => {
@@ -417,6 +442,69 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   await expect(page.locator("#my-upcoming-sessions [data-session-id]").first()).toBeFocused();
   await expect(page.locator("#my-upcoming-sessions")).toContainText(context.host.courts[0]);
   expect(createPayload?.p_start_at).toBe("2099-07-18T01:30:00.000Z");
+});
+
+test("a host creates a candidate session in the form and a guest joins it", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const firstCourtId = await courtIdByName(host.client, "百齡河濱公園網球場");
+  const secondCourtId = await courtIdByName(host.client, "青年公園網球場");
+  const notes = `candidate-ui-${context.runId}`;
+  const start = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const taipeiInput = (date) => new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16);
+
+  await gotoWithSession(page, host.session);
+  await page.locator("#open-session").click();
+  const form = page.locator("#session-create-modal").getByTestId("session-form");
+  await expect(form).toBeVisible();
+  await form.getByTestId("session-venue-candidates").check();
+  await form.getByTestId("session-candidate-courts").selectOption([String(firstCourtId), String(secondCourtId)]);
+  await form.getByTestId("session-start-at").fill(taipeiInput(start));
+  await form.getByTestId("session-range-end").fill(taipeiInput(end));
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByLabel("費用說明（選填，最多 500 字）").fill("現場均分");
+  await form.getByLabel("備註（選填，最多 500 字）").fill(notes);
+  await form.getByTestId("session-submit").click();
+  await expect(page.locator("#my-sessions-page")).toBeVisible();
+
+  const { data: created, error: createdError } = await host.client
+    .from("session_discovery")
+    .select("session_id,venue_type,candidate_court_ids,fee_note")
+    .eq("notes", notes)
+    .maybeSingle();
+  if (createdError) throw createdError;
+  expect(created).toMatchObject({
+    candidate_court_ids: [firstCourtId, secondCourtId],
+    fee_note: "現場均分",
+    venue_type: "candidates",
+  });
+
+  await switchBrowserSession(page, guest.session);
+  await page.locator("#nearby-sessions-toggle").click();
+  const card = page.locator(`#nearby-sessions-list [data-session-id='${created.session_id}']`).first();
+  await expect(card).toContainText("候選局");
+  await expect(card).toContainText("青年公園網球場");
+  await expect(card).toContainText("百齡河濱公園網球場");
+  await card.click();
+  const detail = page.locator("#session-sheet");
+  await detail.getByRole("button", { name: "申請加入" }).click();
+  const confirmation = page.locator("#join-session-confirmation");
+  await expect(confirmation).toContainText("青年公園網球場");
+  await expect(confirmation).toContainText("百齡河濱公園網球場");
+  await confirmation.getByTestId("join-session").click();
+  await expect(confirmation.locator("[data-join-success]")).toBeVisible();
+
+  const { data: participation, error: participationError } = await guest.client
+    .from("my_session_participations")
+    .select("viewer_participant_status")
+    .eq("session_id", created.session_id)
+    .maybeSingle();
+  if (participationError) throw participationError;
+  expect(participation?.viewer_participant_status).toBe("requested");
+  expect(runtimeErrors).toEqual([]);
 });
 
 test("a host creates a now-start direct session in the form, then a guest joins and both see reciprocal LINE", async ({ page }) => {

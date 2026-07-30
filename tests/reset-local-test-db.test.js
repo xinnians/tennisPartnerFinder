@@ -120,6 +120,56 @@ test("create_session fixture rejects a missing court ID before invoking RPC", as
   await assert.rejects(createSessionViaRpc(client, { courtId: null }), /positive court ID/);
 });
 
+test("session fixtures carry all Stage 4B venue parameters into create_session", async () => {
+  const calls = [];
+  const client = {
+    async rpc(name, args) {
+      calls.push({ args, name });
+      return { data: 321, error: null };
+    },
+  };
+  const booked = createFutureSessionInput({ courtId: 42 });
+  const candidates = createFutureSessionInput({
+    candidateCourtIds: [42, 43],
+    courtId: 42,
+    feeNote: "每人 150 元",
+    rangeEnd: "2099-07-18T04:00:00.000Z",
+    venueType: "candidates",
+  });
+
+  await createSessionViaRpc(client, booked);
+  await createSessionViaRpc(client, candidates);
+
+  assert.deepEqual(
+    {
+      p_candidate_court_ids: calls[0].args.p_candidate_court_ids,
+      p_fee_note: calls[0].args.p_fee_note,
+      p_range_end: calls[0].args.p_range_end,
+      p_venue_type: calls[0].args.p_venue_type,
+    },
+    {
+      p_candidate_court_ids: null,
+      p_fee_note: null,
+      p_range_end: null,
+      p_venue_type: "booked",
+    }
+  );
+  assert.deepEqual(
+    {
+      p_candidate_court_ids: calls[1].args.p_candidate_court_ids,
+      p_fee_note: calls[1].args.p_fee_note,
+      p_range_end: calls[1].args.p_range_end,
+      p_venue_type: calls[1].args.p_venue_type,
+    },
+    {
+      p_candidate_court_ids: [42, 43],
+      p_fee_note: "每人 150 元",
+      p_range_end: "2099-07-18T04:00:00.000Z",
+      p_venue_type: "candidates",
+    }
+  );
+});
+
 test("local Supabase Playwright projects are serialized", () => {
   const localProjects = playwrightConfig.projects.filter((project) =>
     ["supabase-chromium", "supabase-mobile-chromium"].includes(project.name)

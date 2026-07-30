@@ -503,10 +503,13 @@ test("player directory mock data is cloned and constrained to requested bounds",
 });
 
 test("mock sessions and discovery payloads include an ongoing local-demo-only SessionSummary", async () => {
-  assert.equal(MOCK_SESSIONS.length, 6);
+  assert.equal(MOCK_SESSIONS.length, 8);
   assert.equal(MOCK_SESSIONS.find((mock) => mock.sessionId === 9002)?.joinMode, "instant");
   assert.ok(MOCK_SESSIONS.filter((mock) => mock.sessionId !== 9002).every((mock) => mock.joinMode === "approval"));
   assert.equal(MOCK_SESSIONS.filter((mock) => Date.parse(mock.startAt) <= Date.now()).length, 1);
+  const walkOnSessions = MOCK_SESSIONS.filter((mock) => mock.venueType === "walk_on");
+  assert.equal(walkOnSessions.length, 2);
+  assert.equal(walkOnSessions.filter((mock) => mock.feeNote).length, 1);
 
   for (const mock of MOCK_SESSIONS) {
     assert.deepEqual(sortedKeys(mock), [...SESSION_SUMMARY_KEYS].sort());
