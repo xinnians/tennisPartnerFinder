@@ -88,6 +88,7 @@ let google = null;
 let map = null;
 let courts = [];
 let courtsReady = false;
+let courtCatalogueStatus = "loading";
 let sessionMarkers = [];
 let courtMarkers = [];
 let playerMarkers = [];
@@ -98,6 +99,14 @@ let currentAuthIdentity = null;
 let authSession = null;
 let currentProfile = null;
 let activeProfileCompletion = null;
+
+function currentProfileEligibility(profile = currentProfile) {
+  return eligibilityFromPrivateProfile(profile, {
+    courts,
+    courtsReady,
+    courtsStatus: courtCatalogueStatus,
+  });
+}
 let profileLoadStatus = "idle";
 let profileRevision = 0;
 let activePage = "map";
@@ -203,7 +212,7 @@ function updatePresenceLocationStatus(status) {
 }
 
 function reconcilePresenceTracking() {
-  const eligible = eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady });
+  const eligible = currentProfileEligibility();
   const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && currentProfile?.sharePresence === true);
   if (!canTrack) {
     stopPresenceTracking();
@@ -230,7 +239,7 @@ async function updatePresenceSharing(shared) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
-  if (!eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }).ntrp) {
+  if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
     return false;
   }
@@ -250,7 +259,7 @@ async function updateOpenToGreetingSetting(open) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
-  if (!eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }).ntrp) {
+  if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
     return false;
   }
@@ -338,7 +347,7 @@ function openProfileCompletion({ courts: selectableCourts, courtsReady: formCour
       if (openedIdentity !== authIdentity(authSession)) return;
       currentProfile = savedProfile ?? currentProfile ?? defaultProfile();
       if (!authSession) return;
-      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
+      await controller.setAuthState(authSession, currentProfileEligibility());
     },
     intent,
     profile: currentProfile ?? defaultProfile(),
@@ -756,18 +765,20 @@ async function loadCourtsImmediately() {
   try {
     courts = await loadCourts();
     courtsReady = true;
+    courtCatalogueStatus = "ready";
     controller.setCourts(courts, { ready: true });
     if (authSession && profileLoadStatus === "ready") {
-      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
+      await controller.setAuthState(authSession, currentProfileEligibility());
     }
     populateCourtFilters(courts);
     renderBaseCourtPins();
   } catch {
     courts = [];
     courtsReady = false;
+    courtCatalogueStatus = "error";
     controller.setCourts([], { ready: false });
     if (authSession && profileLoadStatus === "ready") {
-      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
+      await controller.setAuthState(authSession, currentProfileEligibility());
     }
     toast("球場資料暫時無法載入。");
   }
@@ -802,7 +813,7 @@ async function reloadCurrentProfile() {
   }
   currentProfile = profile ?? defaultProfile();
   profileLoadStatus = "ready";
-  await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
+  await controller.setAuthState(authSession, currentProfileEligibility());
   reconcilePresenceTracking();
   return true;
 }

@@ -10,7 +10,7 @@ export function formatNtrp(value) {
 
 export function eligibilityFromPrivateProfile(
   profile,
-  { courts = [], courtsReady = true, status = "ready" } = {}
+  { courts = [], courtsReady = true, courtsStatus = null, status = "ready" } = {}
 ) {
   const nickname = String(profile?.nick ?? "").trim() !== "";
   const ntrp = nickname && validProfileNtrp(profile?.ntrp);
@@ -21,7 +21,9 @@ export function eligibilityFromPrivateProfile(
       .filter((court) => court?.city === "台北市")
       .flatMap((court) => [String(court?.id ?? ""), String(court?.name ?? "")])
   );
-  const directoryStatus = courtsReady ? "ready" : "loading";
+  let directoryStatus = "loading";
+  if (courtsStatus === "error") directoryStatus = "error";
+  else if (courtsReady && courtsStatus !== "loading") directoryStatus = "ready";
   const directory =
     ntrp &&
     selectedCourts.size > 0 &&

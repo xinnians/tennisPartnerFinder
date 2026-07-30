@@ -347,6 +347,18 @@ test("directory eligibility stays unavailable while the court catalogue is not r
   assert.equal(eligibility.directoryStatus, "loading");
 });
 
+test("directory eligibility exposes a failed court catalogue as an error", () => {
+  const profile = { courts: new Set(["測試球場"]), lineId: "", nick: "失敗目錄球友", ntrp: 3.5 };
+  const eligibility = eligibilityFromPrivateProfile(profile, {
+    courts: [],
+    courtsReady: false,
+    courtsStatus: "error",
+  });
+
+  assert.equal(eligibility.directory, false);
+  assert.equal(eligibility.directoryStatus, "error");
+});
+
 test("player presence mapper keeps the exact reciprocal-directory allowlist", () => {
   const presenceRow = {
     profile_id: "8001",

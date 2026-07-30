@@ -99,20 +99,28 @@ function profileIsPublic(eligibility) {
 }
 
 function profileReadiness(eligibility, level = null) {
-  if (level === "directory" && eligibility?.directoryStatus === "loading") return "loading";
-  if (level === "directory" && eligibility?.directoryStatus === "error") return "error";
-  if (eligibility?.status === "loading") return "loading";
-  if (eligibility?.status === "error") return "error";
-  return "ready";
+  if (eligibility?.status === "loading") return { source: "profile", state: "loading" };
+  if (eligibility?.status === "error") return { source: "profile", state: "error" };
+  if (level === "directory" && eligibility?.directoryStatus === "loading") {
+    return { source: "courts", state: "loading" };
+  }
+  if (level === "directory" && eligibility?.directoryStatus === "error") {
+    return { source: "courts", state: "error" };
+  }
+  return { source: null, state: "ready" };
 }
 
-function profileUnavailableMessage(readiness, level = null) {
-  if (level === "directory") {
-    return readiness === "loading"
+function profileIsReady(eligibility, level = null) {
+  return profileReadiness(eligibility, level).state === "ready";
+}
+
+function profileUnavailableMessage(readiness) {
+  if (readiness.source === "courts") {
+    return readiness.state === "loading"
       ? "正在讀取球場資料，請稍候。"
       : "球場資料暫時無法載入，請稍後再試。";
   }
-  return readiness === "loading"
+  return readiness.state === "loading"
     ? "正在讀取個人檔案，請稍候。"
     : "個人檔案暫時無法載入，請重新整理後再試。";
 }
@@ -869,7 +877,7 @@ export function createSessionController({
     detail = openSession(session, {
       action,
       onPrimary: () => startPrimaryAction(session, detail),
-      canReport: Boolean(state.authSession && profileReadiness(state.profile) === "ready"),
+      canReport: Boolean(state.authSession && profileIsReady(state.profile)),
       onReport: () => openSessionReport(session.sessionId),
       onWithdraw: () => withdraw(session, detail),
     });
@@ -1144,6 +1152,14 @@ export function createSessionController({
     return activeProfilePrompt;
   }
 
+  function requireReadyProfile(level = null) {
+    const readiness = profileReadiness(state.profile, level);
+    if (readiness.state === "ready") return true;
+    // loading 與 error 都要提示，否則保留中的操作意圖會讓使用者誤以為點擊沒有生效。
+    toast(profileUnavailableMessage(readiness));
+    return false;
+  }
+
   function requireSessionAction(intent, { detail = null, session = null } = {}) {
     const savedIntent = saveIntent(intent);
     if (!state.authSession) {
@@ -1156,11 +1172,7 @@ export function createSessionController({
       return;
     }
     const requiredGate = profileGateForIntent(savedIntent);
-    const readiness = profileReadiness(state.profile, requiredGate);
-    if (readiness !== "ready") {
-      toast(profileUnavailableMessage(readiness, requiredGate));
-      return;
-    }
+    if (!requireReadyProfile(requiredGate)) return;
     if (requiredGate && !profileMeetsGate(state.profile, requiredGate)) {
       openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
       return;
@@ -1292,7 +1304,7 @@ export function createSessionController({
 
   function requireMySessionAction(sessionId, predicate) {
     const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot) || profileReadiness(state.profile) !== "ready") {
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
       throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
     }
     const session = mySessionForAction(sessionId);
@@ -1402,7 +1414,7 @@ export function createSessionController({
     const authSnapshot = captureAuthSnapshot();
     if (
       !isCurrentAuthSnapshot(authSnapshot) ||
-      profileReadiness(state.profile) !== "ready" ||
+      !profileIsReady(state.profile) ||
       !profileMeetsGate(state.profile, "directory")
     ) {
       throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
@@ -1433,7 +1445,7 @@ export function createSessionController({
   function togglePlayerVisibility() {
     if (
       !state.authSession ||
-      profileReadiness(state.profile) !== "ready" ||
+      !profileIsReady(state.profile) ||
       !profileMeetsGate(state.profile, "directory")
     ) {
       return requireSessionAction({ action: "visibility" });
@@ -1443,7 +1455,7 @@ export function createSessionController({
 
   function requireReportAccess() {
     const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot) || profileReadiness(state.profile) !== "ready") {
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
       throw new Error("請先登入後再檢舉。");
     }
     if (typeof api?.createReport !== "function") throw new Error("目前無法送出檢舉。");
@@ -1461,7 +1473,7 @@ export function createSessionController({
       onSubmit: async (reason) => {
         const normalizedReason = String(reason ?? "").trim();
         if (!normalizedReason) throw new Error("請選擇檢舉原因。");
-        if (!isCurrentAuthSnapshot(authSnapshot) || profileReadiness(state.profile) !== "ready") {
+        if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
           throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
         }
         const result = await api.createReport({ reportedProfileId, reason: normalizedReason, sessionId });
@@ -1559,11 +1571,7 @@ export function createSessionController({
       if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
 
       if (intent.action === "create") {
-        const readiness = profileReadiness(state.profile);
-        if (readiness !== "ready") {
-          if (readiness === "error") toast(profileUnavailableMessage(readiness));
-          return false;
-        }
+        if (!requireReadyProfile("ntrp")) return false;
         if (!profileMeetsGate(state.profile, "ntrp")) {
           openProfileForIntent(intent);
           return true;
@@ -1573,11 +1581,7 @@ export function createSessionController({
       }
 
       if (intent.action === "players") {
-        const readiness = profileReadiness(state.profile, "directory");
-        if (readiness !== "ready") {
-          toast(profileUnavailableMessage(readiness, "directory"));
-          return false;
-        }
+        if (!requireReadyProfile("directory")) return false;
         if (!profileMeetsGate(state.profile, "directory")) {
           openProfileForIntent(intent);
           return true;
@@ -1588,11 +1592,7 @@ export function createSessionController({
       }
 
       if (intent.action === "visibility") {
-        const readiness = profileReadiness(state.profile, "directory");
-        if (readiness !== "ready") {
-          toast(profileUnavailableMessage(readiness, "directory"));
-          return false;
-        }
+        if (!requireReadyProfile("directory")) return false;
         if (!profileMeetsGate(state.profile, "directory")) {
           openProfileForIntent(intent);
           return true;
@@ -1620,11 +1620,7 @@ export function createSessionController({
         closeForStaleIntent(staleMessage);
         return false;
       }
-      const readiness = profileReadiness(state.profile);
-      if (readiness !== "ready") {
-        if (readiness === "error") toast(profileUnavailableMessage(readiness));
-        return false;
-      }
+      if (!requireReadyProfile("nickname")) return false;
       if (!profileMeetsGate(state.profile, "nickname")) {
         openProfileForIntent(intent, { returnSession: target });
         return true;
@@ -1691,7 +1687,7 @@ export function createSessionController({
 
   function togglePlayerLayer() {
     if (!state.playerLayerOn) {
-      if (!state.authSession || profileReadiness(state.profile) !== "ready" || !profileMeetsGate(state.profile, "directory")) {
+      if (!state.authSession || !profileIsReady(state.profile, "directory") || !profileMeetsGate(state.profile, "directory")) {
         return requireSessionAction({ action: "players" });
       }
       state.playerLayerOn = true;
@@ -1717,7 +1713,8 @@ export function createSessionController({
     const nicknameWasLost = previousGates.nickname && !nextGates.nickname;
     const ntrpWasLost = previousGates.ntrp && !nextGates.ntrp;
     const directoryWasLost = previousGates.directory && !nextGates.directory;
-    const readinessChanged = previousReadiness !== nextReadiness;
+    const readinessChanged =
+      previousReadiness.state !== nextReadiness.state || previousReadiness.source !== nextReadiness.source;
     if (identityChanged || gatesChanged || readinessChanged) authEpoch += 1;
     const epoch = authEpoch;
 

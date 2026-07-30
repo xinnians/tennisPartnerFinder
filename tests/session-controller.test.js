@@ -2305,6 +2305,49 @@ test("a directory action waits for the court catalogue instead of opening profil
   assert.equal(harness.controller.getPlayerLayerState().on, false);
 });
 
+test("a directory action attributes profile failures to the private profile", async () => {
+  const harness = createHarness();
+  await harness.controller.setAuthState(
+    { user: { id: "directory-profile-error" } },
+    { directory: false, directoryStatus: "ready", nickname: false, ntrp: false, status: "error" }
+  );
+
+  await harness.controller.togglePlayerLayer();
+
+  assert.deepEqual(harness.toasts, ["個人檔案暫時無法載入，請重新整理後再試。"]);
+  assert.equal(harness.profilePrompts.length, 0);
+  assert.equal(harness.controller.getPlayerLayerState().on, false);
+});
+
+test("a directory action attributes catalogue failures to the court catalogue", async () => {
+  const harness = createHarness();
+  await harness.controller.setAuthState(
+    { user: { id: "directory-catalogue-error" } },
+    { directory: false, directoryStatus: "error", nickname: true, ntrp: true, status: "ready" }
+  );
+
+  await harness.controller.togglePlayerLayer();
+
+  assert.deepEqual(harness.toasts, ["球場資料暫時無法載入，請稍後再試。"]);
+  assert.equal(harness.profilePrompts.length, 0);
+  assert.equal(harness.controller.getPlayerLayerState().on, false);
+});
+
+test("a persisted player intent reports profile loading while it waits to resume", async () => {
+  const intentStore = createIntentStore({ action: "players" });
+  const harness = createHarness({ intentStore });
+
+  await harness.controller.setAuthState(
+    { user: { id: "directory-resume-profile-loading" } },
+    { directory: false, directoryStatus: "ready", nickname: false, ntrp: false, status: "loading" }
+  );
+
+  assert.deepEqual(harness.toasts, ["正在讀取個人檔案，請稍候。"]);
+  assert.deepEqual(intentStore.value(), { action: "players" });
+  assert.equal(harness.profilePrompts.length, 0);
+  assert.equal(harness.controller.getPlayerLayerState().on, false);
+});
+
 test("the production controller consumes explicit gates instead of a legacy complete flag", async () => {
   const prompts = [];
   const controller = createSessionController({
