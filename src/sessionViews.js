@@ -705,8 +705,8 @@ async function runPresenceSettingAction(root, callback) {
     error.textContent = "";
   }
   try {
-    await callback();
-    return true;
+    const outcome = await callback();
+    return outcome !== false;
   } catch (cause) {
     if (error) {
       error.textContent = cause?.message || "在場設定暫時無法更新，請稍後再試。";

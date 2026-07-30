@@ -878,9 +878,12 @@ test("nickname-only presence controls open the NTRP profile sheet without writin
   await expect(profile).toContainText("要調整在場設定，請填寫公開暱稱與 NTRP（1.0–7.0）。");
   await profile.getByRole("button", { name: "關閉個人檔案" }).click();
 
-  await page.getByTestId("open-to-greeting-toggle").click();
+  const greeting = page.getByTestId("open-to-greeting-toggle");
+  await expect(greeting).not.toBeChecked();
+  await greeting.click();
   await expect(profile).toBeVisible();
   await expect(profile).toContainText("要調整在場設定，請填寫公開暱稱與 NTRP（1.0–7.0）。");
+  await expect(greeting).not.toBeChecked();
 
   const { data, error } = await client.from("my_profile").select("share_presence,open_to_greeting").single();
   if (error) throw error;
