@@ -1961,6 +1961,78 @@ test("profile loading and profile-load errors preserve intent without opening an
   assert.deepEqual(intentStore.value(), { action: "create" });
 });
 
+test("create intent resume is silent while profile loads, reports errors, and opens after readiness", async () => {
+  const session = { user: { id: "create-resume-readiness" } };
+  const loadingIntent = createIntentStore({ action: "create" });
+  const loading = createHarness({ intentStore: loadingIntent });
+
+  await loading.controller.setAuthState(session, {
+    directory: false,
+    nickname: false,
+    ntrp: false,
+    status: "loading",
+  });
+  assert.deepEqual(loading.toasts, []);
+  assert.equal(loading.createSheets.length, 0);
+  assert.deepEqual(loadingIntent.value(), { action: "create" });
+
+  await loading.controller.setAuthState(session, {
+    directory: false,
+    nickname: true,
+    ntrp: true,
+    status: "ready",
+  });
+  assert.equal(loading.createSheets.length, 1);
+
+  const failed = createHarness({ intentStore: createIntentStore({ action: "create" }) });
+  await failed.controller.setAuthState({ user: { id: "create-resume-error" } }, {
+    directory: false,
+    nickname: false,
+    ntrp: false,
+    status: "error",
+  });
+  assert.deepEqual(failed.toasts, ["個人檔案暫時無法載入，請重新整理後再試。"]);
+});
+
+test("join intent resume is silent while profile loads, reports errors, and opens after readiness", async () => {
+  const session = { user: { id: "join-resume-readiness" } };
+  const loadingIntent = createIntentStore({ action: "join", sessionId: 41 });
+  const loading = createHarness({
+    intentStore: loadingIntent,
+    api: { loadSessionSummary: async () => futureSession() },
+  });
+
+  await loading.controller.setAuthState(session, {
+    directory: false,
+    nickname: false,
+    ntrp: false,
+    status: "loading",
+  });
+  assert.deepEqual(loading.toasts, []);
+  assert.equal(loading.confirmations.length, 0);
+  assert.deepEqual(loadingIntent.value(), { action: "join", sessionId: 41 });
+
+  await loading.controller.setAuthState(session, {
+    directory: false,
+    nickname: true,
+    ntrp: true,
+    status: "ready",
+  });
+  assert.equal(loading.confirmations.length, 1);
+
+  const failed = createHarness({
+    intentStore: createIntentStore({ action: "join", sessionId: 41 }),
+    api: { loadSessionSummary: async () => futureSession() },
+  });
+  await failed.controller.setAuthState({ user: { id: "join-resume-error" } }, {
+    directory: false,
+    nickname: false,
+    ntrp: false,
+    status: "error",
+  });
+  assert.deepEqual(failed.toasts, ["個人檔案暫時無法載入，請重新整理後再試。"]);
+});
+
 test("an account switch closes account-bound create and profile forms before they can be reused", async () => {
   let createCalls = 0;
   const createFlow = createHarness({

@@ -1179,11 +1179,10 @@ export function createSessionController({
     return activeProfilePrompt;
   }
 
-  function requireReadyProfile(level = null) {
+  function requireReadyProfile(level = null, { silentLoading = false } = {}) {
     const readiness = profileReadiness(state.profile, level);
     if (readiness.state === "ready") return true;
-    // loading 與 error 都要提示，否則保留中的操作意圖會讓使用者誤以為點擊沒有生效。
-    toast(profileUnavailableMessage(readiness));
+    if (!(silentLoading && readiness.state === "loading")) toast(profileUnavailableMessage(readiness));
     return false;
   }
 
@@ -1598,7 +1597,7 @@ export function createSessionController({
       if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
 
       if (intent.action === "create") {
-        if (!requireReadyProfile("ntrp")) return false;
+        if (!requireReadyProfile("ntrp", { silentLoading: true })) return false;
         if (!profileMeetsGate(state.profile, "ntrp")) {
           openProfileForIntent(intent);
           return true;
@@ -1647,7 +1646,7 @@ export function createSessionController({
         closeForStaleIntent(staleMessage);
         return false;
       }
-      if (!requireReadyProfile("nickname")) return false;
+      if (!requireReadyProfile("nickname", { silentLoading: true })) return false;
       if (!profileMeetsGate(state.profile, "nickname")) {
         openProfileForIntent(intent, { returnSession: target });
         return true;

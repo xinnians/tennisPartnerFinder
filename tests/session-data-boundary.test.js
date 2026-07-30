@@ -282,11 +282,21 @@ test("main forwards every Stage 1–3 data API capability into the session contr
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const apiBlock = source.match(/controller = createSessionController\(\{\n    api: \{([\s\S]*?)\n    \},\n    mapTools:/)?.[1] ?? "";
   const api = createDataApi({ configured: false });
+  assert.notEqual(apiBlock, "", "controller API source scan must inspect a nonempty block");
 
   for (const key of expectedKeys) {
     assert.match(apiBlock, new RegExp(`\\b${key},`), `${key} is passed to createSessionController`);
     assert.equal(typeof api[key], "function", `${key} remains available from dataApi`);
   }
+});
+
+test("main includes court catalogue status when deriving private profile eligibility", async () => {
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const eligibilityBlock =
+    source.match(/function currentProfileEligibility\(profile = currentProfile\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+  assert.notEqual(eligibilityBlock, "", "profile eligibility source scan must inspect a nonempty block");
+  assert.match(eligibilityBlock, /\bcourtsStatus: courtCatalogueStatus,/);
 });
 
 test("NTRP formatting names an absent value instead of coercing it to zero", () => {
