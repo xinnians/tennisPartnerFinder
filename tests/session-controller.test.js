@@ -2317,7 +2317,7 @@ test("the production controller consumes explicit gates instead of a legacy comp
 
   await controller.setAuthState(
     { user: { id: "explicit-gates-only" } },
-    { complete: "legacy flag must not grant access" }
+    { complete: true }
   );
   controller.openCreateIntent();
 
