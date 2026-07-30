@@ -63,14 +63,18 @@ test("create form accepts legal optional NTRP endpoints and produces the RPC-saf
 
   assert.equal(result.valid, true);
   assert.deepEqual(result.value, {
+    candidateCourtIds: null,
     courtId: 8,
+    feeNote: null,
     joinMode: "approval",
     ntrpMax: 4,
     ntrpMin: 3.5,
     notes: "自備新球",
     playType: "雙打",
+    rangeEnd: null,
     slotsTotal: 2,
     startAt: "2026-07-18T01:30:00.000Z",
+    venueType: "booked",
   });
 });
 
@@ -81,4 +85,96 @@ test("joinMode 預設 approval 且只接受合法值", () => {
   const invalid = validateCreateSessionInput({ ...base, joinMode: "bogus" });
   assert.equal(invalid.valid, false);
   assert.equal(invalid.errors.joinMode, "請選擇加入方式。");
+});
+
+test("booked and walk-on creation keep candidate-only fields null while preserving the shared fee note", () => {
+  const base = {
+    courtId: "101",
+    feeNote: "每人 150 元，現場平分",
+    playType: "雙打",
+    slotsTotal: "3",
+    startAtLocal: "2099-07-18T09:30",
+  };
+
+  for (const venueType of ["booked", "walk_on"]) {
+    const result = validateCreateSessionInput({ ...base, venueType });
+    assert.equal(result.valid, true, `${venueType} should be valid`);
+    assert.deepEqual(result.value, {
+      candidateCourtIds: null,
+      courtId: 101,
+      feeNote: "每人 150 元，現場平分",
+      joinMode: "approval",
+      ntrpMax: null,
+      ntrpMin: null,
+      notes: null,
+      playType: "雙打",
+      rangeEnd: null,
+      slotsTotal: 3,
+      startAt: "2099-07-18T01:30:00.000Z",
+      venueType,
+    });
+  }
+});
+
+test("candidate creation preserves two and three selected courts as arrays and converts the Taipei range end", () => {
+  const base = {
+    candidateCourtIds: ["101", "102"],
+    feeNote: "",
+    playType: "單打",
+    rangeEndLocal: "2099-07-18T12:00",
+    slotsTotal: "1",
+    startAtLocal: "2099-07-18T09:30",
+    venueType: "candidates",
+  };
+
+  const twoCourts = validateCreateSessionInput(base);
+  assert.equal(twoCourts.valid, true);
+  assert.deepEqual(twoCourts.value.candidateCourtIds, [101, 102]);
+  assert.equal(twoCourts.value.courtId, null);
+  assert.equal(twoCourts.value.rangeEnd, "2099-07-18T04:00:00.000Z");
+
+  const threeCourts = validateCreateSessionInput({ ...base, candidateCourtIds: ["101", "102", "103"] });
+  assert.equal(threeCourts.valid, true);
+  assert.deepEqual(threeCourts.value.candidateCourtIds, [101, 102, 103]);
+});
+
+test("candidate creation rejects one, four, duplicate, invalid courts and a non-increasing range", () => {
+  const base = {
+    candidateCourtIds: ["101", "102"],
+    playType: "單打",
+    rangeEndLocal: "2099-07-18T12:00",
+    slotsTotal: "1",
+    startAtLocal: "2099-07-18T09:30",
+    venueType: "candidates",
+  };
+
+  for (const candidateCourtIds of [["101"], ["101", "102", "103", "104"], ["101", "101"], ["101", "bogus"]]) {
+    const result = validateCreateSessionInput({ ...base, candidateCourtIds });
+    assert.equal(result.valid, false, JSON.stringify(candidateCourtIds));
+    assert.match(result.errors.candidateCourtIds, /2 到 3 座台北市球場|不可重複/);
+  }
+
+  const invalidRange = validateCreateSessionInput({ ...base, rangeEndLocal: base.startAtLocal });
+  assert.equal(invalidRange.valid, false);
+  assert.match(invalidRange.errors.rangeEndLocal, /晚於範圍起點/);
+});
+
+test("single-court venue types reject candidate-only values and all shared text fields stay within 500 characters", () => {
+  const result = validateCreateSessionInput({
+    candidateCourtIds: ["101", "102"],
+    courtId: "101",
+    feeNote: "x".repeat(501),
+    notes: "y".repeat(501),
+    playType: "單打",
+    rangeEndLocal: "2099-07-18T12:00",
+    slotsTotal: "1",
+    startAtLocal: "2099-07-18T09:30",
+    venueType: "walk_on",
+  });
+
+  assert.equal(result.valid, false);
+  assert.match(result.errors.candidateCourtIds, /只有候選局/);
+  assert.match(result.errors.rangeEndLocal, /只有候選局/);
+  assert.match(result.errors.feeNote, /500/);
+  assert.match(result.errors.notes, /500/);
 });

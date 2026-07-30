@@ -79,19 +79,48 @@ function ntrpEndpoint(value) {
 /** Validate the form before it crosses the data API boundary. */
 export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
   const errors = {};
-  const courtId = Number(input.courtId);
+  const venueType = String(input.venueType ?? "booked");
+  const courtIdValue = Number(input.courtId);
+  const courtId = Number.isSafeInteger(courtIdValue) && courtIdValue > 0 ? courtIdValue : null;
+  const candidateInputs =
+    input.candidateCourtIds instanceof Set
+      ? [...input.candidateCourtIds]
+      : Array.isArray(input.candidateCourtIds)
+        ? input.candidateCourtIds
+        : input.candidateCourtIds == null || input.candidateCourtIds === ""
+          ? []
+          : [input.candidateCourtIds];
+  const candidateCourtIds = candidateInputs.map(Number);
   const joinMode = String(input.joinMode ?? "approval");
   const playType = String(input.playType ?? "");
   const slotsTotal = Number(input.slotsTotal);
   const notes = String(input.notes ?? "");
+  const feeNote = String(input.feeNote ?? "");
   const startAt = taipeiLocalDateTimeToIso(input.startAtLocal);
+  const rangeEndInput = String(input.rangeEndLocal ?? "");
+  const rangeEnd = rangeEndInput ? taipeiLocalDateTimeToIso(rangeEndInput) : null;
   const minText = String(input.ntrpMin ?? "").trim();
   const maxText = String(input.ntrpMax ?? "").trim();
   const hasRange = Boolean(minText || maxText);
   const ntrpMin = minText ? ntrpEndpoint(minText) : null;
   const ntrpMax = maxText ? ntrpEndpoint(maxText) : null;
 
-  if (!Number.isSafeInteger(courtId) || courtId <= 0) errors.courtId = "請選擇台北市球場。";
+  if (venueType !== "candidates" && courtId == null) errors.courtId = "請選擇台北市球場。";
+  if (!["booked", "walk_on", "candidates"].includes(venueType)) errors.venueType = "請選擇場地類型。";
+  if (venueType === "candidates") {
+    const candidateIdsAreValid = candidateCourtIds.every((id) => Number.isSafeInteger(id) && id > 0);
+    if (!candidateIdsAreValid || candidateCourtIds.length < 2 || candidateCourtIds.length > 3) {
+      errors.candidateCourtIds = "候選局請選擇 2 到 3 座台北市球場。";
+    } else if (new Set(candidateCourtIds).size !== candidateCourtIds.length) {
+      errors.candidateCourtIds = "候選球場不可重複。";
+    }
+    if (!rangeEnd || !startAt || new Date(rangeEnd).getTime() <= new Date(startAt).getTime()) {
+      errors.rangeEndLocal = "範圍結束時間必須晚於範圍起點。";
+    }
+  } else {
+    if (candidateCourtIds.length) errors.candidateCourtIds = "候選球場只有候選局可以填寫。";
+    if (rangeEndInput) errors.rangeEndLocal = "範圍結束時間只有候選局可以填寫。";
+  }
   if (!["approval", "instant"].includes(joinMode)) errors.joinMode = "請選擇加入方式。";
   if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
   if (!Number.isInteger(slotsTotal) || slotsTotal < 1 || slotsTotal > 3) errors.slotsTotal = "缺額請填 1 到 3 位。";
@@ -99,6 +128,7 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
     errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
   }
   if (notes.length > 500) errors.notes = "備註最多 500 字。";
+  if (feeNote.length > 500) errors.feeNote = "費用說明最多 500 字。";
   if (hasRange && (!ntrpMin || !ntrpMax)) {
     if (!ntrpMin) errors.ntrpMin = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
     if (!ntrpMax) errors.ntrpMax = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
@@ -111,14 +141,18 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
     errors,
     valid: Object.keys(errors).length === 0,
     value: {
-      courtId,
+      candidateCourtIds: venueType === "candidates" ? candidateCourtIds : null,
+      courtId: venueType === "candidates" ? null : courtId,
+      feeNote: feeNote.trim() || null,
       joinMode,
       ntrpMax: hasRange ? ntrpMax : null,
       ntrpMin: hasRange ? ntrpMin : null,
       notes: notes.trim() || null,
       playType,
+      rangeEnd: venueType === "candidates" ? rangeEnd : null,
       slotsTotal,
       startAt,
+      venueType,
     },
   };
 }
@@ -1497,19 +1531,24 @@ function selectedValues(form, name) {
   return new Set([...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value));
 }
 
-function profileFormValue(form, fallbackCourts = new Set()) {
+function profileFormValue(form, fallbackProfile = {}, fallbackCourts = new Set()) {
   const courtSelect = form.querySelector("[name='profile-courts']");
   const courts = courtSelect?.options.length
     ? new Set([...courtSelect.querySelectorAll("option:checked")].map((option) => option.value))
     : new Set(fallbackCourts);
-  const ntrpValue = form.querySelector("[name='profile-ntrp']")?.value.trim() ?? "";
+  const nicknameInput = form.querySelector("[name='profile-nickname']");
+  const ntrpInput = form.querySelector("[name='profile-ntrp']");
+  const lineIdInput = form.querySelector("[name='profile-line-id']");
+  const ntrpValue = ntrpInput?.value.trim();
+  const typeInputs = form.querySelectorAll("[name='profile-types']");
+  const slotInputs = form.querySelectorAll("[name='profile-slots']");
   return {
     courts,
-    lineId: form.querySelector("[name='profile-line-id']")?.value.trim() ?? "",
-    nick: form.querySelector("[name='profile-nickname']")?.value.trim() ?? "",
-    ntrp: ntrpValue === "" ? null : Number(ntrpValue),
-    slots: selectedValues(form, "profile-slots"),
-    types: selectedValues(form, "profile-types"),
+    lineId: lineIdInput ? lineIdInput.value.trim() : String(fallbackProfile.lineId ?? ""),
+    nick: nicknameInput ? nicknameInput.value.trim() : String(fallbackProfile.nick ?? "").trim(),
+    ntrp: ntrpInput ? (ntrpValue === "" ? null : Number(ntrpValue)) : (fallbackProfile.ntrp ?? null),
+    slots: slotInputs.length ? selectedValues(form, "profile-slots") : new Set(fallbackProfile.slots ?? []),
+    types: typeInputs.length ? selectedValues(form, "profile-types") : new Set(fallbackProfile.types ?? []),
   };
 }
 
@@ -1557,6 +1596,9 @@ export function openProfileCompletionSheet({
   const selectedSlots = profile.slots instanceof Set ? profile.slots : new Set(profile.slots ?? []);
   const requiredGate = profileGateForIntent(intent);
   const gateHint = intent ? profileGateHint(requiredGate, intent) : "";
+  const compactCreateGate = intent?.action === "create";
+  const needsNickname = !String(profile.nick ?? "").trim();
+  const needsNtrp = !validProfileNtrp(profile.ntrp);
   let saved = false;
   const mounted = mountSheet({
     id: "profile-completion-sheet",
@@ -1575,16 +1617,27 @@ export function openProfileCompletionSheet({
       }
       ${gateHint ? `<p class="form-hint">${esc(gateHint)}</p>` : ""}
       <form class="profile-form" data-testid="profile-form" novalidate>
-        <label class="form-field" for="profile-nickname"><span>公開暱稱</span><input id="profile-nickname" name="profile-nickname" required value="${esc(
-          profile.nick ?? ""
-        )}" autocomplete="nickname" /></label>
+        ${
+          !compactCreateGate || needsNickname
+            ? `<label class="form-field" for="profile-nickname"><span>公開暱稱</span><input id="profile-nickname" name="profile-nickname" required value="${esc(
+                profile.nick ?? ""
+              )}" autocomplete="nickname" /></label>`
+            : ""
+        }
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
-        <label class="form-field" for="profile-ntrp"><span>NTRP 程度（選填）</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="0.1" value="${esc(
-          profile.ntrp ?? ""
-        )}" inputmode="decimal" placeholder="尚未填寫" /></label>
-        <label class="form-field" for="profile-line-id"><span>LINE ID（選填）</span><input id="profile-line-id" name="profile-line-id" value="${esc(
-          profile.lineId ?? ""
-        )}" autocomplete="off" /></label>
+        ${
+          !compactCreateGate || needsNtrp
+            ? `<label class="form-field" for="profile-ntrp"><span>${compactCreateGate ? "NTRP 程度" : "NTRP 程度（選填）"}</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="0.1" value="${esc(
+                profile.ntrp ?? ""
+              )}" inputmode="decimal" placeholder="尚未填寫" /></label>`
+            : ""
+        }
+        ${
+          compactCreateGate
+            ? ""
+            : `<label class="form-field" for="profile-line-id"><span>LINE ID（選填）</span><input id="profile-line-id" name="profile-line-id" value="${esc(
+                profile.lineId ?? ""
+              )}" autocomplete="off" /></label>
         <p class="form-hint">只有同一球局的主揪與已接受球友之間可看見彼此的 LINE ID。</p>
         <fieldset class="form-fieldset"><legend>常打球場</legend><select name="profile-courts" multiple size="4" aria-label="常打球場" disabled></select><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
         <fieldset class="form-fieldset"><legend>常打類型</legend><div class="option-grid">${PROFILE_PLAY_TYPES.map(
@@ -1598,7 +1651,8 @@ export function openProfileCompletionSheet({
             `<label><input type="checkbox" name="profile-slots" value="${esc(value)}"${selectedSlots.has(value) ? " checked" : ""} /> ${esc(
               label
             )}</label>`
-        ).join("")}</div></fieldset>
+        ).join("")}</div></fieldset>`
+        }
         <p class="form-error" data-profile-error role="alert" hidden></p>
         <button type="submit" class="session-primary" data-testid="profile-save">儲存並繼續</button>
       </form>`,
@@ -1620,7 +1674,7 @@ export function openProfileCompletionSheet({
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (saving) return;
-    const nextProfile = profileFormValue(form, selectedCourts);
+    const nextProfile = profileFormValue(form, profile, selectedCourts);
     const message = validateProfileForm(nextProfile, requiredGate, intent);
     if (message) {
       error.hidden = false;
@@ -1661,8 +1715,15 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
         <button type="button" class="surface__close" data-surface-close aria-label="關閉開球局">×</button>
       </div>
       <form class="create-session-form" data-testid="session-form" novalidate>
-        <div class="form-field"><label for="session-court">台北市球場</label><select id="session-court" name="courtId" data-testid="session-court" required disabled></select><p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p></div>
+        <fieldset class="form-fieldset"><legend>場地類型</legend><div class="option-grid">
+          <label><input type="radio" name="venueType" value="booked" data-testid="session-venue-booked" checked /> 已訂場</label>
+          <label><input type="radio" name="venueType" value="walk_on" data-testid="session-venue-walk-on" /> 現場等場</label>
+          <label><input type="radio" name="venueType" value="candidates" data-testid="session-venue-candidates" /> 候選局</label>
+        </div></fieldset>
+        <div class="form-field" data-single-court-fields><label for="session-court">台北市球場</label><select id="session-court" name="courtId" data-testid="session-court" required disabled></select><p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p></div>
+        <div class="form-field" data-candidate-court-fields hidden><label for="session-candidate-courts">候選球場（選擇 2–3 座）</label><select id="session-candidate-courts" name="candidateCourtIds" data-testid="session-candidate-courts" multiple size="4" disabled></select><p class="form-hint" data-create-candidate-courts-status role="status" aria-live="polite"></p><p class="form-hint" data-candidate-selection-hint>請選擇 2 到 3 座球場，之後再定案場地與時間。</p></div>
         <div class="form-field"><div class="form-field__label-row"><label for="session-start-at">台北時間</label><button type="button" class="session-secondary" data-now-start data-testid="session-now-start">現在開打</button></div><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></div>
+        <label class="form-field" for="session-range-end" data-candidate-range-field hidden><span>時間範圍結束</span><input id="session-range-end" name="rangeEndLocal" data-testid="session-range-end" type="datetime-local" disabled /></label>
         <label class="form-field" for="session-play-type"><span>打法</span><select id="session-play-type" name="playType" data-testid="session-play-type" required><option value="">請選擇打法</option>${PROFILE_PLAY_TYPES.map(
           (type) => `<option value="${esc(type)}">${esc(type)}</option>`
         ).join("")}</select></label>
@@ -1673,6 +1734,7 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
           <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。</p>
         </fieldset>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
+        <label class="form-field" for="session-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-fee-note" name="feeNote" maxlength="500" rows="2"></textarea></label>
         <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
         <p class="form-error" data-create-error role="alert" hidden></p>
@@ -1685,14 +1747,72 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
   const startAtInput = mounted.root.querySelector("[data-testid='session-start-at']");
   const nowStartButton = mounted.root.querySelector("[data-now-start]");
   const courtSelect = mounted.root.querySelector("[data-testid='session-court']");
+  const candidateCourtSelect = mounted.root.querySelector("[data-testid='session-candidate-courts']");
   const courtsStatus = mounted.root.querySelector("[data-create-courts-status]");
+  const candidateCourtsStatus = mounted.root.querySelector("[data-create-candidate-courts-status]");
+  const candidateSelectionHint = mounted.root.querySelector("[data-candidate-selection-hint]");
+  const singleCourtFields = mounted.root.querySelector("[data-single-court-fields]");
+  const candidateCourtFields = mounted.root.querySelector("[data-candidate-court-fields]");
+  const candidateRangeField = mounted.root.querySelector("[data-candidate-range-field]");
+  const rangeEndInput = mounted.root.querySelector("[data-testid='session-range-end']");
+  const playTypeSelect = mounted.root.querySelector("[data-testid='session-play-type']");
+  const slotsTotalSelect = mounted.root.querySelector("[data-testid='session-slots-total']");
+  let availableCourts = courts;
+  let courtOptionsReady = courtsReady;
+  const selectedCandidateIds = () =>
+    new Set([...(candidateCourtSelect?.selectedOptions ?? [])].map((option) => option.value));
+  const updateCandidateHint = () => {
+    if (!candidateSelectionHint) return;
+    const count = selectedCandidateIds().size;
+    candidateSelectionHint.textContent =
+      count === 1
+        ? "只選一座球場時，請改用「已訂場」或「現場等場」。"
+        : count >= 2
+          ? `已選 ${count} 座球場。`
+          : "請選擇 2 到 3 座球場，之後再定案場地與時間。";
+  };
+  const syncVenueFields = () => {
+    const venueType = form?.querySelector("[name='venueType']:checked")?.value ?? "booked";
+    const candidates = venueType === "candidates";
+    if (singleCourtFields) singleCourtFields.hidden = candidates;
+    if (candidateCourtFields) candidateCourtFields.hidden = !candidates;
+    if (candidateRangeField) candidateRangeField.hidden = !candidates;
+    if (courtSelect) {
+      courtSelect.required = !candidates;
+      courtSelect.disabled = candidates || !courtOptionsReady || courtSelect.options.length <= 1;
+    }
+    if (candidateCourtSelect) {
+      candidateCourtSelect.required = candidates;
+      candidateCourtSelect.disabled = !candidates || !courtOptionsReady || candidateCourtSelect.options.length === 0;
+    }
+    if (rangeEndInput) {
+      rangeEndInput.required = candidates;
+      rangeEndInput.disabled = !candidates;
+    }
+    updateCandidateHint();
+  };
   const setCourts = (nextCourts, { ready = true } = {}) => {
+    availableCourts = nextCourts;
+    courtOptionsReady = ready;
     updateCourtSelect(courtSelect, courtsStatus, nextCourts, {
       ready,
       selected: selectedCourtValues(courtSelect),
     });
+    updateCourtSelect(candidateCourtSelect, candidateCourtsStatus, nextCourts, {
+      multiple: true,
+      ready,
+      selected: selectedCourtValues(candidateCourtSelect),
+    });
+    syncVenueFields();
   };
-  setCourts(courts, { ready: courtsReady });
+  setCourts(availableCourts, { ready: courtOptionsReady });
+  form?.querySelectorAll("[name='venueType']").forEach((input) => input.addEventListener("change", syncVenueFields));
+  candidateCourtSelect?.addEventListener("change", updateCandidateHint);
+  playTypeSelect?.addEventListener("change", () => {
+    if (!slotsTotalSelect) return;
+    if (playTypeSelect.value === "單打") slotsTotalSelect.value = "1";
+    if (playTypeSelect.value === "雙打") slotsTotalSelect.value = "3";
+  });
   nowStartButton?.addEventListener("click", () => {
     if (!(startAtInput instanceof HTMLInputElement)) return;
     startAtInput.value = taipeiNowStartValue();
@@ -1703,7 +1823,10 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
     event.preventDefault();
     if (submitting) return;
     const formData = new FormData(form);
-    const validation = validateCreateSessionInput(Object.fromEntries(formData.entries()));
+    const validation = validateCreateSessionInput({
+      ...Object.fromEntries(formData.entries()),
+      candidateCourtIds: formData.getAll("candidateCourtIds"),
+    });
     if (!validation.valid) {
       error.hidden = false;
       error.textContent = Object.values(validation.errors)[0];

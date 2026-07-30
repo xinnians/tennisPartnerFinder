@@ -2291,6 +2291,24 @@ test("a nickname-only profile is prompted for NTRP instead of opening the create
   assert.equal(harness.createSheets.length, 0);
 });
 
+test("saving the missing create-profile fields resumes into the create sheet for the same account", async () => {
+  const intentStore = createIntentStore();
+  const harness = createHarness({ intentStore });
+  const session = { user: { id: "create-profile-resume" } };
+  await harness.controller.setAuthState(session, { directory: false, nickname: true, ntrp: false });
+
+  harness.controller.openCreateIntent();
+  const profilePrompt = harness.profilePrompts.at(-1);
+  assert.deepEqual(profilePrompt.intent, { action: "create" });
+  assert.equal(harness.createSheets.length, 0);
+
+  await harness.controller.setAuthState(session, { directory: false, nickname: true, ntrp: true });
+
+  assert.equal(profilePrompt.detail.closeCalls, 1);
+  assert.equal(harness.createSheets.length, 1, "the saved NTRP resumes the pending create intent");
+  assert.deepEqual(intentStore.value(), { action: "create" });
+});
+
 test("a directory action waits for the court catalogue instead of opening profile completion", async () => {
   const harness = createHarness();
   await harness.controller.setAuthState(

@@ -1696,6 +1696,22 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   });
   const createProfile = page.locator("#profile-completion-sheet");
   await expect(createProfile).toContainText("要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。");
+  await expect(createProfile.getByLabel("公開暱稱")).toBeVisible();
+  await expect(createProfile.getByLabel(/NTRP 程度/)).toBeVisible();
+  await expect(createProfile.getByLabel("LINE ID（選填）")).toHaveCount(0);
+  await expect(createProfile.getByLabel("常打球場")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({
+      intent: { action: "create" },
+      profile: { courts: new Set(), lineId: "", nick: "已有暱稱", ntrp: null, slots: new Set(), types: new Set() },
+    });
+  });
+  const ntrpOnlyProfile = page.locator("#profile-completion-sheet");
+  await expect(ntrpOnlyProfile.getByLabel("公開暱稱")).toHaveCount(0);
+  await expect(ntrpOnlyProfile.getByLabel(/NTRP 程度/)).toBeVisible();
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
@@ -1706,6 +1722,61 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
     "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。"
   );
   await page.keyboard.press("Escape");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("create sheet progressively discloses all three venue types and submits candidate courts as an array", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__stage4bCreatePayload = null;
+    openCreateSessionSheet({
+      courts: [
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+        { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+        { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+      ],
+      onSubmit: async (payload) => {
+        window.__stage4bCreatePayload = payload;
+      },
+    });
+  });
+
+  const sheet = page.locator("#session-create-modal");
+  const form = sheet.getByTestId("session-form");
+  await expect(form.getByTestId("session-venue-booked")).toBeChecked();
+  await expect(form.getByTestId("session-court")).toBeVisible();
+  await expect(form.getByTestId("session-candidate-courts")).toBeHidden();
+  await expect(form.getByTestId("session-range-end")).toBeHidden();
+
+  await form.getByTestId("session-venue-walk-on").check();
+  await expect(form.getByTestId("session-court")).toBeVisible();
+  await expect(form.getByTestId("session-candidate-courts")).toBeHidden();
+
+  await form.getByTestId("session-venue-candidates").check();
+  await expect(form.getByTestId("session-court")).toBeHidden();
+  await expect(form.getByTestId("session-candidate-courts")).toBeVisible();
+  await expect(form.getByTestId("session-range-end")).toBeVisible();
+  await form.getByTestId("session-candidate-courts").selectOption(["8", "9", "10"]);
+  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  await form.getByTestId("session-range-end").fill("2099-07-18T12:00");
+  await form.getByTestId("session-play-type").selectOption("雙打");
+  await expect(form.getByTestId("session-slots-total")).toHaveValue("3");
+  await form.getByTestId("session-slots-total").selectOption("2");
+  await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 150 元");
+  await form.getByTestId("session-submit").click();
+
+  await expect.poll(() => page.evaluate(() => window.__stage4bCreatePayload)).toMatchObject({
+    candidateCourtIds: [8, 9, 10],
+    courtId: null,
+    feeNote: "每人 150 元",
+    rangeEnd: "2099-07-18T04:00:00.000Z",
+    slotsTotal: 2,
+    venueType: "candidates",
+  });
   expect(runtimeErrors).toEqual([]);
 });
 
