@@ -94,6 +94,12 @@ async function createCompleteActor(actor) {
   return { client, profileId, session };
 }
 
+async function setOpenToGreetingViaRpc(client, enabled) {
+  const { data, error } = await client.rpc("set_open_to_greeting", { p_enabled: Boolean(enabled) });
+  if (error) throw error;
+  return data;
+}
+
 test("createSessionViaRpc defaults a missing joinMode to approval and preserves instant", async () => {
   const calls = [];
   const client = {
@@ -934,6 +940,53 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning presence
       slots: [],
     });
     await setPresenceSharingViaRpc(client, false);
+  }
+});
+
+test("a nickname-only profile cannot bypass the NTRP gate while turning greeting off", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.host.email);
+
+  try {
+    await createProfile(client, {
+      courts: context.host.courts,
+      lineId: "",
+      nickname: context.host.nickname,
+      ntrp: context.host.ntrp,
+      playTypes: [],
+      slots: [],
+    });
+    expect(await setOpenToGreetingViaRpc(client, true)).toBe("OK");
+    await createProfile(client, {
+      courts: context.host.courts,
+      lineId: "",
+      nickname: context.host.nickname,
+      ntrp: null,
+      playTypes: [],
+      slots: [],
+    });
+
+    await gotoWithSession(page, session);
+    await page.getByTestId("my-sessions-tab").click();
+    const greeting = page.getByTestId("open-to-greeting-toggle");
+    await expect(greeting).toBeChecked();
+    await greeting.click();
+
+    await expect(page.locator("#profile-completion-sheet")).toBeVisible();
+    await expect(greeting).toBeChecked();
+    const { data, error } = await client.from("my_profile").select("open_to_greeting").single();
+    if (error) throw error;
+    expect(data.open_to_greeting).toBe(true);
+  } finally {
+    await createProfile(client, {
+      courts: context.host.courts,
+      lineId: "",
+      nickname: context.host.nickname,
+      ntrp: context.host.ntrp,
+      playTypes: [],
+      slots: [],
+    });
+    await setOpenToGreetingViaRpc(client, false);
   }
 });
 
