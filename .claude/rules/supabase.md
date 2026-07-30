@@ -15,9 +15,9 @@ role 不可讀寫。
 ## 只能使用的 browser 邊界
 
 - 匿名公開探索：`public.session_discovery`；它是唯一匿名公開面。
-- 登入且完整 profile 的球友目錄：`public.player_directory`（authenticated-only，不是公開面）。
+- 通過 directory 門檻的登入者球友目錄：`public.player_directory`（authenticated-only，不是公開面）。
 - 互惠在場目錄：`public.player_presence_directory`（authenticated-only）；匿名 SELECT 一律
-  被拒，不完整 profile、或本人未開 `share_presence` 的登入 viewer 一律為 0 列。
+  被拒，未通過 ntrp 門檻、或本人未開 `share_presence` 的登入 viewer 一律為 0 列。
 - 登入者自己的清單：`public.my_session_participations`。
 - roster：`public.session_participant_roster`。
 - accepted-only LINE：`public.session_contacts`。
@@ -40,7 +40,7 @@ role 不可讀寫。
 ## Web Push 與通知 outbox
 
 - `push_subscriptions`、`notification_prefs`、`district_subscriptions` 都是 owner-only；通知
-  設定只要求登入，不得藉此取消既有球局／球友目錄的完整 profile gate。行政區只接受台北市
+  設定只要求登入，不得藉此取消既有球局／球友目錄的分級 profile gate。行政區只接受台北市
   12 區，browser 只以既有 RPC 儲存。
 - `notification_outbox` 是 service-only queue：anon 與 authenticated 不可 select、insert、
   update、delete，也不可新增 browser view 或 RPC 旁路。它的欄位順序與 payload allowlist 受
@@ -60,11 +60,12 @@ role 不可讀寫。
 ```text
 id, session_id, sport_code, court_id, court, court_district, court_lat, court_lng,
 start_at, play_type, ntrp_min, ntrp_max, slots_total, slots_remaining, notes,
-host_nickname, host_ntrp, host_profile_complete, status, join_mode
+host_nickname, host_ntrp, host_profile_complete, status, join_mode, venue_type,
+range_end, candidate_court_ids, fee_note, decided_at
 ```
 
 `id` 與 `session_id` 同值，是 view 既有的冗餘欄位；`session_rls.sql` 以完整有序字串
-比對這 20 欄，改動任何一欄都會讓測試失敗。`join_mode` 只可為 `approval` 或 `instant`：
+比對這 25 欄，改動任何一欄都會讓測試失敗。`join_mode` 只可為 `approval` 或 `instant`：
 前者由主揪審核加入申請，後者在有缺額時直接接受加入；它不會擴大任何 profile 或聯絡資料的
 公開範圍。
 
@@ -75,15 +76,16 @@ LINE、電話、email、常打球場、可用時段、歷史或 roster。`sessio
 不可新增欄位。
 
 `player_directory` 是獨立的 authenticated-only security-definer view，DB 亦以
-`private.has_complete_profile(auth.uid())` gate：不完整 viewer 即使已登入也只能得到 0 列。
+`private.profile_meets_gate(..., 'directory')` gate：未通過 directory 門檻的 viewer
+即使已登入也只能得到 0 列。
 其欄位有序 allowlist **精確為**：
 
 ```text
 profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self
 ```
 
-它只列出已 opt-in（`profiles.is_public=true`）、卡片本人完整 profile、台北市 active 常打球場的
-球友；`is_public` 預設 false，只有完整 profile 本人可透過 `set_player_visibility(boolean)`
+它只列出已 opt-in（`profiles.is_public=true`）、卡片本人通過 directory 門檻、台北市 active 常打球場的
+球友；`is_public` 預設 false，只有通過 directory 門檻的本人可透過 `set_player_visibility(boolean)`
 變更，關閉後立即從目錄下架。它明確不包含 LINE／`line_id`、真名、email 或歷史球局。
 
 `player_presence` 是 browser 不可直讀、直寫的 raw 狀態表；它**只**允許 definer RPC 寫入
@@ -112,12 +114,15 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
 - LINE 是資料庫強制的秘密，不是前端顯示層的 gate。任何擴充都必須先補 pgTAP 與 API
   allowlist test，再改 UI。
 
-## 城市、完整檔案與生命週期
+## 城市、個人檔案門檻與生命週期
 
 - 首發只允許 `courts.city = '台北市'` 且 `sports.code = 'tennis'` 的公開 session。
   雙北目錄的存在不代表新北可建局或被 discovery。
-- `private.require_complete_profile()` 要求 nickname、LINE、有效 NTRP、至少一種打法與一座
-  台北市 active court；create/join 由 RPC 強制，前端檢查不是授權。
+- 現行授權使用 `private.require_profile_gate(level)`：`nickname`＝非空暱稱；
+  `ntrp`＝暱稱 + 1.0–7.0 NTRP；`directory`＝ntrp 門檻 + 至少一座台北市 active 常打球場。
+  `request_to_join_session` 使用 nickname；`create_session`、在場設定／更新與邀請主揪使用
+  ntrp；球友目錄、公開球友卡與被邀者資格使用 directory。LINE、打法與可打時段皆非這三層
+  門檻的必要欄位；前端檢查不是授權。
 - `sessions.status`：`open`、`full`、`cancelled`、`played`、`expired`；guest participant
   status：`requested`、`invited`、`accepted`、`declined`、`withdrawn`。`initiated_by='guest'`
   表示 guest request，`initiated_by='host'` 表示 host invite；host participant 的 status 固定為

@@ -1078,6 +1078,9 @@ test("neutral block-unavailable action codes use their terminal non-disclosing m
 test("every supported session action code has its own user-facing message", () => {
   const unknownMessage = new SessionActionError("UNKNOWN_ACTION_ERROR").message;
 
+  assert.ok(SESSION_ACTION_CODES.length > 0, "the action-code parity scan must not be vacuous");
+  // Known pre-Stage-2 notification-only DB codes intentionally remain outside this frontend action whitelist:
+  // INVALID_NOTIFICATION_DISTRICT, INVALID_NOTIFICATION_PREFS, INVALID_PUSH_SUBSCRIPTION, NOT_AUTHENTICATED, PUSH_ENDPOINT_OWNERSHIP.
   for (const code of SESSION_ACTION_CODES) {
     const message = new SessionActionError(code).message;
     assert.notEqual(message, "", `${code} must have a non-empty action message`);

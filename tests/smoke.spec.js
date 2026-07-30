@@ -1666,6 +1666,39 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   expect(runtimeErrors).toEqual([]);
 });
 
+test("profile NTRP accepts only half-point increments before saving", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    window.__profileNtrpSaves = 0;
+    openProfileCompletionSheet({
+      onSave: async (draft) => {
+        window.__profileNtrpSaves += 1;
+        return draft;
+      },
+      profile: { courts: new Set(), lineId: "", nick: "", ntrp: null, slots: new Set(), types: new Set() },
+    });
+  });
+
+  const profile = page.locator("#profile-completion-sheet");
+  const ntrp = profile.getByLabel("NTRP 程度（選填）");
+  await expect(ntrp).toHaveAttribute("step", "0.5");
+  await profile.getByLabel("公開暱稱").fill("半級距球友");
+  await ntrp.fill("3.7");
+  await profile.getByTestId("profile-save").click();
+  await expect(profile.getByRole("alert")).toContainText("0.5");
+  await expect.poll(() => page.evaluate(() => window.__profileNtrpSaves)).toBe(0);
+
+  await ntrp.fill("3.5");
+  await profile.getByTestId("profile-save").click();
+  await expect(profile).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__profileNtrpSaves)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a 390px profile sheet saves a nickname-only draft without horizontal overflow", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "this assertion exercises the requested 390px viewport");
   const runtimeErrors = captureConsoleErrors(page);
@@ -1688,6 +1721,13 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
     });
   });
   const profile = page.locator("#profile-completion-sheet");
+  await expect(profile).toBeVisible();
+  const width = await profile.evaluate((node) => ({
+    client: node.clientWidth,
+    scroll: node.scrollWidth,
+  }));
+  expect(width.client).toBeLessThanOrEqual(390);
+  expect(width.scroll).toBeLessThanOrEqual(390);
   await profile.getByLabel("公開暱稱").fill("暱稱即可");
   await profile.getByTestId("profile-save").click();
   await expect(profile).toBeHidden();
@@ -1699,12 +1739,6 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
     slots: [],
     types: [],
   });
-  const width = await page.evaluate(() => ({
-    client: document.documentElement.clientWidth,
-    scroll: document.documentElement.scrollWidth,
-  }));
-  expect(width.client).toBe(390);
-  expect(width.scroll).toBeLessThanOrEqual(390);
   expect(runtimeErrors).toEqual([]);
 });
 

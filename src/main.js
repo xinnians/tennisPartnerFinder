@@ -766,6 +766,9 @@ async function loadCourtsImmediately() {
     courts = [];
     courtsReady = true;
     controller.setCourts([], { ready: true });
+    if (authSession && profileLoadStatus === "ready") {
+      await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
+    }
     toast("球場資料暫時無法載入。");
   }
 }

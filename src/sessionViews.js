@@ -1533,6 +1533,9 @@ function validateProfileForm(profile, requiredGate, intent = null) {
   if (profile.ntrp != null && !validProfileNtrp(profile.ntrp)) {
     return "NTRP 請填寫 1.0 到 7.0，或留白。";
   }
+  if (profile.ntrp != null && !Number.isInteger(Number(profile.ntrp) * 2)) {
+    return "NTRP 請以 0.5 為級距填寫，或留白。";
+  }
   if (requiredGate === "ntrp" && !validProfileNtrp(profile.ntrp)) return profileGateHint("ntrp", intent);
   if (requiredGate === "directory" && (!validProfileNtrp(profile.ntrp) || !profile.courts.size)) return profileGateHint("directory");
   return "";
@@ -1576,7 +1579,7 @@ export function openProfileCompletionSheet({
           profile.nick ?? ""
         )}" autocomplete="nickname" /></label>
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
-        <label class="form-field" for="profile-ntrp"><span>NTRP 程度（選填）</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="any" value="${esc(
+        <label class="form-field" for="profile-ntrp"><span>NTRP 程度（選填）</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="0.5" value="${esc(
           profile.ntrp ?? ""
         )}" inputmode="decimal" placeholder="尚未填寫" /></label>
         <label class="form-field" for="profile-line-id"><span>LINE ID（選填）</span><input id="profile-line-id" name="profile-line-id" value="${esc(
