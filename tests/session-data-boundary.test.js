@@ -29,6 +29,7 @@ import {
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
+import { formatNtrp } from "../src/profile.js";
 import {
   PENDING_SESSION_INTENT_KEY,
   clearPendingIntent,
@@ -286,6 +287,14 @@ test("main forwards every Stage 1–3 data API capability into the session contr
     assert.match(apiBlock, new RegExp(`\\b${key},`), `${key} is passed to createSessionController`);
     assert.equal(typeof api[key], "function", `${key} remains available from dataApi`);
   }
+});
+
+test("NTRP formatting names an absent value instead of coercing it to zero", () => {
+  assert.equal(formatNtrp(null), "尚未填寫 NTRP");
+});
+
+test("NTRP formatting keeps one decimal place for a valid value", () => {
+  assert.equal(formatNtrp(3.5), "NTRP 3.5");
 });
 
 test("presence-setting writes require the NTRP gate before either toggle direction reaches the RPC", async () => {

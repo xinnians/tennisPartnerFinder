@@ -1,6 +1,7 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
 import { TAIPEI_DISTRICTS } from "./districts.js";
 import { pushDrawerIsolation } from "./modalIsolation.js";
+import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { esc } from "./util.js";
 
@@ -293,7 +294,7 @@ function sessionCard(session, { compact = false } = {}) {
     <span class="session-card__court">${esc(session.court)} · ${esc(session.courtDistrict)}</span>
     <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</span>
     ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
-    <span class="session-card__host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))}</span>
+    <span class="session-card__host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))}</span>
   </button>`;
 }
 
@@ -445,7 +446,7 @@ function mySessionCard(session, { createdSessionId = null, contacts = [] } = {})
 function hostRequestCard({ participant, session }) {
   return `<article class="my-action-card" data-testid="participant-row" data-participant-id="${esc(participant.participantId)}">
     <p class="my-action-card__eyebrow">需要你處理 · ${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
-    <h3>${esc(participant.nickname)} · NTRP ${esc(Number(participant.ntrp).toFixed(1))}</h3>
+    <h3>${esc(participant.nickname)} · ${esc(formatNtrp(participant.ntrp))}</h3>
     <p>${esc((participant.playTypes ?? []).join("、") || "尚未填寫打法")} · ${esc((participant.homeCourts ?? []).join("、") || "尚未填寫常打球場")}</p>
     <div class="my-session-card__actions">
       <button type="button" class="session-primary" data-my-action="accept" data-session-id="${esc(session.sessionId)}" data-participant-id="${esc(
@@ -464,7 +465,7 @@ function hostRequestCard({ participant, session }) {
 function inviteCard({ session }) {
   return `<article class="my-action-card" data-testid="invite-row" data-session-id="${esc(session.sessionId)}">
     <p class="my-action-card__eyebrow">邀請你加入 · ${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
-    <h3>${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))}</h3>
+    <h3>${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))}</h3>
     <p>${esc(session.playType)} · 缺 ${esc(session.slotsRemaining)} 位${session.notes ? ` · ${esc(session.notes)}` : ""}</p>
     <div class="my-session-card__actions">
       <button type="button" class="session-primary" data-my-action="accept-invite" data-session-id="${esc(session.sessionId)}" data-testid="accept-invite-${esc(session.sessionId)}">接受邀請</button>
@@ -1192,7 +1193,7 @@ export function openSessionSheet(
         ${nowStartSessionMarkup(session)}
         <p data-session-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
         ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
-        <p data-session-field="host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))} · ${esc(
+        <p data-session-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
           completionLabel(session)
         )}</p>
         <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
@@ -1302,7 +1303,7 @@ export function openJoinSessionConfirmation(session, { onClose = () => {}, onCon
           <p data-join-field="court"><strong>${esc(session.court)}</strong> · ${esc(session.courtDistrict)}</p>
           <p data-join-field="time">${esc(taipeiDateTime(session.startAt))}</p>
           <p data-join-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
-          <p data-join-field="host">主揪 ${esc(session.hostNickname)} · NTRP ${esc(Number(session.hostNtrp).toFixed(1))} · ${esc(
+          <p data-join-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
             completionLabel(session)
           )}</p>
           <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
@@ -1514,10 +1515,6 @@ function profileGateHint(gate) {
   if (gate === "ntrp") return "要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。";
   if (gate === "directory") return "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。";
   return "要加入球局，請填寫公開暱稱。";
-}
-
-function validProfileNtrp(value) {
-  return Number.isFinite(value) && value >= 1 && value <= 7;
 }
 
 function validateProfileForm(profile, requiredGate) {
@@ -1748,7 +1745,7 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
       <div class="nearby-sessions__cards">
         ${players.length ? players.map((player) => `
           <button type="button" class="player-card" data-testid="court-player-card-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
-            <strong>${esc(player.nickname)}</strong> · NTRP ${esc(Number(player.ntrp).toFixed(1))}
+            <strong>${esc(player.nickname)}</strong> · ${esc(formatNtrp(player.ntrp))}
             ${player.isPresent ? `<span class="player-presence">${esc(playerPresenceLabel(player))}${player.openToGreeting ? ` · ${esc(playerGreetingLabel(player))}` : ""}</span>` : ""}
             <span>${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
           </button>`).join("") : '<p class="surface__copy">這座球場目前沒有開放的球友。</p>'}
@@ -1813,7 +1810,7 @@ export function openPlayerCardSheet(
         <button type="button" class="surface__close" data-surface-close aria-label="關閉球友卡">×</button>
       </div>
       <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
-        <p><strong>NTRP ${esc(Number(player.ntrp).toFixed(1))}</strong></p>
+        <p><strong>${esc(formatNtrp(player.ntrp))}</strong></p>
         ${player.isPresent ? `<p>在場狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
         ${player.openToGreeting ? `<p class="player-greeting">${esc(playerGreetingLabel(player))}</p>` : ""}
         <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>
