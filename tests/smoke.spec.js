@@ -1580,6 +1580,9 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await expect(createSheet).toBeVisible();
   await expect(page.getByTestId("session-create-modal")).toBeVisible();
   await expect(createSheet.getByText(disclosure)).toBeVisible();
+  await expect(createSheet).toContainText(
+    "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。"
+  );
   const requiredOrder = await form
     .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-total']")
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")));
@@ -1595,6 +1598,47 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await form.getByTestId("session-submit").click();
   await expect(form.getByRole("alert")).toContainText("本機示範資料僅供瀏覽");
   await expect(createSheet).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions explains a missing LINE ID without rendering a dead copy control", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const session = {
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      hostNickname: "聯絡主揪",
+      hostNtrp: 3.5,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      sessionId: 739,
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole: "host",
+    };
+    renderMySessionsPage(root, {
+      authenticated: true,
+      contactsForSession: () => [
+        { counterpartProfileId: 91, lineId: "", nickname: "未填 LINE 球友", sessionId: 739 },
+      ],
+      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+    });
+  });
+
+  const contact = page.getByTestId("session-contact-91");
+  await expect(contact).toContainText("對方尚未提供 LINE ID。");
+  await expect(contact.getByLabel("未填 LINE 球友 的 LINE ID")).toHaveCount(0);
+  await expect(contact.getByRole("button", { name: "複製 LINE ID" })).toHaveCount(0);
+  await expect(contact.getByRole("button", { name: "複製開場訊息" })).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 

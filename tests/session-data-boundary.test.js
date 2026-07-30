@@ -343,17 +343,6 @@ test("directory eligibility preserves a previously validated stored court while 
   );
 });
 
-test("presence-setting writes require the NTRP gate before either toggle direction reaches the RPC", async () => {
-  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
-  const sharing = source.match(/async function updatePresenceSharing\(shared\) \{[\s\S]*?\n\}/)?.[0] ?? "";
-  const greeting = source.match(/async function updateOpenToGreetingSetting\(open\) \{[\s\S]*?\n\}/)?.[0] ?? "";
-
-  assert.match(sharing, /if \(!eligibilityFromPrivateProfile\(currentProfile, \{ courts, courtsReady \}\)\.ntrp\) \{/);
-  assert.doesNotMatch(sharing, /if \(shared === true && !eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\)/);
-  assert.match(greeting, /if \(!eligibilityFromPrivateProfile\(currentProfile, \{ courts, courtsReady \}\)\.ntrp\) \{/);
-  assert.doesNotMatch(greeting, /if \(open === true && !eligibilityFromPrivateProfile\(currentProfile\)\.ntrp\)/);
-});
-
 test("player presence mapper keeps the exact reciprocal-directory allowlist", () => {
   const presenceRow = {
     profile_id: "8001",

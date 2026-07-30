@@ -858,6 +858,35 @@ test("a visible player can be invited, accept from My Sessions, exchange LINE co
   }
 });
 
+test("nickname-only presence controls open the NTRP profile sheet without writing either setting", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.host.email);
+  await createProfile(client, {
+    courts: context.host.courts,
+    lineId: "",
+    nickname: context.host.nickname,
+    ntrp: null,
+    playTypes: [],
+    slots: [],
+  });
+  await gotoWithSession(page, session);
+  await page.getByTestId("my-sessions-tab").click();
+
+  await page.getByTestId("presence-sharing-toggle").click();
+  const profile = page.locator("#profile-completion-sheet");
+  await expect(profile).toBeVisible();
+  await expect(profile).toContainText("要調整在場設定，請填寫公開暱稱與 NTRP（1.0–7.0）。");
+  await profile.getByRole("button", { name: "關閉個人檔案" }).click();
+
+  await page.getByTestId("open-to-greeting-toggle").click();
+  await expect(profile).toBeVisible();
+  await expect(profile).toContainText("要調整在場設定，請填寫公開暱稱與 NTRP（1.0–7.0）。");
+
+  const { data, error } = await client.from("my_profile").select("share_presence,open_to_greeting").single();
+  if (error) throw error;
+  expect(data).toEqual({ open_to_greeting: false, share_presence: false });
+});
+
 test("reciprocal foreground presence shows only to sharing viewers and one-tap hiding removes it immediately", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });

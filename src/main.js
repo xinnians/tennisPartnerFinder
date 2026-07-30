@@ -231,7 +231,8 @@ async function updatePresenceSharing(shared) {
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
   if (!eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }).ntrp) {
-    throw new Error("要調整在場分享，請到個人檔案填寫公開暱稱與 NTRP（1.0–7.0）。");
+    openProfileCompletion({ intent: { action: "presence" } });
+    return false;
   }
   await setPresenceSharing(shared === true);
   if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
@@ -250,7 +251,8 @@ async function updateOpenToGreetingSetting(open) {
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
   if (!eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }).ntrp) {
-    throw new Error("要調整接受現場問候設定，請到個人檔案填寫公開暱稱與 NTRP（1.0–7.0）。");
+    openProfileCompletion({ intent: { action: "presence" } });
+    return false;
   }
   await setOpenToGreeting(open === true);
   if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");

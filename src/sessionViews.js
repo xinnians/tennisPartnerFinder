@@ -351,21 +351,29 @@ function contactRows(session, contacts) {
   return `<section class="my-session-contacts" aria-label="已核准的聯絡方式">
     <h3>已核准的聯絡方式</h3>
     ${safeContacts
-      .map(
-        (contact) =>
-          `<div id="session-contact-${esc(session.sessionId)}-${esc(contact.counterpartProfileId)}" class="session-contact" data-contact-profile-id="${esc(
+      .map((contact) => {
+        const lineId = String(contact.lineId ?? "").trim();
+        return `<div id="session-contact-${esc(session.sessionId)}-${esc(contact.counterpartProfileId)}" class="session-contact" data-contact-profile-id="${esc(
             contact.counterpartProfileId
           )}" data-testid="session-contact-${esc(contact.counterpartProfileId)}">
             <strong>${esc(contact.nickname)}</strong>
-            <label>LINE ID<input readonly value="${esc(contact.lineId)}" aria-label="${esc(contact.nickname)} 的 LINE ID" /></label>
+            ${
+              lineId
+                ? `<label>LINE ID<input readonly value="${esc(lineId)}" aria-label="${esc(contact.nickname)} 的 LINE ID" /></label>`
+                : '<p class="session-contact__line-missing">對方尚未提供 LINE ID。</p>'
+            }
             <div class="session-contact__copy-actions">
-              <button type="button" class="session-secondary" data-copy-contact data-copy-kind="line">複製 LINE ID</button>
+              ${
+                lineId
+                  ? '<button type="button" class="session-secondary" data-copy-contact data-copy-kind="line">複製 LINE ID</button>'
+                  : ""
+              }
               <button type="button" class="session-secondary" data-copy-contact data-copy-kind="opening">複製開場訊息</button>
             </div>
             <p data-contact-opening>你好，我是球局「${esc(session.court)}」的${esc(contactSelfNoun(session))}。</p>
             <p data-contact-copy-status role="status" aria-live="polite"></p>
-          </div>`
-      )
+          </div>`;
+      })
       .join("")}
   </section>`;
 }
@@ -1506,23 +1514,26 @@ function profileFormValue(form, fallbackCourts = new Set()) {
 }
 
 function profileGateForIntent(intent) {
-  if (intent?.action === "create") return "ntrp";
+  if (["create", "presence"].includes(intent?.action)) return "ntrp";
   if (["players", "visibility"].includes(intent?.action)) return "directory";
   return "nickname";
 }
 
-function profileGateHint(gate) {
+function profileGateHint(gate, intent = null) {
+  if (gate === "ntrp" && intent?.action === "presence") {
+    return "要調整在場設定，請填寫公開暱稱與 NTRP（1.0–7.0）。";
+  }
   if (gate === "ntrp") return "要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。";
   if (gate === "directory") return "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。";
   return "要加入球局，請填寫公開暱稱。";
 }
 
-function validateProfileForm(profile, requiredGate) {
+function validateProfileForm(profile, requiredGate, intent = null) {
   if (!profile.nick) return "請填寫公開暱稱。";
   if (profile.ntrp != null && !validProfileNtrp(profile.ntrp)) {
     return "NTRP 請填寫 1.0 到 7.0，或留白。";
   }
-  if (requiredGate === "ntrp" && !validProfileNtrp(profile.ntrp)) return profileGateHint("ntrp");
+  if (requiredGate === "ntrp" && !validProfileNtrp(profile.ntrp)) return profileGateHint("ntrp", intent);
   if (requiredGate === "directory" && (!validProfileNtrp(profile.ntrp) || !profile.courts.size)) return profileGateHint("directory");
   return "";
 }
@@ -1542,7 +1553,7 @@ export function openProfileCompletionSheet({
   const selectedTypes = profile.types instanceof Set ? profile.types : new Set(profile.types ?? []);
   const selectedSlots = profile.slots instanceof Set ? profile.slots : new Set(profile.slots ?? []);
   const requiredGate = profileGateForIntent(intent);
-  const gateHint = intent ? profileGateHint(requiredGate) : "";
+  const gateHint = intent ? profileGateHint(requiredGate, intent) : "";
   let saved = false;
   const mounted = mountSheet({
     id: "profile-completion-sheet",
@@ -1607,7 +1618,7 @@ export function openProfileCompletionSheet({
     event.preventDefault();
     if (saving) return;
     const nextProfile = profileFormValue(form, selectedCourts);
-    const message = validateProfileForm(nextProfile, requiredGate);
+    const message = validateProfileForm(nextProfile, requiredGate, intent);
     if (message) {
       error.hidden = false;
       error.textContent = message;
@@ -1656,7 +1667,7 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
         <fieldset class="form-fieldset"><legend>加入方式</legend>
           <label><input type="radio" name="joinMode" value="approval" checked /> 需審核（你逐一核准申請者）</label>
           <label><input type="radio" name="joinMode" value="instant" /> 直接加入（先到先得，立即成局）</label>
-          <p class="form-hint">選擇直接加入後，任何完成檔案的球友加入即成局，你們將互相看到 LINE ID。</p>
+          <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。</p>
         </fieldset>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
         <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
