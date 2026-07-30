@@ -13,7 +13,8 @@ export function eligibilityFromPrivateProfile(
   { courts = [], courtsReady = true, courtsStatus = null, status = "ready" } = {}
 ) {
   const nickname = String(profile?.nick ?? "").trim() !== "";
-  const ntrp = nickname && validProfileNtrp(profile?.ntrp);
+  const ntrpValue = validProfileNtrp(profile?.ntrp) ? Number(profile.ntrp) : null;
+  const ntrp = nickname && ntrpValue != null;
   const selectedCourts = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
   const availableCourts = Array.isArray(courts) ? courts : [];
   const activeTaipeiCourts = new Set(
@@ -36,6 +37,7 @@ export function eligibilityFromPrivateProfile(
     isPublic: profile?.isPublic === true,
     nickname,
     ntrp,
+    ntrpValue,
     status,
   };
 }

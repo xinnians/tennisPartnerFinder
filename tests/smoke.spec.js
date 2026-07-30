@@ -464,6 +464,121 @@ test("instant join confirmation explains contact visibility and shows accepted s
   expect(runtimeErrors).toEqual([]);
 });
 
+test("join confirmation distinguishes both requested NTRP outcomes without losing success focus", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  for (const [outcome, message] of [
+    ["OK_NTRP_MISSING", "已送出申請；補填 NTRP 後可更清楚確認程度是否合適。"],
+    ["OK_NTRP_OUT_OF_RANGE", "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"],
+  ]) {
+    await page.evaluate(async (nextOutcome) => {
+      const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+      openJoinSessionConfirmation(
+        {
+          court: "示範球場",
+          courtDistrict: "大安區",
+          hostNickname: "公開主揪",
+          hostNtrp: 3.5,
+          hostProfileComplete: true,
+          joinMode: "instant",
+          ntrpMax: 4,
+          ntrpMin: 3,
+          playType: "單打",
+          slotsRemaining: 1,
+          startAt: "2099-07-19T01:00:00.000Z",
+        },
+        { onConfirm: async () => ({ accepted: false, joinSubmitted: true, outcome: nextOutcome }) }
+      );
+    }, outcome);
+
+    const confirmation = page.locator("#join-session-confirmation");
+    await confirmation.getByTestId("join-session").click();
+    await expect(confirmation.getByText(message)).toBeVisible();
+    await expect(confirmation.getByRole("button", { name: "前往我的球局" })).toBeFocused();
+    await page.keyboard.press("Escape");
+  }
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("candidate session cards and details resolve every court until Boolean decidedAt becomes true", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const candidateSession = {
+    candidateCourtIds: [8, 9, 10],
+    court: "示範球場",
+    courtDistrict: "大安區",
+    decidedAt: "",
+    feeNote: "每人 150 元",
+    hostNickname: "公開主揪",
+    hostNtrp: 3.5,
+    hostProfileComplete: true,
+    joinMode: "approval",
+    ntrpMax: 4,
+    ntrpMin: 3,
+    notes: "候選局測試",
+    playType: "雙打",
+    rangeEnd: "2099-07-19T05:00:00.000Z",
+    sessionId: 8801,
+    slotsRemaining: 2,
+    startAt: "2099-07-19T01:00:00.000Z",
+    status: "open",
+    venueType: "candidates",
+  };
+  const courts = [
+    { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+    { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+    { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+  ];
+  await page.evaluate(
+    async ({ candidateSession: session, courts: catalogue }) => {
+      const { openSessionSheet, renderNearbySessionsDrawer } = await import("/src/sessionViews.js");
+      renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
+        courts: catalogue,
+        expanded: true,
+        sessions: [session],
+      });
+      openSessionSheet(session, { action: { label: "申請加入" }, courts: catalogue });
+    },
+    { candidateSession, courts }
+  );
+
+  const card = page.getByTestId("session-card");
+  const detail = page.locator("#session-sheet");
+  for (const surface of [card, detail]) {
+    await expect(surface).toContainText("候選局");
+    await expect(surface).toContainText("示範球場、第二球場、第三球場");
+    await expect(surface).toContainText("每人 150 元");
+    await expect(surface).not.toContainText("已定案");
+  }
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(
+    async ({ candidateSession: session, courts: catalogue }) => {
+      const { openSessionSheet } = await import("/src/sessionViews.js");
+      openSessionSheet(
+        {
+          ...session,
+          court: "第三球場",
+          courtDistrict: "萬華區",
+          decidedAt: "2099-07-18T08:00:00.000Z",
+          startAt: "2099-07-19T03:00:00.000Z",
+        },
+        { action: { label: "申請加入" }, courts: catalogue }
+      );
+    },
+    { candidateSession, courts }
+  );
+  const decided = page.locator("#session-sheet");
+  await expect(decided).toContainText("第三球場 · 萬華區");
+  await expect(decided).toContainText("已定案");
+  await expect(decided).not.toContainText("第二球場");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("My Sessions preserves the initiating action and its error across a private-page rerender", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

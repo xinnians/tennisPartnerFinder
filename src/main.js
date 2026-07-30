@@ -418,6 +418,7 @@ function renderDiscovery(view) {
   renderFilters(view.filters);
   renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
     sessions: view.sessions,
+    courts: view.courts,
     expanded: view.expanded,
     hasUserLocation: view.hasUserLocation,
     mapStatus: view.mapStatus,

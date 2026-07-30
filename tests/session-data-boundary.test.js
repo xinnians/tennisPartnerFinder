@@ -314,6 +314,7 @@ test("private-profile eligibility enforces each nickname and NTRP boundary witho
     const eligibility = eligibilityFromPrivateProfile({ ...baseProfile, ntrp: ntrpValue }, options);
     assert.equal(eligibility.nickname, true, `nickname gate for ${String(ntrpValue)}`);
     assert.equal(eligibility.ntrp, expected, `NTRP gate for ${String(ntrpValue)}`);
+    assert.equal(eligibility.ntrpValue, expected ? Number(ntrpValue) : null, `private NTRP value for ${String(ntrpValue)}`);
   }
 
   const missingNickname = eligibilityFromPrivateProfile({ ...baseProfile, nick: "  ", ntrp: 3.5 }, options);

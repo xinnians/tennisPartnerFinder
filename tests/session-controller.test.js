@@ -1158,13 +1158,99 @@ test("authoritative discovery changes close a detail whose session fields are no
 test("eligible instant sessions use a direct-join action while approval sessions keep the request action", async () => {
   const instantSession = futureSession({ joinMode: "instant" });
   const instantHarness = createHarness({ session: instantSession });
+  await instantHarness.controller.setAuthState(
+    { user: { id: "instant-in-range" } },
+    { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
+  );
   await instantHarness.controller.loadDiscovery();
   assert.equal(openAction(instantHarness).handlers.action.label, "直接加入");
 
   const approvalSession = futureSession({ joinMode: "approval" });
   const approvalHarness = createHarness({ session: approvalSession });
+  await approvalHarness.controller.setAuthState(
+    { user: { id: "approval-in-range" } },
+    { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
+  );
   await approvalHarness.controller.loadDiscovery();
   assert.equal(openAction(approvalHarness).handlers.action.label, "申請加入");
+});
+
+test("join actions preflight missing and out-of-range viewer NTRP without blocking either join mode", async () => {
+  for (const joinMode of ["approval", "instant"]) {
+    const missing = createHarness({ session: futureSession({ joinMode }) });
+    await missing.controller.setAuthState(
+      { user: { id: `missing-${joinMode}` } },
+      { directory: false, nickname: true, ntrp: false, ntrpValue: null }
+    );
+    await missing.controller.loadDiscovery();
+    const missingAction = openAction(missing).handlers.action;
+    assert.equal(missingAction.label, "申請加入");
+    assert.equal(missingAction.disabled, undefined);
+    assert.match(missingAction.note, /補填 NTRP/);
+
+    const outOfRange = createHarness({ session: futureSession({ joinMode }) });
+    await outOfRange.controller.setAuthState(
+      { user: { id: `outside-${joinMode}` } },
+      { directory: false, nickname: true, ntrp: true, ntrpValue: 5.5 }
+    );
+    await outOfRange.controller.loadDiscovery();
+    const outOfRangeAction = openAction(outOfRange).handlers.action;
+    assert.equal(outOfRangeAction.label, "申請加入");
+    assert.equal(outOfRangeAction.disabled, undefined);
+    assert.match(outOfRangeAction.note, /不在球局設定的 NTRP 範圍/);
+  }
+});
+
+test("join preflight notes stay stable across discovery arrays and close stale detail when profile NTRP changes", async () => {
+  const session = futureSession({ candidateCourtIds: [8, 9], joinMode: "instant", venueType: "candidates" });
+  const harness = createHarness({ api: { loadSessionDiscovery: async () => [{ ...session, candidateCourtIds: [...session.candidateCourtIds] }] } });
+  const auth = { user: { id: "profile-preflight" } };
+  await harness.controller.setAuthState(auth, {
+    directory: false,
+    nickname: true,
+    ntrp: true,
+    ntrpValue: 5.5,
+  });
+  await harness.controller.loadDiscovery();
+  const detail = openAction(harness);
+  assert.match(detail.handlers.action.note, /不在球局設定的 NTRP 範圍/);
+
+  await harness.controller.loadDiscovery();
+  assert.equal(detail.detail.closeCalls, 0, "a new candidate ID array alone is not a detail change");
+
+  await harness.controller.setAuthState(auth, {
+    directory: false,
+    nickname: true,
+    ntrp: true,
+    ntrpValue: 3.5,
+  });
+  assert.equal(detail.detail.closeCalls, 1, "the action note participates in actionKey reconciliation");
+});
+
+test("session detail reconciliation tracks four venue scalars but ignores candidate array identity", async () => {
+  const original = futureSession({
+    candidateCourtIds: [8, 9],
+    feeNote: "",
+    joinMode: "approval",
+    rangeEnd: "2099-07-19T05:00:00.000Z",
+    venueType: "candidates",
+  });
+
+  for (const [field, value] of [
+    ["venueType", "booked"],
+    ["rangeEnd", "2099-07-19T06:00:00.000Z"],
+    ["feeNote", "每人 150 元"],
+    ["joinMode", "instant"],
+  ]) {
+    let sessions = [{ ...original, candidateCourtIds: [...original.candidateCourtIds] }];
+    const harness = createHarness({ api: { loadSessionDiscovery: async () => sessions } });
+    await harness.controller.loadDiscovery();
+    const detail = openAction(harness);
+
+    sessions = [{ ...original, candidateCourtIds: [...original.candidateCourtIds], [field]: value }];
+    await harness.controller.loadDiscovery();
+    assert.equal(detail.detail.closeCalls, 1, `${field} closes a stale detail`);
+  }
 });
 
 test("a session disappearing from the same viewport closes its stale public detail", async () => {

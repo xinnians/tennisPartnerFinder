@@ -306,6 +306,40 @@ function vacancyLabel(session) {
   return `剩 ${remaining} 位`;
 }
 
+const VENUE_TYPE_LABELS = {
+  booked: "已訂場",
+  candidates: "候選局",
+  walk_on: "現場等場",
+};
+
+function sessionVenuePresentation(session, courts = []) {
+  const venueType = String(session?.venueType ?? "booked");
+  const decided = venueType === "candidates" && Boolean(session?.decidedAt);
+  if (venueType !== "candidates" || decided) {
+    return {
+      badge: decided ? "候選局 · 已定案" : (VENUE_TYPE_LABELS[venueType] ?? VENUE_TYPE_LABELS.booked),
+      court: [session?.court, session?.courtDistrict].filter(Boolean).join(" · "),
+      decided,
+      time: taipeiDateTime(session?.startAt),
+      undecidedCandidates: false,
+    };
+  }
+
+  const catalogue = new Map((Array.isArray(courts) ? courts : []).map((court) => [String(court?.id), court]));
+  const names = (Array.isArray(session?.candidateCourtIds) ? session.candidateCourtIds : [])
+    .map((courtId, index) => catalogue.get(String(courtId))?.name ?? (index === 0 ? session?.court : null))
+    .filter(Boolean);
+  return {
+    badge: VENUE_TYPE_LABELS.candidates,
+    court: names.join("、") || session?.court || "候選球場待確認",
+    decided: false,
+    time: session?.rangeEnd
+      ? `${taipeiDateTime(session.startAt)} 至 ${taipeiDateTime(session.rangeEnd)}`
+      : taipeiDateTime(session?.startAt),
+    undecidedCandidates: true,
+  };
+}
+
 function completionLabel(session) {
   return session.hostProfileComplete ? "檔案已完成" : "檔案待完成";
 }
@@ -319,14 +353,17 @@ function nowStartSessionMarkup(session) {
   )}</span>`;
 }
 
-function sessionCard(session, { compact = false } = {}) {
+function sessionCard(session, { compact = false, courts = [] } = {}) {
+  const venue = sessionVenuePresentation(session, courts);
   return `<button type="button" class="session-card${compact ? " session-card--compact" : ""}" data-testid="session-card" data-session-id="${esc(
     session.sessionId
   )}">
-    <span class="session-card__time">${esc(taipeiDateTime(session.startAt))}</span>
-    ${nowStartSessionMarkup(session)}
-    <span class="session-card__court">${esc(session.court)} · ${esc(session.courtDistrict)}</span>
+    <span class="session-card__time">${esc(venue.time)}</span>
+    ${venue.undecidedCandidates ? "" : nowStartSessionMarkup(session)}
+    <span class="session-badge">${esc(venue.badge)}</span>
+    <span class="session-card__court">${esc(venue.court)}</span>
     <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</span>
+    ${session.feeNote ? `<span class="session-card__meta">${esc(`費用：${session.feeNote}`)}</span>` : ""}
     ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
     <span class="session-card__host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))}</span>
   </button>`;
@@ -1130,6 +1167,7 @@ export function renderNearbySessionsDrawer(
   root,
   {
     sessions = [],
+    courts = [],
     expanded = false,
     hasUserLocation = false,
     mapStatus = { kind: "idle", message: "" },
@@ -1148,8 +1186,9 @@ export function renderNearbySessionsDrawer(
   setDrawerModal(root, false);
   const count = sessions.length;
   const summary = `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
+  const nearestVenue = sessions[0] ? sessionVenuePresentation(sessions[0], courts) : null;
   const nearest = sessions[0]
-    ? `${taipeiDateTime(sessions[0].startAt)} · ${sessions[0].court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
+    ? `${nearestVenue.time} · ${nearestVenue.court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
     : "移動地圖或調整篩選條件，查看可加入的球局。";
   const activeDrawerStatus =
     expanded && mapStatus?.kind === "warning" && mapStatus?.message
@@ -1165,7 +1204,7 @@ export function renderNearbySessionsDrawer(
             mapStatus.message || "球局資料暫時無法載入。"
           )}</p><button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button></div>`
         : count
-          ? sessions.map((session) => sessionCard(session)).join("")
+          ? sessions.map((session) => sessionCard(session, { courts })).join("")
           : renderDiscoveryEmpty({ onReset, onExpandBounds, onOpenCreate, onRetry, asMarkup: true });
 
   root.innerHTML = `
@@ -1218,9 +1257,10 @@ export function renderDiscoveryEmpty({ onReset = () => {}, onExpandBounds = () =
 /** Open a public session detail sheet with the privacy-reviewed field order. */
 export function openSessionSheet(
   session,
-  { action, canReport = false, onCopyLink = () => {}, onPrimary = () => {}, onReport = () => {}, onWithdraw = () => {} } = {}
+  { action, canReport = false, courts = [], onCopyLink = () => {}, onPrimary = () => {}, onReport = () => {}, onWithdraw = () => {} } = {}
 ) {
   const primaryDisabled = action?.disabled ? " disabled" : "";
+  const venue = sessionVenuePresentation(session, courts);
   const mounted = mountSheet({
     id: "session-sheet",
     label: "球局詳情",
@@ -1230,15 +1270,18 @@ export function openSessionSheet(
         <button type="button" class="surface__close" data-surface-close aria-label="關閉球局詳情">×</button>
       </div>
       <div class="session-detail">
-        <p data-session-field="court"><strong>${esc(session.court)}</strong> · ${esc(session.courtDistrict)}</p>
-        <p data-session-field="time">${esc(taipeiDateTime(session.startAt))}</p>
-        ${nowStartSessionMarkup(session)}
+        <span class="session-badge" data-session-field="venue">${esc(venue.badge)}</span>
+        <p data-session-field="court"><strong>${esc(venue.court)}</strong></p>
+        <p data-session-field="time">${esc(venue.time)}</p>
+        ${venue.undecidedCandidates ? "" : nowStartSessionMarkup(session)}
         <p data-session-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
         ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
         <p data-session-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
           completionLabel(session)
         )}</p>
+        ${session.feeNote ? `<p data-session-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
         <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
+        ${action?.note ? `<p class="form-hint" data-session-action-note>${esc(action.note)}</p>` : ""}
         <p class="form-error" data-session-report-error role="alert" hidden></p>
         <div class="session-detail__actions">
           <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
@@ -1321,9 +1364,13 @@ export function openSessionUnavailableSheet() {
 }
 
 /** Ask for an intentional confirmation before the join lifecycle RPC. */
-export function openJoinSessionConfirmation(session, { onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {} } = {}) {
+export function openJoinSessionConfirmation(
+  session,
+  { courts = [], onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {} } = {}
+) {
   const isInstant = session.joinMode === "instant";
   const title = isInstant ? "直接加入這場球局？" : "申請加入這一局？";
+  const venue = sessionVenuePresentation(session, courts);
   let joined = false;
   const mounted = mountDialog({
     id: "join-session-confirmation",
@@ -1342,12 +1389,14 @@ export function openJoinSessionConfirmation(session, { onClose = () => {}, onCon
       </div>
       <form data-testid="session-join-form" class="join-session-form" novalidate>
         <div class="session-detail join-session-summary">
-          <p data-join-field="court"><strong>${esc(session.court)}</strong> · ${esc(session.courtDistrict)}</p>
-          <p data-join-field="time">${esc(taipeiDateTime(session.startAt))}</p>
+          <span class="session-badge" data-join-field="venue">${esc(venue.badge)}</span>
+          <p data-join-field="court"><strong>${esc(venue.court)}</strong></p>
+          <p data-join-field="time">${esc(venue.time)}</p>
           <p data-join-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
           <p data-join-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
             completionLabel(session)
           )}</p>
+          ${session.feeNote ? `<p data-join-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
           <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         </div>
         <p class="surface__copy">${isInstant ? "加入後你與主揪即可互相看到 LINE ID。" : "送出後，主揪會在球局流程中處理申請。"}</p>
@@ -1375,7 +1424,14 @@ export function openJoinSessionConfirmation(session, { onClose = () => {}, onCon
       if (result?.joinSubmitted && mounted.root.contains(form)) {
         joined = true;
         form.hidden = true;
-        success.textContent = result.accepted ? "已加入球局！到我的球局查看聯絡方式。" : "已送出申請，等待主揪回覆。";
+        success.textContent =
+          result.accepted
+            ? "已加入球局！到我的球局查看聯絡方式。"
+            : result.outcome === "OK_NTRP_MISSING"
+              ? "已送出申請；補填 NTRP 後可更清楚確認程度是否合適。"
+              : result.outcome === "OK_NTRP_OUT_OF_RANGE"
+                ? "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"
+                : "已送出申請，等待主揪回覆。";
         success.hidden = false;
         successActions.hidden = false;
         viewMySessions.focus({ preventScroll: true });
@@ -1851,7 +1907,7 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
 }
 
 /** Open a session-only list for the selected base court or aggregate marker. */
-export function openCourtSessionDrawer(court, sessions, { onOpenSession = () => {} } = {}) {
+export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSession = () => {} } = {}) {
   const mounted = mountSheet({
     id: "court-session-sheet",
     label: "球場球局",
@@ -1861,7 +1917,11 @@ export function openCourtSessionDrawer(court, sessions, { onOpenSession = () => 
         <button type="button" class="surface__close" data-surface-close aria-label="關閉球場球局">×</button>
       </div>
       <div class="nearby-sessions__cards">
-        ${sessions.length ? sessions.map((session) => sessionCard(session, { compact: true })).join("") : '<p class="surface__copy">這座球場目前沒有可加入的球局。</p>'}
+        ${
+          sessions.length
+            ? sessions.map((session) => sessionCard(session, { compact: true, courts })).join("")
+            : '<p class="surface__copy">這座球場目前沒有可加入的球局。</p>'
+        }
       </div>`,
   });
   wireSessionCards(mounted.root, onOpenSession);

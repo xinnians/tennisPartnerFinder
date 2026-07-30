@@ -269,6 +269,10 @@ const SESSION_DETAIL_FIELDS = [
   "hostNickname",
   "hostNtrp",
   "hostProfileComplete",
+  "venueType",
+  "rangeEnd",
+  "feeNote",
+  "joinMode",
   "decidedAt",
 ];
 
@@ -280,7 +284,7 @@ function sameSessionDetail(left, right) {
 }
 
 function actionKey(action) {
-  return JSON.stringify([action?.label ?? "", Boolean(action?.disabled), action?.secondaryLabel ?? ""]);
+  return JSON.stringify([action?.label ?? "", Boolean(action?.disabled), action?.secondaryLabel ?? "", action?.note ?? ""]);
 }
 
 /**
@@ -567,6 +571,21 @@ export function createSessionController({
     }
     if (String(session.status).toLowerCase() === "full" || Number(session.slotsRemaining) <= 0) {
       return { label: "已額滿", disabled: true };
+    }
+    const viewerNtrp = Number(state.profile?.ntrpValue);
+    const hasViewerNtrp = state.profile?.ntrpValue != null && Number.isFinite(viewerNtrp);
+    if (state.authSession && !hasViewerNtrp && state.profile?.ntrp === false) {
+      return { label: "申請加入", note: "尚未填寫程度；補填 NTRP 可先確認是否符合球局範圍，仍可直接送出申請。" };
+    }
+    const sessionMin = Number(session.ntrpMin);
+    const sessionMax = Number(session.ntrpMax);
+    const hasSessionRange =
+      session.ntrpMin != null &&
+      session.ntrpMax != null &&
+      Number.isFinite(sessionMin) &&
+      Number.isFinite(sessionMax);
+    if (hasViewerNtrp && hasSessionRange && (viewerNtrp < sessionMin || viewerNtrp > sessionMax)) {
+      return { label: "申請加入", note: "你的 NTRP 不在球局設定的 NTRP 範圍內，仍可送出申請由主揪審核。" };
     }
     if (String(session.joinMode) === "instant") return { label: "直接加入" };
     return { label: "申請加入" };
@@ -876,6 +895,7 @@ export function createSessionController({
     let detail = null;
     detail = openSession(session, {
       action,
+      courts: state.courts,
       onPrimary: () => startPrimaryAction(session, detail),
       canReport: Boolean(state.authSession && profileIsReady(state.profile)),
       onReport: () => openSessionReport(session.sessionId),
@@ -914,7 +934,7 @@ export function createSessionController({
     activePlayerCard = null;
     const sessions = onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
     closeActiveCourtDrawer({ restoreFocus: false });
-    const drawer = openCourtDrawer(court, sessions, { onOpenSession: openSessionById });
+    const drawer = openCourtDrawer(court, sessions, { courts: state.courts, onOpenSession: openSessionById });
     activeCourtDrawer = drawer?.close ? drawer : null;
   }
 
@@ -1117,6 +1137,7 @@ export function createSessionController({
     closeActiveJoinConfirmation();
     let confirmation = null;
     confirmation = openJoinConfirmation(session, {
+      courts: state.courts,
       onClose: ({ reason = "dismiss" } = {}) => {
         if (activeJoinConfirmation === confirmation) {
           activeJoinConfirmation = null;
