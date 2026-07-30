@@ -98,13 +98,20 @@ function profileIsPublic(eligibility) {
   return eligibility?.isPublic === true;
 }
 
-function profileReadiness(eligibility) {
+function profileReadiness(eligibility, level = null) {
+  if (level === "directory" && eligibility?.directoryStatus === "loading") return "loading";
+  if (level === "directory" && eligibility?.directoryStatus === "error") return "error";
   if (eligibility?.status === "loading") return "loading";
   if (eligibility?.status === "error") return "error";
   return "ready";
 }
 
-function profileUnavailableMessage(readiness) {
+function profileUnavailableMessage(readiness, level = null) {
+  if (level === "directory") {
+    return readiness === "loading"
+      ? "正在讀取球場資料，請稍候。"
+      : "球場資料暫時無法載入，請稍後再試。";
+  }
   return readiness === "loading"
     ? "正在讀取個人檔案，請稍候。"
     : "個人檔案暫時無法載入，請重新整理後再試。";
@@ -1148,12 +1155,12 @@ export function createSessionController({
       });
       return;
     }
-    const readiness = profileReadiness(state.profile);
+    const requiredGate = profileGateForIntent(savedIntent);
+    const readiness = profileReadiness(state.profile, requiredGate);
     if (readiness !== "ready") {
-      toast(profileUnavailableMessage(readiness));
+      toast(profileUnavailableMessage(readiness, requiredGate));
       return;
     }
-    const requiredGate = profileGateForIntent(savedIntent);
     if (requiredGate && !profileMeetsGate(state.profile, requiredGate)) {
       openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
       return;
@@ -1566,9 +1573,9 @@ export function createSessionController({
       }
 
       if (intent.action === "players") {
-        const readiness = profileReadiness(state.profile);
+        const readiness = profileReadiness(state.profile, "directory");
         if (readiness !== "ready") {
-          if (readiness === "error") toast(profileUnavailableMessage(readiness));
+          toast(profileUnavailableMessage(readiness, "directory"));
           return false;
         }
         if (!profileMeetsGate(state.profile, "directory")) {
@@ -1581,9 +1588,9 @@ export function createSessionController({
       }
 
       if (intent.action === "visibility") {
-        const readiness = profileReadiness(state.profile);
+        const readiness = profileReadiness(state.profile, "directory");
         if (readiness !== "ready") {
-          if (readiness === "error") toast(profileUnavailableMessage(readiness));
+          toast(profileUnavailableMessage(readiness, "directory"));
           return false;
         }
         if (!profileMeetsGate(state.profile, "directory")) {

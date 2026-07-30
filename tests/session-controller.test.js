@@ -2291,6 +2291,20 @@ test("a nickname-only profile is prompted for NTRP instead of opening the create
   assert.equal(harness.createSheets.length, 0);
 });
 
+test("a directory action waits for the court catalogue instead of opening profile completion", async () => {
+  const harness = createHarness();
+  await harness.controller.setAuthState(
+    { user: { id: "directory-catalogue-loading" } },
+    { directory: false, directoryStatus: "loading", nickname: true, ntrp: true }
+  );
+
+  await harness.controller.togglePlayerLayer();
+
+  assert.deepEqual(harness.toasts, ["正在讀取球場資料，請稍候。"]);
+  assert.equal(harness.profilePrompts.length, 0);
+  assert.equal(harness.controller.getPlayerLayerState().on, false);
+});
+
 test("the production controller consumes explicit gates instead of a legacy complete flag", async () => {
   const prompts = [];
   const controller = createSessionController({

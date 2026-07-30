@@ -334,13 +334,12 @@ test("directory eligibility requires a stored court and validates it when the Ta
   );
 });
 
-test("directory eligibility preserves a previously validated stored court while the catalogue is unavailable", () => {
+test("directory eligibility stays unavailable while the court catalogue is not ready", () => {
   const profile = { courts: new Set(["測試球場"]), lineId: "", nick: "離線目錄球友", ntrp: 3.5 };
+  const eligibility = eligibilityFromPrivateProfile(profile, { courts: [], courtsReady: false });
 
-  assert.equal(
-    eligibilityFromPrivateProfile(profile, { courts: [], courtsReady: false }).directory,
-    true
-  );
+  assert.equal(eligibility.directory, false);
+  assert.equal(eligibility.directoryStatus, "loading");
 });
 
 test("player presence mapper keeps the exact reciprocal-directory allowlist", () => {

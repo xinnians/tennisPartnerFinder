@@ -764,8 +764,8 @@ async function loadCourtsImmediately() {
     renderBaseCourtPins();
   } catch {
     courts = [];
-    courtsReady = true;
-    controller.setCourts([], { ready: true });
+    courtsReady = false;
+    controller.setCourts([], { ready: false });
     if (authSession && profileLoadStatus === "ready") {
       await controller.setAuthState(authSession, eligibilityFromPrivateProfile(currentProfile, { courts, courtsReady }));
     }

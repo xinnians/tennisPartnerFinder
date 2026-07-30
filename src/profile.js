@@ -21,14 +21,16 @@ export function eligibilityFromPrivateProfile(
       .filter((court) => court?.city === "台北市")
       .flatMap((court) => [String(court?.id ?? ""), String(court?.name ?? "")])
   );
-  const catalogueReady = courtsReady && availableCourts.length > 0;
+  const directoryStatus = courtsReady ? "ready" : "loading";
   const directory =
     ntrp &&
     selectedCourts.size > 0 &&
-    (!catalogueReady || [...selectedCourts].some((court) => activeTaipeiCourts.has(String(court))));
+    directoryStatus === "ready" &&
+    [...selectedCourts].some((court) => activeTaipeiCourts.has(String(court)));
 
   return {
     directory,
+    directoryStatus,
     isPublic: profile?.isPublic === true,
     nickname,
     ntrp,
