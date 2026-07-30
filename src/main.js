@@ -379,6 +379,11 @@ function renderFilters(filters) {
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+  document.querySelectorAll(".chip-venue").forEach((button) => {
+    const selected = filters.venueTypes.has(button.dataset.venueType);
+    button.classList.toggle("is-active", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
   document.querySelectorAll("[data-band]").forEach((button) => {
     const selected = button.dataset.band === filters.band;
     button.classList.toggle("is-active", selected);
@@ -758,6 +763,17 @@ function wireFilters() {
       );
       selected.has(button.dataset.type) ? selected.delete(button.dataset.type) : selected.add(button.dataset.type);
       controller.setFilter("types", selected);
+    });
+  });
+  document.querySelectorAll(".chip-venue").forEach((button) => {
+    button.addEventListener("click", () => {
+      const selected = new Set(
+        [...document.querySelectorAll(".chip-venue.is-active")].map((node) => node.dataset.venueType)
+      );
+      selected.has(button.dataset.venueType)
+        ? selected.delete(button.dataset.venueType)
+        : selected.add(button.dataset.venueType);
+      controller.setFilter("venueTypes", selected);
     });
   });
 }

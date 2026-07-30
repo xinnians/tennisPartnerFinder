@@ -96,15 +96,19 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.getByTestId("player-layer-toggle")).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示球友");
   await expect(page.locator(".chip-type").first()).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".chip-venue").first()).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "true");
   await page.locator(".chip-type[data-type='單打']").click();
   await expect(page.locator(".chip-type[data-type='單打']")).toHaveAttribute("aria-pressed", "true");
+  await page.locator(".chip-venue[data-venue-type='candidates']").click();
+  await expect(page.locator(".chip-venue[data-venue-type='candidates']")).toHaveAttribute("aria-pressed", "true");
   await page.locator("#level-chip").click();
   await page.locator("#band-options [data-band='mid']").click();
   await expect(page.locator("#band-options [data-band='mid']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "false");
   await page.locator("#filters-reset").click();
   await expect(page.locator(".chip-type[data-type='單打']")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".chip-venue[data-venue-type='candidates']")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(0);
 

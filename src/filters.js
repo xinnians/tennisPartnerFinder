@@ -18,6 +18,7 @@ export const DEFAULT_FILTER_STATE = {
   date: null,
   band: "all",
   types: new Set(),
+  venueTypes: new Set(),
 };
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
@@ -94,12 +95,20 @@ function matchesTypes(session, types) {
   return chosen.size === 0 || chosen.has(session.playType);
 }
 
+function matchesVenueTypes(session, venueTypes) {
+  const chosen = selectedTypes(venueTypes);
+  return chosen.size === 0 || chosen.has(String(session.venueType ?? "booked"));
+}
+
 function isDiscoverableSession(session, now) {
   const startAt = toDate(session.startAt);
   const current = toDate(now) ?? new Date();
+  const undecidedCandidate = String(session?.venueType) === "candidates" && !Boolean(session?.decidedAt);
   return (
     Boolean(startAt) &&
-    startAt.getTime() > current.getTime() - NOW_START_DISCOVERY_WINDOW_MS &&
+    (undecidedCandidate
+      ? startAt.getTime() > current.getTime()
+      : startAt.getTime() > current.getTime() - NOW_START_DISCOVERY_WINDOW_MS) &&
     (session.status === "open" || session.status === "full")
   );
 }
@@ -120,7 +129,8 @@ export function filterSessions(sessions, filters = DEFAULT_FILTER_STATE, now = n
       matchesCourt(session, state.courtId) &&
       matchesDate(session, state.date) &&
       matchesBand(session, state.band) &&
-      matchesTypes(session, state.types)
+      matchesTypes(session, state.types) &&
+      matchesVenueTypes(session, state.venueTypes)
   );
 }
 

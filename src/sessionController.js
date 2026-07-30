@@ -3,7 +3,11 @@ import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "./f
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
 
 function cloneFilters() {
-  return { ...DEFAULT_FILTER_STATE, types: new Set(DEFAULT_FILTER_STATE.types) };
+  return {
+    ...DEFAULT_FILTER_STATE,
+    types: new Set(DEFAULT_FILTER_STATE.types),
+    venueTypes: new Set(DEFAULT_FILTER_STATE.venueTypes),
+  };
 }
 
 function cloneBounds(bounds) {
@@ -808,7 +812,9 @@ export function createSessionController({
   }
 
   function setFilter(key, value) {
-    if (key === "types") state.filters.types = value instanceof Set ? new Set(value) : new Set(value ?? []);
+    if (DEFAULT_FILTER_STATE[key] instanceof Set) {
+      state.filters[key] = value instanceof Set ? new Set(value) : new Set(value ?? []);
+    }
     else state.filters[key] = value;
     publish();
   }

@@ -601,6 +601,39 @@ test("session filters use Taipei local date, range overlap, and preserve source 
   assert.deepEqual(allUpcoming.map((item) => item.sessionId), [1, 2, 3, 6]);
 });
 
+test("venue filters are multi-select and an undecided candidate disappears at its range start", () => {
+  const now = new Date("2026-07-18T02:00:00.000Z");
+  const sessions = [
+    session({
+      decidedAt: "",
+      sessionId: 21,
+      startAt: "2026-07-18T01:59:00.000Z",
+      venueType: "candidates",
+    }),
+    session({
+      decidedAt: "2026-07-17T08:00:00.000Z",
+      sessionId: 22,
+      startAt: "2026-07-18T01:59:00.000Z",
+      venueType: "candidates",
+    }),
+    session({ sessionId: 23, startAt: "2026-07-18T01:59:00.000Z", venueType: "booked" }),
+    session({ sessionId: 24, startAt: "2026-07-18T03:00:00.000Z", venueType: "walk_on" }),
+  ];
+  const base = { band: "all", courtId: null, date: null, district: "", types: new Set() };
+
+  assert.deepEqual(
+    filterSessions(sessions, { ...base, venueTypes: new Set() }, now).map((item) => item.sessionId),
+    [22, 23, 24],
+    "only undecided candidates use the strict start-at window"
+  );
+  assert.deepEqual(
+    filterSessions(sessions, { ...base, venueTypes: new Set(["candidates", "walk_on"]) }, now).map(
+      (item) => item.sessionId
+    ),
+    [22, 24]
+  );
+});
+
 test("drawer sorting places ongoing sessions with vacancies ahead of distance and start time", () => {
   const now = new Date("2026-07-17T00:00:00.000Z");
   const sessions = [

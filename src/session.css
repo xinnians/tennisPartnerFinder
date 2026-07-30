@@ -58,6 +58,7 @@
 .session-secondary,
 .filters-reset,
 .chip-type,
+.chip-venue,
 .filter-chip,
 .band-option {
   min-height: 38px;
@@ -120,11 +121,14 @@
 
 .filter-chip,
 .chip-type,
+.chip-venue,
 .filters-reset { padding: 0 10px; background: var(--mist); color: var(--navy); white-space: nowrap; }
 .chip-type.is-active,
+.chip-venue.is-active,
 .filter-chip.is-active,
 .band-option.is-active { background: var(--blue); color: #fff; }
-.type-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.type-chips,
+.venue-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .filters-reset { background: transparent; color: var(--blue); }
 
 .level-popover {
@@ -454,8 +458,10 @@
   .filter-control--date { min-width: calc(33.333% - 5px); }
   .filter-chip,
   .chip-type,
+  .chip-venue,
   .filters-reset { min-height: 32px; padding: 0 8px; font-size: 12px; }
-  .type-chips { flex: 1 1 auto; }
+  .type-chips,
+  .venue-chips { flex: 1 1 auto; }
   .level-popover { top: 148px; left: 10px; }
   .nearby-sessions { right: 12px; bottom: calc(12px + var(--bottom-navigation-offset)); width: calc(100% - 24px); border-radius: 17px; }
   .nearby-sessions__toggle { min-height: 70px; padding: 11px 13px; }

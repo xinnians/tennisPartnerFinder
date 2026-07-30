@@ -1792,6 +1792,24 @@ test("base-court drawers receive the same locally filtered session set as pins a
   assert.deepEqual(harness.courtDrawers.at(-1).sessions.map((item) => item.sessionId), [1]);
 });
 
+test("venue filter Sets are cloned on input and every reset starts from an unpolluted default", async () => {
+  const harness = createHarness();
+  await harness.controller.loadDiscovery();
+  const callerOwned = new Set(["candidates"]);
+
+  harness.controller.setFilter("venueTypes", callerOwned);
+  callerOwned.add("booked");
+  assert.deepEqual([...harness.renders.at(-1).filters.venueTypes], ["candidates"]);
+
+  harness.controller.resetFilters();
+  const firstReset = harness.renders.at(-1).filters.venueTypes;
+  assert.deepEqual([...firstReset], []);
+  firstReset.add("walk_on");
+
+  harness.controller.resetFilters();
+  assert.deepEqual([...harness.renders.at(-1).filters.venueTypes], []);
+});
+
 test("an anonymous Join intent restores the same target into confirmation without sending a request", async () => {
   const intentStore = createIntentStore();
   let targetLoads = 0;
