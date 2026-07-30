@@ -1164,7 +1164,7 @@ test("drawer, filters, session sheet, and empty reset preserve the session-only 
   const fieldOrder = await sheet.locator("[data-session-field], [data-session-action]").evaluateAll((nodes) =>
     nodes.map((node) => node.getAttribute("data-session-field") ?? node.getAttribute("data-session-action"))
   );
-  expect(fieldOrder).toEqual(["court", "time", "details", "host", "notes", "copy-link", "primary"]);
+  expect(fieldOrder).toEqual(["venue", "court", "time", "details", "host", "notes", "copy-link", "primary"]);
   await expectWithinViewport(page, sheet);
 
   await page.keyboard.press("Escape");

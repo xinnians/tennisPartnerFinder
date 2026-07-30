@@ -9,6 +9,8 @@ export const COURTS = [
   { id: 104, name: "彩虹河濱公園網球場", city: "台北市", district: "內湖區", lat: 25.062687, lng: 121.571815 },
   { id: 105, name: "百齡河濱公園網球場", city: "台北市", district: "士林區", lat: 25.08896, lng: 121.512494 },
   { id: 106, name: "青年公園網球場", city: "台北市", district: "萬華區", lat: 25.02306, lng: 121.506928 },
+  { id: 107, name: "實踐大學網球場", city: "台北市", district: "中山區", lat: 25.084586, lng: 121.545608 },
+  { id: 108, name: "新生公園網球場", city: "台北市", district: "中山區", lat: 25.068495, lng: 121.531745 },
 ];
 
 // Local-only player-directory examples. They are fictional and deliberately
@@ -240,11 +242,11 @@ export const MOCK_SESSIONS = [
   {
     sessionId: 9007,
     sportCode: "tennis",
-    courtId: 101,
-    court: "台北網球中心",
-    courtDistrict: "內湖區",
-    courtLat: 25.067446,
-    courtLng: 121.596648,
+    courtId: 107,
+    court: "實踐大學網球場",
+    courtDistrict: "中山區",
+    courtLat: 25.084586,
+    courtLng: 121.545608,
     startAt: futureStartAt(7, 1),
     playType: "對拉",
     ntrpMin: 3,
@@ -266,11 +268,11 @@ export const MOCK_SESSIONS = [
   {
     sessionId: 9008,
     sportCode: "tennis",
-    courtId: 103,
-    court: "古亭河濱公園網球場",
-    courtDistrict: "中正區",
-    courtLat: 25.019024,
-    courtLng: 121.522689,
+    courtId: 108,
+    court: "新生公園網球場",
+    courtDistrict: "中山區",
+    courtLat: 25.068495,
+    courtLng: 121.531745,
     startAt: futureStartAt(8, 2),
     playType: "雙打",
     ntrpMin: 2.5,
