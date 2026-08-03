@@ -388,8 +388,9 @@
 .notification-settings__fieldset { display: grid; gap: 8px; margin: 0; padding: 11px; border: 1px solid var(--line); border-radius: 10px; }
 .notification-settings__fieldset legend { padding: 0 4px; color: var(--navy); font-size: 14px; font-weight: 900; }
 .notification-settings__fieldset label { display: flex; align-items: center; gap: 7px; color: var(--navy); font-size: 14px; font-weight: 700; }
-.notification-settings__districts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-@media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } .notification-settings__districts { grid-template-columns: 1fr; } }
+.notification-settings__court-select { width: 100%; min-height: 118px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--navy); }
+.notification-settings__migration { margin: 0; padding: 9px 10px; border-radius: 9px; background: #fff6d8; color: #6d4a00; font-size: 13px; font-weight: 800; }
+@media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } }
 .blocked-player-settings { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
 .blocked-player-settings h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .blocked-player-settings .form-hint,

@@ -46,7 +46,6 @@ import {
   respondToSessionInvite,
   saveCourtSubscriptions,
   saveCurrentProfile,
-  saveDistrictSubscriptions,
   saveNotificationPreferences,
   savePushSubscription,
   signInWithOAuthProvider,
@@ -276,6 +275,7 @@ async function updateOpenToGreetingSetting(open) {
 
 function defaultNotificationSettings() {
   return {
+    courtIds: [],
     districts: [],
     errorMessage: "",
     prefs: {
@@ -482,7 +482,7 @@ function captureMySessionsFocus(root) {
   if (active.matches("[data-retry-contacts]")) return { kind: "retry-contacts" };
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
   if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
-  if (active.matches("[data-notification-district]")) return { kind: "notification-district", district: active.value };
+  if (active.matches("[data-notification-courts]")) return { kind: "notification-courts" };
   if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
   if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches("[data-open-my-session]")) return { kind: "open-session", sessionId: active.dataset.sessionId };
@@ -511,9 +511,7 @@ function resolveMySessionsFocus(root, focus) {
       (input) => input.dataset.notificationPref === focus.preference
     );
   }
-  if (focus.kind === "notification-district") {
-    return [...root.querySelectorAll("[data-notification-district]")].find((input) => input.value === focus.district);
-  }
+  if (focus.kind === "notification-courts") return root.querySelector("[data-notification-courts]");
   if (focus.kind === "presence-sharing") return root.querySelector("[data-set-presence-sharing]");
   if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
   if (focus.kind === "open-session") {
@@ -566,10 +564,15 @@ async function refreshNotificationSettings() {
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) return false;
   try {
-    const [prefs, districts] = await Promise.all([loadNotificationPreferences(), loadDistrictSubscriptions()]);
+    const [prefs, districts, courtIds] = await Promise.all([
+      loadNotificationPreferences(),
+      loadDistrictSubscriptions(),
+      loadCourtSubscriptions(),
+    ]);
     if (!notificationRequestIsCurrent({ epoch, identity })) return false;
     notificationSettings = {
       ...notificationSettings,
+      courtIds,
       districts,
       errorMessage: "",
       prefs,
@@ -602,16 +605,23 @@ async function updateNotificationPreferences(preferences) {
   toast("通知偏好已儲存。");
 }
 
-async function updateDistrictSubscriptions(districts) {
+async function updateCourtSubscriptions(courtIds) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
   if (!identity || !authSession) throw new Error("請先登入後再調整通知設定。");
-  const nextDistricts = [...new Set((Array.isArray(districts) ? districts : []).filter((district) => typeof district === "string"))];
-  await saveDistrictSubscriptions(nextDistricts);
+  const nextCourtIds = [
+    ...new Set(
+      (Array.isArray(courtIds) ? courtIds : [])
+        .map(Number)
+        .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
+    ),
+  ];
+  if (nextCourtIds.length > 10) throw new Error("最多只能訂閱 10 座球場。");
+  await saveCourtSubscriptions(nextCourtIds);
   if (!notificationRequestIsCurrent({ epoch, identity })) return;
-  notificationSettings = { ...notificationSettings, districts: nextDistricts, errorMessage: "" };
+  notificationSettings = { ...notificationSettings, courtIds: nextCourtIds, errorMessage: "" };
   rerenderVisibleNotificationSettings();
-  toast("行政區訂閱已儲存。");
+  toast("球場訂閱已儲存。");
 }
 
 async function enablePushNotifications() {
@@ -658,6 +668,7 @@ function renderMySessionsDestination() {
     blockedPlayers: state.blockedPlayers,
     blockedPlayersError: state.blockedPlayersError,
     blockedPlayersStatus: state.blockedPlayersStatus,
+    courts,
     createdSessionId,
     errorMessage: state.error,
     groups: state.groups,
@@ -687,7 +698,7 @@ function renderMySessionsDestination() {
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     onSignOut: handleSignOut,
-    onSaveDistrictSubscriptions: updateDistrictSubscriptions,
+    onSaveCourtSubscriptions: updateCourtSubscriptions,
     onSaveNotificationPreferences: updateNotificationPreferences,
     onSetOpenToGreeting: updateOpenToGreetingSetting,
     onSetPresenceSharing: updatePresenceSharing,
@@ -807,6 +818,7 @@ async function loadCourtsImmediately() {
     }
     populateCourtFilters(courts);
     renderBaseCourtPins();
+    if (activePage === "my-sessions") renderMySessionsDestination();
   } catch {
     courts = [];
     courtsReady = false;
@@ -815,6 +827,7 @@ async function loadCourtsImmediately() {
     if (authSession && profileLoadStatus === "ready") {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
+    if (activePage === "my-sessions") renderMySessionsDestination();
     toast("球場資料暫時無法載入。");
   }
 }

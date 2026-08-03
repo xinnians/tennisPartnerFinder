@@ -1,5 +1,4 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
-import { TAIPEI_DISTRICTS } from "./districts.js";
 import { pushDrawerIsolation } from "./modalIsolation.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
@@ -826,9 +825,12 @@ function runMySessionAction(button, callback, root) {
 function normalizedNotificationSettings(settings = {}) {
   const preferences = settings?.prefs ?? {};
   return {
-    districts: new Set(
-      (Array.isArray(settings?.districts) ? settings.districts : []).filter((district) => TAIPEI_DISTRICTS.includes(district))
+    courtIds: new Set(
+      (Array.isArray(settings?.courtIds) ? settings.courtIds : [])
+        .map(Number)
+        .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
     ),
+    districts: new Set((Array.isArray(settings?.districts) ? settings.districts : []).filter((district) => typeof district === "string")),
     errorMessage: typeof settings?.errorMessage === "string" ? settings.errorMessage : "",
     prefs: {
       guestInvitedEnabled: preferences.guestInvitedEnabled !== false,
@@ -931,6 +933,7 @@ export function renderMySessionsPage(
     blockedPlayers = [],
     blockedPlayersError = "",
     blockedPlayersStatus = "idle",
+    courts = [],
     createdSessionId = null,
     groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
     onAccept = () => {},
@@ -952,7 +955,7 @@ export function renderMySessionsPage(
     onReportSession = () => {},
     onSignIn = () => {},
     onSignOut = () => {},
-    onSaveDistrictSubscriptions = () => {},
+    onSaveCourtSubscriptions = () => {},
     onSaveNotificationPreferences = () => {},
     onSetOpenToGreeting = () => {},
     onSetPresenceSharing = () => {},
@@ -974,6 +977,9 @@ export function renderMySessionsPage(
   const notification = normalizedNotificationSettings(notificationSettings);
   const presence = normalizedPresenceSettings(presenceSettings);
   const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
+  const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
+    (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
+  );
   setMySessionActionScope(root, actionScopeKey);
   root.innerHTML = `
     <div class="my-sessions-shell__head">
@@ -1048,14 +1054,24 @@ export function renderMySessionsPage(
         }> 收到球局邀請</label>
       </fieldset>
       <fieldset class="notification-settings__fieldset">
-        <legend>訂閱行政區的新球局</legend>
-        <p class="form-hint">可複選；未勾選的行政區不會收到新球局通知。</p>
-        <div class="notification-settings__districts">${TAIPEI_DISTRICTS.map(
-          (district) =>
-            `<label><input type="checkbox" value="${esc(district)}" data-notification-district data-notification-control data-testid="notification-district-${esc(
-              district
-            )}"${notification.districts.has(district) ? " checked" : ""}> ${esc(district)}</label>`
-        ).join("")}</div>
+        <legend>訂閱球場的新球局</legend>
+        <p class="form-hint">可複選，最多 10 座；只有所選球場的新球局會通知你。</p>
+        ${
+          notification.districts.size > 0 && notification.courtIds.size === 0
+            ? '<p class="notification-settings__migration" data-testid="court-subscription-migration">你原本訂閱的是行政區；請重新選擇最多 10 座球場，才能繼續收到新球局通知。</p>'
+            : ""
+        }
+        <select class="notification-settings__court-select" data-notification-courts data-notification-control
+          data-testid="notification-court-subscriptions" aria-label="訂閱球場" multiple size="4"${
+            notificationCourts.length ? "" : " disabled"
+          }>${notificationCourts
+            .map(
+              (court) => `<option value="${esc(court.id)}"${notification.courtIds.has(Number(court.id)) ? " selected" : ""}>${esc(
+                court.name
+              )} · ${esc(court.district || "台北市")}</option>`
+            )
+            .join("")}</select>
+        ${notificationCourts.length ? "" : '<p class="form-hint" role="status">球場資料尚未就緒，請稍候。</p>'}
       </fieldset>
     </section>
     <section class="blocked-player-settings" aria-labelledby="blocked-player-settings-title">
@@ -1151,17 +1167,25 @@ export function renderMySessionsPage(
       });
     });
   });
-  root.querySelectorAll("[data-notification-district]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const districts = [...root.querySelectorAll("[data-notification-district]")]
-        .filter((checkbox) => checkbox.checked)
-        .map((checkbox) => checkbox.value);
-      void runNotificationSettingAction(root, () => onSaveDistrictSubscriptions(districts)).then((saved) => {
-        if (saved) return;
-        root.querySelectorAll("[data-notification-district]").forEach((checkbox) => {
-          checkbox.checked = notification.districts.has(checkbox.value);
-        });
+  const courtSubscriptions = root.querySelector("[data-notification-courts]");
+  courtSubscriptions?.addEventListener("change", () => {
+    const courtIds = [...courtSubscriptions.selectedOptions].map((option) => Number(option.value));
+    const restoreCourtSelection = () => {
+      [...courtSubscriptions.options].forEach((option) => {
+        option.selected = notification.courtIds.has(Number(option.value));
       });
+    };
+    if (courtIds.length > 10) {
+      restoreCourtSelection();
+      const error = root.querySelector("[data-notification-error]");
+      if (error) {
+        error.textContent = "最多只能訂閱 10 座球場。";
+        error.hidden = false;
+      }
+      return;
+    }
+    void runNotificationSettingAction(root, () => onSaveCourtSubscriptions(courtIds)).then((saved) => {
+      if (!saved) restoreCourtSelection();
     });
   });
   root.querySelector("[data-set-presence-sharing]")?.addEventListener("click", () => {
