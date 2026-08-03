@@ -1706,7 +1706,7 @@ test("SESSION_EXPIRED player invitation refreshes choices and renders an inline 
       api: {
         inviteToSession: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
         loadMySessions: async () => (++mySessionLoads === 1 ? [hostSession] : []),
-        loadPlayerDirectory: async () => [player],
+        loadPlayerPresenceDirectory: async () => [player],
       },
       openCourtPlayersDrawer: views.openCourtPlayersDrawer,
       openPlayerCard: views.openPlayerCardSheet,
@@ -1822,7 +1822,8 @@ test("the login modal titles each gate entry point instead of always naming a jo
   for (const [action, title] of [
     ["join", "登入以申請加入球局"],
     ["create", "登入以開球局"],
-    ["players", "登入以查看球友"],
+    ["players", "登入以查看在線球友"],
+    ["directory", "登入以查看球友名單"],
     ["my-sessions", "登入以查看你的球局"],
     [null, "登入以繼續"],
   ]) {
@@ -2023,6 +2024,15 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.evaluate(async () => {
     const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
     openProfileCompletionSheet({ intent: { action: "players" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
+  });
+  await expect(page.locator("#profile-completion-sheet")).toContainText(
+    "要查看在線球友，請填寫公開暱稱與 NTRP（1.0–7.0）。"
+  );
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({ intent: { action: "directory" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
   });
   await expect(page.locator("#profile-completion-sheet")).toContainText(
     "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。"
