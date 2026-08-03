@@ -271,6 +271,7 @@ function createHarness(overrides = {}) {
   const confirmations = [];
   const courtDrawers = [];
   const playerDrawers = [];
+  const playerDirectories = [];
   const playerCards = [];
   const playerRenders = [];
   const createSheets = [];
@@ -314,6 +315,13 @@ function createHarness(overrides = {}) {
     openCourtPlayersDrawer: (court, players, handlers) => {
       const detail = createSurface();
       playerDrawers.push({ court, detail, handlers, players });
+      return detail;
+    },
+    openPlayerDirectoryList: (handlers) => {
+      const detail = createSurface(handlers.onClose);
+      detail.directoryUpdates = [];
+      detail.setDirectory = (state) => detail.directoryUpdates.push(state);
+      playerDirectories.push({ detail, handlers });
       return detail;
     },
     openPlayerCard: (player, handlers) => {
@@ -383,6 +391,7 @@ function createHarness(overrides = {}) {
     opened,
     pinBatches,
     playerCards,
+    playerDirectories,
     playerDrawers,
     playerRenders,
     profilePrompts,
@@ -2310,12 +2319,19 @@ test("replacing a login surface keeps its pending intent, while a dismissal clea
   assert.equal(intentStore.value(), null);
 });
 
-test("player layer uses the existing anonymous and incomplete-profile intent gate and resumes automatically", async () => {
+test("online layer uses the NTRP gate, reads only reciprocal presence, and resumes automatically", async () => {
   const anonymousIntent = createIntentStore();
+  const presenceLoads = [];
   const anonymous = createHarness({
     intentStore: anonymousIntent,
     api: {
-      loadPlayerDirectory: async () => [{ profileId: 8, courtId: 3, courtName: "河濱球場", courtDistrict: "中山區", courtLat: 25.1, courtLng: 121.5 }],
+      loadPlayerDirectory: async () => {
+        throw new Error("the online layer must not read player_directory");
+      },
+      loadPlayerPresenceDirectory: async (input) => {
+        presenceLoads.push(input);
+        return [{ profileId: 8, courtId: 3, courtName: "河濱球場", courtDistrict: "中山區", courtLat: 25.1, courtLng: 121.5 }];
+      },
     },
   });
 
@@ -2324,15 +2340,18 @@ test("player layer uses the existing anonymous and incomplete-profile intent gat
   assert.equal(anonymous.loginPrompts.length, 1);
   assert.equal(anonymous.controller.getPlayerLayerState().on, false);
 
-  await anonymous.controller.setAuthState({ user: { id: "player-a" } }, { directory: true, nickname: true, ntrp: true });
+  await anonymous.controller.setAuthState({ user: { id: "player-a" } }, { directory: false, nickname: true, ntrp: true });
   assert.equal(anonymous.playerRenders.at(-1)?.on, true);
   assert.deepEqual(anonymous.playerRenders.at(-1)?.groups.map((group) => group.players.map((player) => player.profileId)), [[8]]);
+  assert.equal(presenceLoads.length, 1);
+  assert.ok(presenceLoads[0]?.bounds, "the online layer keeps its viewport-bounded presence query");
+  assert.equal(anonymous.profilePrompts.length, 0, "a missing directory court does not block the NTRP-level online layer");
   assert.equal(anonymousIntent.value(), null, "a successfully resumed layer does not replay on every auth refresh");
 
   const incompleteIntent = createIntentStore();
   const incomplete = createHarness({
     intentStore: incompleteIntent,
-    api: { loadPlayerDirectory: async () => [] },
+    api: { loadPlayerPresenceDirectory: async () => [] },
   });
   await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { directory: false, nickname: false, ntrp: false });
   await incomplete.controller.togglePlayerLayer?.();
@@ -2340,20 +2359,16 @@ test("player layer uses the existing anonymous and incomplete-profile intent gat
   assert.equal(incomplete.profilePrompts.length, 1);
   assert.deepEqual(incomplete.profilePrompts[0].intent, { action: "players" });
 
-  await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { directory: true, nickname: true, ntrp: true });
+  await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { directory: false, nickname: true, ntrp: true });
   assert.equal(incomplete.playerRenders.at(-1)?.on, true);
   assert.equal(incompleteIntent.value(), null);
 });
 
-test("player layer puts reciprocal presence rows first and carries an on-court count to the pin", async () => {
+test("online layer groups only reciprocal presence rows and carries their count to the pin", async () => {
   const harness = createHarness({
     api: {
-      loadPlayerDirectory: async () => [
-        { profileId: 8001, nickname: "靜態同名", courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648 },
-        { profileId: 8002, nickname: "常打球友", courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648 },
-      ],
       loadPlayerPresenceDirectory: async () => [
-        { profileId: 8001, nickname: "在場球友", ntrp: 3.5, openToGreeting: true, courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648, minutesAgo: 2, isSelf: false },
+        { profileId: 8001, nickname: "在線球友", ntrp: 3.5, openToGreeting: true, courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648, minutesAgo: 2, isSelf: false },
       ],
     },
   });
@@ -2363,24 +2378,108 @@ test("player layer puts reciprocal presence rows first and carries an on-court c
 
   const group = harness.controller.getPlayerLayerState().groups[0];
   assert.equal(group.presenceCount, 1);
-  assert.deepEqual(group.players.map((player) => player.profileId), [8001, 8002]);
+  assert.deepEqual(group.players.map((player) => player.profileId), [8001]);
   assert.equal(group.players[0].isPresent, true);
   assert.equal(group.players[0].minutesAgo, 2);
   assert.equal(group.players[0].openToGreeting, true);
 });
 
-test("player directory latest bounds wins and off, signout, and API errors cannot publish stale authorized data", async () => {
+test("player directory loads without bounds, aggregates home courts, and puts online profiles first", async () => {
+  const directoryCalls = [];
+  const presenceCalls = [];
+  const harness = createHarness({
+    api: {
+      loadPlayerDirectory: async (...args) => {
+        directoryCalls.push(args);
+        return [
+          {
+            profileId: 8002,
+            nickname: "離線球友",
+            ntrp: 4,
+            playTypes: ["雙打"],
+            slotCodes: ["we-a"],
+            courtId: 102,
+            courtName: "第二球場",
+            courtDistrict: "中山區",
+            isSelf: false,
+          },
+          {
+            profileId: 8001,
+            nickname: "在線球友",
+            ntrp: 3.5,
+            playTypes: ["單打"],
+            slotCodes: ["we-m"],
+            courtId: 101,
+            courtName: "第一球場",
+            courtDistrict: "內湖區",
+            isSelf: true,
+          },
+          {
+            profileId: 8001,
+            nickname: "在線球友",
+            ntrp: 3.5,
+            playTypes: ["單打"],
+            slotCodes: ["we-m"],
+            courtId: 103,
+            courtName: "第三球場",
+            courtDistrict: "大安區",
+            isSelf: true,
+          },
+        ];
+      },
+      loadPlayerPresenceDirectory: async (...args) => {
+        presenceCalls.push(args);
+        return [{ profileId: 8001, minutesAgo: 3, openToGreeting: true }];
+      },
+    },
+  });
+  await harness.controller.setAuthState(
+    { user: { id: "directory-viewer" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
+
+  const opened = harness.controller.openPlayerDirectory();
+  await opened;
+
+  assert.deepEqual(directoryCalls, [[]], "the list loads all Taipei directory rows without map bounds");
+  assert.deepEqual(presenceCalls, [[]], "online badges use the all-Taipei reciprocal presence snapshot");
+  const updates = harness.playerDirectories.at(-1).detail.directoryUpdates;
+  assert.equal(updates[0].status, "loading");
+  assert.equal(updates.at(-1).status, "ready");
+  assert.deepEqual(updates.at(-1).players.map((player) => player.profileId), [8001, 8002]);
+  assert.deepEqual(updates.at(-1).players[0].courtNames, ["第一球場", "第三球場"]);
+  assert.equal(updates.at(-1).players[0].isPresent, true);
+  assert.equal(updates.at(-1).players[0].isSelf, true);
+});
+
+test("player directory retains the directory gate while the online layer remains available at NTRP level", async () => {
+  const harness = createHarness({ api: { loadPlayerPresenceDirectory: async () => [] } });
+  await harness.controller.setAuthState(
+    { user: { id: "ntrp-only-player" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+
+  await harness.controller.togglePlayerLayer();
+  assert.equal(harness.controller.getPlayerLayerState().on, true);
+  assert.equal(harness.profilePrompts.length, 0);
+
+  harness.controller.openPlayerDirectory();
+  assert.deepEqual(harness.profilePrompts.at(-1).intent, { action: "directory" });
+  assert.equal(harness.playerDirectories.length, 0);
+});
+
+test("online presence latest bounds wins and off, signout, and API errors cannot publish stale authorized data", async () => {
   const requests = [];
   const harness = createHarness({
     api: {
-      loadPlayerDirectory: ({ bounds }) => {
+      loadPlayerPresenceDirectory: ({ bounds }) => {
         const request = deferred();
         requests.push({ bounds, request });
         return request.promise;
       },
     },
   });
-  await harness.controller.setAuthState({ user: { id: "player-a" } }, { directory: true, nickname: true, ntrp: true });
+  await harness.controller.setAuthState({ user: { id: "player-a" } }, { directory: false, nickname: true, ntrp: true });
 
   const opening = harness.controller.togglePlayerLayer?.();
   await flush();
@@ -2410,7 +2509,7 @@ test("player directory latest bounds wins and off, signout, and API errors canno
   assert.equal(harness.playerRenders.at(-1)?.on, false);
   assert.deepEqual(harness.playerRenders.at(-1)?.groups, []);
 
-  await harness.controller.setAuthState({ user: { id: "player-b" } }, { directory: true, nickname: true, ntrp: true });
+  await harness.controller.setAuthState({ user: { id: "player-b" } }, { directory: false, nickname: true, ntrp: true });
   const failed = harness.controller.togglePlayerLayer?.();
   await flush();
   requests[4].request.reject(new Error("permission denied"));
@@ -2452,6 +2551,7 @@ test("same-court session and player pins have separate clickable anchors and pla
   const playerGroups = [{
     court,
     players: [{ profileId: 1 }, { profileId: 2 }],
+    presenceCount: 2,
   }];
   const sessionGroups = [{ court, sessions: [futureSession({ courtId: court.id })] }];
   const opened = { base: 0, playerIds: [], sessionIds: [] };
@@ -2474,6 +2574,7 @@ test("same-court session and player pins have separate clickable anchors and pla
   const playerVisualCenter = playerMarker.options.icon.labelOrigin.x - playerMarker.options.icon.anchor.x;
   assert.ok(Math.abs(playerVisualCenter - sessionVisualCenter) >= 44, "visual anchors keep both full-size controls reachable");
   assert.equal(playerMarker.options.label.text, "2");
+  assert.equal(playerMarker.options.title, "在線 · 示範球場 · 2 人");
   assert.equal(playerMarker.options.optimized, false);
   sessionMarker.listener.callback();
   playerMarker.listener.callback();
@@ -2491,7 +2592,7 @@ test("same-court session and player pins have separate clickable anchors and pla
 
   const presencePin = pinModule.playerPin?.(google, 2, 1);
   assert.equal(presencePin?.label.text, "2", "the main label preserves the total player count when someone is present");
-  assert.match(decodeURIComponent(presencePin?.icon.url ?? ""), /在1/, "a separate presence badge carries the on-court count");
+  assert.match(decodeURIComponent(presencePin?.icon.url ?? ""), /線1/, "a separate online badge carries the on-court count");
 });
 
 test("undecided candidate sessions fan out to valid candidate courts and collapse to the decided court", () => {
@@ -2721,7 +2822,7 @@ test("player drawer offers open hosted sessions through the now-start window and
         return { outcome: "OK", reloadRequired: false };
       },
       loadMySessions: async () => [futureHost, futureGuest, fullHost, pastHost, ongoingHost],
-      loadPlayerDirectory: async () => [player],
+      loadPlayerPresenceDirectory: async () => [player],
     },
   });
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
@@ -2743,7 +2844,7 @@ test("SESSION_EXPIRED player invites refresh choices and reject inline without c
     api: {
       inviteToSession: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
       loadMySessions: async () => (++mySessionLoads === 1 ? [hostSession] : []),
-      loadPlayerDirectory: async () => [player],
+      loadPlayerPresenceDirectory: async () => [player],
     },
   });
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
@@ -2767,7 +2868,7 @@ test("account switches and profile eligibility loss close player surfaces and re
     api: {
       inviteToSession: () => invitation.promise,
       loadMySessions: async () => [hostSession],
-      loadPlayerDirectory: async () => [player],
+      loadPlayerPresenceDirectory: async () => [player],
     },
   });
   await harness.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true });
@@ -2864,7 +2965,7 @@ test("a directory action waits for the court catalogue instead of opening profil
     { directory: false, directoryStatus: "loading", nickname: true, ntrp: true }
   );
 
-  await harness.controller.togglePlayerLayer();
+  await harness.controller.openPlayerDirectory();
 
   assert.deepEqual(harness.toasts, ["正在讀取球場資料，請稍候。"]);
   assert.equal(harness.profilePrompts.length, 0);
@@ -2878,7 +2979,7 @@ test("a directory action attributes profile failures to the private profile", as
     { directory: false, directoryStatus: "ready", nickname: false, ntrp: false, status: "error" }
   );
 
-  await harness.controller.togglePlayerLayer();
+  await harness.controller.openPlayerDirectory();
 
   assert.deepEqual(harness.toasts, ["個人檔案暫時無法載入，請重新整理後再試。"]);
   assert.equal(harness.profilePrompts.length, 0);
@@ -2892,14 +2993,14 @@ test("a directory action attributes catalogue failures to the court catalogue", 
     { directory: false, directoryStatus: "error", nickname: true, ntrp: true, status: "ready" }
   );
 
-  await harness.controller.togglePlayerLayer();
+  await harness.controller.openPlayerDirectory();
 
   assert.deepEqual(harness.toasts, ["球場資料暫時無法載入，請稍後再試。"]);
   assert.equal(harness.profilePrompts.length, 0);
   assert.equal(harness.controller.getPlayerLayerState().on, false);
 });
 
-test("a persisted player intent reports profile loading while it waits to resume", async () => {
+test("a persisted online-layer intent reports profile loading while it waits to resume", async () => {
   const intentStore = createIntentStore({ action: "players" });
   const harness = createHarness({ intentStore });
 
@@ -2965,6 +3066,7 @@ test("a persisted visibility intent resumes once after the directory gate is res
 test("directory actions prompt for the directory gate while reporting and lifecycle actions retain their own authority", async () => {
   const directoryHarness = createHarness({
     api: {
+      loadPlayerPresenceDirectory: async () => [],
       setPlayerVisibility: async () => {
         throw new Error("the directory gate must prompt before writing");
       },
@@ -2975,7 +3077,10 @@ test("directory actions prompt for the directory gate while reporting and lifecy
     { directory: false, nickname: true, ntrp: true }
   );
   await directoryHarness.controller.togglePlayerLayer();
-  assert.deepEqual(directoryHarness.profilePrompts.at(-1).intent, { action: "players" });
+  assert.equal(directoryHarness.controller.getPlayerLayerState().on, true);
+  assert.equal(directoryHarness.profilePrompts.length, 0);
+  await directoryHarness.controller.openPlayerDirectory();
+  assert.deepEqual(directoryHarness.profilePrompts.at(-1).intent, { action: "directory" });
   directoryHarness.profilePrompts.at(-1).detail.close({ reason: "dismiss" });
   await directoryHarness.controller.togglePlayerVisibility();
   assert.deepEqual(directoryHarness.profilePrompts.at(-1).intent, { action: "visibility" });

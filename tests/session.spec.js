@@ -1051,7 +1051,7 @@ test("legacy district subscribers reselect courts and persist the authoritative 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a visible player can be invited, accept from My Sessions, exchange LINE contacts, and delist immediately", async ({ page }) => {
+test("a visible player can be invited from the directory list, exchange LINE contacts, and delist immediately", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const player = await createCompleteActor(context.guest);
@@ -1072,11 +1072,8 @@ test("a visible player can be invited, accept from My Sessions, exchange LINE co
     await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
 
     await switchBrowserSession(page, host.session);
-    await page.getByTestId("player-layer-toggle").click();
-    const playerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
-    await expect(playerPin).toBeVisible();
-    await playerPin.click();
-    const playerCard = page.getByTestId(`court-player-card-${player.profileId}`);
+    await page.getByTestId("player-directory-open").click();
+    const playerCard = page.getByTestId(`player-directory-row-${player.profileId}`);
     await expect(playerCard).toContainText(context.guest.nickname);
     await playerCard.click();
     await expect(page.locator("#player-card-sheet")).toBeVisible();
@@ -1104,12 +1101,8 @@ test("a visible player can be invited, accept from My Sessions, exchange LINE co
     await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
 
     await switchBrowserSession(page, host.session);
-    await page.getByTestId("player-layer-toggle").click();
-    await expect(page.locator("#player-layer-status")).toBeHidden();
-    const refreshedPlayerPin = page.getByTitle(new RegExp(`^球友 · ${context.host.courts[0]} · \\d+ 位$`));
-    await expect(refreshedPlayerPin).toBeVisible();
-    await refreshedPlayerPin.click();
-    await expect(page.getByTestId(`court-player-card-${player.profileId}`)).toHaveCount(0);
+    await page.getByTestId("player-directory-open").click();
+    await expect(page.getByTestId(`player-directory-row-${player.profileId}`)).toHaveCount(0);
     expect(runtimeErrors).toEqual([]);
   } finally {
     await Promise.allSettled([
@@ -1254,7 +1247,16 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
 
   try {
     playerA = await createCompleteActor(context.host);
-    playerB = await createCompleteActor(context.guest);
+    const playerBAuth = await signUpUser(context.guest.email);
+    const playerBProfileId = await createProfile(playerBAuth.client, {
+      courts: [],
+      lineId: "",
+      nickname: context.guest.nickname,
+      ntrp: context.guest.ntrp,
+      playTypes: [],
+      slots: [],
+    });
+    playerB = { client: playerBAuth.client, profileId: playerBProfileId, session: playerBAuth.session };
     playerC = await createCompleteActor(context.observer);
     const { data: court, error: courtError } = await playerA.client
       .from("courts")
@@ -1274,16 +1276,17 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     expect(await setPresenceSharingViaRpc(playerB.client, true)).toBe("OK");
     await switchBrowserSession(page, playerB.session);
     await page.getByTestId("player-layer-toggle").click();
-    const presencePin = page.getByTitle(new RegExp(`^球友 · ${court.name} · \\d+ 位`));
+    await expect(page.locator("#profile-completion-sheet")).toHaveCount(0);
+    const presencePin = page.getByTitle(new RegExp(`^在線 · ${court.name} · \\d+ 人$`));
     await expect(presencePin).toBeVisible();
     await presencePin.click();
     const presenceCard = page.getByTestId(`court-player-card-${playerA.profileId}`);
     await expect(presenceCard).toContainText(context.host.nickname);
-    await expect(presenceCard).toContainText("在場・");
+    await expect(presenceCard).toContainText("在線・");
 
     await switchBrowserSession(page, playerC.session);
     await page.getByTestId("player-layer-toggle").click();
-    await expect(page.getByTitle(/^球友 · /)).toHaveCount(0);
+    await expect(page.getByTitle(/^在線 · /)).toHaveCount(0);
 
     await switchBrowserSession(page, playerA.session);
     await page.getByTestId("my-sessions-tab").click();
@@ -1293,7 +1296,7 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
 
     await switchBrowserSession(page, playerB.session);
     await page.getByTestId("player-layer-toggle").click();
-    const pinsAtCourt = page.getByTitle(new RegExp(`^球友 · ${court.name} · `));
+    const pinsAtCourt = page.getByTitle(new RegExp(`^在線 · ${court.name} · `));
     if (await pinsAtCourt.count()) await pinsAtCourt.first().click();
     await expect(page.getByTestId(`court-player-card-${playerA.profileId}`)).toHaveCount(0);
     expect(runtimeErrors).toEqual([]);

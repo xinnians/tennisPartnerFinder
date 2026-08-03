@@ -94,7 +94,8 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.locator("#open-session")).toBeVisible();
   await expect(page.getByTestId("player-layer-toggle")).toBeVisible();
   await expect(page.getByTestId("player-layer-toggle")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示球友");
+  await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示在線");
+  await expect(page.getByTestId("player-directory-open")).toHaveText("球友名單");
   await expect(page.locator(".chip-type").first()).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".chip-venue").first()).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "true");
@@ -2342,28 +2343,48 @@ test("mock-mode create does not open OAuth or fabricate a new session", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("mock player layer renders directory pins and cards while the signed-out entry stays behind the demo login gate", async ({ page }) => {
+test("mock online layer uses presence pins while the full directory list opens cards and invitations", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
 
   await page.getByTestId("player-layer-toggle").click();
   await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
+  await page.getByTestId("player-directory-open").click();
+  await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
 
   await page.evaluate(async () => {
     const { renderPlayerPins } = await import("/src/map.js");
     const { createDataApi } = await import("/src/dataApi.js");
     const { createSessionController } = await import("/src/sessionController.js");
-    const { openCourtPlayersDrawer, openPlayerCardSheet, renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    const { openCourtPlayersDrawer, openPlayerCardSheet, openPlayerDirectoryList, renderPlayerLayerToggle } = await import("/src/sessionViews.js");
     const map = new window.google.maps.Map(document.getElementById("map"), {
       center: { lat: 25.05, lng: 121.53 },
       zoom: 12,
     });
     let playerMarkers = [];
+    const baseApi = createDataApi();
+    const hostedSession = {
+      court: "台北網球中心",
+      courtDistrict: "內湖區",
+      sessionId: 9901,
+      startAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      status: "open",
+      viewerRole: "host",
+    };
+    const api = {
+      ...baseApi,
+      inviteToSession: async (sessionId, profileId) => {
+        window.__mockDirectoryInvite = [sessionId, profileId];
+        return { outcome: "OK", reloadRequired: false };
+      },
+      loadMySessions: async () => [hostedSession],
+    };
     let controller;
     controller = createSessionController({
-      api: createDataApi(),
+      api,
       openCourtPlayersDrawer,
+      openPlayerDirectoryList,
       openPlayerCard: openPlayerCardSheet,
       renderPlayers: (view) => {
         renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), view);
@@ -2378,18 +2399,68 @@ test("mock player layer renders directory pins and cards while the signed-out en
     });
     await controller.setAuthState({ user: { id: "mock-player-host" } }, { directory: true, nickname: true, ntrp: true });
     await controller.togglePlayerLayer();
+    window.__mockPlayerController = controller;
   });
 
-  await expect(page.getByTitle("球友 · 台北網球中心 · 2 位 · 在場 1 人")).toBeVisible();
-  await page.getByTitle("球友 · 台北網球中心 · 2 位 · 在場 1 人").click();
+  await expect(page.getByTitle("在線 · 台北網球中心 · 1 人")).toBeVisible();
+  await expect(page.getByTitle(/^在線 · 大佳河濱公園網球場/)).toHaveCount(0);
+  await page.getByTitle("在線 · 台北網球中心 · 1 人").click();
   const playerCard = page.getByTestId("court-player-card-8001");
   await expect(playerCard).toContainText("示範山嵐");
-  await expect(playerCard).toContainText("在場・2 分鐘前");
+  await expect(playerCard).toContainText("在線・2 分鐘前");
   await expect(playerCard).toContainText("接受現場問候");
   await playerCard.click();
   await expect(page.locator("#player-card-sheet")).toContainText("示範山嵐");
-  await expect(page.locator("#player-card-sheet")).toContainText("在場・2 分鐘前");
+  await expect(page.locator("#player-card-sheet")).toContainText("在線・2 分鐘前");
   await expect(page.locator("#player-card-sheet")).toContainText("接受現場問候");
+
+  await page.evaluate(() => window.__mockPlayerController.openPlayerDirectory());
+  const directory = page.locator("#player-directory-sheet");
+  await expect(directory).toBeVisible();
+  await expect(directory.locator("[data-player-directory-row]")).toHaveCount(3);
+  await expect(directory.locator("[data-player-directory-row]").first()).toContainText("示範山嵐");
+  await expect(directory.locator("[data-player-directory-row]").first()).toContainText("在線");
+  await page.getByTestId("player-directory-row-8002").click();
+  await expect(page.locator("#player-card-sheet")).toContainText("示範海風");
+  await page.getByTestId("player-invite-session").check();
+  await page.getByTestId("player-invite-submit").click();
+  await expect(page.getByText("邀請已送出", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__mockDirectoryInvite)).toEqual([9901, 8002]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("player directory escapes every dynamic field before opening the selected public card", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openPlayerDirectoryList } = await import("/src/sessionViews.js");
+    const sheet = openPlayerDirectoryList({
+      onOpenPlayer: (player) => {
+        window.__escapedDirectoryPlayer = player.profileId;
+      },
+    });
+    sheet.setDirectory({
+      players: [
+        {
+          courtNames: ['<img id="directory-court-injection">'],
+          isPresent: true,
+          nickname: '<img id="directory-name-injection">',
+          ntrp: 3.5,
+          playTypes: ['<img id="directory-type-injection">'],
+          profileId: 8801,
+          slotCodes: ["we-m"],
+        },
+      ],
+      status: "ready",
+    });
+  });
+
+  const directory = page.locator("#player-directory-sheet");
+  await expect(directory).toContainText('<img id="directory-name-injection">');
+  await expect(page.locator("#directory-name-injection, #directory-court-injection, #directory-type-injection")).toHaveCount(0);
+  await page.getByTestId("player-directory-row-8801").click();
+  await expect.poll(() => page.evaluate(() => window.__escapedDirectoryPlayer)).toBe(8801);
   expect(runtimeErrors).toEqual([]);
 });
 
