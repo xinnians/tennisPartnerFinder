@@ -1332,6 +1332,7 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
   await page.goto(`/#/session/${sessionId}`);
   await expect(page.locator("#session-sheet")).toBeVisible();
   await expect(page.locator('[data-session-action="chat"]')).toHaveCount(0);
+  await page.evaluate(() => window.history.replaceState(null, "", "/"));
   await page.locator("#session-sheet [data-surface-close]").click();
 
   await switchBrowserSession(page, guest.session);
