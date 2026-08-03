@@ -36,6 +36,7 @@ import {
   loadSessionContacts,
   loadSessionDiscovery,
   loadSessionMessages,
+  loadSessionJoinPreview,
   loadSessionRoster,
   loadSessionSummary,
   markSessionPlayed,
@@ -287,6 +288,11 @@ function defaultNotificationSettings() {
   };
 }
 
+function currentAuthAvatarUrl() {
+  const metadata = authSession?.user?.user_metadata ?? {};
+  return metadata.avatar_url ?? metadata.picture ?? "";
+}
+
 function openSafeLogin({ action = "", onClose = () => {} } = {}) {
   if (!isSupabaseConfigured) {
     onClose();
@@ -321,6 +327,7 @@ function openProfileCompletion({ courts: selectableCourts, courtsReady: formCour
   const openedIdentity = authIdentity(authSession);
   let mounted = null;
   mounted = openProfileCompletionSheet({
+    avatarUrl: currentAuthAvatarUrl(),
     courts: selectableCourts ?? courts,
     courtsReady: formCourtsReady ?? courtsReady,
     onClose: (detail) => {
@@ -953,6 +960,7 @@ function init() {
       loadSessionContacts,
       loadSessionDiscovery,
       loadSessionMessages,
+      loadSessionJoinPreview,
       loadSessionRoster,
       loadSessionSummary,
       markSessionPlayed,

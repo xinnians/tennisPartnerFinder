@@ -1,5 +1,5 @@
 import { DISCOVERY_WINDOW_DAYS, LAUNCH_CITY, TAIPEI_CITY_BOUNDS } from "./config.js";
-import { COURTS, MOCK_PLAYER_PRESENCE, MOCK_PLAYERS, MOCK_SESSIONS } from "./mockData.js";
+import { COURTS, MOCK_PLAYER_PRESENCE, MOCK_PLAYERS, MOCK_SESSION_JOIN_PREVIEWS, MOCK_SESSIONS } from "./mockData.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
 
 const SESSION_SUMMARY_COLUMNS = [
@@ -53,6 +53,7 @@ const SESSION_ROSTER_COLUMNS = [
   "role",
   "status",
 ];
+const SESSION_JOIN_PREVIEW_COLUMNS = ["session_id", "role", "nickname", "ntrp", "avatar_url"];
 
 const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
 const SESSION_MESSAGE_FEED_COLUMNS = [
@@ -101,6 +102,7 @@ const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 export const SESSION_DISCOVERY_SELECT = [...SESSION_SUMMARY_COLUMNS, ...SESSION_DISCOVERY_VENUE_COLUMNS].join(",");
 export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
 export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
+export const SESSION_JOIN_PREVIEW_SELECT = SESSION_JOIN_PREVIEW_COLUMNS.join(",");
 export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
 export const SESSION_MESSAGE_FEED_SELECT = SESSION_MESSAGE_FEED_COLUMNS.join(",");
 export const MY_PLAYER_BLOCKS_SELECT = MY_PLAYER_BLOCKS_COLUMNS.join(",");
@@ -338,6 +340,27 @@ export function mapSessionRosterRow(row = {}) {
   };
 }
 
+/** Authenticated pre-join mapper: no participant or profile identity crosses this boundary. */
+export function mapSessionJoinPreviewRow(row = {}) {
+  return {
+    sessionId: asNumber(row.session_id),
+    role: asText(row.role),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    avatarUrl: asText(row.avatar_url),
+  };
+}
+
+function mapMockSessionJoinPreviewRow(row = {}) {
+  return {
+    sessionId: asNumber(row.sessionId),
+    role: asText(row.role),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    avatarUrl: asText(row.avatarUrl),
+  };
+}
+
 /** Accepted-pair contact mapper. LINE may exist only in this private model. */
 export function mapSessionContactRow(row = {}) {
   return {
@@ -541,6 +564,7 @@ export function createDataApi({
   mockSessions = MOCK_SESSIONS,
   mockPlayers = MOCK_PLAYERS,
   mockPlayerPresence = MOCK_PLAYER_PRESENCE,
+  mockSessionJoinPreviews = MOCK_SESSION_JOIN_PREVIEWS,
   mockCourts = COURTS,
   now = () => new Date(),
 } = {}) {
@@ -679,6 +703,22 @@ export function createDataApi({
       .order("participant_id");
     if (error) throw error;
     return asArray(data).map(mapSessionRosterRow);
+  }
+
+  async function loadSessionJoinPreview(sessionId) {
+    const normalizedSessionId = asNumber(sessionId);
+    if (!configured) {
+      return asArray(mockSessionJoinPreviews)
+        .filter((participant) => asNumber(participant.sessionId) === normalizedSessionId)
+        .map(mapMockSessionJoinPreviewRow);
+    }
+    const activeClient = requireClient();
+    const { data, error } = await activeClient
+      .from("session_join_preview")
+      .select(SESSION_JOIN_PREVIEW_SELECT)
+      .eq("session_id", normalizedSessionId);
+    if (error) throw error;
+    return asArray(data).map(mapSessionJoinPreviewRow);
   }
 
   async function loadSessionContacts(sessionId) {
@@ -971,6 +1011,7 @@ export function createDataApi({
     loadSessionSummary,
     loadMySessions,
     loadSessionRoster,
+    loadSessionJoinPreview,
     loadSessionContacts,
     loadSessionMessages,
     loadMyPlayerBlocks,
@@ -1015,6 +1056,7 @@ export const loadPlayerPresenceDirectory = (...args) => defaultDataApi.loadPlaye
 export const loadSessionSummary = (...args) => defaultDataApi.loadSessionSummary(...args);
 export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args);
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
+export const loadSessionJoinPreview = (...args) => defaultDataApi.loadSessionJoinPreview(...args);
 export const loadSessionContacts = (...args) => defaultDataApi.loadSessionContacts(...args);
 export const loadSessionMessages = (...args) => defaultDataApi.loadSessionMessages(...args);
 export const loadMyPlayerBlocks = (...args) => defaultDataApi.loadMyPlayerBlocks(...args);

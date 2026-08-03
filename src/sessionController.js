@@ -442,6 +442,24 @@ export function createSessionController({
     return state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
   }
 
+  async function hydrateSessionJoinPreview(sessionId, surface, authSnapshot = captureAuthSnapshot()) {
+    if (!isCurrentAuthSnapshot(authSnapshot) || typeof api?.loadSessionJoinPreview !== "function") return false;
+    surface?.setJoinPreview?.({ participants: [], status: "loading" });
+    try {
+      const participants = await api.loadSessionJoinPreview(sessionId);
+      if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+      const ordered = (Array.isArray(participants) ? [...participants] : []).sort(
+        (left, right) => Number(right?.role === "host") - Number(left?.role === "host")
+      );
+      surface?.setJoinPreview?.({ participants: ordered, status: "ready" });
+      return true;
+    } catch {
+      if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+      surface?.setJoinPreview?.({ participants: [], status: "error" });
+      return false;
+    }
+  }
+
   function sessionKey(sessionId) {
     return String(sessionId);
   }
@@ -962,6 +980,8 @@ export function createSessionController({
     const canDecide = hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt);
     const canEdit = hostCanManage && ["booked", "walk_on"].includes(session.venueType);
     const canChat = String(participation?.viewerParticipantStatus).toLowerCase() === "accepted";
+    const showJoinPreview = Boolean(state.authSession);
+    const previewAuthSnapshot = showJoinPreview ? captureAuthSnapshot() : null;
     let detail = null;
     detail = openSession(session, {
       action,
@@ -969,6 +989,7 @@ export function createSessionController({
       canChat,
       canDecide,
       canEdit,
+      showJoinPreview,
       onDecide: () => openSessionDecision(session.sessionId),
       onEdit: () => openSessionEdit(session.sessionId),
       onChat: () => openSessionChat(session.sessionId),
@@ -980,6 +1001,9 @@ export function createSessionController({
     activeDetail = detail?.close ? detail : null;
     activeDetailSession = activeDetail ? session : null;
     activeDetailActionKey = activeDetail ? actionKey(action) : null;
+    if (activeDetail && previewAuthSnapshot) {
+      void hydrateSessionJoinPreview(session.sessionId, activeDetail, previewAuthSnapshot);
+    }
     return activeDetail;
   }
 
@@ -1383,6 +1407,7 @@ export function createSessionController({
     let confirmation = null;
     confirmation = openJoinConfirmation(session, {
       courts: state.courts,
+      showJoinPreview: true,
       onClose: ({ reason = "dismiss" } = {}) => {
         if (activeJoinConfirmation === confirmation) {
           activeJoinConfirmation = null;
@@ -1394,6 +1419,9 @@ export function createSessionController({
     });
     activeJoinConfirmation = confirmation?.close ? confirmation : null;
     activeJoinConfirmationSessionId = activeJoinConfirmation ? session.sessionId : null;
+    if (activeJoinConfirmation) {
+      void hydrateSessionJoinPreview(session.sessionId, activeJoinConfirmation, confirmingAuth);
+    }
     return confirmation;
   }
 

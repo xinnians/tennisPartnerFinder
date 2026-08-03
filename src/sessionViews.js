@@ -5,6 +5,67 @@ import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { esc } from "./util.js";
 
+const GOOGLE_AVATAR_URL = /^https:\/\/lh[0-9]+[.]googleusercontent[.]com\//;
+
+function safeGoogleAvatarUrl(value) {
+  const candidate = String(value ?? "");
+  return GOOGLE_AVATAR_URL.test(candidate) ? candidate : "";
+}
+
+function avatarInitial(nickname) {
+  return [...String(nickname ?? "").trim()][0] || "球";
+}
+
+function avatarMarkup({ avatarUrl = "", nickname = "" } = {}) {
+  const safeUrl = safeGoogleAvatarUrl(avatarUrl);
+  return `<span class="player-avatar" data-player-avatar>
+    ${safeUrl ? `<img src="${esc(safeUrl)}" alt="" referrerpolicy="no-referrer" />` : ""}
+    <span class="player-avatar__fallback" data-avatar-fallback${safeUrl ? " hidden" : ""}>${esc(avatarInitial(nickname))}</span>
+  </span>`;
+}
+
+function wireAvatarFallbacks(root) {
+  root?.querySelectorAll?.("[data-player-avatar] img").forEach((image) => {
+    image.addEventListener("error", () => {
+      image.hidden = true;
+      const fallback = image.closest("[data-player-avatar]")?.querySelector("[data-avatar-fallback]");
+      if (fallback) fallback.hidden = false;
+    });
+  });
+}
+
+function joinPreviewMarkup({ participants = [], status = "loading" } = {}) {
+  if (status === "loading") return '<p class="form-hint" role="status">正在載入已確認參加者…</p>';
+  if (status === "error") return '<p class="form-hint" role="status">參加者名單暫時無法載入。</p>';
+  const ordered = [...participants].sort((left, right) => Number(right?.role === "host") - Number(left?.role === "host"));
+  if (!ordered.length) return '<p class="form-hint" role="status">目前沒有可顯示的已確認參加者。</p>';
+  return `<div class="join-preview__people">${ordered
+    .map(
+      (participant) => `<article class="join-preview__person" data-join-preview-person>
+        ${avatarMarkup(participant)}
+        <div><strong>${esc(participant.nickname)}</strong><span>${participant.role === "host" ? "主揪" : "已確認"} · ${esc(
+          formatNtrp(participant.ntrp)
+        )}</span></div>
+      </article>`
+    )
+    .join("")}</div>`;
+}
+
+function joinPreviewSection(show) {
+  return show
+    ? `<section class="join-preview" data-session-join-preview><h3>已確認參加者</h3><div data-session-join-preview-content>${joinPreviewMarkup()}</div></section>`
+    : "";
+}
+
+function createJoinPreviewSetter(root) {
+  return (state) => {
+    const content = root.querySelector("[data-session-join-preview-content]");
+    if (!content) return;
+    content.innerHTML = joinPreviewMarkup(state);
+    wireAvatarFallbacks(content);
+  };
+}
+
 const dialogFocusable =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const drawerBindings = new WeakMap();
@@ -1551,6 +1612,7 @@ export function openSessionSheet(
     canEdit = false,
     canChat = false,
     canReport = false,
+    showJoinPreview = false,
     courts = [],
     onCopyLink = () => {},
     onDecide = () => {},
@@ -1581,6 +1643,7 @@ export function openSessionSheet(
         <p data-session-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
           completionLabel(session)
         )}</p>
+        ${joinPreviewSection(showJoinPreview)}
         ${session.feeNote ? `<p data-session-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
         <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         ${action?.note ? `<p class="form-hint" data-session-action-note>${esc(action.note)}</p>` : ""}
@@ -1638,6 +1701,7 @@ export function openSessionSheet(
     }
   });
   const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
+  const setJoinPreview = createJoinPreviewSetter(mounted.root);
   let withdrawing = false;
   secondaryButton?.addEventListener("click", async () => {
     if (withdrawing) return;
@@ -1654,7 +1718,7 @@ export function openSessionSheet(
       }
     }
   });
-  return mounted;
+  return { ...mounted, setJoinPreview };
 }
 
 /** Explain a public deep link that no longer resolves to an available session. */
@@ -1674,7 +1738,7 @@ export function openSessionUnavailableSheet() {
 /** Ask for an intentional confirmation before the join lifecycle RPC. */
 export function openJoinSessionConfirmation(
   session,
-  { courts = [], onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {} } = {}
+  { courts = [], onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {}, showJoinPreview = false } = {}
 ) {
   const isInstant = session.joinMode === "instant";
   const title = isInstant ? "直接加入這場球局？" : "申請加入這一局？";
@@ -1704,6 +1768,7 @@ export function openJoinSessionConfirmation(
           <p data-join-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
             completionLabel(session)
           )}</p>
+          ${joinPreviewSection(showJoinPreview)}
           ${session.feeNote ? `<p data-join-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
           <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         </div>
@@ -1720,6 +1785,7 @@ export function openJoinSessionConfirmation(
   const success = mounted.root.querySelector("[data-join-success]");
   const successActions = mounted.root.querySelector("[data-join-success-actions]");
   const viewMySessions = mounted.root.querySelector("[data-join-view-my-sessions]");
+  const setJoinPreview = createJoinPreviewSetter(mounted.root);
   let submitting = false;
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1765,7 +1831,7 @@ export function openJoinSessionConfirmation(
     mounted.close({ reason: "view-my-sessions", restoreFocus: false });
     onViewMySessions();
   });
-  return mounted;
+  return { ...mounted, setJoinPreview };
 }
 
 const REPORT_REASONS = ["與實際球局不符", "不當行為", "疑似詐騙", "其他"];
@@ -1946,6 +2012,7 @@ function validateProfileForm(profile, requiredGate, intent = null) {
 
 /** Open the private profile-completion sheet without leaking profile fields to public renderers. */
 export function openProfileCompletionSheet({
+  avatarUrl = "",
   courts = [],
   courtsReady = true,
   onClose = () => {},
@@ -1980,6 +2047,7 @@ export function openProfileCompletionSheet({
           : ""
       }
       ${gateHint ? `<p class="form-hint">${esc(gateHint)}</p>` : ""}
+      <div class="profile-avatar-preview" data-profile-avatar>${avatarMarkup({ avatarUrl, nickname: profile.nick })}<p>使用 Google 頭像，無法自訂</p></div>
       <form class="profile-form" data-testid="profile-form" novalidate>
         ${
           !compactCreateGate || needsNickname
@@ -2022,6 +2090,7 @@ export function openProfileCompletionSheet({
       </form>`,
   });
   const form = mounted.root.querySelector("[data-testid='profile-form']");
+  wireAvatarFallbacks(mounted.root);
   const error = mounted.root.querySelector("[data-profile-error]");
   const submit = mounted.root.querySelector("[data-testid='profile-save']");
   const courtSelect = mounted.root.querySelector("[name='profile-courts']");

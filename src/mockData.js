@@ -77,6 +77,13 @@ export const MOCK_PLAYER_PRESENCE = [
   },
 ];
 
+// Local-only accepted-member preview. Names are fictional, avatars deliberately
+// use the default illustration, and no profile/contact identifiers are present.
+export const MOCK_SESSION_JOIN_PREVIEWS = [
+  { sessionId: 9001, role: "host", nickname: "示範松果", ntrp: 3.5, avatarUrl: "" },
+  { sessionId: 9001, role: "guest", nickname: "示範球友", ntrp: null, avatarUrl: "" },
+];
+
 const futureStartAt = (daysFromNow, hourOffset = 0) =>
   new Date(Date.now() + (daysFromNow * 24 + hourOffset) * 60 * 60 * 1000).toISOString();
 const ongoingStartAt = (minutesAgo) => new Date(Date.now() - minutesAgo * 60 * 1000).toISOString();
