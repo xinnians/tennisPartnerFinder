@@ -310,6 +310,7 @@ export function createSessionController({
   openCreateSession = () => {},
   openDecideSession = () => {},
   openEditSession = () => {},
+  openChat = () => {},
   openLogin = () => {},
   openReport = () => {},
   promptProfile = () => {},
@@ -318,6 +319,7 @@ export function createSessionController({
   showCreatedSession = () => {},
   intentStore = browserIntentStore(),
   toast = () => {},
+  visibilityTarget = globalThis.document,
 } = {}) {
   const state = {
     bounds: cloneBounds(TAIPEI_CITY_BOUNDS),
@@ -340,6 +342,9 @@ export function createSessionController({
     mySessionsStatus: "idle",
     mySessionContacts: new Map(),
     mySessionRosters: new Map(),
+    blockedPlayers: [],
+    blockedPlayersError: "",
+    blockedPlayersStatus: "idle",
     playerLayerOn: false,
     playerLayerMessage: "",
     playerLayerStatus: "idle",
@@ -353,6 +358,7 @@ export function createSessionController({
   let latestContactRequest = 0;
   let latestLocationRequest = 0;
   let latestPlayerRequest = 0;
+  let latestBlockedPlayerRequest = 0;
   let authEpoch = 0;
   let mySessionsVersion = 0;
   let explicitViewportGeneration = 0;
@@ -371,6 +377,7 @@ export function createSessionController({
   let activeReportDialog = null;
   let activePlayerDrawer = null;
   let activePlayerCard = null;
+  let activeChat = null;
   let lifecycleMutationGeneration = 0;
   let intentVersion = 0;
   const resumeInFlight = new Map();
@@ -453,6 +460,9 @@ export function createSessionController({
   function notifyMySessions() {
     onMySessionsChange({
       authenticated: Boolean(state.authSession),
+      blockedPlayers: [...state.blockedPlayers],
+      blockedPlayersError: state.blockedPlayersError,
+      blockedPlayersStatus: state.blockedPlayersStatus,
       contactsError: state.mySessionContactsError,
       error: state.mySessionsError,
       groups: mySessionGroups(),
@@ -565,6 +575,48 @@ export function createSessionController({
     return reloadParticipation(authSnapshot.epoch, authSnapshot.identity, { includeContacts });
   }
 
+  async function refreshMyPlayerBlocks(authSnapshot = captureAuthSnapshot()) {
+    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+    if (typeof api?.loadMyPlayerBlocks !== "function") return true;
+    const requestId = ++latestBlockedPlayerRequest;
+    state.blockedPlayersStatus = "loading";
+    state.blockedPlayersError = "";
+    notifyMySessions();
+    try {
+      const rows = await api.loadMyPlayerBlocks();
+      if (requestId !== latestBlockedPlayerRequest || !isCurrentAuthSnapshot(authSnapshot)) return false;
+      state.blockedPlayers = Array.isArray(rows) ? rows : [];
+      state.blockedPlayersStatus = "ready";
+      notifyMySessions();
+      return true;
+    } catch {
+      if (requestId !== latestBlockedPlayerRequest || !isCurrentAuthSnapshot(authSnapshot)) return false;
+      state.blockedPlayersError = "封鎖清單暫時無法載入。";
+      state.blockedPlayersStatus = "error";
+      notifyMySessions();
+      return false;
+    }
+  }
+
+  async function unblockPlayer(profileId) {
+    const authSnapshot = captureAuthSnapshot();
+    const normalizedProfileId = Number(profileId);
+    if (!isCurrentAuthSnapshot(authSnapshot) || !Number.isSafeInteger(normalizedProfileId) || normalizedProfileId <= 0) {
+      throw new Error("封鎖清單已更新，請重新整理後再試。");
+    }
+    if (!state.blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)) {
+      throw new Error("封鎖清單已更新，請重新整理後再試。");
+    }
+    if (typeof api?.setPlayerBlock !== "function") throw new Error("目前無法更新封鎖清單。");
+    await api.setPlayerBlock(normalizedProfileId, false);
+    if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+    if (!(await refreshMyPlayerBlocks(authSnapshot))) {
+      throw new Error("已解除封鎖，但清單暫時無法重新載入。");
+    }
+    toast("已解除封鎖。");
+    return true;
+  }
+
   async function refreshMySessionDetails({ includeContacts = false } = {}) {
     return refreshMySessions({ includeContacts });
   }
@@ -659,6 +711,7 @@ export function createSessionController({
       if (!isCurrentAuthSnapshot({ epoch, identity })) return false;
       state.mySessionsStatus = "ready";
       reconcileActiveDetailParticipation();
+      reconcileActiveChatParticipation();
       notifyMySessions();
       // Contacts are non-authoritative enrichment. A failed contact request
       // leaves a localized retry message, but the current lifecycle snapshot
@@ -908,14 +961,17 @@ export function createSessionController({
     const hostCanManage = String(participation?.viewerRole) === "host" && Boolean(participation?.canCancel);
     const canDecide = hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt);
     const canEdit = hostCanManage && ["booked", "walk_on"].includes(session.venueType);
+    const canChat = String(participation?.viewerParticipantStatus).toLowerCase() === "accepted";
     let detail = null;
     detail = openSession(session, {
       action,
       courts: state.courts,
+      canChat,
       canDecide,
       canEdit,
       onDecide: () => openSessionDecision(session.sessionId),
       onEdit: () => openSessionEdit(session.sessionId),
+      onChat: () => openSessionChat(session.sessionId),
       onPrimary: () => startPrimaryAction(session, detail),
       canReport: Boolean(state.authSession && profileIsReady(state.profile)),
       onReport: () => openSessionReport(session.sessionId),
@@ -947,6 +1003,152 @@ export function createSessionController({
     } catch {
       return { status: "unavailable" };
     }
+  }
+
+  function chatMemberSession(session) {
+    return String(session?.viewerParticipantStatus).toLowerCase() === "accepted";
+  }
+
+  function releaseActiveChat(context = activeChat) {
+    if (!context || activeChat !== context) return;
+    activeChat = null;
+    context.requestId += 1;
+    visibilityTarget?.removeEventListener?.("visibilitychange", context.onVisibilityChange);
+  }
+
+  function closeActiveChat(options = {}) {
+    const context = activeChat;
+    if (!context) return;
+    releaseActiveChat(context);
+    context.sheet?.close?.(options);
+  }
+
+  async function refreshActiveChat(context = activeChat) {
+    if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
+    if (typeof api?.loadSessionMessages !== "function" || typeof api?.loadSessionRoster !== "function") return false;
+    const requestId = ++context.requestId;
+    context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "loading" });
+    try {
+      const [messages, roster] = await Promise.all([
+        api.loadSessionMessages(context.session.sessionId),
+        api.loadSessionRoster(context.session.sessionId),
+      ]);
+      if (activeChat !== context || requestId !== context.requestId || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
+      context.messages = Array.isArray(messages) ? messages : [];
+      context.roster = Array.isArray(roster) ? roster : [];
+      context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "ready" });
+      return true;
+    } catch {
+      if (activeChat !== context || requestId !== context.requestId || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
+      context.sheet?.setState?.({
+        errorMessage: "群組訊息暫時無法載入。",
+        messages: context.messages,
+        roster: context.roster,
+        status: "error",
+      });
+      return false;
+    }
+  }
+
+  function visibleChatMessage(context, messageId) {
+    return context?.messages.find(
+      (message) =>
+        String(message.messageId) === String(messageId) &&
+        message.kind === "user" &&
+        message.isSelf !== true &&
+        Number.isSafeInteger(Number(message.senderProfileId))
+    );
+  }
+
+  function openChatMessageReport(context, messageId) {
+    if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+      throw new Error("群組狀態已更新，請重新開啟後再試。");
+    }
+    const message = visibleChatMessage(context, messageId);
+    if (!message) throw new Error("這則訊息已無法查看。");
+    return openReportForTarget({
+      messageId: message.messageId,
+      reportedProfileId: message.senderProfileId,
+      sessionId: context.session.sessionId,
+      targetLabel: `${message.senderNickname || "這位球友"} · 群組訊息`,
+    });
+  }
+
+  async function blockChatSender(context, profileId) {
+    const normalizedProfileId = Number(profileId);
+    if (
+      !context ||
+      activeChat !== context ||
+      !isCurrentAuthSnapshot(context.authSnapshot) ||
+      !context.messages.some((message) => Number(message.senderProfileId) === normalizedProfileId && visibleChatMessage(context, message.messageId))
+    ) {
+      throw new Error("群組狀態已更新，請重新開啟後再試。");
+    }
+    if (typeof api?.setPlayerBlock !== "function") throw new Error("目前無法更新封鎖設定。");
+    await api.setPlayerBlock(normalizedProfileId, true);
+    if (activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+      throw new Error("登入狀態已變更，請重新整理後再試。");
+    }
+    const [blocksReady] = await Promise.all([refreshMyPlayerBlocks(context.authSnapshot), refreshActiveChat(context)]);
+    if (!blocksReady) throw new Error("封鎖已生效，但清單暫時無法重新載入。");
+    toast("已封鎖這位球友。");
+    return true;
+  }
+
+  async function postActiveChatMessage(context, body) {
+    if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+      throw new Error("群組狀態已更新，請重新開啟後再試。");
+    }
+    if (typeof api?.postSessionMessage !== "function") throw new Error("目前無法傳送群組訊息。");
+    try {
+      const result = await api.postSessionMessage(context.session.sessionId, body);
+      if (activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+        throw new Error("登入狀態已變更，請重新整理後再試。");
+      }
+      await refreshActiveChat(context);
+      return result;
+    } catch (error) {
+      if (activeChat === context && isCurrentAuthSnapshot(context.authSnapshot) && error?.code === "SESSION_ARCHIVED") {
+        context.sheet?.setArchived?.(error.message);
+        await refreshMySessions({ includeContacts: false });
+      }
+      throw error;
+    }
+  }
+
+  function openSessionChat(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(sessionId, chatMemberSession);
+    if (typeof api?.loadSessionMessages !== "function" || typeof api?.loadSessionRoster !== "function") {
+      throw new Error("目前無法開啟群組聊天。");
+    }
+    closeActiveChat({ reason: "chat-replaced", restoreFocus: false });
+    closeActiveDecisionSession({ reason: "open-chat", restoreFocus: false });
+    closeActiveEditSession({ reason: "open-chat", restoreFocus: false });
+    closeActiveDetail(undefined, { reason: "open-chat", restoreFocus: false });
+    let context = null;
+    const sheet = openChat(session, {
+      canWithdraw: Boolean(session.canWithdraw),
+      onBlock: (profileId) => blockChatSender(context, profileId),
+      onClose: () => releaseActiveChat(context),
+      onPost: (body) => postActiveChatMessage(context, body),
+      onReport: (messageId) => openChatMessageReport(context, messageId),
+      onWithdraw: () => withdrawMySession(session.sessionId),
+    });
+    context = {
+      authSnapshot,
+      messages: [],
+      onVisibilityChange: () => {
+        if (visibilityTarget?.visibilityState === "visible" && activeChat === context) void refreshActiveChat(context);
+      },
+      requestId: 0,
+      roster: [],
+      session,
+      sheet,
+    };
+    activeChat = context;
+    visibilityTarget?.addEventListener?.("visibilitychange", context.onVisibilityChange);
+    void refreshActiveChat(context);
+    return sheet;
   }
 
   function openCourt(court, onlySessions = null) {
@@ -1069,6 +1271,17 @@ export function createSessionController({
   function reconcileActiveDetailParticipation() {
     if (!activeDetail || !activeDetailSession) return;
     if (actionKey(actionFor(activeDetailSession)) !== activeDetailActionKey) closeActiveDetail();
+  }
+
+  function reconcileActiveChatParticipation() {
+    if (!activeChat) return;
+    const session = currentParticipation(activeChat.session.sessionId);
+    if (!chatMemberSession(session)) {
+      closeActiveChat({ reason: "chat-authority-changed", restoreFocus: false });
+      return;
+    }
+    activeChat.session = session;
+    if (MY_SESSION_FINAL_STATUSES.has(String(session.status).toLowerCase())) activeChat.sheet?.setArchived?.();
   }
 
   function closeActiveCourtDrawer(options) {
@@ -1618,7 +1831,7 @@ export function createSessionController({
     return authSnapshot;
   }
 
-  function openReportForTarget({ sessionId = null, reportedProfileId = null, targetLabel }) {
+  function openReportForTarget({ messageId = null, sessionId = null, reportedProfileId = null, targetLabel }) {
     const authSnapshot = requireReportAccess();
     let dialog = null;
     dialog = openReport({
@@ -1632,7 +1845,9 @@ export function createSessionController({
         if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
           throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
         }
-        const result = await api.createReport({ reportedProfileId, reason: normalizedReason, sessionId });
+        const reportInput = { reportedProfileId, reason: normalizedReason, sessionId };
+        if (messageId != null) reportInput.messageId = messageId;
+        const result = await api.createReport(reportInput);
         if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新開啟檢舉。");
         toast("已送出檢舉，謝謝你的回報。");
         return result;
@@ -1887,6 +2102,7 @@ export function createSessionController({
       closeActiveEditSession(options);
       closeActiveProfilePrompt(options);
       closeActiveReportDialog(options);
+      closeActiveChat(options);
       closeActiveJoinConfirmation(undefined, options);
       closeActiveDetail(undefined, options);
     } else {
@@ -1902,6 +2118,10 @@ export function createSessionController({
     state.profile = profile ?? null;
     if (identityChanged) {
       replaceMySessions([]);
+      latestBlockedPlayerRequest += 1;
+      state.blockedPlayers = [];
+      state.blockedPlayersError = "";
+      state.blockedPlayersStatus = "idle";
       state.mySessionsError = "";
       state.mySessionsStatus = identity ? "loading" : "idle";
       // The private DOM may currently contain a roster or contact. Push the
@@ -1910,6 +2130,7 @@ export function createSessionController({
       notifyMySessions();
     }
     reconcileActiveDetailParticipation();
+    reconcileActiveChatParticipation();
     publish();
     if (await reloadParticipation(epoch, identity)) publish();
     if (epoch === authEpoch && isCurrentAuthSnapshot({ epoch, identity })) await resumePendingIntent();
@@ -1935,6 +2156,9 @@ export function createSessionController({
     getMySessionGroups: () => mySessionGroups(),
     getMySessionState: () => ({
       authenticated: Boolean(state.authSession),
+      blockedPlayers: [...state.blockedPlayers],
+      blockedPlayersError: state.blockedPlayersError,
+      blockedPlayersStatus: state.blockedPlayersStatus,
       contactsError: state.mySessionContactsError,
       error: state.mySessionsError,
       groups: mySessionGroups(),
@@ -1959,10 +2183,12 @@ export function createSessionController({
     openSessionFromLink,
     openSessionDecision,
     openSessionEdit,
+    openSessionChat,
     openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,
     refreshMySessionDetails,
+    refreshMyPlayerBlocks,
     refreshMySessions,
     respondInvite,
     reviewMySessionParticipant,
@@ -1976,6 +2202,7 @@ export function createSessionController({
     setMapUnavailable,
     togglePlayerVisibility,
     togglePlayerLayer,
+    unblockPlayer,
     withdrawMySession,
   };
 }

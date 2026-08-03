@@ -2270,6 +2270,7 @@ test("mock player layer renders directory pins and cards while the signed-out en
 
 test("chat sheet escapes user bodies, separates system messages, and becomes archived read-only", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
   await page.goto("/");
 
   await page.evaluate(async () => {
@@ -2345,8 +2346,10 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await expect(chat.locator('[data-chat-message-self="true"]')).toContainText("收到");
   await expect(chat.getByText("等待者")).toHaveCount(0);
   await expect(chat.getByText("主揪")).toBeVisible();
-  await expect(chat.getByText("示範球友", { exact: true })).toBeVisible();
+  await expect(chat.locator("[data-chat-roster]")).toContainText("示範球友");
 
+  await page.evaluate(() => window.__chatSheet.setState({ messages: [], roster: [], status: "ready" }));
+  await expect(chat).toContainText("目前還沒有訊息，從一句招呼開始吧。");
   await page.evaluate(() => window.__chatSheet.setArchived());
   await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
   await expect(chat).toContainText("球局已封存");
@@ -2354,10 +2357,12 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
 });
 
 test("My Sessions exposes chat only to accepted members and manages the authoritative block list", async ({ page }) => {
+  await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
     const { renderMySessionsPage } = await import("/src/sessionViews.js");
     const root = document.getElementById("my-sessions-root");
+    document.getElementById("my-sessions-page").hidden = false;
     const base = {
       canCancel: false,
       canConfirmAttendance: false,

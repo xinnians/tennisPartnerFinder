@@ -1301,8 +1301,8 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
   await page.getByTestId(`open-chat-${sessionId}`).click();
   const chat = page.getByTestId("session-chat-sheet");
   await expect(chat).toBeVisible();
-  await expect(chat.getByText(context.host.nickname)).toBeVisible();
-  await expect(chat.getByText(context.guest.nickname)).toBeVisible();
+  await expect(chat.locator("[data-chat-roster]")).toContainText(context.host.nickname);
+  await expect(chat.locator("[data-chat-roster]")).toContainText(context.guest.nickname);
   const unsafeBody = `球場見 <b>${context.runId}</b> & 喝水`;
   await chat.getByTestId("chat-message-input").fill(unsafeBody);
   await chat.getByTestId("chat-send").click();

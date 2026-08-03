@@ -390,6 +390,13 @@
 .notification-settings__fieldset label { display: flex; align-items: center; gap: 7px; color: var(--navy); font-size: 14px; font-weight: 700; }
 .notification-settings__districts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } .notification-settings__districts { grid-template-columns: 1fr; } }
+.blocked-player-settings { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.blocked-player-settings h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.blocked-player-settings .form-hint,
+.blocked-player-settings .surface__copy { margin: 0; }
+.blocked-player-list { display: grid; gap: 8px; }
+.blocked-player-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-radius: 9px; background: var(--mist); color: var(--navy); font-size: 14px; font-weight: 800; }
+.blocked-player-row span { min-width: 0; overflow-wrap: anywhere; }
 .my-sessions-section { display: grid; gap: 9px; margin-top: 24px; }
 .my-sessions-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .my-sessions-section__head h2 { margin: 0; color: var(--navy); font-size: 20px; }
@@ -431,6 +438,29 @@
 .session-detail p:nth-child(4) { color: var(--ink-muted); }
 .session-detail__actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 2px; }
 .session-detail__actions .session-primary { flex: 1 1 160px; }
+.session-chat-sheet { display: flex; flex-direction: column; width: min(520px, calc(100vw - 40px)); }
+.chat-session-summary { display: grid; gap: 4px; position: sticky; top: 0; z-index: 1; margin-bottom: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--mist); color: var(--navy); }
+.chat-session-summary span { color: var(--ink-muted); font-size: 13px; }
+.chat-roster { display: grid; gap: 7px; margin-bottom: 12px; }
+.chat-roster h3 { margin: 0; color: var(--navy); font-size: 14px; }
+.chat-roster [data-chat-roster] { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-roster__member { padding: 6px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--line); color: var(--navy); font-size: 12px; font-weight: 800; }
+.chat-feed { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-height: 120px; overflow-y: auto; padding: 4px 2px 12px; }
+.chat-feed__empty { margin: auto; text-align: center; }
+.chat-message { align-self: flex-start; max-width: 88%; padding: 9px 11px; border-radius: 12px 12px 12px 3px; background: var(--mist); color: var(--navy); overflow-wrap: anywhere; }
+.chat-message--self { align-self: flex-end; border-radius: 12px 12px 3px 12px; background: #e5f0ff; }
+.chat-message--system { align-self: center; max-width: 96%; background: transparent; color: var(--ink-muted); font-size: 12px; text-align: center; }
+.chat-message p { margin: 0; }
+.chat-message__sender { margin-bottom: 4px !important; color: var(--blue); font-size: 11px; font-weight: 900; }
+.chat-message__body { white-space: pre-wrap; line-height: 1.5; }
+.chat-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; color: var(--ink-muted); font-size: 10px; }
+.chat-message__meta .session-tertiary { min-height: 24px; padding: 0 2px; font-size: 10px; }
+.chat-archived-note { margin: 0 0 8px; padding: 9px 10px; border-radius: 9px; background: #f2f3f5; color: var(--ink-muted); font-size: 13px; font-weight: 800; }
+.chat-composer { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--navy); font-size: 13px; font-weight: 800; }
+.chat-composer textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 9px; padding: 9px; color: var(--navy); font: inherit; }
+.chat-composer textarea:disabled { background: #f2f3f5; color: var(--ink-muted); }
+.chat-composer__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.chat-composer__actions .form-hint { margin: 0; }
 .player-profile { display: grid; gap: 7px; margin-bottom: 16px; padding: 13px; border-radius: 12px; background: var(--mist); color: var(--navy); }
 .player-profile p { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
 .player-invite-form,

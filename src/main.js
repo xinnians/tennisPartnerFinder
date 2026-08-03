@@ -70,6 +70,7 @@ import {
   openProfileCompletionSheet,
   openPlayerCardSheet,
   openReportDialog,
+  openSessionChatSheet,
   openSessionSheet,
   openSessionUnavailableSheet,
   renderMapDataStatus,
@@ -647,6 +648,9 @@ function renderMySessionsDestination() {
     authenticated: state.authenticated,
     contactsForSession: controller.getSessionContacts,
     contactsError: state.contactsError,
+    blockedPlayers: state.blockedPlayers,
+    blockedPlayersError: state.blockedPlayersError,
+    blockedPlayersStatus: state.blockedPlayersStatus,
     createdSessionId,
     errorMessage: state.error,
     groups: state.groups,
@@ -666,6 +670,7 @@ function renderMySessionsDestination() {
     onEdit: controller.openSessionEdit,
     onEnablePush: enablePushNotifications,
     onMarkPlayed: controller.markMySessionPlayed,
+    onOpenChat: controller.openSessionChat,
     onOpenSession: controller.openSession,
     onRefresh: async () => {
       await controller.refreshMySessions({ includeContacts: true });
@@ -680,6 +685,7 @@ function renderMySessionsDestination() {
     onSetOpenToGreeting: updateOpenToGreetingSetting,
     onSetPresenceSharing: updatePresenceSharing,
     onToggleVisibility: controller.togglePlayerVisibility,
+    onUnblockPlayer: controller.unblockPlayer,
     notificationSettings,
     presenceSettings: presenceSettingsForProfile(),
     profileIsPublic: state.isPublic,
@@ -713,6 +719,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
     if (activePage === "my-sessions") renderMySessionsDestination();
   });
   void refreshNotificationSettings();
+  void controller.refreshMyPlayerBlocks();
   if (focus) {
     requestAnimationFrame(() => {
       document.querySelector("#my-sessions-root [data-my-sessions-heading]")?.focus({ preventScroll: true });
@@ -983,6 +990,7 @@ function init() {
     openCreateSession,
     openDecideSession: openDecideSessionSheet,
     openEditSession: openEditSessionSheet,
+    openChat: openSessionChatSheet,
     openLogin: openSafeLogin,
     openReport: (context) => openReportDialog(context),
     promptProfile: openProfileCompletion,

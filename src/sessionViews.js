@@ -553,8 +553,14 @@ function wireContactCopy(root) {
 
 function mySessionCard(session, { createdSessionId = null, contacts = [] } = {}) {
   const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
+  const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
   const actions = [
     `<button type="button" class="session-secondary" data-open-my-session data-session-id="${esc(session.sessionId)}">查看球局</button>`,
+    canChat
+      ? `<button type="button" class="session-primary" data-open-chat data-session-id="${esc(
+          session.sessionId
+        )}" data-testid="open-chat-${esc(session.sessionId)}">群組聊天</button>`
+      : "",
     hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt)
       ? mySessionActionButton(session, { action: "decide", label: "定案場地與時間" })
       : "",
@@ -562,7 +568,7 @@ function mySessionCard(session, { createdSessionId = null, contacts = [] } = {})
       ? mySessionActionButton(session, { action: "edit", label: "編輯球局" })
       : "",
     session.canCancel ? mySessionActionButton(session, { action: "cancel", label: "取消球局" }) : "",
-    session.canWithdraw ? mySessionActionButton(session, { action: "withdraw", label: "退出球局" }) : "",
+    session.canWithdraw ? mySessionActionButton(session, { action: "withdraw", label: "取消參加" }) : "",
     session.canConfirmPlayed ? mySessionActionButton(session, { action: "played", label: "回報打成" }) : "",
     session.canConfirmAttendance && !session.viewerPlayedConfirmed
       ? mySessionActionButton(session, { action: "attendance", label: "確認到場" })
@@ -861,6 +867,9 @@ export function renderMySessionsPage(
   {
     contactsForSession = () => [],
     contactsError = "",
+    blockedPlayers = [],
+    blockedPlayersError = "",
+    blockedPlayersStatus = "idle",
     createdSessionId = null,
     groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
     onAccept = () => {},
@@ -875,6 +884,7 @@ export function renderMySessionsPage(
     onEdit = () => {},
     onEnablePush = () => {},
     onMarkPlayed = () => {},
+    onOpenChat = () => {},
     onOpenSession = () => {},
     onRefresh = () => {},
     onReportParticipant = () => {},
@@ -886,6 +896,7 @@ export function renderMySessionsPage(
     onSetOpenToGreeting = () => {},
     onSetPresenceSharing = () => {},
     onToggleVisibility = () => {},
+    onUnblockPlayer = () => {},
     onWithdraw = () => {},
     authenticated = false,
     actionScopeKey = null,
@@ -901,6 +912,7 @@ export function renderMySessionsPage(
   const history = Array.isArray(groups.history) ? groups.history : [];
   const notification = normalizedNotificationSettings(notificationSettings);
   const presence = normalizedPresenceSettings(presenceSettings);
+  const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
   setMySessionActionScope(root, actionScopeKey);
   root.innerHTML = `
     <div class="my-sessions-shell__head">
@@ -984,6 +996,32 @@ export function renderMySessionsPage(
             )}"${notification.districts.has(district) ? " checked" : ""}> ${esc(district)}</label>`
         ).join("")}</div>
       </fieldset>
+    </section>
+    <section class="blocked-player-settings" aria-labelledby="blocked-player-settings-title">
+      <div>
+        <h3 id="blocked-player-settings-title">我的封鎖清單</h3>
+        <p class="form-hint">解除封鎖後，系統會重新讀取目前的權威清單。</p>
+      </div>
+      <p class="my-sessions-message" data-blocked-players-status role="status" aria-live="polite"${
+        blockedPlayersStatus === "loading" ? "" : " hidden"
+      }>正在讀取封鎖清單…</p>
+      <p class="form-error" data-blocked-players-error role="alert"${blockedPlayersError ? "" : " hidden"}>${esc(
+        blockedPlayersError
+      )}</p>
+      <div class="blocked-player-list" data-testid="blocked-player-list">${
+        safeBlockedPlayers.length
+          ? safeBlockedPlayers
+              .map(
+                (player) => `<div class="blocked-player-row" data-testid="blocked-player-${esc(player.blockedProfileId)}">
+          <span>${esc(player.blockedNickname || "已封鎖的使用者")}</span>
+          <button type="button" class="session-secondary" data-my-action="unblock" data-profile-id="${esc(
+            player.blockedProfileId
+          )}" data-testid="unblock-player-${esc(player.blockedProfileId)}">解除封鎖</button>
+        </div>`
+              )
+              .join("")
+          : '<p class="surface__copy">目前沒有封鎖任何人。</p>'
+      }</div>
     </section>`
         : ""
     }
@@ -1082,6 +1120,9 @@ export function renderMySessionsPage(
   root.querySelectorAll("[data-open-my-session]").forEach((button) => {
     button.addEventListener("click", () => onOpenSession(button.dataset.sessionId));
   });
+  root.querySelectorAll("[data-open-chat]").forEach((button) => {
+    button.addEventListener("click", () => onOpenChat(button.dataset.sessionId));
+  });
   root.querySelectorAll("[data-my-action]").forEach((button) => {
     button.addEventListener("click", () => {
       const sessionId = button.dataset.sessionId;
@@ -1100,6 +1141,7 @@ export function renderMySessionsPage(
         "report-participant": () => onReportParticipant(sessionId, profileId),
         "report-session": () => onReportSession(sessionId),
         "toggle-visibility": onToggleVisibility,
+        unblock: () => onUnblockPlayer(profileId),
         withdraw: () => onWithdraw(sessionId),
       };
       runMySessionAction(button, callbacks[button.dataset.myAction], root);
@@ -1321,6 +1363,185 @@ export function renderDiscoveryEmpty({ onReset = () => {}, onExpandBounds = () =
   return html;
 }
 
+function acceptedChatRoster(roster) {
+  return (Array.isArray(roster) ? roster : []).filter((participant) => String(participant?.status).toLowerCase() === "accepted");
+}
+
+function chatRosterMarkup(roster) {
+  const accepted = acceptedChatRoster(roster);
+  if (!accepted.length) return '<p class="surface__copy">參加者名單暫時沒有可顯示的資料。</p>';
+  return accepted
+    .map((participant) => {
+      const role = String(participant.role).toLowerCase() === "host" ? "主揪" : "球友";
+      const ntrp = participant.ntrp == null ? "" : ` · ${formatNtrp(participant.ntrp)}`;
+      return `<span class="chat-roster__member">${esc(participant.nickname || "球友")} · ${esc(role)}${esc(ntrp)}</span>`;
+    })
+    .join("");
+}
+
+function chatMessagesMarkup(messages) {
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  if (!safeMessages.length) return '<p class="surface__copy chat-feed__empty">目前還沒有訊息，從一句招呼開始吧。</p>';
+  return safeMessages
+    .map((message) => {
+      const kind = message.kind === "system" ? "system" : "user";
+      const isSelf = kind === "user" && message.isSelf === true;
+      const senderProfileId = Number(message.senderProfileId);
+      const canGovern = kind === "user" && !isSelf && Number.isSafeInteger(senderProfileId) && senderProfileId > 0;
+      return `<article class="chat-message chat-message--${esc(kind)}${isSelf ? " chat-message--self" : ""}"
+        data-chat-message data-chat-message-id="${esc(message.messageId)}" data-chat-message-kind="${esc(kind)}" data-chat-message-self="${
+          isSelf ? "true" : "false"
+        }">
+        ${kind === "user" ? `<p class="chat-message__sender">${esc(isSelf ? "我" : message.senderNickname || "球友")}</p>` : ""}
+        <p class="chat-message__body">${esc(message.body)}</p>
+        <div class="chat-message__meta">
+          <time datetime="${esc(message.createdAt)}">${esc(taipeiDateTime(message.createdAt))}</time>
+          ${
+            canGovern
+              ? `<button type="button" class="session-tertiary" data-chat-report="${esc(message.messageId)}">檢舉</button>
+                 <button type="button" class="session-tertiary" data-chat-block="${esc(
+                   senderProfileId
+                 )}" data-testid="block-message-sender-${esc(senderProfileId)}">封鎖</button>`
+              : ""
+          }
+        </div>
+      </article>`;
+    })
+    .join("");
+}
+
+/** Open the accepted-member chat with an event-driven, authority-refreshed feed. */
+export function openSessionChatSheet(
+  session,
+  {
+    canWithdraw = false,
+    onBlock = () => {},
+    onClose = () => {},
+    onPost = () => {},
+    onReport = () => {},
+    onWithdraw = () => {},
+  } = {}
+) {
+  let archived = ["cancelled", "expired", "played"].includes(String(session?.status).toLowerCase());
+  const mounted = mountSheet({
+    id: "session-chat-sheet",
+    label: "球局群組聊天",
+    className: "session-chat-sheet",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">球局群組</p><h2>群組聊天</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉群組聊天">×</button>
+      </div>
+      <section class="chat-session-summary" aria-label="球局資訊">
+        <strong>${esc(session.court)} · ${esc(session.courtDistrict)}</strong>
+        <span>${esc(taipeiDateTime(session.startAt))} · ${esc(session.playType)}</span>
+      </section>
+      <section class="chat-roster" aria-labelledby="chat-roster-title">
+        <h3 id="chat-roster-title">參加者</h3>
+        <div data-chat-roster><p class="surface__copy">正在讀取參加者…</p></div>
+      </section>
+      <p class="my-sessions-message" data-chat-loading role="status" aria-live="polite">正在讀取群組訊息…</p>
+      <p class="form-error" data-chat-error role="alert" tabindex="-1" hidden></p>
+      <section class="chat-feed" data-chat-feed aria-label="群組訊息" aria-live="polite"></section>
+      <p class="chat-archived-note" data-chat-archived-note${archived ? "" : " hidden"}>球局已封存；你仍可查看先前訊息，但不能再傳送。</p>
+      <form class="chat-composer" data-chat-composer>
+        <label for="chat-message-input">傳送純文字訊息</label>
+        <textarea id="chat-message-input" data-testid="chat-message-input" maxlength="1000" rows="3"${archived ? " disabled" : ""}></textarea>
+        <div class="chat-composer__actions">
+          <span class="form-hint">最多 1000 字</span>
+          <button type="submit" class="session-primary" data-testid="chat-send"${archived ? " disabled" : ""}>傳送</button>
+        </div>
+      </form>
+      ${
+        canWithdraw && !archived
+          ? '<button type="button" class="session-tertiary" data-chat-withdraw>取消參加</button>'
+          : ""
+      }`,
+  });
+  const feed = mounted.root.querySelector("[data-chat-feed]");
+  const roster = mounted.root.querySelector("[data-chat-roster]");
+  const loading = mounted.root.querySelector("[data-chat-loading]");
+  const error = mounted.root.querySelector("[data-chat-error]");
+  const input = mounted.root.querySelector("[data-testid='chat-message-input']");
+  const send = mounted.root.querySelector("[data-testid='chat-send']");
+  const archivedNote = mounted.root.querySelector("[data-chat-archived-note]");
+
+  function setArchived(message = "") {
+    archived = true;
+    input.disabled = true;
+    send.disabled = true;
+    archivedNote.hidden = false;
+    mounted.root.querySelector("[data-chat-withdraw]")?.remove();
+    if (message) {
+      error.textContent = message;
+      error.hidden = false;
+      error.focus({ preventScroll: true });
+    }
+  }
+
+  function setState({ errorMessage = "", messages = [], roster: participants = [], status = "ready" } = {}) {
+    loading.hidden = status !== "loading";
+    if (status === "loading") loading.textContent = "正在讀取群組訊息…";
+    error.textContent = errorMessage;
+    error.hidden = !errorMessage;
+    roster.innerHTML = chatRosterMarkup(participants);
+    feed.innerHTML = chatMessagesMarkup(messages);
+  }
+
+  mounted.root.querySelector("[data-chat-composer]")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (archived || send.disabled) return;
+    const body = String(input.value ?? "").trim();
+    error.hidden = true;
+    if (!body || body.length > 1000) {
+      error.textContent = "請輸入 1 至 1000 字的純文字訊息。";
+      error.hidden = false;
+      return;
+    }
+    send.disabled = true;
+    input.disabled = true;
+    try {
+      await onPost(body);
+      input.value = "";
+    } catch (postError) {
+      error.textContent = postError?.message || "訊息暫時無法傳送，請稍後再試。";
+      error.hidden = false;
+      error.focus({ preventScroll: true });
+    } finally {
+      if (mounted.root.contains(send) && !archived) {
+        send.disabled = false;
+        input.disabled = false;
+      }
+    }
+  });
+  feed?.addEventListener("click", (event) => {
+    const reportButton = event.target.closest("[data-chat-report]");
+    const blockButton = event.target.closest("[data-chat-block]");
+    if (reportButton) void Promise.resolve().then(() => onReport(reportButton.dataset.chatReport)).catch((reportError) => {
+      error.textContent = reportError?.message || "目前無法開啟檢舉。";
+      error.hidden = false;
+    });
+    if (blockButton) void Promise.resolve(onBlock(blockButton.dataset.chatBlock)).catch((blockError) => {
+      error.textContent = blockError?.message || "封鎖設定暫時無法更新，請稍後再試。";
+      error.hidden = false;
+    });
+  });
+  mounted.root.querySelector("[data-chat-withdraw]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await onWithdraw();
+    } catch (withdrawError) {
+      error.textContent = withdrawError?.message || "取消參加暫時無法完成，請稍後再試。";
+      error.hidden = false;
+      if (mounted.root.contains(button)) button.disabled = false;
+    }
+  });
+
+  return { ...mounted, setArchived, setState };
+}
+
 /** Open a public session detail sheet with the privacy-reviewed field order. */
 export function openSessionSheet(
   session,
@@ -1328,11 +1549,13 @@ export function openSessionSheet(
     action,
     canDecide = false,
     canEdit = false,
+    canChat = false,
     canReport = false,
     courts = [],
     onCopyLink = () => {},
     onDecide = () => {},
     onEdit = () => {},
+    onChat = () => {},
     onPrimary = () => {},
     onReport = () => {},
     onWithdraw = () => {},
@@ -1366,6 +1589,7 @@ export function openSessionSheet(
           <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
           ${canDecide ? '<button type="button" class="session-primary" data-session-action="decide">定案場地與時間</button>' : ""}
           ${canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : ""}
+          ${canChat ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>' : ""}
           <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
             action?.label ?? "申請加入"
           )}</button>
@@ -1385,6 +1609,7 @@ export function openSessionSheet(
   mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
   mounted.root.querySelector('[data-session-action="decide"]')?.addEventListener("click", onDecide);
   mounted.root.querySelector('[data-session-action="edit"]')?.addEventListener("click", onEdit);
+  mounted.root.querySelector('[data-session-action="chat"]')?.addEventListener("click", onChat);
   const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
   copyLinkButton?.addEventListener("click", async () => {
     copyLinkButton.disabled = true;
