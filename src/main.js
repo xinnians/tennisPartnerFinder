@@ -85,8 +85,6 @@ import { eligibilityFromPrivateProfile } from "./profile.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
 
-export { eligibilityFromPrivateProfile } from "./profile.js";
-
 let google = null;
 let map = null;
 let courts = [];
