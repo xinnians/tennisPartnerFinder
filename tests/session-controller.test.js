@@ -189,6 +189,81 @@ test("authenticated detail and join confirmation load the accepted preview while
   assert.deepEqual(anonymous.opened.at(-1).detail.joinPreviewUpdates, []);
 });
 
+test("the newest session detail preview wins when an older session request resolves last", async () => {
+  const firstPreview = deferred();
+  const secondPreview = deferred();
+  const sessions = [futureSession({ sessionId: 41 }), futureSession({ court: "第二球場", sessionId: 42 })];
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () => sessions,
+      loadSessionJoinPreview: (sessionId) => (sessionId === 41 ? firstPreview.promise : secondPreview.promise),
+    },
+  });
+  await harness.controller.setAuthState(
+    { user: { id: "join-preview-detail-race" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  await harness.controller.loadDiscovery();
+
+  harness.controller.openSession(41);
+  const firstDetail = harness.opened.at(-1).detail;
+  harness.controller.openSession(42);
+  const secondDetail = harness.opened.at(-1).detail;
+
+  const secondParticipants = [{ avatarUrl: "", nickname: "第二局主揪", ntrp: 4, role: "host", sessionId: 42 }];
+  secondPreview.resolve(secondParticipants);
+  await flush();
+  firstPreview.resolve([{ avatarUrl: "", nickname: "第一局主揪", ntrp: 3.5, role: "host", sessionId: 41 }]);
+  await flush();
+
+  assert.deepEqual(firstDetail.joinPreviewUpdates, [{ participants: [], status: "loading" }]);
+  assert.deepEqual(secondDetail.joinPreviewUpdates, [
+    { participants: [], status: "loading" },
+    { participants: secondParticipants, status: "ready" },
+  ]);
+});
+
+test("the newest join confirmation preview wins when an older session request resolves last", async () => {
+  const firstPreview = deferred();
+  const secondPreview = deferred();
+  const previewLoads = [];
+  const sessions = [futureSession({ sessionId: 41 }), futureSession({ court: "第二球場", sessionId: 42 })];
+  const harness = createHarness({
+    api: {
+      loadSessionDiscovery: async () => sessions,
+      loadSessionJoinPreview: (sessionId) => {
+        previewLoads.push(sessionId);
+        return sessionId === 41 ? firstPreview.promise : secondPreview.promise;
+      },
+    },
+  });
+  await harness.controller.setAuthState(
+    { user: { id: "join-preview-confirmation-race" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  await harness.controller.loadDiscovery();
+
+  harness.controller.openSession(41);
+  harness.opened.at(-1).handlers.onPrimary();
+  const firstConfirmation = harness.confirmations.at(-1).detail;
+  harness.controller.openSession(42);
+  harness.opened.at(-1).handlers.onPrimary();
+  const secondConfirmation = harness.confirmations.at(-1).detail;
+
+  const secondParticipants = [{ avatarUrl: "", nickname: "第二局主揪", ntrp: 4, role: "host", sessionId: 42 }];
+  secondPreview.resolve(secondParticipants);
+  await flush();
+  firstPreview.resolve([{ avatarUrl: "", nickname: "第一局主揪", ntrp: 3.5, role: "host", sessionId: 41 }]);
+  await flush();
+
+  assert.deepEqual(firstConfirmation.joinPreviewUpdates, [{ participants: [], status: "loading" }]);
+  assert.deepEqual(secondConfirmation.joinPreviewUpdates, [
+    { participants: [], status: "loading" },
+    { participants: secondParticipants, status: "ready" },
+  ]);
+  assert.deepEqual(previewLoads, [41, 41, 42, 42]);
+});
+
 function createHarness(overrides = {}) {
   const renders = [];
   const pinBatches = [];
