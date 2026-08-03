@@ -308,6 +308,8 @@ export function createSessionController({
   openCourtPlayersDrawer = () => {},
   openPlayerCard = () => {},
   openCreateSession = () => {},
+  openDecideSession = () => {},
+  openEditSession = () => {},
   openLogin = () => {},
   openReport = () => {},
   promptProfile = () => {},
@@ -362,6 +364,8 @@ export function createSessionController({
   let activeJoinConfirmation = null;
   let activeJoinConfirmationSessionId = null;
   let activeCreateSession = null;
+  let activeDecisionSession = null;
+  let activeEditSession = null;
   let activeProfilePrompt = null;
   let activeProfileIntent = null;
   let activeReportDialog = null;
@@ -373,7 +377,7 @@ export function createSessionController({
   const inFlightLifecycleActions = new Map();
 
   function visibleSessions() {
-    return sortSessionsForDrawer(filterSessions(state.sessions, state.filters), state.userLocation);
+    return sortSessionsForDrawer(filterSessions(state.sessions, state.filters), state.userLocation, new Date(), state.courts);
   }
 
   function playerGroups() {
@@ -802,6 +806,7 @@ export function createSessionController({
     state.courts = Array.isArray(courts) ? courts : [];
     state.courtsReady = Boolean(ready);
     activeCreateSession?.setCourts?.(state.courts, { ready: state.courtsReady });
+    activeEditSession?.setCourts?.(state.courts, { ready: state.courtsReady });
     activeProfilePrompt?.setCourts?.(state.courts, { ready: state.courtsReady });
     publish();
   }
@@ -898,10 +903,18 @@ export function createSessionController({
     activeCourtDrawer = null;
     if (!session) return;
     const action = actionFor(session);
+    const participation = currentParticipation(session.sessionId);
+    const hostCanManage = String(participation?.viewerRole) === "host" && Boolean(participation?.canCancel);
+    const canDecide = hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt);
+    const canEdit = hostCanManage && ["booked", "walk_on"].includes(session.venueType);
     let detail = null;
     detail = openSession(session, {
       action,
       courts: state.courts,
+      canDecide,
+      canEdit,
+      onDecide: () => openSessionDecision(session.sessionId),
+      onEdit: () => openSessionEdit(session.sessionId),
       onPrimary: () => startPrimaryAction(session, detail),
       canReport: Boolean(state.authSession && profileIsReady(state.profile)),
       onReport: () => openSessionReport(session.sessionId),
@@ -1073,6 +1086,18 @@ export function createSessionController({
   function closeActiveCreateSession(options = {}) {
     const sheet = activeCreateSession;
     activeCreateSession = null;
+    sheet?.close?.(options);
+  }
+
+  function closeActiveDecisionSession(options = {}) {
+    const sheet = activeDecisionSession;
+    activeDecisionSession = null;
+    sheet?.close?.(options);
+  }
+
+  function closeActiveEditSession(options = {}) {
+    const sheet = activeEditSession;
+    activeEditSession = null;
     sheet?.close?.(options);
   }
 
@@ -1436,6 +1461,109 @@ export function createSessionController({
     return runMySessionMutation("attendance", session, authSnapshot, () => api.confirmSessionAttendance(session.sessionId), "已確認到場。");
   }
 
+  function hostCanDecideSession(session) {
+    return (
+      String(session?.viewerRole) === "host" &&
+      Boolean(session?.canCancel) &&
+      session?.venueType === "candidates" &&
+      !Boolean(session?.decidedAt)
+    );
+  }
+
+  function hostCanEditSession(session) {
+    return (
+      String(session?.viewerRole) === "host" &&
+      Boolean(session?.canCancel) &&
+      ["booked", "walk_on"].includes(session?.venueType)
+    );
+  }
+
+  async function openSessionDecision(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanDecideSession);
+    if (typeof api?.loadSessionSummary !== "function" || typeof api?.decideSessionCourt !== "function") {
+      throw new Error("目前無法定案這個候選球局。");
+    }
+    let summary = null;
+    try {
+      summary = await api.loadSessionSummary(session.sessionId);
+    } catch {
+      throw new Error("候選球局暫時無法載入，請稍後再試。");
+    }
+    if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+    closeActiveDecisionSession({ restoreFocus: false });
+    closeActiveEditSession({ restoreFocus: false });
+    activeDetail = null;
+    activeDetailSession = null;
+    activeDetailActionKey = null;
+    let sheet = null;
+    const decisionSummary = summary?.venueType === "candidates" && !Boolean(summary?.decidedAt) ? summary : null;
+    sheet = openDecideSession(decisionSummary, {
+      courts: state.courts,
+      onClose: () => {
+        if (activeDecisionSession === sheet) activeDecisionSession = null;
+      },
+      onDecide: async (courtId, startAt) => {
+        if (!decisionSummary) return { outcome: "SESSION_EXPIRED", reloadRequired: true };
+        if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+        const mutation = beginLifecycleAction("decide", session.sessionId, authSnapshot);
+        if (!mutation) throw new Error("這個球局的操作正在處理中。");
+        let refreshed = false;
+        try {
+          const result = await api.decideSessionCourt(session.sessionId, courtId, startAt);
+          if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
+          refreshed = await refreshAuthoritativeState(authSnapshot);
+          if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
+            sheet?.setTerminal?.("候選球局已逾期或下架，無法再定案。");
+            return result;
+          }
+          if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
+          closeActiveDecisionSession({ reason: "complete" });
+          toast("候選球局已定案。");
+          return result;
+        } catch (error) {
+          if (isCurrentAuthSnapshot(authSnapshot) && !refreshed) await refreshAuthoritativeState(authSnapshot);
+          throw error;
+        } finally {
+          finishLifecycleAction(mutation);
+        }
+      },
+    });
+    activeDecisionSession = sheet?.close ? sheet : null;
+    return activeDecisionSession;
+  }
+
+  function openSessionEdit(sessionId) {
+    const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanEditSession);
+    if (typeof api?.updateSession !== "function") throw new Error("目前無法編輯這個球局。");
+    closeActiveEditSession({ restoreFocus: false });
+    closeActiveDecisionSession({ restoreFocus: false });
+    activeDetail = null;
+    activeDetailSession = null;
+    activeDetailActionKey = null;
+    let sheet = null;
+    sheet = openEditSession(session, {
+      courts: state.courts,
+      courtsReady: state.courtsReady,
+      onClose: () => {
+        if (activeEditSession === sheet) activeEditSession = null;
+      },
+      onSubmit: async (input) => {
+        const result = await runMySessionMutation(
+          "update",
+          session,
+          authSnapshot,
+          () => api.updateSession({ sessionId: session.sessionId, ...input }),
+          "已更新球局資訊。",
+          { includeContacts: false }
+        );
+        closeActiveEditSession({ reason: "complete" });
+        return result;
+      },
+    });
+    activeEditSession = sheet?.close ? sheet : null;
+    return activeEditSession;
+  }
+
   async function commitPlayerVisibility() {
     const authSnapshot = captureAuthSnapshot();
     if (
@@ -1596,6 +1724,8 @@ export function createSessionController({
     const operation = (async () => {
       if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
 
+      // create/join 的 profile gate 靜默等待自動續行；players/visibility 的目錄 gate 保留等待提示。
+
       if (intent.action === "create") {
         if (!requireReadyProfile("ntrp", { silentLoading: true })) return false;
         if (!profileMeetsGate(state.profile, "ntrp")) {
@@ -1751,6 +1881,8 @@ export function createSessionController({
     if (identityChanged) {
       const options = { reason: "account-change", restoreFocus: false };
       closeActiveCreateSession(options);
+      closeActiveDecisionSession(options);
+      closeActiveEditSession(options);
       closeActiveProfilePrompt(options);
       closeActiveReportDialog(options);
       closeActiveJoinConfirmation(undefined, options);
@@ -1823,6 +1955,8 @@ export function createSessionController({
     openCreateIntent,
     openRosterParticipantReport,
     openSessionFromLink,
+    openSessionDecision,
+    openSessionEdit,
     openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,

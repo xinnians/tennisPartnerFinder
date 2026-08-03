@@ -39,16 +39,17 @@ const NOW_START_CREATE_GRACE_MS = 5 * 60 * 1000;
 
 /** Convert a datetime-local value by the product's fixed Taipei wall time. */
 export function taipeiLocalDateTimeToIso(value) {
-  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
   if (!match) return null;
-  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0"] = match;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0", millisecondText = "0"] = match;
   const year = Number(yearText);
   const month = Number(monthText);
   const day = Number(dayText);
   const hour = Number(hourText);
   const minute = Number(minuteText);
   const second = Number(secondText);
-  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second);
+  const millisecond = Number(millisecondText.padEnd(3, "0"));
+  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
   const local = new Date(localUtcMs);
   if (
     local.getUTCFullYear() !== year ||
@@ -56,19 +57,28 @@ export function taipeiLocalDateTimeToIso(value) {
     local.getUTCDate() !== day ||
     local.getUTCHours() !== hour ||
     local.getUTCMinutes() !== minute ||
-    local.getUTCSeconds() !== second
+    local.getUTCSeconds() !== second ||
+    local.getUTCMilliseconds() !== millisecond
   ) {
     return null;
   }
   return new Date(localUtcMs - TAIPEI_UTC_OFFSET_MS).toISOString();
 }
 
-function taipeiNowStartValue(now = new Date()) {
-  const taipei = new Date(now.getTime() + TAIPEI_UTC_OFFSET_MS);
+function taipeiDateTimeLocalValue(value = new Date(), { includeMilliseconds = false, includeSeconds = false } = {}) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const taipei = new Date(date.getTime() + TAIPEI_UTC_OFFSET_MS);
   const padded = (value) => String(value).padStart(2, "0");
-  return `${taipei.getUTCFullYear()}-${padded(taipei.getUTCMonth() + 1)}-${padded(taipei.getUTCDate())}T${padded(
+  const minuteValue = `${taipei.getUTCFullYear()}-${padded(taipei.getUTCMonth() + 1)}-${padded(taipei.getUTCDate())}T${padded(
     taipei.getUTCHours()
   )}:${padded(taipei.getUTCMinutes())}`;
+  const secondValue = `${minuteValue}:${padded(taipei.getUTCSeconds())}`;
+  return includeMilliseconds ? `${secondValue}.${String(taipei.getUTCMilliseconds()).padStart(3, "0")}` : includeSeconds ? secondValue : minuteValue;
+}
+
+function taipeiNowStartValue(now = new Date()) {
+  return taipeiDateTimeLocalValue(now);
 }
 
 function ntrpEndpoint(value) {
@@ -153,6 +163,52 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
       slotsTotal,
       startAt,
       venueType,
+    },
+  };
+}
+
+/** Validate only the fields accepted by update_session. */
+export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}) {
+  const errors = {};
+  const courtIdValue = Number(input.courtId);
+  const courtId = Number.isSafeInteger(courtIdValue) && courtIdValue > 0 ? courtIdValue : null;
+  const feeNote = String(input.feeNote ?? "");
+  const notes = String(input.notes ?? "");
+  const minText = String(input.ntrpMin ?? "").trim();
+  const maxText = String(input.ntrpMax ?? "").trim();
+  const hasRange = Boolean(minText || maxText);
+  const ntrpMin = minText ? ntrpEndpoint(minText) : null;
+  const ntrpMax = maxText ? ntrpEndpoint(maxText) : null;
+  const playType = String(input.playType ?? "");
+  const slotsMissing = Number(input.slotsMissing);
+  const startAt = taipeiLocalDateTimeToIso(input.startAtLocal);
+
+  if (courtId == null) errors.courtId = "請選擇台北市球場。";
+  if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
+  if (!Number.isInteger(slotsMissing) || slotsMissing < 1 || slotsMissing > 3) errors.slotsMissing = "缺額請填 1 到 3 位。";
+  if (!startAt || new Date(startAt).getTime() < new Date(now).getTime() - NOW_START_CREATE_GRACE_MS) {
+    errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
+  }
+  if (notes.length > 500) errors.notes = "備註最多 500 字。";
+  if (feeNote.length > 500) errors.feeNote = "費用說明最多 500 字。";
+  if (hasRange && (!ntrpMin || !ntrpMax)) {
+    if (!ntrpMin) errors.ntrpMin = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
+    if (!ntrpMax) errors.ntrpMax = "NTRP 請填 1.0 到 7.0，並以 0.5 為間距。";
+  }
+  if (ntrpMin != null && ntrpMax != null && ntrpMin > ntrpMax) errors.ntrpMax = "最高程度不可小於最低程度。";
+
+  return {
+    errors,
+    valid: Object.keys(errors).length === 0,
+    value: {
+      courtId,
+      feeNote: feeNote.trim() || null,
+      notes: notes.trim() || null,
+      ntrpMax: hasRange ? ntrpMax : null,
+      ntrpMin: hasRange ? ntrpMin : null,
+      playType,
+      slotsMissing,
+      startAt,
     },
   };
 }
@@ -496,8 +552,15 @@ function wireContactCopy(root) {
 }
 
 function mySessionCard(session, { createdSessionId = null, contacts = [] } = {}) {
+  const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
   const actions = [
     `<button type="button" class="session-secondary" data-open-my-session data-session-id="${esc(session.sessionId)}">查看球局</button>`,
+    hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt)
+      ? mySessionActionButton(session, { action: "decide", label: "定案場地與時間" })
+      : "",
+    hostCanManage && ["booked", "walk_on"].includes(session.venueType)
+      ? mySessionActionButton(session, { action: "edit", label: "編輯球局" })
+      : "",
     session.canCancel ? mySessionActionButton(session, { action: "cancel", label: "取消球局" }) : "",
     session.canWithdraw ? mySessionActionButton(session, { action: "withdraw", label: "退出球局" }) : "",
     session.canConfirmPlayed ? mySessionActionButton(session, { action: "played", label: "回報打成" }) : "",
@@ -808,6 +871,8 @@ export function renderMySessionsPage(
     onCreatedSessionFocus = () => true,
     onDecline = () => {},
     onDeclineInvite = () => {},
+    onDecide = () => {},
+    onEdit = () => {},
     onEnablePush = () => {},
     onMarkPlayed = () => {},
     onOpenSession = () => {},
@@ -1029,6 +1094,8 @@ export function renderMySessionsPage(
         cancel: () => onCancel(sessionId),
         decline: () => onDecline(sessionId, participantId),
         "decline-invite": () => onDeclineInvite(sessionId),
+        decide: () => onDecide(sessionId),
+        edit: () => onEdit(sessionId),
         played: () => onMarkPlayed(sessionId),
         "report-participant": () => onReportParticipant(sessionId, profileId),
         "report-session": () => onReportSession(sessionId),
@@ -1257,7 +1324,19 @@ export function renderDiscoveryEmpty({ onReset = () => {}, onExpandBounds = () =
 /** Open a public session detail sheet with the privacy-reviewed field order. */
 export function openSessionSheet(
   session,
-  { action, canReport = false, courts = [], onCopyLink = () => {}, onPrimary = () => {}, onReport = () => {}, onWithdraw = () => {} } = {}
+  {
+    action,
+    canDecide = false,
+    canEdit = false,
+    canReport = false,
+    courts = [],
+    onCopyLink = () => {},
+    onDecide = () => {},
+    onEdit = () => {},
+    onPrimary = () => {},
+    onReport = () => {},
+    onWithdraw = () => {},
+  } = {}
 ) {
   const primaryDisabled = action?.disabled ? " disabled" : "";
   const venue = sessionVenuePresentation(session, courts);
@@ -1285,6 +1364,8 @@ export function openSessionSheet(
         <p class="form-error" data-session-report-error role="alert" hidden></p>
         <div class="session-detail__actions">
           <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
+          ${canDecide ? '<button type="button" class="session-primary" data-session-action="decide">定案場地與時間</button>' : ""}
+          ${canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : ""}
           <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
             action?.label ?? "申請加入"
           )}</button>
@@ -1302,6 +1383,8 @@ export function openSessionSheet(
       </div>`,
   });
   mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
+  mounted.root.querySelector('[data-session-action="decide"]')?.addEventListener("click", onDecide);
+  mounted.root.querySelector('[data-session-action="edit"]')?.addEventListener("click", onEdit);
   const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
   copyLinkButton?.addEventListener("click", async () => {
     copyLinkButton.disabled = true;
@@ -1899,6 +1982,182 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
     } finally {
       if (mounted.root.contains(submit)) {
         submitting = false;
+        submit.disabled = false;
+      }
+    }
+  });
+  return { ...mounted, setCourts };
+}
+
+/** Open the one-tap candidate decision sheet backed by a fresh SessionSummary. */
+export function openDecideSessionSheet(session, { courts = [], onClose = () => {}, onDecide = async () => {} } = {}) {
+  const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
+  const candidateCourts = courts.filter((court) => candidateIds.has(String(court.id)));
+  const unavailable = !session || candidateCourts.length === 0;
+  const mounted = mountSheet({
+    id: "session-decision-sheet",
+    label: "定案場地與時間",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">候選局定案</p><h2>選一座球場完成定案</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉定案">×</button>
+      </div>
+      <p class="surface__copy">時間預設為範圍起點；調整後，點選球場即可完成。</p>
+      <div data-decision-controls${unavailable ? " hidden" : ""}>
+        <label class="form-field" for="session-decision-time"><span>台北時間</span><input id="session-decision-time" data-testid="session-decision-time" type="datetime-local" value="${esc(
+          taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true })
+        )}" min="${esc(taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true }))}" max="${esc(
+          taipeiDateTimeLocalValue(session?.rangeEnd, { includeMilliseconds: true })
+        )}" step="0.001" /></label>
+        <div class="candidate-decision-buttons" aria-label="候選球場">${candidateCourts
+          .map(
+            (court) =>
+              `<button type="button" class="session-primary" data-decide-court="${esc(court.id)}" data-testid="decide-court-${esc(court.id)}">${esc(
+                court.name
+              )}</button>`
+          )
+          .join("")}</div>
+        <p class="form-error" data-decision-error role="alert" hidden></p>
+      </div>
+      <p class="surface__message" data-decision-terminal role="status" tabindex="-1"${unavailable ? "" : " hidden"}>候選球局已逾期或下架，無法再定案。</p>`,
+  });
+  const controls = mounted.root.querySelector("[data-decision-controls]");
+  const terminal = mounted.root.querySelector("[data-decision-terminal]");
+  const error = mounted.root.querySelector("[data-decision-error]");
+  const timeInput = mounted.root.querySelector("[data-testid='session-decision-time']");
+  const buttons = [...mounted.root.querySelectorAll("[data-decide-court]")];
+  let terminalState = unavailable;
+  let deciding = false;
+  const setTerminal = (message = "候選球局已逾期或下架，無法再定案。") => {
+    terminalState = true;
+    controls.hidden = true;
+    terminal.textContent = message;
+    terminal.hidden = false;
+    terminal.focus({ preventScroll: true });
+  };
+  buttons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (deciding || terminalState) return;
+      const startAt = taipeiLocalDateTimeToIso(timeInput?.value);
+      const startMs = new Date(startAt ?? "").getTime();
+      const rangeStartMs = new Date(session.startAt).getTime();
+      const rangeEndMs = new Date(session.rangeEnd).getTime();
+      if (!startAt || startMs < rangeStartMs || startMs > rangeEndMs) {
+        error.textContent = "定案時間必須落在原本的時間範圍內。";
+        error.hidden = false;
+        return;
+      }
+      deciding = true;
+      buttons.forEach((candidate) => {
+        candidate.disabled = true;
+      });
+      error.hidden = true;
+      try {
+        await onDecide(Number(button.dataset.decideCourt), startAt);
+      } catch (decisionError) {
+        if (!terminalState) {
+          error.textContent = decisionError?.message || "定案失敗，請稍後再試。";
+          error.hidden = false;
+        }
+      } finally {
+        if (!terminalState && mounted.root.contains(button)) {
+          deciding = false;
+          buttons.forEach((candidate) => {
+            candidate.disabled = false;
+          });
+        }
+      }
+    });
+  });
+  return { ...mounted, setTerminal };
+}
+
+/** Edit only the mutable single-court fields accepted by update_session. */
+export function openEditSessionSheet(
+  session,
+  { courts = [], courtsReady = true, onClose = () => {}, onSubmit = async () => {} } = {}
+) {
+  const mounted = mountSheet({
+    id: "session-edit-sheet",
+    label: "編輯球局",
+    className: "create-session-sheet",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">編輯球局</p><h2>更新已建立的球局</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉編輯球局">×</button>
+      </div>
+      <form class="create-session-form" data-testid="session-edit-form" novalidate>
+        <p><span class="session-badge">${esc(session.venueType === "walk_on" ? "現場等場" : "已訂場")}</span></p>
+        <label class="form-field" for="session-edit-start-at"><span>台北時間</span><input id="session-edit-start-at" name="startAtLocal" data-testid="session-edit-start-at" type="datetime-local" value="${esc(
+          taipeiDateTimeLocalValue(session.startAt, { includeMilliseconds: true })
+        )}" step="0.001" required /></label>
+        <div class="form-field"><label for="session-edit-court">台北市球場</label><select id="session-edit-court" name="courtId" data-testid="session-edit-court" required disabled></select><p class="form-hint" data-edit-courts-status role="status" aria-live="polite"></p></div>
+        <label class="form-field" for="session-edit-play-type"><span>打法</span><select id="session-edit-play-type" name="playType" data-testid="session-edit-play-type" required>${PROFILE_PLAY_TYPES.map(
+          (type) => `<option value="${esc(type)}"${type === session.playType ? " selected" : ""}>${esc(type)}</option>`
+        ).join("")}</select></label>
+        <label class="form-field" for="session-edit-slots"><span>缺額</span><select id="session-edit-slots" name="slotsMissing" data-testid="session-edit-slots" required>${[1, 2, 3]
+          .map((value) => `<option value="${value}"${Number(session.slotsTotal) === value ? " selected" : ""}>${value} 位</option>`)
+          .join("")}</select></label>
+        <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-edit-ntrp-min"><span>最低 NTRP</span><input id="session-edit-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
+          session.ntrpMin ?? ""
+        )}" /></label><label class="form-field" for="session-edit-ntrp-max"><span>最高 NTRP</span><input id="session-edit-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
+          session.ntrpMax ?? ""
+        )}" /></label></div></fieldset>
+        <label class="form-field" for="session-edit-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-edit-fee-note" name="feeNote" maxlength="500" rows="2">${esc(
+          session.feeNote ?? ""
+        )}</textarea></label>
+        <label class="form-field" for="session-edit-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-edit-notes" name="notes" maxlength="500" rows="4">${esc(
+          session.notes ?? ""
+        )}</textarea></label>
+        <p class="form-error" data-edit-error role="alert" hidden></p>
+        <button type="submit" class="session-primary" data-testid="session-edit-submit">儲存變更</button>
+      </form>`,
+  });
+  const form = mounted.root.querySelector("[data-testid='session-edit-form']");
+  const courtSelect = mounted.root.querySelector("[data-testid='session-edit-court']");
+  const courtsStatus = mounted.root.querySelector("[data-edit-courts-status]");
+  const playTypeSelect = mounted.root.querySelector("[data-testid='session-edit-play-type']");
+  const slotsSelect = mounted.root.querySelector("[data-testid='session-edit-slots']");
+  const submit = mounted.root.querySelector("[data-testid='session-edit-submit']");
+  const error = mounted.root.querySelector("[data-edit-error]");
+  let availableCourts = courts;
+  let optionsReady = courtsReady;
+  const setCourts = (nextCourts, { ready = true } = {}) => {
+    availableCourts = nextCourts;
+    optionsReady = ready;
+    updateCourtSelect(courtSelect, courtsStatus, availableCourts, {
+      ready: optionsReady,
+      selected: selectedCourtValues(courtSelect, [String(session.courtId)]),
+    });
+  };
+  setCourts(availableCourts, { ready: optionsReady });
+  playTypeSelect?.addEventListener("change", () => {
+    if (playTypeSelect.value === "單打") slotsSelect.value = "1";
+    if (playTypeSelect.value === "雙打") slotsSelect.value = "3";
+  });
+  let saving = false;
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    const validation = validateUpdateSessionInput(Object.fromEntries(new FormData(form).entries()));
+    if (!validation.valid) {
+      error.textContent = Object.values(validation.errors)[0];
+      error.hidden = false;
+      return;
+    }
+    saving = true;
+    submit.disabled = true;
+    error.hidden = true;
+    try {
+      await onSubmit(validation.value);
+    } catch (submitError) {
+      error.textContent = submitError?.message || "更新球局失敗，請稍後再試。";
+      error.hidden = false;
+    } finally {
+      if (mounted.root.contains(submit)) {
+        saving = false;
         submit.disabled = false;
       }
     }

@@ -266,6 +266,8 @@
 .profile-return-context { margin: 0 0 14px; padding: 10px 11px; border-radius: 10px; background: var(--mist); color: var(--navy); font-size: 13px; font-weight: 800; line-height: 1.5; overflow-wrap: anywhere; }
 .profile-form,
 .create-session-form { display: grid; gap: 13px; }
+.candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.candidate-decision-buttons .session-primary { flex: 1 1 132px; }
 .form-field { display: grid; gap: 6px; color: var(--navy); font-size: 13px; font-weight: 800; }
 .form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .form-field__label-row .session-secondary { min-height: 30px; font-size: 12px; }
