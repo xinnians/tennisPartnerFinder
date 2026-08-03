@@ -980,6 +980,18 @@ export function renderMySessionsPage(
   const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
     (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
   );
+  const needsActionSection = `<section class="my-sessions-section" aria-labelledby="my-needs-action-title">
+      <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
+      <div id="my-needs-action" class="my-sessions-list">${
+        needsAction.length
+          ? needsAction
+              .map((entry) =>
+                entry.kind === "host-request" ? hostRequestCard(entry) : entry.kind === "invite" ? inviteCard(entry) : guestRequestCard(entry)
+              )
+              .join("")
+          : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
+      }</div>
+    </section>`;
   setMySessionActionScope(root, actionScopeKey);
   root.innerHTML = `
     <div class="my-sessions-shell__head">
@@ -1000,6 +1012,7 @@ export function renderMySessionsPage(
         ? ""
         : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、查看已核准球友的聯絡方式，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
     }
+    ${needsActionSection}
     ${
       authenticated
         ? `<section class="player-visibility" aria-label="球友卡">
@@ -1102,18 +1115,6 @@ export function renderMySessionsPage(
     </section>`
         : ""
     }
-    <section class="my-sessions-section" aria-labelledby="my-needs-action-title">
-      <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
-      <div id="my-needs-action" class="my-sessions-list">${
-        needsAction.length
-          ? needsAction
-              .map((entry) =>
-                entry.kind === "host-request" ? hostRequestCard(entry) : entry.kind === "invite" ? inviteCard(entry) : guestRequestCard(entry)
-              )
-              .join("")
-          : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
-      }</div>
-    </section>
     <section class="my-sessions-section" aria-labelledby="my-upcoming-sessions-title">
       <div class="my-sessions-section__head"><h2 id="my-upcoming-sessions-title">即將打球</h2><span>${esc(upcoming.length)} 場</span></div>
       <div id="my-upcoming-sessions" class="my-sessions-list">${
