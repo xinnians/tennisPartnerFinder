@@ -100,6 +100,21 @@ async function setOpenToGreetingViaRpc(client, enabled) {
   return data;
 }
 
+async function unusedCourtPair(client) {
+  const [{ data: courts, error: courtsError }, { data: sessions, error: sessionsError }] = await Promise.all([
+    client.from("courts").select("id,name").eq("city", "台北市").eq("is_active", true).order("id"),
+    client.from("session_discovery").select("court_id,candidate_court_ids"),
+  ]);
+  if (courtsError) throw courtsError;
+  if (sessionsError) throw sessionsError;
+  const usedIds = new Set(
+    (sessions ?? []).flatMap((session) => [session.court_id, ...(session.candidate_court_ids ?? [])]).map(Number)
+  );
+  const available = (courts ?? []).filter((court) => !usedIds.has(Number(court.id)));
+  expect(available.length, "the court scan must find two unused Taipei courts").toBeGreaterThanOrEqual(2);
+  return available.slice(0, 2);
+}
+
 test("createSessionViaRpc defaults a missing joinMode to approval and preserves instant", async () => {
   const calls = [];
   const client = {
@@ -504,6 +519,122 @@ test("a host creates a candidate session in the form and a guest joins it", asyn
     .maybeSingle();
   if (participationError) throw participationError;
   expect(participation?.viewer_participant_status).toBe("requested");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a host decides a candidate session into one solid pin and the database records decided_at", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const [firstCourt, secondCourt] = await unusedCourtPair(host.client);
+  const firstCourtName = firstCourt.name;
+  const secondCourtName = secondCourt.name;
+  const firstCourtId = firstCourt.id;
+  const secondCourtId = secondCourt.id;
+  const startAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+  startAt.setSeconds(0, 0);
+  const rangeEnd = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
+  const notes = `decision-ui-${context.runId}`;
+
+  await gotoWithSession(page, host.session);
+  await page.locator("#open-session").click();
+  const createForm = page.locator("#session-create-modal").getByTestId("session-form");
+  await createForm.getByTestId("session-venue-candidates").check();
+  await createForm.getByTestId("session-candidate-courts").selectOption([String(firstCourtId), String(secondCourtId)]);
+  await createForm.getByTestId("session-start-at").fill(new Date(startAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16));
+  await createForm.getByTestId("session-range-end").fill(new Date(rangeEnd.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16));
+  await createForm.getByTestId("session-play-type").selectOption("單打");
+  await createForm.getByLabel("備註（選填，最多 500 字）").fill(notes);
+  await createForm.getByTestId("session-submit").click();
+  await expect(page.locator("#my-sessions-page")).toBeVisible();
+  const { data: created, error: createdError } = await host.client
+    .from("session_discovery")
+    .select("session_id")
+    .eq("notes", notes)
+    .maybeSingle();
+  if (createdError) throw createdError;
+  const sessionId = created.session_id;
+
+  await page.getByTestId("map-tab").click();
+  await expect
+    .poll(async () => (await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions)).map(({ title }) => title))
+    .toEqual(expect.arrayContaining([`球局 · ${firstCourtName} · 未定`, `球局 · ${secondCourtName} · 未定`]));
+  await page.getByTestId("my-sessions-tab").click();
+  await page.locator(`[data-my-action="decide"][data-session-id="${sessionId}"]`).click();
+  const sheet = page.locator("#session-decision-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText(firstCourtName);
+  await expect(sheet).toContainText(secondCourtName);
+  await expect(sheet.getByTestId("session-decision-time")).toHaveValue(
+    new Date(startAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16)
+  );
+  await sheet.getByTestId(`decide-court-${secondCourtId}`).click();
+  await expect(sheet).toBeHidden();
+
+  const { data: decided, error: decidedError } = await host.client
+    .from("session_discovery")
+    .select("court_id,start_at,decided_at")
+    .eq("session_id", sessionId)
+    .maybeSingle();
+  if (decidedError) throw decidedError;
+  expect(decided?.court_id).toBe(secondCourtId);
+  expect(new Date(decided?.start_at).toISOString()).toBe(startAt.toISOString());
+  expect(decided?.decided_at).not.toBeNull();
+
+  await page.getByTestId("map-tab").click();
+  await expect
+    .poll(async () => (await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions)).map(({ title }) => title))
+    .toContain(`球局 · ${secondCourtName}`);
+  const titles = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions.map(({ title }) => title));
+  expect(titles).not.toContain(`球局 · ${firstCourtName} · 未定`);
+  expect(titles).not.toContain(`球局 · ${secondCourtName} · 未定`);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a host edits a single-court session and sees authoritative card and detail values", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const [firstCourt, secondCourt] = await unusedCourtPair(host.client);
+  const firstCourtName = firstCourt.name;
+  const secondCourtName = secondCourt.name;
+  const firstCourtId = firstCourt.id;
+  const secondCourtId = secondCourt.id;
+  const initialStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  const updatedStart = new Date(initialStart.getTime() + 90 * 60 * 1000);
+  const updatedNotes = `edited-ui-${context.runId}`;
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId: firstCourtId, notes: `before-ui-${context.runId}`, startAt: initialStart.toISOString() })
+  );
+
+  await gotoWithSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.locator(`[data-my-action="edit"][data-session-id="${sessionId}"]`).click();
+  const form = page.locator("#session-edit-sheet").getByTestId("session-edit-form");
+  await expect(form).toBeVisible();
+  await expect(form.locator('[name="venueType"]')).toHaveCount(0);
+  await expect(form.locator('[name="joinMode"]')).toHaveCount(0);
+  await form.getByTestId("session-edit-court").selectOption(String(secondCourtId));
+  await form.getByTestId("session-edit-start-at").fill(
+    new Date(updatedStart.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16)
+  );
+  await form.getByTestId("session-edit-play-type").selectOption("雙打");
+  await expect(form.getByTestId("session-edit-slots")).toHaveValue("3");
+  await form.getByTestId("session-edit-slots").selectOption("2");
+  await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 200");
+  await form.getByLabel("備註（選填，最多 500 字）").fill(updatedNotes);
+  await form.getByTestId("session-edit-submit").click();
+  await expect(page.locator("#session-edit-sheet")).toBeHidden();
+
+  const card = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id="${sessionId}"]`).locator("xpath=ancestor::article");
+  await expect(card).toContainText(secondCourtName);
+  await expect(card).toContainText("剩 2 位");
+  await card.locator("[data-open-my-session]").click();
+  const detail = page.locator("#session-sheet");
+  await expect(detail).toContainText(secondCourtName);
+  await expect(detail).toContainText(updatedNotes);
+  await expect(detail).toContainText("剩 2 位");
   expect(runtimeErrors).toEqual([]);
 });
 

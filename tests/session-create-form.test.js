@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { taipeiLocalDateTimeToIso, validateCreateSessionInput } from "../src/sessionViews.js";
+import { taipeiLocalDateTimeToIso, validateCreateSessionInput, validateUpdateSessionInput } from "../src/sessionViews.js";
 
 test("create form converts datetime-local as Asia/Taipei instead of the browser timezone", () => {
   assert.equal(taipeiLocalDateTimeToIso("2026-07-18T09:30"), "2026-07-18T01:30:00.000Z");
+  assert.equal(taipeiLocalDateTimeToIso("2026-07-18T09:30:15.125"), "2026-07-18T01:30:15.125Z");
   assert.equal(taipeiLocalDateTimeToIso("2026-12-01T00:05"), "2026-11-30T16:05:00.000Z");
 });
 
@@ -177,4 +178,31 @@ test("single-court venue types reject candidate-only values and all shared text 
   assert.match(result.errors.rangeEndLocal, /只有候選局/);
   assert.match(result.errors.feeNote, /500/);
   assert.match(result.errors.notes, /500/);
+});
+
+test("session editing validates the nine-field RPC shape without venue type or join mode", () => {
+  const result = validateUpdateSessionInput({
+    courtId: "102",
+    feeNote: "每人 200",
+    notes: "帶新球",
+    ntrpMax: "4.0",
+    ntrpMin: "3.0",
+    playType: "雙打",
+    slotsMissing: "3",
+    startAtLocal: "2099-07-18T09:30",
+  });
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.value, {
+    courtId: 102,
+    feeNote: "每人 200",
+    notes: "帶新球",
+    ntrpMax: 4,
+    ntrpMin: 3,
+    playType: "雙打",
+    slotsMissing: 3,
+    startAt: "2099-07-18T01:30:00.000Z",
+  });
+  assert.equal("venueType" in result.value, false);
+  assert.equal("joinMode" in result.value, false);
 });

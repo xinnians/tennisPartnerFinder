@@ -189,7 +189,7 @@ const fakeMapsScript = `
     userMarkerUpdates,
     visibleMarkerOptions: markers
       .filter((marker) => marker.map)
-      .map((marker) => ({ optimized: marker.options.optimized, title: marker.options.title })),
+      .map((marker) => ({ iconUrl: marker.options.icon?.url ?? "", optimized: marker.options.optimized, title: marker.options.title })),
   });
   window.google = { maps: { LatLng, LatLngBounds, Map, Marker, Point, Size } };
   window.__onGoogleMapsReady?.();

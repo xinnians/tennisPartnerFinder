@@ -32,6 +32,17 @@ async function installTaintedMockSessions(page) {
   });
 }
 
+async function installCandidateOnlyMockSession(page) {
+  await page.route("**/src/mockData.js", async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    await route.fulfill({
+      response,
+      body: `${source}\nMOCK_SESSIONS.splice(0, MOCK_SESSIONS.length, MOCK_SESSIONS.find((session) => session.sessionId === 9005));`,
+    });
+  });
+}
+
 async function installGeolocation(page, responses) {
   await page.addInitScript((nextResponses) => {
     let calls = 0;
@@ -140,6 +151,26 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   );
   expect(JSON.stringify(markerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
   expect(runtimeErrors).toEqual([]);
+});
+
+test("an undecided candidate session renders two dashed map pins from the court catalogue", async ({ page }) => {
+  await installFakeMaps(page);
+  await installCandidateOnlyMockSession(page);
+  await page.goto("/");
+
+  const candidatePins = await expect
+    .poll(async () => {
+      const options = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
+      return options.filter(({ title }) => title?.includes("未定"));
+    })
+    .toHaveLength(2);
+  const markerOptions = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
+  const undecided = markerOptions.filter(({ title }) => title?.includes("未定"));
+  expect(undecided.map(({ title }) => title).sort()).toEqual([
+    "球局 · 百齡河濱公園網球場 · 未定",
+    "球局 · 青年公園網球場 · 未定",
+  ]);
+  expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="5 4"'))).toBe(true);
 });
 
 test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ page }) => {

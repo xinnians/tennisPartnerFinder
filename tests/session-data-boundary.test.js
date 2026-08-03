@@ -667,6 +667,28 @@ test("drawer sorting places ongoing sessions with vacancies ahead of distance an
   assert.equal("distance" in sessions[0], false);
 });
 
+test("drawer distance sorting anchors undecided candidates to their nearest catalogue court", () => {
+  const now = new Date("2026-07-17T00:00:00.000Z");
+  const courts = [
+    { id: 101, lat: 25.0301, lng: 121.5401 },
+    { id: 102, lat: 25.09, lng: 121.59 },
+  ];
+  const sessions = [
+    session({ sessionId: 1, courtLat: 25.08, courtLng: 121.58 }),
+    session({
+      candidateCourtIds: [102, 999, 101],
+      courtLat: 25.09,
+      courtLng: 121.59,
+      sessionId: 2,
+      venueType: "candidates",
+    }),
+  ];
+
+  const sorted = sortSessionsForDrawer(sessions, { lat: 25.03, lng: 121.54 }, now, courts);
+  assert.equal(sorted.length, 2, "the candidate-distance scan must be nonempty");
+  assert.deepEqual(sorted.map(({ sessionId }) => sessionId), [2, 1]);
+});
+
 class MemorySessionStorage {
   values = new Map();
 

@@ -140,6 +140,8 @@ function createHarness(overrides = {}) {
   const playerCards = [];
   const playerRenders = [];
   const createSheets = [];
+  const decisionSheets = [];
+  const editSheets = [];
   const loginPrompts = [];
   const profilePrompts = [];
   const reportDialogs = [];
@@ -191,6 +193,18 @@ function createHarness(overrides = {}) {
       createSheets.push({ detail, handlers });
       return detail;
     },
+    openDecideSession: (openedSession, handlers) => {
+      const detail = createSurface(handlers.onClose);
+      detail.terminalMessages = [];
+      detail.setTerminal = (message) => detail.terminalMessages.push(message);
+      decisionSheets.push({ detail, handlers, session: openedSession });
+      return detail;
+    },
+    openEditSession: (openedSession, handlers) => {
+      const detail = createSurface(handlers.onClose);
+      editSheets.push({ detail, handlers, session: openedSession });
+      return detail;
+    },
     openLogin: (handlers) => {
       const detail = createSurface(handlers.onClose);
       loginPrompts.push({ detail, handlers });
@@ -218,6 +232,8 @@ function createHarness(overrides = {}) {
     controller,
     courtDrawers,
     createSheets,
+    decisionSheets,
+    editSheets,
     loginPrompts,
     mySessionChanges,
     opened,
@@ -2332,6 +2348,180 @@ test("same-court session and player pins have separate clickable anchors and pla
   const presencePin = pinModule.playerPin?.(google, 2, 1);
   assert.equal(presencePin?.label.text, "2", "the main label preserves the total player count when someone is present");
   assert.match(decodeURIComponent(presencePin?.icon.url ?? ""), /在1/, "a separate presence badge carries the on-court count");
+});
+
+test("undecided candidate sessions fan out to valid candidate courts and collapse to the decided court", () => {
+  const courts = [
+    { id: 8, name: "甲球場", lat: 25.03, lng: 121.54 },
+    { id: 9, name: "乙球場", lat: 25.08, lng: 121.58 },
+  ];
+  const undecided = futureSession({
+    candidateCourtIds: [8, 999, 9],
+    decidedAt: "",
+    venueType: "candidates",
+  });
+  const undecidedGroups = mapModule.groupSessionsByCourt(courts, [undecided]);
+
+  assert.equal(undecidedGroups.length, 2, "the scan must find both catalogue-backed candidate courts");
+  assert.deepEqual(undecidedGroups.map(({ court }) => court.id), [8, 9]);
+  assert.ok(undecidedGroups.every((group) => group.undecidedCandidateSessionIds.includes(41)));
+
+  const decidedGroups = mapModule.groupSessionsByCourt(courts, [{ ...undecided, courtId: 9, decidedAt: "2026-07-19T01:00:00Z" }]);
+  assert.deepEqual(decidedGroups.map(({ court }) => court.id), [9]);
+  assert.deepEqual(decidedGroups[0].undecidedCandidateSessionIds, []);
+});
+
+test("host decision uses summary candidate authority and refreshes both public and private state", async () => {
+  const candidate = futureSession({
+    canCancel: true,
+    candidateCourtIds: [],
+    decidedAt: "",
+    rangeEnd: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    venueType: "candidates",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  });
+  const calls = [];
+  const summary = { ...candidate, candidateCourtIds: [8, 9] };
+  const harness = createHarness({
+    api: {
+      decideSessionCourt: async (...args) => {
+        calls.push(["decide", ...args]);
+        return { outcome: "OK", reloadRequired: false };
+      },
+      loadMySessions: async () => {
+        calls.push(["private"]);
+        return [candidate];
+      },
+      loadSessionDiscovery: async () => {
+        calls.push(["public"]);
+        return [{ ...summary, courtId: 9, decidedAt: "2026-07-19T01:00:00Z" }];
+      },
+      loadSessionSummary: async (sessionId) => {
+        calls.push(["summary", sessionId]);
+        return summary;
+      },
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+  calls.length = 0;
+
+  await harness.controller.openSessionDecision(candidate.sessionId);
+  assert.equal(harness.decisionSheets.length, 1);
+  assert.deepEqual(harness.decisionSheets[0].session.candidateCourtIds, [8, 9]);
+  await harness.decisionSheets[0].handlers.onDecide(9, summary.startAt);
+
+  assert.deepEqual(calls[0], ["summary", candidate.sessionId]);
+  assert.deepEqual(calls[1], ["decide", candidate.sessionId, 9, summary.startAt]);
+  assert.ok(calls.some(([kind]) => kind === "private"));
+  assert.ok(calls.some(([kind]) => kind === "public"));
+  assert.equal(harness.decisionSheets[0].detail.closeCalls, 1);
+});
+
+test("decision expiry becomes a terminal sheet state after authoritative refresh", async () => {
+  const candidate = futureSession({
+    canCancel: true,
+    decidedAt: "",
+    rangeEnd: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    venueType: "candidates",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    api: {
+      decideSessionCourt: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
+      loadMySessions: async () => [candidate],
+      loadSessionDiscovery: async () => [],
+      loadSessionSummary: async () => ({ ...candidate, candidateCourtIds: [8, 9] }),
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+  await harness.controller.openSessionDecision(candidate.sessionId);
+  const sheet = harness.decisionSheets[0];
+  await sheet.handlers.onDecide(8, candidate.startAt);
+
+  assert.equal(sheet.detail.closeCalls, 0);
+  assert.match(sheet.detail.terminalMessages.at(-1), /逾期|下架/);
+});
+
+test("a missing or already-decided summary opens the terminal decision state and candidates never enter editing", async () => {
+  const candidate = futureSession({
+    canCancel: true,
+    decidedAt: "",
+    venueType: "candidates",
+    viewerRole: "host",
+  });
+  const harness = createHarness({
+    api: {
+      decideSessionCourt: async () => ({ outcome: "OK", reloadRequired: false }),
+      loadMySessions: async () => [candidate],
+      loadSessionSummary: async () => null,
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+
+  await harness.controller.openSessionDecision(candidate.sessionId);
+  assert.equal(harness.decisionSheets.length, 1);
+  assert.equal(harness.decisionSheets[0].session, null);
+  assert.throws(() => harness.controller.openSessionEdit(candidate.sessionId), /狀態已更新/);
+});
+
+test("host session detail exposes decision or edit management without changing the join action", async () => {
+  const candidate = futureSession({ canCancel: true, decidedAt: "", venueType: "candidates", viewerRole: "host" });
+  const harness = createHarness({ api: { loadMySessions: async () => [candidate], loadSessionSummary: async () => candidate } });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+  harness.controller.openSession(candidate.sessionId);
+  assert.equal(harness.opened[0].handlers.canDecide, true);
+  assert.equal(harness.opened[0].handlers.canEdit, false);
+
+  const booked = futureSession({ canCancel: true, sessionId: 42, viewerRole: "host" });
+  const bookedHarness = createHarness({ api: { loadMySessions: async () => [booked] } });
+  await bookedHarness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+  bookedHarness.controller.openSession(booked.sessionId);
+  assert.equal(bookedHarness.opened[0].handlers.canDecide, false);
+  assert.equal(bookedHarness.opened[0].handlers.canEdit, true);
+});
+
+test("single-court host editing sends only the nine RPC fields and refreshes authority", async () => {
+  const hosted = futureSession({ canCancel: true, viewerRole: "host" });
+  const calls = [];
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => {
+        calls.push(["private"]);
+        return [hosted];
+      },
+      loadSessionDiscovery: async () => {
+        calls.push(["public"]);
+        return [hosted];
+      },
+      updateSession: async (input) => {
+        calls.push(["update", input]);
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+  calls.length = 0;
+  harness.controller.openSessionEdit(hosted.sessionId);
+  const sheet = harness.editSheets[0];
+  const input = {
+    courtId: 9,
+    feeNote: "每人 200",
+    notes: "帶新球",
+    ntrpMax: 4,
+    ntrpMin: 3,
+    playType: "雙打",
+    slotsMissing: 3,
+    startAt: hosted.startAt,
+  };
+  await sheet.handlers.onSubmit(input);
+
+  assert.deepEqual(calls[0], ["update", { sessionId: hosted.sessionId, ...input }]);
+  assert.equal("venueType" in calls[0][1], false);
+  assert.equal("joinMode" in calls[0][1], false);
+  assert.ok(calls.some(([kind]) => kind === "private"));
+  assert.ok(calls.some(([kind]) => kind === "public"));
+  assert.equal(sheet.detail.closeCalls, 1);
 });
 
 test("player drawer offers open hosted sessions through the now-start window and keeps invitation authority in controller", async () => {
