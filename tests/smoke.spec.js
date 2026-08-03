@@ -927,7 +927,7 @@ test("declined My Sessions history uses neutral participation wording", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions renders the 球友卡 and notification settings before needs-action and preserves pending and error state", async ({ page }) => {
+test("My Sessions keeps needs-action before settings and preserves visibility pending and error state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -961,8 +961,13 @@ test("My Sessions renders the 球友卡 and notification settings before needs-a
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(toggle).toHaveText("已關閉");
   await expect(page.locator(".player-visibility")).toContainText(
-    "開啟後，完成檔案的球友可在地圖上你的常打球場看到你的暱稱、NTRP 與可打時段。LINE 不會顯示。"
+    "開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。LINE 不會顯示。"
   );
+  expect(
+    await page.locator("#my-needs-action").evaluate(
+      (node) => node.closest(".my-sessions-section")?.nextElementSibling?.classList.contains("player-visibility") === true
+    )
+  ).toBe(true);
   expect(
     await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.classList.contains("presence-settings") === true)
   ).toBe(true);
@@ -971,9 +976,6 @@ test("My Sessions renders the 球友卡 and notification settings before needs-a
   ).toBe(true);
   expect(
     await page.locator(".notification-settings").evaluate((node) => node.nextElementSibling?.classList.contains("blocked-player-settings") === true)
-  ).toBe(true);
-  expect(
-    await page.locator(".blocked-player-settings").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
   ).toBe(true);
 
   await toggle.click();
@@ -1013,7 +1015,7 @@ test("My Sessions presence settings explain reciprocal visibility, request shari
   await expect(sharing).toHaveAttribute("role", "switch");
   await expect(sharing).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("presence-location-status")).toContainText("拒絕");
-  await expect(page.locator(".presence-settings")).toContainText("開啟期間你的所在球場對其他有開啟的完整檔案球友可見");
+  await expect(page.locator(".presence-settings")).toContainText("其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見");
   await page.getByTestId("open-to-greeting-toggle").uncheck();
   await expect.poll(() => page.evaluate(() => window.__greetingValue)).toBe(false);
   await sharing.click();
