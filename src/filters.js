@@ -153,9 +153,9 @@ function isOngoingSessionWithVacancy(session, now) {
   );
 }
 
-function distanceMeters(origin, session) {
-  const latitude = asFiniteNumber(session.courtLat);
-  const longitude = asFiniteNumber(session.courtLng);
+function distanceMeters(origin, destination) {
+  const latitude = asFiniteNumber(destination.courtLat ?? destination.lat);
+  const longitude = asFiniteNumber(destination.courtLng ?? destination.lng);
   if (latitude == null || longitude == null) return Number.POSITIVE_INFINITY;
 
   const toRadians = (degrees) => (degrees * Math.PI) / 180;
@@ -168,6 +168,16 @@ function distanceMeters(origin, session) {
   return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function sessionDistanceMeters(origin, session, courts) {
+  if (session?.venueType !== "candidates" || Boolean(session?.decidedAt)) return distanceMeters(origin, session);
+  const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
+  const candidateDistances = courts
+    .filter((court) => candidateIds.has(String(court.id)))
+    .map((court) => distanceMeters(origin, court))
+    .filter(Number.isFinite);
+  return candidateDistances.length ? Math.min(...candidateDistances) : distanceMeters(origin, session);
+}
+
 function validLocation(location) {
   const lat = asFiniteNumber(location?.lat);
   const lng = asFiniteNumber(location?.lng);
@@ -178,7 +188,7 @@ function validLocation(location) {
  * Return a new drawer list. Location is used only for this in-memory sort;
  * it is never persisted on a session or written to any browser storage.
  */
-export function sortSessionsForDrawer(sessions, userLocation = null, now = new Date()) {
+export function sortSessionsForDrawer(sessions, userLocation = null, now = new Date(), courts = []) {
   const source = Array.isArray(sessions) ? sessions : [];
   const location = validLocation(userLocation);
   const comparePriority = (left, right) =>
@@ -187,7 +197,7 @@ export function sortSessionsForDrawer(sessions, userLocation = null, now = new D
   if (!location) return [...source].sort((left, right) => comparePriority(left, right) || compareStartAt(left, right));
 
   return source
-    .map((session, index) => ({ session, index, distance: distanceMeters(location, session) }))
+    .map((session, index) => ({ session, index, distance: sessionDistanceMeters(location, session, courts) }))
     .sort((left, right) => {
       const priorityDifference = comparePriority(left.session, right.session);
       if (priorityDifference) return priorityDifference;

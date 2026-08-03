@@ -12,6 +12,11 @@ const SESSION_PIN_URL = svgToDataUri(`
     <circle cx="23" cy="23" r="20" fill="${BLUE}" stroke="#fff" stroke-width="3"/>
     <path d="M16 39h14l-7 13z" fill="${BLUE}"/>
   </svg>`);
+const CANDIDATE_SESSION_PIN_URL = svgToDataUri(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="46" height="55" viewBox="0 0 46 55">
+    <circle cx="23" cy="23" r="20" fill="#fff" stroke="${BLUE}" stroke-width="3" stroke-dasharray="5 4"/>
+    <path d="M16 39h14l-7 13z" fill="#fff" stroke="${BLUE}" stroke-width="3" stroke-linejoin="round" stroke-dasharray="5 4"/>
+  </svg>`);
 const CLUSTER_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="50" height="59" viewBox="0 0 50 59">
     <circle cx="25" cy="25" r="22" fill="${NAVY}" stroke="${LIME}" stroke-width="3"/>
@@ -66,6 +71,14 @@ export function sessionPin(google) {
   };
 }
 
+/** An undecided candidate placement is distinct from a confirmed session pin. */
+export function candidateSessionPin(google) {
+  return {
+    icon: markerIcon(google, CANDIDATE_SESSION_PIN_URL, 46, 55, 23, 54, 23, 23),
+    label: { text: "未定", color: BLUE, fontFamily: font, fontSize: "10px", fontWeight: "800" },
+  };
+}
+
 /** A count pin is used only where two or more public sessions share one court. */
 export function sessionClusterPin(google, count) {
   return {
@@ -93,4 +106,4 @@ export function userLocationPin(google) {
   return { icon: markerIcon(google, USER_PIN_URL, 28, 28, 14, 14, 14, 14) };
 }
 
-export { CLUSTER_PIN_URL, COURT_PIN_URL, PLAYER_PIN_URL, SESSION_PIN_URL, SOFT_BLUE, USER_PIN_URL };
+export { CANDIDATE_SESSION_PIN_URL, CLUSTER_PIN_URL, COURT_PIN_URL, PLAYER_PIN_URL, SESSION_PIN_URL, SOFT_BLUE, USER_PIN_URL };

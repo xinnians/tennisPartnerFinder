@@ -1,5 +1,5 @@
 import { MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
-import { courtPin, playerPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
+import { candidateSessionPin, courtPin, playerPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
 
 let loadPromise = null;
 let runtimeGoogle = null;
@@ -82,30 +82,47 @@ export function subscribeToMapIdle(map, callback) {
 
 /** Group public SessionSummary rows by court for single and aggregate session pins. */
 export function groupSessionsByCourt(courts = [], sessions = []) {
+  const courtIds = new Set(courts.map((court) => String(court.id)));
   const byCourtId = new Map();
+  const undecidedByCourtId = new Map();
   for (const session of sessions) {
-    const key = String(session.courtId);
-    const current = byCourtId.get(key) ?? [];
-    current.push(session);
-    byCourtId.set(key, current);
+    const undecidedCandidate = session?.venueType === "candidates" && !Boolean(session?.decidedAt);
+    const placementIds = undecidedCandidate ? [...new Set((session?.candidateCourtIds ?? []).map(String))] : [session?.courtId];
+    for (const courtId of placementIds) {
+      const key = String(courtId);
+      if (!courtIds.has(key)) continue;
+      const current = byCourtId.get(key) ?? [];
+      current.push(session);
+      byCourtId.set(key, current);
+      if (undecidedCandidate) {
+        const undecided = undecidedByCourtId.get(key) ?? [];
+        undecided.push(session.sessionId);
+        undecidedByCourtId.set(key, undecided);
+      }
+    }
   }
   return courts
     .filter((court) => byCourtId.has(String(court.id)))
-    .map((court) => ({ court, sessions: byCourtId.get(String(court.id)) }));
+    .map((court) => ({
+      court,
+      sessions: byCourtId.get(String(court.id)),
+      undecidedCandidateSessionIds: undecidedByCourtId.get(String(court.id)) ?? [],
+    }));
 }
 
 /** Replace visible session markers while preserving the lower-priority court base layer. */
 export function renderSessionPins(google, map, groups, { onSession = () => {}, onCluster = () => {} } = {}, oldMarkers = []) {
   oldMarkers.forEach((marker) => marker.setMap(null));
-  return groups.map(({ court, sessions }) => {
+  return groups.map(({ court, sessions, undecidedCandidateSessionIds = [] }) => {
     const multiple = sessions.length >= 2;
-    const pin = multiple ? sessionClusterPin(google, sessions.length) : sessionPin(google, sessions[0]);
+    const undecided = !multiple && undecidedCandidateSessionIds.some((id) => String(id) === String(sessions[0]?.sessionId));
+    const pin = multiple ? sessionClusterPin(google, sessions.length) : undecided ? candidateSessionPin(google) : sessionPin(google, sessions[0]);
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },
       icon: pin.icon,
       label: pin.label,
-      title: multiple ? `球局 · ${court.name} · ${sessions.length} 場` : `球局 · ${court.name}`,
+      title: multiple ? `球局 · ${court.name} · ${sessions.length} 場` : `球局 · ${court.name}${undecided ? " · 未定" : ""}`,
       zIndex: multiple ? 40 : 30,
       // Legacy Marker needs a DOM-backed marker for reliable keyboard access.
       optimized: false,
