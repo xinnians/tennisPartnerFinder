@@ -2041,6 +2041,44 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   expect(runtimeErrors).toEqual([]);
 });
 
+test("create sheet submits a walk-on session with one authoritative court", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__walkOnCreatePayload = null;
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
+      onSubmit: async (payload) => {
+        window.__walkOnCreatePayload = payload;
+      },
+    });
+  });
+
+  const form = page.getByTestId("session-form");
+  await form.getByTestId("session-venue-walk-on").check();
+  await expect(form.getByTestId("session-venue-walk-on")).toBeChecked();
+  await expect(form.getByTestId("session-court")).toBeVisible();
+  await expect(form.getByTestId("session-candidate-courts")).toBeHidden();
+  await form.getByTestId("session-court").selectOption("8");
+  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByTestId("session-submit").click();
+
+  await expect.poll(() => page.evaluate(() => window.__walkOnCreatePayload)).toMatchObject({
+    candidateCourtIds: null,
+    courtId: 8,
+    joinMode: "approval",
+    rangeEnd: null,
+    slotsTotal: 1,
+    startAt: "2099-07-18T01:30:00.000Z",
+    venueType: "walk_on",
+  });
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("create sheet progressively discloses all three venue types and submits candidate courts as an array", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
