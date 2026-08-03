@@ -830,12 +830,14 @@ function normalizedNotificationSettings(settings = {}) {
         .map(Number)
         .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
     ),
-    districts: new Set((Array.isArray(settings?.districts) ? settings.districts : []).filter((district) => typeof district === "string")),
     errorMessage: typeof settings?.errorMessage === "string" ? settings.errorMessage : "",
     prefs: {
+      chatMessageEnabled: preferences.chatMessageEnabled !== false,
       guestInvitedEnabled: preferences.guestInvitedEnabled !== false,
       guestRequestReviewedEnabled: preferences.guestRequestReviewedEnabled !== false,
       hostNewRequestEnabled: preferences.hostNewRequestEnabled !== false,
+      sessionReminderEnabled: preferences.sessionReminderEnabled !== false,
+      sessionUpdatedEnabled: preferences.sessionUpdatedEnabled !== false,
     },
     pushStatus: typeof settings?.pushStatus === "string" ? settings.pushStatus : "idle",
     webPushConfigured: settings?.webPushConfigured === true,
@@ -1065,15 +1067,20 @@ export function renderMySessionsPage(
         <label><input type="checkbox" data-notification-pref="guestInvitedEnabled" data-notification-control data-testid="notification-guest-invited"${
           notification.prefs.guestInvitedEnabled ? " checked" : ""
         }> 收到球局邀請</label>
+        <label><input type="checkbox" data-notification-pref="sessionUpdatedEnabled" data-notification-control data-testid="notification-session-updated"${
+          notification.prefs.sessionUpdatedEnabled ? " checked" : ""
+        }> 球局資訊變更</label>
+        <label><input type="checkbox" data-notification-pref="chatMessageEnabled" data-notification-control data-testid="notification-chat-message"${
+          notification.prefs.chatMessageEnabled ? " checked" : ""
+        }> 群組有新訊息</label>
+        <label><input type="checkbox" data-notification-pref="sessionReminderEnabled" data-notification-control data-testid="notification-session-reminder"${
+          notification.prefs.sessionReminderEnabled ? " checked" : ""
+        }> 開打前提醒</label>
+        <p class="form-hint">場地時間定案與球局取消一定會通知，無法關閉。</p>
       </fieldset>
       <fieldset class="notification-settings__fieldset">
         <legend>訂閱球場的新球局</legend>
         <p class="form-hint">可複選，最多 10 座；只有所選球場的新球局會通知你。</p>
-        ${
-          notification.districts.size > 0 && notification.courtIds.size === 0
-            ? '<p class="notification-settings__migration" data-testid="court-subscription-migration">你原本訂閱的是行政區；請重新選擇最多 10 座球場，才能繼續收到新球局通知。</p>'
-            : ""
-        }
         <select class="notification-settings__court-select" data-notification-courts data-notification-control
           data-testid="notification-court-subscriptions" aria-label="訂閱球場" multiple size="4"${
             notificationCourts.length ? "" : " disabled"
@@ -1159,9 +1166,12 @@ export function renderMySessionsPage(
     input.addEventListener("change", () => {
       const previousChecked = !input.checked;
       const preferences = {
+        chatMessageEnabled: root.querySelector('[data-notification-pref="chatMessageEnabled"]')?.checked === true,
         hostNewRequestEnabled: root.querySelector('[data-notification-pref="hostNewRequestEnabled"]')?.checked === true,
         guestRequestReviewedEnabled: root.querySelector('[data-notification-pref="guestRequestReviewedEnabled"]')?.checked === true,
         guestInvitedEnabled: root.querySelector('[data-notification-pref="guestInvitedEnabled"]')?.checked === true,
+        sessionReminderEnabled: root.querySelector('[data-notification-pref="sessionReminderEnabled"]')?.checked === true,
+        sessionUpdatedEnabled: root.querySelector('[data-notification-pref="sessionUpdatedEnabled"]')?.checked === true,
       };
       void runNotificationSettingAction(root, () => onSaveNotificationPreferences(preferences)).then((saved) => {
         if (!saved) input.checked = previousChecked;

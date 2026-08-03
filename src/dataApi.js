@@ -69,8 +69,14 @@ const SESSION_MESSAGE_FEED_COLUMNS = [
 const MY_PLAYER_BLOCKS_COLUMNS = ["blocked_profile_id", "blocked_nickname", "created_at"];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
 const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public", "share_presence", "open_to_greeting"];
-const NOTIFICATION_PREFS_COLUMNS = ["host_new_request_enabled", "guest_request_reviewed_enabled", "guest_invited_enabled"];
-const DISTRICT_SUBSCRIPTION_COLUMNS = ["district"];
+const NOTIFICATION_PREFS_COLUMNS = [
+  "host_new_request_enabled",
+  "guest_request_reviewed_enabled",
+  "guest_invited_enabled",
+  "session_updated_enabled",
+  "chat_message_enabled",
+  "session_reminder_enabled",
+];
 const PLAYER_DIRECTORY_COLUMNS = [
   "profile_id",
   "nickname",
@@ -110,7 +116,6 @@ export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
 export const PLAYER_DIRECTORY_SELECT = PLAYER_DIRECTORY_COLUMNS.join(",");
 export const PLAYER_PRESENCE_DIRECTORY_SELECT = PLAYER_PRESENCE_DIRECTORY_COLUMNS.join(",");
 export const NOTIFICATION_PREFS_SELECT = NOTIFICATION_PREFS_COLUMNS.join(",");
-export const DISTRICT_SUBSCRIPTIONS_SELECT = DISTRICT_SUBSCRIPTION_COLUMNS.join(",");
 export const COURT_SUBSCRIPTIONS_SELECT = "court_id";
 
 export const SESSION_ACTION_CODES = Object.freeze([
@@ -209,17 +214,23 @@ function asArray(value) {
 
 function defaultNotificationPreferences() {
   return {
+    chatMessageEnabled: true,
     guestInvitedEnabled: true,
     guestRequestReviewedEnabled: true,
     hostNewRequestEnabled: true,
+    sessionReminderEnabled: true,
+    sessionUpdatedEnabled: true,
   };
 }
 
 function mapNotificationPreferences(row = {}) {
   return {
+    chatMessageEnabled: row.chat_message_enabled !== false,
     hostNewRequestEnabled: row.host_new_request_enabled !== false,
     guestRequestReviewedEnabled: row.guest_request_reviewed_enabled !== false,
     guestInvitedEnabled: row.guest_invited_enabled !== false,
+    sessionReminderEnabled: row.session_reminder_enabled !== false,
+    sessionUpdatedEnabled: row.session_updated_enabled !== false,
   };
 }
 
@@ -778,19 +789,6 @@ export function createDataApi({
     return mapNotificationPreferences(data ?? {});
   }
 
-  async function loadDistrictSubscriptions() {
-    if (!configured) return [];
-    const activeClient = requireClient();
-    const { data, error } = await activeClient
-      .from("district_subscriptions")
-      .select(DISTRICT_SUBSCRIPTIONS_SELECT)
-      .order("district");
-    if (error) throw error;
-    return asArray(data)
-      .map((row) => asText(row?.district).trim())
-      .filter(Boolean);
-  }
-
   async function loadCourtSubscriptions() {
     if (!configured) return [];
     const activeClient = requireClient();
@@ -837,17 +835,13 @@ export function createDataApi({
 
   async function saveNotificationPreferences(preferences = {}) {
     const outcome = await callRpc("set_notification_prefs", {
+      p_chat_message_enabled: preferences.chatMessageEnabled === true,
       p_host_new_request_enabled: preferences.hostNewRequestEnabled === true,
       p_guest_request_reviewed_enabled: preferences.guestRequestReviewedEnabled === true,
       p_guest_invited_enabled: preferences.guestInvitedEnabled === true,
+      p_session_reminder_enabled: preferences.sessionReminderEnabled === true,
+      p_session_updated_enabled: preferences.sessionUpdatedEnabled === true,
     });
-    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
-    return { outcome };
-  }
-
-  async function saveDistrictSubscriptions(districts) {
-    const normalizedDistricts = [...new Set(asArray(districts).map((district) => asText(district).trim()).filter(Boolean))];
-    const outcome = await callRpc("set_district_subscriptions", { p_districts: normalizedDistricts });
     if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
     return { outcome };
   }
@@ -1017,13 +1011,11 @@ export function createDataApi({
     loadMyPlayerBlocks,
     loadCurrentProfile,
     loadNotificationPreferences,
-    loadDistrictSubscriptions,
     loadCourtSubscriptions,
     saveCurrentProfile,
     savePushSubscription,
     removePushSubscription,
     saveNotificationPreferences,
-    saveDistrictSubscriptions,
     saveCourtSubscriptions,
     createSession,
     requestToJoinSession,
@@ -1062,13 +1054,11 @@ export const loadSessionMessages = (...args) => defaultDataApi.loadSessionMessag
 export const loadMyPlayerBlocks = (...args) => defaultDataApi.loadMyPlayerBlocks(...args);
 export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile(...args);
 export const loadNotificationPreferences = (...args) => defaultDataApi.loadNotificationPreferences(...args);
-export const loadDistrictSubscriptions = (...args) => defaultDataApi.loadDistrictSubscriptions(...args);
 export const loadCourtSubscriptions = (...args) => defaultDataApi.loadCourtSubscriptions(...args);
 export const saveCurrentProfile = (...args) => defaultDataApi.saveCurrentProfile(...args);
 export const savePushSubscription = (...args) => defaultDataApi.savePushSubscription(...args);
 export const removePushSubscription = (...args) => defaultDataApi.removePushSubscription(...args);
 export const saveNotificationPreferences = (...args) => defaultDataApi.saveNotificationPreferences(...args);
-export const saveDistrictSubscriptions = (...args) => defaultDataApi.saveDistrictSubscriptions(...args);
 export const saveCourtSubscriptions = (...args) => defaultDataApi.saveCourtSubscriptions(...args);
 export const createSession = (...args) => defaultDataApi.createSession(...args);
 export const requestToJoinSession = (...args) => defaultDataApi.requestToJoinSession(...args);

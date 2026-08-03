@@ -27,7 +27,6 @@ import {
   loadCourts,
   loadCourtSubscriptions,
   loadCurrentProfile,
-  loadDistrictSubscriptions,
   loadMySessions,
   loadMyPlayerBlocks,
   loadNotificationPreferences,
@@ -277,12 +276,14 @@ async function updateOpenToGreetingSetting(open) {
 function defaultNotificationSettings() {
   return {
     courtIds: [],
-    districts: [],
     errorMessage: "",
     prefs: {
+      chatMessageEnabled: true,
       guestInvitedEnabled: true,
       guestRequestReviewedEnabled: true,
       hostNewRequestEnabled: true,
+      sessionReminderEnabled: true,
+      sessionUpdatedEnabled: true,
     },
     pushStatus: "idle",
     webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
@@ -565,16 +566,14 @@ async function refreshNotificationSettings() {
   const identity = currentAuthIdentity;
   if (!identity || !authSession || !isSupabaseConfigured) return false;
   try {
-    const [prefs, districts, courtIds] = await Promise.all([
+    const [prefs, courtIds] = await Promise.all([
       loadNotificationPreferences(),
-      loadDistrictSubscriptions(),
       loadCourtSubscriptions(),
     ]);
     if (!notificationRequestIsCurrent({ epoch, identity })) return false;
     notificationSettings = {
       ...notificationSettings,
       courtIds,
-      districts,
       errorMessage: "",
       prefs,
       webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
@@ -595,9 +594,12 @@ async function updateNotificationPreferences(preferences) {
   const identity = currentAuthIdentity;
   if (!identity || !authSession) throw new Error("請先登入後再調整通知設定。");
   const nextPreferences = {
+    chatMessageEnabled: preferences?.chatMessageEnabled === true,
     guestInvitedEnabled: preferences?.guestInvitedEnabled === true,
     guestRequestReviewedEnabled: preferences?.guestRequestReviewedEnabled === true,
     hostNewRequestEnabled: preferences?.hostNewRequestEnabled === true,
+    sessionReminderEnabled: preferences?.sessionReminderEnabled === true,
+    sessionUpdatedEnabled: preferences?.sessionUpdatedEnabled === true,
   };
   await saveNotificationPreferences(nextPreferences);
   if (!notificationRequestIsCurrent({ epoch, identity })) return;
