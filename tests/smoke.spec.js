@@ -890,7 +890,10 @@ test("My Sessions renders the 球友卡 and notification settings before needs-a
     await page.locator(".presence-settings").evaluate((node) => node.nextElementSibling?.classList.contains("notification-settings") === true)
   ).toBe(true);
   expect(
-    await page.locator(".notification-settings").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
+    await page.locator(".notification-settings").evaluate((node) => node.nextElementSibling?.classList.contains("blocked-player-settings") === true)
+  ).toBe(true);
+  expect(
+    await page.locator(".blocked-player-settings").evaluate((node) => node.nextElementSibling?.querySelector("#my-needs-action") != null)
   ).toBe(true);
 
   await toggle.click();
