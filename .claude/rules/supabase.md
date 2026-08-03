@@ -28,14 +28,21 @@ role 不可讀寫。
 - 通知設定：本人 `notification_prefs`、`district_subscriptions` 的 explicit-column reads，及
   `save_push_subscription`、`remove_push_subscription`、`set_notification_prefs`、
   `set_district_subscriptions` RPC。
-- lifecycle 寫入：`create_session`、`request_to_join_session`、
-  `review_join_request`、`withdraw_from_session`、`cancel_session`、
+- lifecycle 寫入：`create_session`、`request_to_join_session`、`review_join_request`、
+  `invite_to_session`、`respond_to_session_invite`、`update_session`、
+  `decide_session_court`、`withdraw_from_session`、`cancel_session`、
   `mark_session_played`、`confirm_session_attendance`、`create_report`、
-  `set_player_visibility`、`invite_to_session`、`respond_to_session_invite`。
+  `post_session_message`、`set_player_block`、`set_player_visibility`。設定／個人狀態只走前述
+  `save_my_profile`、presence、push、notification 與 court-subscription RPC。
 
 不可讓前端直接 select／insert／update／delete raw `profiles`、`sessions`、
 `session_participants`、`reports` 或 private legacy tables；`src/dataApi.js` 是唯一
 前端資料邊界。
+
+`session_messages`、`player_blocks` 對 browser role revoke all；聊天讀取只能走
+`session_message_feed`，且 viewer 必須是 host 或 accepted guest。封存局成員仍可讀歷史，
+`post_session_message` 只允許 open/full。雙向封鎖只過濾 user 訊息，system 訊息仍可見；
+訊息本文不可進 outbox、push 或 log。
 
 ## Web Push 與通知 outbox
 
@@ -109,9 +116,10 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
 
 - `session_participant_roster`：host 可看同局 roster；guest 只可看自己與 host。這是
   申請審核所需的 nickname、NTRP、play types、home courts、role/status；沒有 LINE。
-- `session_contacts`：僅 viewer 和 counterpart 都是 `accepted`，且配對必須是 host ↔ guest。
+- `session_contacts`：選填 LINE 的過渡面；僅 viewer 和 counterpart 都是 `accepted`，且配對必須是 host ↔ guest。
   Host 對每位已接受 guest 有一列；guest 只會有 host 一列，絕不會取得其他 guest 的資料。
-- LINE 是資料庫強制的秘密，不是前端顯示層的 gate。任何擴充都必須先補 pgTAP 與 API
+- LINE 對新註冊者不是必填，也不是任何 profile gate；它仍是資料庫強制的秘密，不是前端顯示
+  gate。群聊穩定後才能另案退役 `session_contacts`；任何擴充都必須先補 pgTAP 與 API
   allowlist test，再改 UI。
 
 ## 城市、個人檔案門檻與生命週期
@@ -129,14 +137,17 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
   `accepted`。
 - 接受最後一個缺額以 row lock 計算容量，並把其餘 pending `requested`／`invited` guests
   decline；不要在客戶端先判斷可用缺額後直接寫入。
-- `create_session` 的 `join_mode` 只可為 `approval` 或 `instant`；開始時間可早至現在前 5 分鐘。
+- `create_session` 的 `venue_type` 只可為 `booked`、`walk_on`、`candidates`：前兩型使用單一
+  台北市 active 球場；候選型保存 2–3 座有序候選球場與 `range_end > start_at`，只能由
+  `decide_session_court` 選候選球場並把時間定在原範圍內。`join_mode` 只可為 `approval` 或
+  `instant`；開始時間可早至現在前 5 分鐘。
   同一主揪至多可有五個仍在可加入窗口內的 `open`／`full` 球局（未來或開打後兩小時內），超過時
   RPC 回傳 `SESSION_LIMIT`；開打超過兩小時，或已是 `cancelled`、`played`、`expired` 的局不計入。
-- `request_to_join_session` 對 `approval` 局建立 `requested` participant 並回傳 `OK`；對
-  `instant` 局在有缺額時直接轉為 `accepted` 並回傳 `ACCEPTED`。LINE 的可見性模型不變：
-  仍只限雙方皆為 `accepted` 的 host ↔ guest 配對。申請、直接加入、主揪邀請與受邀回覆只可在
-  開始後兩小時內進行；既有取消、退出與出席回報窗口不因此延長。
-- `invite_to_session(session_id, profile_id)` 僅 host 可呼叫，對可發現、完整且 opt-in 的
+- `request_to_join_session` 使用 nickname gate；`approval` 局建立 `requested` 並回 `OK`。
+  `instant` 局只有 viewer NTRP 已填且在局方範圍內時直接 `accepted`／回 `ACCEPTED`；未填或
+  範圍外仍建立 `requested`，分別回 `OK_NTRP_MISSING`／`OK_NTRP_OUT_OF_RANGE`。未定案候選局
+  的加入窗口只到範圍起點；其他局維持開始後兩小時。既有取消、退出與出席回報窗口不因此延長。
+- `invite_to_session(session_id, profile_id)` 僅通過 ntrp gate 的 host 可呼叫，對通過 directory、可發現且 opt-in 的
   其他球友建立 `invited`／`initiated_by='host'`；受邀者可在開始後兩小時內回覆。同一 host 在其
   名下所有球局的 host-initiated
   invite 採滾動 24 小時計數，上限 10。migration 以該 host 的 profile-row lock 序列化此計數
@@ -158,9 +169,10 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
 
 ## 到期與 migration
 
-`private.expire_stale_sessions()` 會把開始後超過 24 小時的 open/full sessions 設為
-`expired`。migration 建立 `expire-stale-tennis-sessions` pg_cron job，每 15 分鐘直接執行
-私有 function；每個 lifecycle RPC 同時呼叫 `lock_and_expire_session`，不能依賴 cron 時機。
+`private.expire_stale_sessions()` 會把開始後超過 24 小時的 open/full sessions，以及已到
+範圍起點仍未定案的候選局設為 `expired`。migration 建立 `expire-stale-tennis-sessions`
+pg_cron job，每 15 分鐘直接執行私有 function；每個 lifecycle RPC 同時呼叫
+`lock_and_expire_session`，不能依賴 cron 時機。
 
 Schema 變更一律 local-first：
 

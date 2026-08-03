@@ -1,23 +1,23 @@
 # 台北市網球公開球局 MVP 計畫
 
-最後更新：2026-07-20
+最後更新：2026-08-03
 
 這是目前產品、資料模型與發布決策的來源。實作細節以
 `supabase/migrations/`、`supabase/tests/` 和
-`docs/superpowers/specs/2026-07-17-taipei-tennis-public-mvp-design.md` 為準。
+`docs/superpowers/specs/2026-07-27-first-public-release-functional-spec.md` 為準。
 
 ## 目標與首發範圍
 
 解決兩件事：
 
 - 想打球的人可在地圖上找到附近、未來、可加入的網球球局。
-- 已找到場地但缺人者可快速開局，讓有興趣的人申請，由主揪決定是否接受。
+- 主揪可依已訂場、現場排隊或 2–3 座候選球場快速開局；成員加入後以球局群聊協調。
 
 首發是公開 Web、**台北市網球**。球場資料目錄可保留雙北，但公開 discovery、create 和
 join 只允許台北市 active court 與 active tennis sport。多運動／另一城市需有新的產品、
 容量、資料品質與 RLS 決策，不是資料表有 `sport_id` 就自動開放。
 
-不做：私人社群爬蟲、站內聊天、付款／訂場、候補、推播、評分、教練媒合、原生 App。
+不做：私人社群爬蟲、局外私訊、付款／訂場、候補、評分、教練媒合、原生 App、Realtime。
 
 ## 已確認的使用者流程
 
@@ -25,28 +25,32 @@ join 只允許台北市 active court 與 active tennis sport。多運動／另�
 地圖（初始不索取定位）
   → 收合的附近球局抽屜
   → 球局詳情
-  → Google 登入／完成檔案
-  → 申請加入
-  → 主揪接受或婉拒
-  → 已接受 pair 在「我的球局」看到對方 LINE
+  → Google 登入／依動作補齊 nickname、ntrp 或 directory gate
+  → 申請加入或直接加入
+  → 主揪接受或婉拒（審核制）
+  → accepted 成員進入球局群聊；選填 LINE 過渡面並存
 ```
 
 - `使用我的位置` 是明確行為，位置只在記憶體中使用，約以 5 km 視野定位。
 - 公開頁只顯示 session/court 必要資料，以及主揪 `host_nickname`、`host_ntrp`、
   `host_profile_complete`。
-- LINE 是資料庫 `session_contacts` 的 accepted-only host ↔ guest secret，並非前端 gate。
-- My Sessions 將主揪待審核請求放在最前面；accepted contacts 僅在 accepted state 載入。
+- LINE 選填且不是 profile gate；`session_contacts` 只作 accepted host ↔ guest 過渡 secret。
+- My Sessions 將待處理項目放在設定之前；只有 accepted 成員可進群聊，封存後唯讀回顧。
 
 ## 資料與權限契約
 
 | 項目 | 決策 |
 | --- | --- |
 | Public discovery | `session_discovery` 只含 explicit session/court fields 與三個 allowlisted host fields；沒有 profile ID、LINE、電話、email、常打球場或 roster。 |
+| Profile gates | nickname＝非空暱稱；ntrp＝暱稱＋1.0–7.0 NTRP；directory＝ntrp＋至少一座台北市 active 常打球場。LINE、打法、時段皆非 gate。 |
+| Venue | `booked`／`walk_on` 使用單一球場；`candidates` 保存 2–3 座有序候選球場與時間範圍，由主揪定案。 |
 | Roster | host 看該局 roster；guest 只看自己與 host；兩者都沒有 LINE。 |
-| Contacts | `session_contacts` 只給同一球局的 accepted host/guest；host 可看各 accepted guest，guest 只看 host。 |
+| Chat | `session_message_feed` 只給 host 與 accepted guest；封存局唯讀，user 訊息受雙向封鎖過濾。 |
+| Contacts | `session_contacts` 過渡保留選填 LINE，只給 accepted host/guest；host 可看各 accepted guest，guest 只看 host。 |
 | 名額 | `slots_total` 1–3；最後缺額接受在 DB lock 下原子完成，不能 overfill。 |
-| Lifecycle | RPC 處理 create/request/review/withdraw/cancel/played/attendance/report；失敗後 UI 重讀權威資料。 |
-| 到期 | `expire-stale-tennis-sessions` pg_cron 每 15 分鐘處理開始後超過 24 小時的 open/full session；RPC 也立即檢查。 |
+| Lifecycle | RPC 處理 create/request/review/invite/update/decide/withdraw/cancel/played/attendance/chat/block/report；失敗後 UI 重讀權威資料。 |
+| 到期 | `expire-stale-tennis-sessions` 每 15 分鐘處理超齡局與逾範圍起點未定案候選局；RPC 也立即檢查。 |
+| Notifications | service-only outbox＋每分鐘 dispatch；六項可調偏好、定案／取消恆送、球場訂閱廣播、開打與催定案提醒。 |
 | Catalog | `data/courts.json` 是單一來源；已套用 generated migration 不可修改。 |
 
 ## 實作與本機驗證狀態
@@ -54,7 +58,7 @@ join 只允許台北市 active court 與 active tennis sport。多運動／另�
 本機完成並已在本工作分支驗證：
 
 - 台北市／網球 session schema、definer views、RLS、lifecycle RPC 與 pg_cron migration。
-- 地圖優先 UI、收合 drawer、顯式定位、create/join/review/contacts/My Sessions。
+- 地圖優先 UI、三型建局、加入矩陣、編輯／定案、群聊／封鎖／檢舉、球場訂閱與 My Sessions。
 - 2.5 秒 discovery delay、bounds debounce、keyboard dialog/focus、stale join、Google Maps
   failure fallback、兩 client 最後缺額併發。
 - `VITE_SUPPORT_EMAIL` 有值時會渲染「聯絡支援」mail-to 入口；production 值仍須由部署者
@@ -83,11 +87,47 @@ git diff --check
 `npm test` 與 `npm run test:local` 都不會清資料庫。只在需要乾淨 fixture 時，使用帶
 `CONFIRM_LOCAL_DB_RESET=1` 的 local-only reset。
 
+## 首次公開發布 checklist（2026-08-03，尚未執行 hosted）
+
+本節是下一次 hosted 發布的人工 gate；目前全部是**未完成**，不得把下方步驟或本機測試通過
+解讀成 hosted 已套用、已部署或已發布。
+
+- [ ] 備份 hosted schema/data，記錄 profiles、sessions、participants、messages、reports、
+  notification outbox 與 push subscription 的 migration 前 counts。
+- [ ] 先在乾淨 local DB 套用至 `202607270008` 並完成本頁「本機 release gate」；以
+  `npx supabase migration list` 確認 remote 無 drift，再由負責人授權套用
+  `202607270001`–`202607270008`。清單必須明列
+  `202607270006_session_join_preview_avatar`、`202607270007_notification_rework` 與
+  `202607270008_drop_legacy_profile_gate`。
+- [ ] 匿名 REST 重驗 `session_discovery` 恰為 25 欄；raw sessions、participants、messages、
+  blocks、candidate courts、court subscriptions、notification prefs/outbox 皆無旁路；
+  `session_join_preview` 只允許 authenticated。
+- [ ] 重新部署 `notification-outbox-dispatch` Edge Function；確認十事件標題與五欄摘要
+  allowlist，訊息本文、LINE 與 subscription key 不進 payload 或 log。
+- [ ] 確認四個 cron：`dispatch-notification-outbox` 每分鐘、`enqueue-session-reminders` 每
+  5 分鐘、`expire-stale-tennis-sessions` 每 15 分鐘、`purge-archived-session-messages`
+  每日 03:30，並以 controlled fixture 驗 session reminder 與 decide reminder 只 enqueue 一次。
+- [ ] 以至少兩個 Google 帳號走完三型建局、候選定案、approval／instant 加入、編輯／取消；
+  accepted 前看不到群聊，accepted 後 host 發言 guest 收到、guest 回覆 host 收到，封存後歷史
+  可讀但送訊得到 `SESSION_ARCHIVED`。另驗 HTML 文字轉義與群訊推播不含本文。
+- [ ] 群聊治理：雙向封鎖後 user 訊息互不可見、system 訊息仍可見；join／invite 的中性封鎖
+  結果不揭露關係；單則訊息檢舉可建立。`reports.status` 尚無產品工作流，人工處理責任與存取者
+  必須在發布前由負責人記錄，不得宣稱已自動化。
+- [ ] 保存政策：以 controlled archived session 驗 90 天 purge；有 report 關聯的訊息保留。
+  90 天目前是暫訂值，變更必須同步隱私政策與 migration。
+- [ ] LINE 存量檢查：新註冊以 nickname-only 可存檔、LINE 選填；若存量 accepted pair 有 LINE，
+  `session_contacts` 仍只揭露 host ↔ guest，guest 彼此不可見。這是過渡相容檢查，不再是主旅程。
+- [ ] 穩定 preview 人工 QA：OAuth、Maps referrer、390px 慢網路、鍵盤焦點、支援／隱私連結、
+  console/pageerror、球場訂閱最多 10 座與六個通知偏好。
+- [ ] 清除 QA 球局、訊息、profile/auth fixtures；確認匿名 discovery 無 QA 資料後，才由負責人
+  決定 release 發布與社群分享時機。
+
 ## Hosted 發布 gate（2026-07-20 執行紀錄）
 
 首次 hosted 發布 gate 於 2026-07-20 執行。完整逐項輸出留存在執行者本機的
 `~/tennisPartnerFinder-backups/20260720-143340/`（schema 與資料備份、gate-status.md）。
 以下標記僅代表**該次實測**；未實際執行的子項一律標為未完成，不得因整關通過而視為已驗。
+這些歷史結果不能替代上方 2026-08-03 首次公開發布 checklist。
 
 1. **備份與差異**：**完成**。`supabase db dump` 取得 schema 與資料備份；migration 前
    筆數 courts 85、profiles 1、partner_requests 1、reports 2。本機 gate 全綠。
@@ -173,20 +213,24 @@ git diff --check
 
 ## 首兩週的社群與指標
 
-先只在已核可的台北網球社群發布，文案要清楚說明「開局／申請／主揪核准後才互露 LINE」。
+先只在已核可的台北網球社群發布，文案要清楚說明「三型開局／申請或直接加入／accepted 後進群聊」；
+LINE 僅是選填的過渡聯絡方式。
 不要由私人群組匯入貼文，也不要拿 QA 假資料填滿地圖。
 
 每週用有權限的安全查詢彙整：
 
 | 漏斗 | 最小指標 |
 | --- | --- |
-| 進站與啟用 | 實際使用者數、完成檔案數 |
-| 供給 | 建立球局數、未來 open session 數 |
-| 配對 | 申請數、accepted joins、accept rate |
+| 進站與啟用 | 實際使用者數、nickname／ntrp／directory gate 各層人數 |
+| 供給 | booked／walk_on／candidates 建局數、候選定案率、未來 open session 數 |
+| 配對 | approval requests、instant joins、accepted joins、accept rate |
+| 群聊與治理 | 有訊息的 accepted 球局數、發訊成員數、封鎖數、訊息檢舉數、封存後 purge／保留數 |
+| 通知 | 開啟 push 人數、球場訂閱人數、各事件 enqueue／sent／attempts、失效 endpoint 數 |
 | 結果 | played reports、出席確認、取消／退出原因 |
 
-每週只選一個有證據的摩擦點改進，例如開局表單、抽屜發現、登入恢復或主揪審核；不要在樣本
-不足時擴張城市或功能。
+首兩週不以未定義的單一轉換率宣告成功；每週保留上述原始 counts 與分母，先辨識最大漏斗落差，
+只選一個有證據的摩擦點改進，例如建局型別、抽屜發現、登入恢復、加入審核、群聊或通知。
+樣本不足或安全／治理 gate 未完成時，不擴張城市或功能。
 
 ## 球場生態研究（非上線前置）
 

@@ -3,14 +3,14 @@
 ## 專案定位
 
 這是以 Vite 6 與原生 ES modules 製作的台北市網球公開球局 MVP。首頁是地圖，
-使用者可瀏覽未來與開打後兩小時內的球局，依球局加入方式申請或直接加入；審核制由主揪核准後，已接受的主揪與
-參與者才可互看 LINE ID。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
+使用者可瀏覽未來與開打後兩小時內的球局，依球局加入方式申請或直接加入；已接受成員可使用球局群組聊天，
+LINE 聯絡面僅過渡保留。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
 新北市球場開放為公開球局。
 
 產品與資料模型的來源依序是：
 
 1. `docs/mvp-plan.md`：目前範圍、上線門檻與維運流程。
-2. `docs/superpowers/specs/2026-07-17-taipei-tennis-public-mvp-design.md`：產品與隱私決策。
+2. `docs/superpowers/specs/2026-07-27-first-public-release-functional-spec.md`：首次公開發布功能與隱私決策。
 3. `supabase/migrations/` 與 `supabase/tests/`：已實作的資料庫契約。
 
 舊的 player-card、partner-request、quick-contact 文件僅可視為歷史，不可拿來擴充
@@ -23,17 +23,20 @@
 - 匿名公開面只有 `public.session_discovery`。與主揪相關的匿名公開資料**只有**
   `host_nickname`、`host_ntrp`、`host_profile_complete`；不可增加 profile ID、連結、
   真名、LINE、電話、email、常打球場、歷史或 roster 資料。
-- 登入且完整 profile 的球友目錄走另一個 authenticated-only 面
-  `public.player_directory`，不是匿名公開探索；使用者預設不出現在目錄，僅能透過
-  `set_player_visibility` 自行 opt-in，關閉後立即下架。
+- 個人檔案採三級 gate：`nickname`＝非空暱稱；`ntrp`＝暱稱＋1.0–7.0 NTRP；
+  `directory`＝ntrp＋至少一座台北市 active 常打球場。資料庫授權只以
+  `private.require_profile_gate(level)`／`private.profile_meets_gate` 為準，前端
+  `src/profile.js` 僅做同語意引導；LINE、打法與時段都不是 gate 必填。
+- 通過 directory gate 的球友目錄走 authenticated-only `public.player_directory`，不是匿名
+  公開探索；使用者預設不出現在目錄，僅能透過 `set_player_visibility` 自行 opt-in，關閉後立即下架。
 - 在場狀態是獨立、預設關閉、authenticated-only 的互惠面
-  `public.player_presence_directory`：匿名沒有 SELECT 權限；viewer 自己必須是完整 profile 且已開
+  `public.player_presence_directory`：匿名沒有 SELECT 權限；viewer 自己必須通過 ntrp gate 且已開
   `share_presence` 才可讀到其他分享者。`player_presence` 原表不可給 browser 讀寫；raw GPS
   座標只在前景 `watchPosition` 呼叫期間短暫存在，RPC 只可落地最近台北 active court 的
   `court_id + updated_at`，不可進任何表、view、payload 或 log。
-- LINE 不是 UI 隱藏欄位。它只能由資料庫 definer view `public.session_contacts`
+- LINE 是選填的過渡聯絡欄位，新註冊不要求填寫。它只能由資料庫 definer view `public.session_contacts`
   回傳給同一球局中、雙方皆為 `accepted` 的 host/guest 配對。主揪可看各已接受
-  guest；guest 只可看主揪，不能看其他 guest。
+  guest；guest 只可看主揪，不能看其他 guest；群聊穩定後此過渡面再退役。
 - Web Push payload 只可含球局摘要 `court`、`start_at`、`slots_remaining`、`message`、`url`
   與派送所需 title；**LINE 永遠不可**進 payload、outbox、browser log、view 或 UI。通知
   outbox 是 service-only，browser role 不可讀寫。
@@ -51,7 +54,7 @@
 
 - `src/main.js`：應用程式入口、頁面切換、Maps/Auth 接線。
 - `src/sessionController.js`：探索、地圖 bounds、登入／檔案 gate、生命週期 refresh。
-- `src/sessionViews.js`：抽屜、球局、建立表單、My Sessions 與 contact 顯示。
+- `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions、群聊與過渡 contact 顯示。
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
 - `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
 - `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
@@ -63,33 +66,40 @@ linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁�
 
 ## Session 資料流程
 
-公開流程：地圖 → 收合的「附近球局」抽屜 → 球局詳情 → 登入與完成檔案 →
-依加入方式提出申請或直接加入 →（審核制）主揪接受或婉拒 → My Sessions 的已接受聯絡資訊。
+公開流程：地圖 → 附近球局 → 詳情與登入後加入前名單 → 依所需 gate 補檔案 → 申請或直接加入 →
+（審核制）主揪接受／婉拒 → accepted 成員使用 My Sessions 與球局群組聊天；LINE 過渡面並存。
 
-- `create_session`：完整 profile 的主揪在台北市 active tennis court 建局；開始時間可從現在前
-  5 分鐘起，缺額 1–3，`join_mode` 可為 `approval`（審核制）或 `instant`（直接加入），同一
-  主揪至多五個仍在可加入窗口內的 open/full 球局（未來或開打後兩小時內）。
-- `request_to_join_session`：完整 profile 不可加入自己的球局；`approval` 局建立
-  `requested`（`initiated_by='guest'`）申請並回傳 `OK`，有缺額的 `instant` 局直接接受並
-  回傳 `ACCEPTED`。未來與開始後兩小時內可加入；窗口外拒絕新的加入。
-- `invite_to_session`：主揪只可邀請目前在 opt-in 完整球友目錄中的其他人，建立
+- `create_session`：通過 ntrp gate 的主揪可建 `booked`、`walk_on` 或 `candidates` 球局；前兩型
+  使用單一台北市 active tennis court，候選型依序保存 2–3 座候選球場與時間範圍，之後只可用
+  `decide_session_court` 收斂場地與時間。開始時間可早至現在前 5 分鐘、缺額 1–3，同一主揪在
+  有效窗口內至多五局；`join_mode` 為 `approval` 或 `instant`。
+- `request_to_join_session` 使用 nickname gate。`approval` 建立 `requested` 並回 `OK`；
+  `instant` 只有 NTRP 已填且在局方範圍內時直接 `ACCEPTED`，未填或範圍外仍建立 `requested`，
+  分別回 `OK_NTRP_MISSING`／`OK_NTRP_OUT_OF_RANGE`。未定案候選局只到範圍起點可加入；
+  其他局維持開始後兩小時窗口。
+- `invite_to_session`：通過 ntrp gate 的主揪只可邀請目前在 opt-in directory 目錄中的其他人，建立
   `invited`（`initiated_by='host'`）列；`respond_to_session_invite` 讓受邀 guest 接受或
-  婉拒。接受後的 LINE 規則不變，仍須 host/guest 雙方皆為 `accepted`。
+  婉拒。封鎖檢查與最後缺額的原子容量規則都由資料庫執行。
 - `review_join_request`：只有主揪可接受／婉拒。最後缺額的接受是資料庫鎖定的原子操作。
-- `withdraw_from_session`、`cancel_session`、`mark_session_played`、
-  `confirm_session_attendance`、`create_report`、`set_player_visibility`、
-  `set_presence_sharing`、`set_open_to_greeting`、`update_my_presence`、`invite_to_session`、
-  `respond_to_session_invite`：只用對應 RPC，失敗後以權威資料重整。
+- `update_session` 只編輯單一球場局的核可欄位，不改場地型別或加入方式；候選局使用
+  `decide_session_court` 定案。`post_session_message`、`set_player_block`、帶 `message_id` 的
+  `create_report` 管理群聊；封存局只讀不可再傳訊息。
+- 其餘寫入只用對應 RPC：`withdraw_from_session`、`cancel_session`、`mark_session_played`、
+  `confirm_session_attendance`、`set_player_visibility`、`set_presence_sharing`、
+  `set_open_to_greeting`、`update_my_presence`、`set_court_subscriptions`、六參數
+  `set_notification_prefs`、push subscription RPC；失敗後重讀權威資料。
 - `public.my_session_participations` 是登入者自己的生命週期清單；
   `public.session_participant_roster` 對 host 顯示該局 roster、對 guest 僅顯示自己與 host，
-  但兩者都不含 LINE。
+  但兩者都不含 LINE。群聊由 `session_message_feed` 提供給 host 與 accepted guest；
+  `session_contacts` 只保留 accepted host ↔ guest 的選填 LINE 過渡揭露。
 - `expire-stale-tennis-sessions` pg_cron 每 15 分鐘將開始後超過 24 小時的 open/full
-  球局設為 expired；每個 lifecycle RPC 也立即檢查，UI 不可依賴 cron 延遲。
+  球局設為 expired；未定案候選局在範圍起點即 expired。每個 lifecycle RPC 也立即檢查，
+  UI 不可依賴 cron 延遲。
 - Web Push 的四種事件為主揪新申請、guest 申請結果、guest 收到邀請、訂閱行政區的新球局。
   前三者可由本人偏好關閉；廣播只送給本人勾選的台北市行政區。通知是 best-effort，outbox
   寫入失敗不可中斷球局 RPC。
 - 分享／推播深連結使用 `#/session/:id`：進入地圖並開啟該局 sheet；不存在或已下架要顯示
-  明確 empty sheet，登入或完整 profile gate 仍沿用既有 join intent。
+  明確 empty sheet，登入或對應的三級 gate 仍沿用既有 intent。
 
 ## 本機開發與驗證
 
@@ -144,7 +154,7 @@ allowlist 與 Supabase Site URL 的 QA 入口）與 `...-xinnians-...`（CLI 部
 
 任何 hosted migration、環境變數、部署或社群發布前，先完成
 `docs/mvp-plan.md` 的 release checklist：備份／count preflight、migration list 對齊、
-匿名 REST allowlist、兩帳號 accepted-only contact、cron、OAuth、390px 慢網路與
+匿名 REST allowlist、兩帳號群聊與 accepted-only 過渡 contact、cron、OAuth、390px 慢網路與
 support/privacy link 的人工檢查。未實際完成的 hosted gate 不可在文件中標記為完成。
 
 ## 球場目錄與文件維護
