@@ -1020,7 +1020,7 @@ test("My Sessions presence settings explain reciprocal visibility, request shari
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions notification settings save event preferences and Taipei district subscriptions", async ({ page }) => {
+test("My Sessions notification settings migrate legacy districts and save Taipei court subscriptions", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1031,8 +1031,14 @@ test("My Sessions notification settings save event preferences and Taipei distri
     document.getElementById("my-sessions-page").hidden = false;
     renderMySessionsPage(root, {
       authenticated: true,
+      courts: [
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+        { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+        { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+      ],
       groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
       notificationSettings: {
+        courtIds: [],
         districts: ["大安區"],
         prefs: {
           guestInvitedEnabled: true,
@@ -1045,8 +1051,8 @@ test("My Sessions notification settings save event preferences and Taipei distri
       onEnablePush: async () => {
         window.__enablePushCalls = (window.__enablePushCalls ?? 0) + 1;
       },
-      onSaveDistrictSubscriptions: async (districts) => {
-        window.__savedDistrictSubscriptions = districts;
+      onSaveCourtSubscriptions: async (courtIds) => {
+        window.__savedCourtSubscriptions = courtIds;
       },
       onSaveNotificationPreferences: async (preferences) => {
         window.__savedNotificationPreferences = preferences;
@@ -1059,7 +1065,10 @@ test("My Sessions notification settings save event preferences and Taipei distri
   await expect(settings).toContainText("加入主畫面");
   await expect(settings).not.toContainText("LINE");
   await expect(page.getByTestId("enable-push")).toHaveText("開啟推播");
-  await expect(page.getByTestId("notification-district-大安區")).toBeChecked();
+  await expect(settings).toContainText("你原本訂閱的是行政區；請重新選擇最多 10 座球場");
+  await expect(page.locator("[data-notification-district]")).toHaveCount(0);
+  const courtSelect = page.getByTestId("notification-court-subscriptions");
+  await expect(courtSelect).toBeEnabled();
 
   await page.getByTestId("enable-push").click();
   await expect.poll(() => page.evaluate(() => window.__enablePushCalls)).toBe(1);
@@ -1071,8 +1080,42 @@ test("My Sessions notification settings save event preferences and Taipei distri
     hostNewRequestEnabled: false,
   });
 
-  await page.getByTestId("notification-district-萬華區").check();
-  await expect.poll(() => page.evaluate(() => window.__savedDistrictSubscriptions)).toEqual(["大安區", "萬華區"]);
+  await courtSelect.selectOption(["8", "10"]);
+  await expect.poll(() => page.evaluate(() => window.__savedCourtSubscriptions)).toEqual([8, 10]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions notification settings reject an eleventh court before calling the RPC", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const courts = Array.from({ length: 11 }, (_, index) => ({
+      city: "台北市",
+      district: `測試區${index + 1}`,
+      id: index + 1,
+      name: `測試球場${index + 1}`,
+    }));
+    renderMySessionsPage(root, {
+      authenticated: true,
+      courts,
+      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+      notificationSettings: { courtIds: courts.slice(0, 10).map((court) => court.id) },
+      onSaveCourtSubscriptions: async (courtIds) => {
+        window.__savedElevenCourts = courtIds;
+      },
+    });
+  });
+
+  const courtSelect = page.getByTestId("notification-court-subscriptions");
+  await courtSelect.selectOption(Array.from({ length: 11 }, (_, index) => String(index + 1)));
+  await expect(page.locator("[data-notification-error]")).toContainText("最多只能訂閱 10 座球場");
+  await expect(courtSelect.locator("option:checked")).toHaveCount(10);
+  expect(await page.evaluate(() => window.__savedElevenCourts)).toBeUndefined();
   expect(runtimeErrors).toEqual([]);
 });
 
