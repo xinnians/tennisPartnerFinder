@@ -1269,3 +1269,81 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     ]));
   }
 });
+
+test("accepted members exchange escaped chat, manage blocks, and retain archived read-only history", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const observer = await createCompleteActor(context.observer);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `chat-${context.runId}`, slotsTotal: 1 })
+  );
+  await requestToJoinSessionViaRpc(guest.client, sessionId);
+  const { data: roster, error: rosterError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id,profile_id,role,status")
+    .eq("session_id", sessionId);
+  if (rosterError) throw rosterError;
+  expect(roster.length, "the participant scan must be nonempty").toBeGreaterThan(0);
+  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  expect(guestRequest).toBeTruthy();
+  await reviewJoinRequestViaRpc(host.client, {
+    decision: "accepted",
+    participantId: guestRequest.participant_id,
+    sessionId,
+  });
+
+  await gotoWithSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.getByTestId(`open-chat-${sessionId}`).click();
+  const chat = page.getByTestId("session-chat-sheet");
+  await expect(chat).toBeVisible();
+  await expect(chat.getByText(context.host.nickname)).toBeVisible();
+  await expect(chat.getByText(context.guest.nickname)).toBeVisible();
+  const unsafeBody = `球場見 <b>${context.runId}</b> & 喝水`;
+  await chat.getByTestId("chat-message-input").fill(unsafeBody);
+  await chat.getByTestId("chat-send").click();
+  await expect(chat.getByText(unsafeBody)).toBeVisible();
+  await expect(chat.locator("b")).toHaveCount(0);
+
+  await switchBrowserSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.getByTestId(`open-chat-${sessionId}`).click();
+  await expect(chat.getByText(unsafeBody)).toBeVisible();
+  await expect(chat.locator("b")).toHaveCount(0);
+  await chat.getByTestId(`block-message-sender-${host.profileId}`).click();
+  await expect(chat.getByText(unsafeBody)).toHaveCount(0);
+  await chat.locator("[data-surface-close]").click();
+  const blockedRow = page.getByTestId(`blocked-player-${host.profileId}`);
+  await expect(blockedRow).toContainText(context.host.nickname);
+  await blockedRow.getByTestId(`unblock-player-${host.profileId}`).click();
+  await expect(blockedRow).toHaveCount(0);
+
+  const { data: observerFeed, error: observerFeedError } = await observer.client
+    .from("session_message_feed")
+    .select("message_id")
+    .eq("session_id", sessionId);
+  if (observerFeedError) throw observerFeedError;
+  expect(observerFeed).toEqual([]);
+  await switchBrowserSession(page, observer.session);
+  await page.goto(`/#/session/${sessionId}`);
+  await expect(page.locator("#session-sheet")).toBeVisible();
+  await expect(page.locator('[data-session-action="chat"]')).toHaveCount(0);
+
+  await switchBrowserSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.getByTestId(`open-chat-${sessionId}`).click();
+  await expect(chat.getByText(unsafeBody)).toBeVisible();
+  const { data: cancelled, error: cancelError } = await host.client.rpc("cancel_session", { p_session_id: sessionId });
+  if (cancelError) throw cancelError;
+  expect(cancelled).toBe("OK");
+  await chat.getByTestId("chat-message-input").fill("取消競態後仍嘗試送出");
+  await chat.getByTestId("chat-send").click();
+  await expect(chat).toContainText("這個球局已封存，無法再傳送訊息。");
+  await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
+  await expect(chat.getByText(unsafeBody)).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});

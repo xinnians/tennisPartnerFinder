@@ -120,12 +120,16 @@ function createSurface(onClose = () => {}) {
   return {
     closeCalls: 0,
     courtUpdates: [],
+    stateUpdates: [],
     close(options) {
       this.closeCalls += 1;
       onClose(options);
     },
     setCourts(courts, options) {
       this.courtUpdates.push({ courts, options });
+    },
+    setState(state) {
+      this.stateUpdates.push(state);
     },
   };
 }
@@ -142,6 +146,7 @@ function createHarness(overrides = {}) {
   const createSheets = [];
   const decisionSheets = [];
   const editSheets = [];
+  const chatSheets = [];
   const loginPrompts = [];
   const profilePrompts = [];
   const reportDialogs = [];
@@ -205,6 +210,13 @@ function createHarness(overrides = {}) {
       editSheets.push({ detail, handlers, session: openedSession });
       return detail;
     },
+    openChat: (openedSession, handlers) => {
+      const detail = createSurface(handlers.onClose);
+      detail.archivedUpdates = [];
+      detail.setArchived = (message) => detail.archivedUpdates.push(message);
+      chatSheets.push({ detail, handlers, session: openedSession });
+      return detail;
+    },
     openLogin: (handlers) => {
       const detail = createSurface(handlers.onClose);
       loginPrompts.push({ detail, handlers });
@@ -224,11 +236,13 @@ function createHarness(overrides = {}) {
     onMySessionsChange: (nextState) => mySessionChanges.push(nextState),
     intentStore: overrides.intentStore,
     toast: (message) => toasts.push(message),
+    visibilityTarget: overrides.visibilityTarget,
   });
   const controller = rawController;
   return {
     api,
     confirmations,
+    chatSheets,
     controller,
     courtDrawers,
     createSheets,
@@ -2877,4 +2891,153 @@ test("an open discovery detail refreshes when a candidate decision timestamp cha
   await harness.controller.loadDiscovery();
 
   assert.equal(opened.detail.closeCalls, 1, "a decided candidate cannot leave an old detail sheet open");
+});
+
+test("accepted members alone receive chat entry authority from private participation", async () => {
+  const acceptedSession = futureSession({
+    canWithdraw: true,
+    sessionId: 701,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const requestedSession = futureSession({
+    canWithdraw: true,
+    sessionId: 702,
+    viewerParticipantStatus: "requested",
+    viewerRole: "guest",
+  });
+  const harness = createHarness({
+    session: acceptedSession,
+    api: {
+      loadMySessions: async () => [acceptedSession, requestedSession],
+      loadSessionMessages: async () => [],
+      loadSessionRoster: async () => [],
+    },
+  });
+
+  await harness.controller.setAuthState(
+    { user: { id: "accepted-chat-member" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  await harness.controller.loadDiscovery();
+
+  const acceptedDetail = openAction(harness, acceptedSession.sessionId);
+  assert.equal(acceptedDetail.handlers.canChat, true);
+  assert.equal(acceptedDetail.handlers.onChat(), harness.chatSheets.at(-1).detail);
+
+  harness.opened.length = 0;
+  const requestedDetail = harness.controller.openSession(requestedSession.sessionId);
+  assert.equal(harness.opened.at(-1).handlers.canChat, false);
+  assert.throws(() => harness.controller.openSessionChat(requestedSession.sessionId), /球局的狀態已更新/);
+});
+
+test("chat refreshes on foreground visibility and after posting", async () => {
+  const visibilityTarget = new EventTarget();
+  Object.defineProperty(visibilityTarget, "visibilityState", { configurable: true, value: "hidden", writable: true });
+  const session = futureSession({
+    canWithdraw: true,
+    sessionId: 711,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const messageLoads = [];
+  const rosterLoads = [];
+  const posts = [];
+  const harness = createHarness({
+    session,
+    visibilityTarget,
+    api: {
+      loadMySessions: async () => [session],
+      loadSessionMessages: async (sessionId) => {
+        messageLoads.push(sessionId);
+        return [{ body: "球場見", createdAt: "2026-08-03T01:00:00Z", isSelf: false, kind: "user", messageId: 1, senderNickname: "球友", senderProfileId: 92, sessionId }];
+      },
+      loadSessionRoster: async (sessionId) => {
+        rosterLoads.push(sessionId);
+        return [{ nickname: "球友", profileId: 92, role: "guest", status: "accepted" }];
+      },
+      postSessionMessage: async (sessionId, body) => {
+        posts.push([sessionId, body]);
+        return { outcome: "OK" };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState(
+    { user: { id: "chat-refresh-member" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  const sheet = harness.controller.openSessionChat(session.sessionId);
+  await flush();
+  assert.deepEqual(messageLoads, [711]);
+  assert.deepEqual(rosterLoads, [711]);
+  assert.equal(sheet.stateUpdates.at(-1).messages.length, 1, "the message scan is nonempty");
+
+  visibilityTarget.visibilityState = "visible";
+  visibilityTarget.dispatchEvent(new Event("visibilitychange"));
+  await flush();
+  assert.deepEqual(messageLoads, [711, 711]);
+
+  await harness.chatSheets.at(-1).handlers.onPost("回前景後送訊");
+  assert.deepEqual(posts, [[711, "回前景後送訊"]]);
+  assert.deepEqual(messageLoads, [711, 711, 711]);
+});
+
+test("chat governance reports the exact visible message, blocks its sender, and reloads authority", async () => {
+  const session = futureSession({
+    canWithdraw: true,
+    sessionId: 721,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const visibleMessage = {
+    body: "不當內容",
+    createdAt: "2026-08-03T01:00:00Z",
+    isSelf: false,
+    kind: "user",
+    messageId: 901,
+    senderNickname: "待處理球友",
+    senderProfileId: 92,
+    sessionId: 721,
+  };
+  const reports = [];
+  const blocks = [];
+  let blockRows = [{ blockedNickname: "待處理球友", blockedProfileId: 92, createdAt: "2026-08-03T01:00:00Z" }];
+  const harness = createHarness({
+    session,
+    api: {
+      createReport: async (input) => {
+        reports.push(input);
+        return { reportId: 1 };
+      },
+      loadMyPlayerBlocks: async () => blockRows,
+      loadMySessions: async () => [session],
+      loadSessionMessages: async () => [visibleMessage],
+      loadSessionRoster: async () => [],
+      setPlayerBlock: async (profileId, blocked) => {
+        blocks.push([profileId, blocked]);
+        if (!blocked) blockRows = [];
+        return { outcome: "OK" };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState(
+    { user: { id: "chat-governance-member" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  harness.controller.openSessionChat(session.sessionId);
+  await flush();
+
+  harness.chatSheets.at(-1).handlers.onReport(visibleMessage.messageId);
+  await harness.reportDialogs.at(-1).onSubmit("騷擾");
+  assert.deepEqual(reports, [{ messageId: 901, reason: "騷擾", reportedProfileId: 92, sessionId: 721 }]);
+
+  await harness.chatSheets.at(-1).handlers.onBlock(visibleMessage.senderProfileId);
+  assert.deepEqual(blocks, [[92, true]]);
+  assert.equal(harness.controller.getMySessionState().blockedPlayers.length, 1, "the blocked-player scan is nonempty");
+
+  await harness.controller.unblockPlayer(92);
+  assert.deepEqual(blocks, [[92, true], [92, false]]);
+  assert.deepEqual(harness.controller.getMySessionState().blockedPlayers, []);
 });

@@ -2267,3 +2267,139 @@ test("mock player layer renders directory pins and cards while the signed-out en
   await expect(page.locator("#player-card-sheet")).toContainText("接受現場問候");
   expect(runtimeErrors).toEqual([]);
 });
+
+test("chat sheet escapes user bodies, separates system messages, and becomes archived read-only", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openSessionChatSheet } = await import("/src/sessionViews.js");
+    window.__chatActions = [];
+    const sheet = openSessionChatSheet(
+      {
+        court: "示範球場",
+        courtDistrict: "大安區",
+        playType: "雙打",
+        sessionId: 8101,
+        slotsRemaining: 0,
+        startAt: "2026-08-03T10:00:00+08:00",
+        status: "open",
+      },
+      {
+        onBlock: (profileId) => window.__chatActions.push(["block", profileId]),
+        onPost: (body) => window.__chatActions.push(["post", body]),
+        onReport: (messageId) => window.__chatActions.push(["report", messageId]),
+      }
+    );
+    sheet.setState({
+      messages: [
+        {
+          body: "球局資訊已更新",
+          createdAt: "2026-08-03T01:00:00Z",
+          isSelf: false,
+          kind: "system",
+          messageId: 1,
+          senderNickname: "",
+          senderProfileId: null,
+          sessionId: 8101,
+        },
+        {
+          body: '<img src=x onerror="window.__chatXss=1">一起打球 & 喝水',
+          createdAt: "2026-08-03T01:01:00Z",
+          isSelf: false,
+          kind: "user",
+          messageId: 2,
+          senderNickname: "示範球友 <script>",
+          senderProfileId: 92,
+          sessionId: 8101,
+        },
+        {
+          body: "收到",
+          createdAt: "2026-08-03T01:02:00Z",
+          isSelf: true,
+          kind: "user",
+          messageId: 3,
+          senderNickname: "我",
+          senderProfileId: 91,
+          sessionId: 8101,
+        },
+      ],
+      roster: [
+        { nickname: "主揪", profileId: 91, role: "host", status: "accepted" },
+        { nickname: "示範球友", profileId: 92, role: "guest", status: "accepted" },
+        { nickname: "等待者", profileId: 93, role: "guest", status: "requested" },
+      ],
+      status: "ready",
+    });
+    window.__chatSheet = sheet;
+  });
+
+  const chat = page.getByTestId("session-chat-sheet");
+  const scannedMessages = chat.locator("[data-chat-message]");
+  await expect(scannedMessages).toHaveCount(3);
+  expect(await scannedMessages.count(), "the rendered message scan must be nonempty").toBeGreaterThan(0);
+  await expect(chat.locator("img")).toHaveCount(0);
+  await expect(chat.locator("script")).toHaveCount(0);
+  await expect(chat.getByText('<img src=x onerror="window.__chatXss=1">一起打球 & 喝水')).toBeVisible();
+  await expect(chat.locator('[data-chat-message-kind="system"]')).toContainText("球局資訊已更新");
+  await expect(chat.locator('[data-chat-message-self="true"]')).toContainText("收到");
+  await expect(chat.getByText("等待者")).toHaveCount(0);
+  await expect(chat.getByText("主揪")).toBeVisible();
+  await expect(chat.getByText("示範球友", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => window.__chatSheet.setArchived());
+  await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
+  await expect(chat).toContainText("球局已封存");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("My Sessions exposes chat only to accepted members and manages the authoritative block list", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    const base = {
+      canCancel: false,
+      canConfirmAttendance: false,
+      canConfirmPlayed: false,
+      canRespondInvite: false,
+      court: "示範球場",
+      courtDistrict: "大安區",
+      playType: "雙打",
+      sessionId: 8201,
+      slotsRemaining: 0,
+      startAt: "2026-08-04T10:00:00+08:00",
+      status: "open",
+      viewerRole: "guest",
+    };
+    window.__myChatActions = [];
+    renderMySessionsPage(root, {
+      authenticated: true,
+      blockedPlayers: [{ blockedNickname: "已封鎖球友 <b>", blockedProfileId: 92, createdAt: "2026-08-03T01:00:00Z" }],
+      blockedPlayersStatus: "ready",
+      groups: {
+        history: [],
+        needsAction: [],
+        pendingHostRequestCount: 0,
+        upcoming: [
+          { ...base, canWithdraw: true, viewerParticipantStatus: "accepted" },
+          { ...base, canWithdraw: true, sessionId: 8202, viewerParticipantStatus: "requested" },
+        ],
+      },
+      onOpenChat: (sessionId) => window.__myChatActions.push(["chat", sessionId]),
+      onUnblockPlayer: (profileId) => window.__myChatActions.push(["unblock", profileId]),
+    });
+  });
+
+  const root = page.locator("#my-sessions-root");
+  await expect(root.getByTestId("open-chat-8201")).toBeVisible();
+  await expect(root.getByTestId("open-chat-8202")).toHaveCount(0);
+  await expect(root.locator("b")).toHaveCount(0);
+  await expect(root.getByText("已封鎖球友 <b>")).toBeVisible();
+  await root.getByTestId("open-chat-8201").click();
+  await root.getByTestId("unblock-player-92").click();
+  await expect.poll(() => page.evaluate(() => window.__myChatActions)).toEqual([
+    ["chat", "8201"],
+    ["unblock", "92"],
+  ]);
+});
