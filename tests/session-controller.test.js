@@ -2418,6 +2418,39 @@ test("host decision uses summary candidate authority and refreshes both public a
   assert.equal(harness.decisionSheets[0].detail.closeCalls, 1);
 });
 
+test("decision sheet stays nonterminal while courts load and receives the ready catalogue", async () => {
+  const candidate = futureSession({
+    canCancel: true,
+    decidedAt: "",
+    rangeEnd: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    venueType: "candidates",
+    viewerRole: "host",
+  });
+  const summary = { ...candidate, candidateCourtIds: [8, 9] };
+  const harness = createHarness({
+    api: {
+      decideSessionCourt: async () => ({ outcome: "OK", reloadRequired: false }),
+      loadMySessions: async () => [candidate],
+      loadSessionSummary: async () => summary,
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
+
+  await harness.controller.openSessionDecision(candidate.sessionId);
+  const sheet = harness.decisionSheets[0];
+  assert.equal(sheet.session, summary, "an unloaded court catalogue must not erase authoritative session data");
+  assert.deepEqual(sheet.handlers.courts, []);
+  assert.equal(sheet.handlers.courtsReady, false);
+
+  const courts = [
+    { id: 8, name: "甲球場" },
+    { id: 9, name: "乙球場" },
+  ];
+  harness.controller.setCourts(courts, { ready: true });
+  assert.deepEqual(sheet.detail.courtUpdates, [{ courts, options: { ready: true } }]);
+  assert.deepEqual(sheet.detail.terminalMessages, []);
+});
+
 test("decision expiry becomes a terminal sheet state after authoritative refresh", async () => {
   const candidate = futureSession({
     canCancel: true,

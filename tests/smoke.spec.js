@@ -32,17 +32,6 @@ async function installTaintedMockSessions(page) {
   });
 }
 
-async function installCandidateOnlyMockSession(page) {
-  await page.route("**/src/mockData.js", async (route) => {
-    const response = await route.fetch();
-    const source = await response.text();
-    await route.fulfill({
-      response,
-      body: `${source}\nMOCK_SESSIONS.splice(0, MOCK_SESSIONS.length, MOCK_SESSIONS.find((session) => session.sessionId === 9005));`,
-    });
-  });
-}
-
 async function installGeolocation(page, responses) {
   await page.addInitScript((nextResponses) => {
     let calls = 0;
@@ -155,10 +144,9 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
 
 test("an undecided candidate session renders two dashed map pins from the court catalogue", async ({ page }) => {
   await installFakeMaps(page);
-  await installCandidateOnlyMockSession(page);
   await page.goto("/");
 
-  const candidatePins = await expect
+  await expect
     .poll(async () => {
       const options = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
       return options.filter(({ title }) => title?.includes("未定"));
@@ -171,6 +159,46 @@ test("an undecided candidate session renders two dashed map pins from the court 
     "球局 · 青年公園網球場 · 未定",
   ]);
   expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="5 4"'))).toBe(true);
+  const mockCandidateOverlap = await page.evaluate(async () => {
+    const { MOCK_SESSIONS } = await import("/src/mockData.js");
+    const undecidedSession = MOCK_SESSIONS.find(({ sessionId }) => sessionId === 9005);
+    const decidedSession = MOCK_SESSIONS.find(({ sessionId }) => sessionId === 9006);
+    return undecidedSession.candidateCourtIds.includes(decidedSession.courtId);
+  });
+  expect(mockCandidateOverlap).toBe(false);
+});
+
+test("decision sheet waits for the court catalogue and renders candidate buttons after refill", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openDecideSessionSheet } = await import("/src/sessionViews.js");
+    window.__stage4cDecisionSheet = openDecideSessionSheet(
+      {
+        sessionId: 9005,
+        startAt: "2099-08-08T01:00:00.000Z",
+        rangeEnd: "2099-08-08T04:00:00.000Z",
+        venueType: "candidates",
+        candidateCourtIds: [105, 106],
+        decidedAt: "",
+      },
+      { courts: [], courtsReady: false }
+    );
+  });
+
+  const sheet = page.locator("#session-decision-sheet");
+  await expect(sheet.locator("[data-decision-terminal]")).toBeHidden();
+  await expect(sheet.locator("[data-decision-courts-status]")).toHaveText("正在載入候選球場…");
+  await expect(sheet.locator("[data-decide-court]")).toHaveCount(0);
+
+  await page.evaluate(async () => {
+    const { COURTS } = await import("/src/mockData.js");
+    window.__stage4cDecisionSheet.setCourts(COURTS, { ready: true });
+  });
+  await expect(sheet.locator("[data-decide-court]")).toHaveCount(2);
+  await expect(sheet.getByRole("button", { name: "百齡河濱公園網球場" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "青年公園網球場" })).toBeVisible();
+  await expect(sheet.locator("[data-decision-terminal]")).toBeHidden();
 });
 
 test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ page }) => {
