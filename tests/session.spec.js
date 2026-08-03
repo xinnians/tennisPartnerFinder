@@ -1015,7 +1015,7 @@ test("signing out clears the private session view and restores the signed-out pr
   await expect(page.locator("#toast-root")).toContainText("已登出");
 });
 
-test("legacy district subscribers reselect courts and persist the authoritative court subscription set", async ({ page }) => {
+test("authenticated players persist the authoritative court subscription set without district migration UI", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const actor = await createCompleteActor(context.host);
@@ -1029,13 +1029,10 @@ test("legacy district subscribers reselect courts and persist the authoritative 
   if (courtError) throw courtError;
   expect(availableCourts).toHaveLength(2);
   const selectedCourtIds = availableCourts.map((court) => court.id);
-  const { error: legacyError } = await actor.client.rpc("set_district_subscriptions", { p_districts: ["大安區"] });
-  if (legacyError) throw legacyError;
-
   await gotoWithSession(page, actor.session);
   await page.getByTestId("my-sessions-tab").click();
   const settings = page.locator(".notification-settings");
-  await expect(settings).toContainText("你原本訂閱的是行政區；請重新選擇最多 10 座球場");
+  await expect(settings).not.toContainText("行政區");
   const courtSelect = page.getByTestId("notification-court-subscriptions");
   await expect(courtSelect).toBeEnabled();
   await courtSelect.selectOption(selectedCourtIds.map(String));

@@ -248,7 +248,7 @@ select has_table('public', 'reports', 'new reports table exists');
 select has_table('public', 'notification_outbox', 'notification outbox table exists');
 select has_table('public', 'push_subscriptions', 'push subscriptions table exists');
 select has_table('public', 'notification_prefs', 'notification preferences table exists');
-select has_table('public', 'district_subscriptions', 'district subscriptions table exists');
+select is(to_regclass('public.district_subscriptions')::text, null, 'district subscriptions table is retired');
 select has_table('private', 'legacy_partner_requests', 'legacy partner requests are private');
 select has_table('private', 'legacy_reports', 'legacy reports are private');
 select has_view('public', 'session_discovery', 'public session discovery view exists');
@@ -338,7 +338,7 @@ select is((select relrowsecurity from pg_class where oid = 'public.session_parti
 select is((select relrowsecurity from pg_class where oid = 'public.reports'::regclass), true, 'reports RLS is enabled');
 select is((select relrowsecurity from pg_class where oid = 'public.push_subscriptions'::regclass), true, 'push subscriptions RLS is enabled');
 select is((select relrowsecurity from pg_class where oid = 'public.notification_prefs'::regclass), true, 'notification preferences RLS is enabled');
-select is((select relrowsecurity from pg_class where oid = 'public.district_subscriptions'::regclass), true, 'district subscriptions RLS is enabled');
+select is(to_regclass('public.district_subscriptions')::text, null, 'retired district subscriptions expose no RLS relation');
 select is((select relrowsecurity from pg_class where oid = 'public.notification_outbox'::regclass), true, 'notification outbox RLS is enabled');
 select ok(
   has_table_privilege('service_role', 'public.notification_outbox', 'select,update'),
@@ -3936,37 +3936,38 @@ select is(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
 select is(
-  public.set_notification_prefs(false, true, false),
+  public.set_notification_prefs(false, true, false, true, true, true),
   'OK',
   'authenticated owner can save event notification preferences'
 );
 select is(
   (
-    select concat_ws(',', host_new_request_enabled, guest_request_reviewed_enabled, guest_invited_enabled)
+    select concat_ws(',', host_new_request_enabled, guest_request_reviewed_enabled, guest_invited_enabled, session_updated_enabled, chat_message_enabled, session_reminder_enabled)
     from public.notification_prefs
   ),
-  'f,t,f',
+  'f,t,f,t,t,t',
   'saved event notification preferences retain each event boundary'
 );
+reset role;
 select is(
-  public.set_district_subscriptions(array['大安區', '內湖區']),
-  'OK',
-  'authenticated owner can save multiple Taipei district subscriptions'
+  to_regprocedure('public.set_district_subscriptions(text[])')::text,
+  null,
+  'district subscription RPC is absent'
+);
+select is(
+  to_regclass('public.district_subscriptions')::text,
+  null,
+  'district subscription relation is absent'
+);
+select is(
+  to_regprocedure('private.try_enqueue_district_new_session(bigint,text)')::text,
+  null,
+  'district notification helper is absent'
 );
 select ok(
-  (select count(*) from public.district_subscriptions) > 0,
-  'district subscription scan has a non-empty fixture set'
+  position('district_new_session' in (select pg_get_constraintdef(oid) from pg_constraint where conname = 'notification_outbox_event_type_check')) = 0,
+  'district notification event is absent from the outbox CHECK'
 );
-select throws_ok(
-  $$select public.set_district_subscriptions(array['板橋區'])$$,
-  'P0001', 'INVALID_NOTIFICATION_DISTRICT', 'district subscriptions reject a non-Taipei district'
-);
-select is(
-  public.set_district_subscriptions(array[]::text[]),
-  'OK',
-  'district subscription owner can clear all subscriptions'
-);
-reset role;
 
 -- Use fresh actors so this notification contract is independent of prior
 -- session lifecycle fixtures and invitation limits.
@@ -3992,7 +3993,7 @@ select set_config(
   )::text,
   true
 );
-select public.set_notification_prefs(true, true, true);
+select public.set_notification_prefs(true, true, true, true, true, true);
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005001', true);
 select set_config(
@@ -4028,9 +4029,9 @@ select set_config(
   true
 );
 select is(
-  public.set_district_subscriptions(array['大安區']),
+  public.set_court_subscriptions(array[(select id from public.courts where is_active and city = '台北市' and district = '大安區' order by id limit 1)]),
   'OK',
-  'district fan-out recipient subscribes to the session district'
+  'court fan-out recipient subscribes to the exact session court'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005004', true);
@@ -4044,9 +4045,9 @@ select set_config(
   true
 );
 select is(
-  public.set_district_subscriptions(array['中正區']),
+  public.set_court_subscriptions(array[]::bigint[]),
   'OK',
-  'non-matching district subscriber stores a different district'
+  'non-subscriber keeps an empty court subscription set'
 );
 reset role;
 
@@ -4115,7 +4116,7 @@ select is(
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
-select is(public.set_notification_prefs(false, true, true), 'OK', 'host can disable request notifications');
+select is(public.set_notification_prefs(false, true, true, true, true, true), 'OK', 'host can disable request notifications');
 select set_config(
   'pgtap.notification_prefs_session_id',
   public.create_session(
@@ -4145,7 +4146,7 @@ select is(
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001005', true);
-select public.set_notification_prefs(true, true, true);
+select public.set_notification_prefs(true, true, true, true, true, true);
 select is(
   public.review_join_request(
     current_setting('pgtap.notification_request_session_id')::bigint,
@@ -4210,24 +4211,27 @@ select set_config(
   true
 );
 reset role;
-select ok(
+select is(
   (
     select count(*)
     from public.notification_outbox
-    where event_type = 'district_new_session'
+    where event_type = 'court_new_session'
+      and recipient_profile_id = current_setting('pgtap.notification_district_match_profile_id')::bigint
       and session_id = current_setting('pgtap.notification_broadcast_session_id')::bigint
-  ) = 0,
-  'district fan-out is absent from the Stage 2 create-session path'
+  ),
+  1::bigint,
+  'matching court subscriber receives the new-session fan-out'
 );
 select is(
   (
-    select array_agg(recipient_profile_id order by recipient_profile_id)::text
+    select count(*)
     from public.notification_outbox
-    where event_type = 'district_new_session'
+    where event_type = 'court_new_session'
+      and recipient_profile_id = current_setting('pgtap.notification_district_miss_profile_id')::bigint
       and session_id = current_setting('pgtap.notification_broadcast_session_id')::bigint
   ),
-  null,
-  'district subscriptions receive no new-session fan-out after Stage 2'
+  0::bigint,
+  'profile without a court subscription receives no new-session fan-out'
 );
 select is(
   (
@@ -4531,7 +4535,7 @@ select set_config('pgtap.stage2_booked_notify',public.create_session((select id 
 reset role;
 select is((select count(*) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_booked_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_sub')::bigint),1::bigint,'booked court subscriber receives exactly one new-session event');
 select is((select count(*) from public.notification_outbox where event_type='court_new_session' and session_id=current_setting('pgtap.stage2_booked_notify')::bigint and recipient_profile_id=current_setting('pgtap.stage2_notify_none')::bigint),0::bigint,'non-subscriber receives no booked new-session event');
-select is((select count(*) from public.notification_outbox where event_type='district_new_session' and session_id=current_setting('pgtap.stage2_booked_notify')::bigint),0::bigint,'booked create has no district fan-out');
+select throws_ok(format($q$insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload) values ('district_new_session',%s,%s,'{"court":"retired","message":"retired","slots_remaining":1,"start_at":"2026-01-01T00:00:00Z","url":"#/session/1"}'::jsonb)$q$,current_setting('pgtap.stage2_notify_sub')::bigint,current_setting('pgtap.stage2_booked_notify')::bigint),'23514',null,'retired district event is rejected by the outbox CHECK');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009301',true);
 select set_config('pgtap.stage2_candidates_notify',public.create_session(null,'雙打',now()+interval '181 days',3,4,2,'stage2-candidates-notify','approval','candidates',array(select id from public.courts where is_active and city='台北市' order by id limit 2),now()+interval '182 days')::text,true);

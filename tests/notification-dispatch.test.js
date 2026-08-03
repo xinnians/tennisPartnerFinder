@@ -3,9 +3,43 @@ import test from "node:test";
 
 import {
   classifyPushStatus,
+  notificationTitle,
   safePushPayload,
   toWebPushSubscription,
 } from "../supabase/functions/notification-outbox-dispatch/dispatch.js";
+
+test("notification titles cover every active Stage 5 event and retain the neutral fallback", () => {
+  assert.deepEqual(
+    Object.fromEntries(
+      [
+        "host_new_request",
+        "guest_request_reviewed",
+        "guest_invited",
+        "session_updated",
+        "session_decided",
+        "session_cancelled",
+        "chat_message",
+        "session_reminder",
+        "decide_reminder",
+        "court_new_session",
+        "unknown_event",
+      ].map((eventType) => [eventType, notificationTitle(eventType)]),
+    ),
+    {
+      chat_message: "球局群組有新訊息",
+      court_new_session: "訂閱球場有新球局",
+      decide_reminder: "候選球局待定案",
+      guest_invited: "你收到球局邀請",
+      guest_request_reviewed: "加入申請結果更新",
+      host_new_request: "有新的加入申請",
+      session_cancelled: "球局已取消",
+      session_decided: "球局場地時間定案",
+      session_reminder: "球局即將開始",
+      session_updated: "球局資訊更新",
+      unknown_event: "球局通知",
+    },
+  );
+});
 
 test("push payload uses the summary allowlist and removes LINE", () => {
   const payload = safePushPayload({

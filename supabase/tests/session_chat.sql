@@ -5,7 +5,7 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(167);
+select plan(168);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -158,7 +158,7 @@ begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null
     or to_regclass('public.my_player_blocks') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 164);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 165);
     return;
   end if;
 
@@ -462,8 +462,13 @@ begin
   return next isnt((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), 'Chat Blocked Join', 'unrelated hidden block-list row never reveals the target true nickname');
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true); perform public.set_player_visibility(true); execute 'reset role';
+  delete from public.profile_courts where profile_id = host_id;
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
-  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), 'Chat Blocked Join', 'directory-visible block-list row exposes the target true nickname without a shared session');
+  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), '已封鎖的使用者', 'directory-visible target remains masked when the viewer fails the directory gate');
+  execute 'reset role';
+  insert into public.profile_courts (profile_id, court_id) values (host_id, court_id);
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is((select blocked_nickname from public.my_player_blocks where blocked_profile_id = blocked_join_id), 'Chat Blocked Join', 'directory-visible target nickname is exposed after the viewer restores the directory gate');
   execute 'reset role';
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', blocked_join_user::text, true); perform public.set_player_visibility(false); execute 'reset role';
   delete from public.profile_courts where profile_id = blocked_join_id;

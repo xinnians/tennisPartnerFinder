@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createDataApi } from "../src/dataApi.js";
 
-test("notification settings read owner-scoped preferences and districts with explicit columns", async () => {
+test("notification settings read all six owner-scoped preferences with explicit columns", async () => {
   const calls = [];
   const api = createDataApi({
     configured: true,
@@ -18,40 +18,36 @@ test("notification settings read owner-scoped preferences and districts with exp
             },
             maybeSingle: async () => ({
               data: {
+                chat_message_enabled: false,
                 guest_invited_enabled: false,
                 guest_request_reviewed_enabled: true,
                 host_new_request_enabled: false,
+                session_reminder_enabled: true,
+                session_updated_enabled: false,
               },
               error: null,
             }),
           };
         }
-        return {
-          order(column) {
-            calls.push(["order", column]);
-            return Promise.resolve({ data: [{ district: "大安區" }, { district: "內湖區" }], error: null });
-          },
-          select(columns) {
-            calls.push(["select", columns]);
-            return this;
-          },
-        };
+        throw new Error(`unexpected notification table: ${table}`);
       },
     },
   });
 
   assert.deepEqual(await api.loadNotificationPreferences(), {
+    chatMessageEnabled: false,
     guestInvitedEnabled: false,
     guestRequestReviewedEnabled: true,
     hostNewRequestEnabled: false,
+    sessionReminderEnabled: true,
+    sessionUpdatedEnabled: false,
   });
-  assert.deepEqual(await api.loadDistrictSubscriptions(), ["大安區", "內湖區"]);
   assert.deepEqual(calls, [
     ["from", "notification_prefs"],
-    ["select", "host_new_request_enabled,guest_request_reviewed_enabled,guest_invited_enabled"],
-    ["from", "district_subscriptions"],
-    ["select", "district"],
-    ["order", "district"],
+    [
+      "select",
+      "host_new_request_enabled,guest_request_reviewed_enabled,guest_invited_enabled,session_updated_enabled,chat_message_enabled,session_reminder_enabled",
+    ],
   ]);
 });
 
@@ -70,11 +66,13 @@ test("notification mutation mappers use only the approved RPC contracts", async 
   await api.savePushSubscription({ endpoint: "https://push.example/one", keys: { auth: "auth", p256dh: "key" } });
   await api.removePushSubscription("https://push.example/one");
   await api.saveNotificationPreferences({
+    chatMessageEnabled: true,
     guestInvitedEnabled: false,
     guestRequestReviewedEnabled: true,
     hostNewRequestEnabled: false,
+    sessionReminderEnabled: false,
+    sessionUpdatedEnabled: true,
   });
-  await api.saveDistrictSubscriptions(["大安區", "大安區", "內湖區"]);
 
   assert.deepEqual(calls, [
     ["save_push_subscription", { p_auth: "auth", p_endpoint: "https://push.example/one", p_p256dh: "key" }],
@@ -82,12 +80,14 @@ test("notification mutation mappers use only the approved RPC contracts", async 
     [
       "set_notification_prefs",
       {
+        p_chat_message_enabled: true,
         p_guest_invited_enabled: false,
         p_guest_request_reviewed_enabled: true,
         p_host_new_request_enabled: false,
+        p_session_reminder_enabled: false,
+        p_session_updated_enabled: true,
       },
     ],
-    ["set_district_subscriptions", { p_districts: ["大安區", "內湖區"] }],
   ]);
 });
 

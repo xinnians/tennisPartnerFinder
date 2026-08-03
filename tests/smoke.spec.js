@@ -1023,7 +1023,7 @@ test("My Sessions presence settings explain reciprocal visibility, request shari
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions notification settings migrate legacy districts and save Taipei court subscriptions", async ({ page }) => {
+test("My Sessions notification settings save six preferences and Taipei court subscriptions", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1042,11 +1042,13 @@ test("My Sessions notification settings migrate legacy districts and save Taipei
       groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
       notificationSettings: {
         courtIds: [],
-        districts: ["大安區"],
         prefs: {
+          chatMessageEnabled: true,
           guestInvitedEnabled: true,
           guestRequestReviewedEnabled: true,
           hostNewRequestEnabled: true,
+          sessionReminderEnabled: true,
+          sessionUpdatedEnabled: true,
         },
         pushStatus: "idle",
         webPushConfigured: true,
@@ -1068,8 +1070,12 @@ test("My Sessions notification settings migrate legacy districts and save Taipei
   await expect(settings).toContainText("加入主畫面");
   await expect(settings).not.toContainText("LINE");
   await expect(page.getByTestId("enable-push")).toHaveText("開啟推播");
-  await expect(settings).toContainText("你原本訂閱的是行政區；請重新選擇最多 10 座球場");
+  await expect(settings).not.toContainText("行政區");
   await expect(page.locator("[data-notification-district]")).toHaveCount(0);
+  await expect(page.getByTestId("notification-session-updated")).toBeChecked();
+  await expect(page.getByTestId("notification-chat-message")).toBeChecked();
+  await expect(page.getByTestId("notification-session-reminder")).toBeChecked();
+  await expect(settings).toContainText("場地時間定案與球局取消一定會通知，無法關閉");
   const courtSelect = page.getByTestId("notification-court-subscriptions");
   await expect(courtSelect).toBeEnabled();
 
@@ -1078,9 +1084,12 @@ test("My Sessions notification settings migrate legacy districts and save Taipei
 
   await page.getByTestId("notification-host-new-request").uncheck();
   await expect.poll(() => page.evaluate(() => window.__savedNotificationPreferences)).toEqual({
+    chatMessageEnabled: true,
     guestInvitedEnabled: true,
     guestRequestReviewedEnabled: true,
     hostNewRequestEnabled: false,
+    sessionReminderEnabled: true,
+    sessionUpdatedEnabled: true,
   });
 
   await courtSelect.selectOption(["8", "10"]);
