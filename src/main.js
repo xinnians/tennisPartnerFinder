@@ -69,6 +69,7 @@ import {
   openJoinSessionConfirmation,
   openProfileCompletionSheet,
   openPlayerCardSheet,
+  openPlayerDirectoryList,
   openReportDialog,
   openSessionChatSheet,
   openSessionSheet,
@@ -241,7 +242,7 @@ function reconcilePresenceTracking() {
 async function updatePresenceSharing(shared) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
-  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
+  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
   if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
     return false;
@@ -255,13 +256,13 @@ async function updatePresenceSharing(shared) {
     presenceLocationStatus = "idle";
   }
   rerenderVisibleNotificationSettings();
-  toast(shared ? "已開啟在場分享。" : "已隱藏在場狀態。");
+  toast(shared ? "已開啟在線分享。" : "已隱藏在線狀態。");
 }
 
 async function updateOpenToGreetingSetting(open) {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
-  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在場設定。");
+  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
   if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
     return false;
@@ -1007,6 +1008,7 @@ function init() {
       }),
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
     openCourtPlayersDrawer: (court, players, handlers) => openCourtPlayersDrawer(court, players, handlers),
+    openPlayerDirectoryList: (handlers) => openPlayerDirectoryList(handlers),
     openPlayerCard: (player, handlers) => openPlayerCardSheet(player, handlers),
     openCreateSession,
     openDecideSession: openDecideSessionSheet,
@@ -1031,6 +1033,7 @@ function init() {
   document.getElementById("open-session").addEventListener("click", () => controller.openCreateIntent());
   document.getElementById("open-my-sessions").addEventListener("click", () => showMySessionsPage());
   document.getElementById("player-layer-toggle").addEventListener("click", () => controller.togglePlayerLayer());
+  document.getElementById("player-directory-open").addEventListener("click", () => controller.openPlayerDirectory());
   document.querySelector(".app-brand").addEventListener("click", (event) => {
     event.preventDefault();
     showMapPage({ focus: true });

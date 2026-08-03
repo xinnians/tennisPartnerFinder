@@ -36,7 +36,10 @@
         <div id="map" role="region" aria-label="台北市球局地圖"></div>
 
         <div class="player-layer-control">
-          <button type="button" id="player-layer-toggle" data-testid="player-layer-toggle" class="session-secondary" aria-pressed="false">顯示球友</button>
+          <div class="player-layer-actions">
+            <button type="button" id="player-layer-toggle" data-testid="player-layer-toggle" class="session-secondary" aria-pressed="false">顯示在線</button>
+            <button type="button" id="player-directory-open" data-testid="player-directory-open" class="session-secondary">球友名單</button>
+          </div>
           <p id="player-layer-status" class="player-layer-status" role="status" aria-live="polite" hidden></p>
         </div>
 

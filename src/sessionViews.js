@@ -859,13 +859,13 @@ function normalizedPresenceSettings(settings = {}) {
 }
 
 function presenceLocationHint({ locationStatus, sharePresence }) {
-  if (!sharePresence) return "關閉後會立即移除你目前的在場狀態。";
+  if (!sharePresence) return "關閉後會立即移除你目前的在線狀態。";
   if (locationStatus === "denied") return "你已拒絕定位權限；請到瀏覽器或系統設定開啟定位後，再重新開啟分享。";
-  if (locationStatus === "unsupported") return "此瀏覽器不支援定位，暫時無法更新在場狀態。";
+  if (locationStatus === "unsupported") return "此瀏覽器不支援定位，暫時無法更新在線狀態。";
   if (locationStatus === "unavailable") return "目前無法取得定位；恢復後會自動嘗試更新。";
-  if (locationStatus === "update-failed") return "在場狀態暫時無法更新，請稍後再試。";
-  if (locationStatus === "active") return "定位已開啟；只有在球場 100 公尺內才會顯示在場狀態。";
-  return "開啟後會請求定位權限；只有在球場 100 公尺內才會顯示在場狀態。";
+  if (locationStatus === "update-failed") return "在線狀態暫時無法更新，請稍後再試。";
+  if (locationStatus === "active") return "定位已開啟；只有在球場 100 公尺內才會顯示在線狀態。";
+  return "開啟後會請求定位權限；只有在球場 100 公尺內才會顯示在線狀態。";
 }
 
 async function runNotificationSettingAction(root, callback) {
@@ -912,7 +912,7 @@ async function runPresenceSettingAction(root, callback) {
     return outcome !== false;
   } catch (cause) {
     if (error) {
-      error.textContent = cause?.message || "在場設定暫時無法更新，請稍後再試。";
+      error.textContent = cause?.message || "在線設定暫時無法更新，請稍後再試。";
       error.hidden = false;
       error.focus({ preventScroll: true });
     }
@@ -1005,7 +1005,7 @@ export function renderMySessionsPage(
         ? `<section class="player-visibility" aria-label="球友卡">
       <div>
         <h3>球友卡</h3>
-        <p class="form-hint">開啟後，完成檔案的球友可在地圖上你的常打球場看到你的暱稱、NTRP 與可打時段。LINE 不會顯示。</p>
+        <p class="form-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。LINE 不會顯示。</p>
       </div>
       <button type="button" class="session-secondary" data-my-action="toggle-visibility"
         role="switch" aria-checked="${profileIsPublic ? "true" : "false"}"
@@ -1013,12 +1013,12 @@ export function renderMySessionsPage(
     </section>
     <section class="presence-settings" aria-labelledby="presence-settings-title">
       <div>
-        <h3 id="presence-settings-title">在場狀態</h3>
-        <p class="form-hint">開啟期間你的所在球場對其他有開啟的完整檔案球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
+        <h3 id="presence-settings-title">在線狀態</h3>
+        <p class="form-hint">開啟期間你的所在球場只對其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
       </div>
       <button type="button" class="session-secondary" data-set-presence-sharing data-presence-control
         role="switch" aria-checked="${presence.sharePresence ? "true" : "false"}"
-        data-testid="presence-sharing-toggle">${presence.sharePresence ? "一鍵隱藏" : "開啟在場分享"}</button>
+        data-testid="presence-sharing-toggle">${presence.sharePresence ? "一鍵隱藏" : "開啟在線分享"}</button>
       <p class="form-hint" data-testid="presence-location-status">${esc(presenceLocationHint(presence))}</p>
       <label class="presence-settings__greeting"><input type="checkbox" data-open-to-greeting data-presence-control data-testid="open-to-greeting-toggle"${
         presence.openToGreeting ? " checked" : ""
@@ -1945,7 +1945,7 @@ function playerPresenceLabel(player = {}) {
   if (player?.isPresent !== true) return "";
   const minutes = Number(player?.minutesAgo);
   const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
-  return `在場・${safeMinutes} 分鐘前`;
+  return `在線・${safeMinutes} 分鐘前`;
 }
 
 function playerGreetingLabel(player = {}) {
@@ -2007,14 +2007,17 @@ function profileFormValue(form, fallbackProfile = {}, fallbackCourts = new Set()
 }
 
 function profileGateForIntent(intent) {
-  if (["create", "presence"].includes(intent?.action)) return "ntrp";
-  if (["players", "visibility"].includes(intent?.action)) return "directory";
+  if (["create", "players", "presence"].includes(intent?.action)) return "ntrp";
+  if (["directory", "visibility"].includes(intent?.action)) return "directory";
   return "nickname";
 }
 
 function profileGateHint(gate, intent = null) {
   if (gate === "ntrp" && intent?.action === "presence") {
-    return "要調整在場設定，請填寫公開暱稱與 NTRP（1.0–7.0）。";
+    return "要調整在線設定，請填寫公開暱稱與 NTRP（1.0–7.0）。";
+  }
+  if (gate === "ntrp" && intent?.action === "players") {
+    return "要查看在線球友，請填寫公開暱稱與 NTRP（1.0–7.0）。";
   }
   if (gate === "ntrp") return "要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。";
   if (gate === "directory") return "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。";
@@ -2548,7 +2551,7 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
             <strong>${esc(player.nickname)}</strong> · ${esc(formatNtrp(player.ntrp))}
             ${player.isPresent ? `<span class="player-presence">${esc(playerPresenceLabel(player))}${player.openToGreeting ? ` · ${esc(playerGreetingLabel(player))}` : ""}</span>` : ""}
             <span>${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
-          </button>`).join("") : '<p class="surface__copy">這座球場目前沒有開放的球友。</p>'}
+          </button>`).join("") : '<p class="surface__copy">這座球場目前沒有在線球友。</p>'}
       </div>`,
   });
   mounted.root.querySelectorAll("[data-player-id]").forEach((node) => {
@@ -2558,6 +2561,65 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
     });
   });
   return mounted;
+}
+
+function playerDirectoryRowsMarkup(players) {
+  return players.length
+    ? players
+        .map(
+          (player) => `<button type="button" class="player-directory-row" data-player-directory-row
+            data-testid="player-directory-row-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
+            <span class="player-directory-row__head"><strong>${esc(player.nickname || "未命名球友")}</strong>${
+              player.isPresent ? '<span class="player-directory-row__online">在線</span>' : ""
+            }${player.isSelf ? '<span class="player-directory-row__self">這是你</span>' : ""}</span>
+            <span>${esc(formatNtrp(player.ntrp))} · ${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
+            <span>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</span>
+            <span>常打球場：${esc((player.courtNames ?? []).join("、") || player.courtName || "未填球場")}</span>
+          </button>`
+        )
+        .join("")
+    : '<p class="surface__copy">目前沒有公開的球友卡。</p>';
+}
+
+/** Open the all-Taipei opt-in directory without coupling it to map bounds. */
+export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () => {}, onRetry = () => {} } = {}) {
+  let currentPlayers = [];
+  const mounted = mountSheet({
+    id: "player-directory-sheet",
+    label: "球友名單",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">台北市</p><h2>球友名單</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉球友名單">×</button>
+      </div>
+      <p class="surface__copy">在線球友排在前面；點選球友卡可查看邀請入口。</p>
+      <div class="player-directory-list" data-player-directory-list role="list"></div>`,
+  });
+  const list = mounted.root.querySelector("[data-player-directory-list]");
+  const wireRows = () => {
+    list?.querySelectorAll("[data-player-directory-row]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const player = currentPlayers.find((candidate) => String(candidate.profileId) === row.dataset.playerId);
+        if (player) onOpenPlayer(player);
+      });
+    });
+    list?.querySelector("[data-player-directory-retry]")?.addEventListener("click", onRetry);
+  };
+  const setDirectory = ({ players = [], status = "ready" } = {}) => {
+    currentPlayers = Array.isArray(players) ? players : [];
+    if (!list) return;
+    if (status === "loading") {
+      list.innerHTML = '<p class="surface__copy" role="status">正在載入球友名單…</p>';
+    } else if (status === "error") {
+      list.innerHTML = '<div class="form-error" role="alert">球友名單暫時無法載入。<button type="button" class="session-secondary" data-player-directory-retry>重新載入</button></div>';
+    } else {
+      list.innerHTML = playerDirectoryRowsMarkup(currentPlayers);
+    }
+    wireRows();
+  };
+  setDirectory({ status: "loading" });
+  return { ...mounted, setDirectory };
 }
 
 function playerInviteOption(session) {
@@ -2611,7 +2673,7 @@ export function openPlayerCardSheet(
       </div>
       <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
         <p><strong>${esc(formatNtrp(player.ntrp))}</strong></p>
-        ${player.isPresent ? `<p>在場狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
+        ${player.isPresent ? `<p>在線狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
         ${player.openToGreeting ? `<p class="player-greeting">${esc(playerGreetingLabel(player))}</p>` : ""}
         <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>
         <p>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</p>
@@ -2668,7 +2730,7 @@ export function renderPlayerLayerToggle(button, { message = "", on = false, stat
   if (!button) return;
   button.setAttribute("aria-pressed", String(Boolean(on)));
   button.classList.toggle("is-active", Boolean(on));
-  button.textContent = on ? "隱藏球友" : "顯示球友";
+  button.textContent = on ? "隱藏在線" : "顯示在線";
   const statusRoot = document.getElementById("player-layer-status");
   if (!statusRoot) return;
   statusRoot.hidden = !message;

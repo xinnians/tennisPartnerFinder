@@ -147,7 +147,8 @@ export function closeModal() {
 const LOGIN_TITLES = {
   join: "登入以申請加入球局",
   create: "登入以開球局",
-  players: "登入以查看球友",
+  players: "登入以查看在線球友",
+  directory: "登入以查看球友名單",
   "my-sessions": "登入以查看你的球局",
 };
 

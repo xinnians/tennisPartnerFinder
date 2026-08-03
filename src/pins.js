@@ -59,7 +59,7 @@ function playerPresencePinUrl(presenceCount) {
       <circle cx="56" cy="23" r="20" fill="${SOFT_BLUE}" stroke="${BLUE}" stroke-width="3"/>
       <path d="M49 40h14l-7 12z" fill="${BLUE}"/>
       <circle cx="72" cy="10" r="12" fill="${LIME}" stroke="${NAVY}" stroke-width="2"/>
-      <text x="72" y="13" text-anchor="middle" fill="${NAVY}" font-family="Arial,sans-serif" font-size="10" font-weight="800">在${safePresenceCount}</text>
+      <text x="72" y="13" text-anchor="middle" fill="${NAVY}" font-family="Arial,sans-serif" font-size="10" font-weight="800">線${safePresenceCount}</text>
     </svg>`);
 }
 
@@ -91,7 +91,7 @@ export function courtPin(google) {
   return { icon: markerIcon(google, COURT_PIN_URL, 25, 25, 12.5, 12.5, 12.5, 12.5) };
 }
 
-/** A player pin exposes the reciprocal on-court count without location detail. */
+/** An online pin exposes only the reciprocal on-court count without location detail. */
 export function playerPin(google, count, presenceCount = 0) {
   const hasPresence = Number(presenceCount) > 0;
   return {

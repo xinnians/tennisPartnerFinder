@@ -92,8 +92,8 @@ function profileMeetsGate(eligibility, level) {
 }
 
 function profileGateForIntent(intent) {
-  if (intent?.action === "create") return "ntrp";
-  if (["players", "visibility"].includes(intent?.action)) return "directory";
+  if (["create", "players"].includes(intent?.action)) return "ntrp";
+  if (["directory", "visibility"].includes(intent?.action)) return "directory";
   if (intent?.action === "join") return "nickname";
   return null;
 }
@@ -306,6 +306,7 @@ export function createSessionController({
   openJoinConfirmation = () => {},
   openCourtDrawer = () => {},
   openCourtPlayersDrawer = () => {},
+  openPlayerDirectoryList = () => {},
   openPlayerCard = () => {},
   openCreateSession = () => {},
   openDecideSession = () => {},
@@ -360,6 +361,7 @@ export function createSessionController({
   const confirmationJoinPreviewContext = { requestId: 0 };
   let latestLocationRequest = 0;
   let latestPlayerRequest = 0;
+  let latestPlayerDirectoryRequest = 0;
   let latestBlockedPlayerRequest = 0;
   let authEpoch = 0;
   let mySessionsVersion = 0;
@@ -378,7 +380,9 @@ export function createSessionController({
   let activeProfileIntent = null;
   let activeReportDialog = null;
   let activePlayerDrawer = null;
+  let activePlayerDirectory = null;
   let activePlayerCard = null;
+  let activePlayerCardGate = null;
   let activeChat = null;
   let lifecycleMutationGeneration = 0;
   let intentVersion = 0;
@@ -766,14 +770,28 @@ export function createSessionController({
   function closeActivePlayerCard(options = {}) {
     const card = activePlayerCard;
     activePlayerCard = null;
+    activePlayerCardGate = null;
     card?.close?.(options);
+  }
+
+  function closeActivePlayerDirectory(options = {}) {
+    const directory = activePlayerDirectory;
+    activePlayerDirectory = null;
+    directory?.close?.(options);
+  }
+
+  function clearPlayerDirectory({ closeReason = "player-directory-clear" } = {}) {
+    latestPlayerDirectoryRequest += 1;
+    const options = { reason: closeReason, restoreFocus: false };
+    closeActivePlayerDirectory(options);
+    if (activePlayerCardGate === "directory") closeActivePlayerCard(options);
   }
 
   function clearPlayerLayer({ turnOff = true, closeReason = "player-layer-clear" } = {}) {
     latestPlayerRequest += 1;
     const options = { reason: closeReason, restoreFocus: false };
     closeActivePlayerDrawer(options);
-    closeActivePlayerCard(options);
+    if (activePlayerCardGate === "ntrp") closeActivePlayerCard(options);
     if (turnOff) state.playerLayerOn = false;
     state.players = [];
     state.playerLayerStatus = "idle";
@@ -781,44 +799,30 @@ export function createSessionController({
   }
 
   async function loadPlayers(bounds = state.bounds) {
-    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "directory")) return false;
+    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "ntrp")) return false;
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const requestId = ++latestPlayerRequest;
     const authSnapshot = captureAuthSnapshot();
     closeActivePlayerDrawer({ reason: "player-refresh", restoreFocus: false });
-    closeActivePlayerCard({ reason: "player-refresh", restoreFocus: false });
+    if (activePlayerCardGate === "ntrp") closeActivePlayerCard({ reason: "player-refresh", restoreFocus: false });
     state.players = [];
     state.playerLayerStatus = "loading";
-    state.playerLayerMessage = "正在載入球友…";
+    state.playerLayerMessage = "正在載入在線球友…";
     publish();
     try {
-      const [directory, presence] = await Promise.all([
-        api.loadPlayerDirectory({ bounds: nextBounds }),
-        typeof api.loadPlayerPresenceDirectory === "function" ? api.loadPlayerPresenceDirectory({ bounds: nextBounds }) : [],
-      ]);
+      const presence =
+        typeof api.loadPlayerPresenceDirectory === "function"
+          ? await api.loadPlayerPresenceDirectory({ bounds: nextBounds })
+          : [];
       if (
         requestId !== latestPlayerRequest ||
         !state.playerLayerOn ||
-        !profileMeetsGate(state.profile, "directory") ||
+        !profileMeetsGate(state.profile, "ntrp") ||
         !isCurrentAuthSnapshot(authSnapshot)
       ) {
         return false;
       }
-      const directoryByProfileId = new Map(
-        (Array.isArray(directory) ? directory : []).map((player) => [String(player?.profileId), player])
-      );
-      const presentPlayers = (Array.isArray(presence) ? presence : []).map((present) => {
-        const staticPlayer = directoryByProfileId.get(String(present?.profileId)) ?? {};
-        directoryByProfileId.delete(String(present?.profileId));
-        return {
-          ...staticPlayer,
-          ...present,
-          isPresent: true,
-          playTypes: Array.isArray(staticPlayer.playTypes) ? staticPlayer.playTypes : [],
-          slotCodes: Array.isArray(staticPlayer.slotCodes) ? staticPlayer.slotCodes : [],
-        };
-      });
-      state.players = [...presentPlayers, ...directoryByProfileId.values()].map((player) => ({ ...player, isPresent: player.isPresent === true }));
+      state.players = (Array.isArray(presence) ? presence : []).map((player) => ({ ...player, isPresent: true }));
       state.playerLayerStatus = "ready";
       state.playerLayerMessage = "";
       publish();
@@ -827,17 +831,115 @@ export function createSessionController({
       if (
         requestId !== latestPlayerRequest ||
         !state.playerLayerOn ||
-        !profileMeetsGate(state.profile, "directory") ||
+        !profileMeetsGate(state.profile, "ntrp") ||
         !isCurrentAuthSnapshot(authSnapshot)
       ) {
         return false;
       }
       state.players = [];
       state.playerLayerStatus = "error";
-      state.playerLayerMessage = "球友資料暫時無法載入。";
+      state.playerLayerMessage = "在線資料暫時無法載入。";
       publish();
       return false;
     }
+  }
+
+  function playerDirectoryRows(directoryRows, presenceRows) {
+    const presenceByProfileId = new Map(
+      (Array.isArray(presenceRows) ? presenceRows : []).map((player) => [String(player?.profileId), player])
+    );
+    const profiles = new Map();
+    for (const row of Array.isArray(directoryRows) ? directoryRows : []) {
+      const key = String(row?.profileId ?? "");
+      if (!key) continue;
+      const existing = profiles.get(key);
+      if (!existing) {
+        profiles.set(key, {
+          ...row,
+          courtDistricts: row?.courtDistrict ? [row.courtDistrict] : [],
+          courtNames: row?.courtName ? [row.courtName] : [],
+        });
+        continue;
+      }
+      if (row?.courtName && !existing.courtNames.includes(row.courtName)) existing.courtNames.push(row.courtName);
+      if (row?.courtDistrict && !existing.courtDistricts.includes(row.courtDistrict)) {
+        existing.courtDistricts.push(row.courtDistrict);
+      }
+    }
+    return [...profiles.values()]
+      .map((player) => {
+        const presence = presenceByProfileId.get(String(player.profileId));
+        const courtNames = [...player.courtNames];
+        const courtDistricts = [...player.courtDistricts];
+        return {
+          ...player,
+          courtDistrict: courtDistricts.join("、"),
+          courtDistricts,
+          courtName: courtNames.join("、"),
+          courtNames,
+          isPresent: Boolean(presence),
+          minutesAgo: presence?.minutesAgo ?? null,
+          openToGreeting: presence?.openToGreeting === true,
+        };
+      })
+      .sort(
+        (left, right) =>
+          Number(right.isPresent) - Number(left.isPresent) ||
+          String(left.nickname ?? "").localeCompare(String(right.nickname ?? ""), "zh-Hant")
+      );
+  }
+
+  async function loadPlayerDirectoryList() {
+    if (!state.authSession || !profileMeetsGate(state.profile, "directory")) return false;
+    const requestId = ++latestPlayerDirectoryRequest;
+    const authSnapshot = captureAuthSnapshot();
+    closeActivePlayerDrawer({ reason: "player-directory-open", restoreFocus: false });
+    closeActivePlayerCard({ reason: "player-directory-open", restoreFocus: false });
+    closeActivePlayerDirectory({ reason: "player-directory-replace", restoreFocus: false });
+    let directory = null;
+    directory = openPlayerDirectoryList({
+      onClose: () => {
+        if (activePlayerDirectory === directory) activePlayerDirectory = null;
+      },
+      onOpenPlayer: (player) => openPlayer(player, { gateLevel: "directory", requiresLayer: false }),
+      onRetry: () => loadPlayerDirectoryList(),
+    });
+    activePlayerDirectory = directory?.close ? directory : null;
+    directory?.setDirectory?.({ players: [], status: "loading" });
+    try {
+      const [directoryRows, presenceRows] = await Promise.all([
+        api.loadPlayerDirectory(),
+        typeof api.loadPlayerPresenceDirectory === "function" ? api.loadPlayerPresenceDirectory() : [],
+      ]);
+      if (
+        requestId !== latestPlayerDirectoryRequest ||
+        activePlayerDirectory !== directory ||
+        !profileMeetsGate(state.profile, "directory") ||
+        !isCurrentAuthSnapshot(authSnapshot)
+      ) {
+        return false;
+      }
+      directory?.setDirectory?.({ players: playerDirectoryRows(directoryRows, presenceRows), status: "ready" });
+      return true;
+    } catch {
+      if (
+        requestId !== latestPlayerDirectoryRequest ||
+        activePlayerDirectory !== directory ||
+        !profileMeetsGate(state.profile, "directory") ||
+        !isCurrentAuthSnapshot(authSnapshot)
+      ) {
+        return false;
+      }
+      directory?.setDirectory?.({ players: [], status: "error" });
+      return false;
+    }
+  }
+
+  function openPlayerDirectory() {
+    if (!state.authSession || !profileIsReady(state.profile, "directory") || !profileMeetsGate(state.profile, "directory")) {
+      return requireSessionAction({ action: "directory" });
+    }
+    return loadPlayerDirectoryList();
   }
 
   async function loadDiscovery(bounds = state.bounds) {
@@ -1198,26 +1300,38 @@ export function createSessionController({
       .sort(compareSessionStart);
   }
 
-  function openPlayer(player) {
-    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "directory")) return null;
+  function openPlayer(player, { gateLevel = "ntrp", requiresLayer = true } = {}) {
+    if (
+      (requiresLayer && !state.playerLayerOn) ||
+      !state.authSession ||
+      !profileMeetsGate(state.profile, gateLevel)
+    ) {
+      return null;
+    }
     activePlayerDrawer = null;
     const openedAuth = captureAuthSnapshot();
     let card = null;
     card = openPlayerCard(player, {
       myInvitableSessions: invitableSessions(),
       onClose: () => {
-        if (activePlayerCard === card) activePlayerCard = null;
+        if (activePlayerCard === card) {
+          activePlayerCard = null;
+          activePlayerCardGate = null;
+        }
       },
       onCreate: () => {
-        if (activePlayerCard === card) activePlayerCard = null;
+        if (activePlayerCard === card) {
+          activePlayerCard = null;
+          activePlayerCardGate = null;
+        }
         openCreateIntent();
       },
       onInvite: async (sessionId) => {
         const target = invitableSessions().find((session) => String(session.sessionId) === String(sessionId));
         if (
           activePlayerCard !== card ||
-          !state.playerLayerOn ||
-          !profileMeetsGate(state.profile, "directory") ||
+          (requiresLayer && !state.playerLayerOn) ||
+          !profileMeetsGate(state.profile, gateLevel) ||
           !profileMeetsGate(state.profile, "ntrp") ||
           !isCurrentAuthSnapshot(openedAuth)
         ) {
@@ -1227,8 +1341,8 @@ export function createSessionController({
         const result = await api.inviteToSession(target.sessionId, player.profileId);
         if (
           activePlayerCard !== card ||
-          !state.playerLayerOn ||
-          !profileMeetsGate(state.profile, "directory") ||
+          (requiresLayer && !state.playerLayerOn) ||
+          !profileMeetsGate(state.profile, gateLevel) ||
           !profileMeetsGate(state.profile, "ntrp") ||
           !isCurrentAuthSnapshot(openedAuth)
         ) {
@@ -1238,8 +1352,8 @@ export function createSessionController({
           const refreshed = await reloadParticipation(openedAuth.epoch, openedAuth.identity);
           if (
             activePlayerCard !== card ||
-            !state.playerLayerOn ||
-            !profileMeetsGate(state.profile, "directory") ||
+            (requiresLayer && !state.playerLayerOn) ||
+            !profileMeetsGate(state.profile, gateLevel) ||
             !profileMeetsGate(state.profile, "ntrp") ||
             !isCurrentAuthSnapshot(openedAuth)
           ) {
@@ -1253,11 +1367,12 @@ export function createSessionController({
       },
     });
     activePlayerCard = card?.close ? card : null;
+    activePlayerCardGate = activePlayerCard ? gateLevel : null;
     return card;
   }
 
   function openPlayerCourt(court, onlyPlayers = null) {
-    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "directory")) return null;
+    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "ntrp")) return null;
     const players = onlyPlayers ?? state.players.filter((player) => String(player.courtId) === String(court.id));
     closeActivePlayerDrawer({ restoreFocus: false });
     closeActivePlayerCard({ restoreFocus: false });
@@ -1266,7 +1381,7 @@ export function createSessionController({
       onClose: () => {
         if (activePlayerDrawer === drawer) activePlayerDrawer = null;
       },
-      onOpenPlayer: openPlayer,
+      onOpenPlayer: (player) => openPlayer(player, { gateLevel: "ntrp", requiresLayer: true }),
     });
     activePlayerDrawer = drawer?.close ? drawer : null;
     return drawer;
@@ -1482,6 +1597,10 @@ export function createSessionController({
       clearIntent(savedIntent);
       state.playerLayerOn = true;
       return loadPlayers(state.bounds);
+    }
+    if (savedIntent.action === "directory") {
+      clearIntent(savedIntent);
+      return loadPlayerDirectoryList();
     }
     if (savedIntent.action === "create") {
       openCreateSessionForIntent(savedIntent);
@@ -1977,7 +2096,7 @@ export function createSessionController({
     const operation = (async () => {
       if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
 
-      // create/join 的 profile gate 靜默等待自動續行；players/visibility 的目錄 gate 保留等待提示。
+      // create/join 靜默等待 profile gate 自動續行；players/directory/visibility 保留目前等待提示。
 
       if (intent.action === "create") {
         if (!requireReadyProfile("ntrp", { silentLoading: true })) return false;
@@ -1990,14 +2109,24 @@ export function createSessionController({
       }
 
       if (intent.action === "players") {
-        if (!requireReadyProfile("directory")) return false;
-        if (!profileMeetsGate(state.profile, "directory")) {
+        if (!requireReadyProfile("ntrp")) return false;
+        if (!profileMeetsGate(state.profile, "ntrp")) {
           openProfileForIntent(intent);
           return true;
         }
         clearIntent(intent);
         state.playerLayerOn = true;
         return loadPlayers(state.bounds);
+      }
+
+      if (intent.action === "directory") {
+        if (!requireReadyProfile("directory")) return false;
+        if (!profileMeetsGate(state.profile, "directory")) {
+          openProfileForIntent(intent);
+          return true;
+        }
+        clearIntent(intent);
+        return loadPlayerDirectoryList();
       }
 
       if (intent.action === "visibility") {
@@ -2096,7 +2225,7 @@ export function createSessionController({
 
   function togglePlayerLayer() {
     if (!state.playerLayerOn) {
-      if (!state.authSession || !profileIsReady(state.profile, "directory") || !profileMeetsGate(state.profile, "directory")) {
+      if (!state.authSession || !profileIsReady(state.profile, "ntrp") || !profileMeetsGate(state.profile, "ntrp")) {
         return requireSessionAction({ action: "players" });
       }
       state.playerLayerOn = true;
@@ -2128,8 +2257,11 @@ export function createSessionController({
     const epoch = authEpoch;
 
     if (signedOut || accountChanged) clearIntent();
-    if (signedOut || accountChanged || directoryWasLost) {
-      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "directory-gate-lost" });
+    if (signedOut || accountChanged || ntrpWasLost) {
+      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "ntrp-gate-lost" });
+    }
+    if (signedOut || accountChanged || ntrpWasLost || directoryWasLost) {
+      clearPlayerDirectory({ closeReason: signedOut || accountChanged ? "account-change" : "directory-gate-lost" });
     }
     if (identityChanged) {
       const options = { reason: "account-change", restoreFocus: false };
@@ -2213,6 +2345,7 @@ export function createSessionController({
     loadDiscovery,
     markMySessionPlayed,
     openCourt,
+    openPlayerDirectory,
     openPlayerCourt,
     openCreateIntent,
     openRosterParticipantReport,
