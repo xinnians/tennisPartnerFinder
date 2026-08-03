@@ -14,7 +14,7 @@ exception when others then
 end;
 $$;
 
-select plan(19);
+select plan(20);
 
 select has_column('public', 'profiles', 'avatar_url', 'profiles stores the allowlisted Google avatar URL');
 select has_view('public', 'session_join_preview', 'authenticated join preview view exists');
@@ -124,6 +124,32 @@ insert into public.player_blocks (blocker_profile_id, blocked_profile_id)
 values (current_setting('pgtap.preview_viewer_profile_id')::bigint, current_setting('pgtap.preview_host_profile_id')::bigint);
 
 insert into public.sessions (
+  sport_id, host_profile_id, court_id, play_type, start_at, range_end,
+  ntrp_min, ntrp_max, slots_total, notes, join_mode, venue_type
+)
+values (
+  (select id from public.sports where code = 'tennis'),
+  current_setting('pgtap.preview_host_profile_id')::bigint,
+  (select id from public.courts where is_active and city = '台北市' order by id limit 1),
+  '雙打', now() + interval '40 days', now() + interval '41 days', 3.0, 5.0, 3,
+  '__pgtap_t45_active_candidate__', 'approval', 'candidates'
+);
+
+create temporary table active_candidate_session on commit drop as
+select id from public.sessions where notes = '__pgtap_t45_active_candidate__';
+select set_config('pgtap.active_candidate_session_id', (select id::text from pg_temp.active_candidate_session), true);
+
+insert into public.session_participants (session_id, profile_id, role, status)
+select id, current_setting('pgtap.preview_host_profile_id')::bigint, 'host', 'accepted' from pg_temp.active_candidate_session
+union all
+select id, current_setting('pgtap.preview_accepted_profile_id')::bigint, 'guest', 'requested' from pg_temp.active_candidate_session;
+
+update public.session_participants
+set status = 'accepted'
+where session_id = (select id from pg_temp.active_candidate_session)
+  and profile_id = current_setting('pgtap.preview_accepted_profile_id')::bigint;
+
+insert into public.sessions (
   sport_id, host_profile_id, court_id, play_type, start_at,
   ntrp_min, ntrp_max, slots_total, notes, join_mode
 )
@@ -201,6 +227,11 @@ select is(
   pg_temp.text_outcome($$select count(*)::text from public.session_join_preview where session_id = current_setting('pgtap.expired_booked_session_id')::bigint$$),
   '0',
   'booked session outside the discovery window exposes no preview rows'
+);
+select is(
+  pg_temp.text_outcome($$select count(*)::text from public.session_join_preview where session_id = current_setting('pgtap.active_candidate_session_id')::bigint$$),
+  '2',
+  'undecided candidate session before its range start exposes host plus accepted guest'
 );
 select is(
   pg_temp.text_outcome($$select count(*)::text from public.session_join_preview where session_id = current_setting('pgtap.expired_candidate_session_id')::bigint$$),
