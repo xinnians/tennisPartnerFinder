@@ -191,7 +191,7 @@ begin
 end;
 $$;
 
-select plan(463);
+select plan(464);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -249,6 +249,7 @@ select has_table('public', 'notification_outbox', 'notification outbox table exi
 select has_table('public', 'push_subscriptions', 'push subscriptions table exists');
 select has_table('public', 'notification_prefs', 'notification preferences table exists');
 select is(to_regclass('public.district_subscriptions')::text, null, 'district subscriptions table is retired');
+select is(to_regprocedure('private.require_complete_profile()')::text, null, 'legacy complete-profile gate function is retired');
 select has_table('private', 'legacy_partner_requests', 'legacy partner requests are private');
 select has_table('private', 'legacy_reports', 'legacy reports are private');
 select has_view('public', 'session_discovery', 'public session discovery view exists');
