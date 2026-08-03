@@ -3,15 +3,18 @@ import test from "node:test";
 import { createPlaywrightConfig } from "../playwright.config.js";
 import {
   LOCAL_SUPABASE_API_URL,
+  loadLocalSupabaseAdminConfig,
   loadLocalSupabaseConfig,
   parseLocalSupabaseEnvironment,
+  validateLocalSupabaseAdminConfig,
   validateLocalSupabaseConfig,
 } from "./fixtures/localSupabaseConfig.js";
 
 const SAFE_PUBLIC_KEY = "safe-test-public-key";
+const SAFE_SERVICE_ROLE_KEY = "safe-test-service-role-key";
 
-function safeStatusOutput({ apiUrl = LOCAL_SUPABASE_API_URL, publicKey = SAFE_PUBLIC_KEY } = {}) {
-  return [`API_URL="${apiUrl}"`, `ANON_KEY="${publicKey}"`].join("\n");
+function safeStatusOutput({ apiUrl = LOCAL_SUPABASE_API_URL, publicKey = SAFE_PUBLIC_KEY, serviceRoleKey = SAFE_SERVICE_ROLE_KEY } = {}) {
+  return [`API_URL="${apiUrl}"`, `ANON_KEY="${publicKey}"`, `SERVICE_ROLE_KEY="${serviceRoleKey}"`].join("\n");
 }
 
 test("local public config parses quoted status output and accepts only the exact loopback API", () => {
@@ -52,6 +55,26 @@ test("local public config loader does not accept a failed status command", () =>
   assert.throws(
     () => loadLocalSupabaseConfig({ runStatus: () => ({ status: 1, stdout: safeStatusOutput() }) }),
     /Unable to read local Supabase status/
+  );
+});
+
+test("local admin config accepts a service-role key only for the exact loopback API", () => {
+  const environment = parseLocalSupabaseEnvironment(safeStatusOutput());
+
+  assert.deepEqual(validateLocalSupabaseAdminConfig(environment), {
+    apiUrl: LOCAL_SUPABASE_API_URL,
+    serviceRoleKey: SAFE_SERVICE_ROLE_KEY,
+  });
+  assert.throws(
+    () => validateLocalSupabaseAdminConfig(parseLocalSupabaseEnvironment(safeStatusOutput({ apiUrl: "https://example.test" }))),
+    /127\.0\.0\.1:54321/
+  );
+});
+
+test("local admin config loader rejects a missing service-role key", () => {
+  assert.throws(
+    () => loadLocalSupabaseAdminConfig({ runStatus: () => ({ status: 0, stdout: safeStatusOutput({ serviceRoleKey: "" }) }) }),
+    /service-role key/
   );
 });
 

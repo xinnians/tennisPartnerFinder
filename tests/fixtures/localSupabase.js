@@ -1,10 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_AUTH_STORAGE_KEY } from "../../src/supabaseClient.js";
-import { LOCAL_SUPABASE_API_URL, loadLocalSupabaseConfig } from "./localSupabaseConfig.js";
+import {
+  LOCAL_SUPABASE_API_URL,
+  loadLocalSupabaseAdminConfig,
+  loadLocalSupabaseConfig,
+} from "./localSupabaseConfig.js";
 
 export const SUPABASE_URL = LOCAL_SUPABASE_API_URL;
 
 let localSupabaseConfig;
+let localSupabaseAdminConfig;
 
 function getLocalSupabaseConfig() {
   localSupabaseConfig ??= loadLocalSupabaseConfig();
@@ -15,6 +20,13 @@ export { SUPABASE_AUTH_STORAGE_KEY };
 
 export function makeClient() {
   return createClient(SUPABASE_URL, getLocalSupabaseConfig().publicKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export function makeAdminClient() {
+  localSupabaseAdminConfig ??= loadLocalSupabaseAdminConfig();
+  return createClient(SUPABASE_URL, localSupabaseAdminConfig.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

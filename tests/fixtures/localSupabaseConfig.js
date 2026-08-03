@@ -32,6 +32,16 @@ export function validateLocalSupabaseConfig(environment) {
   return { apiUrl, publicKey };
 }
 
+export function validateLocalSupabaseAdminConfig(environment) {
+  const apiUrl = environment.get("API_URL");
+  const serviceRoleKey = environment.get("SERVICE_ROLE_KEY");
+  if (apiUrl !== LOCAL_SUPABASE_API_URL) {
+    throw new Error(`Local Supabase API URL must be ${LOCAL_SUPABASE_API_URL}.`);
+  }
+  if (!serviceRoleKey?.trim()) throw new Error("Local Supabase service-role key is required.");
+  return { apiUrl, serviceRoleKey };
+}
+
 function runLocalSupabaseStatus() {
   return spawnSync("npx", ["supabase", "status", "-o", "env"], {
     cwd: repositoryRoot,
@@ -45,4 +55,12 @@ export function loadLocalSupabaseConfig({ runStatus = runLocalSupabaseStatus } =
     throw new Error("Unable to read local Supabase status.");
   }
   return validateLocalSupabaseConfig(parseLocalSupabaseEnvironment(status.stdout));
+}
+
+export function loadLocalSupabaseAdminConfig({ runStatus = runLocalSupabaseStatus } = {}) {
+  const status = runStatus();
+  if (status?.error || status?.status !== 0) {
+    throw new Error("Unable to read local Supabase status.");
+  }
+  return validateLocalSupabaseAdminConfig(parseLocalSupabaseEnvironment(status.stdout));
 }

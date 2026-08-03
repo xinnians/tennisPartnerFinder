@@ -120,6 +120,7 @@ function createSurface(onClose = () => {}) {
   return {
     closeCalls: 0,
     courtUpdates: [],
+    joinPreviewUpdates: [],
     stateUpdates: [],
     close(options) {
       this.closeCalls += 1;
@@ -128,11 +129,65 @@ function createSurface(onClose = () => {}) {
     setCourts(courts, options) {
       this.courtUpdates.push({ courts, options });
     },
+    setJoinPreview(state) {
+      this.joinPreviewUpdates.push(state);
+    },
     setState(state) {
       this.stateUpdates.push(state);
     },
   };
 }
+
+test("authenticated detail and join confirmation load the accepted preview while anonymous detail stays silent", async () => {
+  const previewLoads = [];
+  const preview = [
+    { avatarUrl: "", nickname: "已確認球友", ntrp: null, role: "guest", sessionId: 41 },
+    { avatarUrl: "https://lh3.googleusercontent.com/a/host", nickname: "主揪", ntrp: 3.5, role: "host", sessionId: 41 },
+  ];
+  const authenticated = createHarness({
+    api: {
+      loadSessionJoinPreview: async (sessionId) => {
+        previewLoads.push(sessionId);
+        return preview;
+      },
+    },
+  });
+  await authenticated.controller.setAuthState(
+    { user: { id: "join-preview-viewer" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  await authenticated.controller.loadDiscovery();
+  authenticated.controller.openSession(41);
+  await flush();
+
+  assert.equal(authenticated.opened.at(-1).handlers.showJoinPreview, true);
+  assert.deepEqual(authenticated.opened.at(-1).detail.joinPreviewUpdates, [
+    { participants: [], status: "loading" },
+    { participants: [preview[1], preview[0]], status: "ready" },
+  ]);
+
+  authenticated.opened.at(-1).handlers.onPrimary();
+  await flush();
+  assert.equal(authenticated.confirmations.at(-1).handlers.showJoinPreview, true);
+  assert.deepEqual(authenticated.confirmations.at(-1).detail.joinPreviewUpdates, [
+    { participants: [], status: "loading" },
+    { participants: [preview[1], preview[0]], status: "ready" },
+  ]);
+  assert.deepEqual(previewLoads, [41, 41]);
+
+  const anonymous = createHarness({
+    api: {
+      loadSessionJoinPreview: async () => {
+        throw new Error("anonymous detail must not request the authenticated preview");
+      },
+    },
+  });
+  await anonymous.controller.loadDiscovery();
+  anonymous.controller.openSession(41);
+  await flush();
+  assert.equal(anonymous.opened.at(-1).handlers.showJoinPreview, false);
+  assert.deepEqual(anonymous.opened.at(-1).detail.joinPreviewUpdates, []);
+});
 
 function createHarness(overrides = {}) {
   const renders = [];

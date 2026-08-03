@@ -9,18 +9,21 @@ import {
   PLAYER_PRESENCE_DIRECTORY_SELECT,
   SESSION_CONTACTS_SELECT,
   SESSION_DISCOVERY_SELECT,
+  SESSION_JOIN_PREVIEW_SELECT,
   SESSION_ROSTER_SELECT,
   SESSION_ACTION_CODES,
   DataApiUnavailableError,
   SessionActionError,
   createDataApi,
   loadMyPlayerBlocks,
+  loadSessionJoinPreview,
   loadSessionMessages,
   mapCurrentProfile,
   mapMySession,
   mapPlayerDirectoryRow,
   mapPlayerPresenceDirectoryRow,
   mapSessionContactRow,
+  mapSessionJoinPreviewRow,
   mapSessionRosterRow,
   mapSessionSummary,
   postSessionMessage,
@@ -278,6 +281,7 @@ test("main forwards every Stage 1–3 data API capability into the session contr
     "loadMyPlayerBlocks",
     "loadCourtSubscriptions",
     "saveCourtSubscriptions",
+    "loadSessionJoinPreview",
   ];
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const apiBlock = source.match(/controller = createSessionController\(\{\n    api: \{([\s\S]*?)\n    \},\n    mapTools:/)?.[1] ?? "";
@@ -297,6 +301,14 @@ test("main includes court catalogue status when deriving private profile eligibi
 
   assert.notEqual(eligibilityBlock, "", "profile eligibility source scan must inspect a nonempty block");
   assert.match(eligibilityBlock, /\bcourtsStatus: courtCatalogueStatus,/);
+});
+
+test("profile avatar preview reads only the current auth session metadata", async () => {
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.match(source, /authSession\?\.user\?\.user_metadata/);
+  assert.match(source, /avatar_url/);
+  assert.match(source, /picture/);
+  assert.doesNotMatch(source, /my_profile[^\n]*avatar/i);
 });
 
 test("NTRP formatting names an absent value instead of coercing it to zero", () => {
@@ -978,6 +990,82 @@ test("session messages load only from the ordered safe feed and map its allowlis
   assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
 });
 
+test("join preview loads only the five authenticated display fields and maps no identity", async () => {
+  const calls = [];
+  const query = {
+    select(value) {
+      calls.push(["select", value]);
+      return this;
+    },
+    eq(column, value) {
+      calls.push(["eq", column, value]);
+      return this;
+    },
+    then(resolve) {
+      return Promise.resolve({
+        data: [
+          {
+            session_id: "81",
+            role: "guest",
+            nickname: "確認球友",
+            ntrp: "3.5",
+            avatar_url: "https://lh3.googleusercontent.com/a/safe-preview",
+            profile_id: 999,
+            line_id: "must-not-map",
+          },
+        ],
+        error: null,
+      }).then(resolve);
+    },
+  };
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return query;
+      },
+    },
+  });
+
+  assert.deepEqual(await api.loadSessionJoinPreview("81"), [
+    {
+      sessionId: 81,
+      role: "guest",
+      nickname: "確認球友",
+      ntrp: 3.5,
+      avatarUrl: "https://lh3.googleusercontent.com/a/safe-preview",
+    },
+  ]);
+  assert.deepEqual(calls, [
+    ["from", "session_join_preview"],
+    ["select", SESSION_JOIN_PREVIEW_SELECT],
+    ["eq", "session_id", 81],
+  ]);
+  assert.deepEqual(
+    mapSessionJoinPreviewRow({
+      session_id: 82,
+      role: "host",
+      nickname: "主揪",
+      ntrp: null,
+      avatar_url: null,
+      participant_id: 123,
+    }),
+    { sessionId: 82, role: "host", nickname: "主揪", ntrp: null, avatarUrl: "" }
+  );
+});
+
+test("mock join preview uses only fictional display data and has a nonempty demonstration", async () => {
+  const mockRows = [
+    { sessionId: 9001, role: "guest", nickname: "示範球友", ntrp: null, avatarUrl: "" },
+    { sessionId: 9002, role: "host", nickname: "其他示範", ntrp: 3.5, avatarUrl: "" },
+  ];
+  const api = createDataApi({ configured: false, mockSessionJoinPreviews: mockRows });
+
+  assert.deepEqual(await api.loadSessionJoinPreview(9001), [mockRows[0]]);
+  assert.equal(JSON.stringify(await api.loadSessionJoinPreview(9001)).includes("line"), false);
+});
+
 test("my player blocks load only from the ordered safe view and map its allowlist", async () => {
   const calls = [];
   const query = {
@@ -1208,6 +1296,10 @@ test("module-level chat exports forward to the project default data API", async 
   assert.deepEqual(await loadMyPlayerBlocks(), []);
   await assert.rejects(() => postSessionMessage(81, "預設 API 訊息"), DataApiUnavailableError);
   await assert.rejects(() => setPlayerBlock(92, true), DataApiUnavailableError);
+});
+
+test("module-level join preview export forwards to the project default data API", async () => {
+  assert.deepEqual(await loadSessionJoinPreview(81), []);
 });
 
 test("lifecycle RPC wrappers preserve SESSION_EXPIRED as a reload-required outcome", async () => {

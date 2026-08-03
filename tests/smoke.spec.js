@@ -484,6 +484,85 @@ test("join confirmation repeats the safe summary and becomes an in-place success
   expect(runtimeErrors).toEqual([]);
 });
 
+test("authenticated pre-join roster renders host first with escaped names, NTRP fallback, and avatar fallback", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openJoinSessionConfirmation, openSessionSheet } = await import("/src/sessionViews.js");
+    const session = {
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      hostNickname: "公開主揪",
+      hostNtrp: 3.5,
+      hostProfileComplete: true,
+      notes: "安全名單測試",
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      sessionId: 881,
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+    };
+    const participants = [
+      { avatarUrl: "", nickname: "<img src=x onerror=alert(1)>", ntrp: null, role: "guest", sessionId: 881 },
+      {
+        avatarUrl: "https://lh3.googleusercontent.com/a/stage-t45-host",
+        nickname: "名單主揪",
+        ntrp: 3.5,
+        role: "host",
+        sessionId: 881,
+      },
+    ];
+    const detail = openSessionSheet(session, { action: { label: "申請加入" }, showJoinPreview: true });
+    detail.setJoinPreview({ participants, status: "ready" });
+    window.__joinPreviewDetailText = document.querySelector("#session-sheet [data-session-join-preview]")?.textContent;
+    window.__joinPreviewDetailNestedAttack = Boolean(
+      document.querySelector("#session-sheet [data-session-join-preview] img[src='x']")
+    );
+    detail.close({ restoreFocus: false });
+
+    const confirmation = openJoinSessionConfirmation(session, { showJoinPreview: true });
+    confirmation.setJoinPreview({ participants, status: "ready" });
+  });
+
+  expect(await page.evaluate(() => window.__joinPreviewDetailText)).toContain("名單主揪");
+  expect(await page.evaluate(() => window.__joinPreviewDetailNestedAttack)).toBe(false);
+  const preview = page.locator("#join-session-confirmation [data-session-join-preview]");
+  await expect(preview).toContainText("已確認參加者");
+  await expect(preview.locator("[data-join-preview-person]").first()).toContainText("主揪");
+  await expect(preview.locator("[data-join-preview-person]").nth(1)).toContainText("尚未填寫 NTRP");
+  await expect(preview).toContainText("<img src=x onerror=alert(1)>");
+  await expect(preview.locator("img[src='x']")).toHaveCount(0);
+
+  const hostImage = preview.locator("[data-join-preview-person]").first().locator("img");
+  await expect(hostImage).toHaveAttribute("src", "https://lh3.googleusercontent.com/a/stage-t45-host");
+  await hostImage.dispatchEvent("error");
+  await expect(preview.locator("[data-join-preview-person]").first().locator("[data-avatar-fallback]")).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("profile completion previews the current Google avatar and explains that it cannot be customized", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({
+      avatarUrl: "https://lh5.googleusercontent.com/a/stage-t45-self",
+      profile: { courts: new Set(), nick: "本人", ntrp: null, slots: new Set(), types: new Set() },
+    });
+  });
+
+  const sheet = page.locator("#profile-completion-sheet");
+  await expect(sheet.getByText("使用 Google 頭像，無法自訂")).toBeVisible();
+  const avatar = sheet.locator("[data-profile-avatar] img");
+  await expect(avatar).toHaveAttribute("src", "https://lh5.googleusercontent.com/a/stage-t45-self");
+  await avatar.dispatchEvent("error");
+  await expect(sheet.locator("[data-profile-avatar] [data-avatar-fallback]")).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("instant join confirmation explains contact visibility and shows accepted success", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
