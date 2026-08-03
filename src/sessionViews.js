@@ -1990,10 +1990,12 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
 }
 
 /** Open the one-tap candidate decision sheet backed by a fresh SessionSummary. */
-export function openDecideSessionSheet(session, { courts = [], onClose = () => {}, onDecide = async () => {} } = {}) {
+export function openDecideSessionSheet(
+  session,
+  { courts = [], courtsReady = true, onClose = () => {}, onDecide = async () => {} } = {}
+) {
   const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
-  const candidateCourts = courts.filter((court) => candidateIds.has(String(court.id)));
-  const unavailable = !session || candidateCourts.length === 0;
+  const unavailable = !session || session.venueType !== "candidates" || Boolean(session.decidedAt);
   const mounted = mountSheet({
     id: "session-decision-sheet",
     label: "定案場地與時間",
@@ -2010,14 +2012,8 @@ export function openDecideSessionSheet(session, { courts = [], onClose = () => {
         )}" min="${esc(taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true }))}" max="${esc(
           taipeiDateTimeLocalValue(session?.rangeEnd, { includeMilliseconds: true })
         )}" step="0.001" /></label>
-        <div class="candidate-decision-buttons" aria-label="候選球場">${candidateCourts
-          .map(
-            (court) =>
-              `<button type="button" class="session-primary" data-decide-court="${esc(court.id)}" data-testid="decide-court-${esc(court.id)}">${esc(
-                court.name
-              )}</button>`
-          )
-          .join("")}</div>
+        <div class="candidate-decision-buttons" aria-label="候選球場" data-decision-courts></div>
+        <p class="form-hint" data-decision-courts-status role="status" aria-live="polite"></p>
         <p class="form-error" data-decision-error role="alert" hidden></p>
       </div>
       <p class="surface__message" data-decision-terminal role="status" tabindex="-1"${unavailable ? "" : " hidden"}>候選球局已逾期或下架，無法再定案。</p>`,
@@ -2026,9 +2022,13 @@ export function openDecideSessionSheet(session, { courts = [], onClose = () => {
   const terminal = mounted.root.querySelector("[data-decision-terminal]");
   const error = mounted.root.querySelector("[data-decision-error]");
   const timeInput = mounted.root.querySelector("[data-testid='session-decision-time']");
-  const buttons = [...mounted.root.querySelectorAll("[data-decide-court]")];
+  const courtButtons = mounted.root.querySelector("[data-decision-courts]");
+  const courtsStatus = mounted.root.querySelector("[data-decision-courts-status]");
+  let availableCourts = Array.isArray(courts) ? courts : [];
+  let courtOptionsReady = Boolean(courtsReady);
   let terminalState = unavailable;
   let deciding = false;
+  const buttons = () => [...mounted.root.querySelectorAll("[data-decide-court]")];
   const setTerminal = (message = "候選球局已逾期或下架，無法再定案。") => {
     terminalState = true;
     controls.hidden = true;
@@ -2036,41 +2036,67 @@ export function openDecideSessionSheet(session, { courts = [], onClose = () => {
     terminal.hidden = false;
     terminal.focus({ preventScroll: true });
   };
-  buttons.forEach((button) => {
-    button.addEventListener("click", async () => {
-      if (deciding || terminalState) return;
-      const startAt = taipeiLocalDateTimeToIso(timeInput?.value);
-      const startMs = new Date(startAt ?? "").getTime();
-      const rangeStartMs = new Date(session.startAt).getTime();
-      const rangeEndMs = new Date(session.rangeEnd).getTime();
-      if (!startAt || startMs < rangeStartMs || startMs > rangeEndMs) {
-        error.textContent = "定案時間必須落在原本的時間範圍內。";
-        error.hidden = false;
-        return;
-      }
-      deciding = true;
-      buttons.forEach((candidate) => {
-        candidate.disabled = true;
-      });
-      error.hidden = true;
-      try {
-        await onDecide(Number(button.dataset.decideCourt), startAt);
-      } catch (decisionError) {
-        if (!terminalState) {
-          error.textContent = decisionError?.message || "定案失敗，請稍後再試。";
-          error.hidden = false;
-        }
-      } finally {
-        if (!terminalState && mounted.root.contains(button)) {
-          deciding = false;
-          buttons.forEach((candidate) => {
-            candidate.disabled = false;
-          });
-        }
-      }
+  const decide = async (event) => {
+    const button = event.currentTarget;
+    if (deciding || terminalState) return;
+    const startAt = taipeiLocalDateTimeToIso(timeInput?.value);
+    const startMs = new Date(startAt ?? "").getTime();
+    const rangeStartMs = new Date(session.startAt).getTime();
+    const rangeEndMs = new Date(session.rangeEnd).getTime();
+    if (!startAt || startMs < rangeStartMs || startMs > rangeEndMs) {
+      error.textContent = "定案時間必須落在原本的時間範圍內。";
+      error.hidden = false;
+      return;
+    }
+    deciding = true;
+    buttons().forEach((candidate) => {
+      candidate.disabled = true;
     });
-  });
-  return { ...mounted, setTerminal };
+    error.hidden = true;
+    try {
+      await onDecide(Number(button.dataset.decideCourt), startAt);
+    } catch (decisionError) {
+      if (!terminalState) {
+        error.textContent = decisionError?.message || "定案失敗，請稍後再試。";
+        error.hidden = false;
+      }
+    } finally {
+      if (!terminalState && mounted.root.contains(button)) {
+        deciding = false;
+        buttons().forEach((candidate) => {
+          candidate.disabled = false;
+        });
+      }
+    }
+  };
+  const renderCourtButtons = () => {
+    if (terminalState) return;
+    const candidateCourts = availableCourts.filter((court) => candidateIds.has(String(court.id)));
+    courtButtons.innerHTML = candidateCourts
+      .map(
+        (court) =>
+          `<button type="button" class="session-primary" data-decide-court="${esc(court.id)}" data-testid="decide-court-${esc(court.id)}">${esc(
+            court.name
+          )}</button>`
+      )
+      .join("");
+    buttons().forEach((button) => {
+      button.disabled = deciding;
+      button.addEventListener("click", decide);
+    });
+    courtsStatus.textContent = !courtOptionsReady
+      ? "正在載入候選球場…"
+      : candidateCourts.length === 0
+        ? "候選球場資料暫時無法載入，請稍後再試。"
+        : "";
+  };
+  const setCourts = (nextCourts, { ready = true } = {}) => {
+    availableCourts = Array.isArray(nextCourts) ? nextCourts : [];
+    courtOptionsReady = Boolean(ready);
+    renderCourtButtons();
+  };
+  setCourts(availableCourts, { ready: courtOptionsReady });
+  return { ...mounted, setCourts, setTerminal };
 }
 
 /** Edit only the mutable single-court fields accepted by update_session. */

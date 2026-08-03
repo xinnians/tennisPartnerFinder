@@ -156,7 +156,7 @@ test("an undecided candidate session renders two dashed map pins from the court 
   const undecided = markerOptions.filter(({ title }) => title?.includes("未定"));
   expect(undecided.map(({ title }) => title).sort()).toEqual([
     "球局 · 百齡河濱公園網球場 · 未定",
-    "球局 · 青年公園網球場 · 未定",
+    "球局 · 美堤河濱公園網球場 · 未定",
   ]);
   expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="5 4"'))).toBe(true);
   const mockCandidateOverlap = await page.evaluate(async () => {
@@ -179,7 +179,7 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
         startAt: "2099-08-08T01:00:00.000Z",
         rangeEnd: "2099-08-08T04:00:00.000Z",
         venueType: "candidates",
-        candidateCourtIds: [105, 106],
+        candidateCourtIds: [105, 109],
         decidedAt: "",
       },
       { courts: [], courtsReady: false }
@@ -197,7 +197,7 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
   });
   await expect(sheet.locator("[data-decide-court]")).toHaveCount(2);
   await expect(sheet.getByRole("button", { name: "百齡河濱公園網球場" })).toBeVisible();
-  await expect(sheet.getByRole("button", { name: "青年公園網球場" })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "美堤河濱公園網球場" })).toBeVisible();
   await expect(sheet.locator("[data-decision-terminal]")).toBeHidden();
 });
 

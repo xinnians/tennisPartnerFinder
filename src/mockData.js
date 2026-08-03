@@ -11,6 +11,7 @@ export const COURTS = [
   { id: 106, name: "青年公園網球場", city: "台北市", district: "萬華區", lat: 25.02306, lng: 121.506928 },
   { id: 107, name: "實踐大學網球場", city: "台北市", district: "中山區", lat: 25.084586, lng: 121.545608 },
   { id: 108, name: "新生公園網球場", city: "台北市", district: "中山區", lat: 25.068495, lng: 121.531745 },
+  { id: 109, name: "美堤河濱公園網球場", city: "台北市", district: "中山區", lat: 25.076756, lng: 121.553391 },
 ];
 
 // Local-only player-directory examples. They are fictional and deliberately
@@ -209,7 +210,7 @@ export const MOCK_SESSIONS = [
     joinMode: "approval",
     venueType: "candidates",
     rangeEnd: futureStartAt(5, 4),
-    candidateCourtIds: [105, 106],
+    candidateCourtIds: [105, 109],
     feeNote: "",
     decidedAt: "",
   },

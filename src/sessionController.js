@@ -806,6 +806,7 @@ export function createSessionController({
     state.courts = Array.isArray(courts) ? courts : [];
     state.courtsReady = Boolean(ready);
     activeCreateSession?.setCourts?.(state.courts, { ready: state.courtsReady });
+    activeDecisionSession?.setCourts?.(state.courts, { ready: state.courtsReady });
     activeEditSession?.setCourts?.(state.courts, { ready: state.courtsReady });
     activeProfilePrompt?.setCourts?.(state.courts, { ready: state.courtsReady });
     publish();
@@ -1499,6 +1500,7 @@ export function createSessionController({
     const decisionSummary = summary?.venueType === "candidates" && !Boolean(summary?.decidedAt) ? summary : null;
     sheet = openDecideSession(decisionSummary, {
       courts: state.courts,
+      courtsReady: state.courtsReady,
       onClose: () => {
         if (activeDecisionSession === sheet) activeDecisionSession = null;
       },
