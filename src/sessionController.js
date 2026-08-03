@@ -356,6 +356,8 @@ export function createSessionController({
   let latestParticipationRequest = 0;
   let latestRosterRequest = 0;
   let latestContactRequest = 0;
+  const detailJoinPreviewContext = { requestId: 0 };
+  const confirmationJoinPreviewContext = { requestId: 0 };
   let latestLocationRequest = 0;
   let latestPlayerRequest = 0;
   let latestBlockedPlayerRequest = 0;
@@ -442,19 +444,20 @@ export function createSessionController({
     return state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
   }
 
-  async function hydrateSessionJoinPreview(sessionId, surface, authSnapshot = captureAuthSnapshot()) {
+  async function hydrateSessionJoinPreview(sessionId, surface, context, authSnapshot = captureAuthSnapshot()) {
     if (!isCurrentAuthSnapshot(authSnapshot) || typeof api?.loadSessionJoinPreview !== "function") return false;
+    const requestId = ++context.requestId;
     surface?.setJoinPreview?.({ participants: [], status: "loading" });
     try {
       const participants = await api.loadSessionJoinPreview(sessionId);
-      if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+      if (requestId !== context.requestId || !isCurrentAuthSnapshot(authSnapshot)) return false;
       const ordered = (Array.isArray(participants) ? [...participants] : []).sort(
         (left, right) => Number(right?.role === "host") - Number(left?.role === "host")
       );
       surface?.setJoinPreview?.({ participants: ordered, status: "ready" });
       return true;
     } catch {
-      if (!isCurrentAuthSnapshot(authSnapshot)) return false;
+      if (requestId !== context.requestId || !isCurrentAuthSnapshot(authSnapshot)) return false;
       surface?.setJoinPreview?.({ participants: [], status: "error" });
       return false;
     }
@@ -1002,7 +1005,7 @@ export function createSessionController({
     activeDetailSession = activeDetail ? session : null;
     activeDetailActionKey = activeDetail ? actionKey(action) : null;
     if (activeDetail && previewAuthSnapshot) {
-      void hydrateSessionJoinPreview(session.sessionId, activeDetail, previewAuthSnapshot);
+      void hydrateSessionJoinPreview(session.sessionId, activeDetail, detailJoinPreviewContext, previewAuthSnapshot);
     }
     return activeDetail;
   }
@@ -1420,7 +1423,12 @@ export function createSessionController({
     activeJoinConfirmation = confirmation?.close ? confirmation : null;
     activeJoinConfirmationSessionId = activeJoinConfirmation ? session.sessionId : null;
     if (activeJoinConfirmation) {
-      void hydrateSessionJoinPreview(session.sessionId, activeJoinConfirmation, confirmingAuth);
+      void hydrateSessionJoinPreview(
+        session.sessionId,
+        activeJoinConfirmation,
+        confirmationJoinPreviewContext,
+        confirmingAuth
+      );
     }
     return confirmation;
   }
