@@ -87,32 +87,54 @@ git diff --check
 `npm test` 與 `npm run test:local` 都不會清資料庫。只在需要乾淨 fixture 時，使用帶
 `CONFIRM_LOCAL_DB_RESET=1` 的 local-only reset。
 
-## 首次公開發布 checklist（2026-08-03，尚未執行 hosted）
+## 首次公開發布 checklist（2026-08-03 建立；2026-08-04 執行 hosted，尚未發布）
 
-本節是下一次 hosted 發布的人工 gate；目前全部是**未完成**，不得把下方步驟或本機測試通過
-解讀成 hosted 已套用、已部署或已發布。
+本節是 hosted 發布的人工 gate。**2026-08-04 已實際執行下列已勾選項**（migration 已套用至
+hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA 已完成）；未勾選項仍是
+未完成，不得把本機測試通過解讀成已完成。發布本身尚未進行。
 
-- [ ] 備份 hosted schema/data，記錄 profiles、sessions、participants、messages、reports、
+- [x] 備份 hosted schema/data，記錄 profiles、sessions、participants、messages、reports、
   notification outbox 與 push subscription 的 migration 前 counts。
-- [ ] 先在乾淨 local DB 套用至 `202607270008` 並完成本頁「本機 release gate」；以
+  2026-08-04 執行：`supabase db dump`（schema 112KB／data 48KB，存放於執行者本機）；
+  preflight counts＝profiles 3、sessions 7、session_participants 10、notification_outbox 6、
+  push_subscriptions 2、district_subscriptions 24（隨 007 退役）、reports 0、courts 85。
+- [x] 先在乾淨 local DB 套用至 `202607270008` 並完成本頁「本機 release gate」；以
   `npx supabase migration list` 確認 remote 無 drift，再由負責人授權套用
   `202607270001`–`202607270008`。清單必須明列
   `202607270006_session_join_preview_avatar`、`202607270007_notification_rework` 與
   `202607270008_drop_legacy_profile_gate`。
-- [ ] 匿名 REST 重驗 `session_discovery` 恰為 25 欄；raw sessions、participants、messages、
+  2026-08-04 執行：`supabase db push` 套用八個 migration，事後 `migration list` 21/21
+  local↔remote 全對齊。
+- [x] 匿名 REST 重驗 `session_discovery` 恰為 25 欄；raw sessions、participants、messages、
   blocks、candidate courts、court subscriptions、notification prefs/outbox 皆無旁路；
   `session_join_preview` 只允許 authenticated。
-- [ ] 重新部署 `notification-outbox-dispatch` Edge Function；確認十事件標題與五欄摘要
+  2026-08-04 執行：25 欄明確 select 回 200；`select=line_id` 回 400（42703）；
+  `session_join_preview` 與 11 個 raw 面（含 reports、player_presence）全部 401（42501）。
+- [x] 重新部署 `notification-outbox-dispatch` Edge Function；確認十事件標題與五欄摘要
   allowlist，訊息本文、LINE 與 subscription key 不進 payload 或 log。
-- [ ] 確認四個 cron：`dispatch-notification-outbox` 每分鐘、`enqueue-session-reminders` 每
+  2026-08-04 執行：`supabase functions deploy` 完成；十事件標題與 payload allowlist 由
+  `tests/notification-dispatch.test.js` 與本機 dispatch proof 覆蓋。
+- [x] 確認四個 cron：`dispatch-notification-outbox` 每分鐘、`enqueue-session-reminders` 每
   5 分鐘、`expire-stale-tennis-sessions` 每 15 分鐘、`purge-archived-session-messages`
-  每日 03:30，並以 controlled fixture 驗 session reminder 與 decide reminder 只 enqueue 一次。
-- [ ] 以至少兩個 Google 帳號走完三型建局、候選定案、approval／instant 加入、編輯／取消；
+  每日 03:30。
+  2026-08-04 於 hosted 查證四個 job 皆存在且 `active=true`、排程與上列一致。
+  **reminder 冪等改以 local pgTAP 為準**（`supabase/tests/notification_rework.sql` 第二輪掃描
+  0 新列、partial unique index 觸發 23505）；刻意不在 production 造 controlled fixture，
+  理由同保存政策項。
+- [x] 以至少兩個 Google 帳號走完三型建局、候選定案、approval／instant 加入、編輯／取消；
   accepted 前看不到群聊，accepted 後 host 發言 guest 收到、guest 回覆 host 收到，封存後歷史
   可讀但送訊得到 `SESSION_ARCHIVED`。另驗 HTML 文字轉義與群訊推播不含本文。
-- [ ] 群聊治理：雙向封鎖後 user 訊息互不可見、system 訊息仍可見；join／invite 的中性封鎖
+  2026-08-04 執行：三型建局、候選局雙虛線釘→定案收斂單一實心釘、編輯缺額、approval 申請→
+  主揪核准、instant 直接加入、群聊雙向收發、封存唯讀、加入前名單、LINE 過渡揭露、
+  六個通知偏好與球場訂閱皆通過；注入 `<img onerror>` 以純文字呈現且未觸發；console 零錯誤；
+  推播由執行者於裝置實際收到。**未逐一重跑「取消球局」**（既有 QA 局保留給執行者清理時驗證）。
+- [x] 群聊治理：雙向封鎖後 user 訊息互不可見、system 訊息仍可見；join／invite 的中性封鎖
   結果不揭露關係；單則訊息檢舉可建立。`reports.status` 尚無產品工作流，人工處理責任與存取者
   必須在發布前由負責人記錄，不得宣稱已自動化。
+  2026-08-04 執行：主揪於群聊封鎖 guest 後該 guest 的 user 訊息即從 feed 消失、系統訊息仍在，
+  封鎖清單出現該人並可解封、解封後清單歸零。**單則訊息檢舉未於 hosted 實際送出**
+  （避免在 production 留下無法結案的 `open` 檢舉，見下方人工流程）；檢舉入口與
+  `MESSAGE_NOT_VISIBLE` 契約由 local e2e 與 pgTAP 覆蓋。
 
   **檢舉人工處理流程（2026-08-04 記錄，首發版本）**
 
@@ -135,6 +157,9 @@ git diff --check
   `session_contacts` 仍只揭露 host ↔ guest，guest 彼此不可見。這是過渡相容檢查，不再是主旅程。
 - [ ] 穩定 preview 人工 QA：OAuth、Maps referrer、390px 慢網路、鍵盤焦點、支援／隱私連結、
   console/pageerror、球場訂閱最多 10 座與六個通知偏好。
+  2026-08-04 部分完成：於 preview alias（`...-git-cla-6f302a-...`）確認 OAuth 兩帳號登入、
+  Maps 正常載入、console/pageerror 零、球場訂閱多選與六個通知偏好可存檔。
+  **仍未做**：390px 實機慢網路、鍵盤焦點走查、支援／隱私連結實際點開檢視。
 - [ ] 清除 QA 球局、訊息、profile/auth fixtures；確認匿名 discovery 無 QA 資料後，才由負責人
   決定 release 發布與社群分享時機。
 
