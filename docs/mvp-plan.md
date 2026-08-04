@@ -124,7 +124,12 @@ git diff --check
     `reports.status` 目前無任何 RPC 可改，維持 `open` 不影響處置，僅代表未結案。
   - 副作用備忘：`open` 狀態的檢舉會使關聯訊息豁免 90 天 purge，直到人工結案。
     結案機制屬後續版本，不得在文件或 UI 宣稱已自動化。
-- [ ] 保存政策：以 controlled archived session 驗 90 天 purge；有 report 關聯的訊息保留。
+- [x] 保存政策：90 天 purge 與「有 report 關聯的訊息保留」**以 local pgTAP 為準**
+  （`supabase/tests/session_chat.sql` 的 purge 斷言；hosted schema 與 local 同源，
+  `purge-archived-session-messages` cron 每日 03:30 已於 hosted 確認 active）。
+  **刻意不在 production 造 controlled fixture**：需寫入測試訊息與竄改 `archived_at`，
+  失敗會殘留半套資料，風險大於驗證價值。首批真實球局封存滿 90 天前，
+  若要提前驗證，應在 local 或另建 staging 專案執行。
   90 天目前是暫訂值，變更必須同步隱私政策與 migration。
 - [ ] LINE 存量檢查：新註冊以 nickname-only 可存檔、LINE 選填；若存量 accepted pair 有 LINE，
   `session_contacts` 仍只揭露 host ↔ guest，guest 彼此不可見。這是過渡相容檢查，不再是主旅程。
