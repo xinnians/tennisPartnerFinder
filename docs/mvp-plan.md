@@ -113,6 +113,17 @@ git diff --check
 - [ ] 群聊治理：雙向封鎖後 user 訊息互不可見、system 訊息仍可見；join／invite 的中性封鎖
   結果不揭露關係；單則訊息檢舉可建立。`reports.status` 尚無產品工作流，人工處理責任與存取者
   必須在發布前由負責人記錄，不得宣稱已自動化。
+
+  **檢舉人工處理流程（2026-08-04 記錄，首發版本）**
+
+  - 負責人與唯一存取者：專案擁有者（`ian`）。無其他人可讀 `reports`。
+  - 頻率：每週一次，由擁有者以 AI 輔助拉取整份檢舉資料後逐筆人工確認。
+  - 存取方式：Supabase Dashboard／服務端查詢 `public.reports`（含 `message_id` 關聯訊息）。
+    `reports` 對 browser role 無讀取權限，前端沒有也不得新增後台頁面。
+  - 處置手段（第一版皆為人工，無自動化）：直接於資料庫調整球局狀態、必要時停用該帳號；
+    `reports.status` 目前無任何 RPC 可改，維持 `open` 不影響處置，僅代表未結案。
+  - 副作用備忘：`open` 狀態的檢舉會使關聯訊息豁免 90 天 purge，直到人工結案。
+    結案機制屬後續版本，不得在文件或 UI 宣稱已自動化。
 - [ ] 保存政策：以 controlled archived session 驗 90 天 purge；有 report 關聯的訊息保留。
   90 天目前是暫訂值，變更必須同步隱私政策與 migration。
 - [ ] LINE 存量檢查：新註冊以 nickname-only 可存檔、LINE 選填；若存量 accepted pair 有 LINE，
