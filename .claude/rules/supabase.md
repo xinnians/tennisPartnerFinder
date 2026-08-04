@@ -23,11 +23,15 @@ role 不可讀寫。
 - accepted-only LINE：`public.session_contacts`。
 - 群聊與封鎖讀取：`public.session_message_feed`、`public.my_player_blocks`；寫入只能使用
   `post_session_message`、`set_player_block`、`create_report(..., p_message_id)` RPC。
+- 登入者加入前名單：`public.session_join_preview`（authenticated-only，僅需登入；回傳該局
+  host 與 accepted guests 的 `session_id,role,nickname,ntrp,avatar_url` 五欄，窗口同
+  discovery，不過濾封鎖，不含 profile_id）。
 - 個人檔案表單：`public.my_profile` 與 `save_my_profile(...)`。
 - 在場設定／更新：`set_presence_sharing`、`set_open_to_greeting`、`update_my_presence` RPC。
-- 通知設定：本人 `notification_prefs`、`district_subscriptions` 的 explicit-column reads，及
-  `save_push_subscription`、`remove_push_subscription`、`set_notification_prefs`、
-  `set_district_subscriptions` RPC。
+- 通知設定：本人 `notification_prefs`（六個 enabled 欄）、`court_subscriptions` 的
+  explicit-column reads，及 `save_push_subscription`、`remove_push_subscription`、
+  `set_notification_prefs`（六參數）、`set_court_subscriptions`（台北市 active 球場、
+  上限 10）RPC。行政區訂閱已於 202607270007 退役（表與 RPC 皆已 drop）。
 - lifecycle 寫入：`create_session`、`request_to_join_session`、`review_join_request`、
   `invite_to_session`、`respond_to_session_invite`、`update_session`、
   `decide_session_court`、`withdraw_from_session`、`cancel_session`、
@@ -46,14 +50,18 @@ role 不可讀寫。
 
 ## Web Push 與通知 outbox
 
-- `push_subscriptions`、`notification_prefs`、`district_subscriptions` 都是 owner-only；通知
-  設定只要求登入，不得藉此取消既有球局／球友目錄的分級 profile gate。行政區只接受台北市
-  12 區，browser 只以既有 RPC 儲存。
+- `push_subscriptions`、`notification_prefs`、`court_subscriptions` 都是 owner-only；通知
+  設定只要求登入，不得藉此取消既有球局／球友目錄的分級 profile gate。球場訂閱只接受台北市
+  active 球場（上限 10），browser 只以既有 RPC 儲存。
 - `notification_outbox` 是 service-only queue：anon 與 authenticated 不可 select、insert、
   update、delete，也不可新增 browser view 或 RPC 旁路。它的欄位順序與 payload allowlist 受
   pgTAP 守護。
-- 事件 `host_new_request`、`guest_request_reviewed`、`guest_invited`、`district_new_session`
-  只能由既有 lifecycle RPC best-effort enqueue。payload 精確只用 `court`、`start_at`、
+- 事件共十種：`host_new_request`、`guest_request_reviewed`、`guest_invited`、
+  `court_new_session`、`session_updated`、`session_decided`、`session_cancelled`、
+  `chat_message`、`session_reminder`、`decide_reminder`，由既有 lifecycle RPC 與
+  `enqueue-session-reminders` pg_cron（每 5 分鐘，reminder 類以 partial unique index 冪等）
+  best-effort enqueue；定案、取消、球場廣播與催定案恆送。payload
+  精確只用 `court`、`start_at`、
   `slots_remaining`、`message`、`url`；LINE／`line_id`、任何他人個資與 subscription key
   都不可進 payload 或 log。
 - `notification-outbox-dispatch` Edge Function 以 service role 讀 outbox、每筆最多嘗試三次；

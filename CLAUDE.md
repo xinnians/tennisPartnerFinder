@@ -43,10 +43,12 @@ LINE 聯絡面僅過渡保留。首發公開範圍是 **台北市、網球**；�
 - raw `sessions`、`session_participants`、`profiles` 與私有 legacy tables 不是
   browser data API。所有前端讀寫都必須經過 `src/dataApi.js` 的 view/RPC 邊界：
   `session_discovery`、`player_directory`、`my_session_participations`、
-  `player_presence_directory`、`session_participant_roster`、`session_contacts`、`my_profile`
+  `player_presence_directory`、`session_participant_roster`、`session_join_preview`、
+  `session_message_feed`、`my_player_blocks`、`session_contacts`、`my_profile`
   與其核可 RPC。
-- 請勿加入聊天、訂場、付款、候補、評分、另一城市或另一運動的 UI；未來多運動
-  必須先有獨立產品與資料權限決策。
+- 聊天僅限球局群組聊天：成員限主揪與已接受參加者，讀 `session_message_feed`、寫
+  `post_session_message`，封存後唯讀。請勿加入局外私訊、陌生人社群、訂場、付款、
+  候補、評分、另一城市或另一運動的 UI；未來多運動必須先有獨立產品與資料權限決策。
 
 更多 RLS、view、RPC 與 migration 規則見 `.claude/rules/supabase.md`。
 
@@ -95,9 +97,11 @@ linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁�
 - `expire-stale-tennis-sessions` pg_cron 每 15 分鐘將開始後超過 24 小時的 open/full
   球局設為 expired；未定案候選局在範圍起點即 expired。每個 lifecycle RPC 也立即檢查，
   UI 不可依賴 cron 延遲。
-- Web Push 的四種事件為主揪新申請、guest 申請結果、guest 收到邀請、訂閱行政區的新球局。
-  前三者可由本人偏好關閉；廣播只送給本人勾選的台北市行政區。通知是 best-effort，outbox
-  寫入失敗不可中斷球局 RPC。
+- Web Push 事件共十種：主揪新申請、guest 申請結果、guest 收到邀請、訂閱球場新球局、
+  球局變更、候選定案、球局取消、群訊、開打前提醒、催定案提醒。前三者與球局變更、群訊、
+  開打前提醒可由本人偏好關閉（`notification_prefs` 六欄）；定案與取消恆送。新球局廣播依
+  `court_subscriptions`（台北市 active 球場、上限 10）派送；行政區訂閱已退役。
+  通知是 best-effort，outbox 寫入失敗不可中斷球局 RPC。
 - 分享／推播深連結使用 `#/session/:id`：進入地圖並開啟該局 sheet；不存在或已下架要顯示
   明確 empty sheet，登入或對應的三級 gate 仍沿用既有 intent。
 
