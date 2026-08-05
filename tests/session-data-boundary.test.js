@@ -735,6 +735,8 @@ test("pending intents persist only the approved session-action shapes", () => {
 
   assert.deepEqual(savePendingIntent({ action: "create" }, storage), { action: "create" });
   assert.deepEqual(savePendingIntent({ action: "players" }, storage), { action: "players" });
+  assert.deepEqual(savePendingIntent({ action: "directory" }, storage), { action: "directory" });
+  assert.deepEqual(readPendingIntent(storage), { action: "directory" });
   assert.deepEqual(savePendingIntent({ action: "visibility" }, storage), { action: "visibility" });
   assert.deepEqual(readPendingIntent(storage), { action: "visibility" });
   storage.setItem(PENDING_SESSION_INTENT_KEY, JSON.stringify({ action: "join", sessionId: 4, location: { lat: 1, lng: 2 } }));
@@ -1244,6 +1246,7 @@ test("lifecycle wrappers preserve BLOCKED instead of replacing it with UNKNOWN_A
 test("neutral block-unavailable action codes use their terminal non-disclosing messages", () => {
   assert.equal(new SessionActionError("SESSION_UNAVAILABLE").message, "這個球局目前無法加入。");
   assert.equal(new SessionActionError("GUEST_UNAVAILABLE").message, "這位球友目前無法加入這個球局。");
+  assert.equal(new SessionActionError("ALREADY_DECIDED").message, "你先前已退出或未通過這一局，無法再次申請。");
   assert.notEqual(new SessionActionError("SESSION_UNAVAILABLE").message, new SessionActionError("UNKNOWN_ACTION_ERROR").message);
   assert.notEqual(new SessionActionError("GUEST_UNAVAILABLE").message, new SessionActionError("UNKNOWN_ACTION_ERROR").message);
 });
@@ -1359,7 +1362,7 @@ test("requestToJoinSession maps ACCEPTED outcome", async () => {
   });
 });
 
-test("createSession defaults joinMode to approval", async () => {
+test("createSession defaults joinMode to instant", async () => {
   const calls = [];
   const api = createDataApi({
     configured: true,
@@ -1389,7 +1392,7 @@ test("createSession defaults joinMode to approval", async () => {
         p_ntrp_max: null,
         p_slots_total: 1,
         p_notes: null,
-        p_join_mode: "approval",
+        p_join_mode: "instant",
         p_venue_type: "booked",
         p_candidate_court_ids: null,
         p_range_end: null,
@@ -1437,7 +1440,7 @@ test("createSession maps the candidates venue contract and both requested NTRP o
       p_ntrp_max: null,
       p_slots_total: 2,
       p_notes: null,
-      p_join_mode: "approval",
+      p_join_mode: "instant",
       p_venue_type: "candidates",
       p_candidate_court_ids: [101, 102],
       p_range_end: "2026-09-01T03:00:00.000Z",

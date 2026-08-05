@@ -314,6 +314,7 @@ export function createSessionController({
   openChat = () => {},
   openLogin = () => {},
   openReport = () => {},
+  openWithdrawConfirmation = () => {},
   promptProfile = () => {},
   reloadCurrentProfile = async () => {},
   onMySessionsChange = () => {},
@@ -650,7 +651,7 @@ export function createSessionController({
     const terminal = terminalAction(session);
     if (terminal) return { label: terminal, disabled: true };
     const participation = currentParticipation(session.sessionId);
-    if (participation?.viewerParticipantStatus === "accepted") return { label: "查看聯絡方式" };
+    if (participation?.viewerParticipantStatus === "accepted") return { label: "群組聊天" };
     if (participation?.viewerParticipantStatus === "requested") {
       return { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請" };
     }
@@ -1257,6 +1258,7 @@ export function createSessionController({
     let context = null;
     const sheet = openChat(session, {
       canWithdraw: Boolean(session.canWithdraw),
+      courts: state.courts,
       onBlock: (profileId) => blockChatSender(context, profileId),
       onClose: () => releaseActiveChat(context),
       onPost: (body) => postActiveChatMessage(context, body),
@@ -1312,6 +1314,7 @@ export function createSessionController({
     const openedAuth = captureAuthSnapshot();
     let card = null;
     card = openPlayerCard(player, {
+      courts: state.courts,
       myInvitableSessions: invitableSessions(),
       onClose: () => {
         if (activePlayerCard === card) {
@@ -1521,10 +1524,12 @@ export function createSessionController({
       return activeJoinConfirmation;
     }
     const confirmingAuth = captureAuthSnapshot();
+    const expectedAccepted = actionFor(session).label === "直接加入";
     closeActiveJoinConfirmation();
     let confirmation = null;
     confirmation = openJoinConfirmation(session, {
       courts: state.courts,
+      expectedAccepted,
       showJoinPreview: true,
       onClose: ({ reason = "dismiss" } = {}) => {
         if (activeJoinConfirmation === confirmation) {
@@ -1614,8 +1619,7 @@ export function createSessionController({
     if (action.disabled) return;
     const participation = currentParticipation(session.sessionId);
     if (participation?.viewerParticipantStatus === "accepted") {
-      toast("聯絡方式會在我的球局流程中提供。");
-      return;
+      return openSessionChat(session.sessionId);
     }
     requireSessionAction({ action: "join", sessionId: session.sessionId }, { detail, session });
   }
@@ -1685,7 +1689,11 @@ export function createSessionController({
     }
   }
 
-  async function withdraw(session, detail) {
+  function withdraw(session, detail) {
+    return openWithdrawConfirmation({ onConfirm: () => performDetailWithdrawal(session, detail) });
+  }
+
+  async function performDetailWithdrawal(session, detail) {
     const authSnapshot = captureAuthSnapshot();
     if (!isCurrentAuthSnapshot(authSnapshot)) return;
     const mutation = beginLifecycleAction("withdraw", session.sessionId, authSnapshot);
@@ -1809,7 +1817,11 @@ export function createSessionController({
     return runMySessionMutation("cancel", session, authSnapshot, () => api.cancelSession(session.sessionId), "已取消球局。");
   }
 
-  async function withdrawMySession(sessionId) {
+  function withdrawMySession(sessionId) {
+    return openWithdrawConfirmation({ onConfirm: () => performMySessionWithdrawal(sessionId) });
+  }
+
+  async function performMySessionWithdrawal(sessionId) {
     const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canWithdraw));
     if (typeof api?.withdrawFromSession !== "function") throw new Error("目前無法退出這個球局。");
     return runMySessionMutation("withdraw", session, authSnapshot, () => api.withdrawFromSession(session.sessionId), "已退出球局。");

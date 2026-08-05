@@ -166,7 +166,7 @@ export function openLoginModal({ action = "", onProvider, onClose } = {}) {
         </div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
       </div>
-      <p class="surface__copy">我們只會在已接受的配對中提供聯絡方式。</p>
+      <p class="surface__copy">登入只用於繼續目前操作；已接受的球局成員可使用群組聊天。</p>
       <p class="surface__message" data-login-message role="status" aria-live="polite" aria-atomic="true"></p>
       <button type="button" class="session-primary" data-provider="google">使用 Google 登入</button>`,
   });

@@ -161,7 +161,7 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
           ? []
           : [input.candidateCourtIds];
   const candidateCourtIds = candidateInputs.map(Number);
-  const joinMode = String(input.joinMode ?? "approval");
+  const joinMode = String(input.joinMode ?? "instant");
   const playType = String(input.playType ?? "");
   const slotsTotal = Number(input.slotsTotal);
   const notes = String(input.notes ?? "");
@@ -456,6 +456,10 @@ function sessionVenuePresentation(session, courts = []) {
   };
 }
 
+function candidateDecisionExplanation(session) {
+  return `主揪將在 ${taipeiDateTime(session?.startAt)} 前從候選球場中定案場地與確切時間，定案後會通知你。`;
+}
+
 function completionLabel(session) {
   return session.hostProfileComplete ? "檔案已完成" : "檔案待完成";
 }
@@ -611,7 +615,8 @@ function wireContactCopy(root) {
   });
 }
 
-function mySessionCard(session, { createdSessionId = null, contacts = [] } = {}) {
+function mySessionCard(session, { courts = [], createdSessionId = null, contacts = [] } = {}) {
+  const venue = sessionVenuePresentation(session, courts);
   const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
   const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
   const actions = [
@@ -643,17 +648,18 @@ function mySessionCard(session, { createdSessionId = null, contacts = [] } = {})
     <div class="my-session-card__head"><span class="my-session-card__role">${esc(mySessionRole(session))}</span><span class="my-session-card__status">${esc(
       mySessionStatus(session)
     )}</span></div>
-    <p class="my-session-card__time">${esc(taipeiDateTime(session.startAt))}</p>
-    <h3>${esc(session.court)} · ${esc(session.courtDistrict)}</h3>
+    <p class="my-session-card__time">${esc(venue.time)}</p>
+    <h3><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)}</h3>
     <p>${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
     <div class="my-session-card__actions">${actions}</div>
     ${contactRows(session, contacts)}
   </article>`;
 }
 
-function hostRequestCard({ participant, session }) {
+function hostRequestCard({ participant, session }, courts = []) {
+  const venue = sessionVenuePresentation(session, courts);
   return `<article class="my-action-card" data-testid="participant-row" data-participant-id="${esc(participant.participantId)}">
-    <p class="my-action-card__eyebrow">需要你處理 · ${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
+    <p class="my-action-card__eyebrow">需要你處理 · ${esc(venue.badge)} · ${esc(venue.court)} · ${esc(venue.time)}</p>
     <h3>${esc(participant.nickname)} · ${esc(formatNtrp(participant.ntrp))}</h3>
     <p>${esc((participant.playTypes ?? []).join("、") || "尚未填寫打法")} · ${esc((participant.homeCourts ?? []).join("、") || "尚未填寫常打球場")}</p>
     <div class="my-session-card__actions">
@@ -670,9 +676,10 @@ function hostRequestCard({ participant, session }) {
   </article>`;
 }
 
-function inviteCard({ session }) {
+function inviteCard({ session }, courts = []) {
+  const venue = sessionVenuePresentation(session, courts);
   return `<article class="my-action-card" data-testid="invite-row" data-session-id="${esc(session.sessionId)}">
-    <p class="my-action-card__eyebrow">邀請你加入 · ${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</p>
+    <p class="my-action-card__eyebrow">邀請你加入 · ${esc(venue.badge)} · ${esc(venue.court)} · ${esc(venue.time)}</p>
     <h3>${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))}</h3>
     <p>${esc(session.playType)} · 缺 ${esc(session.slotsRemaining)} 位${session.notes ? ` · ${esc(session.notes)}` : ""}</p>
     <div class="my-session-card__actions">
@@ -683,10 +690,11 @@ function inviteCard({ session }) {
   </article>`;
 }
 
-function guestRequestCard({ session }) {
+function guestRequestCard({ session }, courts = []) {
+  const venue = sessionVenuePresentation(session, courts);
   return `<article class="my-action-card" data-guest-request-session="${esc(session.sessionId)}">
     <p class="my-action-card__eyebrow">等待主揪回覆</p>
-    <h3>${esc(session.court)} · ${esc(taipeiDateTime(session.startAt))}</h3>
+    <h3><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)} · ${esc(venue.time)}</h3>
     <p>你的申請已送出，主揪回覆前可自行撤回。</p>
     <div class="my-session-card__actions">${mySessionActionButton(session, { action: "withdraw", label: "撤回申請" })}</div>
   </article>`;
@@ -852,6 +860,57 @@ function notificationPushHint({ pushStatus, webPushConfigured }) {
   return "開啟後，只有這個裝置會收到你選擇的通知。";
 }
 
+const IOS_PUSH_INSTALL_HINT = "若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。";
+
+function successPushPromptMarkup(settings, { message, testId }) {
+  const notification = normalizedNotificationSettings(settings);
+  if (!notification.webPushConfigured || ["enabled", "unsupported"].includes(notification.pushStatus)) return "";
+  return `<section class="success-push-prompt" data-success-push-prompt>
+    <p>${esc(message)}</p>
+    <button type="button" class="session-secondary" data-success-enable-push data-testid="${esc(testId)}">開啟推播</button>
+    <p class="form-hint">${esc(IOS_PUSH_INSTALL_HINT)}</p>
+    <p class="form-error" data-success-push-error role="alert" tabindex="-1" hidden></p>
+  </section>`;
+}
+
+function wireSuccessPushPrompt(root, onEnablePush) {
+  const prompt = root.querySelector("[data-success-push-prompt]");
+  const button = prompt?.querySelector("[data-success-enable-push]");
+  const error = prompt?.querySelector("[data-success-push-error]");
+  button?.addEventListener("click", async () => {
+    let terminalStatus = false;
+    button.disabled = true;
+    error.hidden = true;
+    try {
+      const status = await onEnablePush();
+      if (!root.contains(prompt)) return;
+      if (status === "enabled") {
+        prompt.hidden = true;
+        return;
+      }
+      if (status === "unsupported") {
+        terminalStatus = true;
+        button.textContent = "此瀏覽器不支援推播";
+        error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+        error.hidden = false;
+        return;
+      }
+      if (status === "denied") {
+        error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+        error.hidden = false;
+        error.focus({ preventScroll: true });
+      }
+    } catch (pushError) {
+      if (!root.contains(prompt)) return;
+      error.textContent = pushError?.message || "推播暫時無法開啟，請稍後再試。";
+      error.hidden = false;
+      error.focus({ preventScroll: true });
+    } finally {
+      if (root.contains(button) && !prompt.hidden && !terminalStatus) button.disabled = false;
+    }
+  });
+}
+
 function normalizedPresenceSettings(settings = {}) {
   return {
     locationStatus: typeof settings?.locationStatus === "string" ? settings.locationStatus : "idle",
@@ -988,7 +1047,11 @@ export function renderMySessionsPage(
         needsAction.length
           ? needsAction
               .map((entry) =>
-                entry.kind === "host-request" ? hostRequestCard(entry) : entry.kind === "invite" ? inviteCard(entry) : guestRequestCard(entry)
+                entry.kind === "host-request"
+                  ? hostRequestCard(entry, courts)
+                  : entry.kind === "invite"
+                    ? inviteCard(entry, courts)
+                    : guestRequestCard(entry, courts)
               )
               .join("")
           : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
@@ -1007,6 +1070,14 @@ export function renderMySessionsPage(
     <p class="surface__copy">${
       createdSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"
     }</p>
+    ${
+      createdSessionId
+        ? successPushPromptMarkup(notification, {
+            message: "開啟推播，才不會錯過球友的新申請與球局變更。",
+            testId: "created-session-enable-push",
+          })
+        : ""
+    }
     <p class="my-sessions-message" data-my-sessions-status role="status" aria-live="polite"${status === "loading" ? "" : " hidden"}>正在更新我的球局…</p>
     <p class="form-error" data-my-sessions-error role="alert" tabindex="-1"${errorMessage ? "" : " hidden"}>${esc(errorMessage)}</p>
     ${
@@ -1080,7 +1151,7 @@ export function renderMySessionsPage(
       </fieldset>
       <fieldset class="notification-settings__fieldset">
         <legend>訂閱球場的新球局</legend>
-        <p class="form-hint">可複選，最多 10 座；只有所選球場的新球局會通知你。</p>
+        <p class="form-hint">可複選台北市球場；只有所選球場的新球局會通知你。</p>
         <select class="notification-settings__court-select" data-notification-courts data-notification-control
           data-testid="notification-court-subscriptions" aria-label="訂閱球場" multiple size="4"${
             notificationCourts.length ? "" : " disabled"
@@ -1127,7 +1198,7 @@ export function renderMySessionsPage(
       <div id="my-upcoming-sessions" class="my-sessions-list">${
         upcoming.length
           ? upcoming
-              .map((session) => mySessionCard(session, { contacts: contactsForSession(session.sessionId), createdSessionId }))
+              .map((session) => mySessionCard(session, { contacts: contactsForSession(session.sessionId), courts, createdSessionId }))
               .join("")
           : '<p class="surface__copy">目前沒有即將打球的球局。</p>'
       }</div>
@@ -1148,6 +1219,7 @@ export function renderMySessionsPage(
                 (session) =>
                   `${mySessionCard(session, {
                     contacts: contactsForSession(session.sessionId),
+                    courts,
                     createdSessionId,
                   })}<p class="my-history-reason">${esc(mySessionReason(session))}</p>`
               )
@@ -1159,6 +1231,7 @@ export function renderMySessionsPage(
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
   root.querySelector("[data-my-sessions-sign-out]")?.addEventListener("click", onSignOut);
+  wireSuccessPushPrompt(root, onEnablePush);
   root.querySelector("[data-enable-push]")?.addEventListener("click", () => {
     void runNotificationSettingAction(root, onEnablePush);
   });
@@ -1186,11 +1259,11 @@ export function renderMySessionsPage(
         option.selected = notification.courtIds.has(Number(option.value));
       });
     };
-    if (courtIds.length > 10) {
+    if (courtIds.length > notificationCourts.length) {
       restoreCourtSelection();
       const error = root.querySelector("[data-notification-error]");
       if (error) {
-        error.textContent = "最多只能訂閱 10 座球場。";
+        error.textContent = "訂閱球場數量超過目前可選的台北市球場。";
         error.hidden = false;
       }
       return;
@@ -1240,6 +1313,19 @@ export function renderMySessionsPage(
         unblock: () => onUnblockPlayer(profileId),
         withdraw: () => onWithdraw(sessionId),
       };
+      if (button.dataset.myAction === "withdraw") {
+        const actionScope = pendingMySessionActions(root);
+        try {
+          const confirmation = callbacks.withdraw();
+          Promise.resolve(confirmation).catch((actionError) => {
+            if (pendingMySessionActions(root) !== actionScope) return;
+            showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
+          });
+        } catch (actionError) {
+          showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
+        }
+        return;
+      }
       runMySessionAction(button, callbacks[button.dataset.myAction], root);
     });
   });
@@ -1511,6 +1597,7 @@ export function openSessionChatSheet(
   session,
   {
     canWithdraw = false,
+    courts = [],
     onBlock = () => {},
     onClose = () => {},
     onPost = () => {},
@@ -1519,6 +1606,7 @@ export function openSessionChatSheet(
   } = {}
 ) {
   let archived = ["cancelled", "expired", "played"].includes(String(session?.status).toLowerCase());
+  const venue = sessionVenuePresentation(session, courts);
   const mounted = mountSheet({
     id: "session-chat-sheet",
     label: "球局群組聊天",
@@ -1530,8 +1618,8 @@ export function openSessionChatSheet(
         <button type="button" class="surface__close" data-surface-close aria-label="關閉群組聊天">×</button>
       </div>
       <section class="chat-session-summary" aria-label="球局資訊">
-        <strong>${esc(session.court)} · ${esc(session.courtDistrict)}</strong>
-        <span>${esc(taipeiDateTime(session.startAt))} · ${esc(session.playType)}</span>
+        <strong><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)}</strong>
+        <span>${esc(venue.time)} · ${esc(session.playType)}</span>
       </section>
       <section class="chat-roster" aria-labelledby="chat-roster-title">
         <h3 id="chat-roster-title">參加者</h3>
@@ -1539,7 +1627,8 @@ export function openSessionChatSheet(
       </section>
       <p class="my-sessions-message" data-chat-loading role="status" aria-live="polite">正在讀取群組訊息…</p>
       <p class="form-error" data-chat-error role="alert" tabindex="-1" hidden></p>
-      <section class="chat-feed" data-chat-feed aria-label="群組訊息" aria-live="polite"></section>
+      <section class="chat-feed" data-chat-feed aria-label="群組訊息"></section>
+      <p class="visually-hidden" data-chat-announcement role="status" aria-live="polite" aria-atomic="true"></p>
       <p class="chat-archived-note" data-chat-archived-note${archived ? "" : " hidden"}>球局已封存；你仍可查看先前訊息，但不能再傳送。</p>
       <form class="chat-composer" data-chat-composer>
         <label for="chat-message-input">傳送純文字訊息</label>
@@ -1562,6 +1651,9 @@ export function openSessionChatSheet(
   const input = mounted.root.querySelector("[data-testid='chat-message-input']");
   const send = mounted.root.querySelector("[data-testid='chat-send']");
   const archivedNote = mounted.root.querySelector("[data-chat-archived-note]");
+  const announcement = mounted.root.querySelector("[data-chat-announcement]");
+  let feedInitialized = false;
+  let knownMessageIds = new Set();
 
   function setArchived(message = "") {
     archived = true;
@@ -1577,12 +1669,25 @@ export function openSessionChatSheet(
   }
 
   function setState({ errorMessage = "", messages = [], roster: participants = [], status = "ready" } = {}) {
+    const safeMessages = Array.isArray(messages) ? messages : [];
     loading.hidden = status !== "loading";
     if (status === "loading") loading.textContent = "正在讀取群組訊息…";
     error.textContent = errorMessage;
     error.hidden = !errorMessage;
     roster.innerHTML = chatRosterMarkup(participants);
-    feed.innerHTML = chatMessagesMarkup(messages);
+    feed.innerHTML = chatMessagesMarkup(safeMessages);
+    feed.scrollTop = feed.scrollHeight;
+    if (status === "ready") {
+      const nextMessageIds = new Set(
+        safeMessages.map((message) => String(message?.messageId ?? "")).filter(Boolean)
+      );
+      const newMessageCount = feedInitialized
+        ? [...nextMessageIds].filter((messageId) => !knownMessageIds.has(messageId)).length
+        : 0;
+      announcement.textContent = newMessageCount ? `新增 ${newMessageCount} 則訊息` : "";
+      knownMessageIds = nextMessageIds;
+      feedInitialized = true;
+    }
   }
 
   mounted.root.querySelector("[data-chat-composer]")?.addEventListener("submit", async (event) => {
@@ -1623,16 +1728,8 @@ export function openSessionChatSheet(
       error.hidden = false;
     });
   });
-  mounted.root.querySelector("[data-chat-withdraw]")?.addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    try {
-      await onWithdraw();
-    } catch (withdrawError) {
-      error.textContent = withdrawError?.message || "取消參加暫時無法完成，請稍後再試。";
-      error.hidden = false;
-      if (mounted.root.contains(button)) button.disabled = false;
-    }
+  mounted.root.querySelector("[data-chat-withdraw]")?.addEventListener("click", () => {
+    onWithdraw();
   });
 
   return { ...mounted, setArchived, setState };
@@ -1672,6 +1769,11 @@ export function openSessionSheet(
         <span class="session-badge" data-session-field="venue">${esc(venue.badge)}</span>
         <p data-session-field="court"><strong>${esc(venue.court)}</strong></p>
         <p data-session-field="time">${esc(venue.time)}</p>
+        ${
+          venue.undecidedCandidates
+            ? `<p class="form-hint" data-session-candidate-explanation>${esc(candidateDecisionExplanation(session))}</p>`
+            : ""
+        }
         ${venue.undecidedCandidates ? "" : nowStartSessionMarkup(session)}
         <p data-session-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
         ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
@@ -1687,7 +1789,7 @@ export function openSessionSheet(
           <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
           ${canDecide ? '<button type="button" class="session-primary" data-session-action="decide">定案場地與時間</button>' : ""}
           ${canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : ""}
-          ${canChat ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>' : ""}
+          ${canChat && action?.label !== "群組聊天" ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>' : ""}
           <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
             action?.label ?? "申請加入"
           )}</button>
@@ -1737,21 +1839,9 @@ export function openSessionSheet(
   });
   const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
   const setJoinPreview = createJoinPreviewSetter(mounted.root);
-  let withdrawing = false;
-  secondaryButton?.addEventListener("click", async () => {
-    if (withdrawing) return;
-    withdrawing = true;
-    secondaryButton.disabled = true;
-    try {
-      await onWithdraw();
-    } finally {
-      // A successful withdrawal closes this sheet. Restore the button only
-      // after a recoverable failure while this exact surface still exists.
-      if (mounted.root.contains(secondaryButton)) {
-        withdrawing = false;
-        secondaryButton.disabled = false;
-      }
-    }
+  secondaryButton?.addEventListener("click", () => {
+    // The modal confirmation owns submission locking and inline withdrawal errors.
+    onWithdraw();
   });
   return { ...mounted, setJoinPreview };
 }
@@ -1773,15 +1863,23 @@ export function openSessionUnavailableSheet() {
 /** Ask for an intentional confirmation before the join lifecycle RPC. */
 export function openJoinSessionConfirmation(
   session,
-  { courts = [], onClose = () => {}, onConfirm = () => {}, onViewMySessions = () => {}, showJoinPreview = false } = {}
+  {
+    courts = [],
+    expectedAccepted = false,
+    notificationSettings = {},
+    onClose = () => {},
+    onConfirm = () => {},
+    onEnablePush = () => {},
+    onViewMySessions = () => {},
+    showJoinPreview = false,
+  } = {}
 ) {
-  const isInstant = session.joinMode === "instant";
-  const title = isInstant ? "直接加入這場球局？" : "申請加入這一局？";
+  const title = expectedAccepted ? "直接加入這場球局？" : "申請加入這一局？";
   const venue = sessionVenuePresentation(session, courts);
   let joined = false;
   const mounted = mountDialog({
     id: "join-session-confirmation",
-    label: isInstant ? title : "確認申請加入",
+    label: expectedAccepted ? title : "確認申請加入",
     onClose: (detail) => {
       onClose(detail);
       // Joining closes the public detail beneath this dialog. When the user
@@ -1791,7 +1889,7 @@ export function openJoinSessionConfirmation(
     },
     html: `
       <div class="surface__head">
-        <div><p class="surface__eyebrow">${isInstant ? "確認加入" : "確認申請"}</p><h2>${title}</h2></div>
+        <div><p class="surface__eyebrow">${expectedAccepted ? "確認加入" : "確認申請"}</p><h2>${title}</h2></div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉確認">×</button>
       </div>
       <form data-testid="session-join-form" class="join-session-form" novalidate>
@@ -1799,6 +1897,11 @@ export function openJoinSessionConfirmation(
           <span class="session-badge" data-join-field="venue">${esc(venue.badge)}</span>
           <p data-join-field="court"><strong>${esc(venue.court)}</strong></p>
           <p data-join-field="time">${esc(venue.time)}</p>
+          ${
+            venue.undecidedCandidates
+              ? `<p class="form-hint" data-join-candidate-explanation>${esc(candidateDecisionExplanation(session))}</p>`
+              : ""
+          }
           <p data-join-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
           <p data-join-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
             completionLabel(session)
@@ -1807,12 +1910,18 @@ export function openJoinSessionConfirmation(
           ${session.feeNote ? `<p data-join-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
           <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         </div>
-        <p class="surface__copy">${isInstant ? "加入後你與主揪即可互相看到 LINE ID。" : "送出後，主揪會在球局流程中處理申請。"}</p>
+        <p class="surface__copy">${expectedAccepted ? "加入後即可在球局群組聊天協調細節。" : "送出後，主揪會在球局流程中處理申請。"}</p>
         <p class="form-error" data-join-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-confirm-join data-testid="join-session">${isInstant ? "直接加入" : "確認申請加入"}</button>
+        <button type="submit" class="session-primary" data-confirm-join data-testid="join-session">${expectedAccepted ? "直接加入" : "確認申請加入"}</button>
       </form>
       <p class="surface__message" data-join-success role="status" aria-live="polite" tabindex="-1" hidden>已送出申請，等待主揪回覆。</p>
-      <div class="session-detail__actions" data-join-success-actions hidden><button type="button" class="session-primary" data-join-view-my-sessions>前往我的球局</button></div>`,
+      <div class="session-detail__actions" data-join-success-actions hidden>
+        <button type="button" class="session-primary" data-join-view-my-sessions>前往我的球局</button>
+        ${successPushPromptMarkup(notificationSettings, {
+          message: "開啟推播，才不會錯過主揪的審核結果與球局變更。",
+          testId: "join-success-enable-push",
+        })}
+      </div>`,
   });
   const form = mounted.root.querySelector("[data-testid='session-join-form']");
   const confirmButton = mounted.root.querySelector("[data-confirm-join]");
@@ -1821,6 +1930,7 @@ export function openJoinSessionConfirmation(
   const successActions = mounted.root.querySelector("[data-join-success-actions]");
   const viewMySessions = mounted.root.querySelector("[data-join-view-my-sessions]");
   const setJoinPreview = createJoinPreviewSetter(mounted.root);
+  wireSuccessPushPrompt(mounted.root, onEnablePush);
   let submitting = false;
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1835,9 +1945,9 @@ export function openJoinSessionConfirmation(
         form.hidden = true;
         success.textContent =
           result.accepted
-            ? "已加入球局！到我的球局查看聯絡方式。"
+            ? "已加入球局！前往我的球局開啟群組聊天。"
             : result.outcome === "OK_NTRP_MISSING"
-              ? "已送出申請；補填 NTRP 後可更清楚確認程度是否合適。"
+              ? "已送出申請；你尚未填寫 NTRP，等待主揪回覆。"
               : result.outcome === "OK_NTRP_OUT_OF_RANGE"
                 ? "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"
                 : "已送出申請，等待主揪回覆。";
@@ -1867,6 +1977,50 @@ export function openJoinSessionConfirmation(
     onViewMySessions();
   });
   return { ...mounted, setJoinPreview };
+}
+
+/** Require an explicit in-project warning before a member exits a session. */
+export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm = async () => {} } = {}) {
+  const mounted = mountDialog({
+    id: "withdraw-session-confirmation",
+    label: "確認退出這一局？",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><p class="surface__eyebrow">確認退出</p><h2>確認退出這一局？</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉確認">×</button>
+      </div>
+      <p class="surface__message">退出後將無法再次申請這一局。</p>
+      <p class="form-error" data-withdraw-error role="alert" hidden></p>
+      <div class="session-detail__actions">
+        <button type="button" class="session-secondary" data-surface-close>先不要</button>
+        <button type="button" class="session-primary" data-confirm-withdraw>確認退出</button>
+      </div>`,
+  });
+  const confirmButton = mounted.root.querySelector("[data-confirm-withdraw]");
+  const error = mounted.root.querySelector("[data-withdraw-error]");
+  let submitting = false;
+  confirmButton?.addEventListener("click", async () => {
+    if (submitting) return;
+    submitting = true;
+    confirmButton.disabled = true;
+    error.hidden = true;
+    try {
+      await onConfirm();
+      mounted.close({ reason: "complete" });
+    } catch (withdrawError) {
+      if (mounted.root.contains(error)) {
+        error.textContent = withdrawError?.message || "退出球局暫時無法完成，請稍後再試。";
+        error.hidden = false;
+      }
+    } finally {
+      if (mounted.root.contains(confirmButton)) {
+        submitting = false;
+        confirmButton.disabled = false;
+      }
+    }
+  });
+  return mounted;
 }
 
 const REPORT_REASONS = ["與實際球局不符", "不當行為", "疑似詐騙", "其他"];
@@ -2200,8 +2354,8 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
         ).join("")}</select></label>
         <label class="form-field" for="session-slots-total"><span>缺額</span><select id="session-slots-total" name="slotsTotal" data-testid="session-slots-total" required><option value="">請選擇缺額</option><option value="1">1 位</option><option value="2">2 位</option><option value="3">3 位</option></select></label>
         <fieldset class="form-fieldset"><legend>加入方式</legend>
-          <label><input type="radio" name="joinMode" value="approval" checked /> 需審核（你逐一核准申請者）</label>
-          <label><input type="radio" name="joinMode" value="instant" /> 直接加入（先到先得，立即成局）</label>
+          <label><input type="radio" name="joinMode" value="approval" /> 需審核（你逐一核准申請者）</label>
+          <label><input type="radio" name="joinMode" value="instant" checked /> 直接加入（先到先得，立即成局）</label>
           <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。</p>
         </fieldset>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
@@ -2633,19 +2787,20 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
   return { ...mounted, setDirectory };
 }
 
-function playerInviteOption(session) {
+function playerInviteOption(session, courts = []) {
+  const venue = sessionVenuePresentation(session, courts);
   return `<label class="player-invite-option">
     <input type="radio" name="player-invite-session" value="${esc(session.sessionId)}" data-testid="player-invite-session" />
-    <strong>${esc(taipeiDateTime(session.startAt))}</strong>
-    <span>${esc(session.court)} · ${esc(session.courtDistrict)}</span>
+    <strong>${esc(venue.time)}</strong>
+    <span>${esc(venue.badge)} · ${esc(venue.court)}</span>
     <span>${esc(session.playType)} · ${esc(ntrpRange(session))}</span>
     ${session.notes ? `<span>${esc(session.notes)}</span>` : ""}
   </label>`;
 }
 
-function playerInviteChoices(sessions) {
+function playerInviteChoices(sessions, courts = []) {
   return sessions.length
-    ? sessions.map(playerInviteOption).join("")
+    ? sessions.map((session) => playerInviteOption(session, courts)).join("")
     : `<div class="player-invite-empty">
         <p class="surface__copy">你目前沒有可邀請的球局</p>
         <button type="button" class="session-primary" data-player-create data-testid="player-create-session">去開球局</button>
@@ -2655,7 +2810,7 @@ function playerInviteChoices(sessions) {
 /** Open one public player card and, for non-self rows, its host invitation entry point. */
 export function openPlayerCardSheet(
   player,
-  { myInvitableSessions = [], onClose = () => {}, onCreate = () => {}, onInvite = async () => {} } = {}
+  { courts = [], myInvitableSessions = [], onClose = () => {}, onCreate = () => {}, onInvite = async () => {} } = {}
 ) {
   const inviteSection = player.isSelf
     ? ""
@@ -2663,7 +2818,7 @@ export function openPlayerCardSheet(
       ? `<form class="player-invite-form" data-player-invite>
           <fieldset class="form-fieldset">
             <legend>邀請加入我的球局</legend>
-            <div class="player-invite-options" data-player-invite-options>${playerInviteChoices(myInvitableSessions)}</div>
+            <div class="player-invite-options" data-player-invite-options>${playerInviteChoices(myInvitableSessions, courts)}</div>
           </fieldset>
           <p class="form-error" role="alert" data-player-invite-error hidden></p>
           <p class="player-invite-success" role="status" data-player-invite-success hidden></p>
@@ -2700,7 +2855,7 @@ export function openPlayerCardSheet(
     const submit = form?.querySelector("[type='submit']");
     if (!options || !submit) return;
     const nextSessions = Array.isArray(sessions) ? sessions : [];
-    options.innerHTML = playerInviteChoices(nextSessions);
+    options.innerHTML = playerInviteChoices(nextSessions, courts);
     submit.hidden = nextSessions.length === 0;
     wirePlayerCreate();
   };

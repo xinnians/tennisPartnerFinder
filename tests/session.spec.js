@@ -480,6 +480,7 @@ test("a host creates a candidate session in the form and a guest joins it", asyn
   await form.getByTestId("session-start-at").fill(taipeiInput(start));
   await form.getByTestId("session-range-end").fill(taipeiInput(end));
   await form.getByTestId("session-play-type").selectOption("單打");
+  await form.locator("input[name='joinMode'][value='approval']").check();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("現場均分");
   await form.getByLabel("備註（選填，最多 500 字）").fill(notes);
   await form.getByTestId("session-submit").click();
@@ -729,7 +730,7 @@ test("instant local join accepts immediately and shares only reciprocal contacts
   await expect(confirmation).toBeVisible();
   await expect(confirmation.getByTestId("join-session")).toHaveText("直接加入");
   await confirmation.getByTestId("join-session").click();
-  await expect(confirmation.locator("[data-join-success]")).toHaveText("已加入球局！到我的球局查看聯絡方式。");
+  await expect(confirmation.locator("[data-join-success]")).toHaveText("已加入球局！前往我的球局開啟群組聊天。");
   await confirmation.getByRole("button", { name: "前往我的球局" }).click();
 
   const guestUpcoming = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`);
@@ -877,6 +878,7 @@ test("accepting the final vacancy declines the remaining request, and an accepte
   await switchBrowserSession(page, acceptedGuest.session);
   await page.getByTestId("my-sessions-tab").click();
   await page.locator(`#my-upcoming-sessions [data-my-action='withdraw'][data-session-id='${sessionId}']`).click();
+  await page.getByRole("dialog", { name: "確認退出這一局？" }).getByRole("button", { name: "確認退出" }).click();
   await expect(page.locator("#my-history")).toContainText("你已退出這一局");
 
   await switchBrowserSession(page, host.session);

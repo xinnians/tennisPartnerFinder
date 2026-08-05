@@ -307,6 +307,9 @@ function createHarness(overrides = {}) {
       confirmations.push({ detail, handlers, session: openedSession });
       return detail;
     },
+    openWithdrawConfirmation:
+      overrides.openWithdrawConfirmation ??
+      ((handlers) => handlers.onConfirm()),
     openCourtDrawer: (court, sessions, handlers) => {
       const detail = createSurface();
       courtDrawers.push({ court, detail, handlers, sessions });
@@ -1337,7 +1340,10 @@ test("eligible instant sessions use a direct-join action while approval sessions
     { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
   );
   await instantHarness.controller.loadDiscovery();
-  assert.equal(openAction(instantHarness).handlers.action.label, "直接加入");
+  const instantDetail = openAction(instantHarness);
+  assert.equal(instantDetail.handlers.action.label, "直接加入");
+  instantDetail.handlers.onPrimary();
+  assert.equal(instantHarness.confirmations.at(-1).handlers.expectedAccepted, true);
 
   const approvalSession = futureSession({ joinMode: "approval" });
   const approvalHarness = createHarness({ session: approvalSession });
@@ -1346,7 +1352,10 @@ test("eligible instant sessions use a direct-join action while approval sessions
     { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
   );
   await approvalHarness.controller.loadDiscovery();
-  assert.equal(openAction(approvalHarness).handlers.action.label, "申請加入");
+  const approvalDetail = openAction(approvalHarness);
+  assert.equal(approvalDetail.handlers.action.label, "申請加入");
+  approvalDetail.handlers.onPrimary();
+  assert.equal(approvalHarness.confirmations.at(-1).handlers.expectedAccepted, false);
 });
 
 test("join actions preflight missing and out-of-range viewer NTRP without blocking either join mode", async () => {
@@ -1361,6 +1370,8 @@ test("join actions preflight missing and out-of-range viewer NTRP without blocki
     assert.equal(missingAction.label, "申請加入");
     assert.equal(missingAction.disabled, undefined);
     assert.match(missingAction.note, /補填 NTRP/);
+    openAction(missing).handlers.onPrimary();
+    assert.equal(missing.confirmations.at(-1).handlers.expectedAccepted, false);
 
     const outOfRange = createHarness({ session: futureSession({ joinMode }) });
     await outOfRange.controller.setAuthState(
@@ -1372,6 +1383,8 @@ test("join actions preflight missing and out-of-range viewer NTRP without blocki
     assert.equal(outOfRangeAction.label, "申請加入");
     assert.equal(outOfRangeAction.disabled, undefined);
     assert.match(outOfRangeAction.note, /不在球局設定的 NTRP 範圍/);
+    openAction(outOfRange).handlers.onPrimary();
+    assert.equal(outOfRange.confirmations.at(-1).handlers.expectedAccepted, false);
   }
 });
 
@@ -1496,7 +1509,101 @@ test("auth epochs clear stale participation on logout and account switches", asy
   pendingParticipation[1].resolve([{ sessionId: 41, viewerParticipantStatus: "requested" }]);
   await accountA;
   detail = openAction(harness);
-  assert.equal(detail.handlers.action.label, "查看聯絡方式");
+  assert.equal(detail.handlers.action.label, "群組聊天");
+});
+
+test("accepted members use the primary CTA to open the existing group chat", async () => {
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [{ sessionId: 41, viewerParticipantStatus: "accepted" }],
+      loadSessionMessages: async () => [],
+      loadSessionRoster: async () => [],
+    },
+  });
+  await harness.controller.setAuthState(
+    { user: { id: "accepted-chat-member" } },
+    { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
+  );
+  await harness.controller.loadDiscovery();
+
+  const detail = openAction(harness);
+  assert.equal(detail.handlers.action.label, "群組聊天");
+  detail.handlers.onPrimary();
+  assert.equal(harness.chatSheets.length, 1);
+  assert.equal(harness.chatSheets[0].session.sessionId, 41);
+});
+
+test("detail withdrawals enter the shared confirmation before calling the lifecycle RPC", async () => {
+  const confirmations = [];
+  let withdrawalCalls = 0;
+  const harness = createHarness({
+    openWithdrawConfirmation: (handlers) => {
+      confirmations.push(handlers);
+      return createSurface(handlers.onClose);
+    },
+    api: {
+      loadMySessions: async () => [{ sessionId: 41, viewerParticipantStatus: "requested" }],
+      withdrawFromSession: async () => {
+        withdrawalCalls += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+  await harness.controller.setAuthState(
+    { user: { id: "withdraw-confirmation" } },
+    { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
+  );
+  await harness.controller.loadDiscovery();
+
+  const detail = openAction(harness);
+  detail.handlers.onWithdraw();
+  assert.equal(confirmations.length, 1);
+  assert.equal(withdrawalCalls, 0);
+  await confirmations[0].onConfirm();
+  assert.equal(withdrawalCalls, 1);
+});
+
+test("My Sessions and chat withdrawals use the same confirmation boundary", async () => {
+  const confirmations = [];
+  let withdrawalCalls = 0;
+  const acceptedSession = futureSession({
+    canWithdraw: true,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const harness = createHarness({
+    openWithdrawConfirmation: (handlers) => {
+      confirmations.push(handlers);
+      return createSurface(handlers.onClose);
+    },
+    api: {
+      loadMySessions: async () => [acceptedSession],
+      loadSessionMessages: async () => [],
+      loadSessionRoster: async () => [],
+      withdrawFromSession: async () => {
+        withdrawalCalls += 1;
+        return { outcome: "OK", reloadRequired: false };
+      },
+    },
+  });
+  await harness.controller.setAuthState(
+    { user: { id: "withdraw-all-surfaces" } },
+    { directory: false, nickname: true, ntrp: true, ntrpValue: 3.5 }
+  );
+  await harness.controller.loadDiscovery();
+
+  harness.controller.withdrawMySession(acceptedSession.sessionId);
+  assert.equal(confirmations.length, 1);
+  assert.equal(withdrawalCalls, 0);
+  await confirmations[0].onConfirm();
+  assert.equal(withdrawalCalls, 1);
+
+  harness.controller.openSessionChat(acceptedSession.sessionId);
+  harness.chatSheets.at(-1).handlers.onWithdraw();
+  assert.equal(confirmations.length, 2);
+  assert.equal(withdrawalCalls, 1);
+  await confirmations[1].onConfirm();
+  assert.equal(withdrawalCalls, 2);
 });
 
 test("a delayed participation refresh closes a detail whose CTA would otherwise become stale", async () => {

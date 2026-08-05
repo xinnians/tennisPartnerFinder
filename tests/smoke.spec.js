@@ -78,6 +78,23 @@ function captureConsoleErrors(page) {
   return errors;
 }
 
+test("mock mode never loads or requests Vercel Analytics", async ({ page }) => {
+  const analyticsRequests = [];
+  page.on("request", (request) => {
+    if (/@vercel\/analytics|\/_vercel\/insights\/|vercel-scripts\.com/i.test(request.url())) {
+      analyticsRequests.push(request.url());
+    }
+  });
+  await installFakeMaps(page);
+  await page.goto("/?s=mock-source#/session/9001");
+  await expect(page.getByRole("region", { name: "台北市球局地圖" })).toBeVisible();
+  await page.waitForLoadState("networkidle");
+
+  await expect(page.locator('script[src*="_vercel/insights"], script[src*="vercel-scripts"]')).toHaveCount(0);
+  expect(await page.evaluate(() => typeof window.va)).toBe("undefined");
+  expect(analyticsRequests).toEqual([]);
+});
+
 test("anonymous map discovery renders only safe SessionSummary fields", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -438,6 +455,133 @@ test("a pending join confirmation accepts only one intentional submission", asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test("withdrawal requires an in-project confirmation that warns the member cannot apply again", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openWithdrawSessionConfirmation } = await import("/src/sessionViews.js");
+    let releaseWithdrawal;
+    window.__withdrawConfirmationCalls = 0;
+    window.__releaseWithdrawal = () => releaseWithdrawal?.();
+    const pendingWithdrawal = new Promise((resolve) => {
+      releaseWithdrawal = resolve;
+    });
+    openWithdrawSessionConfirmation({
+      onConfirm: async () => {
+        window.__withdrawConfirmationCalls += 1;
+        await pendingWithdrawal;
+      },
+    });
+  });
+
+  const confirmation = page.getByRole("dialog", { name: "確認退出這一局？" });
+  await expect(confirmation).toContainText("退出後將無法再次申請這一局。");
+  const confirm = confirmation.getByRole("button", { name: "確認退出" });
+  await page.evaluate(() => {
+    const button = document.querySelector("[data-confirm-withdraw]");
+    button?.click();
+    button?.click();
+  });
+  await expect.poll(() => page.evaluate(() => window.__withdrawConfirmationCalls)).toBe(1);
+  await expect(confirm).toBeDisabled();
+  await page.evaluate(() => window.__releaseWithdrawal());
+  await expect(confirmation).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("cancelling chat withdrawal keeps the action enabled and allows reopening confirmation", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openSessionChatSheet, openWithdrawSessionConfirmation } = await import("/src/sessionViews.js");
+    window.__chatWithdrawConfirmationCount = 0;
+    openSessionChatSheet(
+      {
+        court: "示範球場",
+        courtDistrict: "大安區",
+        playType: "雙打",
+        sessionId: 8102,
+        slotsRemaining: 0,
+        startAt: "2026-08-03T10:00:00+08:00",
+        status: "open",
+      },
+      {
+        canWithdraw: true,
+        onWithdraw: () => {
+          window.__chatWithdrawConfirmationCount += 1;
+          return openWithdrawSessionConfirmation();
+        },
+      }
+    );
+  });
+
+  const chat = page.getByTestId("session-chat-sheet");
+  const withdraw = chat.getByRole("button", { name: "取消參加" });
+  await withdraw.click();
+  const confirmation = page.getByRole("dialog", { name: "確認退出這一局？" });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "先不要" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(withdraw).toBeEnabled();
+  await withdraw.click();
+  await expect(confirmation).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__chatWithdrawConfirmationCount)).toBe(2);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("cancelling My Sessions withdrawal keeps the action enabled and allows reopening confirmation", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openWithdrawSessionConfirmation, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    window.__mySessionWithdrawConfirmationCount = 0;
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: {
+        history: [],
+        needsAction: [],
+        pendingHostRequestCount: 0,
+        upcoming: [
+          {
+            canWithdraw: true,
+            court: "青年公園網球場",
+            courtDistrict: "萬華區",
+            playType: "雙打",
+            sessionId: 8103,
+            slotsRemaining: 0,
+            startAt: "2099-08-03T10:00:00+08:00",
+            status: "open",
+            viewerParticipantStatus: "accepted",
+            viewerRole: "guest",
+          },
+        ],
+      },
+      onWithdraw: () => {
+        window.__mySessionWithdrawConfirmationCount += 1;
+        return openWithdrawSessionConfirmation();
+      },
+    });
+  });
+
+  const withdraw = page.locator("[data-my-action='withdraw'][data-session-id='8103']");
+  await withdraw.click();
+  const confirmation = page.getByRole("dialog", { name: "確認退出這一局？" });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "先不要" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(withdraw).toBeEnabled();
+  await withdraw.click();
+  await expect(confirmation).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__mySessionWithdrawConfirmationCount)).toBe(2);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("join confirmation repeats the safe summary and becomes an in-place success state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -482,6 +626,114 @@ test("join confirmation repeats the safe summary and becomes an in-place success
   await mySessionsCta.click();
   await expect(page.locator("#join-session-confirmation")).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("join and create success moments offer push only when the device can enable it", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  const session = {
+    court: "青年公園網球場",
+    courtDistrict: "萬華區",
+    hostNickname: "公開主揪",
+    hostNtrp: 3.5,
+    hostProfileComplete: true,
+    ntrpMax: 4,
+    ntrpMin: 3,
+    playType: "單打",
+    sessionId: 8811,
+    slotsRemaining: 1,
+    startAt: "2099-07-19T01:00:00.000Z",
+    status: "open",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "host",
+  };
+
+  await page.evaluate(async (sessionInput) => {
+    const { openJoinSessionConfirmation, renderMySessionsPage } = await import("/src/sessionViews.js");
+    window.__successPushCalls = [];
+    openJoinSessionConfirmation(sessionInput, {
+      notificationSettings: { pushStatus: "idle", webPushConfigured: true },
+      onConfirm: async () => ({ joinSubmitted: true }),
+      onEnablePush: async () => {
+        window.__successPushCalls.push("join");
+        return "enabled";
+      },
+    });
+    window.__renderCreatedPush = (settings) => {
+      document.getElementById("my-sessions-page").hidden = false;
+      renderMySessionsPage(document.getElementById("my-sessions-root"), {
+        authenticated: true,
+        createdSessionId: sessionInput.sessionId,
+        groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [sessionInput] },
+        notificationSettings: settings,
+        onEnablePush: async () => {
+          window.__successPushCalls.push("create");
+          return "enabled";
+        },
+      });
+    };
+  }, session);
+
+  const confirmation = page.locator("#join-session-confirmation");
+  await confirmation.getByTestId("join-session").click();
+  const joinPush = confirmation.getByTestId("join-success-enable-push");
+  await expect(joinPush).toBeVisible();
+  await expect(confirmation).toContainText("加入主畫面");
+  await joinPush.click();
+  await expect(joinPush).toBeHidden();
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(() => window.__renderCreatedPush({ pushStatus: "idle", webPushConfigured: true }));
+  await expect(page.getByTestId("created-session-enable-push")).toBeVisible();
+  await page.getByTestId("created-session-enable-push").click();
+  await expect.poll(() => page.evaluate(() => window.__successPushCalls)).toEqual(["join", "create"]);
+
+  for (const settings of [
+    { pushStatus: "enabled", webPushConfigured: true },
+    { pushStatus: "unsupported", webPushConfigured: true },
+    { pushStatus: "idle", webPushConfigured: false },
+  ]) {
+    await page.evaluate((nextSettings) => window.__renderCreatedPush(nextSettings), settings);
+    await expect(page.getByTestId("created-session-enable-push")).toHaveCount(0);
+  }
+
+  await page.keyboard.press("Escape");
+  for (const settings of [
+    { pushStatus: "enabled", webPushConfigured: true },
+    { pushStatus: "unsupported", webPushConfigured: true },
+  ]) {
+    await page.evaluate(
+      async ({ sessionInput, settings: nextSettings }) => {
+        const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+        openJoinSessionConfirmation(sessionInput, {
+          notificationSettings: nextSettings,
+          onConfirm: async () => ({ joinSubmitted: true }),
+        });
+      },
+      { sessionInput: session, settings }
+    );
+    const nextConfirmation = page.locator("#join-session-confirmation");
+    await nextConfirmation.getByTestId("join-session").click();
+    await expect(nextConfirmation.getByTestId("join-success-enable-push")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
+
+  await page.evaluate(async (sessionInput) => {
+    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+    openJoinSessionConfirmation(sessionInput, {
+      notificationSettings: { pushStatus: "idle", webPushConfigured: true },
+      onConfirm: async () => ({ joinSubmitted: true }),
+      onEnablePush: async () => "unsupported",
+    });
+  }, session);
+  const unsupportedConfirmation = page.locator("#join-session-confirmation");
+  await unsupportedConfirmation.getByTestId("join-session").click();
+  const unsupportedPush = unsupportedConfirmation.getByTestId("join-success-enable-push");
+  await unsupportedPush.click();
+  await expect(unsupportedPush).toBeDisabled();
+  await expect(unsupportedConfirmation).toContainText("此瀏覽器不支援 Web Push");
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -564,7 +816,7 @@ test("profile completion previews the current Google avatar and explains that it
   expect(runtimeErrors).toEqual([]);
 });
 
-test("instant join confirmation explains contact visibility and shows accepted success", async ({ page }) => {
+test("an expected instant outcome explains group chat and shows accepted success", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -586,6 +838,7 @@ test("instant join confirmation explains contact visibility and shows accepted s
         startAt: "2026-07-19T01:00:00.000Z",
       },
       {
+        expectedAccepted: true,
         onConfirm: async () => ({ accepted: true, joinSubmitted: true }),
         onViewMySessions: () => {
           window.__instantJoinSuccessDestinationCalls = (window.__instantJoinSuccessDestinationCalls ?? 0) + 1;
@@ -596,9 +849,9 @@ test("instant join confirmation explains contact visibility and shows accepted s
 
   const confirmation = page.getByRole("dialog", { name: "直接加入這場球局？" });
   await expect(confirmation.getByRole("heading", { name: "直接加入這場球局？" })).toBeVisible();
-  await expect(confirmation).toContainText("加入後你與主揪即可互相看到 LINE ID。");
+  await expect(confirmation).toContainText("加入後即可在球局群組聊天協調細節。");
   await confirmation.getByRole("button", { name: "直接加入" }).click();
-  await expect(confirmation).toContainText("已加入球局！到我的球局查看聯絡方式。");
+  await expect(confirmation).toContainText("已加入球局！前往我的球局開啟群組聊天。");
   const mySessionsCta = confirmation.getByRole("button", { name: "前往我的球局" });
   await expect(mySessionsCta).toBeFocused();
   await mySessionsCta.click();
@@ -613,7 +866,7 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
   await page.goto("/");
 
   for (const [outcome, message] of [
-    ["OK_NTRP_MISSING", "已送出申請；補填 NTRP 後可更清楚確認程度是否合適。"],
+    ["OK_NTRP_MISSING", "已送出申請；你尚未填寫 NTRP，等待主揪回覆。"],
     ["OK_NTRP_OUT_OF_RANGE", "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"],
   ]) {
     await page.evaluate(async (nextOutcome) => {
@@ -632,11 +885,13 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
           slotsRemaining: 1,
           startAt: "2099-07-19T01:00:00.000Z",
         },
-        { onConfirm: async () => ({ accepted: false, joinSubmitted: true, outcome: nextOutcome }) }
+        { expectedAccepted: false, onConfirm: async () => ({ accepted: false, joinSubmitted: true, outcome: nextOutcome }) }
       );
     }, outcome);
 
     const confirmation = page.locator("#join-session-confirmation");
+    await expect(confirmation.getByRole("heading", { name: "申請加入這一局？" })).toBeVisible();
+    await expect(confirmation.getByRole("button", { name: "確認申請加入" })).toBeVisible();
     await confirmation.getByTestId("join-session").click();
     await expect(confirmation.getByText(message)).toBeVisible();
     await expect(confirmation.getByRole("button", { name: "前往我的球局" })).toBeFocused();
@@ -719,6 +974,175 @@ test("candidate session cards and details resolve every court until Boolean deci
   await expect(decided).toContainText("第三球場 · 萬華區");
   await expect(decided).toContainText("已定案");
   await expect(decided).not.toContainText("第二球場");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("undecided candidate sessions keep their court list and time range across private surfaces", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  const candidateSession = {
+    canWithdraw: true,
+    candidateCourtIds: [8, 9, 10],
+    court: "示範球場",
+    courtDistrict: "大安區",
+    decidedAt: null,
+    hostNickname: "公開主揪",
+    hostNtrp: 3.5,
+    hostProfileComplete: true,
+    ntrpMax: 4,
+    ntrpMin: 3,
+    notes: "候選局測試",
+    playType: "雙打",
+    rangeEnd: "2099-07-19T05:00:00.000Z",
+    sessionId: 8802,
+    slotsRemaining: 2,
+    startAt: "2099-07-19T01:00:00.000Z",
+    status: "open",
+    venueType: "candidates",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  };
+  const courts = [
+    { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+    { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+    { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+  ];
+  await page.evaluate(
+    async ({ candidateSession: session, courts: catalogue }) => {
+      const { openSessionChatSheet, renderMySessionsPage } = await import("/src/sessionViews.js");
+      const root = document.getElementById("my-sessions-root");
+      document.getElementById("tab-map").hidden = true;
+      document.getElementById("my-sessions-page").hidden = false;
+      renderMySessionsPage(root, {
+        authenticated: true,
+        courts: catalogue,
+        groups: {
+          history: [],
+          needsAction: [
+            {
+              kind: "host-request",
+              participant: { nickname: "申請球友", participantId: 201, profileId: 301, role: "guest", status: "requested" },
+              session,
+            },
+            { kind: "invite", session },
+            { kind: "guest-request", session },
+          ],
+          pendingHostRequestCount: 1,
+          upcoming: [session],
+        },
+      });
+      openSessionChatSheet(session, { courts: catalogue });
+    },
+    { candidateSession, courts }
+  );
+
+  const privateSurfaces = [
+    page.locator("#my-upcoming-sessions .my-session-card"),
+    page.getByTestId("participant-row"),
+    page.getByTestId("invite-row"),
+    page.locator("[data-guest-request-session='8802']"),
+    page.locator("#session-chat-sheet [aria-label='球局資訊']"),
+  ];
+  for (const surface of privateSurfaces) {
+    const text = await surface.innerText();
+    expect.soft(text).toContain("候選局");
+    expect.soft(text).toContain("示範球場、第二球場、第三球場");
+    expect.soft(text).toContain("至");
+    expect.soft(text).toContain("13:00");
+  }
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(
+    async ({ candidateSession: session, courts: catalogue }) => {
+      const { openJoinSessionConfirmation, openSessionSheet } = await import("/src/sessionViews.js");
+      openSessionSheet(session, { action: { label: "申請加入" }, courts: catalogue });
+      openJoinSessionConfirmation(session, { courts: catalogue });
+    },
+    { candidateSession, courts }
+  );
+  const explanation = "前從候選球場中定案場地與確切時間，定案後會通知你。";
+  await expect(page.locator("#session-sheet")).toContainText(explanation);
+  await expect(page.locator("#join-session-confirmation")).toContainText(explanation);
+  await page.keyboard.press("Escape");
+  await page.evaluate(
+    async ({ candidateSession: session, courts: catalogue }) => {
+      const { openPlayerCardSheet } = await import("/src/sessionViews.js");
+      openPlayerCardSheet(
+        { courtDistrict: "中山區", courtName: "第二球場", isSelf: false, nickname: "可邀請球友", ntrp: 3.5, profileId: 991 },
+        { courts: catalogue, myInvitableSessions: [session] }
+      );
+    },
+    { candidateSession, courts }
+  );
+  await expect(page.locator("#player-card-sheet [data-player-invite-options]")).toContainText("第二球場");
+  await expect(page.locator("#player-card-sheet [data-player-invite-options]")).toContainText("至");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("decided candidate sessions stay collapsed to one authoritative court and time on private surfaces", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  const decidedSession = {
+    candidateCourtIds: [8, 9, 10],
+    court: "第三球場",
+    courtDistrict: "萬華區",
+    decidedAt: "2099-07-18T08:00:00.000Z",
+    hostNickname: "公開主揪",
+    hostNtrp: 3.5,
+    hostProfileComplete: true,
+    ntrpMax: 4,
+    ntrpMin: 3,
+    playType: "雙打",
+    rangeEnd: "2099-07-19T05:00:00.000Z",
+    sessionId: 8803,
+    slotsRemaining: 2,
+    startAt: "2099-07-19T03:00:00.000Z",
+    status: "open",
+    venueType: "candidates",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  };
+  const courts = [
+    { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+    { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+    { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+  ];
+  await page.evaluate(
+    async ({ decidedSession: session, courts: catalogue }) => {
+      const { openSessionChatSheet, renderMySessionsPage } = await import("/src/sessionViews.js");
+      const root = document.getElementById("my-sessions-root");
+      document.getElementById("tab-map").hidden = true;
+      document.getElementById("my-sessions-page").hidden = false;
+      renderMySessionsPage(root, {
+        authenticated: true,
+        courts: catalogue,
+        groups: {
+          history: [],
+          needsAction: [{ kind: "invite", session }],
+          pendingHostRequestCount: 0,
+          upcoming: [session],
+        },
+      });
+      openSessionChatSheet(session, { courts: catalogue });
+    },
+    { decidedSession, courts }
+  );
+
+  const decidedSurfaces = [
+    page.locator("#my-upcoming-sessions .my-session-card"),
+    page.getByTestId("invite-row"),
+    page.locator("#session-chat-sheet [aria-label='球局資訊']"),
+  ];
+  for (const surface of decidedSurfaces) {
+    const text = await surface.innerText();
+    expect.soft(text).toContain("候選局 · 已定案");
+    expect.soft(text).toContain("第三球場 · 萬華區");
+    expect.soft(text).toContain("11:00");
+    expect.soft(text).not.toContain("第二球場");
+    expect.soft(text).not.toContain("至");
+  }
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1097,7 +1521,7 @@ test("My Sessions notification settings save six preferences and Taipei court su
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions notification settings reject an eleventh court before calling the RPC", async ({ page }) => {
+test("My Sessions notification settings allow every listed Taipei court", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1125,9 +1549,11 @@ test("My Sessions notification settings reject an eleventh court before calling 
 
   const courtSelect = page.getByTestId("notification-court-subscriptions");
   await courtSelect.selectOption(Array.from({ length: 11 }, (_, index) => String(index + 1)));
-  await expect(page.locator("[data-notification-error]")).toContainText("最多只能訂閱 10 座球場");
-  await expect(courtSelect.locator("option:checked")).toHaveCount(10);
-  expect(await page.evaluate(() => window.__savedElevenCourts)).toBeUndefined();
+  await expect.poll(() => page.evaluate(() => window.__savedElevenCourts)).toEqual(
+    Array.from({ length: 11 }, (_, index) => index + 1)
+  );
+  await expect(page.locator("[data-notification-error]")).toBeHidden();
+  await expect(courtSelect.locator("option:checked")).toHaveCount(11);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1294,7 +1720,7 @@ test("a pending withdrawal accepts only one intentional submission", async ({ pa
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet, openWithdrawSessionConfirmation } = await import("/src/sessionViews.js");
     let releaseWithdrawal;
     window.__withdrawalCalls = 0;
     window.__releaseWithdrawal = () => releaseWithdrawal?.();
@@ -1317,24 +1743,31 @@ test("a pending withdrawal accepts only one intentional submission", async ({ pa
       },
       {
         action: { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請" },
-        onWithdraw: async () => {
-          window.__withdrawalCalls += 1;
-          await pendingWithdrawal;
-        },
+        onWithdraw: () =>
+          openWithdrawSessionConfirmation({
+            onConfirm: async () => {
+              window.__withdrawalCalls += 1;
+              await pendingWithdrawal;
+            },
+          }),
       }
     );
   });
 
   const withdraw = page.locator("#session-sheet [data-session-action='secondary']");
+  await withdraw.click();
+  const confirmation = page.getByRole("dialog", { name: "確認退出這一局？" });
+  const confirm = confirmation.getByRole("button", { name: "確認退出" });
   await page.evaluate(() => {
-    const button = document.querySelector("#session-sheet [data-session-action='secondary']");
+    const button = document.querySelector("#withdraw-session-confirmation [data-confirm-withdraw]");
     button?.click();
     button?.click();
   });
   await expect.poll(() => page.evaluate(() => window.__withdrawalCalls)).toBe(1);
-  await expect(withdraw).toBeDisabled();
-  await page.evaluate(() => window.__releaseWithdrawal());
   await expect(withdraw).toBeEnabled();
+  await expect(confirm).toBeDisabled();
+  await page.evaluate(() => window.__releaseWithdrawal());
+  await expect(confirmation).toBeHidden();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1762,6 +2195,87 @@ test("390px map controls keep the player layer and status below the wrapped tool
   expect(runtimeErrors).toEqual([]);
 });
 
+test("390px toolbar contains its content and never intersects the following controls", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const layout = await page.evaluate(() => {
+    const toolbar = document.querySelector(".map-toolbar");
+    const reset = document.querySelector("#filters-reset");
+    const playerControl = document.querySelector(".player-layer-control");
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const resetRect = reset.getBoundingClientRect();
+    const playerRect = playerControl.getBoundingClientRect();
+    return {
+      contentFits: toolbar.scrollHeight <= toolbar.clientHeight,
+      resetInside:
+        resetRect.top >= toolbarRect.top &&
+        resetRect.right <= toolbarRect.right &&
+        resetRect.bottom <= toolbarRect.bottom &&
+        resetRect.left >= toolbarRect.left,
+      toolbarIntersectsPlayer:
+        toolbarRect.left < playerRect.right &&
+        toolbarRect.right > playerRect.left &&
+        toolbarRect.top < playerRect.bottom &&
+        toolbarRect.bottom > playerRect.top,
+    };
+  });
+  expect(layout.contentFits).toBe(true);
+  expect(layout.resetInside).toBe(true);
+  expect(layout.toolbarIntersectsPlayer).toBe(false);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("390px primary map, filter, and chat governance targets are at least 44px", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openSessionChatSheet } = await import("/src/sessionViews.js");
+    const chat = openSessionChatSheet({
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      playType: "雙打",
+      sessionId: 8812,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+    });
+    chat.setState({
+      messages: [
+        {
+          body: "一起打球",
+          createdAt: "2099-07-18T01:00:00.000Z",
+          isSelf: false,
+          kind: "user",
+          messageId: 1,
+          senderNickname: "受測球友",
+          senderProfileId: 991,
+        },
+      ],
+      status: "ready",
+    });
+  });
+
+  const targetGroups = [
+    page.locator(".app-header__actions button"),
+    page.locator(".map-toolbar :is(.filter-chip, .chip-type, .chip-venue, .filters-reset)"),
+    page.locator(".chat-message__meta :is([data-chat-report], [data-chat-block])"),
+  ];
+  for (const targets of targetGroups) {
+    const count = await targets.count();
+    expect(count).toBeGreaterThan(0);
+    for (let index = 0; index < count; index += 1) {
+      const box = await targets.nth(index).boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("medium-width map status stays below the complete player layer control", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 550, height: 844 });
@@ -1896,6 +2410,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await expect(createSheet).toBeVisible();
   await expect(page.getByTestId("session-create-modal")).toBeVisible();
   await expect(createSheet.getByText(disclosure)).toBeVisible();
+  await expect(form.locator('input[name="joinMode"][value="instant"]')).toBeChecked();
   await expect(createSheet).toContainText(
     "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。"
   );
@@ -2079,7 +2594,7 @@ test("create sheet submits a walk-on session with one authoritative court", asyn
   await expect.poll(() => page.evaluate(() => window.__walkOnCreatePayload)).toMatchObject({
     candidateCourtIds: null,
     courtId: 8,
-    joinMode: "approval",
+    joinMode: "instant",
     rangeEnd: null,
     slotsTotal: 1,
     startAt: "2099-07-18T01:30:00.000Z",
@@ -2547,6 +3062,9 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
         onReport: (messageId) => window.__chatActions.push(["report", messageId]),
       }
     );
+    const feed = document.querySelector("[data-chat-feed]");
+    feed.style.height = "1px";
+    feed.style.overflow = "auto";
     sheet.setState({
       messages: [
         {
@@ -2602,6 +3120,37 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await expect(chat.getByText("等待者")).toHaveCount(0);
   await expect(chat.getByText("主揪")).toBeVisible();
   await expect(chat.locator("[data-chat-roster]")).toContainText("示範球友");
+  const scroll = await chat.locator("[data-chat-feed]").evaluate((feed) => ({
+    clientHeight: feed.clientHeight,
+    scrollHeight: feed.scrollHeight,
+    scrollTop: feed.scrollTop,
+  }));
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  expect(scroll.scrollTop).toBe(scroll.scrollHeight - scroll.clientHeight);
+
+  await expect(chat.locator("[data-chat-feed]")).not.toHaveAttribute("aria-live", /.+/);
+  const announcement = chat.locator("[data-chat-announcement]");
+  await expect(announcement).toHaveAttribute("aria-live", "polite");
+  await expect(announcement).toHaveText("");
+  await page.evaluate(() =>
+    window.__chatSheet.setState({
+      messages: [
+        {
+          body: "這是刷新後的新訊息",
+          createdAt: "2026-08-03T01:03:00Z",
+          isSelf: false,
+          kind: "user",
+          messageId: 4,
+          senderNickname: "示範球友",
+          senderProfileId: 92,
+          sessionId: 8101,
+        },
+      ],
+      roster: [],
+      status: "ready",
+    })
+  );
+  await expect(announcement).toHaveText("新增 1 則訊息");
 
   await page.evaluate(() => window.__chatSheet.setState({ messages: [], roster: [], status: "ready" }));
   await expect(chat).toContainText("目前還沒有訊息，從一句招呼開始吧。");

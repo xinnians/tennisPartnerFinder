@@ -1,5 +1,12 @@
 import "./style.css";
 import "./session.css";
+
+if (import.meta.env.PROD) {
+  void import("@vercel/analytics").then(({ inject }) => {
+    inject({ mode: "production" });
+  });
+}
+
 import { GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
 import { BANDS } from "./filters.js";
 import {
@@ -73,6 +80,7 @@ import {
   openSessionChatSheet,
   openSessionSheet,
   openSessionUnavailableSheet,
+  openWithdrawSessionConfirmation,
   renderMapDataStatus,
   renderPlayerLayerToggle,
   renderMySessionsPage,
@@ -617,7 +625,10 @@ async function updateCourtSubscriptions(courtIds) {
         .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
     ),
   ];
-  if (nextCourtIds.length > 10) throw new Error("最多只能訂閱 10 座球場。");
+  const activeTaipeiCourtCount = courts.filter((court) => court?.city === "台北市").length;
+  if (activeTaipeiCourtCount > 0 && nextCourtIds.length > activeTaipeiCourtCount) {
+    throw new Error("訂閱球場數量超過目前可選的台北市球場。");
+  }
   await saveCourtSubscriptions(nextCourtIds);
   if (!notificationRequestIsCurrent({ epoch, identity })) return;
   notificationSettings = { ...notificationSettings, courtIds: nextCourtIds, errorMessage: "" };
@@ -632,24 +643,26 @@ async function enablePushNotifications() {
   if (!WEB_PUSH_VAPID_PUBLIC_KEY.trim()) {
     notificationSettings = { ...notificationSettings, pushStatus: "unsupported" };
     rerenderVisibleNotificationSettings();
-    return;
+    return "unsupported";
   }
   const result = await enableBrowserPush({ vapidPublicKey: WEB_PUSH_VAPID_PUBLIC_KEY });
   if (!notificationRequestIsCurrent({ epoch, identity })) return;
   if (result.status !== "granted" || !result.subscription) {
+    const pushStatus = result.status === "denied" ? "denied" : result.status === "unsupported" ? "unsupported" : "idle";
     notificationSettings = {
       ...notificationSettings,
       errorMessage: "",
-      pushStatus: result.status === "denied" ? "denied" : result.status === "unsupported" ? "unsupported" : "idle",
+      pushStatus,
     };
     rerenderVisibleNotificationSettings();
-    return;
+    return pushStatus;
   }
   await savePushSubscription(result.subscription);
   if (!notificationRequestIsCurrent({ epoch, identity })) return;
   notificationSettings = { ...notificationSettings, errorMessage: "", pushStatus: "enabled" };
   rerenderVisibleNotificationSettings();
   toast("已開啟推播通知。");
+  return "enabled";
 }
 
 function renderMySessionsDestination() {
@@ -1004,6 +1017,8 @@ function init() {
     openJoinConfirmation: (session, handlers) =>
       openJoinSessionConfirmation(session, {
         ...handlers,
+        notificationSettings,
+        onEnablePush: enablePushNotifications,
         onViewMySessions: () => showMySessionsPage(null, { focus: true }),
       }),
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
@@ -1016,6 +1031,7 @@ function init() {
     openChat: openSessionChatSheet,
     openLogin: openSafeLogin,
     openReport: (context) => openReportDialog(context),
+    openWithdrawConfirmation: openWithdrawSessionConfirmation,
     promptProfile: openProfileCompletion,
     reloadCurrentProfile,
     showCreatedSession: showMySessionsPage,

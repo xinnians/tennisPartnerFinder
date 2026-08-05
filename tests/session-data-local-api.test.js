@@ -76,6 +76,7 @@ test(
       ntrpMax: 4,
       slotsTotal: 1,
       notes: "local fixture session",
+      joinMode: "approval",
     });
     assert.ok(sessionId);
 

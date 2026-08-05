@@ -35,15 +35,16 @@
       <main id="tab-map" class="map-page">
         <div id="map" role="region" aria-label="台北市球局地圖"></div>
 
-        <div class="player-layer-control">
-          <div class="player-layer-actions">
-            <button type="button" id="player-layer-toggle" data-testid="player-layer-toggle" class="session-secondary" aria-pressed="false">顯示在線</button>
-            <button type="button" id="player-directory-open" data-testid="player-directory-open" class="session-secondary">球友名單</button>
+        <div class="map-controls">
+          <div class="player-layer-control">
+            <div class="player-layer-actions">
+              <button type="button" id="player-layer-toggle" data-testid="player-layer-toggle" class="session-secondary" aria-pressed="false">顯示在線</button>
+              <button type="button" id="player-directory-open" data-testid="player-directory-open" class="session-secondary">球友名單</button>
+            </div>
+            <p id="player-layer-status" class="player-layer-status" role="status" aria-live="polite" hidden></p>
           </div>
-          <p id="player-layer-status" class="player-layer-status" role="status" aria-live="polite" hidden></p>
-        </div>
 
-        <section class="map-toolbar" aria-label="尋找球局篩選">
+          <section class="map-toolbar" aria-label="尋找球局篩選">
           <label class="filter-control">
             <span>行政區</span>
             <select id="district-filter"><option value="">全部行政區</option></select>
@@ -71,16 +72,18 @@
             <button type="button" class="chip-venue" data-venue-type="candidates" aria-pressed="false">候選局</button>
           </div>
           <button type="button" id="filters-reset" class="filters-reset">清除</button>
-        </section>
+          </section>
 
-        <div id="level-popover" class="level-popover" hidden>
-          <p>依 NTRP 程度篩選</p>
-          <div id="band-options"></div>
+          <div id="level-popover" class="level-popover" hidden>
+            <p>依 NTRP 程度篩選</p>
+            <div id="band-options"></div>
+          </div>
+
+          <div id="map-data-status" role="status" aria-live="polite" hidden></div>
         </div>
 
         <div id="nearby-sessions-backdrop" class="nearby-sessions__backdrop" aria-hidden="true" hidden></div>
         <aside id="nearby-sessions-drawer" class="nearby-sessions" aria-label="附近球局"></aside>
-        <div id="map-data-status" role="status" aria-live="polite" hidden></div>
       </main>
 
       <section id="my-sessions-page" class="my-sessions-page" aria-label="我的球局" hidden>

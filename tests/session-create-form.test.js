@@ -67,7 +67,7 @@ test("create form accepts legal optional NTRP endpoints and produces the RPC-saf
     candidateCourtIds: null,
     courtId: 8,
     feeNote: null,
-    joinMode: "approval",
+    joinMode: "instant",
     ntrpMax: 4,
     ntrpMin: 3.5,
     notes: "自備新球",
@@ -79,9 +79,9 @@ test("create form accepts legal optional NTRP endpoints and produces the RPC-saf
   });
 });
 
-test("joinMode 預設 approval 且只接受合法值", () => {
+test("joinMode 預設 instant 且只接受合法值", () => {
   const base = { courtId: "101", playType: "單打", slotsTotal: "1", startAtLocal: "2099-07-18T09:30", notes: "" };
-  assert.equal(validateCreateSessionInput(base).value.joinMode, "approval");
+  assert.equal(validateCreateSessionInput(base).value.joinMode, "instant");
   assert.equal(validateCreateSessionInput({ ...base, joinMode: "instant" }).value.joinMode, "instant");
   const invalid = validateCreateSessionInput({ ...base, joinMode: "bogus" });
   assert.equal(invalid.valid, false);
@@ -104,7 +104,7 @@ test("booked and walk-on creation keep candidate-only fields null while preservi
       candidateCourtIds: null,
       courtId: 101,
       feeNote: "每人 150 元，現場平分",
-      joinMode: "approval",
+      joinMode: "instant",
       ntrpMax: null,
       ntrpMin: null,
       notes: null,

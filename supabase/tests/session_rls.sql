@@ -191,7 +191,7 @@ begin
 end;
 $$;
 
-select plan(464);
+select plan(465);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -4419,7 +4419,20 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009003', true);
-select ok(pg_temp.text_outcome($$select public.set_court_subscriptions(array(select id from public.courts where is_active and city = '台北市' order by id limit 11))$$) like 'ERROR:INVALID_TRANSITION%', 'set_court_subscriptions rejects eleven requested courts');
+select is(
+  public.set_court_subscriptions(array(select id from public.courts where is_active and city = '台北市' order by id)),
+  'OK',
+  'set_court_subscriptions accepts every active Taipei court'
+);
+select ok(
+  pg_temp.text_outcome($$
+    select public.set_court_subscriptions(
+      array(select id from public.courts where is_active and city = '台北市' order by id)
+      || array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]
+    )
+  $$) like 'ERROR:INVALID_TRANSITION%',
+  'set_court_subscriptions rejects a request above the active Taipei court count'
+);
 reset role;
 
 set local role authenticated;
