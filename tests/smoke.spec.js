@@ -2228,6 +2228,28 @@ test("390px toolbar contains its content and never intersects the following cont
   expect(runtimeErrors).toEqual([]);
 });
 
+test("390px player layer actions are at least 44px", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const targetGroups = [
+    page.locator(".player-layer-actions button"),
+    page.locator(".app-brand, .filter-control :is(select, input), .site-link"),
+  ];
+  for (const targets of targetGroups) {
+    const count = await targets.count();
+    expect(count, "the app-owned touch-target scan must be nonempty").toBeGreaterThan(0);
+    for (let index = 0; index < count; index += 1) {
+      const box = await targets.nth(index).boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("390px primary map, filter, and chat governance targets are at least 44px", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

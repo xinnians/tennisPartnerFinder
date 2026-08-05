@@ -1654,6 +1654,20 @@ export function openSessionChatSheet(
   const announcement = mounted.root.querySelector("[data-chat-announcement]");
   let feedInitialized = false;
   let knownMessageIds = new Set();
+  let scrollRequestId = 0;
+
+  function scrollFeedToLatest() {
+    const requestId = ++scrollRequestId;
+    const scroll = () => {
+      if (requestId !== scrollRequestId || !mounted.root.contains(feed)) return;
+      feed.scrollTop = feed.scrollHeight;
+    };
+    scroll();
+    requestAnimationFrame(() => {
+      scroll();
+      requestAnimationFrame(scroll);
+    });
+  }
 
   function setArchived(message = "") {
     archived = true;
@@ -1666,6 +1680,7 @@ export function openSessionChatSheet(
       error.hidden = false;
       error.focus({ preventScroll: true });
     }
+    scrollFeedToLatest();
   }
 
   function setState({ errorMessage = "", messages = [], roster: participants = [], status = "ready" } = {}) {
@@ -1676,7 +1691,7 @@ export function openSessionChatSheet(
     error.hidden = !errorMessage;
     roster.innerHTML = chatRosterMarkup(participants);
     feed.innerHTML = chatMessagesMarkup(safeMessages);
-    feed.scrollTop = feed.scrollHeight;
+    scrollFeedToLatest();
     if (status === "ready") {
       const nextMessageIds = new Set(
         safeMessages.map((message) => String(message?.messageId ?? "")).filter(Boolean)

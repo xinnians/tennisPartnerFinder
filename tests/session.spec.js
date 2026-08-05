@@ -81,6 +81,22 @@ async function switchBrowserSessionWithoutReload(page, session) {
   }, session);
 }
 
+async function expectChatFeedAtBottom(chat) {
+  const metrics = await chat.locator("[data-chat-feed]").evaluate((feed) => ({
+    clientHeight: feed.clientHeight,
+    scrollHeight: feed.scrollHeight,
+    scrollTop: feed.scrollTop,
+  }));
+  expect(metrics.scrollHeight, "chat history must overflow to exercise the real scroll container").toBeGreaterThan(
+    metrics.clientHeight
+  );
+  expect(
+    metrics.scrollTop + metrics.clientHeight,
+    `chat feed must end at the latest message: ${JSON.stringify(metrics)}`
+  ).toBeGreaterThanOrEqual(metrics.scrollHeight - 1);
+  return metrics;
+}
+
 async function createCompleteActor(actor) {
   const { client, session } = await signUpUser(actor.email);
   const profileId = await createProfile(client, {
@@ -1333,26 +1349,59 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
     participantId: guestRequest.participant_id,
     sessionId,
   });
+  const historyBodies = Array.from(
+    { length: 3 },
+    (_, index) => `歷史訊息 ${index + 1}：請記得帶球拍、水與毛巾，球場見。`
+  );
+  for (const body of historyBodies) {
+    const { error } = await host.client.rpc("post_session_message", {
+      p_body: body,
+      p_session_id: sessionId,
+    });
+    if (error) throw error;
+  }
 
+  await page.setViewportSize({ width: 1280, height: 1080 });
   await gotoWithSession(page, host.session);
   await page.getByTestId("my-sessions-tab").click();
+  // Local 字型已在開啟前完成載入；刻意重現 preview 晚一幀的 sheet reflow，驗證最終排版。
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector("[data-chat-message]")) return;
+      observer.disconnect();
+      requestAnimationFrame(() => {
+        const roster = document.querySelector(".chat-roster");
+        if (!roster) return;
+        roster.style.paddingBottom = "48px";
+        requestAnimationFrame(() => {
+          roster.dataset.lateLayoutReady = "true";
+        });
+      });
+    });
+    observer.observe(document.getElementById("sheet-root"), { childList: true, subtree: true });
+  });
   await page.getByTestId(`open-chat-${sessionId}`).click();
   const chat = page.getByTestId("session-chat-sheet");
   await expect(chat).toBeVisible();
   await expect(chat.locator("[data-chat-roster]")).toContainText(context.host.nickname);
   await expect(chat.locator("[data-chat-roster]")).toContainText(context.guest.nickname);
+  await expect(chat.getByText(historyBodies.at(-1), { exact: true })).toBeVisible();
+  await expect(chat.locator(".chat-roster")).toHaveAttribute("data-late-layout-ready", "true");
+  await expectChatFeedAtBottom(chat);
   const unsafeBody = `球場見 <b>${context.runId}</b> & 喝水`;
   await chat.getByTestId("chat-message-input").fill(unsafeBody);
   await chat.getByTestId("chat-send").click();
   await expect(chat.getByText(unsafeBody)).toBeVisible();
   await expect(chat.locator("b")).toHaveCount(0);
+  await expectChatFeedAtBottom(chat);
 
   await switchBrowserSession(page, guest.session);
   await page.getByTestId("my-sessions-tab").click();
   await page.getByTestId(`open-chat-${sessionId}`).click();
   await expect(chat.getByText(unsafeBody)).toBeVisible();
   await expect(chat.locator("b")).toHaveCount(0);
-  await chat.getByTestId(`block-message-sender-${host.profileId}`).click();
+  await expectChatFeedAtBottom(chat);
+  await chat.getByTestId(`block-message-sender-${host.profileId}`).last().click();
   await expect(chat.getByText(unsafeBody)).toHaveCount(0);
   await chat.locator("[data-surface-close]").click();
   const blockedRow = page.getByTestId(`blocked-player-${host.profileId}`);
@@ -1385,5 +1434,11 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
   await expect(chat).toContainText("這個球局已封存，無法再傳送訊息。");
   await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
   await expect(chat.getByText(unsafeBody)).toBeVisible();
+  await expectChatFeedAtBottom(chat);
+  await chat.locator("[data-surface-close]").click();
+  await page.getByTestId(`open-chat-${sessionId}`).click();
+  await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
+  await expect(chat.getByText(unsafeBody)).toBeVisible();
+  await expectChatFeedAtBottom(chat);
   expect(runtimeErrors).toEqual([]);
 });
