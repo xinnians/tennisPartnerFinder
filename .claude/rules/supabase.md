@@ -31,7 +31,7 @@ role 不可讀寫。
 - 通知設定：本人 `notification_prefs`（六個 enabled 欄）、`court_subscriptions` 的
   explicit-column reads，及 `save_push_subscription`、`remove_push_subscription`、
   `set_notification_prefs`（六參數）、`set_court_subscriptions`（台北市 active 球場、
-  上限 10）RPC。行政區訂閱已於 202607270007 退役（表與 RPC 皆已 drop）。
+  上限為當下符合條件的球場總數）RPC。行政區訂閱已於 202607270007 退役（表與 RPC 皆已 drop）。
 - lifecycle 寫入：`create_session`、`request_to_join_session`、`review_join_request`、
   `invite_to_session`、`respond_to_session_invite`、`update_session`、
   `decide_session_court`、`withdraw_from_session`、`cancel_session`、
@@ -52,7 +52,7 @@ role 不可讀寫。
 
 - `push_subscriptions`、`notification_prefs`、`court_subscriptions` 都是 owner-only；通知
   設定只要求登入，不得藉此取消既有球局／球友目錄的分級 profile gate。球場訂閱只接受台北市
-  active 球場（上限 10），browser 只以既有 RPC 儲存。
+  active 球場（上限為當下符合條件的球場總數），browser 只以既有 RPC 儲存。
 - `notification_outbox` 是 service-only queue：anon 與 authenticated 不可 select、insert、
   update、delete，也不可新增 browser view 或 RPC 旁路。它的欄位順序與 payload allowlist 受
   pgTAP 守護。

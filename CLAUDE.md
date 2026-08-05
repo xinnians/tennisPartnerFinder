@@ -100,7 +100,7 @@ linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁�
 - Web Push 事件共十種：主揪新申請、guest 申請結果、guest 收到邀請、訂閱球場新球局、
   球局變更、候選定案、球局取消、群訊、開打前提醒、催定案提醒。前三者與球局變更、群訊、
   開打前提醒可由本人偏好關閉（`notification_prefs` 六欄）；定案與取消恆送。新球局廣播依
-  `court_subscriptions`（台北市 active 球場、上限 10）派送；行政區訂閱已退役。
+  `court_subscriptions`（台北市 active 球場、上限為當下符合條件的球場總數）派送；行政區訂閱已退役。
   通知是 best-effort，outbox 寫入失敗不可中斷球局 RPC。
 - 分享／推播深連結使用 `#/session/:id`：進入地圖並開啟該局 sheet；不存在或已下架要顯示
   明確 empty sheet，登入或對應的三級 gate 仍沿用既有 intent。
