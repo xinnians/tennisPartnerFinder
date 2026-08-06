@@ -2564,9 +2564,9 @@ test("profile and create sheets disclose public nickname use and retain a local-
     "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。"
   );
   const requiredOrder = await form
-    .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-total']")
+    .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-1']")
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")));
-  expect(requiredOrder).toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-total"]);
+  expect(requiredOrder).toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-1"]);
 
   await form.getByTestId("session-now-start").click();
   await expect(form.getByTestId("session-start-at")).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
@@ -2574,7 +2574,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await form.getByTestId("session-court").selectOption("8");
   await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
   await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-total").selectOption("1");
+  await form.getByTestId("session-slots-1").check();
   await form.getByTestId("session-submit").click();
   await expect(form.getByRole("alert")).toContainText("本機示範資料僅供瀏覽");
   await expect(createSheet).toBeVisible();
@@ -2785,8 +2785,8 @@ test("create sheet progressively discloses all three venue types and submits can
   await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
   await form.getByTestId("session-range-end").fill("2099-07-18T12:00");
   await form.getByTestId("session-play-type").selectOption("雙打");
-  await expect(form.getByTestId("session-slots-total")).toHaveValue("3");
-  await form.getByTestId("session-slots-total").selectOption("2");
+  await expect(form.getByTestId("session-slots-3")).toBeChecked();
+  await form.getByTestId("session-slots-2").check();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 150 元");
   await form.getByTestId("session-submit").click();
 
@@ -2975,7 +2975,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await expect(createCourts).toBeDisabled();
   await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
   await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-total").selectOption("2");
+  await form.getByTestId("session-slots-2").check();
   await form.locator("#session-ntrp-min").fill("3.0");
   await form.locator("#session-ntrp-max").fill("4.0");
   await form.locator("#session-notes").fill("保留這段草稿");
@@ -2992,7 +2992,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await expect(createCourts.locator("option")).toHaveText(["請選擇球場", "示範球場 · 大安區"]);
   await expect(form.getByTestId("session-start-at")).toHaveValue("2099-07-18T09:30");
   await expect(form.getByTestId("session-play-type")).toHaveValue("單打");
-  await expect(form.getByTestId("session-slots-total")).toHaveValue("2");
+  await expect(form.getByTestId("session-slots-2")).toBeChecked();
   await expect(form.locator("#session-ntrp-min")).toHaveValue("3.0");
   await expect(form.locator("#session-ntrp-max")).toHaveValue("4.0");
   await expect(form.locator("#session-notes")).toHaveValue("保留這段草稿");
@@ -3370,4 +3370,133 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
     ["chat", "8201"],
     ["unblock", "92"],
   ]);
+});
+
+test("the create form asks about the venue situation and offers three play types and slot buttons", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+      onSubmit: async (input) => {
+        window.__createdInput = input;
+      },
+    });
+  });
+
+  const createSheet = page.locator("#session-create-modal");
+  const form = createSheet.getByTestId("session-form");
+
+  // B-1：第一題改問處境，三個 value 與 testid 不變。
+  await expect(form.locator("legend").first()).toHaveText("場地確定了嗎？");
+  await expect(form.getByTestId("session-venue-booked")).toHaveValue("booked");
+  await expect(form.getByTestId("session-venue-walk-on")).toHaveValue("walk_on");
+  await expect(form.getByTestId("session-venue-candidates")).toHaveValue("candidates");
+  await expect(createSheet).toContainText("已訂好場地");
+  await expect(createSheet).toContainText("球場確定，但要現場排隊");
+  await expect(createSheet).toContainText("還沒確定，先列候選");
+  await expect(createSheet).toContainText("公共球場現場輪流，人到齊不保證馬上有場地。");
+
+  // B-3：建局打法三個（正向量前提在先，反向斷言才有意義）。
+  const playTypeOptions = form.getByTestId("session-play-type").locator("option:not([value=''])");
+  await expect(playTypeOptions).toHaveCount(3);
+  await expect(playTypeOptions).toHaveText(["單打", "雙打", "練球"]);
+  await expect(form.getByTestId("session-play-type").locator("option[value='對拉']")).toHaveCount(0);
+  await expect(createSheet).toContainText("練球｜餵球、對拉、發球等不計分的練習。");
+
+  // B-4：缺額三顆按鈕與文案。
+  const slotButtons = form.locator(".slots-options label");
+  await expect(slotButtons).toHaveCount(3);
+  await expect(createSheet).toContainText("不含你自己。");
+
+  // 單打→1、雙打→3 的連動保留。
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await expect(form.getByTestId("session-slots-1")).toBeChecked();
+  await form.getByTestId("session-play-type").selectOption("雙打");
+  await expect(form.getByTestId("session-slots-3")).toBeChecked();
+
+  // 手動改選仍送得出正確的值。
+  await form.getByTestId("session-slots-2").check();
+  await form.getByTestId("session-court").selectOption("8");
+  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  await form.getByTestId("session-submit").click();
+  await expect.poll(() => page.evaluate(() => window.__createdInput?.slotsTotal)).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__createdInput?.playType)).toBe("雙打");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("an existing 對拉 session still saves from the edit form while new sessions cannot pick it", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openEditSessionSheet } = await import("/src/sessionViews.js");
+    openEditSessionSheet(
+      {
+        courtId: 8,
+        feeNote: "",
+        notes: "",
+        ntrpMax: null,
+        ntrpMin: null,
+        playType: "對拉",
+        sessionId: 4242,
+        slotsTotal: 2,
+        startAt: "2099-07-18T01:30:00.000Z",
+        venueType: "booked",
+      },
+      {
+        courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+        onSubmit: async (input) => {
+          window.__editedInput = input;
+        },
+      }
+    );
+  });
+
+  const editForm = page.getByTestId("session-edit-form");
+  const options = editForm.getByTestId("session-edit-play-type").locator("option");
+  // 正向前提：三個新選項在；額外那一個才是為既有球局保留的。
+  await expect(options).toHaveText(["單打", "雙打", "練球", "對拉"]);
+  await expect(editForm.getByTestId("session-edit-play-type")).toHaveValue("對拉");
+
+  // 只改缺額，打法維持「對拉」——前端驗證不得擋下既有球局。
+  await editForm.getByTestId("session-edit-slots-3").check();
+  await editForm.getByTestId("session-edit-submit").click();
+  await expect.poll(() => page.evaluate(() => window.__editedInput?.playType)).toBe("對拉");
+  await expect.poll(() => page.evaluate(() => window.__editedInput?.slotsMissing)).toBe(3);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the profile sheet still offers all four practice types", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    openProfileCompletionSheet({
+      courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+      profile: { courts: new Set(), nick: "測試球友", ntrp: 3.5, slots: new Set(), types: new Set(["對拉"]) },
+    });
+  });
+
+  const sheet = page.locator("#profile-completion-sheet");
+  const typeBoxes = sheet.locator('input[name="profile-types"]');
+  // 建局表單收斂為三種，個人檔案的常打類型必須維持四種。
+  await expect(typeBoxes).toHaveCount(4);
+  await expect(sheet.locator('input[name="profile-types"][value="對拉"]')).toBeChecked();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the type filter offers three chips and no longer lists 對拉", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  const chips = page.locator(".type-chips .chip-type");
+  // 正向前提在先：掃描集非空，下面的 count(0) 才有意義。
+  await expect(chips).toHaveCount(3);
+  await expect(chips).toHaveText(["單打", "雙打", "練球"]);
+  await expect(page.locator('.type-chips [data-type="對拉"]')).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
 });

@@ -446,7 +446,7 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   await form.getByTestId("session-court").selectOption(String(courtId));
   await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
   await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-total").selectOption("1");
+  await form.getByTestId("session-slots-1").check();
   await form.getByTestId("session-submit").click();
 
   await expect(page.locator("#my-sessions-page")).toBeVisible();
@@ -617,8 +617,8 @@ test("a host edits a single-court session and sees authoritative card and detail
     new Date(updatedStart.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16)
   );
   await form.getByTestId("session-edit-play-type").selectOption("雙打");
-  await expect(form.getByTestId("session-edit-slots")).toHaveValue("3");
-  await form.getByTestId("session-edit-slots").selectOption("2");
+  await expect(form.getByTestId("session-edit-slots-3")).toBeChecked();
+  await form.getByTestId("session-edit-slots-2").check();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 200");
   await form.getByLabel("備註（選填，最多 500 字）").fill(updatedNotes);
   await form.getByTestId("session-edit-submit").click();
@@ -651,7 +651,7 @@ test("a host creates a now-start direct session in the form, then a guest joins 
   await form.getByTestId("session-now-start").click();
   await expect(form.getByTestId("session-start-at")).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
   await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-total").selectOption("1");
+  await form.getByTestId("session-slots-1").check();
   await form.locator("input[name='joinMode'][value='instant']").check();
   await form.getByLabel("備註（選填，最多 500 字）").fill(notes);
   await form.getByTestId("session-submit").click();

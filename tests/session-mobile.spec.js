@@ -192,3 +192,40 @@ test("a 390px invited player can accept the invite card and open group chat", as
   await expect(page.locator("#session-chat-sheet")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
+
+test("every create-form control keeps a 44px touch target at 390px", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+
+  await installFakeMaps(page);
+  await setBrowserSession(page, host.session);
+  await page.goto("/");
+  await page.getByTestId("create-session-tab").click();
+  const createSheet = page.locator("#session-create-modal");
+  await expect(createSheet).toBeVisible();
+
+  // 另立一條守衛而不是擴充「我」頁那條：兩者 root 不同、開啟前提不同，混在一起會讓失敗歸因困難。
+  // 範圍是本批改寫的兩組選項，掃區塊內全部 label 而不列舉 testid——往後這兩組加選項會自動納入。
+  // 建局表單其餘控件（關閉鈕、球場 select、現在開打）本來就不足 44px，那是既有缺口，不在本批範圍。
+  const controls = createSheet.locator(".option-grid--stacked label, .slots-options label");
+  const undersized = async () =>
+    (
+      await controls.evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          return {
+            height: Math.round(box.height),
+            label: element.querySelector("input")?.getAttribute("data-testid") ?? element.tagName.toLowerCase(),
+            width: Math.round(box.width),
+          };
+        })
+      )
+    ).filter((box) => box.width < 44 || box.height < 44);
+
+  await expect.poll(async () => await controls.count()).toBeGreaterThanOrEqual(6);
+  await expect
+    .poll(undersized, { message: "390px 下建局表單全部互動控件必須 ≥44×44" })
+    .toEqual([]);
+  expect(runtimeErrors).toEqual([]);
+});

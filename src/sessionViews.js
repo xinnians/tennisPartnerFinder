@@ -331,7 +331,10 @@ export function renderMePage(
   syncPendingMySessionActions(root);
 }
 
-const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
+// 新球局不再提供「對拉」（它的語意併入「練球」）。編輯仍須接受四值：DB 的 CHECK 沒變，
+// 既有的對拉球局若在這裡被擋下，主揪連改時間都存不回去。
+const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "練球"]);
+const EDIT_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
 const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
 const NOW_START_CREATE_GRACE_MS = 5 * 60 * 1000;
 
@@ -482,7 +485,7 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
   const startAt = taipeiLocalDateTimeToIso(input.startAtLocal);
 
   if (courtId == null) errors.courtId = "請選擇台北市球場。";
-  if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
+  if (!EDIT_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
   if (!Number.isInteger(slotsMissing) || slotsMissing < 1 || slotsMissing > 3) errors.slotsMissing = "缺額請填 1 到 3 位。";
   if (!startAt || new Date(startAt).getTime() < new Date(now).getTime() - NOW_START_CREATE_GRACE_MS) {
     errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
@@ -2125,7 +2128,11 @@ export function openReportDialog({ targetLabel = "這個項目", onClose = () =>
   return mounted;
 }
 
+// 個人檔案的「常打類型」維持四值：既有使用者已勾選的「對拉」不該因為建局表單收斂而消失。
 const PROFILE_PLAY_TYPES = ["單打", "雙打", "對拉", "練球"];
+// 建局表單只提供三種；「對拉」的語意由「練球」涵蓋。
+const CREATE_SESSION_PLAY_TYPES = ["單打", "雙打", "練球"];
+const PLAY_TYPE_HINT = "單打｜一對一。雙打｜二對二。練球｜餵球、對拉、發球等不計分的練習。";
 const PROFILE_SLOTS = [
   ["wd-m", "平日早上"],
   ["wd-a", "平日下午"],
@@ -2376,19 +2383,24 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
         <button type="button" class="surface__close" data-surface-close aria-label="關閉開球局">×</button>
       </div>
       <form class="create-session-form" data-testid="session-form" novalidate>
-        <fieldset class="form-fieldset"><legend>場地類型</legend><div class="option-grid">
-          <label><input type="radio" name="venueType" value="booked" data-testid="session-venue-booked" checked /> 已訂場</label>
-          <label><input type="radio" name="venueType" value="walk_on" data-testid="session-venue-walk-on" /> 現場等場</label>
-          <label><input type="radio" name="venueType" value="candidates" data-testid="session-venue-candidates" /> 候選局</label>
+        <fieldset class="form-fieldset"><legend>場地確定了嗎？</legend><div class="option-grid option-grid--stacked">
+          <label><input type="radio" name="venueType" value="booked" data-testid="session-venue-booked" checked /> <span>已訂好場地<small>時間與球場都確定了。</small></span></label>
+          <label><input type="radio" name="venueType" value="walk_on" data-testid="session-venue-walk-on" /> <span>球場確定，但要現場排隊<small>公共球場現場輪流，人到齊不保證馬上有場地。</small></span></label>
+          <label><input type="radio" name="venueType" value="candidates" data-testid="session-venue-candidates" /> <span>還沒確定，先列候選<small>先列 2–3 座候選球場與時間範圍，之後再定案通知大家。</small></span></label>
         </div></fieldset>
         <div class="form-field" data-single-court-fields><label for="session-court">台北市球場</label><select id="session-court" name="courtId" data-testid="session-court" required disabled></select><p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p></div>
         <div class="form-field" data-candidate-court-fields hidden><label for="session-candidate-courts">候選球場（選擇 2–3 座）</label><select id="session-candidate-courts" name="candidateCourtIds" data-testid="session-candidate-courts" multiple size="4" disabled></select><p class="form-hint" data-create-candidate-courts-status role="status" aria-live="polite"></p><p class="form-hint" data-candidate-selection-hint>請選擇 2 到 3 座球場，之後再定案場地與時間。</p></div>
         <div class="form-field"><div class="form-field__label-row"><label for="session-start-at">台北時間</label><button type="button" class="session-secondary" data-now-start data-testid="session-now-start">現在開打</button></div><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></div>
         <label class="form-field" for="session-range-end" data-candidate-range-field hidden><span>時間範圍結束</span><input id="session-range-end" name="rangeEndLocal" data-testid="session-range-end" type="datetime-local" disabled /></label>
-        <label class="form-field" for="session-play-type"><span>打法</span><select id="session-play-type" name="playType" data-testid="session-play-type" required><option value="">請選擇打法</option>${PROFILE_PLAY_TYPES.map(
+        <label class="form-field" for="session-play-type"><span>打法</span><select id="session-play-type" name="playType" data-testid="session-play-type" required><option value="">請選擇打法</option>${CREATE_SESSION_PLAY_TYPES.map(
           (type) => `<option value="${esc(type)}">${esc(type)}</option>`
-        ).join("")}</select></label>
-        <label class="form-field" for="session-slots-total"><span>缺額</span><select id="session-slots-total" name="slotsTotal" data-testid="session-slots-total" required><option value="">請選擇缺額</option><option value="1">1 位</option><option value="2">2 位</option><option value="3">3 位</option></select></label>
+        ).join("")}</select><p class="form-hint">${esc(PLAY_TYPE_HINT)}</p></label>
+        <fieldset class="form-fieldset"><legend>還缺幾位</legend><div class="slots-options">${[1, 2, 3]
+          .map(
+            (value) =>
+              `<label><input type="radio" name="slotsTotal" value="${value}" data-testid="session-slots-${value}" /><span>${value} 位</span></label>`
+          )
+          .join("")}</div><p class="form-hint">不含你自己。</p></fieldset>
         <fieldset class="form-fieldset"><legend>加入方式</legend>
           <label><input type="radio" name="joinMode" value="approval" /> 需審核（你逐一核准申請者）</label>
           <label><input type="radio" name="joinMode" value="instant" checked /> 直接加入（先到先得，立即成局）</label>
@@ -2417,7 +2429,11 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
   const candidateRangeField = mounted.root.querySelector("[data-candidate-range-field]");
   const rangeEndInput = mounted.root.querySelector("[data-testid='session-range-end']");
   const playTypeSelect = mounted.root.querySelector("[data-testid='session-play-type']");
-  const slotsTotalSelect = mounted.root.querySelector("[data-testid='session-slots-total']");
+  const setSlotsTotal = (value) => {
+    mounted.root.querySelectorAll("[name='slotsTotal']").forEach((radio) => {
+      radio.checked = radio.value === String(value);
+    });
+  };
   let availableCourts = courts;
   let courtOptionsReady = courtsReady;
   const selectedCandidateIds = () =>
@@ -2470,9 +2486,8 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
   form?.querySelectorAll("[name='venueType']").forEach((input) => input.addEventListener("change", syncVenueFields));
   candidateCourtSelect?.addEventListener("change", updateCandidateHint);
   playTypeSelect?.addEventListener("change", () => {
-    if (!slotsTotalSelect) return;
-    if (playTypeSelect.value === "單打") slotsTotalSelect.value = "1";
-    if (playTypeSelect.value === "雙打") slotsTotalSelect.value = "3";
+    if (playTypeSelect.value === "單打") setSlotsTotal(1);
+    if (playTypeSelect.value === "雙打") setSlotsTotal(3);
   });
   nowStartButton?.addEventListener("click", () => {
     if (!(startAtInput instanceof HTMLInputElement)) return;
@@ -2642,12 +2657,20 @@ export function openEditSessionSheet(
           taipeiDateTimeLocalValue(session.startAt, { includeMilliseconds: true })
         )}" step="0.001" required /></label>
         <div class="form-field"><label for="session-edit-court">台北市球場</label><select id="session-edit-court" name="courtId" data-testid="session-edit-court" required disabled></select><p class="form-hint" data-edit-courts-status role="status" aria-live="polite"></p></div>
-        <label class="form-field" for="session-edit-play-type"><span>打法</span><select id="session-edit-play-type" name="playType" data-testid="session-edit-play-type" required>${PROFILE_PLAY_TYPES.map(
-          (type) => `<option value="${esc(type)}"${type === session.playType ? " selected" : ""}>${esc(type)}</option>`
-        ).join("")}</select></label>
-        <label class="form-field" for="session-edit-slots"><span>缺額</span><select id="session-edit-slots" name="slotsMissing" data-testid="session-edit-slots" required>${[1, 2, 3]
-          .map((value) => `<option value="${value}"${Number(session.slotsTotal) === value ? " selected" : ""}>${value} 位</option>`)
-          .join("")}</select></label>
+        <label class="form-field" for="session-edit-play-type"><span>打法</span><select id="session-edit-play-type" name="playType" data-testid="session-edit-play-type" required>${(session.playType === "對拉"
+          ? [...CREATE_SESSION_PLAY_TYPES, "對拉"]
+          : CREATE_SESSION_PLAY_TYPES
+        )
+          .map((type) => `<option value="${esc(type)}"${type === session.playType ? " selected" : ""}>${esc(type)}</option>`)
+          .join("")}</select><p class="form-hint">${esc(PLAY_TYPE_HINT)}</p></label>
+        <fieldset class="form-fieldset"><legend>還缺幾位</legend><div class="slots-options">${[1, 2, 3]
+          .map(
+            (value) =>
+              `<label><input type="radio" name="slotsMissing" value="${value}" data-testid="session-edit-slots-${value}"${
+                Number(session.slotsTotal) === value ? " checked" : ""
+              } /><span>${value} 位</span></label>`
+          )
+          .join("")}</div><p class="form-hint">不含你自己。</p></fieldset>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-edit-ntrp-min"><span>最低 NTRP</span><input id="session-edit-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
           session.ntrpMin ?? ""
         )}" /></label><label class="form-field" for="session-edit-ntrp-max"><span>最高 NTRP</span><input id="session-edit-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
@@ -2667,7 +2690,11 @@ export function openEditSessionSheet(
   const courtSelect = mounted.root.querySelector("[data-testid='session-edit-court']");
   const courtsStatus = mounted.root.querySelector("[data-edit-courts-status]");
   const playTypeSelect = mounted.root.querySelector("[data-testid='session-edit-play-type']");
-  const slotsSelect = mounted.root.querySelector("[data-testid='session-edit-slots']");
+  const setSlotsMissing = (value) => {
+    mounted.root.querySelectorAll("[name='slotsMissing']").forEach((radio) => {
+      radio.checked = radio.value === String(value);
+    });
+  };
   const submit = mounted.root.querySelector("[data-testid='session-edit-submit']");
   const error = mounted.root.querySelector("[data-edit-error]");
   let availableCourts = courts;
@@ -2682,8 +2709,8 @@ export function openEditSessionSheet(
   };
   setCourts(availableCourts, { ready: optionsReady });
   playTypeSelect?.addEventListener("change", () => {
-    if (playTypeSelect.value === "單打") slotsSelect.value = "1";
-    if (playTypeSelect.value === "雙打") slotsSelect.value = "3";
+    if (playTypeSelect.value === "單打") setSlotsMissing(1);
+    if (playTypeSelect.value === "雙打") setSlotsMissing(3);
   });
   let saving = false;
   form?.addEventListener("submit", async (event) => {
