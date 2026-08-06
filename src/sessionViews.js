@@ -90,7 +90,7 @@ const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
 const DRAWER_ACTION_IDS = new Set(["discovery-reset", "discovery-retry", "drawer-map-retry", "discovery-expand", "discovery-first"]);
 
 export const PROFILE_PUBLIC_DISCLOSURE =
-  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在同一球局的主揪與已接受球友之間互相顯示。";
+  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
 
 const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
 const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -993,7 +993,7 @@ export function renderMySessionsPage(
     ${
       authenticated
         ? ""
-        : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、查看已核准球友的聯絡方式，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
+        : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、進入球局群組聊天，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
     }
     ${needsActionSection}
     ${
@@ -1001,7 +1001,7 @@ export function renderMySessionsPage(
         ? `<section class="player-visibility" aria-label="球友卡">
       <div>
         <h3>球友卡</h3>
-        <p class="form-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。LINE 不會顯示。</p>
+        <p class="form-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。</p>
       </div>
       <button type="button" class="session-secondary" data-my-action="toggle-visibility"
         role="switch" aria-checked="${profileIsPublic ? "true" : "false"}"
@@ -2262,7 +2262,7 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
         <fieldset class="form-fieldset"><legend>加入方式</legend>
           <label><input type="radio" name="joinMode" value="approval" /> 需審核（你逐一核准申請者）</label>
           <label><input type="radio" name="joinMode" value="instant" checked /> 直接加入（先到先得，立即成局）</label>
-          <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。</p>
+          <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。</p>
         </fieldset>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
         <label class="form-field" for="session-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-fee-note" name="feeNote" maxlength="500" rows="2"></textarea></label>
