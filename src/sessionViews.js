@@ -99,12 +99,21 @@ export function renderMePage(
     authSession = null,
     profile = {},
     avatarUrl = "",
+    blockedPlayers = [],
+    blockedPlayersError = "",
+    blockedPlayersStatus = "idle",
+    courts = [],
+    notificationSettings = {},
     onEditProfile = () => {},
+    onEnablePush = () => {},
+    onSaveCourtSubscriptions = () => {},
+    onSaveNotificationPreferences = () => {},
     onSetOpenToGreeting = () => {},
     onSetPresenceSharing = () => {},
     onSignIn = () => {},
     onSignOut = () => {},
     onTogglePlayerVisibility = () => {},
+    onUnblockPlayer = () => {},
     playerVisibility = false,
     presence = {},
     supportHref = "",
@@ -113,6 +122,11 @@ export function renderMePage(
   const authenticated = Boolean(authSession);
   const nickname = String(profile?.nick ?? "").trim() || "球友";
   const presenceSettings = normalizedPresenceSettings(presence);
+  const notification = normalizedNotificationSettings(notificationSettings);
+  const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
+  const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
+    (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
+  );
   void onEditProfile;
   setMySessionActionScope(root, authSession?.user?.id ?? null);
   root.innerHTML = `<div class="me-shell">
@@ -155,7 +169,88 @@ export function renderMePage(
       }> 接受現場問候</label>
       <p class="form-error" data-presence-error role="alert" tabindex="-1" hidden></p>
     </section>
-    <p class="form-error" data-my-sessions-error role="alert" tabindex="-1" hidden></p>`
+    <p class="form-error" data-my-sessions-error role="alert" tabindex="-1" hidden></p>
+    <section class="notification-settings" aria-labelledby="notification-settings-title">
+      <div class="notification-settings__head">
+        <div>
+          <h3 id="notification-settings-title">通知設定</h3>
+          <p class="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
+        </div>
+        <button type="button" class="session-secondary" data-enable-push data-notification-control
+          data-testid="enable-push"${!notification.webPushConfigured || notification.pushStatus === "enabled" || notification.pushStatus === "unsupported" ? " disabled" : ""}>${
+            notification.pushStatus === "enabled" ? "此裝置已開啟" : "開啟推播"
+          }</button>
+      </div>
+      <p class="form-hint notification-settings__hint">${esc(notificationPushHint(notification))}</p>
+      <p class="form-hint">推播開關只影響這台裝置；下方的事件偏好套用到你的帳號。</p>
+      <p class="form-hint notification-settings__ios-hint">若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。</p>
+      <p class="form-error" data-notification-error role="alert" tabindex="-1"${notification.errorMessage ? "" : " hidden"}>${esc(
+        notification.errorMessage
+      )}</p>
+      <fieldset class="notification-settings__fieldset">
+        <legend>事件通知</legend>
+        <label><input type="checkbox" data-notification-pref="hostNewRequestEnabled" data-notification-control data-testid="notification-host-new-request"${
+          notification.prefs.hostNewRequestEnabled ? " checked" : ""
+        }> 有人申請我的球局</label>
+        <label><input type="checkbox" data-notification-pref="guestRequestReviewedEnabled" data-notification-control data-testid="notification-guest-request-reviewed"${
+          notification.prefs.guestRequestReviewedEnabled ? " checked" : ""
+        }> 加入申請被處理</label>
+        <label><input type="checkbox" data-notification-pref="guestInvitedEnabled" data-notification-control data-testid="notification-guest-invited"${
+          notification.prefs.guestInvitedEnabled ? " checked" : ""
+        }> 收到球局邀請</label>
+        <label><input type="checkbox" data-notification-pref="sessionUpdatedEnabled" data-notification-control data-testid="notification-session-updated"${
+          notification.prefs.sessionUpdatedEnabled ? " checked" : ""
+        }> 球局資訊變更</label>
+        <label><input type="checkbox" data-notification-pref="chatMessageEnabled" data-notification-control data-testid="notification-chat-message"${
+          notification.prefs.chatMessageEnabled ? " checked" : ""
+        }> 群組有新訊息</label>
+        <label><input type="checkbox" data-notification-pref="sessionReminderEnabled" data-notification-control data-testid="notification-session-reminder"${
+          notification.prefs.sessionReminderEnabled ? " checked" : ""
+        }> 開打前提醒</label>
+        <p class="form-hint">場地時間定案與球局取消一定會通知，無法關閉。</p>
+      </fieldset>
+      <fieldset class="notification-settings__fieldset">
+        <legend>訂閱球場的新球局</legend>
+        <p class="form-hint">可複選台北市球場；只有所選球場的新球局會通知你。</p>
+        <select class="notification-settings__court-select" data-notification-courts data-notification-control
+          data-testid="notification-court-subscriptions" aria-label="訂閱球場" multiple size="4"${
+            notificationCourts.length ? "" : " disabled"
+          }>${notificationCourts
+            .map(
+              (court) => `<option value="${esc(court.id)}"${notification.courtIds.has(Number(court.id)) ? " selected" : ""}>${esc(
+                court.name
+              )} · ${esc(court.district || "台北市")}</option>`
+            )
+            .join("")}</select>
+        ${notificationCourts.length ? "" : '<p class="form-hint" role="status">球場資料尚未就緒，請稍候。</p>'}
+      </fieldset>
+    </section>
+    <section class="blocked-player-settings" aria-labelledby="blocked-player-settings-title">
+      <div>
+        <h3 id="blocked-player-settings-title">我的封鎖清單</h3>
+        <p class="form-hint">解除封鎖後，系統會重新讀取目前的權威清單。</p>
+      </div>
+      <p class="my-sessions-message" data-blocked-players-status role="status" aria-live="polite"${
+        blockedPlayersStatus === "loading" ? "" : " hidden"
+      }>正在讀取封鎖清單…</p>
+      <p class="form-error" data-blocked-players-error role="alert"${blockedPlayersError ? "" : " hidden"}>${esc(
+        blockedPlayersError
+      )}</p>
+      <div class="blocked-player-list" data-testid="blocked-player-list">${
+        safeBlockedPlayers.length
+          ? safeBlockedPlayers
+              .map(
+                (player) => `<div class="blocked-player-row" data-testid="blocked-player-${esc(player.blockedProfileId)}">
+          <span>${esc(player.blockedNickname || "已封鎖的使用者")}</span>
+          <button type="button" class="session-secondary" data-my-action="unblock" data-profile-id="${esc(
+            player.blockedProfileId
+          )}" data-testid="unblock-player-${esc(player.blockedProfileId)}">解除封鎖</button>
+        </div>`
+              )
+              .join("")
+          : '<p class="surface__copy">目前沒有封鎖任何人。</p>'
+      }</div>
+    </section>`
         : ""
     }
     <section class="me-service-links" aria-labelledby="me-service-title">
@@ -177,6 +272,53 @@ export function renderMePage(
     const previousChecked = !input.checked;
     void runPresenceSettingAction(root, () => onSetOpenToGreeting(input.checked)).then((saved) => {
       if (!saved) input.checked = previousChecked;
+    });
+  });
+  root.querySelector("[data-enable-push]")?.addEventListener("click", () => {
+    void runNotificationSettingAction(root, onEnablePush);
+  });
+  root.querySelectorAll("[data-notification-pref]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const previousChecked = !input.checked;
+      const preferences = {
+        chatMessageEnabled: root.querySelector('[data-notification-pref="chatMessageEnabled"]')?.checked === true,
+        hostNewRequestEnabled: root.querySelector('[data-notification-pref="hostNewRequestEnabled"]')?.checked === true,
+        guestRequestReviewedEnabled: root.querySelector('[data-notification-pref="guestRequestReviewedEnabled"]')?.checked === true,
+        guestInvitedEnabled: root.querySelector('[data-notification-pref="guestInvitedEnabled"]')?.checked === true,
+        sessionReminderEnabled: root.querySelector('[data-notification-pref="sessionReminderEnabled"]')?.checked === true,
+        sessionUpdatedEnabled: root.querySelector('[data-notification-pref="sessionUpdatedEnabled"]')?.checked === true,
+      };
+      void runNotificationSettingAction(root, () => onSaveNotificationPreferences(preferences)).then((saved) => {
+        if (!saved) input.checked = previousChecked;
+      });
+    });
+  });
+  const courtSubscriptions = root.querySelector("[data-notification-courts]");
+  courtSubscriptions?.addEventListener("change", () => {
+    const courtIds = [...courtSubscriptions.selectedOptions].map((option) => Number(option.value));
+    const restoreCourtSelection = () => {
+      [...courtSubscriptions.options].forEach((option) => {
+        option.selected = notification.courtIds.has(Number(option.value));
+      });
+    };
+    if (courtIds.length > notificationCourts.length) {
+      restoreCourtSelection();
+      const error = root.querySelector("[data-notification-error]");
+      if (error) {
+        error.textContent = "訂閱球場數量超過目前可選的台北市球場。";
+        error.hidden = false;
+      }
+      return;
+    }
+    void runNotificationSettingAction(root, () => onSaveCourtSubscriptions(courtIds)).then((saved) => {
+      if (!saved) restoreCourtSelection();
+    });
+  });
+  // 解除封鎖獨立綁定，不沿用 My Sessions 的 [data-my-action] 委派迴圈——那個迴圈同時處理
+  // 球局卡片動作，整段複製過來會把不屬於本頁的動作一併帶進來。
+  root.querySelectorAll('[data-my-action="unblock"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      runMySessionAction(button, () => onUnblockPlayer(button.dataset.profileId), root);
     });
   });
   syncPendingMySessionActions(root);
@@ -1018,9 +1160,6 @@ async function runPresenceSettingAction(root, callback) {
 export function renderMySessionsPage(
   root,
   {
-    blockedPlayers = [],
-    blockedPlayersError = "",
-    blockedPlayersStatus = "idle",
     courts = [],
     createdSessionId = null,
     groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
@@ -1042,9 +1181,6 @@ export function renderMySessionsPage(
     onReportParticipant = () => {},
     onReportSession = () => {},
     onSignIn = () => {},
-    onSaveCourtSubscriptions = () => {},
-    onSaveNotificationPreferences = () => {},
-    onUnblockPlayer = () => {},
     onWithdraw = () => {},
     authenticated = false,
     actionScopeKey = null,
@@ -1057,10 +1193,6 @@ export function renderMySessionsPage(
   const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
   const history = Array.isArray(groups.history) ? groups.history : [];
   const notification = normalizedNotificationSettings(notificationSettings);
-  const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
-  const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
-    (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
-  );
   const needsActionSection = `<section class="my-sessions-section" aria-labelledby="my-needs-action-title">
       <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
       <div id="my-needs-action" class="my-sessions-list">${
@@ -1102,90 +1234,6 @@ export function renderMySessionsPage(
         : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、進入球局群組聊天，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
     }
     ${needsActionSection}
-    ${
-      authenticated
-        ? `<section class="notification-settings" aria-labelledby="notification-settings-title">
-      <div class="notification-settings__head">
-        <div>
-          <h3 id="notification-settings-title">通知設定</h3>
-          <p class="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
-        </div>
-        <button type="button" class="session-secondary" data-enable-push data-notification-control
-          data-testid="enable-push"${!notification.webPushConfigured || notification.pushStatus === "enabled" || notification.pushStatus === "unsupported" ? " disabled" : ""}>${
-            notification.pushStatus === "enabled" ? "此裝置已開啟" : "開啟推播"
-          }</button>
-      </div>
-      <p class="form-hint notification-settings__hint">${esc(notificationPushHint(notification))}</p>
-      <p class="form-hint notification-settings__ios-hint">若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。</p>
-      <p class="form-error" data-notification-error role="alert" tabindex="-1"${notification.errorMessage ? "" : " hidden"}>${esc(
-        notification.errorMessage
-      )}</p>
-      <fieldset class="notification-settings__fieldset">
-        <legend>事件通知</legend>
-        <label><input type="checkbox" data-notification-pref="hostNewRequestEnabled" data-notification-control data-testid="notification-host-new-request"${
-          notification.prefs.hostNewRequestEnabled ? " checked" : ""
-        }> 有人申請我的球局</label>
-        <label><input type="checkbox" data-notification-pref="guestRequestReviewedEnabled" data-notification-control data-testid="notification-guest-request-reviewed"${
-          notification.prefs.guestRequestReviewedEnabled ? " checked" : ""
-        }> 加入申請被處理</label>
-        <label><input type="checkbox" data-notification-pref="guestInvitedEnabled" data-notification-control data-testid="notification-guest-invited"${
-          notification.prefs.guestInvitedEnabled ? " checked" : ""
-        }> 收到球局邀請</label>
-        <label><input type="checkbox" data-notification-pref="sessionUpdatedEnabled" data-notification-control data-testid="notification-session-updated"${
-          notification.prefs.sessionUpdatedEnabled ? " checked" : ""
-        }> 球局資訊變更</label>
-        <label><input type="checkbox" data-notification-pref="chatMessageEnabled" data-notification-control data-testid="notification-chat-message"${
-          notification.prefs.chatMessageEnabled ? " checked" : ""
-        }> 群組有新訊息</label>
-        <label><input type="checkbox" data-notification-pref="sessionReminderEnabled" data-notification-control data-testid="notification-session-reminder"${
-          notification.prefs.sessionReminderEnabled ? " checked" : ""
-        }> 開打前提醒</label>
-        <p class="form-hint">場地時間定案與球局取消一定會通知，無法關閉。</p>
-      </fieldset>
-      <fieldset class="notification-settings__fieldset">
-        <legend>訂閱球場的新球局</legend>
-        <p class="form-hint">可複選台北市球場；只有所選球場的新球局會通知你。</p>
-        <select class="notification-settings__court-select" data-notification-courts data-notification-control
-          data-testid="notification-court-subscriptions" aria-label="訂閱球場" multiple size="4"${
-            notificationCourts.length ? "" : " disabled"
-          }>${notificationCourts
-            .map(
-              (court) => `<option value="${esc(court.id)}"${notification.courtIds.has(Number(court.id)) ? " selected" : ""}>${esc(
-                court.name
-              )} · ${esc(court.district || "台北市")}</option>`
-            )
-            .join("")}</select>
-        ${notificationCourts.length ? "" : '<p class="form-hint" role="status">球場資料尚未就緒，請稍候。</p>'}
-      </fieldset>
-    </section>
-    <section class="blocked-player-settings" aria-labelledby="blocked-player-settings-title">
-      <div>
-        <h3 id="blocked-player-settings-title">我的封鎖清單</h3>
-        <p class="form-hint">解除封鎖後，系統會重新讀取目前的權威清單。</p>
-      </div>
-      <p class="my-sessions-message" data-blocked-players-status role="status" aria-live="polite"${
-        blockedPlayersStatus === "loading" ? "" : " hidden"
-      }>正在讀取封鎖清單…</p>
-      <p class="form-error" data-blocked-players-error role="alert"${blockedPlayersError ? "" : " hidden"}>${esc(
-        blockedPlayersError
-      )}</p>
-      <div class="blocked-player-list" data-testid="blocked-player-list">${
-        safeBlockedPlayers.length
-          ? safeBlockedPlayers
-              .map(
-                (player) => `<div class="blocked-player-row" data-testid="blocked-player-${esc(player.blockedProfileId)}">
-          <span>${esc(player.blockedNickname || "已封鎖的使用者")}</span>
-          <button type="button" class="session-secondary" data-my-action="unblock" data-profile-id="${esc(
-            player.blockedProfileId
-          )}" data-testid="unblock-player-${esc(player.blockedProfileId)}">解除封鎖</button>
-        </div>`
-              )
-              .join("")
-          : '<p class="surface__copy">目前沒有封鎖任何人。</p>'
-      }</div>
-    </section>`
-        : ""
-    }
     <section class="my-sessions-section" aria-labelledby="my-upcoming-sessions-title">
       <div class="my-sessions-section__head"><h2 id="my-upcoming-sessions-title">即將打球</h2><span>${esc(upcoming.length)} 場</span></div>
       <div id="my-upcoming-sessions" class="my-sessions-list">${
@@ -1215,46 +1263,6 @@ export function renderMySessionsPage(
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
   wireSuccessPushPrompt(root, onEnablePush);
-  root.querySelector("[data-enable-push]")?.addEventListener("click", () => {
-    void runNotificationSettingAction(root, onEnablePush);
-  });
-  root.querySelectorAll("[data-notification-pref]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const previousChecked = !input.checked;
-      const preferences = {
-        chatMessageEnabled: root.querySelector('[data-notification-pref="chatMessageEnabled"]')?.checked === true,
-        hostNewRequestEnabled: root.querySelector('[data-notification-pref="hostNewRequestEnabled"]')?.checked === true,
-        guestRequestReviewedEnabled: root.querySelector('[data-notification-pref="guestRequestReviewedEnabled"]')?.checked === true,
-        guestInvitedEnabled: root.querySelector('[data-notification-pref="guestInvitedEnabled"]')?.checked === true,
-        sessionReminderEnabled: root.querySelector('[data-notification-pref="sessionReminderEnabled"]')?.checked === true,
-        sessionUpdatedEnabled: root.querySelector('[data-notification-pref="sessionUpdatedEnabled"]')?.checked === true,
-      };
-      void runNotificationSettingAction(root, () => onSaveNotificationPreferences(preferences)).then((saved) => {
-        if (!saved) input.checked = previousChecked;
-      });
-    });
-  });
-  const courtSubscriptions = root.querySelector("[data-notification-courts]");
-  courtSubscriptions?.addEventListener("change", () => {
-    const courtIds = [...courtSubscriptions.selectedOptions].map((option) => Number(option.value));
-    const restoreCourtSelection = () => {
-      [...courtSubscriptions.options].forEach((option) => {
-        option.selected = notification.courtIds.has(Number(option.value));
-      });
-    };
-    if (courtIds.length > notificationCourts.length) {
-      restoreCourtSelection();
-      const error = root.querySelector("[data-notification-error]");
-      if (error) {
-        error.textContent = "訂閱球場數量超過目前可選的台北市球場。";
-        error.hidden = false;
-      }
-      return;
-    }
-    void runNotificationSettingAction(root, () => onSaveCourtSubscriptions(courtIds)).then((saved) => {
-      if (!saved) restoreCourtSelection();
-    });
-  });
   root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
   root.querySelectorAll("[data-open-my-session]").forEach((button) => {
     button.addEventListener("click", () => onOpenSession(button.dataset.sessionId));
@@ -1279,7 +1287,6 @@ export function renderMySessionsPage(
         played: () => onMarkPlayed(sessionId),
         "report-participant": () => onReportParticipant(sessionId, profileId),
         "report-session": () => onReportSession(sessionId),
-        unblock: () => onUnblockPlayer(profileId),
         withdraw: () => onWithdraw(sessionId),
       };
       if (button.dataset.myAction === "withdraw") {

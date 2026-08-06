@@ -1010,8 +1010,8 @@ test("authenticated players persist the authoritative court subscription set wit
   expect(availableCourts).toHaveLength(2);
   const selectedCourtIds = availableCourts.map((court) => court.id);
   await gotoWithSession(page, actor.session);
-  await page.getByTestId("my-sessions-tab").click();
-  const settings = page.locator(".notification-settings");
+  await page.getByTestId("me-tab").click();
+  const settings = page.locator("#me-root .notification-settings");
   await expect(settings).not.toContainText("行政區");
   const courtSelect = page.getByTestId("notification-court-subscriptions");
   await expect(courtSelect).toBeEnabled();
@@ -1386,6 +1386,8 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
   await chat.getByTestId(`block-message-sender-${host.profileId}`).last().click();
   await expect(chat.getByText(unsafeBody)).toHaveCount(0);
   await chat.locator("[data-surface-close]").click();
+  // 封鎖清單已搬到「我」頁，解除封鎖要從那裡操作。
+  await page.getByTestId("me-tab").click();
   const blockedRow = page.getByTestId(`blocked-player-${host.profileId}`);
   await expect(blockedRow).toContainText(context.host.nickname);
   await blockedRow.getByTestId(`unblock-player-${host.profileId}`).click();

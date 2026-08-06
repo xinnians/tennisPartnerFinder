@@ -1215,7 +1215,7 @@ test("My Sessions preserves the initiating action and its error across a private
   await page.evaluate(() => window.__rerenderMySessions());
   await expect(cancel).toBeDisabled();
   await page.evaluate(() => window.__releaseMySessionAction());
-  await expect(page.locator("[data-my-sessions-error]")).toContainText("球局狀態暫時無法重新載入");
+  await expect(page.locator("#my-sessions-root [data-my-sessions-error]")).toContainText("球局狀態暫時無法重新載入");
   await expect(cancel).toBeEnabled();
   await expect(cancel).toBeFocused();
   expect(runtimeErrors).toEqual([]);
@@ -1318,7 +1318,7 @@ test("invite response buttons dispatch, stay pending across replacement, and foc
   await page.evaluate(() => window.__rerenderInvite());
   await expect(accept).toBeDisabled();
   await page.evaluate(() => window.__rejectAcceptInvite(new Error("球局狀態已更新，請重新載入。")));
-  const alert = page.locator("[data-my-sessions-error]");
+  const alert = page.locator("#my-sessions-root [data-my-sessions-error]");
   await expect(alert).toContainText("球局狀態已更新，請重新載入");
   await expect(accept).toBeEnabled();
   await expect(alert).toBeFocused();
@@ -1420,13 +1420,29 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
       (node) => node.nextElementSibling?.classList.contains("presence-settings") === true
     )
   ).toBe(true);
+  expect(
+    await page.locator(".presence-settings").evaluate(
+      (node) => node.nextElementSibling?.nextElementSibling?.classList.contains("notification-settings") === true
+    )
+  ).toBe(true);
+  expect(
+    await page.locator(".notification-settings").evaluate(
+      (node) => node.nextElementSibling?.classList.contains("blocked-player-settings") === true
+    )
+  ).toBe(true);
   await expect(page.locator("#my-sessions-root .my-sessions-section")).not.toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='player-visibility-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='presence-sharing-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='open-to-greeting-toggle']")).toHaveCount(0);
+  await expect(page.locator("#my-sessions-root [data-testid='enable-push']")).toHaveCount(0);
+  await expect(page.locator("#my-sessions-root [data-testid='notification-court-subscriptions']")).toHaveCount(0);
+  await expect(page.locator("#my-sessions-root [data-testid='blocked-player-list']")).toHaveCount(0);
   await expect(page.locator("#me-root [data-testid='player-visibility-toggle']")).toHaveCount(1);
   await expect(page.locator("#me-root [data-testid='presence-sharing-toggle']")).toHaveCount(1);
   await expect(page.locator("#me-root [data-testid='open-to-greeting-toggle']")).toHaveCount(1);
+  await expect(page.locator("#me-root [data-testid='enable-push']")).toHaveCount(1);
+  await expect(page.locator("#me-root [data-testid='notification-court-subscriptions']")).toHaveCount(1);
+  await expect(page.locator("#me-root [data-testid='blocked-player-list']")).toHaveCount(1);
 
   await toggle.click();
   await expect.poll(() => page.evaluate(() => window.__visibilityToggleCalls)).toBe(1);
@@ -1473,23 +1489,22 @@ test("Me presence settings explain reciprocal visibility, request sharing, and o
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions notification settings save six preferences and Taipei court subscriptions", async ({ page }) => {
+test("Me notification settings save six preferences and Taipei court subscriptions", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
-    const root = document.getElementById("my-sessions-root");
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
-    document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(root, {
-      authenticated: true,
+    document.getElementById("me-page").hidden = false;
+    renderMePage(root, {
+      authSession: { user: { id: "notification-settings-test" } },
       courts: [
         { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
         { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
         { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
       ],
-      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
       notificationSettings: {
         courtIds: [],
         prefs: {
@@ -1515,9 +1530,10 @@ test("My Sessions notification settings save six preferences and Taipei court su
     });
   });
 
-  const settings = page.locator(".notification-settings");
+  const settings = page.locator("#me-root .notification-settings");
   await expect(settings).toContainText("通知設定");
   await expect(settings).toContainText("加入主畫面");
+  await expect(settings).toContainText("推播開關只影響這台裝置；下方的事件偏好套用到你的帳號。");
   await expect(page.getByTestId("enable-push")).toHaveText("開啟推播");
   await expect(settings).not.toContainText("行政區");
   await expect(page.locator("[data-notification-district]")).toHaveCount(0);
@@ -1546,25 +1562,24 @@ test("My Sessions notification settings save six preferences and Taipei court su
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions notification settings allow every listed Taipei court", async ({ page }) => {
+test("Me notification settings allow every listed Taipei court", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
-    const root = document.getElementById("my-sessions-root");
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
-    document.getElementById("my-sessions-page").hidden = false;
+    document.getElementById("me-page").hidden = false;
     const courts = Array.from({ length: 11 }, (_, index) => ({
       city: "台北市",
       district: `測試區${index + 1}`,
       id: index + 1,
       name: `測試球場${index + 1}`,
     }));
-    renderMySessionsPage(root, {
-      authenticated: true,
+    renderMePage(root, {
+      authSession: { user: { id: "notification-courts-test" } },
       courts,
-      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
       notificationSettings: { courtIds: courts.slice(0, 10).map((court) => court.id) },
       onSaveCourtSubscriptions: async (courtIds) => {
         window.__savedElevenCourts = courtIds;
@@ -1577,7 +1592,7 @@ test("My Sessions notification settings allow every listed Taipei court", async 
   await expect.poll(() => page.evaluate(() => window.__savedElevenCourts)).toEqual(
     Array.from({ length: 11 }, (_, index) => index + 1)
   );
-  await expect(page.locator("[data-notification-error]")).toBeHidden();
+  await expect(page.locator("#me-root [data-notification-error]")).toBeHidden();
   await expect(courtSelect.locator("option:checked")).toHaveCount(11);
   expect(runtimeErrors).toEqual([]);
 });
@@ -1693,7 +1708,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await expect(accountBWithdraw).toBeEnabled();
   await page.evaluate(() => window.__releaseAccountAAction());
   await expect(accountBWithdraw).toBeEnabled();
-  await expect(page.locator("[data-my-sessions-error]")).toBeHidden();
+  await expect(page.locator("#my-sessions-root [data-my-sessions-error]")).toBeHidden();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3202,13 +3217,14 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions exposes chat only to accepted members and manages the authoritative block list", async ({ page }) => {
+test("My Sessions exposes chat only to accepted members while Me owns the authoritative block list", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMePage, renderMySessionsPage } = await import("/src/sessionViews.js");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("my-sessions-page").hidden = false;
+    document.getElementById("me-page").hidden = false;
     const base = {
       canCancel: false,
       canConfirmAttendance: false,
@@ -3224,10 +3240,14 @@ test("My Sessions exposes chat only to accepted members and manages the authorit
       viewerRole: "guest",
     };
     window.__myChatActions = [];
-    renderMySessionsPage(root, {
-      authenticated: true,
+    renderMePage(document.getElementById("me-root"), {
+      authSession: { user: { id: "block-list-test" } },
       blockedPlayers: [{ blockedNickname: "已封鎖球友 <b>", blockedProfileId: 92, createdAt: "2026-08-03T01:00:00Z" }],
       blockedPlayersStatus: "ready",
+      onUnblockPlayer: (profileId) => window.__myChatActions.push(["unblock", profileId]),
+    });
+    renderMySessionsPage(root, {
+      authenticated: true,
       groups: {
         history: [],
         needsAction: [],
@@ -3238,17 +3258,21 @@ test("My Sessions exposes chat only to accepted members and manages the authorit
         ],
       },
       onOpenChat: (sessionId) => window.__myChatActions.push(["chat", sessionId]),
-      onUnblockPlayer: (profileId) => window.__myChatActions.push(["unblock", profileId]),
     });
   });
 
   const root = page.locator("#my-sessions-root");
+  const meRoot = page.locator("#me-root");
   await expect(root.getByTestId("open-chat-8201")).toBeVisible();
   await expect(root.getByTestId("open-chat-8202")).toHaveCount(0);
-  await expect(root.locator("b")).toHaveCount(0);
-  await expect(root.getByText("已封鎖球友 <b>")).toBeVisible();
+  // 封鎖清單已搬到「我」頁，My Sessions 不該再渲染它。
+  await expect(root.getByTestId("blocked-player-list")).toHaveCount(0);
+  await expect(root.getByTestId("unblock-player-92")).toHaveCount(0);
+  await expect(meRoot.getByTestId("blocked-player-list")).toBeVisible();
+  await expect(meRoot.locator("b")).toHaveCount(0);
+  await expect(meRoot.getByText("已封鎖球友 <b>")).toBeVisible();
   await root.getByTestId("open-chat-8201").click();
-  await root.getByTestId("unblock-player-92").click();
+  await meRoot.getByTestId("unblock-player-92").click();
   await expect.poll(() => page.evaluate(() => window.__myChatActions)).toEqual([
     ["chat", "8201"],
     ["unblock", "92"],

@@ -566,9 +566,23 @@ function captureMeFocus(root) {
   if (active.matches('[data-testid="me-sign-in"]')) return { kind: "sign-in" };
   if (active.matches('[data-testid="me-sign-out"]')) return { kind: "sign-out" };
   if (active.matches('[data-my-action="toggle-visibility"]')) return { kind: "player-visibility" };
+  if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
+  if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
+  if (active.matches("[data-notification-courts]")) return { kind: "notification-courts" };
   if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
   if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches(".me-service-links a")) return { href: active.getAttribute("href") ?? "", kind: "service-link" };
+  // 封鎖清單的解除按鈕沒有專屬 selector，與 My Sessions 側一樣靠通用 fallback 接住。
+  // 必須排在 toggle-visibility 之後，否則會把它一併攔走、換掉既有的 kind。
+  if (active.matches("[data-my-action]")) {
+    return {
+      action: active.dataset.myAction,
+      kind: "action",
+      participantId: active.dataset.participantId ?? "",
+      profileId: active.dataset.profileId ?? "",
+      sessionId: active.dataset.sessionId ?? "",
+    };
+  }
   return null;
 }
 
@@ -578,10 +592,26 @@ function resolveMeFocus(root, focus) {
   if (focus.kind === "sign-in") return root.querySelector('[data-testid="me-sign-in"]');
   if (focus.kind === "sign-out") return root.querySelector('[data-testid="me-sign-out"]');
   if (focus.kind === "player-visibility") return root.querySelector('[data-my-action="toggle-visibility"]');
+  if (focus.kind === "enable-push") return root.querySelector("[data-enable-push]");
+  if (focus.kind === "notification-pref") {
+    return [...root.querySelectorAll("[data-notification-pref]")].find(
+      (input) => input.dataset.notificationPref === focus.preference
+    );
+  }
+  if (focus.kind === "notification-courts") return root.querySelector("[data-notification-courts]");
   if (focus.kind === "presence-sharing") return root.querySelector("[data-set-presence-sharing]");
   if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
   if (focus.kind === "service-link") {
     return [...root.querySelectorAll(".me-service-links a")].find((link) => link.getAttribute("href") === focus.href);
+  }
+  if (focus.kind === "action") {
+    return [...root.querySelectorAll("[data-my-action]")].find(
+      (button) =>
+        button.dataset.myAction === focus.action &&
+        String(button.dataset.sessionId ?? "") === String(focus.sessionId) &&
+        String(button.dataset.participantId ?? "") === String(focus.participantId) &&
+        String(button.dataset.profileId ?? "") === String(focus.profileId)
+    );
   }
   return null;
 }
@@ -725,9 +755,6 @@ function renderMySessionsDestination() {
   renderMySessionsPage(root, {
     actionScopeKey: state.viewGeneration,
     authenticated: state.authenticated,
-    blockedPlayers: state.blockedPlayers,
-    blockedPlayersError: state.blockedPlayersError,
-    blockedPlayersStatus: state.blockedPlayersStatus,
     courts,
     createdSessionId,
     errorMessage: state.error,
@@ -757,9 +784,6 @@ function renderMySessionsDestination() {
     onReportParticipant: controller.openRosterParticipantReport,
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
-    onSaveCourtSubscriptions: updateCourtSubscriptions,
-    onSaveNotificationPreferences: updateNotificationPreferences,
-    onUnblockPlayer: controller.unblockPlayer,
     notificationSettings,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
@@ -790,12 +814,21 @@ function renderMeDestination() {
   renderMePage(root, {
     authSession,
     avatarUrl: currentAuthAvatarUrl(),
+    blockedPlayers: state.blockedPlayers,
+    blockedPlayersError: state.blockedPlayersError,
+    blockedPlayersStatus: state.blockedPlayersStatus,
+    courts,
+    notificationSettings,
     onEditProfile: () => {},
+    onEnablePush: enablePushNotifications,
+    onSaveCourtSubscriptions: updateCourtSubscriptions,
+    onSaveNotificationPreferences: updateNotificationPreferences,
     onSetOpenToGreeting: updateOpenToGreetingSetting,
     onSetPresenceSharing: updatePresenceSharing,
     onSignIn: () => openSafeLogin({ action: "me" }),
     onSignOut: handleSignOut,
     onTogglePlayerVisibility: controller?.togglePlayerVisibility,
+    onUnblockPlayer: controller?.unblockPlayer,
     playerVisibility: state.isPublic === true,
     presence: presenceSettingsForProfile(),
     profile: currentProfile ?? defaultProfile(),
@@ -830,8 +863,6 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
     if (activePage === "my-sessions") renderMySessionsDestination();
     else if (activePage === "me") renderMeDestination();
   });
-  void refreshNotificationSettings();
-  void controller.refreshMyPlayerBlocks();
   if (focus) {
     requestAnimationFrame(() => {
       document.querySelector("#my-sessions-root [data-my-sessions-heading]")?.focus({ preventScroll: true });
@@ -849,6 +880,8 @@ function showMePage({ focus = false } = {}) {
   page.hidden = false;
   renderMeDestination();
   if (authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
+  void refreshNotificationSettings();
+  void controller.refreshMyPlayerBlocks();
   if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
 }
 
