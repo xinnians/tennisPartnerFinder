@@ -440,7 +440,7 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
     await route.continue();
   });
   await gotoWithSession(page, session);
-  await page.locator("#open-session").click();
+  await page.getByTestId("create-session-tab").click();
   const form = page.locator("#session-create-modal").getByTestId("session-form");
   await expect(form).toBeVisible();
   await form.getByTestId("session-court").selectOption(String(courtId));
@@ -468,7 +468,7 @@ test("a host creates a candidate session in the form and a guest joins it", asyn
   const taipeiInput = (date) => new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
   await gotoWithSession(page, host.session);
-  await page.locator("#open-session").click();
+  await page.getByTestId("create-session-tab").click();
   const form = page.locator("#session-create-modal").getByTestId("session-form");
   await expect(form).toBeVisible();
   await form.getByTestId("session-venue-candidates").check();
@@ -534,7 +534,7 @@ test("a host decides a candidate session into one solid pin and the database rec
   const notes = `decision-ui-${context.runId}`;
 
   await gotoWithSession(page, host.session);
-  await page.locator("#open-session").click();
+  await page.getByTestId("create-session-tab").click();
   const createForm = page.locator("#session-create-modal").getByTestId("session-form");
   await createForm.getByTestId("session-venue-candidates").check();
   await createForm.getByTestId("session-candidate-courts").selectOption([String(firstCourtId), String(secondCourtId)]);
@@ -644,7 +644,7 @@ test("a host creates a now-start direct session in the form, then a guest joins 
   const notes = `now-start-${context.runId}`;
 
   await gotoWithSession(page, host.session);
-  await page.locator("#open-session").click();
+  await page.getByTestId("create-session-tab").click();
   const form = page.locator("#session-create-modal").getByTestId("session-form");
   await expect(form).toBeVisible();
   await form.getByTestId("session-court").selectOption(String(courtId));
@@ -960,19 +960,37 @@ test("after a session starts, the host can report it played and an accepted gues
   await expect(page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`)).toHaveCount(0);
 });
 
-test("signing out clears the private session view and restores the signed-out prompt", async ({ page }) => {
-  const { hostSession, sessionId } = await createPublishedSession();
+test("the authenticated Me identity card shows the profile and signing out restores its anonymous prompt", async ({ page }) => {
+  const { context, hostSession: initialHostSession, sessionId } = await createPublishedSession();
+  const authClient = makeClient();
+  const { error: setSessionError } = await authClient.auth.setSession({
+    access_token: initialHostSession.access_token,
+    refresh_token: initialHostSession.refresh_token,
+  });
+  if (setSessionError) throw setSessionError;
+  const { error: avatarError } = await authClient.auth.updateUser({
+    data: { avatar_url: "https://lh3.googleusercontent.com/a/batch-2-me" },
+  });
+  if (avatarError) throw avatarError;
+  const { data: refreshedAuth, error: refreshError } = await authClient.auth.refreshSession();
+  if (refreshError) throw refreshError;
+  const hostSession = refreshedAuth.session;
 
   await gotoWithSession(page, hostSession);
   await page.getByTestId("my-sessions-tab").click();
   await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toBeVisible();
 
-  const signOutButton = page.locator("[data-my-sessions-sign-out]");
+  await page.getByTestId("me-tab").click();
+  const identityCard = page.getByTestId("me-identity-card");
+  await expect(identityCard).toContainText(context.host.nickname);
+  await expect(identityCard.locator("img")).toHaveAttribute("src", "https://lh3.googleusercontent.com/a/batch-2-me");
+  const signOutButton = page.getByTestId("me-sign-out");
   await expect(signOutButton).toBeVisible();
   await signOutButton.click();
 
-  await expect(page.locator("[data-my-sessions-sign-in]")).toBeVisible();
-  await expect(page.locator("[data-my-sessions-sign-out]")).toHaveCount(0);
+  await expect(page.getByTestId("me-sign-in")).toBeVisible();
+  await expect(page.getByTestId("me-sign-out")).toHaveCount(0);
+  await page.getByTestId("my-sessions-tab").click();
   await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toHaveCount(0);
   await expect(page.locator("#toast-root")).toContainText("已登出");
 });

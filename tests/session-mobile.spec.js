@@ -23,6 +23,31 @@ function captureRuntimeErrors(page) {
   return errors;
 }
 
+test("four bottom destinations fit 390px and keep every touch target at least 44px", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const navigation = page.locator(".bottom-navigation");
+  const items = navigation.locator(".bottom-navigation__item");
+  await expect(items).toHaveCount(4);
+  await expectWithinViewport(page, navigation);
+  const boxes = await items.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { height: box.height, width: box.width };
+    })
+  );
+  expect(boxes).toHaveLength(4);
+  for (const box of boxes) {
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+
+  await page.getByTestId("me-tab").click();
+  await expect(page.locator("#me-page")).toBeVisible();
+  await expectWithinViewport(page, page.getByTestId("me-sign-in"));
+});
+
 async function createCompleteActor(actor) {
   const { client, session } = await signUpUser(actor.email);
   const profileId = await createProfile(client, {

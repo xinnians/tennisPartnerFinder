@@ -108,7 +108,7 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#nearby-sessions-summary")).toContainText("這個地圖範圍內");
   await expect(page.locator("#nearby-sessions-list")).toBeHidden();
-  await expect(page.locator("#open-session")).toBeVisible();
+  await expect(page.getByTestId("create-session-tab")).toBeVisible();
   await expect(page.getByTestId("player-layer-toggle")).toBeVisible();
   await expect(page.getByTestId("player-layer-toggle")).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示在線");
@@ -280,14 +280,32 @@ test("ongoing session 9001 shows its badge and elapsed time on card and detail",
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a configured support address renders a mailto contact link", async ({ page }) => {
+test("four destinations expose an anonymous Me page while the map header stays minimal", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
 
+  await expect(page.locator(".bottom-navigation__item")).toHaveCount(4);
+  await expect(page.locator(".app-header > *")).toHaveCount(3);
+  await expect(page.locator("#open-session, #open-my-sessions, .site-links")).toHaveCount(0);
+  await page.getByTestId("me-tab").click();
+  await expect(page.locator("#tab-map")).toBeHidden();
+  await expect(page.locator("#my-sessions-page")).toBeHidden();
+  await expect(page.locator("#me-page")).toBeVisible();
+  await expect(page.getByTestId("me-sign-in")).toBeVisible();
+  await expect(page.getByRole("link", { name: "隱私權政策" })).toHaveAttribute("href", "/privacy.html");
   const support = page.getByRole("link", { name: "聯絡支援" });
   await expect(support).toBeVisible();
   await expect(support).toHaveAttribute("href", "mailto:support@example.test");
+
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(page.locator("#tab-map")).toBeHidden();
+  await expect(page.locator("#my-sessions-page")).toBeVisible();
+  await expect(page.locator("#me-page")).toBeHidden();
+  await page.getByTestId("map-tab").click();
+  await expect(page.locator("#tab-map")).toBeVisible();
+  await expect(page.locator("#my-sessions-page")).toBeHidden();
+  await expect(page.locator("#me-page")).toBeHidden();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -2920,7 +2938,7 @@ test("mock-mode create does not open OAuth or fabricate a new session", async ({
   await page.goto("/");
   const initialCardCount = await page.getByTestId("session-card").count();
 
-  await page.locator("#open-session").click();
+  await page.getByTestId("create-session-tab").click();
   await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
   await expect(page.locator("#login-dialog")).toBeHidden();
   await expect(page.getByTestId("session-card")).toHaveCount(initialCardCount);

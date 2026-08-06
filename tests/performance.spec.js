@@ -201,7 +201,7 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   await page.keyboard.press("Escape");
   await expect(drawerToggle).toBeFocused();
 
-  const createTrigger = page.locator("#open-session");
+  const createTrigger = page.getByTestId("create-session-tab");
   await createTrigger.focus();
   await page.evaluate(async () => {
     const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
