@@ -224,6 +224,44 @@ export async function setFakeMapBoundsBurst(page, boundsList) {
   if (!changed) throw new Error("Fake Google Maps is not installed");
 }
 
+/** 回報 box 超出 viewport 的每一邊；完全落在內部時回空陣列。 */
+function viewportOverflow(box, viewport) {
+  if (!box) return ["元素沒有 bounding box"];
+  const overflow = [];
+  if (box.x < 0) overflow.push(`left ${Math.round(box.x)}`);
+  if (box.y < 0) overflow.push(`top ${Math.round(box.y)}`);
+  if (box.x + box.width > viewport.width) {
+    overflow.push(`right ${Math.round(box.x + box.width)} > ${viewport.width}`);
+  }
+  if (box.y + box.height > viewport.height) {
+    overflow.push(`bottom ${Math.round(box.y + box.height)} > ${viewport.height}`);
+  }
+  return overflow;
+}
+
+/**
+ * 先把元素捲進視窗再驗完整可見。捲動與量測必須是同一個可重試的整體——背景重繪會在
+ * locator 解析後、捲動前把節點換掉，Playwright 的 auto-wait 來不及，直接拋 detach。
+ * 這裡把 detach 當成「版面還沒收斂」重試，而不是硬錯。
+ */
+export async function expectScrolledIntoViewport(page, locator) {
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  await expect
+    .poll(
+      async () => {
+        try {
+          await locator.scrollIntoViewIfNeeded();
+        } catch {
+          return ["節點在捲動前被重繪抽換"];
+        }
+        return viewportOverflow(await locator.boundingBox(), viewport);
+      },
+      { message: "元素捲動後必須完整落在 viewport 內" }
+    )
+    .toEqual([]);
+}
+
 export async function expectWithinViewport(page, locator) {
   await locator.evaluate(async (el) => {
     await Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => {})));
@@ -233,19 +271,8 @@ export async function expectWithinViewport(page, locator) {
   // 量測要能重試：scrollIntoViewIfNeeded 之後版面可能還要一兩幀才收斂，
   // 取瞬時 boundingBox 會週期性假紅（本專案量到約 10%）。
   await expect
-    .poll(async () => {
-      const box = await locator.boundingBox();
-      if (!box) return ["元素沒有 bounding box"];
-      const overflow = [];
-      if (box.x < 0) overflow.push(`left ${Math.round(box.x)}`);
-      if (box.y < 0) overflow.push(`top ${Math.round(box.y)}`);
-      if (box.x + box.width > viewport.width) {
-        overflow.push(`right ${Math.round(box.x + box.width)} > ${viewport.width}`);
-      }
-      if (box.y + box.height > viewport.height) {
-        overflow.push(`bottom ${Math.round(box.y + box.height)} > ${viewport.height}`);
-      }
-      return overflow;
-    }, { message: "元素必須完整落在 viewport 內" })
+    .poll(async () => viewportOverflow(await locator.boundingBox(), viewport), {
+      message: "元素必須完整落在 viewport 內",
+    })
     .toEqual([]);
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-import { expectWithinViewport, installFakeMaps } from "./fixtures/fakeMaps.js";
+import { expectScrolledIntoViewport, expectWithinViewport, installFakeMaps } from "./fixtures/fakeMaps.js";
 import { courtIdByName, createProfile, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
 import {
   createFutureSessionInput,
@@ -134,8 +134,7 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   await expect(upcomingCard).toContainText("已核准加入");
   await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   const settledUpcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
-  await settledUpcomingCard.scrollIntoViewIfNeeded();
-  await expectWithinViewport(page, settledUpcomingCard);
+  await expectScrolledIntoViewport(page, settledUpcomingCard);
   await expect(page.getByTestId("my-sessions-tab")).toBeFocused();
 
   await page.getByTestId("me-tab").click();
