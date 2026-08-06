@@ -394,6 +394,27 @@ B1 迴歸保護:抽 exported 純函式 `shouldReleasePendingMeFocus` + node unit
 - `.ua/` 加進 `.gitignore`
 - 資料庫層仍存在無消費者的 LINE 面(`session_contacts` view、`profiles.line_id`)——技術債
 
+## 批 3b 開工前的四項裁示(2026-08-06,實作方動工前攔下)
+
+1. **參數邊界**:`courts`、`notificationSettings`、`onEnablePush` 三個**兩邊共用**,不從
+   `renderMySessionsPage` 移除——它們有搬遷範圍外的 consumer(`sessionViews.js:1044-1047`、
+   `:1064`、`:1167`、`:1179`、`:1190`),其中後兩者正是要留在「我的球局」的
+   `created-session-enable-push`。真正移除的只有六個:`blockedPlayers`／`blockedPlayersError`／
+   `blockedPlayersStatus`／`onSaveNotificationPreferences`／`onSaveCourtSubscriptions`／`onUnblockPlayer`。
+   (原派工單 A 節自相矛盾,已更正。)
+2. **解除封鎖的焦點**:採「行為不變」——`unblock` 不在 `MY_SESSION_LIFECYCLE_ACTIONS`
+   (`sessionViews.js:75-86`),成功後該列連同按鈕移除,「焦點仍在對應控制項」在 my-sessions 側
+   今天就不成立。驗收語意=Me 側落點與 my-sessions 側**同型**且不落 `body`。
+   「成功/失敗焦點落點統一」的改善併入批 8。
+3. **callback 名稱**:實際是 `onSaveCourtSubscriptions`／`onSaveNotificationPreferences`
+   (`sessionViews.js:1018-1019`);派工單原寫的 `onNotificationPrefChange`／
+   `onCourtSubscriptionChange` **不存在**,沿用實際名稱不改名。
+4. **B-5 行號**:document 層級 `[data-my-sessions-error]` 實際在 **1218／1321／1696**;
+   `:1436` 已有 `#me-root` 前綴不需再動。各條該加哪個 root 依該斷言實際在驗哪一頁決定。
+
+**新增紀律(第 10 條)**:凡寫進派工單的 selector、參數名、行號,**一律先 grep 驗證再寫**,
+不憑印象——連續三次被實作方抓到實質問題(`instanceof Node` 偏離、列舉漏解除封鎖、參數矛盾與假名稱)。
+
 ## 累積的派工紀律(每批 prompt 都要含)
 
 1. **行為層斷言優先**,不新增靜態原始碼掃描測試;反向斷言(`toHaveCount(0)`、`doesNotMatch`)
