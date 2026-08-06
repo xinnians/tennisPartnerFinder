@@ -1073,9 +1073,38 @@ function presenceLocationHint({ locationStatus, sharePresence }) {
   return "開啟後會請求定位權限；只有在球場 100 公尺內才會顯示在線狀態。";
 }
 
+/**
+ * 以語意描述通知控制項。六個事件偏好共用同一個 selector，靠 preference 區分，
+ * 所以描述用物件而不是組出來的 selector 字串。
+ */
+function notificationControlDescriptor(control) {
+  if (!(control instanceof HTMLElement)) return null;
+  if (control.matches("[data-enable-push]")) return { selector: "[data-enable-push]" };
+  if (control.matches("[data-notification-courts]")) return { selector: "[data-notification-courts]" };
+  if (control.matches("[data-notification-pref]")) {
+    return { preference: control.dataset.notificationPref, selector: "[data-notification-pref]" };
+  }
+  return null;
+}
+
+function findNotificationControl(root, descriptor) {
+  if (!descriptor) return null;
+  if (descriptor.preference == null) return root.querySelector(descriptor.selector);
+  return (
+    [...root.querySelectorAll(descriptor.selector)].find(
+      (control) => control.dataset.notificationPref === descriptor.preference
+    ) ?? null
+  );
+}
+
 async function runNotificationSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-notification-control]")];
   const unlockedControls = controls.filter((control) => !control.disabled);
+  const unlockedDescriptors = unlockedControls.map(notificationControlDescriptor).filter(Boolean);
+  // 動作前記下焦點所在控制項的語意，動作後主動還原；與在線設定同一套托管方式，
+  // 免得同一頁相鄰兩個區塊一個留得住焦點、一個留不住。
+  const active = document.activeElement;
+  const focusedDescriptor = root.contains(active) ? notificationControlDescriptor(active) : null;
   const error = root.querySelector("[data-notification-error]");
   unlockedControls.forEach((control) => {
     control.disabled = true;
@@ -1084,8 +1113,10 @@ async function runNotificationSettingAction(root, callback) {
     error.hidden = true;
     error.textContent = "";
   }
+  let restoreFocus = false;
   try {
     await callback();
+    restoreFocus = true;
     return true;
   } catch (cause) {
     if (error) {
@@ -1095,9 +1126,18 @@ async function runNotificationSettingAction(root, callback) {
     }
     return false;
   } finally {
-    unlockedControls.forEach((control) => {
-      control.disabled = false;
+    // 以描述重查：回呼期間若已重繪，對 detach 的舊節點還原 disabled 不會反映到畫面。
+    unlockedDescriptors.forEach((descriptor) => {
+      const control = findNotificationControl(root, descriptor);
+      if (control) control.disabled = false;
     });
+    if (restoreFocus && focusedDescriptor) {
+      const current = document.activeElement;
+      // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
+      const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
+      const target = focusIsLoose ? findNotificationControl(root, focusedDescriptor) : null;
+      if (target && !target.disabled) target.focus({ preventScroll: true });
+    }
   }
 }
 
