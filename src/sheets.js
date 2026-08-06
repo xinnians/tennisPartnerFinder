@@ -150,6 +150,7 @@ const LOGIN_TITLES = {
   players: "登入以查看在線球友",
   directory: "登入以查看球友名單",
   "my-sessions": "登入以查看你的球局",
+  me: "登入以管理你的檔案與設定",
 };
 
 export function openLoginModal({ action = "", onProvider, onClose } = {}) {

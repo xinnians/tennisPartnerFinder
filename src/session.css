@@ -52,8 +52,6 @@
 .app-header__actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
 
 .location-button,
-.open-session-button,
-.my-sessions-button,
 .session-primary,
 .session-secondary,
 .filters-reset,
@@ -69,10 +67,7 @@
 
 .location-button { padding: 0 13px; background: var(--mist); color: var(--navy); }
 
-.open-session-button,
 .session-primary { padding: 0 15px; background: var(--lime); color: var(--navy); box-shadow: inset 0 -2px 0 rgba(20, 44, 75, 0.12); }
-
-.my-sessions-button { padding: 0 12px; border: 1px solid var(--line); background: #fff; color: var(--blue); }
 
 .map-page {
   position: relative;
@@ -384,6 +379,7 @@
 .me-service-links { display: grid; gap: 10px; }
 .me-service-links div { display: flex; flex-wrap: wrap; gap: 8px; }
 .me-service-links a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--blue); font-size: 14px; font-weight: 800; text-decoration: none; }
+.me-service-links a:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .me-identity-card .session-secondary,
 .me-sign-in-card .session-primary { min-width: 44px; min-height: 44px; }
 .player-visibility { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
@@ -497,9 +493,7 @@
   .app-brand__ball { width: 23px; height: 23px; font-size: 22px; }
   .city-label { font-size: 12px; }
   .app-header__actions { gap: 6px; }
-  .location-button,
-  .open-session-button,
-  .my-sessions-button { min-width: 44px; min-height: 44px; padding: 0 8px; font-size: 12px; }
+  .location-button { min-width: 44px; min-height: 44px; padding: 0 8px; font-size: 12px; }
   .app-brand,
   .filter-control select,
   .filter-control input { min-height: 44px; }
@@ -536,9 +530,7 @@
 @media (max-width: 390px) {
   .city-label { display: none; }
   .app-header__actions { min-width: 0; }
-  .location-button,
-  .open-session-button,
-  .my-sessions-button { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .location-button { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .filter-control { min-width: calc(50% - 4px); flex-basis: calc(50% - 4px); }
   .filter-control--date { min-width: calc(50% - 4px); }
   .player-layer-control { align-self: flex-end; justify-items: end; }
