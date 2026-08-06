@@ -671,7 +671,7 @@ test("My Sessions hydrates host-only rosters for the badge and refreshes details
   assert.deepEqual(rosterCalls, [51]);
   assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
 
-  await harness.controller.refreshMySessionDetails();
+  await harness.controller.refreshMySessions();
 
   assert.deepEqual(rosterCalls, [51, 51]);
 });

@@ -593,10 +593,6 @@ export function createSessionController({
     return true;
   }
 
-  async function refreshMySessionDetails() {
-    return refreshMySessions();
-  }
-
   function actionFor(session) {
     const terminal = terminalAction(session);
     if (terminal) return { label: terminal, disabled: true };
@@ -2309,7 +2305,6 @@ export function createSessionController({
     openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,
-    refreshMySessionDetails,
     refreshMyPlayerBlocks,
     refreshMySessions,
     respondInvite,

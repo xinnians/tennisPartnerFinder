@@ -434,16 +434,6 @@
 .my-session-card__time { color: var(--blue) !important; font-weight: 900; }
 .my-session-card__actions { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 3px; }
 .session-tertiary { min-height: 34px; padding: 0 5px; border: 0; background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 800; text-decoration: underline; }
-.my-session-contacts { display: grid; gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); }
-.my-session-contacts-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 0; }
-.my-session-contacts-error .session-secondary { flex: 0 0 auto; }
-.my-session-contacts h3 { margin: 0; color: var(--navy); font-size: 13px; }
-.session-contact { display: grid; gap: 5px; padding: 10px; border-radius: 9px; background: var(--mist); color: var(--navy); }
-.session-contact label { display: grid; gap: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 800; }
-.session-contact input { width: 100%; border: 1px solid var(--line); border-radius: 7px; background: #fff; padding: 7px; color: var(--navy); font: inherit; }
-.session-contact p { margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
-.session-contact__copy-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.session-contact__copy-actions .session-secondary { min-height: 32px; font-size: 12px; }
 .my-history-reason { margin-top: -4px; padding: 0 4px; }
 .my-sessions-message { margin: 10px 0; color: var(--ink-muted); font-size: 13px; font-weight: 800; }
 .session-detail { display: grid; gap: 11px; }
