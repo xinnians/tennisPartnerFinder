@@ -81,7 +81,6 @@ const MY_SESSION_LIFECYCLE_ACTIONS = new Set([
   "decline-invite",
   "played",
   "refresh",
-  "refresh-contacts",
   "toggle-visibility",
   "withdraw",
 ]);
@@ -509,11 +508,6 @@ function mySessionRole(session) {
   return participantStatus === "accepted" ? "已核准加入" : "參與者";
 }
 
-/** Noun for the copyable opening message; mySessionRole returns status labels that do not fit the sentence. */
-function contactSelfNoun(session) {
-  return String(session?.viewerRole) === "host" ? "主揪" : "球友";
-}
-
 function mySessionStatus(session) {
   const status = String(session?.status ?? "").toLowerCase();
   const startTime = new Date(session?.startAt ?? "").getTime();
@@ -536,86 +530,7 @@ function mySessionActionButton(session, { action, label, testId }) {
   )}"${testId ? ` data-testid="${esc(testId)}"` : ""}>${esc(label)}</button>`;
 }
 
-function contactRows(session, contacts) {
-  const safeContacts = Array.isArray(contacts) ? contacts : [];
-  if (!safeContacts.length) return "";
-  return `<section class="my-session-contacts" aria-label="已核准的聯絡方式">
-    <h3>已核准的聯絡方式</h3>
-    ${safeContacts
-      .map((contact) => {
-        const lineId = String(contact.lineId ?? "").trim();
-        return `<div id="session-contact-${esc(session.sessionId)}-${esc(contact.counterpartProfileId)}" class="session-contact" data-contact-profile-id="${esc(
-            contact.counterpartProfileId
-          )}" data-testid="session-contact-${esc(contact.counterpartProfileId)}">
-            <strong>${esc(contact.nickname)}</strong>
-            ${
-              lineId
-                ? `<label>LINE ID<input readonly value="${esc(lineId)}" aria-label="${esc(contact.nickname)} 的 LINE ID" /></label>`
-                : '<p class="session-contact__line-missing">對方尚未提供 LINE ID。</p>'
-            }
-            <div class="session-contact__copy-actions">
-              ${
-                lineId
-                  ? '<button type="button" class="session-secondary" data-copy-contact data-copy-kind="line">複製 LINE ID</button>'
-                  : ""
-              }
-              <button type="button" class="session-secondary" data-copy-contact data-copy-kind="opening">複製開場訊息</button>
-            </div>
-            <p data-contact-opening>你好，我是球局「${esc(session.court)}」的${esc(contactSelfNoun(session))}。</p>
-            <p data-contact-copy-status role="status" aria-live="polite"></p>
-          </div>`;
-      })
-      .join("")}
-  </section>`;
-}
-
-async function copyContactText(text) {
-  if (!text) throw new Error("沒有可複製的內容。");
-  if (globalThis.navigator?.clipboard?.writeText) {
-    try {
-      await globalThis.navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Permission is often denied outside a direct user gesture. Fall back
-      // to the selectable, readonly input path before asking for manual copy.
-    }
-  }
-  const helper = document.createElement("textarea");
-  helper.value = text;
-  helper.setAttribute("readonly", "");
-  helper.style.position = "fixed";
-  helper.style.opacity = "0";
-  document.body.append(helper);
-  helper.select();
-  const copied = document.execCommand?.("copy");
-  helper.remove();
-  if (!copied) throw new Error("此瀏覽器無法複製，請手動選取文字。");
-}
-
-function wireContactCopy(root) {
-  root.querySelectorAll("[data-copy-contact]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const contact = button.closest(".session-contact");
-      const status = contact?.querySelector("[data-contact-copy-status]");
-      const value =
-        button.dataset.copyKind === "opening"
-          ? contact?.querySelector("[data-contact-opening]")?.textContent?.trim()
-          : contact?.querySelector("input")?.value;
-      button.disabled = true;
-      if (status) status.textContent = "";
-      try {
-        await copyContactText(value);
-        if (status) status.textContent = "已複製。";
-      } catch (copyError) {
-        if (status) status.textContent = copyError?.message || "複製失敗，請手動選取文字。";
-      } finally {
-        if (root.contains(button)) button.disabled = false;
-      }
-    });
-  });
-}
-
-function mySessionCard(session, { courts = [], createdSessionId = null, contacts = [] } = {}) {
+function mySessionCard(session, { courts = [], createdSessionId = null } = {}) {
   const venue = sessionVenuePresentation(session, courts);
   const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
   const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
@@ -652,7 +567,6 @@ function mySessionCard(session, { courts = [], createdSessionId = null, contacts
     <h3><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)}</h3>
     <p>${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
     <div class="my-session-card__actions">${actions}</div>
-    ${contactRows(session, contacts)}
   </article>`;
 }
 
@@ -703,8 +617,7 @@ function guestRequestCard({ session }, courts = []) {
 function actionDescriptor(button) {
   return {
     action:
-      button.dataset.myAction ??
-      (button.hasAttribute("data-retry-contacts") ? "refresh-contacts" : button.id === "my-sessions-refresh" ? "refresh" : ""),
+      button.dataset.myAction ?? (button.id === "my-sessions-refresh" ? "refresh" : ""),
     participantId: button.dataset.participantId ?? "",
     profileId: button.dataset.profileId ?? "",
     sessionId: button.dataset.sessionId ?? "",
@@ -747,7 +660,6 @@ function sameActionDescriptor(left, right) {
 
 function currentMySessionActionButton(root, descriptor) {
   if (descriptor.action === "refresh") return root.querySelector("#my-sessions-refresh");
-  if (descriptor.action === "refresh-contacts") return root.querySelector("[data-retry-contacts]");
   return [...root.querySelectorAll("[data-my-action]")].find((button) => sameActionDescriptor(actionDescriptor(button), descriptor));
 }
 
@@ -989,8 +901,6 @@ async function runPresenceSettingAction(root, callback) {
 export function renderMySessionsPage(
   root,
   {
-    contactsForSession = () => [],
-    contactsError = "",
     blockedPlayers = [],
     blockedPlayersError = "",
     blockedPlayersStatus = "idle",
@@ -1198,17 +1108,10 @@ export function renderMySessionsPage(
       <div id="my-upcoming-sessions" class="my-sessions-list">${
         upcoming.length
           ? upcoming
-              .map((session) => mySessionCard(session, { contacts: contactsForSession(session.sessionId), courts, createdSessionId }))
+              .map((session) => mySessionCard(session, { courts, createdSessionId }))
               .join("")
           : '<p class="surface__copy">目前沒有即將打球的球局。</p>'
       }</div>
-      ${
-        contactsError
-          ? `<div class="form-error my-session-contacts-error" role="alert">${esc(
-              contactsError
-            )}<button type="button" class="session-secondary" data-retry-contacts>重新整理</button></div>`
-          : ""
-      }
     </section>
     <section class="my-sessions-section" aria-labelledby="my-history-title">
       <div class="my-sessions-section__head"><h2 id="my-history-title">過去紀錄</h2><span>${esc(history.length)} 場</span></div>
@@ -1217,11 +1120,9 @@ export function renderMySessionsPage(
           ? history
               .map(
                 (session) =>
-                  `${mySessionCard(session, {
-                    contacts: contactsForSession(session.sessionId),
-                    courts,
-                    createdSessionId,
-                  })}<p class="my-history-reason">${esc(mySessionReason(session))}</p>`
+                  `${mySessionCard(session, { courts, createdSessionId })}<p class="my-history-reason">${esc(
+                    mySessionReason(session)
+                  )}</p>`
               )
               .join("")
           : '<p class="surface__copy">尚無過去紀錄。</p>'
@@ -1283,9 +1184,6 @@ export function renderMySessionsPage(
     });
   });
   root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
-  root.querySelector("[data-retry-contacts]")?.addEventListener("click", () =>
-    runMySessionAction(root.querySelector("[data-retry-contacts]"), onRefresh, root)
-  );
   root.querySelectorAll("[data-open-my-session]").forEach((button) => {
     button.addEventListener("click", () => onOpenSession(button.dataset.sessionId));
   });
@@ -1329,7 +1227,6 @@ export function renderMySessionsPage(
       runMySessionAction(button, callbacks[button.dataset.myAction], root);
     });
   });
-  wireContactCopy(root);
   syncPendingMySessionActions(root);
   if (createdSessionId && upcoming.some((session) => String(session.sessionId) === String(createdSessionId))) {
     requestAnimationFrame(() => {
@@ -2172,13 +2069,11 @@ function profileFormValue(form, fallbackProfile = {}, fallbackCourts = new Set()
     : new Set(fallbackCourts);
   const nicknameInput = form.querySelector("[name='profile-nickname']");
   const ntrpInput = form.querySelector("[name='profile-ntrp']");
-  const lineIdInput = form.querySelector("[name='profile-line-id']");
   const ntrpValue = ntrpInput?.value.trim();
   const typeInputs = form.querySelectorAll("[name='profile-types']");
   const slotInputs = form.querySelectorAll("[name='profile-slots']");
   return {
     courts,
-    lineId: lineIdInput ? lineIdInput.value.trim() : String(fallbackProfile.lineId ?? ""),
     nick: nicknameInput ? nicknameInput.value.trim() : String(fallbackProfile.nick ?? "").trim(),
     ntrp: ntrpInput ? (ntrpValue === "" ? null : Number(ntrpValue)) : (fallbackProfile.ntrp ?? null),
     slots: slotInputs.length ? selectedValues(form, "profile-slots") : new Set(fallbackProfile.slots ?? []),
@@ -2274,11 +2169,7 @@ export function openProfileCompletionSheet({
         ${
           compactCreateGate
             ? ""
-            : `<label class="form-field" for="profile-line-id"><span>LINE ID（選填）</span><input id="profile-line-id" name="profile-line-id" value="${esc(
-                profile.lineId ?? ""
-              )}" autocomplete="off" /></label>
-        <p class="form-hint">只有同一球局的主揪與已接受球友之間可看見彼此的 LINE ID。</p>
-        <fieldset class="form-fieldset"><legend>常打球場</legend><select name="profile-courts" multiple size="4" aria-label="常打球場" disabled></select><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
+            : `<fieldset class="form-fieldset"><legend>常打球場</legend><select name="profile-courts" multiple size="4" aria-label="常打球場" disabled></select><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
         <fieldset class="form-fieldset"><legend>常打類型</legend><div class="option-grid">${PROFILE_PLAY_TYPES.map(
           (type) =>
             `<label><input type="checkbox" name="profile-types" value="${esc(type)}"${selectedTypes.has(type) ? " checked" : ""} /> ${esc(
