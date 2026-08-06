@@ -102,7 +102,6 @@ const PLAYER_PRESENCE_DIRECTORY_COLUMNS = [
   "minutes_ago",
   "is_self",
 ];
-const RETIRED_CONTACT_PARAMETER = ["p", "line", "id"].join("_");
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export const SESSION_DISCOVERY_SELECT = [...SESSION_SUMMARY_COLUMNS, ...SESSION_DISCOVERY_VENUE_COLUMNS].join(",");
@@ -782,7 +781,9 @@ export function createDataApi({
     await callRpc("save_my_profile", {
       p_nickname: asText(profile?.nick).trim(),
       p_ntrp: asNumber(profile?.ntrp),
-      [RETIRED_CONTACT_PARAMETER]: null,
+      // save_my_profile 的簽名已凍結(202607270006:9),p_line_id 無預設值,呼叫端必須傳。
+      // 這是 src/ 唯一允許出現 line_id 的位置;drop 該欄位前必須先改簽名或給預設值。
+      p_line_id: null,
       p_court_ids: courtIds,
       p_play_types: profileValues(profile?.types).filter((value) => typeof value === "string"),
       p_slot_codes: profileValues(profile?.slots).filter((value) => typeof value === "string"),
