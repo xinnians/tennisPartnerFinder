@@ -128,7 +128,8 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
 - LINE 前端面已退役，新註冊流程不再蒐集；群組成員一律使用球局群聊協調。
 - `session_contacts` view 前端零 consumer；`profiles.line_id` 欄前端不讀、不寫、不渲染，但因
   `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.js` 仍必須傳 `p_line_id: null`。
-  drop 欄位或修改簽名前必須先處理該呼叫點；清理前既有 RLS／definer 限制仍不可弱化。
+  不得重新加入 browser API 或 UI；drop 欄位或修改簽名前必須先處理該呼叫點；清理前既有
+  RLS／definer 限制仍不可弱化。
 
 ## 城市、個人檔案門檻與生命週期
 
