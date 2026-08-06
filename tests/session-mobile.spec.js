@@ -140,7 +140,7 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
 
   await page.getByTestId("me-tab").click();
   const meSettingControls = page.locator(
-    "#me-page [data-testid='player-visibility-toggle'], #me-page [data-testid='presence-sharing-toggle'], #me-page [data-testid='open-to-greeting-toggle']"
+    "#me-page [data-testid='player-visibility-toggle'], #me-page [data-testid='presence-sharing-toggle'], #me-page .presence-settings__greeting"
   );
   await expect(meSettingControls).toHaveCount(3);
   const settingBoxes = await meSettingControls.evaluateAll((elements) =>
