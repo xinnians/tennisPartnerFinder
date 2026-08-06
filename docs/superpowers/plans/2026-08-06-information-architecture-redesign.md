@@ -351,7 +351,7 @@
 | 1 LINE 前端退役 | **ACCEPTED** | `1a461aa` | 三輪(主體 `1c05f81` → 補件一 `8c4b494` → 補件二 `1a461aa`)。三次退件問題全在掃描測試本身,功能碼第一輪就對 |
 | 2 四格導覽+「我」頁骨架 | **ACCEPTED** | `1e0610a` | 0 blocker。header 瘦身未斷 create intent(兩維度瀏覽器實測) |
 | 3a 重繪骨幹+球友卡/在線狀態 | **ACCEPTED** | `e26bd08` | 一輪補件(`27f846c`+`e26bd08`)。七處重繪掛勾對稱;B1 焦點外洩已修但有殘留兩步路徑;B1 零測試保護(PM 實測刪修法三組數字完全相同) |
-| 3b 通知設定+封鎖清單搬家 | **派工中** | — | 派工單見下方「批 3b 派工要點」 |
+| 3b 通知設定+封鎖清單搬家 | **ACCEPTED** | `171d339` | 一輪補件。兩個 blocker 皆源自派工單設計(見紀律 11、12):提案 A 的 finally 重查強制解鎖推播按鈕、搬入控件打破 3a 的 44px 不變式。修法:重繪後 markup 為權威(偵測原節點 detach 就跳過還原,兩份托管都套用)、44px CSS 擴七 selector、守衛改對稱式掃 `#me-page` 全部互動元素 |
 | 4 個人檔案常駐入口 | 未開始 | — | 計畫批 4 |
 | 5 建局表單簡化 | 未開始 | — | **必測項**:`CREATE_PLAY_TYPES` 要拆成 create/edit 兩常數 |
 | 6 訂閱球場兩段式 | 未開始 | — | 若 3b 已順帶做完則跳過 |
@@ -360,8 +360,13 @@
 
 ## 測試基準(批 3a 結案時,PM 親跑)
 
-`db 762 / unit 195 / mock 159 passed+3 skipped / local API 2 / local 29 passed+8 skipped /
-mobile 3 / build 66 modules`。每批回報須逐項說明增量來源。
+`db 762 / unit 200 / mock 161 passed+3 skipped / local API 2 / local 29 passed+8 skipped /
+mobile 3 / build 67 modules`(2026-08-06 批 3b 結案,PM 親跑)。每批回報須逐項說明增量來源。
+
+**已知既有 flaky(非任何一批造成)**:`tests/session-mobile.spec.js:137` 的 `expectWithinViewport`
+約 10% 機率紅(PM 獨立取樣 30 跑 1 紅;實作方量到 base `efd7c71` 為 30 跑 3 紅,更糟)。
+成因推測為捲動未收斂就量位置。**排入批 4 第一件事**——每批 gate 都有一成機率無故紅,
+會訓練所有人把紅字當雜訊。修法同批 3b 已用過的:改 `expect.poll` 可重試。
 
 ## 批 3b 派工要點(已發出)
 
