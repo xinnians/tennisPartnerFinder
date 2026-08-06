@@ -106,6 +106,14 @@ async function readJavaScriptSources(directory) {
   return sources.flat();
 }
 
+async function readRetiredContactSources() {
+  const pushWorkerUrl = new URL("../public/push-sw.js", import.meta.url);
+  return [
+    ...(await readJavaScriptSources(new URL("../src/", import.meta.url))),
+    { path: pushWorkerUrl.pathname, source: await readFile(pushWorkerUrl, "utf8") },
+  ];
+}
+
 function sourceCodeMatches(sources, pattern) {
   return sources.flatMap(({ path, source }) =>
     source.split("\n").flatMap((line) => {
@@ -115,13 +123,31 @@ function sourceCodeMatches(sources, pattern) {
   );
 }
 
-test("frontend source scan allows only the frozen LINE RPC parameter", async () => {
-  const sources = await readJavaScriptSources(new URL("../src/", import.meta.url));
-  assert.ok(sources.length > 0, "the frontend source scan must inspect at least one JavaScript file");
+const RETIRED_LINE_TOKEN_PATTERN = /(^|[^A-Za-z0-9])LINE([^A-Za-z0-9]|$)/;
 
-  assert.equal(sourceCodeMatches(sources, /session_contacts/).length, 0, "src/ must not contain session_contacts");
-  assert.equal(sourceCodeMatches(sources, /lineId/).length, 0, "src/ must not contain lineId");
-  assert.equal(sourceCodeMatches(sources, /\bLINE\b/).length, 0, "src/ must not contain the whole word LINE");
+test("retired LINE token scan blocks contact identifiers without matching unrelated words", () => {
+  assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("LINE_ID"), true);
+  assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("OFFLINE"), false);
+  assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("INLINE"), false);
+  assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("用LINE聯絡"), true);
+  assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("LINE"), true);
+});
+
+test("frontend source scan allows only the frozen LINE RPC parameter", async () => {
+  const sources = await readRetiredContactSources();
+  assert.ok(sources.length > 0, "the frontend source scan must inspect at least one JavaScript file");
+  assert.ok(
+    sources.some(({ path }) => path.endsWith("/public/push-sw.js")),
+    "the frontend source scan must include public/push-sw.js"
+  );
+
+  assert.equal(sourceCodeMatches(sources, /session_contacts/).length, 0, "frontend JS must not contain session_contacts");
+  assert.equal(sourceCodeMatches(sources, /lineId/).length, 0, "frontend JS must not contain lineId");
+  assert.equal(
+    sourceCodeMatches(sources, RETIRED_LINE_TOKEN_PATTERN).length,
+    0,
+    "frontend JS must not contain a standalone LINE token"
+  );
 
   const lineIdMatches = sourceCodeMatches(sources, /line_id/);
   assert.equal(lineIdMatches.length, 1, "src/ must contain exactly one frozen line_id RPC parameter");
@@ -1687,7 +1713,10 @@ test("session creation, reporting, and profile save use only their RPC contracts
 });
 
 test("browser source keeps raw lifecycle, chat, block, and report tables outside all src access", async () => {
-  const source = (await readJavaScriptSources(new URL("../src/", import.meta.url))).join("\n");
+  const source = (await readJavaScriptSources(new URL("../src/", import.meta.url)))
+    .map(({ source: fileSource }) => fileSource)
+    .join("\n");
+  assert.ok(source.length > 10000, "the raw-table scan must read real source, not collapsed objects");
   assert.doesNotMatch(
     source,
     /\.from\(\s*["'](?:sessions|session_participants|reports|profiles|profile_courts|profile_play_types|profile_slots)["']\s*\)\s*\.(?:insert|update|delete)\b/
