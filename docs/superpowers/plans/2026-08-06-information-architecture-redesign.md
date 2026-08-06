@@ -326,3 +326,87 @@
    此為批 5 的必測項。
 3. 批 7 的 `player_directory` 每列對應一座球場(join `profile_courts`),同一 profile 多列會重複計數欄位——
    顯示端需注意去重,不影響正確性。
+
+---
+
+# 執行狀態(2026-08-06 更新;續接請先讀本節)
+
+## 執行模式:雙 session
+
+- **實作**:另一個 Claude session(`local_a915f439-bbb3-4ad7-a229-7898a2365a5c`,標題
+  「Codex batch 3a fixup prompt」)。以 `mcp__ccd_session_mgmt__send_message` 直接派工與回報。
+- **驗收**:PM session。**過程中不指導實作**(做事的 agent 不能當驗收的 agent);
+  實作方可就派工單的歧義或技術錯誤反問,PM 回答意圖但不給解法。
+- **驗收分工(避免並行污染)**:PM 獨佔需要 local Supabase 的測試(`test:db`、`test:local`、
+  supabase-* project);驗收 workflow 的維度限制在靜態讀碼與 mock 模式(port 5174 以外)。
+  上一輪三個維度同時打同一個 DB,撞出偽紅後花了額外時間分辨真假。
+- **驗收 workflow 慣用維度**:引文防偽+diff 範圍 / 行為等價(真瀏覽器) / 鄰接破壞對抗分析 /
+  a11y 與 390px / canary 獨立重放。裁決 agent 負責交叉檢查矛盾與去重。
+  **注意**:schema agent 偶爾回佔位垃圾(a11y 維度發生過一次),裁決要能識別並補位。
+
+## 批次狀態
+
+| 批 | 狀態 | HEAD | 備註 |
+| --- | --- | --- | --- |
+| 1 LINE 前端退役 | **ACCEPTED** | `1a461aa` | 三輪(主體 `1c05f81` → 補件一 `8c4b494` → 補件二 `1a461aa`)。三次退件問題全在掃描測試本身,功能碼第一輪就對 |
+| 2 四格導覽+「我」頁骨架 | **ACCEPTED** | `1e0610a` | 0 blocker。header 瘦身未斷 create intent(兩維度瀏覽器實測) |
+| 3a 重繪骨幹+球友卡/在線狀態 | **ACCEPTED** | `e26bd08` | 一輪補件(`27f846c`+`e26bd08`)。七處重繪掛勾對稱;B1 焦點外洩已修但有殘留兩步路徑;B1 零測試保護(PM 實測刪修法三組數字完全相同) |
+| 3b 通知設定+封鎖清單搬家 | **派工中** | — | 派工單見下方「批 3b 派工要點」 |
+| 4 個人檔案常駐入口 | 未開始 | — | 計畫批 4 |
+| 5 建局表單簡化 | 未開始 | — | **必測項**:`CREATE_PLAY_TYPES` 要拆成 create/edit 兩常數 |
+| 6 訂閱球場兩段式 | 未開始 | — | 若 3b 已順帶做完則跳過 |
+| 7 信任數字 | 未開始 | — | **唯一 migration**(`202608060001`);硬約束:不得擴充匿名 `session_discovery` allowlist |
+| 8 定詞表+視覺+a11y 收尾 | 未開始 | — | 已擴充,見下方清單 |
+
+## 測試基準(批 3a 結案時,PM 親跑)
+
+`db 762 / unit 195 / mock 159 passed+3 skipped / local API 2 / local 29 passed+8 skipped /
+mobile 3 / build 66 modules`。每批回報須逐項說明增量來源。
+
+## 批 3b 派工要點(已發出)
+
+核心:通知設定與封鎖清單自 `renderMySessionsPage` 平移到 `renderMePage`;「我的球局」瘦身。
+必修前置:①焦點對照表對稱擴充(`captureMeFocus`/`resolveMeFocus`)——含通知三 selector 與
+封鎖清單 `data-my-action="unblock"`(Me 側是精確匹配,my-sessions 側靠通用 `[data-my-action]` fallback);
+②`runPresenceSettingAction` 焦點托管 + `main.js:782` 改無條件(關閉 B1 殘留);
+③反向斷言正向前提複檢;④`blocked-player-settings` 排序斷言重錨;
+⑤`tests/smoke.spec.js:1218/1321/1695` 三條 document 層級 locator 加 root 前綴。
+B1 迴歸保護:抽 exported 純函式 `shouldReleasePendingMeFocus` + node unit 測(**不寫 Playwright**
+——成本 55-75 行且托管落地後測試對象改形)。
+
+## 批 8 已擴充的清單(a11y 深度審視 2026-08-06 追加)
+
+原有:定詞表殘餘掃描、NTRP 說明句、視覺三修(`--ink-muted` 對比、聊天時間戳 10→12px、
+球場圖釘描邊)。**追加**:
+- 兩顆 switch 可及名稱改狀態式並含主題 + `aria-describedby`
+  (在線分享現為「一鍵隱藏」+ `aria-checked` 語意打架;球友卡只有「已關閉」無主題)
+- 「我」頁登入態標題層級 `h1→h3→h3→h2` 跳級兼倒序,改為 `h1→h2×3`
+- 同頁失敗焦點落點統一(球友卡留按鈕 vs 在線狀態跳 `role=alert`)
+- `.presence-settings` 內 `.form-hint` 對比 4.47:1 提到 ≥4.5:1
+- avatar fallback span 加 `aria-hidden`
+
+## 跨批延後項(無明確歸屬,擇批處理)
+
+- N1 `main.js` 的 `activePage === "me"` 守衛與正上方註解自相矛盾
+- E3 `onEditProfile` 死參數(批 2 遺留,批 4 接線時一併處理)
+- `captureMySessionsFocus:493-494` 與 `resolveMySessionsFocus:522-523` 的 presence kind 已成死碼
+- `tests/smoke.spec.js:241` 硬寫 `http://127.0.0.1:5174`,改由 baseURL 推導
+- `.ua/` 加進 `.gitignore`
+- 資料庫層仍存在無消費者的 LINE 面(`session_contacts` view、`profiles.line_id`)——技術債
+
+## 累積的派工紀律(每批 prompt 都要含)
+
+1. **行為層斷言優先**,不新增靜態原始碼掃描測試;反向斷言(`toHaveCount(0)`、`doesNotMatch`)
+   一律配正向的量前提。
+2. **要實測證據時明寫「用會重試的斷言」**;可貼字串用臨時探針 + `console.log` 跑完刪除,
+   入版只留會重試的斷言。禁 `expect(await page.evaluate(...))` 瞬時快照。
+3. **動共用 helper/常數/正則**:回報必附全 repo consumer 盤點 + 所有姊妹斷言的 canary 矩陣。
+4. **驗收條件用對稱性而非列舉**(列舉會漏——PM 列舉焦點 selector 時就漏了解除封鎖)。
+5. canary 綠不等於修法沒用,先驗重現序列。
+6. 懷疑 flaky 用 `--repeat-each=10 --retries=0` 取樣,**單次綠或單次紅都不算證據**。
+7. 測試數字從實跑 log **逐字複製**,不得估算或回推。
+8. **擴大範圍前先提案,不要直接實作。**
+9. 每批 commit 用精確路徑不用 `-A`;**不 push**(push 由 ian 執行)。
+
+詳細教訓見 memory:`return-type-change-consumer-sweep`、
+`verification-evidence-requests-induce-flakes`、`pre-release-review-2026-08-04`。
