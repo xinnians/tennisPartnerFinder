@@ -87,6 +87,7 @@ import {
   renderNearbySessionsDrawer,
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
+import { shouldReleasePendingMeFocus } from "./meFocus.js";
 import { enableBrowserPush } from "./notificationPush.js";
 import { createPresenceTracker } from "./playerPresence.js";
 import { eligibilityFromPrivateProfile } from "./profile.js";
@@ -776,10 +777,9 @@ function renderMeDestination() {
       if (activePage === "me") pendingMeFocus = captureMeFocus(root);
     });
     root.addEventListener("focusout", (event) => {
-      // relatedTarget 為 null 代表焦點被 disable 踢到 body，這時要保留待還原的目標；
-      // 只有焦點真的落到頁面其他控制項時才放棄還原，避免背景重繪把焦點搶回本頁。
-      const next = event.relatedTarget;
-      if (next instanceof Node && !root.contains(next)) pendingMeFocus = null;
+      // 焦點還原改由 runPresenceSettingAction 明確托管，這裡不再為 disable 情境留後路：
+      // 只要焦點離開 root 就放棄還原，避免背景重繪把焦點從頁面外搶回來。
+      if (shouldReleasePendingMeFocus(root, event.relatedTarget)) pendingMeFocus = null;
     });
   }
   const focus = activePage === "me" ? captureMeFocus(root) ?? pendingMeFocus : null;

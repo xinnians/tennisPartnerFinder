@@ -959,9 +959,24 @@ async function runNotificationSettingAction(root, callback) {
   }
 }
 
+/**
+ * 以語意 selector 描述在線設定控制項。跨 await 只保留 selector、不保留節點，
+ * 因為回呼期間整段 markup 可能被重繪抽換，舊節點會 detach。
+ */
+function presenceControlSelector(control) {
+  if (!(control instanceof HTMLElement)) return null;
+  if (control.matches("[data-set-presence-sharing]")) return "[data-set-presence-sharing]";
+  if (control.matches("[data-open-to-greeting]")) return "[data-open-to-greeting]";
+  return null;
+}
+
 async function runPresenceSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-presence-control]")];
   const unlockedControls = controls.filter((control) => !control.disabled);
+  const unlockedSelectors = unlockedControls.map(presenceControlSelector).filter(Boolean);
+  // 動作前記下焦點所在控制項的語意，動作後主動還原，不再依賴重繪路徑撿回焦點。
+  const active = document.activeElement;
+  const focusedSelector = root.contains(active) ? presenceControlSelector(active) : null;
   const error = root.querySelector("[data-presence-error]");
   unlockedControls.forEach((control) => {
     control.disabled = true;
@@ -970,8 +985,11 @@ async function runPresenceSettingAction(root, callback) {
     error.hidden = true;
     error.textContent = "";
   }
+  let restoreFocus = false;
   try {
     const outcome = await callback();
+    // 回呼回 false 代表被 gate 攔截並開了補件 sheet，焦點歸該 sheet 管，這裡不接手。
+    restoreFocus = outcome !== false;
     return outcome !== false;
   } catch (cause) {
     if (error) {
@@ -981,9 +999,18 @@ async function runPresenceSettingAction(root, callback) {
     }
     return false;
   } finally {
-    unlockedControls.forEach((control) => {
-      control.disabled = false;
+    // 以 selector 重查：回呼期間若已重繪，對 detach 的舊節點還原 disabled 不會反映到畫面。
+    unlockedSelectors.forEach((selector) => {
+      const control = root.querySelector(selector);
+      if (control) control.disabled = false;
     });
+    if (restoreFocus && focusedSelector) {
+      const current = document.activeElement;
+      // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
+      const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
+      const target = focusIsLoose ? root.querySelector(focusedSelector) : null;
+      if (target && !target.disabled) target.focus({ preventScroll: true });
+    }
   }
 }
 
