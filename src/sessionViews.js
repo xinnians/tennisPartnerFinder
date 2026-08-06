@@ -92,6 +92,47 @@ const DRAWER_ACTION_IDS = new Set(["discovery-reset", "discovery-retry", "drawer
 export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
 
+/** Render the account and service skeleton for the Me destination. */
+export function renderMePage(
+  root,
+  {
+    authSession = null,
+    profile = {},
+    avatarUrl = "",
+    onEditProfile = () => {},
+    onSignIn = () => {},
+    onSignOut = () => {},
+    supportHref = "",
+  } = {}
+) {
+  const authenticated = Boolean(authSession);
+  const nickname = String(profile?.nick ?? "").trim() || "球友";
+  void onEditProfile;
+  root.innerHTML = `<div class="me-shell">
+    <div class="me-shell__head"><p class="surface__eyebrow">我</p><h1 tabindex="-1" data-me-heading>帳號與站務</h1></div>
+    ${
+      authenticated
+        ? `<section class="me-identity-card" data-testid="me-identity-card" aria-label="目前登入身分">
+          ${avatarMarkup({ avatarUrl, nickname })}
+          <div class="me-identity-card__copy"><strong>${esc(nickname)}</strong><span>${esc(formatNtrp(profile?.ntrp))}</span></div>
+          <button type="button" class="session-secondary" data-testid="me-sign-out">登出</button>
+        </section>`
+        : `<section class="me-sign-in-card" aria-label="登入">
+          <h2>登入後查看你的身分</h2>
+          <p class="surface__copy">登入後可管理球局與個人資料。</p>
+          <button type="button" class="session-primary" data-testid="me-sign-in">登入</button>
+        </section>`
+    }
+    <section class="me-service-links" aria-labelledby="me-service-title">
+      <h2 id="me-service-title">站務</h2>
+      <div>${supportHref ? `<a href="${esc(supportHref)}">聯絡支援</a>` : ""}<a href="/privacy.html">隱私權政策</a></div>
+    </section>
+  </div>`;
+  wireAvatarFallbacks(root);
+  root.querySelector('[data-testid="me-sign-in"]')?.addEventListener("click", onSignIn);
+  root.querySelector('[data-testid="me-sign-out"]')?.addEventListener("click", onSignOut);
+}
+
 const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
 const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
 const NOW_START_CREATE_GRACE_MS = 5 * 60 * 1000;
@@ -925,7 +966,6 @@ export function renderMySessionsPage(
     onReportParticipant = () => {},
     onReportSession = () => {},
     onSignIn = () => {},
-    onSignOut = () => {},
     onSaveCourtSubscriptions = () => {},
     onSaveNotificationPreferences = () => {},
     onSetOpenToGreeting = () => {},
@@ -971,11 +1011,7 @@ export function renderMySessionsPage(
   root.innerHTML = `
     <div class="my-sessions-shell__head">
       <div><p class="surface__eyebrow">我的球局</p><h1 tabindex="-1" data-my-sessions-heading>下一步行動</h1></div>
-      <div class="my-sessions-shell__tools"><button type="button" id="my-sessions-refresh" class="session-secondary">重新整理</button><button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button>${
-        authenticated
-          ? '<button type="button" class="session-secondary" data-my-sessions-sign-out>登出</button>'
-          : ""
-      }</div>
+      <div class="my-sessions-shell__tools"><button type="button" id="my-sessions-refresh" class="session-secondary">重新整理</button><button type="button" class="session-secondary" data-my-sessions-back>回到地圖</button></div>
     </div>
     <p class="surface__copy">${
       createdSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"
@@ -1131,7 +1167,6 @@ export function renderMySessionsPage(
 
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
-  root.querySelector("[data-my-sessions-sign-out]")?.addEventListener("click", onSignOut);
   wireSuccessPushPrompt(root, onEnablePush);
   root.querySelector("[data-enable-push]")?.addEventListener("click", () => {
     void runNotificationSettingAction(root, onEnablePush);

@@ -81,6 +81,7 @@ import {
   openSessionUnavailableSheet,
   openWithdrawSessionConfirmation,
   renderMapDataStatus,
+  renderMePage,
   renderPlayerLayerToggle,
   renderMySessionsPage,
   renderNearbySessionsDrawer,
@@ -178,12 +179,8 @@ async function openSessionHashRoute() {
 }
 
 function renderSupportContact() {
-  const link = document.getElementById("support-link");
-  if (!link) return;
   const address = SUPPORT_EMAIL.trim();
-  link.hidden = !address;
-  if (address) link.href = `mailto:${address}`;
-  else link.removeAttribute("href");
+  return address ? `mailto:${address}` : "";
 }
 
 const LOCAL_DEMO_UNAVAILABLE = "本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。";
@@ -460,10 +457,13 @@ function renderDiscovery(view) {
 function syncBottomNavigation() {
   const mapTab = document.getElementById("map-tab");
   const mySessionsTab = document.getElementById("my-sessions-tab");
+  const meTab = document.getElementById("me-tab");
   if (activePage === "map") mapTab?.setAttribute("aria-current", "page");
   else mapTab?.removeAttribute("aria-current");
   if (activePage === "my-sessions") mySessionsTab?.setAttribute("aria-current", "page");
   else mySessionsTab?.removeAttribute("aria-current");
+  if (activePage === "me") meTab?.setAttribute("aria-current", "page");
+  else meTab?.removeAttribute("aria-current");
   const badge = document.getElementById("my-sessions-badge");
   const mySessionState = controller?.getMySessionState?.();
   const count = mySessionState?.groups?.pendingHostRequestCount ?? 0;
@@ -705,7 +705,6 @@ function renderMySessionsDestination() {
     onReportParticipant: controller.openRosterParticipantReport,
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
-    onSignOut: handleSignOut,
     onSaveCourtSubscriptions: updateCourtSubscriptions,
     onSaveNotificationPreferences: updateNotificationPreferences,
     onSetOpenToGreeting: updateOpenToGreetingSetting,
@@ -722,11 +721,26 @@ function renderMySessionsDestination() {
   syncBottomNavigation();
 }
 
+function renderMeDestination() {
+  const root = document.getElementById("me-root");
+  if (!root) return;
+  renderMePage(root, {
+    authSession,
+    avatarUrl: currentAuthAvatarUrl(),
+    onEditProfile: () => {},
+    onSignIn: () => openSafeLogin({ action: "me" }),
+    onSignOut: handleSignOut,
+    profile: currentProfile ?? defaultProfile(),
+    supportHref: renderSupportContact(),
+  });
+}
+
 function showMapPage({ focus = false } = {}) {
   activePage = "map";
   pendingMySessionsFocus = null;
   document.getElementById("tab-map").hidden = false;
   document.getElementById("my-sessions-page").hidden = true;
+  document.getElementById("me-page").hidden = true;
   syncBottomNavigation();
   if (focus) requestAnimationFrame(() => document.getElementById("map-tab")?.focus({ preventScroll: true }));
 }
@@ -736,6 +750,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   if (createdSessionId != null) createdSessionFocusId = createdSessionId;
   controller.setDrawerExpanded(false);
   document.getElementById("tab-map").hidden = true;
+  document.getElementById("me-page").hidden = true;
   const page = document.getElementById("my-sessions-page");
   page.hidden = false;
   renderMySessionsDestination();
@@ -749,6 +764,19 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
       document.querySelector("#my-sessions-root [data-my-sessions-heading]")?.focus({ preventScroll: true });
     });
   }
+}
+
+function showMePage({ focus = false } = {}) {
+  activePage = "me";
+  pendingMySessionsFocus = null;
+  controller.setDrawerExpanded(false);
+  document.getElementById("tab-map").hidden = true;
+  document.getElementById("my-sessions-page").hidden = true;
+  const page = document.getElementById("me-page");
+  page.hidden = false;
+  renderMeDestination();
+  syncBottomNavigation();
+  if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
 }
 
 function populateCourtFilters(nextCourts) {
@@ -869,6 +897,7 @@ async function reloadCurrentProfile() {
   profileLoadStatus = "ready";
   await controller.setAuthState(authSession, currentProfileEligibility());
   reconcilePresenceTracking();
+  renderMeDestination();
   return true;
 }
 
@@ -898,8 +927,10 @@ function applyAuthCandidate(session) {
     currentProfile = defaultProfile();
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = "idle";
+    renderMeDestination();
     return;
   }
+  renderMeDestination();
   void reloadCurrentProfile().catch(() => {});
 }
 
@@ -962,7 +993,6 @@ function startMap() {
 }
 
 function init() {
-  renderSupportContact();
   controller = createSessionController({
     api: {
       acceptSessionParticipant,
@@ -1035,10 +1065,9 @@ function init() {
     },
     toast,
   });
+  renderMeDestination();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
-  document.getElementById("open-session").addEventListener("click", () => controller.openCreateIntent());
-  document.getElementById("open-my-sessions").addEventListener("click", () => showMySessionsPage());
   document.getElementById("player-layer-toggle").addEventListener("click", () => controller.togglePlayerLayer());
   document.getElementById("player-directory-open").addEventListener("click", () => controller.openPlayerDirectory());
   document.querySelector(".app-brand").addEventListener("click", (event) => {
@@ -1048,6 +1077,7 @@ function init() {
   document.getElementById("map-tab").addEventListener("click", () => showMapPage());
   document.getElementById("create-session-tab").addEventListener("click", () => controller.openCreateIntent());
   document.getElementById("my-sessions-tab").addEventListener("click", () => showMySessionsPage());
+  document.getElementById("me-tab").addEventListener("click", () => showMePage());
   globalThis.addEventListener("hashchange", () => {
     void openSessionHashRoute();
   });
