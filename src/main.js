@@ -120,7 +120,9 @@ let profileLoadStatus = "idle";
 let profileRevision = 0;
 let activePage = "map";
 let createdSessionFocusId = null;
+let meRenderGeneration = 0;
 let mySessionsRenderGeneration = 0;
+let pendingMeFocus = null;
 let pendingMySessionsFocus = null;
 let notificationSettings = defaultNotificationSettings();
 let presenceLocationStatus = "idle";
@@ -178,7 +180,7 @@ async function openSessionHashRoute() {
   if (result?.status !== "opened") openSessionUnavailableSheet();
 }
 
-function renderSupportContact() {
+function supportContactHref() {
   const address = SUPPORT_EMAIL.trim();
   return address ? `mailto:${address}` : "";
 }
@@ -213,6 +215,7 @@ function stopPresenceTracking() {
 function updatePresenceLocationStatus(status) {
   presenceLocationStatus = status;
   if (activePage === "my-sessions") renderMySessionsDestination();
+  else if (activePage === "me") renderMeDestination();
 }
 
 function reconcilePresenceTracking() {
@@ -555,12 +558,60 @@ function restoreMySessionsFocus(root, focus, generation) {
   });
 }
 
+function captureMeFocus(root) {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !root.contains(active)) return null;
+  if (active.matches("[data-me-heading]")) return { kind: "heading" };
+  if (active.matches('[data-testid="me-sign-in"]')) return { kind: "sign-in" };
+  if (active.matches('[data-testid="me-sign-out"]')) return { kind: "sign-out" };
+  if (active.matches('[data-my-action="toggle-visibility"]')) return { kind: "player-visibility" };
+  if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
+  if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
+  if (active.matches(".me-service-links a")) return { href: active.getAttribute("href") ?? "", kind: "service-link" };
+  return null;
+}
+
+function resolveMeFocus(root, focus) {
+  if (!focus) return null;
+  if (focus.kind === "heading") return root.querySelector("[data-me-heading]");
+  if (focus.kind === "sign-in") return root.querySelector('[data-testid="me-sign-in"]');
+  if (focus.kind === "sign-out") return root.querySelector('[data-testid="me-sign-out"]');
+  if (focus.kind === "player-visibility") return root.querySelector('[data-my-action="toggle-visibility"]');
+  if (focus.kind === "presence-sharing") return root.querySelector("[data-set-presence-sharing]");
+  if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
+  if (focus.kind === "service-link") {
+    return [...root.querySelectorAll(".me-service-links a")].find((link) => link.getAttribute("href") === focus.href);
+  }
+  return null;
+}
+
+function restoreMeFocus(root, focus, generation) {
+  if (!focus) return;
+  requestAnimationFrame(() => {
+    if (generation !== meRenderGeneration || activePage !== "me") return;
+    if (document.querySelector("#sheet-root .surface, #modal-root .surface")) {
+      pendingMeFocus = null;
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && root.contains(active)) {
+      pendingMeFocus = null;
+      return;
+    }
+    const target = resolveMeFocus(root, focus);
+    if (target && !target.disabled) target.focus({ preventScroll: true });
+    else root.querySelector("[data-me-heading]")?.focus({ preventScroll: true });
+    pendingMeFocus = null;
+  });
+}
+
 function notificationRequestIsCurrent({ epoch, identity }) {
   return Boolean(authSession) && epoch === authStateEpoch && identity === currentAuthIdentity;
 }
 
 function rerenderVisibleNotificationSettings() {
   if (activePage === "my-sessions") renderMySessionsDestination();
+  else if (activePage === "me") renderMeDestination();
 }
 
 async function refreshNotificationSettings() {
@@ -707,13 +758,8 @@ function renderMySessionsDestination() {
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     onSaveCourtSubscriptions: updateCourtSubscriptions,
     onSaveNotificationPreferences: updateNotificationPreferences,
-    onSetOpenToGreeting: updateOpenToGreetingSetting,
-    onSetPresenceSharing: updatePresenceSharing,
-    onToggleVisibility: controller.togglePlayerVisibility,
     onUnblockPlayer: controller.unblockPlayer,
     notificationSettings,
-    presenceSettings: presenceSettingsForProfile(),
-    profileIsPublic: state.isPublic,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
   });
@@ -724,19 +770,38 @@ function renderMySessionsDestination() {
 function renderMeDestination() {
   const root = document.getElementById("me-root");
   if (!root) return;
+  if (root.dataset.meFocusTracking !== "true") {
+    root.dataset.meFocusTracking = "true";
+    root.addEventListener("focusin", () => {
+      if (activePage === "me") pendingMeFocus = captureMeFocus(root);
+    });
+  }
+  const focus = activePage === "me" ? captureMeFocus(root) ?? pendingMeFocus : null;
+  if (focus) pendingMeFocus = focus;
+  else if (activePage !== "me") pendingMeFocus = null;
+  const generation = ++meRenderGeneration;
+  const state = controller?.getMySessionState?.() ?? {};
   renderMePage(root, {
     authSession,
     avatarUrl: currentAuthAvatarUrl(),
     onEditProfile: () => {},
+    onSetOpenToGreeting: updateOpenToGreetingSetting,
+    onSetPresenceSharing: updatePresenceSharing,
     onSignIn: () => openSafeLogin({ action: "me" }),
     onSignOut: handleSignOut,
+    onTogglePlayerVisibility: controller?.togglePlayerVisibility,
+    playerVisibility: state.isPublic === true,
+    presence: presenceSettingsForProfile(),
     profile: currentProfile ?? defaultProfile(),
-    supportHref: renderSupportContact(),
+    supportHref: supportContactHref(),
   });
+  restoreMeFocus(root, focus, generation);
+  syncBottomNavigation();
 }
 
 function showMapPage({ focus = false } = {}) {
   activePage = "map";
+  pendingMeFocus = null;
   pendingMySessionsFocus = null;
   document.getElementById("tab-map").hidden = false;
   document.getElementById("my-sessions-page").hidden = true;
@@ -747,6 +812,7 @@ function showMapPage({ focus = false } = {}) {
 
 function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   activePage = "my-sessions";
+  pendingMeFocus = null;
   if (createdSessionId != null) createdSessionFocusId = createdSessionId;
   controller.setDrawerExpanded(false);
   document.getElementById("tab-map").hidden = true;
@@ -756,6 +822,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   renderMySessionsDestination();
   void controller.refreshMySessions().then(() => {
     if (activePage === "my-sessions") renderMySessionsDestination();
+    else if (activePage === "me") renderMeDestination();
   });
   void refreshNotificationSettings();
   void controller.refreshMyPlayerBlocks();
@@ -775,7 +842,7 @@ function showMePage({ focus = false } = {}) {
   const page = document.getElementById("me-page");
   page.hidden = false;
   renderMeDestination();
-  syncBottomNavigation();
+  if (authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
   if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
 }
 
@@ -853,6 +920,7 @@ async function loadCourtsImmediately() {
     populateCourtFilters(courts);
     renderBaseCourtPins();
     if (activePage === "my-sessions") renderMySessionsDestination();
+    else if (activePage === "me") renderMeDestination();
   } catch {
     courts = [];
     courtsReady = false;
@@ -862,6 +930,7 @@ async function loadCourtsImmediately() {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
     if (activePage === "my-sessions") renderMySessionsDestination();
+    else if (activePage === "me") renderMeDestination();
     toast("球場資料暫時無法載入。");
   }
 }
@@ -1062,6 +1131,7 @@ function init() {
       // switch made from the map page could leave a prior account's private
       // roster values in a hidden DOM subtree.
       renderMySessionsDestination();
+      if (activePage === "me") renderMeDestination();
     },
     toast,
   });

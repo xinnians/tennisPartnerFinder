@@ -100,14 +100,21 @@ export function renderMePage(
     profile = {},
     avatarUrl = "",
     onEditProfile = () => {},
+    onSetOpenToGreeting = () => {},
+    onSetPresenceSharing = () => {},
     onSignIn = () => {},
     onSignOut = () => {},
+    onTogglePlayerVisibility = () => {},
+    playerVisibility = false,
+    presence = {},
     supportHref = "",
   } = {}
 ) {
   const authenticated = Boolean(authSession);
   const nickname = String(profile?.nick ?? "").trim() || "球友";
+  const presenceSettings = normalizedPresenceSettings(presence);
   void onEditProfile;
+  setMySessionActionScope(root, authSession?.user?.id ?? null);
   root.innerHTML = `<div class="me-shell">
     <div class="me-shell__head"><p class="surface__eyebrow">我</p><h1 tabindex="-1" data-me-heading>帳號與站務</h1></div>
     ${
@@ -123,6 +130,34 @@ export function renderMePage(
           <button type="button" class="session-primary" data-testid="me-sign-in">登入</button>
         </section>`
     }
+    ${
+      authenticated
+        ? `<section class="player-visibility" aria-label="球友卡">
+      <div>
+        <h3>球友卡</h3>
+        <p class="form-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。</p>
+      </div>
+      <button type="button" class="session-secondary" data-my-action="toggle-visibility"
+        role="switch" aria-checked="${playerVisibility ? "true" : "false"}"
+        data-testid="player-visibility-toggle">${playerVisibility ? "已開啟" : "已關閉"}</button>
+    </section>
+    <section class="presence-settings" aria-labelledby="presence-settings-title">
+      <div>
+        <h3 id="presence-settings-title">在線狀態</h3>
+        <p class="form-hint">開啟期間你的所在球場只對其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
+      </div>
+      <button type="button" class="session-secondary" data-set-presence-sharing data-presence-control
+        role="switch" aria-checked="${presenceSettings.sharePresence ? "true" : "false"}"
+        data-testid="presence-sharing-toggle">${presenceSettings.sharePresence ? "一鍵隱藏" : "開啟在線分享"}</button>
+      <p class="form-hint" data-testid="presence-location-status">${esc(presenceLocationHint(presenceSettings))}</p>
+      <label class="presence-settings__greeting"><input type="checkbox" data-open-to-greeting data-presence-control data-testid="open-to-greeting-toggle"${
+        presenceSettings.openToGreeting ? " checked" : ""
+      }> 接受現場問候</label>
+      <p class="form-error" data-presence-error role="alert" tabindex="-1" hidden></p>
+    </section>
+    <p class="form-error" data-my-sessions-error role="alert" tabindex="-1" hidden></p>`
+        : ""
+    }
     <section class="me-service-links" aria-labelledby="me-service-title">
       <h2 id="me-service-title">站務</h2>
       <div>${supportHref ? `<a href="${esc(supportHref)}">聯絡支援</a>` : ""}<a href="/privacy.html">隱私權政策</a></div>
@@ -131,6 +166,20 @@ export function renderMePage(
   wireAvatarFallbacks(root);
   root.querySelector('[data-testid="me-sign-in"]')?.addEventListener("click", onSignIn);
   root.querySelector('[data-testid="me-sign-out"]')?.addEventListener("click", onSignOut);
+  root.querySelector('[data-my-action="toggle-visibility"]')?.addEventListener("click", (event) => {
+    runMySessionAction(event.currentTarget, onTogglePlayerVisibility, root);
+  });
+  root.querySelector("[data-set-presence-sharing]")?.addEventListener("click", () => {
+    void runPresenceSettingAction(root, () => onSetPresenceSharing(!presenceSettings.sharePresence));
+  });
+  root.querySelector("[data-open-to-greeting]")?.addEventListener("change", (event) => {
+    const input = event.currentTarget;
+    const previousChecked = !input.checked;
+    void runPresenceSettingAction(root, () => onSetOpenToGreeting(input.checked)).then((saved) => {
+      if (!saved) input.checked = previousChecked;
+    });
+  });
+  syncPendingMySessionActions(root);
 }
 
 const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
@@ -968,9 +1017,6 @@ export function renderMySessionsPage(
     onSignIn = () => {},
     onSaveCourtSubscriptions = () => {},
     onSaveNotificationPreferences = () => {},
-    onSetOpenToGreeting = () => {},
-    onSetPresenceSharing = () => {},
-    onToggleVisibility = () => {},
     onUnblockPlayer = () => {},
     onWithdraw = () => {},
     authenticated = false,
@@ -978,15 +1024,12 @@ export function renderMySessionsPage(
     status = "idle",
     errorMessage = "",
     notificationSettings = {},
-    presenceSettings = {},
-    profileIsPublic = false,
   } = {}
 ) {
   const needsAction = Array.isArray(groups.needsAction) ? groups.needsAction : [];
   const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
   const history = Array.isArray(groups.history) ? groups.history : [];
   const notification = normalizedNotificationSettings(notificationSettings);
-  const presence = normalizedPresenceSettings(presenceSettings);
   const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
   const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
     (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
@@ -1034,30 +1077,7 @@ export function renderMySessionsPage(
     ${needsActionSection}
     ${
       authenticated
-        ? `<section class="player-visibility" aria-label="球友卡">
-      <div>
-        <h3>球友卡</h3>
-        <p class="form-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。</p>
-      </div>
-      <button type="button" class="session-secondary" data-my-action="toggle-visibility"
-        role="switch" aria-checked="${profileIsPublic ? "true" : "false"}"
-        data-testid="player-visibility-toggle">${profileIsPublic ? "已開啟" : "已關閉"}</button>
-    </section>
-    <section class="presence-settings" aria-labelledby="presence-settings-title">
-      <div>
-        <h3 id="presence-settings-title">在線狀態</h3>
-        <p class="form-hint">開啟期間你的所在球場只對其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
-      </div>
-      <button type="button" class="session-secondary" data-set-presence-sharing data-presence-control
-        role="switch" aria-checked="${presence.sharePresence ? "true" : "false"}"
-        data-testid="presence-sharing-toggle">${presence.sharePresence ? "一鍵隱藏" : "開啟在線分享"}</button>
-      <p class="form-hint" data-testid="presence-location-status">${esc(presenceLocationHint(presence))}</p>
-      <label class="presence-settings__greeting"><input type="checkbox" data-open-to-greeting data-presence-control data-testid="open-to-greeting-toggle"${
-        presence.openToGreeting ? " checked" : ""
-      }> 接受現場問候</label>
-      <p class="form-error" data-presence-error role="alert" tabindex="-1" hidden></p>
-    </section>
-    <section class="notification-settings" aria-labelledby="notification-settings-title">
+        ? `<section class="notification-settings" aria-labelledby="notification-settings-title">
       <div class="notification-settings__head">
         <div>
           <h3 id="notification-settings-title">通知設定</h3>
@@ -1208,16 +1228,6 @@ export function renderMySessionsPage(
       if (!saved) restoreCourtSelection();
     });
   });
-  root.querySelector("[data-set-presence-sharing]")?.addEventListener("click", () => {
-    void runPresenceSettingAction(root, () => onSetPresenceSharing(!presence.sharePresence));
-  });
-  root.querySelector("[data-open-to-greeting]")?.addEventListener("change", (event) => {
-    const input = event.currentTarget;
-    const previousChecked = !input.checked;
-    void runPresenceSettingAction(root, () => onSetOpenToGreeting(input.checked)).then((saved) => {
-      if (!saved) input.checked = previousChecked;
-    });
-  });
   root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
   root.querySelectorAll("[data-open-my-session]").forEach((button) => {
     button.addEventListener("click", () => onOpenSession(button.dataset.sessionId));
@@ -1242,7 +1252,6 @@ export function renderMySessionsPage(
         played: () => onMarkPlayed(sessionId),
         "report-participant": () => onReportParticipant(sessionId, profileId),
         "report-session": () => onReportSession(sessionId),
-        "toggle-visibility": onToggleVisibility,
         unblock: () => onUnblockPlayer(profileId),
         withdraw: () => onWithdraw(sessionId),
       };
