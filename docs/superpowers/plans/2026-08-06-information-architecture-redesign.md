@@ -428,6 +428,14 @@ B1 迴歸保護:抽 exported 純函式 `shouldReleasePendingMeFocus` + node unit
 7. 測試數字從實跑 log **逐字複製**,不得估算或回推。
 8. **擴大範圍前先提案,不要直接實作。**
 9. 每批 commit 用精確路徑不用 `-A`;**不 push**(push 由 ian 執行)。
+10. 凡寫進派工單的 selector、參數名、行號,**一律先 grep 驗證再寫**,不憑印象。
+11. **修 A 不得沉默改變 B**:凡把「持有節點參照」改成「以描述重查」的修法,必須明寫
+    「重查到的新節點若本來就該是別的狀態,以誰為權威」,並附一條會紅的 canary。
+    (批 3b 的 blocker 正是這條缺席:只說了「要重查」,沒說「重查到不同狀態時聽誰的」,
+    結果 `finally` 把重繪後本該 disabled 的推播按鈕強制解鎖。)
+12. **不變式一旦建立,後續批次的驗收條件必須帶著它**。批 3a 建立「我」頁 44px 觸控不變式,
+    批 3b 搬入新控件時我未在派工單重申,且 3a 的守衛是列舉式(違反第 4 條)——
+    兩者疊加導致 9 個控件靜默低於 44px。**列舉式守衛看到就改成對稱式,不要只在新寫的地方遵守。**
 
 詳細教訓見 memory:`return-type-change-consumer-sweep`、
 `verification-evidence-requests-induce-flakes`、`pre-release-review-2026-08-04`。
