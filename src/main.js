@@ -485,7 +485,6 @@ function captureMySessionsFocus(root) {
   if (active.matches("[data-my-sessions-back]")) return { kind: "back" };
   if (active.matches("[data-my-sessions-heading]")) return { kind: "heading" };
   if (active.matches("[data-my-sessions-sign-in]")) return { kind: "sign-in" };
-  if (active.matches("[data-retry-contacts]")) return { kind: "retry-contacts" };
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
   if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
   if (active.matches("[data-notification-courts]")) return { kind: "notification-courts" };
@@ -510,7 +509,6 @@ function resolveMySessionsFocus(root, focus) {
   if (focus.kind === "back") return root.querySelector("[data-my-sessions-back]");
   if (focus.kind === "heading") return root.querySelector("[data-my-sessions-heading]");
   if (focus.kind === "sign-in") return root.querySelector("[data-my-sessions-sign-in]");
-  if (focus.kind === "retry-contacts") return root.querySelector("[data-retry-contacts]");
   if (focus.kind === "enable-push") return root.querySelector("[data-enable-push]");
   if (focus.kind === "notification-pref") {
     return [...root.querySelectorAll("[data-notification-pref]")].find(
@@ -675,8 +673,6 @@ function renderMySessionsDestination() {
   renderMySessionsPage(root, {
     actionScopeKey: state.viewGeneration,
     authenticated: state.authenticated,
-    contactsForSession: controller.getSessionContacts,
-    contactsError: state.contactsError,
     blockedPlayers: state.blockedPlayers,
     blockedPlayersError: state.blockedPlayersError,
     blockedPlayersStatus: state.blockedPlayersStatus,
@@ -703,7 +699,7 @@ function renderMySessionsDestination() {
     onOpenChat: controller.openSessionChat,
     onOpenSession: controller.openSession,
     onRefresh: async () => {
-      await controller.refreshMySessions({ includeContacts: true });
+      await controller.refreshMySessions();
       renderMySessionsDestination();
     },
     onReportParticipant: controller.openRosterParticipantReport,
@@ -743,9 +739,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   const page = document.getElementById("my-sessions-page");
   page.hidden = false;
   renderMySessionsDestination();
-  // Contacts are private and are deliberately requested only after the
-  // accepted-state page has rendered. A rerender then reveals those rows.
-  void controller.refreshMySessions({ includeContacts: true }).then(() => {
+  void controller.refreshMySessions().then(() => {
     if (activePage === "my-sessions") renderMySessionsDestination();
   });
   void refreshNotificationSettings();
@@ -1036,7 +1030,7 @@ function init() {
       if (!controller) return;
       // Keep the hidden destination in sync as well. Otherwise an account
       // switch made from the map page could leave a prior account's private
-      // roster/contact values in a hidden DOM subtree.
+      // roster values in a hidden DOM subtree.
       renderMySessionsDestination();
     },
     toast,

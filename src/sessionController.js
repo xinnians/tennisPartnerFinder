@@ -340,9 +340,7 @@ export function createSessionController({
     profile: null,
     mySessions: [],
     mySessionsError: "",
-    mySessionContactsError: "",
     mySessionsStatus: "idle",
-    mySessionContacts: new Map(),
     mySessionRosters: new Map(),
     blockedPlayers: [],
     blockedPlayersError: "",
@@ -357,7 +355,6 @@ export function createSessionController({
   let latestRequest = 0;
   let latestParticipationRequest = 0;
   let latestRosterRequest = 0;
-  let latestContactRequest = 0;
   const detailJoinPreviewContext = { requestId: 0 };
   const confirmationJoinPreviewContext = { requestId: 0 };
   let latestLocationRequest = 0;
@@ -489,7 +486,6 @@ export function createSessionController({
       blockedPlayers: [...state.blockedPlayers],
       blockedPlayersError: state.blockedPlayersError,
       blockedPlayersStatus: state.blockedPlayersStatus,
-      contactsError: state.mySessionContactsError,
       error: state.mySessionsError,
       groups: mySessionGroups(),
       isPublic: profileIsPublic(state.profile),
@@ -500,8 +496,6 @@ export function createSessionController({
 
   function replaceMySessions(sessions) {
     state.mySessions = Array.isArray(sessions) ? sessions : [];
-    state.mySessionContacts = new Map();
-    state.mySessionContactsError = "";
     state.mySessionRosters = new Map();
     mySessionsVersion += 1;
   }
@@ -516,14 +510,6 @@ export function createSessionController({
         String(session?.viewerRole) === "host" &&
         Boolean(session?.canCancel) &&
         MY_SESSION_OPEN_STATUSES.has(String(session?.status ?? "").toLowerCase())
-    );
-  }
-
-  function sessionsEligibleForContacts() {
-    return state.mySessions.filter(
-      (session) =>
-        String(session?.viewerParticipantStatus) === "accepted" &&
-        ["open", "full", "played"].includes(String(session?.status ?? "").toLowerCase())
     );
   }
 
@@ -559,46 +545,10 @@ export function createSessionController({
     return !failed;
   }
 
-  async function hydrateMySessionContacts(authSnapshot = captureAuthSnapshot()) {
-    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
-    if (typeof api?.loadSessionContacts !== "function") return true;
-    const requestId = ++latestContactRequest;
-    const snapshot = { ...authSnapshot, mySessionsVersion };
-    const targets = sessionsEligibleForContacts();
-    const results = await Promise.all(
-      targets.map(async (session) => {
-        try {
-          const contacts = await api.loadSessionContacts(session.sessionId);
-          return { contacts: Array.isArray(contacts) ? contacts : [], sessionId: session.sessionId };
-        } catch {
-          return { contacts: null, sessionId: session.sessionId };
-        }
-      })
-    );
-    if (requestId !== latestContactRequest || !isCurrentMySessionsSnapshot(snapshot)) return false;
-    const contacts = new Map();
-    let failed = false;
-    for (const result of results) {
-      if (result.contacts) contacts.set(sessionKey(result.sessionId), result.contacts);
-      else failed = true;
-    }
-    state.mySessionContacts = contacts;
-    if (failed) {
-      // Contact retrieval is deliberately secondary to the authoritative
-      // lifecycle list. It must not hide a known host action badge or make a
-      // successful accept/withdraw look like a failed mutation.
-      state.mySessionContactsError = "聯絡方式暫時無法載入，請重新整理後再試。";
-    } else {
-      state.mySessionContactsError = "";
-    }
-    notifyMySessions();
-    return !failed;
-  }
-
-  async function refreshMySessions({ includeContacts = true } = {}) {
+  async function refreshMySessions() {
     const authSnapshot = captureAuthSnapshot();
     if (!isCurrentAuthSnapshot(authSnapshot)) return false;
-    return reloadParticipation(authSnapshot.epoch, authSnapshot.identity, { includeContacts });
+    return reloadParticipation(authSnapshot.epoch, authSnapshot.identity);
   }
 
   async function refreshMyPlayerBlocks(authSnapshot = captureAuthSnapshot()) {
@@ -643,8 +593,8 @@ export function createSessionController({
     return true;
   }
 
-  async function refreshMySessionDetails({ includeContacts = false } = {}) {
-    return refreshMySessions({ includeContacts });
+  async function refreshMySessionDetails() {
+    return refreshMySessions();
   }
 
   function actionFor(session) {
@@ -711,7 +661,7 @@ export function createSessionController({
     return Boolean(key && inFlightLifecycleActions.has(key));
   }
 
-  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.authSession), { includeContacts = false } = {}) {
+  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.authSession)) {
     if (!state.authSession || !identity || typeof api?.loadMySessions !== "function") return false;
     const requestId = ++latestParticipationRequest;
     state.mySessionsStatus = "loading";
@@ -728,20 +678,15 @@ export function createSessionController({
       }
       replaceMySessions(sessions);
       state.mySessionsError = "";
-      // Publish the cleared private caches before awaiting secondary reads so
-      // an old roster or LINE row never survives in the rendered destination.
+      // Publish the cleared private cache before awaiting the roster read so
+      // an old roster never survives in the rendered destination.
       notifyMySessions();
       const rosterReady = await hydrateMySessionRosters({ epoch, identity });
       if (!rosterReady || !isCurrentAuthSnapshot({ epoch, identity })) return false;
-      if (includeContacts) await hydrateMySessionContacts({ epoch, identity });
-      if (!isCurrentAuthSnapshot({ epoch, identity })) return false;
       state.mySessionsStatus = "ready";
       reconcileActiveDetailParticipation();
       reconcileActiveChatParticipation();
       notifyMySessions();
-      // Contacts are non-authoritative enrichment. A failed contact request
-      // leaves a localized retry message, but the current lifecycle snapshot
-      // remains fresh and can safely complete an action.
       return true;
     } catch {
       if (
@@ -1240,7 +1185,7 @@ export function createSessionController({
     } catch (error) {
       if (activeChat === context && isCurrentAuthSnapshot(context.authSnapshot) && error?.code === "SESSION_ARCHIVED") {
         context.sheet?.setArchived?.(error.message);
-        await refreshMySessions({ includeContacts: false });
+        await refreshMySessions();
       }
       throw error;
     }
@@ -1624,9 +1569,9 @@ export function createSessionController({
     requireSessionAction({ action: "join", sessionId: session.sessionId }, { detail, session });
   }
 
-  async function refreshAuthoritativeState(authSnapshot, { includeContacts = false } = {}) {
+  async function refreshAuthoritativeState(authSnapshot) {
     const [participationReady, discoveryReady] = await Promise.all([
-      reloadParticipation(authSnapshot?.epoch, authSnapshot?.identity, { includeContacts }),
+      reloadParticipation(authSnapshot?.epoch, authSnapshot?.identity),
       loadDiscovery(state.bounds),
     ]);
     if (authSnapshot && !isCurrentAuthSnapshot(authSnapshot)) return false;
@@ -1740,14 +1685,14 @@ export function createSessionController({
     return { authSnapshot, session };
   }
 
-  async function runMySessionMutation(kind, session, authSnapshot, execute, successMessage, { includeContacts = true } = {}) {
+  async function runMySessionMutation(kind, session, authSnapshot, execute, successMessage) {
     const mutation = beginLifecycleAction(kind, session.sessionId, authSnapshot);
     if (!mutation) throw new Error("這個球局的操作正在處理中。");
     let refreshed = false;
     try {
       const result = await execute();
       if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-      refreshed = await refreshAuthoritativeState(authSnapshot, { includeContacts });
+      refreshed = await refreshAuthoritativeState(authSnapshot);
       if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
       if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
         throw new Error("球局狀態已更新，請重新載入。");
@@ -1758,7 +1703,7 @@ export function createSessionController({
       // Re-read authority even after a server-side rejection so a full,
       // cancelled, expired, or already-decided race never leaves stale actions.
       if (isCurrentAuthSnapshot(authSnapshot) && !refreshed) {
-        await refreshAuthoritativeState(authSnapshot, { includeContacts });
+        await refreshAuthoritativeState(authSnapshot);
       }
       throw error;
     } finally {
@@ -1806,8 +1751,7 @@ export function createSessionController({
       session,
       authSnapshot,
       () => api.respondToSessionInvite(session.sessionId, decision),
-      decision === "accepted" ? "已接受邀請。" : "已婉拒邀請。",
-      { includeContacts: decision === "accepted" }
+      decision === "accepted" ? "已接受邀請。" : "已婉拒邀請。"
     );
   }
 
@@ -1935,8 +1879,7 @@ export function createSessionController({
           session,
           authSnapshot,
           () => api.updateSession({ sessionId: session.sessionId, ...input }),
-          "已更新球局資訊。",
-          { includeContacts: false }
+          "已更新球局資訊。"
         );
         closeActiveEditSession({ reason: "complete" });
         return result;
@@ -2304,7 +2247,7 @@ export function createSessionController({
       state.blockedPlayersStatus = "idle";
       state.mySessionsError = "";
       state.mySessionsStatus = identity ? "loading" : "idle";
-      // The private DOM may currently contain a roster or contact. Push the
+      // The private DOM may currently contain a roster. Push the
       // empty snapshot synchronously, including on plain sign-out, before any
       // optional authenticated reload can run.
       notifyMySessions();
@@ -2339,14 +2282,12 @@ export function createSessionController({
       blockedPlayers: [...state.blockedPlayers],
       blockedPlayersError: state.blockedPlayersError,
       blockedPlayersStatus: state.blockedPlayersStatus,
-      contactsError: state.mySessionContactsError,
       error: state.mySessionsError,
       groups: mySessionGroups(),
       isPublic: profileIsPublic(state.profile),
       status: state.mySessionsStatus,
       viewGeneration: authEpoch,
     }),
-    getSessionContacts: (sessionId) => [...(state.mySessionContacts.get(sessionKey(sessionId)) ?? [])],
     getPlayerLayerState: () => ({
       groups: state.playerLayerOn ? playerGroups() : [],
       message: state.playerLayerMessage,
