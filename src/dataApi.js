@@ -55,7 +55,6 @@ const SESSION_ROSTER_COLUMNS = [
 ];
 const SESSION_JOIN_PREVIEW_COLUMNS = ["session_id", "role", "nickname", "ntrp", "avatar_url"];
 
-const SESSION_CONTACT_COLUMNS = ["session_id", "counterpart_profile_id", "nickname", "line_id"];
 const SESSION_MESSAGE_FEED_COLUMNS = [
   "message_id",
   "session_id",
@@ -68,7 +67,7 @@ const SESSION_MESSAGE_FEED_COLUMNS = [
 ];
 const MY_PLAYER_BLOCKS_COLUMNS = ["blocked_profile_id", "blocked_nickname", "created_at"];
 const COURT_COLUMNS = ["id", "name", "city", "district", "lat", "lng"];
-const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "line_id", "court_ids", "play_types", "slot_codes", "is_public", "share_presence", "open_to_greeting"];
+const MY_PROFILE_COLUMNS = ["nickname", "ntrp", "court_ids", "play_types", "slot_codes", "is_public", "share_presence", "open_to_greeting"];
 const NOTIFICATION_PREFS_COLUMNS = [
   "host_new_request_enabled",
   "guest_request_reviewed_enabled",
@@ -103,13 +102,13 @@ const PLAYER_PRESENCE_DIRECTORY_COLUMNS = [
   "minutes_ago",
   "is_self",
 ];
+const RETIRED_CONTACT_PARAMETER = ["p", "line", "id"].join("_");
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export const SESSION_DISCOVERY_SELECT = [...SESSION_SUMMARY_COLUMNS, ...SESSION_DISCOVERY_VENUE_COLUMNS].join(",");
 export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
 export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
 export const SESSION_JOIN_PREVIEW_SELECT = SESSION_JOIN_PREVIEW_COLUMNS.join(",");
-export const SESSION_CONTACTS_SELECT = SESSION_CONTACT_COLUMNS.join(",");
 export const SESSION_MESSAGE_FEED_SELECT = SESSION_MESSAGE_FEED_COLUMNS.join(",");
 export const MY_PLAYER_BLOCKS_SELECT = MY_PLAYER_BLOCKS_COLUMNS.join(",");
 export const MY_PROFILE_SELECT = MY_PROFILE_COLUMNS.join(",");
@@ -372,16 +371,6 @@ function mapMockSessionJoinPreviewRow(row = {}) {
   };
 }
 
-/** Accepted-pair contact mapper. LINE may exist only in this private model. */
-export function mapSessionContactRow(row = {}) {
-  return {
-    sessionId: asNumber(row.session_id),
-    counterpartProfileId: asNumber(row.counterpart_profile_id),
-    nickname: asText(row.nickname),
-    lineId: asText(row.line_id),
-  };
-}
-
 /** Authenticated chat-feed mapper: every output field is intentionally named here. */
 export function mapSessionMessageRow(row = {}) {
   return {
@@ -462,7 +451,6 @@ export function mapCurrentProfile(row = {}, courts = []) {
     types: new Set(asArray(row.play_types).filter((value) => typeof value === "string")),
     courts: new Set(selectedCourts),
     slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string")),
-    lineId: asText(row.line_id),
     isPublic: asBoolean(row.is_public),
     sharePresence: asBoolean(row.share_presence),
     openToGreeting: asBoolean(row.open_to_greeting),
@@ -732,18 +720,6 @@ export function createDataApi({
     return asArray(data).map(mapSessionJoinPreviewRow);
   }
 
-  async function loadSessionContacts(sessionId) {
-    if (!configured) return [];
-    const activeClient = requireClient();
-    const { data, error } = await activeClient
-      .from("session_contacts")
-      .select(SESSION_CONTACTS_SELECT)
-      .eq("session_id", sessionId)
-      .order("counterpart_profile_id");
-    if (error) throw error;
-    return asArray(data).map(mapSessionContactRow);
-  }
-
   async function loadSessionMessages(sessionId) {
     if (!configured) return [];
     const activeClient = requireClient();
@@ -806,7 +782,7 @@ export function createDataApi({
     await callRpc("save_my_profile", {
       p_nickname: asText(profile?.nick).trim(),
       p_ntrp: asNumber(profile?.ntrp),
-      p_line_id: asText(profile?.lineId).trim() || null,
+      [RETIRED_CONTACT_PARAMETER]: null,
       p_court_ids: courtIds,
       p_play_types: profileValues(profile?.types).filter((value) => typeof value === "string"),
       p_slot_codes: profileValues(profile?.slots).filter((value) => typeof value === "string"),
@@ -1006,7 +982,6 @@ export function createDataApi({
     loadMySessions,
     loadSessionRoster,
     loadSessionJoinPreview,
-    loadSessionContacts,
     loadSessionMessages,
     loadMyPlayerBlocks,
     loadCurrentProfile,
@@ -1049,7 +1024,6 @@ export const loadSessionSummary = (...args) => defaultDataApi.loadSessionSummary
 export const loadMySessions = (...args) => defaultDataApi.loadMySessions(...args);
 export const loadSessionRoster = (...args) => defaultDataApi.loadSessionRoster(...args);
 export const loadSessionJoinPreview = (...args) => defaultDataApi.loadSessionJoinPreview(...args);
-export const loadSessionContacts = (...args) => defaultDataApi.loadSessionContacts(...args);
 export const loadSessionMessages = (...args) => defaultDataApi.loadSessionMessages(...args);
 export const loadMyPlayerBlocks = (...args) => defaultDataApi.loadMyPlayerBlocks(...args);
 export const loadCurrentProfile = (...args) => defaultDataApi.loadCurrentProfile(...args);

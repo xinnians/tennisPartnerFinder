@@ -39,7 +39,6 @@ import {
   loadNotificationPreferences,
   loadPlayerDirectory,
   loadPlayerPresenceDirectory,
-  loadSessionContacts,
   loadSessionDiscovery,
   loadSessionMessages,
   loadSessionJoinPreview,
@@ -192,7 +191,6 @@ const LOCAL_DEMO_UNAVAILABLE = "本機示範資料僅供瀏覽；登入、儲存
 function defaultProfile() {
   return {
     courts: new Set(),
-    lineId: "",
     nick: "",
     ntrp: null,
     slots: new Set(),
@@ -984,7 +982,6 @@ function init() {
       loadMyPlayerBlocks,
       loadPlayerDirectory,
       loadPlayerPresenceDirectory,
-      loadSessionContacts,
       loadSessionDiscovery,
       loadSessionMessages,
       loadSessionJoinPreview,
