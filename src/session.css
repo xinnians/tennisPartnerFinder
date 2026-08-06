@@ -386,6 +386,11 @@
 .player-visibility h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .player-visibility .form-hint { margin: 0; }
 .player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
+.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.me-edit-profile h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.me-edit-profile .form-hint { margin: 0; }
+.me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }
+.me-page .me-edit-profile .session-secondary,
 .me-page .player-visibility [role="switch"],
 .me-page .presence-settings [role="switch"],
 .me-page .presence-settings__greeting,

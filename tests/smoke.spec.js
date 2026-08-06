@@ -1412,6 +1412,11 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   );
   expect(
     await page.locator(".me-identity-card").evaluate(
+      (node) => node.nextElementSibling?.classList.contains("me-edit-profile") === true
+    )
+  ).toBe(true);
+  expect(
+    await page.locator(".me-edit-profile").evaluate(
       (node) => node.nextElementSibling?.classList.contains("player-visibility") === true
     )
   ).toBe(true);
@@ -1596,6 +1601,46 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
   );
   await expect(page.locator("#me-root [data-notification-error]")).toBeHidden();
   await expect(courtSelect.locator("option:checked")).toHaveCount(11);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the profile sheet keeps its gate framing but drops it in standalone mode", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  // 同一組輸入，只換 mode，差異才歸因得到 mode 本身。
+  const openWith = (mode) =>
+    page.evaluate(async (sheetMode) => {
+      const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+      openProfileCompletionSheet({
+        courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+        intent: { action: "join" },
+        mode: sheetMode,
+        profile: { courts: new Set(), nick: "測試球友", ntrp: 3.5, slots: new Set(), types: new Set() },
+        returnSession: { court: "示範球場", startAt: "2026-07-18T01:30:00.000Z" },
+      });
+    }, mode);
+
+  const sheet = page.locator("#profile-completion-sheet");
+
+  await openWith("gate");
+  await expect(sheet.locator(".surface__eyebrow")).toHaveText("完成後即可繼續");
+  await expect(sheet.locator("h2")).toHaveText("完成個人檔案");
+  await expect(page.getByTestId("profile-save")).toHaveText("儲存並繼續");
+  await expect(sheet).toContainText("完成後將回到：示範球場・");
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+
+  await openWith("standalone");
+  await expect(sheet.locator(".surface__eyebrow")).toHaveText("個人檔案");
+  await expect(sheet.locator("h2")).toHaveText("編輯個人檔案");
+  await expect(page.getByTestId("profile-save")).toHaveText("儲存");
+  await expect(sheet).not.toContainText("完成後將回到");
+  // 欄位與揭露文字兩模式相同，換的只有語氣。
+  await expect(sheet.getByLabel("公開暱稱")).toBeVisible();
+  await expect(sheet.locator("#profile-ntrp")).toBeVisible();
+  await expect(sheet.locator("[data-testid='profile-form']")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 

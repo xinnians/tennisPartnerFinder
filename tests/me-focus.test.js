@@ -31,3 +31,8 @@ test("root 不存在時釋放，不得因缺 root 而永久保留殘值", () => 
   const outside = { id: "map-tab" };
   assert.equal(shouldReleasePendingMeFocus(null, outside), true);
 });
+
+test("root 存在但沒有 contains 方法時釋放，不得因 root 不完整而保留殘值", () => {
+  const outside = { id: "map-tab" };
+  assert.equal(shouldReleasePendingMeFocus({}, outside), true);
+});

@@ -127,7 +127,6 @@ export function renderMePage(
   const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
     (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
   );
-  void onEditProfile;
   setMySessionActionScope(root, authSession?.user?.id ?? null);
   root.innerHTML = `<div class="me-shell">
     <div class="me-shell__head"><p class="surface__eyebrow">我</p><h1 tabindex="-1" data-me-heading>帳號與站務</h1></div>
@@ -137,6 +136,13 @@ export function renderMePage(
           ${avatarMarkup({ avatarUrl, nickname })}
           <div class="me-identity-card__copy"><strong>${esc(nickname)}</strong><span>${esc(formatNtrp(profile?.ntrp))}</span></div>
           <button type="button" class="session-secondary" data-testid="me-sign-out">登出</button>
+        </section>
+        <section class="me-edit-profile" aria-label="個人檔案">
+          <div>
+            <h3>個人檔案</h3>
+            <p class="form-hint">暱稱、NTRP 與常打球場；暱稱與 NTRP 會出現在你建立或加入的球局。</p>
+          </div>
+          <button type="button" class="session-secondary" data-testid="edit-profile">編輯</button>
         </section>`
         : `<section class="me-sign-in-card" aria-label="登入">
           <h2>登入後查看你的身分</h2>
@@ -261,6 +267,7 @@ export function renderMePage(
   wireAvatarFallbacks(root);
   root.querySelector('[data-testid="me-sign-in"]')?.addEventListener("click", onSignIn);
   root.querySelector('[data-testid="me-sign-out"]')?.addEventListener("click", onSignOut);
+  root.querySelector('[data-testid="edit-profile"]')?.addEventListener("click", onEditProfile);
   root.querySelector('[data-my-action="toggle-visibility"]')?.addEventListener("click", (event) => {
     runMySessionAction(event.currentTarget, onTogglePlayerVisibility, root);
   });
@@ -1361,12 +1368,6 @@ export function renderMySessionsPage(
   }
 }
 
-/** Backward-compatible alias for Task 6's create success handoff. */
-export function renderCreatedSessionDestination(root, { createdSessionId, onBack = () => {}, onOpenSession = () => {}, sessions = [] } = {}) {
-  const groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: sessions };
-  renderMySessionsPage(root, { createdSessionId, groups, onBack, onOpenSession });
-}
-
 function wireSessionCards(root, onOpenSession) {
   root.querySelectorAll("[data-session-id]").forEach((card) => {
     card.addEventListener("click", () => onOpenSession(card.dataset.sessionId));
@@ -2245,9 +2246,12 @@ export function openProfileCompletionSheet({
   onSave = async () => {},
   onSaved = async () => {},
   intent = null,
+  mode = "gate",
   profile = {},
   returnSession = null,
 } = {}) {
+  // standalone 是「我」頁的常駐編輯入口：同一份表單與驗證，只是不帶 gate 的催促語氣。
+  const standalone = mode === "standalone";
   const selectedCourts = profile.courts instanceof Set ? profile.courts : new Set(profile.courts ?? []);
   const selectedTypes = profile.types instanceof Set ? profile.types : new Set(profile.types ?? []);
   const selectedSlots = profile.slots instanceof Set ? profile.slots : new Set(profile.slots ?? []);
@@ -2259,20 +2263,22 @@ export function openProfileCompletionSheet({
   let saved = false;
   const mounted = mountSheet({
     id: "profile-completion-sheet",
-    label: "完成個人檔案",
+    label: standalone ? "編輯個人檔案" : "完成個人檔案",
     className: "profile-sheet",
     onClose: (detail = {}) => onClose({ ...detail, saved }),
     html: `
       <div class="surface__head">
-        <div><p class="surface__eyebrow">完成後即可繼續</p><h2>完成個人檔案</h2></div>
+        <div><p class="surface__eyebrow">${standalone ? "個人檔案" : "完成後即可繼續"}</p><h2>${
+          standalone ? "編輯個人檔案" : "完成個人檔案"
+        }</h2></div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉個人檔案">×</button>
       </div>
       ${
-        returnSession
+        returnSession && !standalone
           ? `<p class="profile-return-context">完成後將回到：${esc(returnSession.court)}・${esc(taipeiDateTime(returnSession.startAt))}</p>`
           : ""
       }
-      ${gateHint ? `<p class="form-hint">${esc(gateHint)}</p>` : ""}
+      ${gateHint && !standalone ? `<p class="form-hint">${esc(gateHint)}</p>` : ""}
       <div class="profile-avatar-preview" data-profile-avatar>${avatarMarkup({ avatarUrl, nickname: profile.nick })}<p>使用 Google 頭像，無法自訂</p></div>
       <form class="profile-form" data-testid="profile-form" novalidate>
         ${
@@ -2308,7 +2314,7 @@ export function openProfileCompletionSheet({
         ).join("")}</div></fieldset>`
         }
         <p class="form-error" data-profile-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-testid="profile-save">儲存並繼續</button>
+        <button type="submit" class="session-primary" data-testid="profile-save">${standalone ? "儲存" : "儲存並繼續"}</button>
       </form>`,
   });
   const form = mounted.root.querySelector("[data-testid='profile-form']");

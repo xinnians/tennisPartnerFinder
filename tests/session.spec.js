@@ -1426,3 +1426,43 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
   await expectChatFeedAtBottom(chat);
   expect(runtimeErrors).toEqual([]);
 });
+
+test("the Me profile entry edits without a gate and refreshes the identity card in place", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const actor = await createCompleteActor(context.host);
+
+  await gotoWithSession(page, actor.session);
+  await page.getByTestId("me-tab").click();
+
+  const identityCard = page.getByTestId("me-identity-card");
+  await expect(identityCard).toContainText(context.host.nickname);
+
+  const entry = page.getByTestId("edit-profile");
+  await expect(entry).toBeVisible();
+  await entry.click();
+
+  const sheet = page.locator("#profile-completion-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator(".surface__eyebrow")).toHaveText("個人檔案");
+  await expect(sheet.locator("h2")).toHaveText("編輯個人檔案");
+  await expect(page.getByTestId("profile-save")).toHaveText("儲存");
+  await expect(sheet).not.toContainText("完成後將回到");
+
+  const renamed = `${context.host.nickname}B`;
+  await sheet.locator("#profile-nickname").fill(renamed);
+  await page.getByTestId("profile-save").click();
+
+  await expect(sheet).toHaveCount(0);
+  await expect(identityCard).toContainText(renamed);
+  // sheets.js 的 trigger restore 找不回重繪過的入口，改由 main.js 明確送回。
+  await expect(entry).toBeFocused();
+
+  const { data: savedProfile, error: profileError } = await actor.client
+    .from("my_profile")
+    .select("nickname")
+    .single();
+  if (profileError) throw profileError;
+  expect(savedProfile.nickname).toBe(renamed);
+  expect(runtimeErrors).toEqual([]);
+});

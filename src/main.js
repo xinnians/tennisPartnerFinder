@@ -330,13 +330,21 @@ function closeActiveProfileCompletion(options = { reason: "account-change", rest
   mounted?.close?.(options);
 }
 
-function openProfileCompletion({ courts: selectableCourts, courtsReady: formCourtsReady, intent, onClose = () => {}, returnSession } = {}) {
+function openProfileCompletion({
+  courts: selectableCourts,
+  courtsReady: formCourtsReady,
+  intent,
+  mode = "gate",
+  onClose = () => {},
+  returnSession,
+} = {}) {
   const openedIdentity = authIdentity(authSession);
   let mounted = null;
   mounted = openProfileCompletionSheet({
     avatarUrl: currentAuthAvatarUrl(),
     courts: selectableCourts ?? courts,
     courtsReady: formCourtsReady ?? courtsReady,
+    mode,
     onClose: (detail) => {
       if (activeProfileCompletion === mounted) {
         activeProfileCompletion = null;
@@ -365,6 +373,17 @@ function openProfileCompletion({ courts: selectableCourts, courtsReady: formCour
       currentProfile = savedProfile ?? currentProfile ?? defaultProfile();
       if (!authSession) return;
       await controller.setAuthState(authSession, currentProfileEligibility());
+      // 身分卡顯示暱稱與 NTRP，存檔後要立刻反映新值。
+      if (activePage !== "me") return;
+      renderMeDestination();
+      // 儲存流程是先 close 再 onSaved，sheet 的 trigger restore 會還原到隨即被這次重繪
+      // 抽換掉的舊節點，且它只重查帶 data-session-id 的節點。取消路徑沒有重繪，交給它即可；
+      // 儲存路徑得在重繪之後自己把焦點送回入口。
+      if (mode === "standalone") {
+        requestAnimationFrame(() => {
+          document.querySelector('#me-root [data-testid="edit-profile"]')?.focus({ preventScroll: true });
+        });
+      }
     },
     intent,
     profile: currentProfile ?? defaultProfile(),
@@ -489,11 +508,6 @@ function captureMySessionsFocus(root) {
   if (active.matches("[data-my-sessions-back]")) return { kind: "back" };
   if (active.matches("[data-my-sessions-heading]")) return { kind: "heading" };
   if (active.matches("[data-my-sessions-sign-in]")) return { kind: "sign-in" };
-  if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
-  if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
-  if (active.matches("[data-notification-courts]")) return { kind: "notification-courts" };
-  if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
-  if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches("[data-open-my-session]")) return { kind: "open-session", sessionId: active.dataset.sessionId };
   if (active.matches("[data-my-action]")) {
     return {
@@ -513,15 +527,6 @@ function resolveMySessionsFocus(root, focus) {
   if (focus.kind === "back") return root.querySelector("[data-my-sessions-back]");
   if (focus.kind === "heading") return root.querySelector("[data-my-sessions-heading]");
   if (focus.kind === "sign-in") return root.querySelector("[data-my-sessions-sign-in]");
-  if (focus.kind === "enable-push") return root.querySelector("[data-enable-push]");
-  if (focus.kind === "notification-pref") {
-    return [...root.querySelectorAll("[data-notification-pref]")].find(
-      (input) => input.dataset.notificationPref === focus.preference
-    );
-  }
-  if (focus.kind === "notification-courts") return root.querySelector("[data-notification-courts]");
-  if (focus.kind === "presence-sharing") return root.querySelector("[data-set-presence-sharing]");
-  if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
   if (focus.kind === "open-session") {
     return [...root.querySelectorAll("[data-open-my-session]")].find(
       (button) => String(button.dataset.sessionId) === String(focus.sessionId)
@@ -573,7 +578,8 @@ function captureMeFocus(root) {
   if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches(".me-service-links a")) return { href: active.getAttribute("href") ?? "", kind: "service-link" };
   // 封鎖清單的解除按鈕沒有專屬 selector，與 My Sessions 側一樣靠通用 fallback 接住。
-  // 必須排在 toggle-visibility 之後，否則會把它一併攔走、換掉既有的 kind。
+  // 排在最後只是讓上面幾個控制項保有專屬 kind：toggle-visibility 就算被這裡接走也還原得回去，
+  // 因為它三個 dataset 欄位皆缺，resolve 端正規化成空字串後仍會比對到同一顆按鈕（已實測）。
   if (active.matches("[data-my-action]")) {
     return {
       action: active.dataset.myAction,
@@ -819,7 +825,7 @@ function renderMeDestination() {
     blockedPlayersStatus: state.blockedPlayersStatus,
     courts,
     notificationSettings,
-    onEditProfile: () => {},
+    onEditProfile: () => openProfileCompletion({ mode: "standalone" }),
     onEnablePush: enablePushNotifications,
     onSaveCourtSubscriptions: updateCourtSubscriptions,
     onSaveNotificationPreferences: updateNotificationPreferences,
