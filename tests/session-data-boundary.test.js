@@ -108,6 +108,16 @@ async function readJavaScriptSources(directory) {
   return sources.flat();
 }
 
+test("frontend source scan has no retired LINE contact surface", async () => {
+  const sources = await readJavaScriptSources(new URL("../src/", import.meta.url));
+  assert.ok(sources.length > 0, "the frontend source scan must inspect at least one JavaScript file");
+
+  for (const forbidden of ["session_contacts", "line_id", "lineId", "LINE"]) {
+    const matches = sources.filter((source) => source.includes(forbidden));
+    assert.equal(matches.length, 0, `src/ must not contain ${forbidden}`);
+  }
+});
+
 test("initial auth restoration distinguishes a definitive anonymous result from a recoverable error", async () => {
   const anonymousClient = {
     auth: {
