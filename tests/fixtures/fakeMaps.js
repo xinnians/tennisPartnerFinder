@@ -228,12 +228,24 @@ export async function expectWithinViewport(page, locator) {
   await locator.evaluate(async (el) => {
     await Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => {})));
   });
-  const box = await locator.boundingBox();
   const viewport = page.viewportSize();
-  expect(box).not.toBeNull();
   expect(viewport).not.toBeNull();
-  expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.y).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
-  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+  // 量測要能重試：scrollIntoViewIfNeeded 之後版面可能還要一兩幀才收斂，
+  // 取瞬時 boundingBox 會週期性假紅（本專案量到約 10%）。
+  await expect
+    .poll(async () => {
+      const box = await locator.boundingBox();
+      if (!box) return ["元素沒有 bounding box"];
+      const overflow = [];
+      if (box.x < 0) overflow.push(`left ${Math.round(box.x)}`);
+      if (box.y < 0) overflow.push(`top ${Math.round(box.y)}`);
+      if (box.x + box.width > viewport.width) {
+        overflow.push(`right ${Math.round(box.x + box.width)} > ${viewport.width}`);
+      }
+      if (box.y + box.height > viewport.height) {
+        overflow.push(`bottom ${Math.round(box.y + box.height)} > ${viewport.height}`);
+      }
+      return overflow;
+    }, { message: "元素必須完整落在 viewport 內" })
+    .toEqual([]);
 }
