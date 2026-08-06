@@ -97,23 +97,36 @@ function sortedKeys(value) {
 async function readJavaScriptSources(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const sources = await Promise.all(
-    entries.map((entry) => {
+    entries.map(async (entry) => {
       const entryUrl = new URL(entry.name, directory);
       if (entry.isDirectory()) return readJavaScriptSources(new URL(`${entry.name}/`, directory));
-      return entry.name.endsWith(".js") ? readFile(entryUrl, "utf8") : [];
+      return entry.name.endsWith(".js") ? [{ path: entryUrl.pathname, source: await readFile(entryUrl, "utf8") }] : [];
     })
   );
   return sources.flat();
 }
 
-test("frontend source scan has no retired LINE contact surface", async () => {
+function sourceCodeMatches(sources, pattern) {
+  return sources.flatMap(({ path, source }) =>
+    source.split("\n").flatMap((line) => {
+      if (line.trimStart().startsWith("//")) return [];
+      return pattern.test(line) ? [{ path, line: line.trim() }] : [];
+    })
+  );
+}
+
+test("frontend source scan allows only the frozen LINE RPC parameter", async () => {
   const sources = await readJavaScriptSources(new URL("../src/", import.meta.url));
   assert.ok(sources.length > 0, "the frontend source scan must inspect at least one JavaScript file");
 
-  for (const forbidden of ["session_contacts", "line_id", "lineId", "LINE"]) {
-    const matches = sources.filter((source) => source.includes(forbidden));
-    assert.equal(matches.length, 0, `src/ must not contain ${forbidden}`);
-  }
+  assert.equal(sourceCodeMatches(sources, /session_contacts/).length, 0, "src/ must not contain session_contacts");
+  assert.equal(sourceCodeMatches(sources, /lineId/).length, 0, "src/ must not contain lineId");
+  assert.equal(sourceCodeMatches(sources, /\bLINE\b/).length, 0, "src/ must not contain the whole word LINE");
+
+  const lineIdMatches = sourceCodeMatches(sources, /line_id/);
+  assert.equal(lineIdMatches.length, 1, "src/ must contain exactly one frozen line_id RPC parameter");
+  assert.match(lineIdMatches[0].path, /\/src\/dataApi\.js$/, "the frozen line_id parameter must stay in src/dataApi.js");
+  assert.equal(lineIdMatches[0].line, "p_line_id: null,", "the frozen line_id parameter must always be null");
 });
 
 test("initial auth restoration distinguishes a definitive anonymous result from a recoverable error", async () => {
