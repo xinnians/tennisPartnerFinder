@@ -37,8 +37,8 @@
 - LINE 前端聯絡面已退役；`profiles.line_id` 與 `public.session_contacts` 只因凍結 migration
   暫留為資料庫技術債。`src/` 不得讀取、映射或渲染這兩個遺留面，新註冊流程也不蒐集 LINE。
 - Web Push payload 只可含球局摘要 `court`、`start_at`、`slots_remaining`、`message`、`url`
-  與派送所需 title；**LINE 永遠不可**進 payload、outbox、browser log、新 view 或 UI。通知
-  outbox 是 service-only，browser role 不可讀寫。
+  與派送所需 title；**LINE 永遠不可**進 payload、outbox、browser log、view 或 UI；唯一例外是已凍結的
+  `public.session_contacts`（前端零 consumer，待清理）。通知 outbox 是 service-only，browser role 不可讀寫。
 - raw `sessions`、`session_participants`、`profiles` 與私有 legacy tables 不是
   browser data API。所有前端讀寫都必須經過 `src/dataApi.js` 的 view/RPC 邊界：
   `session_discovery`、`player_directory`、`my_session_participations`、
@@ -91,8 +91,10 @@ linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁�
   `set_notification_prefs`、push subscription RPC；失敗後重讀權威資料。
 - `public.my_session_participations` 是登入者自己的生命週期清單；
   `public.session_participant_roster` 對 host 顯示該局 roster、對 guest 僅顯示自己與 host，
-  但兩者都不含 LINE。群聊由 `session_message_feed` 提供給 host 與 accepted guest；
-  舊 `session_contacts` view 與 `profiles.line_id` 欄只作待清理技術債，前端沒有 consumer。
+  但兩者都不含 LINE。群聊由 `session_message_feed` 提供給 host 與 accepted guest；舊
+  `session_contacts` view 前端零 consumer，`profiles.line_id` 欄前端不讀、不寫、不渲染，但因
+  `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.js` 仍必須傳 `p_line_id: null`。
+  drop 欄位或修改簽名前，必須先處理該呼叫點。
 - `expire-stale-tennis-sessions` pg_cron 每 15 分鐘將開始後超過 24 小時的 open/full
   球局設為 expired；未定案候選局在範圍起點即 expired。每個 lifecycle RPC 也立即檢查，
   UI 不可依賴 cron 延遲。

@@ -46,7 +46,7 @@ join 只允許台北市 active court 與 active tennis sport。多運動／另�
 | Venue | `booked`／`walk_on` 使用單一球場；`candidates` 保存 2–3 座有序候選球場與時間範圍，由主揪定案。 |
 | Roster | host 看該局 roster；guest 只看自己與 host；兩者都沒有 LINE。 |
 | Chat | `session_message_feed` 只給 host 與 accepted guest；封存局唯讀，user 訊息受雙向封鎖過濾。 |
-| Retired contacts | `session_contacts` 與 `profiles.line_id` 因凍結 migration 暫留，前端沒有 consumer。 |
+| Retired contacts | `session_contacts` view 前端零 consumer；`profiles.line_id` 前端不讀、不寫、不渲染，但凍結的 `save_my_profile` 無預設值，`src/dataApi.js` 仍須傳 `p_line_id: null`；drop 或改簽名前須先處理該呼叫點。 |
 | 名額 | `slots_total` 1–3；最後缺額接受在 DB lock 下原子完成，不能 overfill。 |
 | Lifecycle | RPC 處理 create/request/review/invite/update/decide/withdraw/cancel/played/attendance/chat/block/report；失敗後 UI 重讀權威資料。 |
 | 到期 | `expire-stale-tennis-sessions` 每 15 分鐘處理超齡局與逾範圍起點未定案候選局；RPC 也立即檢查。 |
@@ -69,8 +69,9 @@ join 只允許台北市 active court 與 active tennis sport。多運動／另�
 
 ### 已知技術債
 
-- `public.session_contacts` 與 `profiles.line_id` 已無前端 consumer，但仍存在於凍結的資料庫 schema。
-  後續資料清理須以新 migration 一併移除 view、欄位與相關測試；本次前端退役不修改既有 migration。
+- `public.session_contacts` view 前端零 consumer；`profiles.line_id` 欄前端不讀、不寫、不渲染，但因
+  `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.js` 仍必須傳 `p_line_id: null`。
+  drop 欄位或修改簽名前必須先處理該呼叫點；後續資料清理須以新 migration 一併移除 view、欄位與相關測試。
 
 hosted 的執行狀況見下方「Hosted 發布 gate（2026-07-20 執行紀錄）」，該節逐項標示已驗與
 未驗；本節只代表本機驗證。
@@ -158,8 +159,10 @@ hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA
   失敗會殘留半套資料，風險大於驗證價值。首批真實球局封存滿 90 天前，
   若要提前驗證，應在 local 或另建 staging 專案執行。
   90 天目前是暫訂值，變更必須同步隱私政策與 migration。
-- [ ] 退役聯絡面技術債：確認新註冊與前端沒有 `session_contacts`／`profiles.line_id` consumer；
-  後續清理前另做備份、count preflight 與新 migration，不手改已凍結 migration。
+- [ ] 退役聯絡面技術債：確認新註冊不蒐集 LINE、`session_contacts` view 前端零 consumer，且
+  `profiles.line_id` 前端不讀、不寫、不渲染；凍結的 `save_my_profile` 因 `p_line_id` 無預設值，
+  `src/dataApi.js` 仍須傳 `p_line_id: null`。drop 欄位或改簽名前先處理該呼叫點，再做備份、count
+  preflight 與新 migration，不手改已凍結 migration。
 - [ ] 穩定 preview 人工 QA：OAuth、Maps referrer、390px 慢網路、鍵盤焦點、支援／隱私連結、
   console/pageerror、球場訂閱可涵蓋全部台北市 active 球場與六個通知偏好。
   2026-08-04 部分完成：於 preview alias（`...-git-cla-6f302a-...`）確認 OAuth 兩帳號登入、
