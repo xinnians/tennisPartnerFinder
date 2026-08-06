@@ -1266,6 +1266,10 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     await expect(sharing).toHaveAttribute("aria-checked", "false");
     await sharing.click();
     await expect(sharing).toHaveAttribute("aria-checked", "true");
+    expect(await page.evaluate(() => ({
+      tagName: document.activeElement?.tagName ?? null,
+      testId: document.activeElement?.getAttribute("data-testid") ?? null,
+    }))).toEqual({ tagName: "BUTTON", testId: "presence-sharing-toggle" });
     await expect(sharing).toBeFocused();
     expect(await updateMyPresenceViaRpc(playerA.client, { lat: court.lat, lng: court.lng })).toBe("OK");
 
