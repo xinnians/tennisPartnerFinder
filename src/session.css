@@ -386,6 +386,9 @@
 .player-visibility h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .player-visibility .form-hint { margin: 0; }
 .player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
+.me-page .player-visibility [role="switch"],
+.me-page .presence-settings [role="switch"],
+.me-page .presence-settings__greeting { min-height: 44px; }
 .notification-settings { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
 .notification-settings__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .notification-settings h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
