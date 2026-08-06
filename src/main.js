@@ -376,9 +376,10 @@ function openProfileCompletion({
       // 身分卡顯示暱稱與 NTRP，存檔後要立刻反映新值。
       if (activePage !== "me") return;
       renderMeDestination();
-      // 儲存流程是先 close 再 onSaved，sheet 的 trigger restore 會還原到隨即被這次重繪
-      // 抽換掉的舊節點，且它只重查帶 data-session-id 的節點。取消路徑沒有重繪，交給它即可；
-      // 儲存路徑得在重繪之後自己把焦點送回入口。
+      // 存檔後還會再連著重繪三次（setAuthState 等），restoreMeFocus 的 generation 守衛會讓
+      // 中間那次還原失效，而 focusout 早已清掉 pendingMeFocus，最後一次重繪便無焦點可還原。
+      // 所以這裡仍要明確送回入口；captureMeFocus 的 edit-profile 分支負責的是另一件事：
+      // 焦點停在入口時發生的背景重繪。實測見批 4 補件回報。
       if (mode === "standalone") {
         requestAnimationFrame(() => {
           document.querySelector('#me-root [data-testid="edit-profile"]')?.focus({ preventScroll: true });
@@ -570,6 +571,7 @@ function captureMeFocus(root) {
   if (active.matches("[data-me-heading]")) return { kind: "heading" };
   if (active.matches('[data-testid="me-sign-in"]')) return { kind: "sign-in" };
   if (active.matches('[data-testid="me-sign-out"]')) return { kind: "sign-out" };
+  if (active.matches('[data-testid="edit-profile"]')) return { kind: "edit-profile" };
   if (active.matches('[data-my-action="toggle-visibility"]')) return { kind: "player-visibility" };
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
   if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
@@ -597,6 +599,7 @@ function resolveMeFocus(root, focus) {
   if (focus.kind === "heading") return root.querySelector("[data-me-heading]");
   if (focus.kind === "sign-in") return root.querySelector('[data-testid="me-sign-in"]');
   if (focus.kind === "sign-out") return root.querySelector('[data-testid="me-sign-out"]');
+  if (focus.kind === "edit-profile") return root.querySelector('[data-testid="edit-profile"]');
   if (focus.kind === "player-visibility") return root.querySelector('[data-my-action="toggle-visibility"]');
   if (focus.kind === "enable-push") return root.querySelector("[data-enable-push]");
   if (focus.kind === "notification-pref") {

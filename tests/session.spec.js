@@ -1455,7 +1455,7 @@ test("the Me profile entry edits without a gate and refreshes the identity card 
 
   await expect(sheet).toHaveCount(0);
   await expect(identityCard).toContainText(renamed);
-  // sheets.js 的 trigger restore 找不回重繪過的入口，改由 main.js 明確送回。
+  // 存檔後連續重繪會讓 generation 守衛擋下中間的還原，焦點由 main.js 的明確托管送回。
   await expect(entry).toBeFocused();
 
   const { data: savedProfile, error: profileError } = await actor.client
@@ -1464,5 +1464,78 @@ test("the Me profile entry edits without a gate and refreshes the identity card 
     .single();
   if (profileError) throw profileError;
   expect(savedProfile.nickname).toBe(renamed);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("every Me control keeps focus through a background rerender", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const actor = await createCompleteActor(context.host);
+  const { data: court, error: courtError } = await actor.client
+    .from("courts")
+    .select("lat,lng,name")
+    .eq("name", context.host.courts[0])
+    .single();
+  if (courtError) throw courtError;
+
+  await page.addInitScript(() => {
+    const watchers = new Map();
+    let nextId = 1;
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        clearWatch(id) {
+          watchers.delete(id);
+        },
+        getCurrentPosition() {},
+        watchPosition(success) {
+          const id = nextId++;
+          watchers.set(id, success);
+          return id;
+        },
+      },
+    });
+    window.__emitPosition = (lat, lng) => {
+      for (const success of watchers.values()) success({ coords: { latitude: lat, longitude: lng } });
+      return watchers.size;
+    };
+  });
+
+  await gotoWithSession(page, actor.session);
+  await page.getByTestId("me-tab").click();
+  // 開啟在線分享才會啟動 presenceTracker，之後才有可控的背景重繪來源。
+  const sharing = page.getByTestId("presence-sharing-toggle");
+  await sharing.click();
+  await expect(sharing).toHaveAttribute("aria-checked", "true");
+
+  // 對稱掃描：不列舉 testid，往後加進「我」頁的控件會自動納入這道守衛。
+  const controls = page.locator("#me-root button, #me-root input, #me-root select, #me-root a[href]");
+  const total = await controls.count();
+  expect(total, "掃描集不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(12);
+
+  const landings = [];
+  for (let index = 0; index < total; index += 1) {
+    const control = controls.nth(index);
+    const testId = (await control.getAttribute("data-testid")) ?? (await control.evaluate((node) => node.tagName));
+    await control.focus();
+    // 盯住目前這個節點：重繪會把它換掉，isConnected 轉 false 就是重繪確實發生的直接證據。
+    await control.evaluate((node) => {
+      window.__watchedNode = node;
+    });
+    // 每次挪動座標避開 tracker 的 50 公尺／60 秒節流，確保真的觸發重繪。
+    await page.evaluate(([lat, lng]) => window.__emitPosition(lat, lng), [court.lat + index * 0.01, court.lng]);
+    await expect
+      .poll(async () => await page.evaluate(() => window.__watchedNode?.isConnected === false), {
+        message: "背景重繪必須真的發生",
+      })
+      .toBe(true);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const landedOnBody = await page.evaluate(
+      () => document.activeElement === document.body || document.activeElement == null
+    );
+    landings.push({ landedOnBody, testId });
+  }
+  const dropped = landings.filter((entry) => entry.landedOnBody);
+  expect(dropped, `重繪後焦點掉到 body 的控件：${JSON.stringify(dropped)}`).toEqual([]);
   expect(runtimeErrors).toEqual([]);
 });
