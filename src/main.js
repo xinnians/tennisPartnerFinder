@@ -775,6 +775,12 @@ function renderMeDestination() {
     root.addEventListener("focusin", () => {
       if (activePage === "me") pendingMeFocus = captureMeFocus(root);
     });
+    root.addEventListener("focusout", (event) => {
+      // relatedTarget 為 null 代表焦點被 disable 踢到 body，這時要保留待還原的目標；
+      // 只有焦點真的落到頁面其他控制項時才放棄還原，避免背景重繪把焦點搶回本頁。
+      const next = event.relatedTarget;
+      if (next instanceof Node && !root.contains(next)) pendingMeFocus = null;
+    });
   }
   const focus = activePage === "me" ? captureMeFocus(root) ?? pendingMeFocus : null;
   if (focus) pendingMeFocus = focus;
