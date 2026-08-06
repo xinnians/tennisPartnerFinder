@@ -57,7 +57,7 @@ export async function createProfile(client, profile) {
   const { data, error } = await client.rpc("save_my_profile", {
     p_nickname: profile.nickname,
     p_ntrp: profile.ntrp,
-    p_line_id: profile.lineId,
+    p_line_id: null,
     p_court_ids: courtIds,
     p_play_types: profile.playTypes ?? [],
     p_slot_codes: profile.slots ?? [],

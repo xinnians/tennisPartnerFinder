@@ -639,9 +639,8 @@ test("My Sessions orders host requests, invites, then guest requests", () => {
   );
 });
 
-test("My Sessions hydrates host-only rosters for the badge and defers contacts until the page requests them", async () => {
+test("My Sessions hydrates host-only rosters for the badge and refreshes details from authority", async () => {
   const rosterCalls = [];
-  const contactCalls = [];
   const hostSession = futureSession({
     canCancel: true,
     sessionId: 51,
@@ -657,10 +656,6 @@ test("My Sessions hydrates host-only rosters for the badge and defers contacts u
   const harness = createHarness({
     api: {
       loadMySessions: async () => [hostSession, acceptedGuestSession],
-      loadSessionContacts: async (sessionId) => {
-        contactCalls.push(sessionId);
-        return [{ counterpartProfileId: sessionId + 100, lineId: `line-${sessionId}`, nickname: `聯絡人-${sessionId}`, sessionId }];
-      },
       loadSessionRoster: async (sessionId) => {
         rosterCalls.push(sessionId);
         return [
@@ -674,15 +669,11 @@ test("My Sessions hydrates host-only rosters for the badge and defers contacts u
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
 
   assert.deepEqual(rosterCalls, [51]);
-  assert.deepEqual(contactCalls, [], "contacts are not fetched merely because a participant is accepted");
   assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
 
-  await harness.controller.refreshMySessionDetails({ includeContacts: true });
+  await harness.controller.refreshMySessionDetails();
 
-  assert.deepEqual(contactCalls.sort((left, right) => left - right), [51, 52]);
-  assert.deepEqual(harness.controller.getSessionContacts(52), [
-    { counterpartProfileId: 152, lineId: "line-52", nickname: "聯絡人-52", sessionId: 52 },
-  ]);
+  assert.deepEqual(rosterCalls, [51, 51]);
 });
 
 test("a host review uses an authorized roster request and refreshes My Sessions before reporting success", async () => {
@@ -717,9 +708,8 @@ test("a host review uses an authorized roster request and refreshes My Sessions 
   assert.ok(harness.toasts.includes("已接受申請。"));
 });
 
-test("an invited guest can accept through the authorized My Sessions row and receive refreshed contacts", async () => {
+test("an invited guest can accept through the authorized My Sessions row and receive refreshed participation", async () => {
   const responses = [];
-  const contactCalls = [];
   let participantStatus = "invited";
   const invitedSession = futureSession({
     canRespondInvite: true,
@@ -736,10 +726,6 @@ test("an invited guest can accept through the authorized My Sessions row and rec
           viewerParticipantStatus: participantStatus,
         },
       ],
-      loadSessionContacts: async (sessionId) => {
-        contactCalls.push(sessionId);
-        return [{ counterpartProfileId: 99, lineId: "accepted-line", nickname: "邀請主揪", sessionId }];
-      },
       respondToSessionInvite: async (sessionId, decision) => {
         responses.push([sessionId, decision]);
         participantStatus = decision;
@@ -752,18 +738,13 @@ test("an invited guest can accept through the authorized My Sessions row and rec
   await harness.controller.respondInvite(62, "accepted");
 
   assert.deepEqual(responses, [[62, "accepted"]]);
-  assert.deepEqual(contactCalls, [62]);
-  assert.deepEqual(harness.controller.getSessionContacts(62), [
-    { counterpartProfileId: 99, lineId: "accepted-line", nickname: "邀請主揪", sessionId: 62 },
-  ]);
   assert.deepEqual(harness.controller.getMySessionGroups().upcoming.map((session) => session.sessionId), [62]);
   assert.ok(harness.toasts.includes("已接受邀請。"));
 });
 
-test("an invited guest can decline without overfetching contacts", async () => {
+test("an invited guest can decline and move the invitation to history", async () => {
   const responses = [];
   let participantStatus = "invited";
-  let contactCalls = 0;
   const invitedSession = futureSession({
     canRespondInvite: true,
     sessionId: 63,
@@ -779,10 +760,6 @@ test("an invited guest can decline without overfetching contacts", async () => {
           viewerParticipantStatus: participantStatus,
         },
       ],
-      loadSessionContacts: async () => {
-        contactCalls += 1;
-        return [];
-      },
       respondToSessionInvite: async (sessionId, decision) => {
         responses.push([sessionId, decision]);
         participantStatus = decision;
@@ -795,7 +772,6 @@ test("an invited guest can decline without overfetching contacts", async () => {
   await harness.controller.respondInvite(63, "declined");
 
   assert.deepEqual(responses, [[63, "declined"]]);
-  assert.equal(contactCalls, 0);
   assert.deepEqual(harness.controller.getMySessionGroups().history.map((session) => session.sessionId), [63]);
   assert.ok(harness.toasts.includes("已婉拒邀請。"));
 });
@@ -944,18 +920,16 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
         loads += 1;
         return rows;
       },
-      loadSessionContacts: async () => [{ counterpartProfileId: 20, lineId: "safe-line", nickname: "已核准球友" }],
       loadSessionRoster: async () => [{ participantId: 2, profileId: 20, nickname: "待審核球友", role: "guest", status: "requested" }],
     },
   });
 
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
-  await harness.controller.refreshMySessions({ includeContacts: true });
+  await harness.controller.refreshMySessions();
   assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
-  assert.deepEqual(harness.controller.getSessionContacts(71).map((contact) => contact.lineId), ["safe-line"]);
 
   rows = [];
-  await harness.controller.refreshMySessions({ includeContacts: true });
+  await harness.controller.refreshMySessions();
   assert.equal(loads >= 3, true, "a manual refresh must re-read My Sessions rather than only cached details");
   assert.deepEqual(harness.controller.getMySessionGroups().upcoming, []);
 
@@ -963,7 +937,6 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
   assert.equal(harness.mySessionChanges.at(-1).authenticated, false, "sign-out publishes the anonymous My Sessions state");
   assert.equal(harness.mySessionChanges.at(-1).groups.pendingHostRequestCount, 0);
   assert.deepEqual(harness.mySessionChanges.at(-1).groups.upcoming, []);
-  assert.deepEqual(harness.controller.getSessionContacts(71), []);
 });
 
 test("a failed roster read is visible as an error instead of a false zero-badge state", async () => {

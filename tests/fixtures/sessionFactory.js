@@ -25,7 +25,6 @@ function createActor(role, runId) {
     email: `${role}-${runId}@example.test`,
     nickname: `${role}-${runId}`,
     ntrp: 3.5,
-    lineId: `${role}_${runId}`,
     isPublic: false,
     courts: ["青年公園網球場"],
     playTypes: ["單打"],

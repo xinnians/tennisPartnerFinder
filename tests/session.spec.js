@@ -32,7 +32,6 @@ async function createPublishedSession() {
   const { client: hostClient, session: hostSession } = await signUpUser(context.host.email);
   await createProfile(hostClient, {
     courts: context.host.courts,
-    lineId: context.host.lineId,
     nickname: context.host.nickname,
     ntrp: context.host.ntrp,
     playTypes: context.host.playTypes,
@@ -71,16 +70,6 @@ async function switchBrowserSession(page, session) {
   await profileResponse;
 }
 
-async function switchBrowserSessionWithoutReload(page, session) {
-  await page.evaluate(async (nextSession) => {
-    const { supabase } = await import("/src/supabaseClient.js");
-    await supabase.auth.setSession({
-      access_token: nextSession.access_token,
-      refresh_token: nextSession.refresh_token,
-    });
-  }, session);
-}
-
 async function expectChatFeedAtBottom(chat) {
   const metrics = await chat.locator("[data-chat-feed]").evaluate((feed) => ({
     clientHeight: feed.clientHeight,
@@ -101,7 +90,6 @@ async function createCompleteActor(actor) {
   const { client, session } = await signUpUser(actor.email);
   const profileId = await createProfile(client, {
     courts: actor.courts,
-    lineId: actor.lineId,
     nickname: actor.nickname,
     ntrp: actor.ntrp,
     playTypes: actor.playTypes,
@@ -205,7 +193,6 @@ test("anonymous Join resumes the same live target as a confirmation, never an au
   const { client: guestClient, session: guestSession } = await signUpUser(published.context.guest.email);
   await createProfile(guestClient, {
     courts: published.context.guest.courts,
-    lineId: published.context.guest.lineId,
     nickname: published.context.guest.nickname,
     ntrp: published.context.guest.ntrp,
     playTypes: published.context.guest.playTypes,
@@ -240,7 +227,6 @@ test("a hash session link survives the login gate and resumes the same live sess
   const { client: guestClient, session: guestSession } = await signUpUser(published.context.guest.email);
   await createProfile(guestClient, {
     courts: published.context.guest.courts,
-    lineId: published.context.guest.lineId,
     nickname: published.context.guest.nickname,
     ntrp: published.context.guest.ntrp,
     playTypes: published.context.guest.playTypes,
@@ -265,7 +251,6 @@ test("an initial signed-out bootstrap clears an old session intent before anothe
   const { client: guestClient, session: guestSession } = await signUpUser(published.context.guest.email);
   await createProfile(guestClient, {
     courts: published.context.guest.courts,
-    lineId: published.context.guest.lineId,
     nickname: published.context.guest.nickname,
     ntrp: published.context.guest.ntrp,
     playTypes: published.context.guest.playTypes,
@@ -301,7 +286,6 @@ test("an incomplete signed-in profile saves atomically and returns to the Join c
   await expect(profile).toBeVisible();
   await expect(profile).toContainText(`完成後將回到：${published.context.host.courts[0]}・`);
   await profile.getByLabel("公開暱稱").fill(published.context.guest.nickname);
-  await profile.getByLabel("LINE ID").fill(published.context.guest.lineId);
   await profile.getByLabel("常打球場").selectOption(String(published.courtId));
   await profile.getByLabel("單打", { exact: true }).check();
   await profile.getByTestId("profile-save").click();
@@ -317,7 +301,6 @@ test("saving a profile before court options are ready preserves its existing cou
   const courtId = await courtIdByName(client, courtName);
   await createProfile(client, {
     courts: [courtName],
-    lineId: "",
     nickname: context.guest.nickname,
     ntrp: null,
     playTypes: [],
@@ -335,7 +318,6 @@ test("saving a profile before court options are ready preserves its existing cou
         onSave: saveCurrentProfile,
         profile: {
           courts: new Set([savedCourt]),
-          lineId: "",
           nick: nickname,
           ntrp: null,
           slots: new Set(),
@@ -430,7 +412,6 @@ test("a stale same-account profile read cannot overwrite a saved profile or its 
   await staleReadFetched;
 
   await profile.getByLabel("公開暱稱").fill(published.context.guest.nickname);
-  await profile.getByLabel("LINE ID").fill(published.context.guest.lineId);
   await profile.getByLabel("常打球場").selectOption(String(published.courtId));
   await profile.getByLabel("單打", { exact: true }).check();
   await profile.getByTestId("profile-save").click();
@@ -446,7 +427,6 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   const { client, session } = await signUpUser(context.host.email);
   await createProfile(client, {
     courts: context.host.courts,
-    lineId: context.host.lineId,
     nickname: context.host.nickname,
     ntrp: context.host.ntrp,
     playTypes: context.host.playTypes,
@@ -655,7 +635,7 @@ test("a host edits a single-court session and sees authoritative card and detail
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a host creates a now-start direct session in the form, then a guest joins and both see reciprocal LINE", async ({ page }) => {
+test("a host creates a now-start direct session in the form, then a guest joins and both can open group chat", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
@@ -702,19 +682,15 @@ test("a host creates a now-start direct session in the form, then a guest joins 
   await expect(confirmation.locator("[data-join-success]")).toBeVisible();
   await confirmation.getByRole("button", { name: "前往我的球局" }).click();
 
-  const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
-  await expect(guestContact).toBeVisible();
-  await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
   await switchBrowserSession(page, host.session);
   await page.getByTestId("my-sessions-tab").click();
-  const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
-  await expect(hostContact).toBeVisible();
-  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 
-test("instant local join accepts immediately and shares only reciprocal contacts without host review", async ({ page }) => {
+test("instant local join accepts immediately and opens group chat without host review", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
@@ -751,33 +727,19 @@ test("instant local join accepts immediately and shares only reciprocal contacts
 
   const guestUpcoming = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`);
   await expect(guestUpcoming).toBeVisible();
-  const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
-  await expect(guestContact).toBeVisible();
-  await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
-  await expect(guestContact.locator("[data-contact-opening]")).toHaveText(/的球友。$/);
-  await expect(page.locator("#my-upcoming-sessions [data-testid^='session-contact-']")).toHaveCount(1);
-  await expect(page.getByTestId(`session-contact-${observer.profileId}`)).toHaveCount(0);
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   await expect(page.locator("#my-sessions-page")).not.toContainText(context.observer.nickname);
-  await expect(page.locator("#my-sessions-page")).not.toContainText(context.observer.lineId);
-  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
 
   await switchBrowserSession(page, host.session);
   await page.getByTestId("my-sessions-tab").click();
   await expect(page.getByTestId("participant-row")).toHaveCount(0);
   await expect(page.locator("#my-needs-action")).not.toContainText(context.guest.nickname);
   await expect(page.locator("#my-sessions-badge")).toBeHidden();
-  const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
-  await expect(hostContact).toBeVisible();
-  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
-  await expect(hostContact.locator("[data-contact-opening]")).toHaveText(/的主揪。$/);
-  const observerContact = page.getByTestId(`session-contact-${observer.profileId}`);
-  await expect(observerContact).toBeVisible();
-  await expect(observerContact.getByLabel(`${context.observer.nickname} 的 LINE ID`)).toHaveValue(context.observer.lineId);
-  await expect(page.locator("#my-upcoming-sessions [data-testid^='session-contact-']")).toHaveCount(2);
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   await expect(runtimeErrors).toEqual([]);
 });
 
-test("host sees a safe requested roster first, can report it, then accepts and exchanges only approved contacts", async ({ page }) => {
+test("host sees a safe requested roster first, can report it, then accepts and enables group chat", async ({ page }) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const guest = await createCompleteActor(context.guest);
@@ -798,6 +760,7 @@ test("host sees a safe requested roster first, can report it, then accepts and e
   await confirmation.getByRole("button", { name: "前往我的球局" }).click();
   await expect(page.locator("#my-sessions-page")).toBeVisible();
   await expect(page.locator("#my-sessions-root [data-my-sessions-heading]")).toBeFocused();
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toHaveCount(0);
 
   await switchBrowserSession(page, host.session);
   await page.getByTestId("my-sessions-tab").click();
@@ -805,8 +768,7 @@ test("host sees a safe requested roster first, can report it, then accepts and e
   await expect(participantRow).toBeVisible();
   await expect(page.locator("#my-needs-action")).toContainText(context.guest.nickname);
   await expect(page.locator("#my-sessions-badge")).toHaveText("1");
-  await expect(page.getByTestId(`session-contact-${guest.profileId}`)).toHaveCount(0);
-  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
   const reportRequest = page.waitForRequest((request) => request.url().includes("/rpc/create_report"));
   await page.getByTestId(`report-participant-${guest.profileId}`).click();
@@ -825,29 +787,12 @@ test("host sees a safe requested roster first, can report it, then accepts and e
   const participantId = await participantRow.getAttribute("data-participant-id");
   await page.getByTestId(`accept-participant-${participantId}`).click();
   await expect(participantRow).toBeHidden();
-  const hostContact = page.getByTestId(`session-contact-${guest.profileId}`);
-  await expect(hostContact).toBeVisible();
-  await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
-  await expect(hostContact.locator("[data-copy-contact]")).toHaveCount(2);
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   await expect(page.locator("#my-sessions-badge")).toBeHidden();
 
   await switchBrowserSession(page, guest.session);
   await page.getByTestId("my-sessions-tab").click();
-  const guestContact = page.getByTestId(`session-contact-${host.profileId}`);
-  await expect(guestContact).toBeVisible();
-  await expect(guestContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
-  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
-
-  // Switching accounts while the private destination is hidden must clear it
-  // synchronously. This intentionally avoids a page reload: otherwise a prior
-  // account's accepted contact would remain queryable in hidden DOM.
-  await page.getByTestId("map-tab").click();
-  await switchBrowserSessionWithoutReload(page, host.session);
-  await expect(page.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveCount(0);
-  await expect(page.getByTestId(`session-contact-${host.profileId}`)).toHaveCount(0);
-
-  await switchBrowserSession(page, guest.session);
-  await page.getByTestId("my-sessions-tab").click();
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
   const sessionReportRequest = page.waitForRequest((request) => request.url().includes("/rpc/create_report"));
   await page.getByTestId(`report-session-${sessionId}`).click();
@@ -889,7 +834,6 @@ test("accepting the final vacancy declines the remaining request, and an accepte
   await expect(page.locator("#my-history")).toContainText("未加入");
   await expect(page.locator("#my-history")).toContainText("這次參與未成立");
   await expect(page.locator("#my-history")).not.toContainText("主揪婉拒");
-  await expect(page.locator("#my-sessions-page")).not.toContainText(context.guest.lineId);
 
   await switchBrowserSession(page, acceptedGuest.session);
   await page.getByTestId("my-sessions-tab").click();
@@ -1066,7 +1010,7 @@ test("authenticated players persist the authoritative court subscription set wit
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a visible player can be invited from the directory list, exchange LINE contacts, and delist immediately", async ({ page }) => {
+test("a visible player can be invited from the directory list, join group chat, and delist immediately", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const player = await createCompleteActor(context.guest);
@@ -1101,13 +1045,11 @@ test("a visible player can be invited from the directory list, exchange LINE con
     const invite = page.getByTestId("invite-row");
     await expect(invite).toContainText(context.host.nickname);
     await page.getByTestId(`accept-invite-${sessionId}`).click();
-    const playerContact = page.getByTestId(`session-contact-${host.profileId}`);
-    await expect(playerContact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+    await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
     await switchBrowserSession(page, host.session);
     await page.getByTestId("my-sessions-tab").click();
-    const hostContact = page.getByTestId(`session-contact-${player.profileId}`);
-    await expect(hostContact.getByLabel(`${context.guest.nickname} 的 LINE ID`)).toHaveValue(context.guest.lineId);
+    await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
     await switchBrowserSession(page, player.session);
     await page.getByTestId("my-sessions-tab").click();
@@ -1132,7 +1074,6 @@ test("nickname-only presence controls open the NTRP profile sheet without writin
   const { client, session } = await signUpUser(context.host.email);
   await createProfile(client, {
     courts: context.host.courts,
-    lineId: "",
     nickname: context.host.nickname,
     ntrp: null,
     playTypes: [],
@@ -1166,7 +1107,6 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning presence
   try {
     await createProfile(client, {
       courts: context.host.courts,
-      lineId: "",
       nickname: context.host.nickname,
       ntrp: context.host.ntrp,
       playTypes: [],
@@ -1175,7 +1115,6 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning presence
     expect(await setPresenceSharingViaRpc(client, true)).toBe("OK");
     await createProfile(client, {
       courts: context.host.courts,
-      lineId: "",
       nickname: context.host.nickname,
       ntrp: null,
       playTypes: [],
@@ -1196,7 +1135,6 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning presence
   } finally {
     await createProfile(client, {
       courts: context.host.courts,
-      lineId: "",
       nickname: context.host.nickname,
       ntrp: context.host.ntrp,
       playTypes: [],
@@ -1213,7 +1151,6 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning greeting
   try {
     await createProfile(client, {
       courts: context.host.courts,
-      lineId: "",
       nickname: context.host.nickname,
       ntrp: context.host.ntrp,
       playTypes: [],
@@ -1222,7 +1159,6 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning greeting
     expect(await setOpenToGreetingViaRpc(client, true)).toBe("OK");
     await createProfile(client, {
       courts: context.host.courts,
-      lineId: "",
       nickname: context.host.nickname,
       ntrp: null,
       playTypes: [],
@@ -1243,7 +1179,6 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning greeting
   } finally {
     await createProfile(client, {
       courts: context.host.courts,
-      lineId: "",
       nickname: context.host.nickname,
       ntrp: context.host.ntrp,
       playTypes: [],
@@ -1265,7 +1200,6 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     const playerBAuth = await signUpUser(context.guest.email);
     const playerBProfileId = await createProfile(playerBAuth.client, {
       courts: [],
-      lineId: "",
       nickname: context.guest.nickname,
       ntrp: context.guest.ntrp,
       playTypes: [],

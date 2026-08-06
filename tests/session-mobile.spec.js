@@ -27,7 +27,6 @@ async function createCompleteActor(actor) {
   const { client, session } = await signUpUser(actor.email);
   const profileId = await createProfile(client, {
     courts: actor.courts,
-    lineId: actor.lineId,
     nickname: actor.nickname,
     ntrp: actor.ntrp,
     playTypes: actor.playTypes,
@@ -108,14 +107,14 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   const upcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
   await expect(upcomingCard).toBeVisible();
   await expect(upcomingCard).toContainText("已核准加入");
-  await expect(page.getByTestId(`session-contact-${host.profileId}`)).toBeVisible();
+  await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   const settledUpcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
   await settledUpcomingCard.scrollIntoViewIfNeeded();
   await expectWithinViewport(page, settledUpcomingCard);
   await expect(page.getByTestId("my-sessions-tab")).toBeFocused();
 });
 
-test("a 390px invited player can accept the invite card and read the host LINE contact", async ({ page }) => {
+test("a 390px invited player can accept the invite card and open group chat", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
@@ -135,8 +134,9 @@ test("a 390px invited player can accept the invite card and read the host LINE c
   const accept = page.getByTestId(`accept-invite-${sessionId}`);
   await expectWithinViewport(page, accept);
   await accept.click();
-  const contact = page.getByTestId(`session-contact-${host.profileId}`);
-  await expect(contact).toBeVisible();
-  await expect(contact.getByLabel(`${context.host.nickname} 的 LINE ID`)).toHaveValue(context.host.lineId);
+  const chatButton = page.getByTestId(`open-chat-${sessionId}`);
+  await expect(chatButton).toBeVisible();
+  await chatButton.click();
+  await expect(page.locator("#session-chat-sheet")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });

@@ -1385,7 +1385,7 @@ test("My Sessions keeps needs-action before settings and preserves visibility pe
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(toggle).toHaveText("已關閉");
   await expect(page.locator(".player-visibility")).toContainText(
-    "開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。LINE 不會顯示。"
+    "開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。"
   );
   expect(
     await page.locator("#my-needs-action").evaluate(
@@ -1492,7 +1492,6 @@ test("My Sessions notification settings save six preferences and Taipei court su
   const settings = page.locator(".notification-settings");
   await expect(settings).toContainText("通知設定");
   await expect(settings).toContainText("加入主畫面");
-  await expect(settings).not.toContainText("LINE");
   await expect(page.getByTestId("enable-push")).toHaveText("開啟推播");
   await expect(settings).not.toContainText("行政區");
   await expect(page.locator("[data-notification-district]")).toHaveCount(0);
@@ -2402,18 +2401,17 @@ test("profile and create sheets disclose public nickname use and retain a local-
     const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
     openProfileCompletionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
-      profile: { courts: new Set(), lineId: "", nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
+      profile: { courts: new Set(), nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
       returnSession: { court: "示範球場", startAt: "2026-07-18T01:30:00.000Z" },
     });
   });
 
   const disclosure =
-    "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；LINE ID 只會在同一球局的主揪與已接受球友之間互相顯示。";
+    "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
   const profile = page.locator("#profile-completion-sheet");
   await expect(profile).toBeVisible();
   await expect(profile.getByLabel("公開暱稱")).toBeVisible();
   await expect(profile.getByText(disclosure)).toBeVisible();
-  await expect(profile.getByText("只有同一球局的主揪與已接受球友之間可看見彼此的 LINE ID。")).toBeVisible();
   await expect(profile).toContainText("完成後將回到：示範球場・");
   await page.keyboard.press("Escape");
 
@@ -2434,7 +2432,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await expect(createSheet.getByText(disclosure)).toBeVisible();
   await expect(form.locator('input[name="joinMode"][value="instant"]')).toBeChecked();
   await expect(createSheet).toContainText(
-    "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。LINE ID 為選填，雙方有提供時才會顯示。"
+    "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。"
   );
   const requiredOrder = await form
     .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-total']")
@@ -2454,7 +2452,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions explains a missing LINE ID without rendering a dead copy control", async ({ page }) => {
+test("My Sessions gives accepted members chat access without rendering retired contact controls", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -2480,18 +2478,13 @@ test("My Sessions explains a missing LINE ID without rendering a dead copy contr
     };
     renderMySessionsPage(root, {
       authenticated: true,
-      contactsForSession: () => [
-        { counterpartProfileId: 91, lineId: "", nickname: "未填 LINE 球友", sessionId: 739 },
-      ],
       groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
     });
   });
 
-  const contact = page.getByTestId("session-contact-91");
-  await expect(contact).toContainText("對方尚未提供 LINE ID。");
-  await expect(contact.getByLabel("未填 LINE 球友 的 LINE ID")).toHaveCount(0);
-  await expect(contact.getByRole("button", { name: "複製 LINE ID" })).toHaveCount(0);
-  await expect(contact.getByRole("button", { name: "複製開場訊息" })).toBeVisible();
+  await expect(page.getByTestId("open-chat-739")).toBeVisible();
+  await expect(page.locator("[data-copy-contact]")).toHaveCount(0);
+  await expect(page.locator(".my-session-contacts")).toHaveCount(0);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -2551,7 +2544,6 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await expect(createProfile).toContainText("要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。");
   await expect(createProfile.getByLabel("公開暱稱")).toBeVisible();
   await expect(createProfile.getByLabel(/NTRP 程度/)).toBeVisible();
-  await expect(createProfile.getByLabel("LINE ID（選填）")).toHaveCount(0);
   await expect(createProfile.getByLabel("常打球場")).toHaveCount(0);
   await page.keyboard.press("Escape");
 
@@ -2559,7 +2551,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
     const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
     openProfileCompletionSheet({
       intent: { action: "create" },
-      profile: { courts: new Set(), lineId: "", nick: "已有暱稱", ntrp: null, slots: new Set(), types: new Set() },
+      profile: { courts: new Set(), nick: "已有暱稱", ntrp: null, slots: new Set(), types: new Set() },
     });
   });
   const ntrpOnlyProfile = page.locator("#profile-completion-sheet");
@@ -2693,7 +2685,7 @@ test("an existing one-decimal NTRP can save a nickname-only edit unchanged", asy
         window.__savedOneDecimalProfile = { nick: draft.nick, ntrp: draft.ntrp };
         return draft;
       },
-      profile: { courts: new Set(), lineId: "", nick: "原暱稱", ntrp: 3.7, slots: new Set(), types: new Set() },
+      profile: { courts: new Set(), nick: "原暱稱", ntrp: 3.7, slots: new Set(), types: new Set() },
     });
   });
 
@@ -2729,7 +2721,7 @@ test("profile NTRP accepts 1.0 and 7.0 but rejects excess precision and out-of-r
           window.__profileNtrpResults.push(draft.ntrp);
           return draft;
         },
-        profile: { courts: new Set(), lineId: "", nick: "邊界球友", ntrp: nextValue, slots: new Set(), types: new Set() },
+        profile: { courts: new Set(), nick: "邊界球友", ntrp: nextValue, slots: new Set(), types: new Set() },
       });
     }, Number(value));
     const profile = page.locator("#profile-completion-sheet");
@@ -2776,7 +2768,7 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
         };
         return draft;
       },
-      profile: { courts: new Set(), lineId: "", nick: "", ntrp: null, slots: new Set(), types: new Set() },
+      profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
     });
   });
   const profile = page.locator("#profile-completion-sheet");
@@ -2792,7 +2784,6 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
   await expect(profile).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__nicknameOnlyProfile)).toEqual({
     courts: [],
-    lineId: "",
     nick: "暱稱即可",
     ntrp: null,
     slots: [],
@@ -2811,14 +2802,13 @@ test("delayed Taipei court options hydrate open profile and create forms without
     window.__delayedProfileSheet = openProfileCompletionSheet({
       courts: [],
       courtsReady: false,
-      profile: { courts: new Set(), lineId: "", nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
+      profile: { courts: new Set(), nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
     });
   });
   const profile = page.locator("#profile-completion-sheet");
   const profileCourts = profile.getByLabel("常打球場");
   await expect(profileCourts).toBeDisabled();
   await profile.getByLabel("公開暱稱").fill("草稿球友");
-  await profile.getByLabel("LINE ID").fill("draft-line-id");
   await profile.getByLabel("單打", { exact: true }).check();
   await page.evaluate(() =>
     window.__delayedProfileSheet.setCourts(
@@ -2832,7 +2822,6 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await expect(profileCourts).toBeEnabled();
   await expect(profileCourts.locator("option")).toHaveText(["示範球場"]);
   await expect(profile.getByLabel("公開暱稱")).toHaveValue("草稿球友");
-  await expect(profile.getByLabel("LINE ID")).toHaveValue("draft-line-id");
   await expect(profile.getByLabel("單打", { exact: true })).toBeChecked();
   await profileCourts.selectOption("8");
   await page.evaluate(() =>
@@ -2909,7 +2898,6 @@ test("a mock profile save preserves existing courts while the catalogue has no o
       },
       profile: {
         courts: new Set(["既有台北球場"]),
-        lineId: "",
         nick: "保留球場球友",
         ntrp: null,
         slots: new Set(),

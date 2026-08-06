@@ -46,7 +46,6 @@ test(
     const hostProfile = await hostApi.saveCurrentProfile({
       nick: "本機主揪",
       ntrp: 3.5,
-      lineId: `host-${runId}`,
       courts: new Set(["青年公園網球場"]),
       types: new Set(["單打"]),
       slots: new Set(["we-m"]),
@@ -54,7 +53,6 @@ test(
     await guestApi.saveCurrentProfile({
       nick: "本機球友",
       ntrp: 3.5,
-      lineId: `guest-${runId}`,
       courts: new Set(["青年公園網球場"]),
       types: new Set(["單打"]),
       slots: new Set(["we-m"]),

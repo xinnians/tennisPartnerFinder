@@ -7,7 +7,6 @@ import {
   MY_SESSIONS_SELECT,
   PLAYER_DIRECTORY_SELECT,
   PLAYER_PRESENCE_DIRECTORY_SELECT,
-  SESSION_CONTACTS_SELECT,
   SESSION_DISCOVERY_SELECT,
   SESSION_JOIN_PREVIEW_SELECT,
   SESSION_ROSTER_SELECT,
@@ -22,7 +21,6 @@ import {
   mapMySession,
   mapPlayerDirectoryRow,
   mapPlayerPresenceDirectoryRow,
-  mapSessionContactRow,
   mapSessionJoinPreviewRow,
   mapSessionRosterRow,
   mapSessionSummary,
@@ -218,7 +216,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
   assert.equal("profileId" in mine, false);
 });
 
-test("private roster/contact/profile mappers stay separate from public summaries", () => {
+test("private roster and profile mappers stay separate from public summaries", () => {
   const roster = mapSessionRosterRow({
     session_id: 41,
     participant_id: 8,
@@ -244,16 +242,6 @@ test("private roster/contact/profile mappers stay separate from public summaries
   ].sort());
   assert.equal("lineId" in roster, false);
 
-  const contact = mapSessionContactRow({
-    session_id: 41,
-    counterpart_profile_id: 99,
-    nickname: "接受配對的球友",
-    line_id: "accepted-pair-only",
-    source_url: "must-not-leak-into-contact-model",
-  });
-  assert.deepEqual(sortedKeys(contact), ["sessionId", "counterpartProfileId", "nickname", "lineId"].sort());
-  assert.equal(contact.lineId, "accepted-pair-only");
-
   const profile = mapCurrentProfile(
     {
       nickname: "本人",
@@ -268,7 +256,8 @@ test("private roster/contact/profile mappers stay separate from public summaries
     },
     [{ id: 7, name: "青年公園網球場" }]
   );
-  assert.deepEqual(sortedKeys(profile), ["nick", "ntrp", "types", "courts", "slots", "lineId", "isPublic", "sharePresence", "openToGreeting"].sort());
+  assert.deepEqual(sortedKeys(profile), ["nick", "ntrp", "types", "courts", "slots", "isPublic", "sharePresence", "openToGreeting"].sort());
+  assert.equal("lineId" in profile, false);
   assert.equal("id" in profile, false);
   assert.equal("share" in profile, false);
   assert.equal(profile.isPublic, true);
@@ -329,8 +318,8 @@ test("NTRP formatting keeps one decimal place for a valid value", () => {
   assert.equal(formatNtrp(3.5), "NTRP 3.5");
 });
 
-test("private-profile eligibility enforces each nickname and NTRP boundary without requiring LINE", () => {
-  const baseProfile = { courts: new Set(["1"]), lineId: "", nick: "分級球友" };
+test("private-profile eligibility enforces each nickname and NTRP boundary from current profile fields", () => {
+  const baseProfile = { courts: new Set(["1"]), nick: "分級球友" };
   const options = { courts: [{ city: "台北市", id: 1, name: "測試球場" }], courtsReady: true };
   const cases = [
     [null, false],
@@ -355,7 +344,7 @@ test("private-profile eligibility enforces each nickname and NTRP boundary witho
 });
 
 test("directory eligibility requires a stored court and validates it when the Taipei catalogue is ready", () => {
-  const profile = { courts: new Set(["1"]), lineId: "", nick: "目錄球友", ntrp: 3.5 };
+  const profile = { courts: new Set(["1"]), nick: "目錄球友", ntrp: 3.5 };
   const activeTaipeiCourt = { city: "台北市", id: 1, name: "測試球場" };
 
   assert.equal(eligibilityFromPrivateProfile({ ...profile, courts: new Set() }).directory, false);
@@ -373,7 +362,7 @@ test("directory eligibility requires a stored court and validates it when the Ta
 });
 
 test("directory eligibility stays unavailable while the court catalogue is not ready", () => {
-  const profile = { courts: new Set(["測試球場"]), lineId: "", nick: "離線目錄球友", ntrp: 3.5 };
+  const profile = { courts: new Set(["測試球場"]), nick: "離線目錄球友", ntrp: 3.5 };
   const eligibility = eligibilityFromPrivateProfile(profile, { courts: [], courtsReady: false });
 
   assert.equal(eligibility.directory, false);
@@ -381,7 +370,7 @@ test("directory eligibility stays unavailable while the court catalogue is not r
 });
 
 test("directory eligibility exposes a failed court catalogue as an error", () => {
-  const profile = { courts: new Set(["測試球場"]), lineId: "", nick: "失敗目錄球友", ntrp: 3.5 };
+  const profile = { courts: new Set(["測試球場"]), nick: "失敗目錄球友", ntrp: 3.5 };
   const eligibility = eligibilityFromPrivateProfile(profile, {
     courts: [],
     courtsReady: false,
@@ -811,7 +800,6 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.equal(SESSION_DISCOVERY_SELECT.includes("*"), false);
   assert.equal(MY_SESSIONS_SELECT.includes("*"), false);
   assert.equal(SESSION_ROSTER_SELECT.includes("*"), false);
-  assert.equal(SESSION_CONTACTS_SELECT.includes("*"), false);
   assert.equal(MY_PROFILE_SELECT.includes("*"), false);
   assert.ok(client.calls.some((call) => call[0] === "gte" && call[1] === "court_lat" && call[2] === 25));
   assert.ok(client.calls.some((call) => call[0] === "lte" && call[1] === "court_lng" && call[2] === 121.7));
@@ -1641,7 +1629,6 @@ test("session creation, reporting, and profile save use only their RPC contracts
   const saved = await api.saveCurrentProfile({
     nick: "安全表單",
     ntrp: 3.5,
-    lineId: "private-form-value",
     courts: new Set(["青年公園網球場"]),
     types: new Set(["單打"]),
     slots: new Set(["we-m"]),
@@ -1675,7 +1662,7 @@ test("session creation, reporting, and profile save use only their RPC contracts
       {
         p_nickname: "安全表單",
         p_ntrp: 3.5,
-        p_line_id: "private-form-value",
+        p_line_id: null,
         p_court_ids: [101],
         p_play_types: ["單打"],
         p_slot_codes: ["we-m"],
