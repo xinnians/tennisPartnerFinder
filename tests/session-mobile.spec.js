@@ -139,20 +139,31 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   await expect(page.getByTestId("my-sessions-tab")).toBeFocused();
 
   await page.getByTestId("me-tab").click();
+  // 對稱式掃描：不列舉 testid，往後搬進「我」頁的控件會自動納入這道守衛。
   const meSettingControls = page.locator(
-    "#me-page [data-testid='player-visibility-toggle'], #me-page [data-testid='presence-sharing-toggle'], #me-page .presence-settings__greeting"
+    "#me-page button, #me-page input, #me-page select, #me-page option, #me-page a[href], #me-page [role='switch']"
   );
-  await expect(meSettingControls).toHaveCount(3);
-  const settingBoxes = await meSettingControls.evaluateAll((elements) =>
-    elements.map((element) => {
-      const box = element.getBoundingClientRect();
-      return { height: box.height, width: box.width };
-    })
-  );
-  for (const box of settingBoxes) {
-    expect(box.width).toBeGreaterThanOrEqual(44);
-    expect(box.height).toBeGreaterThanOrEqual(44);
-  }
+  // 量測要能重試：切頁後版面還在收斂時取的瞬時快照會抖。
+  const undersizedMeControls = async () =>
+    (
+      await meSettingControls.evaluateAll((elements) =>
+        elements.map((element) => {
+          // 被 label 包住的輸入框，實際觸控目標是整個 label。
+          const target = element.closest("label") ?? element;
+          const box = target.getBoundingClientRect();
+          return {
+            height: box.height,
+            label: element.getAttribute("data-testid") ?? element.tagName.toLowerCase(),
+            width: box.width,
+          };
+        })
+      )
+    ).filter((box) => box.width < 44 || box.height < 44);
+  // 掃描集非空且不得因 selector 寫錯而縮水。
+  await expect.poll(async () => await meSettingControls.count()).toBeGreaterThanOrEqual(20);
+  await expect
+    .poll(undersizedMeControls, { message: "390px 下「我」頁全部互動控件必須 ≥44×44" })
+    .toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

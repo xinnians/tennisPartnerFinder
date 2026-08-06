@@ -1548,6 +1548,8 @@ test("Me notification settings save six preferences and Taipei court subscriptio
   await expect.poll(() => page.evaluate(() => window.__enablePushCalls)).toBe(1);
 
   await page.getByTestId("notification-host-new-request").uncheck();
+  // 存檔期間所有控制項會被 disable，焦點會掉到 body；托管必須把它送回原控制項。
+  await expect(page.getByTestId("notification-host-new-request")).toBeFocused();
   await expect.poll(() => page.evaluate(() => window.__savedNotificationPreferences)).toEqual({
     chatMessageEnabled: true,
     guestInvitedEnabled: true,
@@ -1594,6 +1596,41 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
   );
   await expect(page.locator("#me-root [data-notification-error]")).toBeHidden();
   await expect(courtSelect.locator("option:checked")).toHaveCount(11);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a rerender inside a notification action stays authoritative over the disable restore", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("me-page").hidden = false;
+    // 模擬 enablePushNotifications 的真實形狀：回呼在自己的 await 之內同步重繪，
+    // 新 markup 依 pushStatus 決定 disabled，回呼結束後動作 helper 的 finally 才跑。
+    let current = { courtIds: [], prefs: {}, pushStatus: "idle", webPushConfigured: true };
+    const render = () =>
+      renderMePage(root, {
+        authSession: { user: { id: "push-rerender-test" } },
+        notificationSettings: current,
+        onEnablePush: async () => {
+          window.__pushCalls = (window.__pushCalls ?? 0) + 1;
+          current = { ...current, pushStatus: "enabled" };
+          render();
+        },
+      });
+    render();
+  });
+
+  const enablePush = page.getByTestId("enable-push");
+  await expect(enablePush).toBeEnabled();
+  await enablePush.click();
+  await expect.poll(() => page.evaluate(() => window.__pushCalls)).toBe(1);
+  await expect(enablePush).toHaveText("此裝置已開啟");
+  // 重繪後的 markup 才是 disabled 的權威；還原不得把它判定為停用的按鈕解鎖。
+  await expect(enablePush).toBeDisabled();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3270,6 +3307,17 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
   await expect(root.getByTestId("unblock-player-92")).toHaveCount(0);
   await expect(meRoot.getByTestId("blocked-player-list")).toBeVisible();
   await expect(meRoot.locator("b")).toHaveCount(0);
+  // local 的 390px 守衛掃不到解除封鎖鍵（那個帳號沒有封鎖資料），在這裡補觸控目標下限。
+  await expect
+    .poll(
+      async () =>
+        meRoot.getByTestId("unblock-player-92").evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          return Math.min(box.height, box.width);
+        }),
+      { message: "解除封鎖鍵的觸控目標最短邊必須 ≥44px" }
+    )
+    .toBeGreaterThanOrEqual(44);
   await expect(meRoot.getByText("已封鎖球友 <b>")).toBeVisible();
   await root.getByTestId("open-chat-8201").click();
   await meRoot.getByTestId("unblock-player-92").click();

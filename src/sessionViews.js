@@ -1100,7 +1100,6 @@ function findNotificationControl(root, descriptor) {
 async function runNotificationSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-notification-control]")];
   const unlockedControls = controls.filter((control) => !control.disabled);
-  const unlockedDescriptors = unlockedControls.map(notificationControlDescriptor).filter(Boolean);
   // 動作前記下焦點所在控制項的語意，動作後主動還原；與在線設定同一套托管方式，
   // 免得同一頁相鄰兩個區塊一個留得住焦點、一個留不住。
   const active = document.activeElement;
@@ -1126,11 +1125,15 @@ async function runNotificationSettingAction(root, callback) {
     }
     return false;
   } finally {
-    // 以描述重查：回呼期間若已重繪，對 detach 的舊節點還原 disabled 不會反映到畫面。
-    unlockedDescriptors.forEach((descriptor) => {
-      const control = findNotificationControl(root, descriptor);
-      if (control) control.disabled = false;
-    });
+    // 回呼期間可能已重繪（enablePushNotifications 就會在自己的 await 之內同步重繪）。
+    // 重繪後的 markup 才是 disabled 的權威——它依目前狀態重新算出，把它判定為停用的
+    // 控制項強制解鎖，會讓「此裝置已開啟」的推播按鈕變回可以再按。
+    const rerendered = unlockedControls.some((control) => !root.contains(control));
+    if (!rerendered) {
+      unlockedControls.forEach((control) => {
+        control.disabled = false;
+      });
+    }
     if (restoreFocus && focusedDescriptor) {
       const current = document.activeElement;
       // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
@@ -1155,7 +1158,6 @@ function presenceControlSelector(control) {
 async function runPresenceSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-presence-control]")];
   const unlockedControls = controls.filter((control) => !control.disabled);
-  const unlockedSelectors = unlockedControls.map(presenceControlSelector).filter(Boolean);
   // 動作前記下焦點所在控制項的語意，動作後主動還原，不再依賴重繪路徑撿回焦點。
   const active = document.activeElement;
   const focusedSelector = root.contains(active) ? presenceControlSelector(active) : null;
@@ -1181,11 +1183,15 @@ async function runPresenceSettingAction(root, callback) {
     }
     return false;
   } finally {
-    // 以 selector 重查：回呼期間若已重繪，對 detach 的舊節點還原 disabled 不會反映到畫面。
-    unlockedSelectors.forEach((selector) => {
-      const control = root.querySelector(selector);
-      if (control) control.disabled = false;
-    });
+    // 同 runNotificationSettingAction：重繪後的 markup 是 disabled 的權威。在線設定的
+    // 兩個控制項目前沒有條件 disabled，但 updatePresenceSharing 一樣會在 await 之內同步
+    // 重繪，規則統一才不會在往後加上條件 disabled 時無聲踩雷。
+    const rerendered = unlockedControls.some((control) => !root.contains(control));
+    if (!rerendered) {
+      unlockedControls.forEach((control) => {
+        control.disabled = false;
+      });
+    }
     if (restoreFocus && focusedSelector) {
       const current = document.activeElement;
       // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
