@@ -1420,6 +1420,7 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
       (node) => node.nextElementSibling?.classList.contains("presence-settings") === true
     )
   ).toBe(true);
+  await expect(page.locator("#my-sessions-root .my-sessions-section")).not.toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='player-visibility-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='presence-sharing-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='open-to-greeting-toggle']")).toHaveCount(0);
