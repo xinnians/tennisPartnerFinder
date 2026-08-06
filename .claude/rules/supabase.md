@@ -20,7 +20,8 @@ role 不可讀寫。
   被拒，未通過 ntrp 門檻、或本人未開 `share_presence` 的登入 viewer 一律為 0 列。
 - 登入者自己的清單：`public.my_session_participations`。
 - roster：`public.session_participant_roster`。
-- accepted-only LINE：`public.session_contacts`。
+- 退役聯絡面：`public.session_contacts` 與 `profiles.line_id` 因凍結 migration 暫留為技術債，
+  但已不是 browser data API，`src/` 不得查詢、映射或渲染。
 - 群聊與封鎖讀取：`public.session_message_feed`、`public.my_player_blocks`；寫入只能使用
   `post_session_message`、`set_player_block`、`create_report(..., p_message_id)` RPC。
 - 登入者加入前名單：`public.session_join_preview`（authenticated-only，僅需登入；回傳該局
@@ -120,15 +121,13 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
 其中 `court_lat`／`court_lng` 是既有球場目錄座標，不是裝置 GPS；永遠不可加入 LINE、email、
 真名、raw GPS 或 presence 歷史。pgTAP 必須以完整有序字串守護這個 allowlist。
 
-## Roster 與 LINE
+## Roster 與退役聯絡面
 
 - `session_participant_roster`：host 可看同局 roster；guest 只可看自己與 host。這是
   申請審核所需的 nickname、NTRP、play types、home courts、role/status；沒有 LINE。
-- `session_contacts`：選填 LINE 的過渡面；僅 viewer 和 counterpart 都是 `accepted`，且配對必須是 host ↔ guest。
-  Host 對每位已接受 guest 有一列；guest 只會有 host 一列，絕不會取得其他 guest 的資料。
-- LINE 對新註冊者不是必填，也不是任何 profile gate；它仍是資料庫強制的秘密，不是前端顯示
-  gate。群聊穩定後才能另案退役 `session_contacts`；任何擴充都必須先補 pgTAP 與 API
-  allowlist test，再改 UI。
+- LINE 前端面已退役，新註冊流程不再蒐集；群組成員一律使用球局群聊協調。
+- `session_contacts` 與 `profiles.line_id` 尚留在資料庫，只是待後續 drop migration 清理的技術債。
+  不得重新加入 browser API 或 UI；清理前既有 RLS／definer 限制仍不可弱化。
 
 ## 城市、個人檔案門檻與生命週期
 
@@ -196,5 +195,5 @@ npm run test:local
 
 Hosted 推送屬人工、授權後操作：先備份並記錄 sessions/participants counts，再跑 local gate，
 以 `npx supabase migration list` 確認每個 local stamp 與 remote 對齊，才可執行 migration。
-之後重新驗證匿名 allowlist、raw table denial、accepted pair contact 與 cron job；不要把未跑的
+之後重新驗證匿名 allowlist、raw table denial 與 cron job；不要把未跑的
 hosted 檢查寫成已完成。

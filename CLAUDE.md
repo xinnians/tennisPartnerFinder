@@ -4,7 +4,7 @@
 
 這是以 Vite 6 與原生 ES modules 製作的台北市網球公開球局 MVP。首頁是地圖，
 使用者可瀏覽未來與開打後兩小時內的球局，依球局加入方式申請或直接加入；已接受成員可使用球局群組聊天，
-LINE 聯絡面僅過渡保留。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
+前端不再提供 LINE 聯絡面。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
 新北市球場開放為公開球局。
 
 產品與資料模型的來源依序是：
@@ -34,17 +34,16 @@ LINE 聯絡面僅過渡保留。首發公開範圍是 **台北市、網球**；�
   `share_presence` 才可讀到其他分享者。`player_presence` 原表不可給 browser 讀寫；raw GPS
   座標只在前景 `watchPosition` 呼叫期間短暫存在，RPC 只可落地最近台北 active court 的
   `court_id + updated_at`，不可進任何表、view、payload 或 log。
-- LINE 是選填的過渡聯絡欄位，新註冊不要求填寫。它只能由資料庫 definer view `public.session_contacts`
-  回傳給同一球局中、雙方皆為 `accepted` 的 host/guest 配對。主揪可看各已接受
-  guest；guest 只可看主揪，不能看其他 guest；群聊穩定後此過渡面再退役。
+- LINE 前端聯絡面已退役；`profiles.line_id` 與 `public.session_contacts` 只因凍結 migration
+  暫留為資料庫技術債。`src/` 不得讀取、映射或渲染這兩個遺留面，新註冊流程也不蒐集 LINE。
 - Web Push payload 只可含球局摘要 `court`、`start_at`、`slots_remaining`、`message`、`url`
-  與派送所需 title；**LINE 永遠不可**進 payload、outbox、browser log、view 或 UI。通知
+  與派送所需 title；**LINE 永遠不可**進 payload、outbox、browser log、新 view 或 UI。通知
   outbox 是 service-only，browser role 不可讀寫。
 - raw `sessions`、`session_participants`、`profiles` 與私有 legacy tables 不是
   browser data API。所有前端讀寫都必須經過 `src/dataApi.js` 的 view/RPC 邊界：
   `session_discovery`、`player_directory`、`my_session_participations`、
   `player_presence_directory`、`session_participant_roster`、`session_join_preview`、
-  `session_message_feed`、`my_player_blocks`、`session_contacts`、`my_profile`
+  `session_message_feed`、`my_player_blocks`、`my_profile`
   與其核可 RPC。
 - 聊天僅限球局群組聊天：成員限主揪與已接受參加者，讀 `session_message_feed`、寫
   `post_session_message`，封存後唯讀。請勿加入局外私訊、陌生人社群、訂場、付款、
@@ -56,7 +55,7 @@ LINE 聯絡面僅過渡保留。首發公開範圍是 **台北市、網球**；�
 
 - `src/main.js`：應用程式入口、頁面切換、Maps/Auth 接線。
 - `src/sessionController.js`：探索、地圖 bounds、登入／檔案 gate、生命週期 refresh。
-- `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions、群聊與過渡 contact 顯示。
+- `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions 與群聊。
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
 - `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
 - `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
@@ -69,7 +68,7 @@ linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁�
 ## Session 資料流程
 
 公開流程：地圖 → 附近球局 → 詳情與登入後加入前名單 → 依所需 gate 補檔案 → 申請或直接加入 →
-（審核制）主揪接受／婉拒 → accepted 成員使用 My Sessions 與球局群組聊天；LINE 過渡面並存。
+（審核制）主揪接受／婉拒 → accepted 成員使用 My Sessions 與球局群組聊天。
 
 - `create_session`：通過 ntrp gate 的主揪可建 `booked`、`walk_on` 或 `candidates` 球局；前兩型
   使用單一台北市 active tennis court，候選型依序保存 2–3 座候選球場與時間範圍，之後只可用
@@ -93,7 +92,7 @@ linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁�
 - `public.my_session_participations` 是登入者自己的生命週期清單；
   `public.session_participant_roster` 對 host 顯示該局 roster、對 guest 僅顯示自己與 host，
   但兩者都不含 LINE。群聊由 `session_message_feed` 提供給 host 與 accepted guest；
-  `session_contacts` 只保留 accepted host ↔ guest 的選填 LINE 過渡揭露。
+  舊 `session_contacts` view 與 `profiles.line_id` 欄只作待清理技術債，前端沒有 consumer。
 - `expire-stale-tennis-sessions` pg_cron 每 15 分鐘將開始後超過 24 小時的 open/full
   球局設為 expired；未定案候選局在範圍起點即 expired。每個 lifecycle RPC 也立即檢查，
   UI 不可依賴 cron 延遲。
@@ -158,7 +157,7 @@ allowlist 與 Supabase Site URL 的 QA 入口）與 `...-xinnians-...`（CLI 部
 
 任何 hosted migration、環境變數、部署或社群發布前，先完成
 `docs/mvp-plan.md` 的 release checklist：備份／count preflight、migration list 對齊、
-匿名 REST allowlist、兩帳號群聊與 accepted-only 過渡 contact、cron、OAuth、390px 慢網路與
+匿名 REST allowlist、兩帳號群聊、cron、OAuth、390px 慢網路與
 support/privacy link 的人工檢查。未實際完成的 hosted gate 不可在文件中標記為完成。
 
 ## 球場目錄與文件維護
