@@ -1369,29 +1369,34 @@ test("declined My Sessions history uses neutral participation wording", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions keeps needs-action before settings and preserves visibility pending and error state", async ({ page }) => {
+test("Me owns player visibility while My Sessions omits both moved settings and preserves pending and error state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
-    const root = document.getElementById("my-sessions-root");
+    const { renderMePage, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
-    document.getElementById("my-sessions-page").hidden = false;
+    document.getElementById("me-page").hidden = false;
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+    });
     let release;
     const pending = new Promise((resolve) => {
       release = resolve;
     });
     const render = () =>
-      renderMySessionsPage(root, {
-        authenticated: true,
-        groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
-        onToggleVisibility: async () => {
+      renderMePage(root, {
+        authSession: { user: { id: "me-settings-test" } },
+        onTogglePlayerVisibility: async () => {
           window.__visibilityToggleCalls = (window.__visibilityToggleCalls ?? 0) + 1;
           await pending;
           throw new Error("球友卡設定暫時無法更新。");
         },
-        profileIsPublic: false,
+        playerVisibility: false,
+        presence: { locationStatus: "idle", openToGreeting: false, sharePresence: false },
+        profile: { nick: "測試球友", ntrp: 3.5 },
       });
     window.__rerenderVisibility = render;
     window.__releaseVisibility = release;
@@ -1406,50 +1411,52 @@ test("My Sessions keeps needs-action before settings and preserves visibility pe
     "開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。"
   );
   expect(
-    await page.locator("#my-needs-action").evaluate(
-      (node) => node.closest(".my-sessions-section")?.nextElementSibling?.classList.contains("player-visibility") === true
+    await page.locator(".me-identity-card").evaluate(
+      (node) => node.nextElementSibling?.classList.contains("player-visibility") === true
     )
   ).toBe(true);
   expect(
-    await page.locator(".player-visibility").evaluate((node) => node.nextElementSibling?.classList.contains("presence-settings") === true)
+    await page.locator(".player-visibility").evaluate(
+      (node) => node.nextElementSibling?.classList.contains("presence-settings") === true
+    )
   ).toBe(true);
-  expect(
-    await page.locator(".presence-settings").evaluate((node) => node.nextElementSibling?.classList.contains("notification-settings") === true)
-  ).toBe(true);
-  expect(
-    await page.locator(".notification-settings").evaluate((node) => node.nextElementSibling?.classList.contains("blocked-player-settings") === true)
-  ).toBe(true);
+  await expect(page.locator("#my-sessions-root [data-testid='player-visibility-toggle']")).toHaveCount(0);
+  await expect(page.locator("#my-sessions-root [data-testid='presence-sharing-toggle']")).toHaveCount(0);
+  await expect(page.locator("#my-sessions-root [data-testid='open-to-greeting-toggle']")).toHaveCount(0);
+  await expect(page.locator("#me-root [data-testid='player-visibility-toggle']")).toHaveCount(1);
+  await expect(page.locator("#me-root [data-testid='presence-sharing-toggle']")).toHaveCount(1);
+  await expect(page.locator("#me-root [data-testid='open-to-greeting-toggle']")).toHaveCount(1);
 
   await toggle.click();
   await expect.poll(() => page.evaluate(() => window.__visibilityToggleCalls)).toBe(1);
   await page.evaluate(() => window.__rerenderVisibility());
   await expect(toggle).toBeDisabled();
   await page.evaluate(() => window.__releaseVisibility());
-  await expect(page.locator("[data-my-sessions-error]")).toContainText("球友卡設定暫時無法更新");
+  await expect(page.locator("#me-root [data-my-sessions-error]")).toContainText("球友卡設定暫時無法更新");
   await expect(toggle).toBeEnabled();
   await expect(toggle).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions presence settings explain reciprocal visibility, request sharing, and offer one-tap hiding", async ({ page }) => {
+test("Me presence settings explain reciprocal visibility, request sharing, and offer one-tap hiding", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
-    const root = document.getElementById("my-sessions-root");
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
-    document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(root, {
-      authenticated: true,
-      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+    document.getElementById("me-page").hidden = false;
+    renderMePage(root, {
+      authSession: { user: { id: "me-presence-test" } },
       onSetOpenToGreeting: async (open) => {
         window.__greetingValue = open;
       },
       onSetPresenceSharing: async (shared) => {
         window.__sharingValue = shared;
       },
-      presenceSettings: { locationStatus: "denied", openToGreeting: true, sharePresence: true },
+      presence: { locationStatus: "denied", openToGreeting: true, sharePresence: true },
+      profile: { nick: "測試球友", ntrp: 3.5 },
     });
   });
 
@@ -2251,11 +2258,7 @@ test("390px player layer actions are at least 44px", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");
 
-  const targetGroups = [
-    page.locator(".player-layer-actions button"),
-    page.locator(".app-brand, .filter-control :is(select, input), .site-link"),
-  ];
-  for (const targets of targetGroups) {
+  for (const targets of [page.locator(".player-layer-actions button"), page.locator(".app-brand, .filter-control :is(select, input)")]) {
     const count = await targets.count();
     expect(count, "the app-owned touch-target scan must be nonempty").toBeGreaterThan(0);
     for (let index = 0; index < count; index += 1) {
@@ -2263,6 +2266,15 @@ test("390px player layer actions are at least 44px", async ({ page }) => {
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
+  }
+  await page.getByTestId("me-tab").click();
+  const serviceLinks = page.locator(".me-service-links a");
+  const serviceLinkCount = await serviceLinks.count();
+  expect(serviceLinkCount, "the Me service-link touch-target scan must be nonempty").toBeGreaterThan(0);
+  for (let index = 0; index < serviceLinkCount; index += 1) {
+    const box = await serviceLinks.nth(index).boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
   }
   expect(runtimeErrors).toEqual([]);
 });
@@ -2387,6 +2399,7 @@ test("the login modal titles each gate entry point instead of always naming a jo
     ["players", "登入以查看在線球友"],
     ["directory", "登入以查看球友名單"],
     ["my-sessions", "登入以查看你的球局"],
+    ["me", "登入以管理你的檔案與設定"],
     [null, "登入以繼續"],
   ]) {
     await openLoginFor(action);

@@ -137,6 +137,23 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   await settledUpcomingCard.scrollIntoViewIfNeeded();
   await expectWithinViewport(page, settledUpcomingCard);
   await expect(page.getByTestId("my-sessions-tab")).toBeFocused();
+
+  await page.getByTestId("me-tab").click();
+  const meSettingControls = page.locator(
+    "#me-page [data-testid='player-visibility-toggle'], #me-page [data-testid='presence-sharing-toggle'], #me-page [data-testid='open-to-greeting-toggle']"
+  );
+  await expect(meSettingControls).toHaveCount(3);
+  const settingBoxes = await meSettingControls.evaluateAll((elements) =>
+    elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { height: box.height, width: box.width };
+    })
+  );
+  for (const box of settingBoxes) {
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("a 390px invited player can accept the invite card and open group chat", async ({ page }) => {

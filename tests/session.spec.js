@@ -1042,7 +1042,7 @@ test("a visible player can be invited from the directory list, join group chat, 
     expect(await setPlayerVisibilityViaRpc(host.client, true)).toBe("OK");
 
     await gotoWithSession(page, player.session);
-    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("me-tab").click();
     const playerVisibility = page.getByTestId("player-visibility-toggle");
     await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
     await playerVisibility.click();
@@ -1070,10 +1070,11 @@ test("a visible player can be invited from the directory list, join group chat, 
     await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
     await switchBrowserSession(page, player.session);
-    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("me-tab").click();
     await expect(playerVisibility).toHaveAttribute("aria-checked", "true");
     await playerVisibility.click();
     await expect(playerVisibility).toHaveAttribute("aria-checked", "false");
+    await expect(playerVisibility).toBeFocused();
 
     await switchBrowserSession(page, host.session);
     await page.getByTestId("player-directory-open").click();
@@ -1098,7 +1099,7 @@ test("nickname-only presence controls open the NTRP profile sheet without writin
     slots: [],
   });
   await gotoWithSession(page, session);
-  await page.getByTestId("my-sessions-tab").click();
+  await page.getByTestId("me-tab").click();
 
   await page.getByTestId("presence-sharing-toggle").click();
   const profile = page.locator("#profile-completion-sheet");
@@ -1116,6 +1117,33 @@ test("nickname-only presence controls open the NTRP profile sheet without writin
   const { data, error } = await client.from("my_profile").select("share_presence,open_to_greeting").single();
   if (error) throw error;
   expect(data).toEqual({ open_to_greeting: false, share_presence: false });
+});
+
+test("saving the profile from a Me gate redraws the live Me identity and settings", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.host.email);
+  await createProfile(client, {
+    courts: context.host.courts,
+    nickname: context.host.nickname,
+    ntrp: null,
+    playTypes: [],
+    slots: [],
+  });
+  await gotoWithSession(page, session);
+  await page.getByTestId("me-tab").click();
+
+  await page.getByTestId("presence-sharing-toggle").click();
+  const profile = page.locator("#profile-completion-sheet");
+  await expect(profile).toBeVisible();
+  await profile.getByLabel(/^NTRP 程度/).fill("3.5");
+  await profile.getByTestId("profile-save").click();
+
+  await expect(profile).toHaveCount(0);
+  await expect(page.getByTestId("me-identity-card")).toContainText("3.5");
+  await expect(page.getByTestId("presence-sharing-toggle")).toHaveAttribute("aria-checked", "false");
+  const { data, error } = await client.from("my_profile").select("ntrp,share_presence").single();
+  if (error) throw error;
+  expect(data).toEqual({ ntrp: 3.5, share_presence: false });
 });
 
 test("a nickname-only profile cannot bypass the NTRP gate while turning presence sharing off", async ({ page }) => {
@@ -1140,7 +1168,7 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning presence
     });
 
     await gotoWithSession(page, session);
-    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("me-tab").click();
     const sharing = page.getByTestId("presence-sharing-toggle");
     await expect(sharing).toHaveAttribute("aria-checked", "true");
     await sharing.click();
@@ -1184,7 +1212,7 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning greeting
     });
 
     await gotoWithSession(page, session);
-    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("me-tab").click();
     const greeting = page.getByTestId("open-to-greeting-toggle");
     await expect(greeting).toBeChecked();
     await greeting.click();
@@ -1233,11 +1261,12 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     if (courtError) throw courtError;
 
     await gotoWithSession(page, playerA.session);
-    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("me-tab").click();
     const sharing = page.getByTestId("presence-sharing-toggle");
     await expect(sharing).toHaveAttribute("aria-checked", "false");
     await sharing.click();
     await expect(sharing).toHaveAttribute("aria-checked", "true");
+    await expect(sharing).toBeFocused();
     expect(await updateMyPresenceViaRpc(playerA.client, { lat: court.lat, lng: court.lng })).toBe("OK");
 
     expect(await setPresenceSharingViaRpc(playerB.client, true)).toBe("OK");
@@ -1256,10 +1285,11 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     await expect(page.getByTitle(/^在線 · /)).toHaveCount(0);
 
     await switchBrowserSession(page, playerA.session);
-    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("me-tab").click();
     await expect(sharing).toHaveAttribute("aria-checked", "true");
     await sharing.click();
     await expect(sharing).toHaveAttribute("aria-checked", "false");
+    await expect(sharing).toBeFocused();
 
     await switchBrowserSession(page, playerB.session);
     await page.getByTestId("player-layer-toggle").click();
