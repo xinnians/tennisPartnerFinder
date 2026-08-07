@@ -2040,3 +2040,133 @@ test("neutral counts stay hidden at zero and appear on all three surfaces once a
     await Promise.allSettled([setPlayerVisibilityViaRpc(guest.client, false)]);
   }
 });
+
+
+// ── 批 9a:新帳號首次建檔預設訂閱全台北市 ─────────────────────────────────
+// 判斷依據是「存檔前資料庫有沒有 profiles 列」,不是「目前訂了幾座」——後者分不出
+// 「從沒選過」與「明確選了零座」。private.ensure_notification_profile()(202607230001:93)
+// 會在任何通知 RPC 上 insert 一列 profiles,所以「沒有列」等價於「從沒表態過」。
+async function subscribedCourtIds(client) {
+  const { data, error } = await client.from("court_subscriptions").select("court_id");
+  if (error) throw error;
+  return data.map((row) => Number(row.court_id)).sort((left, right) => left - right);
+}
+
+async function activeTaipeiCourtIds(client) {
+  const { data, error } = await client
+    .from("courts")
+    .select("id")
+    .eq("is_active", true)
+    .eq("city", "台北市")
+    .order("id");
+  if (error) throw error;
+  return data.map((row) => Number(row.id)).sort((left, right) => left - right);
+}
+
+async function saveProfileFromMePage(page, { nickname, courtId }) {
+  await page.getByTestId("me-tab").click();
+  await page.getByTestId("edit-profile").click();
+  const sheet = page.locator("#profile-completion-sheet");
+  await expect(sheet).toBeVisible();
+  await sheet.locator("#profile-nickname").fill(nickname);
+  if (courtId) await sheet.getByLabel("常打球場").selectOption(String(courtId));
+  await page.getByTestId("profile-save").click();
+  await expect(sheet).toHaveCount(0);
+}
+
+test("a brand-new account is subscribed to every active Taipei court when it first saves a profile", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.guest.email);
+  const courtId = await courtIdByName(client, context.guest.courts[0]);
+  const everyCourtId = await activeTaipeiCourtIds(client);
+
+  // 正向前提:目錄非空,而且這個帳號起始為零訂閱——否則「訂到全部」可能是零對零的假綠。
+  expect(everyCourtId.length).toBeGreaterThan(1);
+  expect(await subscribedCourtIds(client)).toEqual([]);
+
+  await gotoWithSession(page, session);
+  await saveProfileFromMePage(page, { courtId, nickname: context.guest.nickname });
+
+  await expect.poll(async () => await subscribedCourtIds(client)).toEqual(everyCourtId);
+
+  // 驗收條件 5:訂到全部之後「我」頁應該是收合態 + 主控打勾 + 已訂閱 N 座。
+  await expect(page.getByTestId("subscribe-all-courts")).toBeChecked();
+  await expect(page.getByTestId("toggle-court-picker")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#notification-court-picker")).toBeHidden();
+  await expect(page.locator(".notification-settings")).toContainText(`已訂閱 ${everyCourtId.length} 座`);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("N1 an existing zero-subscription account is never seeded by a later profile save", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const actor = await createCompleteActor(context.host);
+
+  // 正向前提:這個帳號已經有 profiles 列(暱稱存在)且目前零訂閱。
+  const { data: existingProfile, error } = await actor.client.from("my_profile").select("nickname").single();
+  if (error) throw error;
+  expect(existingProfile.nickname).toBe(context.host.nickname);
+  expect(await subscribedCourtIds(actor.client)).toEqual([]);
+
+  await gotoWithSession(page, actor.session);
+  await saveProfileFromMePage(page, { nickname: `${context.host.nickname}X` });
+  await expect(page.getByTestId("me-identity-card")).toContainText(`${context.host.nickname}X`);
+
+  await expect.poll(async () => await subscribedCourtIds(actor.client)).toEqual([]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("N2 an account that explicitly cleared every court stays at zero across later profile saves", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.guest.email);
+  const courtId = await courtIdByName(client, context.guest.courts[0]);
+  const everyCourtId = await activeTaipeiCourtIds(client);
+
+  // 這是最嚴的一條:在「還沒有個人檔案」時就訂滿再全部取消。那次取消已經讓
+  // ensure_notification_profile 建好 profiles 列,所以之後的首次建檔不得再種入。
+  await callSessionRpc(client, "set_court_subscriptions", { p_court_ids: everyCourtId });
+  // 正向前提:取消前確實訂到全部,否則後面的「維持零」是零對零的假綠。
+  expect(await subscribedCourtIds(client)).toEqual(everyCourtId);
+  await callSessionRpc(client, "set_court_subscriptions", { p_court_ids: [] });
+  expect(await subscribedCourtIds(client)).toEqual([]);
+
+  await gotoWithSession(page, session);
+  await saveProfileFromMePage(page, { courtId, nickname: context.guest.nickname });
+  await expect(page.getByTestId("me-identity-card")).toContainText(context.guest.nickname);
+  await expect.poll(async () => await subscribedCourtIds(client)).toEqual([]);
+
+  // 再存一次(PM 的 N2 字面情境:已有檔案、明確清空、之後再編輯)。
+  await saveProfileFromMePage(page, { nickname: `${context.guest.nickname}Y` });
+  await expect(page.getByTestId("me-identity-card")).toContainText(`${context.guest.nickname}Y`);
+  await expect.poll(async () => await subscribedCourtIds(client)).toEqual([]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("N3 a failing subscription seed never fails the profile save", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { client, session } = await signUpUser(context.guest.email);
+  const courtId = await courtIdByName(client, context.guest.courts[0]);
+  expect((await activeTaipeiCourtIds(client)).length).toBeGreaterThan(1);
+
+  await gotoWithSession(page, session);
+  // 只讓種入用的 RPC 失敗,個人檔案存檔那支不受影響。
+  let seedAttempts = 0;
+  await page.route(`${SUPABASE_URL}/rest/v1/rpc/set_court_subscriptions`, async (route) => {
+    seedAttempts += 1;
+    await route.fulfill({ body: JSON.stringify({ message: "seed boom" }), contentType: "application/json", status: 500 });
+  });
+
+  await saveProfileFromMePage(page, { courtId, nickname: context.guest.nickname });
+
+  // 存檔本身必須成功:sheet 已關、身分卡已更新、資料庫裡確實有暱稱。
+  await expect(page.getByTestId("me-identity-card")).toContainText(context.guest.nickname);
+  const { data: savedProfile, error } = await client.from("my_profile").select("nickname").single();
+  if (error) throw error;
+  expect(savedProfile.nickname).toBe(context.guest.nickname);
+  // 正向前提:種入確實被嘗試過(否則這條測試等於什麼都沒攔到)。
+  await expect.poll(() => seedAttempts).toBeGreaterThan(0);
+  await expect.poll(async () => await subscribedCourtIds(client)).toEqual([]);
+  await expect(page.locator("#toast-root")).not.toContainText("無法");
+});

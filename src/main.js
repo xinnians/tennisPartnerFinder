@@ -118,6 +118,12 @@ let authStateEpoch = 0;
 let currentAuthIdentity = null;
 let authSession = null;
 let currentProfile = null;
+// 資料庫裡是否已經有這個帳號的 profiles 列。
+// 這是「這人有沒有表態過球場訂閱」的唯一可靠訊號:private.ensure_notification_profile()
+// (202607230001:93)在任何通知 RPC 上都會 insert 一列 profiles,所以「沒有列」等價於
+// 「從沒呼叫過 save_my_profile,也從沒呼叫過任何通知 RPC」——不可能表態過。
+// 「零訂閱」本身分不出「從沒選過」與「明確選了零座」,不可拿來當判斷依據。
+let storedProfileExists = false;
 let activeProfileCompletion = null;
 
 function currentProfileEligibility(profile = currentProfile) {
@@ -403,6 +409,8 @@ function openProfileCompletion({
 } = {}) {
   const openedIdentity = authIdentity(authSession);
   let mounted = null;
+  // 判斷點取在「存檔前」:存檔本身會建立 profiles 列,存檔後再問就永遠是 true。
+  let seedCourtSubscriptionsAfterSave = false;
   mounted = openProfileCompletionSheet({
     avatarUrl: currentAuthAvatarUrl(),
     courts: selectableCourts ?? courts,
@@ -422,12 +430,15 @@ function openProfileCompletion({
       if (profileLoadStatus !== "ready") {
         throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
       }
+      const wasFirstStoredProfile = !storedProfileExists;
       const saved = await saveCurrentProfile(draft);
       if (openedIdentity !== authIdentity(authSession)) {
         throw new Error("登入狀態已變更，請重新開啟個人檔案。");
       }
       profileRevision += 1;
       profileLoadStatus = "ready";
+      storedProfileExists = true;
+      seedCourtSubscriptionsAfterSave = wasFirstStoredProfile;
       currentProfile = saved ?? draft;
       return currentProfile;
     },
@@ -435,6 +446,12 @@ function openProfileCompletion({
       if (openedIdentity !== authIdentity(authSession)) return;
       currentProfile = savedProfile ?? currentProfile ?? defaultProfile();
       if (!authSession) return;
+      // 種入排在存檔成功之後、重繪之前:存檔結果已經定案,種入失敗影響不到它,
+      // 而重繪能立刻反映訂到全部後的收合態。
+      if (seedCourtSubscriptionsAfterSave) {
+        seedCourtSubscriptionsAfterSave = false;
+        await seedAllTaipeiCourtSubscriptions();
+      }
       await controller.setAuthState(authSession, currentProfileEligibility());
       // 身分卡顯示暱稱與 NTRP，存檔後要立刻反映新值。
       if (activePage !== "me") return;
@@ -875,6 +892,35 @@ async function updateCourtSubscriptions(courtIds) {
   toast("球場訂閱已儲存。");
 }
 
+/**
+ * 新帳號第一次把個人檔案存進資料庫時,預設訂閱全部台北市 active 球場。
+ *
+ * 只在存檔前資料庫沒有任何 profiles 列時執行(見 storedProfileExists 的說明),所以
+ * 它永遠不會覆蓋任何既有選擇——包含「先在通知設定訂了再全部取消、之後才建檔」這條路徑,
+ * 因為那次取消已經讓 ensure_notification_profile 建好了列。
+ *
+ * 走既有的 saveCourtSubscriptions(set_court_subscriptions RPC),不新開資料路徑。
+ * 任何失敗都吞掉:個人檔案是主要動作,訂閱種入是附帶的,不可讓使用者看到存檔失敗。
+ */
+async function seedAllTaipeiCourtSubscriptions() {
+  const epoch = authStateEpoch;
+  const identity = currentAuthIdentity;
+  const courtIds = courts
+    .filter((court) => court?.city === "台北市")
+    .map((court) => Number(court?.id))
+    .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0);
+  // 球場清單還沒載入就跳過:寧可不種,也不能因此讓存檔流程出錯。
+  if (!courtIds.length) return;
+  try {
+    await saveCourtSubscriptions(courtIds);
+  } catch {
+    return;
+  }
+  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  notificationSettings = { ...notificationSettings, courtIds, errorMessage: "" };
+  rerenderVisibleNotificationSettings();
+}
+
 async function enablePushNotifications() {
   const epoch = authStateEpoch;
   const identity = currentAuthIdentity;
@@ -1281,6 +1327,9 @@ async function reloadCurrentProfile() {
     }
     throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
   }
+  // loadCurrentProfile 在沒有 my_profile 列時回 null(dataApi.js:757);
+  // currentProfile 隨即被 defaultProfile() 補齊,所以 null 這個訊號要在這裡就留下來。
+  storedProfileExists = profile !== null;
   currentProfile = profile ?? defaultProfile();
   profileLoadStatus = "ready";
   await controller.setAuthState(authSession, currentProfileEligibility());
@@ -1305,6 +1354,7 @@ function applyAuthCandidate(session) {
     presenceLocationStatus = "idle";
     profileRevision += 1;
     currentProfile = defaultProfile();
+    storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = session ? "loading" : "idle";
     void controller.setAuthState(session, session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null);
@@ -1313,6 +1363,7 @@ function applyAuthCandidate(session) {
     stopPresenceTracking();
     presenceLocationStatus = "idle";
     currentProfile = defaultProfile();
+    storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = "idle";
     renderMeDestination();
