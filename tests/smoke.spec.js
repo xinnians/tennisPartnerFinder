@@ -3919,3 +3919,39 @@ test("the filter sheet applies a district change immediately to the background d
 
   expect(runtimeErrors).toEqual([]);
 });
+
+test("closing and reopening the filter sheet three times does not stack delegated listeners on the shared sheet root", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openFilterSheet } = await import("/src/sessionViews.js");
+    const { COURTS } = await import("/src/mockData.js");
+    const { DEFAULT_FILTER_STATE } = await import("/src/filters.js");
+    window.__filterSheetSetFilterCalls = 0;
+    const open = () =>
+      openFilterSheet({
+        filters: { ...DEFAULT_FILTER_STATE, types: new Set(), venueTypes: new Set() },
+        courts: COURTS,
+        onSetFilter: () => {
+          window.__filterSheetSetFilterCalls += 1;
+        },
+        onReset: () => {},
+        onClose: () => {},
+      });
+    // mountSheet 的 close() 只清 #sheet-root 的 innerHTML,不會移除任何綁在 root 本身
+    // 的 listener——這裡連續開關三次(第三次維持開啟),重現「委派疊加」的疑慮。
+    open().close();
+    open().close();
+    open();
+  });
+
+  const districtSelect = page.locator('#filters-sheet select[data-filter="district"]');
+  await districtSelect.selectOption("內湖區");
+
+  // 只剩「目前這次 open()」對應的委派會收到事件：疊加的話這裡會是 3。
+  expect(await page.evaluate(() => window.__filterSheetSetFilterCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});

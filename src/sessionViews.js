@@ -3117,26 +3117,31 @@ export function openFilterSheet({
       </div>`,
   });
 
-  const root = mounted.root;
+  // fix round 1:委派綁在 mounted.surface(每次 mountSheet 都是全新節點,隨 close() 的
+  // root.innerHTML = "" 一起被拆掉、不再收到冒泡事件),而不是 mounted.root(#sheet-root
+  // 全 app 共用、跨 sheet 生命週期存活)。綁在 root 上的 listener 不會被 close() 移除,
+  // 重複開關會讓每次 openFilterSheet 的委派永久疊加、onSetFilter 被多次呼叫——全庫其他
+  // mountSheet consumer 都是綁在 surface 內的子節點上隨銷毀回收,這裡比照辦理。
+  const surface = mounted.surface;
 
   function syncControls() {
-    const district = root.querySelector('select[data-filter="district"]');
+    const district = surface.querySelector('select[data-filter="district"]');
     if (district) district.value = currentFilters.district || "";
-    const court = root.querySelector('select[data-filter="courtId"]');
+    const court = surface.querySelector('select[data-filter="courtId"]');
     if (court) court.value = currentFilters.courtId == null ? "" : String(currentFilters.courtId);
-    const date = root.querySelector('input[data-filter="date"]');
+    const date = surface.querySelector('input[data-filter="date"]');
     if (date) date.value = currentFilters.date || "";
-    root.querySelectorAll('[data-filter="band"]').forEach((button) => {
+    surface.querySelectorAll('[data-filter="band"]').forEach((button) => {
       const selected = button.dataset.value === currentFilters.band;
       button.classList.toggle("is-active", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
-    root.querySelectorAll('[data-filter="types"]').forEach((button) => {
+    surface.querySelectorAll('[data-filter="types"]').forEach((button) => {
       const selected = currentFilters.types.has(button.dataset.value);
       button.classList.toggle("is-active", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
-    root.querySelectorAll('[data-filter="venueTypes"]').forEach((button) => {
+    surface.querySelectorAll('[data-filter="venueTypes"]').forEach((button) => {
       const selected = currentFilters.venueTypes.has(button.dataset.value);
       button.classList.toggle("is-active", selected);
       button.setAttribute("aria-pressed", String(selected));
@@ -3144,7 +3149,7 @@ export function openFilterSheet({
   }
 
   // 單一 change 委派：district/courtId select 與 date input 三個欄位共用。
-  root.addEventListener("change", (event) => {
+  surface.addEventListener("change", (event) => {
     const target = event.target.closest("[data-filter]");
     if (!target) return;
     const field = target.dataset.filter;
@@ -3164,7 +3169,7 @@ export function openFilterSheet({
   });
 
   // 單一 click 委派：程度／打法／場地型 chips 與清除鈕共用。
-  root.addEventListener("click", (event) => {
+  surface.addEventListener("click", (event) => {
     const target = event.target.closest("[data-filter]");
     if (!target) return;
     const field = target.dataset.filter;
