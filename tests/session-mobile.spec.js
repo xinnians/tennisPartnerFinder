@@ -203,39 +203,69 @@ test("a 390px invited player can accept the invite card and open group chat", as
   expect(runtimeErrors).toEqual([]);
 });
 
-test("the create form's venue and slot options keep 44px touch targets at 390px", async ({ page }) => {
+test("the create and edit forms keep every 390px touch target at 44px", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `touch-target-${context.runId}` })
+  );
 
   await installFakeMaps(page);
   await setBrowserSession(page, host.session);
   await page.goto("/");
-  await page.getByTestId("create-session-tab").click();
-  const createSheet = page.locator("#session-create-modal");
-  await expect(createSheet).toBeVisible();
 
-  // 另立一條守衛而不是擴充「我」頁那條：兩者 root 不同、開啟前提不同，混在一起會讓失敗歸因困難。
-  // 範圍是本批改寫的兩組選項，掃區塊內全部 label 而不列舉 testid——往後這兩組加選項會自動納入。
-  // 建局表單其餘控件（關閉鈕、球場 select、現在開打）本來就不足 44px，那是既有缺口，不在本批範圍。
-  const controls = createSheet.locator(".option-grid--stacked label, .slots-options label");
-  const undersized = async () =>
-    (
-      await controls.evaluateAll((elements) =>
-        elements.map((element) => {
+  // 對稱式掃描:掃 root 底下全部互動元素,不列舉 testid——這兩張表單往後新增欄位會自動納入。
+  // 兩條委派規則(不是白名單,是「誰才是真正的點擊目標」):
+  //   1. 被 <label> 包住的 input,點擊目標是那個 label,label 自己在掃描集裡量。
+  //   2. 不含任何表單控件的 <label>,是指向相鄰控件的純文字標籤,不是獨立目標。
+  const measure = (root) =>
+    page.locator(root).evaluateAll((roots) => {
+      const targets = [];
+      for (const node of roots) {
+        for (const element of node.querySelectorAll("button, a[href], select, input, textarea, label, [role='switch']")) {
+          if (!element.checkVisibility()) continue;
+          const wrappingLabel = element.closest("label");
+          if (element.tagName !== "LABEL" && wrappingLabel && wrappingLabel !== element) continue;
+          if (element.tagName === "LABEL" && !element.querySelector("input, select, textarea")) continue;
           const box = element.getBoundingClientRect();
-          return {
+          targets.push({
             height: Math.round(box.height),
-            label: element.querySelector("input")?.getAttribute("data-testid") ?? element.tagName.toLowerCase(),
+            name:
+              element.getAttribute("data-testid") ??
+              element.id ??
+              `${element.tagName.toLowerCase()}.${element.className || "(無 class)"}`,
             width: Math.round(box.width),
-          };
-        })
-      )
-    ).filter((box) => box.width < 44 || box.height < 44);
+          });
+        }
+      }
+      return targets;
+    });
+  const undersized = async (root) =>
+    (await measure(root)).filter((target) => target.width < 44 || target.height < 44);
 
-  await expect.poll(async () => await controls.count()).toBeGreaterThanOrEqual(6);
+  await page.getByTestId("create-session-tab").click();
+  await expect(page.locator("#session-create-modal")).toBeVisible();
   await expect
-    .poll(undersized, { message: "390px 下建局表單全部互動控件必須 ≥44×44" })
+    .poll(async () => (await measure("#session-create-modal")).length, { message: "建局表單掃描集不得為空" })
+    .toBeGreaterThanOrEqual(12);
+  await expect
+    .poll(async () => await undersized("#session-create-modal"), { message: "390px 下建局表單全部點擊目標必須 ≥44×44" })
+    .toEqual([]);
+  await page.keyboard.press("Escape");
+
+  await page.getByTestId("my-sessions-tab").click();
+  const editButton = page.locator(`#my-upcoming-sessions [data-my-action='edit'][data-session-id='${sessionId}']`);
+  await expect(editButton).toBeVisible();
+  await editButton.click();
+  await expect(page.locator("#session-edit-sheet")).toBeVisible();
+  await expect
+    .poll(async () => (await measure("#session-edit-sheet")).length, { message: "編輯表單掃描集不得為空" })
+    .toBeGreaterThanOrEqual(8);
+  await expect
+    .poll(async () => await undersized("#session-edit-sheet"), { message: "390px 下編輯表單全部點擊目標必須 ≥44×44" })
     .toEqual([]);
   expect(runtimeErrors).toEqual([]);
 });
