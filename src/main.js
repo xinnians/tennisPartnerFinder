@@ -972,7 +972,19 @@ function renderBaseCourtPins() {
   courtMarkers = renderCourtBasePins(google, map, courts, (court) => controller.openCourt(court), courtMarkers);
 }
 
+// 批 C2-4:courts 目錄尚未載入完成前，篩選主鈕會開出一個「行政區/球場」下拉永遠
+// 空白的 sheet；用 disabled + aria-disabled 擋住這段競態視窗。index.html 的初始
+// markup 已同步帶 disabled，這裡是 JS 端的權威來源，載入完成（不論成功或失敗）
+// 都要解除，見 loadCourtsImmediately 的 finally。
+function setFilterSheetButtonEnabled(enabled) {
+  const button = document.getElementById("filter-sheet-open");
+  if (!button) return;
+  button.disabled = !enabled;
+  button.setAttribute("aria-disabled", String(!enabled));
+}
+
 function wireFilters() {
+  setFilterSheetButtonEnabled(false);
   document.getElementById("date-filter").addEventListener("input", (event) => controller.setFilter("date", event.currentTarget.value || null));
 
   const chip = document.getElementById("level-chip");
@@ -1023,6 +1035,10 @@ async function loadCourtsImmediately() {
     if (activePage === "my-sessions") renderMySessionsDestination();
     else if (activePage === "me") renderMeDestination();
     toast("球場資料暫時無法載入。");
+  } finally {
+    // 不論成功或失敗都要解除：sheet 在 courts 是空陣列時仍可正常開啟（行政區/球場
+    // 下拉退化成只有「全部」），永久卡在 disabled 反而讓使用者連篩選程度/日期都做不到。
+    setFilterSheetButtonEnabled(true);
   }
 }
 

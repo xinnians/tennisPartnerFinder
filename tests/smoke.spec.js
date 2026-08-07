@@ -78,6 +78,21 @@ function captureConsoleErrors(page) {
   return errors;
 }
 
+// 批 C2-4:比照 performance.spec.js 的 delayMockDiscovery route 延遲手法，
+// 在 dataApi.js 的 loadCourts 開頭注入 setTimeout，重現「courts 尚未載入完成」的視窗。
+async function delayMockCourts(page, milliseconds) {
+  await page.route("**/src/dataApi.js", async (route) => {
+    const response = await route.fetch();
+    const source = await response.text();
+    const marker = "  async function loadCourts(city = LAUNCH_CITY) {";
+    if (!source.includes(marker)) throw new Error("Could not install delayed courts fixture");
+    await route.fulfill({
+      response,
+      body: source.replace(marker, `${marker}\n    await new Promise((resolve) => setTimeout(resolve, ${milliseconds}));`),
+    });
+  });
+}
+
 test("mock mode never loads or requests Vercel Analytics", async ({ page }) => {
   const analyticsRequests = [];
   page.on("request", (request) => {
@@ -4265,5 +4280,50 @@ test("closing and reopening the filter sheet three times does not stack delegate
 
   // 只剩「目前這次 open()」對應的委派會收到事件：疊加的話這裡會是 3。
   expect(await page.evaluate(() => window.__filterSheetSetFilterCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+// 批 C2-4:courts 目錄尚未載入完成前，篩選主鈕必須 disabled，避免開出一個
+// 「行政區/球場」下拉永遠空白的 sheet（courts 競態）。loadCourtsImmediately
+// 完成後（不論成功或失敗，兩者都代表「已經有終局資料可用」）才能啟用。
+test("the filter sheet button stays disabled until the Taipei court catalogue finishes loading", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await delayMockCourts(page, 800);
+  await installFakeMaps(page);
+  await page.goto("/", { waitUntil: "commit" });
+
+  const filterButton = page.locator("#filter-sheet-open");
+  await expect(filterButton).toBeDisabled();
+  await expect(filterButton).toHaveAttribute("aria-disabled", "true");
+
+  await expect(filterButton).toBeEnabled({ timeout: 3_000 });
+  await expect(filterButton).not.toHaveAttribute("aria-disabled", "true");
+
+  await filterButton.click();
+  await expect(page.locator("#filters-sheet")).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+// 批 C2-4:篩選 sheet 專屬 Tab 循環——比照 performance.spec.js「keyboard dialogs trap
+// focus」既有寫法，只驗證兩端 wrap-around（Shift+Tab 在第一個控件回到最後一個，
+// Tab 在最後一個控件回到第一個），不逐一走訪每個中繼控件。
+test("the filter sheet traps Tab focus between its own first and last controls", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const filterButton = page.locator("#filter-sheet-open");
+  await expect(filterButton).toBeEnabled();
+  await filterButton.click();
+
+  const sheet = page.getByRole("dialog", { name: "篩選球局" });
+  const sheetClose = sheet.getByRole("button", { name: "關閉篩選" });
+  const sheetReset = sheet.getByRole("button", { name: "清除" });
+  await expect(sheetClose).toBeFocused();
+  await sheetClose.press("Shift+Tab");
+  await expect(sheetReset).toBeFocused();
+  await sheetReset.press("Tab");
+  await expect(sheetClose).toBeFocused();
+
   expect(runtimeErrors).toEqual([]);
 });
