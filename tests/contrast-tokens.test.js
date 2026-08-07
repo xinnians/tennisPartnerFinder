@@ -32,6 +32,39 @@ const INK_MUTED = cssValue(/--ink-muted:\s*(#[0-9a-f]{6})/i, "--ink-muted");
 const INK_MUTED_STRONG = cssValue(/--ink-muted-strong:\s*(#[0-9a-f]{6})/i, "--ink-muted-strong");
 const MIST = cssValue(/--mist:\s*(#[0-9a-f]{6})/i, "--mist");
 
+const COLOR_INK = cssValue(/--color-ink:\s*(#[0-9a-f]{6})/i, "--color-ink");
+const COLOR_COURT = cssValue(/--color-court:\s*(#[0-9a-f]{6})/i, "--color-court");
+const COLOR_SIGNAL = cssValue(/--color-signal:\s*(#[0-9a-f]{6})/i, "--color-signal");
+const COLOR_SURFACE_PAGE = cssValue(/--color-surface-page:\s*(#[0-9a-f]{6})/i, "--color-surface-page");
+const COLOR_SURFACE_CARD = cssValue(/--color-surface-card:\s*(#[0-9a-f]{6})/i, "--color-surface-card");
+const COLOR_TEXT_SECONDARY = cssValue(/--color-text-secondary:\s*(#[0-9a-f]{6})/i, "--color-text-secondary");
+const COLOR_DANGER = cssValue(/--color-danger:\s*(#[0-9a-f]{6})/i, "--color-danger");
+const COLOR_DANGER_BG = cssValue(/--color-danger-bg:\s*(#[0-9a-f]{6})/i, "--color-danger-bg");
+const COLOR_SUCCESS = cssValue(/--color-success:\s*(#[0-9a-f]{6})/i, "--color-success");
+const COLOR_SUCCESS_BG = cssValue(/--color-success-bg:\s*(#[0-9a-f]{6})/i, "--color-success-bg");
+const COLOR_INFO_BG = cssValue(/--color-info-bg:\s*(#[0-9a-f]{6})/i, "--color-info-bg");
+
+test("計分板 token:文字組合全數達 AA 4.5:1", () => {
+  const PAIRS = [
+    ["主文字 on 頁底", COLOR_INK, COLOR_SURFACE_PAGE],
+    ["主文字 on 卡片", COLOR_INK, COLOR_SURFACE_CARD],
+    ["次要文字 on 頁底", COLOR_TEXT_SECONDARY, COLOR_SURFACE_PAGE],
+    ["次要文字 on 卡片", COLOR_TEXT_SECONDARY, COLOR_SURFACE_CARD],
+    ["次要文字 on info 底", COLOR_TEXT_SECONDARY, COLOR_INFO_BG],
+    ["次要文字 on success 底", COLOR_TEXT_SECONDARY, COLOR_SUCCESS_BG],
+    ["court 強調 on 卡片", COLOR_COURT, COLOR_SURFACE_CARD],
+    ["signal 文字 on ink", COLOR_SIGNAL, COLOR_INK],
+    ["ink 文字 on signal", COLOR_INK, COLOR_SIGNAL],
+    ["danger on danger-bg", COLOR_DANGER, COLOR_DANGER_BG],
+    ["success on success-bg", COLOR_SUCCESS, COLOR_SUCCESS_BG],
+  ];
+  assert.equal(PAIRS.length, 11, "掃描集非空且涵蓋十一組配對");
+  for (const [label, fg, bg] of PAIRS) {
+    const ratio = contrast(fg, bg);
+    assert.ok(ratio >= 4.5, `${label}:${fg} on ${bg} 只有 ${ratio.toFixed(4)}:1`);
+  }
+});
+
 // 底色一律從 CSS 現況取,不寫死——底色被改動時這支測試會自己重算而不是繼續驗舊值。
 const BACKGROUNDS = [
   ["他人的聊天泡泡 .chat-message", MIST],
