@@ -147,6 +147,7 @@ test(
       preview.find((participant) => participant.role === "host"),
       {
         avatarUrl: "https://lh3.googleusercontent.com/a/local-stage-t45-host",
+        hostedPlayedCount: 0,
         nickname: "本機預覽主揪",
         ntrp: 3.5,
         role: "host",
@@ -155,7 +156,7 @@ test(
     );
     assert.deepEqual(
       preview.find((participant) => participant.role === "guest"),
-      { avatarUrl: "", nickname: "本機已確認球友", ntrp: 3.5, role: "guest", sessionId }
+      { avatarUrl: "", hostedPlayedCount: 0, nickname: "本機已確認球友", ntrp: 3.5, role: "guest", sessionId }
     );
     assert.equal(preview.some((participant) => participant.nickname === "本機申請中旁觀者"), false);
 
