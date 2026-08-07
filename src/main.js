@@ -8,7 +8,7 @@ if (import.meta.env.PROD) {
 }
 
 import { GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
-import { BANDS } from "./filters.js";
+import { BANDS, countActiveFilters } from "./filters.js";
 import {
   createMap,
   fitTaipeiBounds,
@@ -99,8 +99,11 @@ let google = null;
 let map = null;
 let courts = [];
 let courtsReady = false;
-// 批 C1 Task 2:openFilters() 的資料來源,尚未接 UI 入口(見 task-2-brief)。
+// openFilters() 開啟篩選 sheet 時的資料來源,亦是 renderFilters 判斷 badge N 的依據。
 let latestFilters = null;
+// 批 C1 Task 3:目前開著的篩選 sheet(未開時為 null)。renderFilters 靠它把地圖控件
+// 的每次變動鏡像進 sheet;sheet 自己的變動已在 openFilterSheet 內部同步。
+let activeFilterSheet = null;
 let courtCatalogueStatus = "loading";
 let sessionMarkers = [];
 let courtMarkers = [];
@@ -409,40 +412,42 @@ function openCreateSession({ courts: selectableCourts, courtsReady: formCourtsRe
   });
 }
 
+function renderFilterSheetButton(filters) {
+  const button = document.getElementById("filter-sheet-open");
+  if (!button) return;
+  const count = countActiveFilters(filters);
+  button.textContent = count > 0 ? `篩選 ⋅${count}` : "篩選";
+  button.classList.toggle("is-active", count > 0);
+  button.setAttribute("aria-label", count > 0 ? `篩選，已套用 ${count} 組條件` : "篩選");
+}
+
+// 同步樞紐:地圖控件(日期／程度)、主鈕徽章 N、以及 sheet 開著時的 sheet 控件,
+// 三者都只從這裡的單一 filters 寫入,不論觸發來源是地圖還是 sheet 本身。
 function renderFilters(filters) {
-  const district = document.getElementById("district-filter");
-  const court = document.getElementById("court-filter");
   const date = document.getElementById("date-filter");
-  if (district) district.value = filters.district || "";
-  if (court) court.value = filters.courtId == null ? "" : String(filters.courtId);
   if (date) date.value = filters.date || "";
   document.getElementById("band-label").textContent = BANDS.find((band) => band.key === filters.band)?.label ?? "全部";
-  document.querySelectorAll(".chip-type").forEach((button) => {
-    const selected = filters.types.has(button.dataset.type);
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
-  document.querySelectorAll(".chip-venue").forEach((button) => {
-    const selected = filters.venueTypes.has(button.dataset.venueType);
-    button.classList.toggle("is-active", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  });
   document.querySelectorAll("[data-band]").forEach((button) => {
     const selected = button.dataset.band === filters.band;
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+  renderFilterSheetButton(filters);
+  activeFilterSheet?.setFilters(filters);
 }
 
-// 批 C1 Task 2:openFilterSheet 的接線層包裝,暴露給後續批次接 UI 入口用;本任務不呼叫它
-// (見 task-2-brief「不加 UI 入口」)。
+// 批 C1 Task 3:openFilterSheet 的接線層包裝,接在 #filter-sheet-open 主鈕上。
+// 回傳值存進 activeFilterSheet,讓 renderFilters 能在 sheet 開著時把地圖端變動鏡像進去。
 function openFilters(handlers = {}) {
   return openFilterSheet({
     filters: latestFilters ?? undefined,
     courts,
     onSetFilter: (field, value) => controller.setFilter(field, value),
     onReset: () => controller.resetFilters(),
-    onClose: handlers.onClose,
+    onClose: (detail) => {
+      activeFilterSheet = null;
+      handlers.onClose?.(detail);
+    },
   });
 }
 
@@ -962,26 +967,13 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   }
 }
 
-function populateCourtFilters(nextCourts) {
-  const districts = [...new Set(nextCourts.map((court) => court.district).filter(Boolean))].sort();
-  const district = document.getElementById("district-filter");
-  const court = document.getElementById("court-filter");
-  district.innerHTML = `<option value="">全部行政區</option>${districts.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("")}`;
-  court.innerHTML = `<option value="">全部球場</option>${nextCourts
-    .map((entry) => `<option value="${esc(entry.id)}">${esc(entry.name)}</option>`)
-    .join("")}`;
-}
-
 function renderBaseCourtPins() {
   if (!google || !map) return;
   courtMarkers = renderCourtBasePins(google, map, courts, (court) => controller.openCourt(court), courtMarkers);
 }
 
 function wireFilters() {
-  document.getElementById("district-filter").addEventListener("change", (event) => controller.setFilter("district", event.currentTarget.value));
-  document.getElementById("court-filter").addEventListener("change", (event) => controller.setFilter("courtId", event.currentTarget.value || null));
   document.getElementById("date-filter").addEventListener("input", (event) => controller.setFilter("date", event.currentTarget.value || null));
-  document.getElementById("filters-reset").addEventListener("click", () => controller.resetFilters());
 
   const chip = document.getElementById("level-chip");
   const popover = document.getElementById("level-popover");
@@ -1002,25 +994,9 @@ function wireFilters() {
       chip.setAttribute("aria-expanded", "false");
     });
   });
-  document.querySelectorAll(".chip-type").forEach((button) => {
-    button.addEventListener("click", () => {
-      const selected = new Set(
-        [...document.querySelectorAll(".chip-type.is-active")].map((node) => node.dataset.type)
-      );
-      selected.has(button.dataset.type) ? selected.delete(button.dataset.type) : selected.add(button.dataset.type);
-      controller.setFilter("types", selected);
-    });
-  });
-  document.querySelectorAll(".chip-venue").forEach((button) => {
-    button.addEventListener("click", () => {
-      const selected = new Set(
-        [...document.querySelectorAll(".chip-venue.is-active")].map((node) => node.dataset.venueType)
-      );
-      selected.has(button.dataset.venueType)
-        ? selected.delete(button.dataset.venueType)
-        : selected.add(button.dataset.venueType);
-      controller.setFilter("venueTypes", selected);
-    });
+
+  document.getElementById("filter-sheet-open").addEventListener("click", () => {
+    activeFilterSheet = openFilters();
   });
 }
 
@@ -1033,7 +1009,6 @@ async function loadCourtsImmediately() {
     if (authSession && profileLoadStatus === "ready") {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
-    populateCourtFilters(courts);
     renderBaseCourtPins();
     if (activePage === "my-sessions") renderMySessionsDestination();
     else if (activePage === "me") renderMeDestination();
@@ -1230,9 +1205,6 @@ function init() {
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
     openCourtPlayersDrawer: (court, players, handlers) => openCourtPlayersDrawer(court, players, handlers),
     openPlayerDirectoryList: (handlers) => openPlayerDirectoryList(handlers),
-    // 批 C1 Task 2:sessionController.js 尚未辨識這個 key,純粹暴露給後續批次接線,
-    // 目前不會被呼叫(不加 UI 入口)。
-    openFiltersSheet: (handlers) => openFilters(handlers),
     openPlayerCard: (player, handlers) => openPlayerCardSheet(player, handlers),
     openCreateSession,
     openDecideSession: openDecideSessionSheet,

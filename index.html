@@ -43,14 +43,7 @@
           </div>
 
           <section class="map-toolbar" aria-label="尋找球局篩選">
-          <label class="filter-control">
-            <span>行政區</span>
-            <select id="district-filter"><option value="">全部行政區</option></select>
-          </label>
-          <label class="filter-control">
-            <span>球場</span>
-            <select id="court-filter"><option value="">全部球場</option></select>
-          </label>
+          <button type="button" id="filter-sheet-open" class="filter-chip" aria-label="篩選">篩選</button>
           <label class="filter-control filter-control--date">
             <span>日期</span>
             <input id="date-filter" type="date" />
@@ -58,17 +51,6 @@
           <button type="button" id="level-chip" class="filter-chip" aria-expanded="false" aria-controls="level-popover">
             程度：<b id="band-label">全部</b>
           </button>
-          <div class="type-chips" role="group" aria-label="球局類型">
-            <button type="button" class="chip-type" data-type="單打" aria-pressed="false">單打</button>
-            <button type="button" class="chip-type" data-type="雙打" aria-pressed="false">雙打</button>
-            <button type="button" class="chip-type" data-type="練球" aria-pressed="false">練球</button>
-          </div>
-          <div class="venue-chips" role="group" aria-label="場地類型">
-            <button type="button" class="chip-venue" data-venue-type="booked" aria-pressed="false">已訂場</button>
-            <button type="button" class="chip-venue" data-venue-type="walk_on" aria-pressed="false">現場等場</button>
-            <button type="button" class="chip-venue" data-venue-type="candidates" aria-pressed="false">候選局</button>
-          </div>
-          <button type="button" id="filters-reset" class="filters-reset">清除</button>
           </section>
 
           <div id="level-popover" class="level-popover" hidden>

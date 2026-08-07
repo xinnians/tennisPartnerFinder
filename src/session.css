@@ -84,8 +84,6 @@
    非本任務 Files 範圍,見 task-4-report concerns。 */
 .location-button,
 .filters-reset,
-.chip-type,
-.chip-venue,
 .filter-chip,
 .band-option {
   min-height: 38px;
@@ -157,15 +155,11 @@
 .filter-control--date { min-width: 126px; }
 
 .filter-chip,
-.chip-type,
-.chip-venue,
 .filters-reset { padding: 0 var(--space-2); background: var(--color-info-bg); color: var(--color-ink); white-space: nowrap; }
-.chip-type.is-active,
-.chip-venue.is-active,
+/* 主鈕徽章計分板樣式:有 active 篩選條件時反相(ink 底／surface-card 字),
+   與其餘 chip 的選中態共用同一組對比已通過 AA 的視覺契約。 */
 .filter-chip.is-active,
 .band-option.is-active { background: var(--color-ink); color: var(--color-surface-card); }
-.type-chips,
-.venue-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .filters-reset { background: transparent; color: var(--color-court); }
 
 .level-popover {
@@ -335,11 +329,10 @@
 .create-session-sheet .session-secondary { min-height: 44px; }
 .create-session-sheet .form-fieldset > label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
 
-/* 批 C1 Task 2:篩選 sheet(尚未接 UI 入口)。控件走 data-filter 屬性，樣式沿用批 A
-   表單契約(.form-field/44px)與既有 .band-option／.filter-chip／.filters-reset 視覺，
-   但不重用 .chip-type／.chip-venue／既有 id——那兩個 class 被 main.js renderFilters／
-   wireFilters 用 document 級 querySelectorAll 選取，重用會被地圖工具列的重繪覆寫選中態
-   (見 task-2 ground truth 意外 4/6)。 */
+/* 批 C1:篩選 sheet(#filter-sheet-open 主鈕接線見 Task 3)。控件走 data-filter 屬性，
+   樣式沿用批 A 表單契約(.form-field/44px)與既有 .band-option／.filter-chip／
+   .filters-reset 視覺。地圖工具列已收斂為僅日期／程度兩個獨立控件，打法／場地型／
+   行政區／球場／清除全部只存在於這個 sheet 內，不再有 document 級選取器重疊風險。 */
 .filter-sheet-form { display: grid; gap: 13px; }
 .filter-sheet-band-options { display: grid; gap: var(--space-1); }
 .filter-sheet-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
@@ -614,17 +607,10 @@
   .map-page { height: calc(100dvh - 60px); min-height: min(620px, calc(100dvh - 60px)); }
   .map-controls { position: absolute; z-index: var(--z-map-controls); top: 10px; right: 10px; left: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); pointer-events: none; }
   .map-controls > * { pointer-events: auto; }
-  .map-toolbar { position: static; order: 1; width: 100%; max-height: none; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap; box-sizing: border-box; padding: var(--space-2); }
+  .map-toolbar { position: static; order: 1; width: 100%; max-height: none; gap: var(--space-2); align-items: flex-end; box-sizing: border-box; padding: var(--space-2); }
   .level-popover { position: static; order: 2; }
   .player-layer-control { position: static; order: 3; }
-  .filter-control { min-width: calc(33.333% - 5px); flex: 1 1 30%; }
-  .filter-control--date { min-width: calc(33.333% - 5px); }
-  .filter-chip,
-  .chip-type,
-  .chip-venue,
-  .filters-reset { min-width: 44px; min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-sm); }
-  .type-chips,
-  .venue-chips { flex: 1 1 auto; }
+  .filter-chip { min-width: 44px; min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-sm); }
   .level-popover { top: 148px; left: 10px; }
   .nearby-sessions { right: 12px; bottom: calc(12px + var(--bottom-navigation-offset)); width: calc(100% - 24px); border-radius: var(--radius-md) var(--radius-md) 0 0; }
   .nearby-sessions__toggle { min-height: 70px; padding: var(--space-3) var(--space-3); }
@@ -643,8 +629,6 @@
   .city-label { display: none; }
   .app-header__actions { min-width: 0; }
   .location-button { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .filter-control { min-width: calc(50% - 4px); flex-basis: calc(50% - 4px); }
-  .filter-control--date { min-width: calc(50% - 4px); }
   .player-layer-control { align-self: flex-end; justify-items: end; }
   .player-layer-status { max-width: 180px; }
   .discovery-empty__actions > * { flex: 1 1 120px; }

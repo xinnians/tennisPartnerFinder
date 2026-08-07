@@ -113,21 +113,35 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.getByTestId("player-layer-toggle")).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示在線");
   await expect(page.getByTestId("player-directory-open")).toHaveText("球友名單");
-  await expect(page.locator(".chip-type").first()).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".chip-venue").first()).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "true");
-  await page.locator(".chip-type[data-type='單打']").click();
-  await expect(page.locator(".chip-type[data-type='單打']")).toHaveAttribute("aria-pressed", "true");
-  await page.locator(".chip-venue[data-venue-type='candidates']").click();
-  await expect(page.locator(".chip-venue[data-venue-type='candidates']")).toHaveAttribute("aria-pressed", "true");
-  await page.locator("#level-chip").click();
-  await page.locator("#band-options [data-band='mid']").click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
+  await page.locator("#filter-sheet-open").click();
+  const filterSheet = page.locator("#filters-sheet");
+  await expect(filterSheet).toBeVisible();
+  await expect(filterSheet.locator('[data-filter="types"]').first()).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="venueTypes"]').first()).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "true");
+  await filterSheet.locator('[data-filter="types"][data-value="單打"]').click();
+  await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute("aria-pressed", "true");
+  await filterSheet.locator('[data-filter="venueTypes"][data-value="candidates"]').click();
+  await expect(filterSheet.locator('[data-filter="venueTypes"][data-value="candidates"]')).toHaveAttribute("aria-pressed", "true");
+  await filterSheet.locator('[data-filter="band"][data-value="mid"]').click();
+  await expect(filterSheet.locator('[data-filter="band"][data-value="mid"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "false");
+  // sheet 開著時,badge N 與地圖上仍看得到的程度控件都要同步鏡像。
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅3");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選，已套用 3 組條件");
   await expect(page.locator("#band-options [data-band='mid']")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "false");
-  await page.locator("#filters-reset").click();
-  await expect(page.locator(".chip-type[data-type='單打']")).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".chip-venue[data-venue-type='candidates']")).toHaveAttribute("aria-pressed", "false");
+  await filterSheet.locator('[data-filter="reset"]').click();
+  await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="venueTypes"][data-value="candidates"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
   await expect(page.locator("#band-options [data-band='all']")).toHaveAttribute("aria-pressed", "true");
+  await filterSheet.locator("[data-surface-close]").click();
+  await expect(filterSheet).toBeHidden();
+  await expect(page.locator("#filter-sheet-open")).toBeFocused();
   await expect.poll(() => page.evaluate(() => window.__geolocationCallCount())).toBe(0);
 
   await page.locator("#nearby-sessions-toggle").click();
@@ -157,6 +171,53 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
     markers.map((marker) => ({ title: marker.getAttribute("title"), aria: marker.getAttribute("aria-label") }))
   );
   expect(JSON.stringify(markerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the filter badge counts active filters and mirrors date/band both ways with the sheet", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  // 地圖→sheet:先在地圖上改日期與程度,再開 sheet,驗證 sheet 開啟時已帶入目前狀態。
+  await page.locator("#date-filter").fill("2099-06-01");
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅1");
+  await page.locator("#level-chip").click();
+  await page.locator("#band-options [data-band='hi']").click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選，已套用 2 組條件");
+
+  await page.locator("#filter-sheet-open").click();
+  const filterSheet = page.locator("#filters-sheet");
+  await expect(filterSheet.locator('input[data-filter="date"]')).toHaveValue("2099-06-01");
+  await expect(filterSheet.locator('[data-filter="band"][data-value="hi"]')).toHaveAttribute("aria-pressed", "true");
+
+  // sheet→地圖:sheet 開著時改日期與程度,地圖上(雖已 inert 不可點)仍要看得到鏡像後的值。
+  await filterSheet.locator('input[data-filter="date"]').fill("2099-07-04");
+  await filterSheet.locator('[data-filter="band"][data-value="pro"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
+  const mirroredDate = await page.evaluate(() => document.getElementById("date-filter").value);
+  expect(mirroredDate).toBe("2099-07-04");
+  await expect(page.locator("#band-options [data-band='pro']")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#band-options [data-band='hi']")).toHaveAttribute("aria-pressed", "false");
+
+  // badge N 隨欄位一個個增加:再疊加一個打法與一個場地型。
+  await filterSheet.locator('[data-filter="types"][data-value="雙打"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅3");
+  await filterSheet.locator('[data-filter="venueTypes"][data-value="booked"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅4");
+
+  // 再一個個減少:回到 all/清空 date 應該讓 badge 逐步遞減。
+  await filterSheet.locator('[data-filter="venueTypes"][data-value="booked"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅3");
+  await filterSheet.locator('[data-filter="types"][data-value="雙打"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
+  await filterSheet.locator('[data-filter="band"][data-value="all"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅1");
+  await filterSheet.locator('input[data-filter="date"]').fill("");
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
+
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -2425,7 +2486,7 @@ test("SESSION_EXPIRED player invitation refreshes choices and renders an inline 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("390px map controls keep the player layer and status below the wrapped toolbar", async ({ page }) => {
+test("390px map controls keep the player layer and status below the toolbar", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await installFakeMaps(page);
@@ -2457,18 +2518,18 @@ test("390px toolbar contains its content and never intersects the following cont
 
   const layout = await page.evaluate(() => {
     const toolbar = document.querySelector(".map-toolbar");
-    const reset = document.querySelector("#filters-reset");
+    const primaryButton = document.querySelector("#filter-sheet-open");
     const playerControl = document.querySelector(".player-layer-control");
     const toolbarRect = toolbar.getBoundingClientRect();
-    const resetRect = reset.getBoundingClientRect();
+    const primaryButtonRect = primaryButton.getBoundingClientRect();
     const playerRect = playerControl.getBoundingClientRect();
     return {
       contentFits: toolbar.scrollHeight <= toolbar.clientHeight,
-      resetInside:
-        resetRect.top >= toolbarRect.top &&
-        resetRect.right <= toolbarRect.right &&
-        resetRect.bottom <= toolbarRect.bottom &&
-        resetRect.left >= toolbarRect.left,
+      primaryButtonInside:
+        primaryButtonRect.top >= toolbarRect.top &&
+        primaryButtonRect.right <= toolbarRect.right &&
+        primaryButtonRect.bottom <= toolbarRect.bottom &&
+        primaryButtonRect.left >= toolbarRect.left,
       toolbarIntersectsPlayer:
         toolbarRect.left < playerRect.right &&
         toolbarRect.right > playerRect.left &&
@@ -2477,7 +2538,7 @@ test("390px toolbar contains its content and never intersects the following cont
     };
   });
   expect(layout.contentFits).toBe(true);
-  expect(layout.resetInside).toBe(true);
+  expect(layout.primaryButtonInside).toBe(true);
   expect(layout.toolbarIntersectsPlayer).toBe(false);
   expect(runtimeErrors).toEqual([]);
 });
@@ -2542,7 +2603,7 @@ test("390px primary map, filter, and chat governance targets are at least 44px",
 
   const targetGroups = [
     page.locator(".app-header__actions button"),
-    page.locator(".map-toolbar :is(.filter-chip, .chip-type, .chip-venue, .filters-reset)"),
+    page.locator(".map-toolbar .filter-chip"),
     page.locator(".chat-message__meta :is([data-chat-report], [data-chat-block])"),
   ];
   for (const targets of targetGroups) {
@@ -3743,11 +3804,12 @@ test("the type filter offers three chips and no longer lists 對拉", async ({ p
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
-  const chips = page.locator(".type-chips .chip-type");
+  await page.locator("#filter-sheet-open").click();
+  const chips = page.locator('#filters-sheet [data-filter="types"]');
   // 正向前提在先：掃描集非空，下面的 count(0) 才有意義。
   await expect(chips).toHaveCount(3);
   await expect(chips).toHaveText(["單打", "雙打", "練球"]);
-  await expect(page.locator('.type-chips [data-type="對拉"]')).toHaveCount(0);
+  await expect(page.locator('#filters-sheet [data-filter="types"][data-value="對拉"]')).toHaveCount(0);
   expect(runtimeErrors).toEqual([]);
 });
 
