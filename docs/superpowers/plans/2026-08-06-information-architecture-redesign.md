@@ -355,7 +355,7 @@
 | 4 個人檔案常駐入口 | **ACCEPTED** | `c8cbb9d` | 一輪補件(B-1 焦點表補 edit-profile)。裁示:standalone rAF **保留**——實測存檔後是連續四次重繪,generation 守衛擋掉中間那次,rAF 與焦點表管的是不相交的兩件事,非兩個 owner |
 | 5 建局表單簡化 | **ACCEPTED_WITH_NOTES** | `ca1801f` | 0 blocker。四常數拆分解除兩個地雷;flaky 定位並修好(180 跑 0 紅)。兩項 major 帶批 6:`<p>` 巢在 `<label>` 內(兩處)、選中態小字對比 4.25:1(預設選中即失敗) |
 | 6 訂閱球場兩段式 | **ACCEPTED**(一輪補件) | `233a924` | 批 5 四項夾帶 M1-M4 全修好。補件修 F1 焦點掉 body(還原只檢查 disabled 未檢查可見性)、F2 守衛偽紅、F3 下限灌水、F4 預設態頁長 4609→1953px、F5 假計數。**未解**:細選仍是 53 個扁平 checkbox,挑 3-8 座比改版前更累(見待拍板) |
-| 7 信任數字 | **派工中**(2026-08-07 09:50) | — | **唯一 migration**(`202608060001`);硬約束:不得擴充匿名 `session_discovery` allowlist。派工前發現工作區已有未提交 WIP(mtime 09:35–09:41,PM 未派過),派工單第 0 節要求實作方先申報來源與進度 |
+| 7 信任數字 | **ACCEPTED**(0 blocker) | `e71e2c9` | 唯一 migration `202608060001`。**WIP 來源事故**:PM 壓縮前用 Bash heredoc 自行實作,壓縮後認不出,誤當來歷不明派工;實作方跨 session 鑑識指回 PM,ian 的「指派給開發 session」已是對此的裁決。WIP 降為可棄草稿、PM 跑的證據全數作廢重跑。PM 獨立複驗:三份 SoT diff(`review_join_request` 恰好一行/121 行)、canary 三拍自跑、對比度自算、完整 gate 自跑。**PM 的 §1 有一條誤判**(`player_directory` 匿名拒絕斷言其實在 `session_rls.sql:635-640`,逐行 grep 跨不過多行 `throws_ok`) |
 | 9 共用球場選擇器 + 新使用者預設訂全市 | 未開始(2026-08-07 新增) | — | ian 拍板開全範圍。三個呼叫點共用元件,但 min/max 與「全選」語意**各自不同**;純前端零 migration。詳見下方「ian 拍板」1、2 |
 | 8 定詞表+視覺+a11y 收尾 | 未開始 | — | 已擴充,見下方清單。**建局/編輯表單既有 44px 缺口經獨立重量為 7+3=10 個(非 37),約 6 條 CSS**;`.surface__close` 全站 sheet 共用,獨立 commit 且守衛用對稱式 |
 
@@ -390,6 +390,25 @@ B1 迴歸保護:抽 exported 純函式 `shouldReleasePendingMeFocus` + node unit
 - 同頁失敗焦點落點統一(球友卡留按鈕 vs 在線狀態跳 `role=alert`)
 - `.presence-settings` 內 `.form-hint` 對比 4.47:1 提到 ≥4.5:1
 - avatar fallback span 加 `aria-hidden`
+- **存量「對拉」球局清查**(批 5 遺留,批 7 提案併入):確認 hosted DB 是否真有 `play_type='對拉'`
+  的存量球局;有的話驗編輯表單仍可儲存,沒有的話 `EDIT_PLAY_TYPES` 的第四值可考慮下架。
+
+## 批 7 的三項裁示(2026-08-07 驗收時,PM 拍板)
+
+1. **`hosted_played_count` 對 guest 列也算得出來 → 維持不改**,並已寫進
+   `.claude/rules/supabase.md` 標記為自覺取捨,不是疏漏。
+   實作方提案改成 `case when role='host' then (...) else 0 end`(縮小揭露)。不採納的理由:
+   (a) 它是 authenticated-only 的中性聚合數,不是身分或聯絡資料,匿名面零影響;
+   (b) 改了會**弄丟一條正確性斷言**——`session_join_preview.sql:336` 正是用 guest 列證明
+   計數是 per-profile 而非 per-session,縮小後該性質變成結構性恆真,測不出來。
+   拿一條防誤算的守衛去換一項極輕微的揭露縮減,不划算。
+2. **`played_count` 的 `status='accepted'` 是 defence in depth**。實作方證明
+   `private.enforce_session_participant_transition()`(`202607230004:147-148`)已保證
+   `played_confirmed=true` 蘊含 `status='accepted'`,故該半條對真實資料冗餘;
+   但它們用 `session_replication_role = replica` 繞過 trigger 做出反例,證明繞過時 view 仍有牙。
+   **已寫進 rules,標明不可因「看起來沒用」而刪除。**
+3. **`src/mockData.js` 不補計數**。mock 專案的正反前提已由 `smoke.spec.js:758` 的測試自帶
+   fixture 覆蓋。本機 demo 畫面看不到這行是可接受的——demo 不是出貨面。
 
 ## 跨批延後項(無明確歸屬,擇批處理)
 
@@ -456,6 +475,9 @@ B1 迴歸保護:抽 exported 純函式 `shouldReleasePendingMeFocus` + node unit
 2. **要實測證據時明寫「用會重試的斷言」**;可貼字串用臨時探針 + `console.log` 跑完刪除,
    入版只留會重試的斷言。禁 `expect(await page.evaluate(...))` 瞬時快照。
 3. **動共用 helper/常數/正則**:回報必附全 repo consumer 盤點 + 所有姊妹斷言的 canary 矩陣。
+   **符號掃描不夠,要再加一輪形狀掃描**——批 7 實例:`tests/session-data-local-api.test.js:146`
+   不引用任何欄位常數,直接硬寫物件 `deepEqual`,對 `grep 符號名` 完全隱形,是完整 gate 才抓到的。
+   形狀式消費點要用「期望物件裡的鄰近欄位名」去掃(如 `grep "avatarUrl:\|isSelf:" tests/`)。
 4. **驗收條件用對稱性而非列舉**(列舉會漏——PM 列舉焦點 selector 時就漏了解除封鎖)。
 5. canary 綠不等於修法沒用,先驗重現序列。
 6. 懷疑 flaky 用 `--repeat-each=10 --retries=0` 取樣,**單次綠或單次紅都不算證據**。

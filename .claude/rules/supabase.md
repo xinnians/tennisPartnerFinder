@@ -25,8 +25,11 @@ role 不可讀寫。
 - 群聊與封鎖讀取：`public.session_message_feed`、`public.my_player_blocks`；寫入只能使用
   `post_session_message`、`set_player_block`、`create_report(..., p_message_id)` RPC。
 - 登入者加入前名單：`public.session_join_preview`（authenticated-only，僅需登入；回傳該局
-  host 與 accepted guests 的 `session_id,role,nickname,ntrp,avatar_url` 五欄，窗口同
-  discovery，不過濾封鎖，不含 profile_id）。
+  host 與 accepted guests 的 `session_id,role,nickname,ntrp,avatar_url,hosted_played_count`
+  六欄，窗口同 discovery，不過濾封鎖，不含 profile_id）。`hosted_played_count` 是該列 profile
+  作為 host 且 `sessions.status = 'played'` 的球局數（中性聚合數，非比率／星等／排名）；
+  它對每一列都算得出來，UI 只在 host 列渲染——這是 202608060001 的**自覺取捨**，
+  換來的是 pgTAP 得以用 guest 列證明計數是 per-profile 而非 per-session。
 - 個人檔案表單：`public.my_profile` 與 `save_my_profile(...)`。
 - 在場設定／更新：`set_presence_sharing`、`set_open_to_greeting`、`update_my_presence` RPC。
 - 通知設定：本人 `notification_prefs`（六個 enabled 欄）、`court_subscriptions` 的
@@ -97,8 +100,13 @@ LINE、電話、email、常打球場、可用時段、歷史或 roster。`sessio
 其欄位有序 allowlist **精確為**：
 
 ```text
-profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self
+profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self,played_count
 ```
+
+`played_count` 是該 profile 以 `status='accepted'` 且 `played_confirmed=true` 參與的球局數。
+注意 `status='accepted'` 這半條在目前 schema 下對真實資料是冗餘的——
+`private.enforce_session_participant_transition()` 已保證 `played_confirmed=true` 蘊含
+`status='accepted'`；它是 defence in depth，不可因「看起來沒用」而刪除。
 
 它只列出已 opt-in（`profiles.is_public=true`）、卡片本人通過 directory 門檻、台北市 active 常打球場的
 球友；`is_public` 預設 false，只有通過 directory 門檻的本人可透過 `set_player_visibility(boolean)`
