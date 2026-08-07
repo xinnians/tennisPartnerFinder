@@ -67,10 +67,10 @@ test("計分板 token:文字組合全數達 AA 4.5:1", () => {
 
 // 底色一律從 CSS 現況取,不寫死——底色被改動時這支測試會自己重算而不是繼續驗舊值。
 const BACKGROUNDS = [
-  ["他人的聊天泡泡 .chat-message", MIST],
-  ["自己的聊天泡泡 .chat-message--self", cssValue(/\.chat-message--self \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-message--self 背景")],
-  ["球局摘要 .chat-session-summary", MIST],
-  ["封存提示 .chat-archived-note", cssValue(/\.chat-archived-note \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-archived-note 背景")],
+  ["他人的聊天泡泡 .chat-message", COLOR_INFO_BG], // 批 A-8 起改用 var(--color-info-bg),不再是可 regex 抓的字面 hex,直接引用 token 常數
+  ["自己的聊天泡泡 .chat-message--self", COLOR_SUCCESS_BG], // 批 A-8 起改用 var(--color-success-bg)
+  ["球局摘要 .chat-session-summary", COLOR_INFO_BG], // 批 A-8 起改用 var(--color-info-bg)
+  ["封存提示 .chat-archived-note", cssValue(/\.chat-archived-note \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-archived-note 背景")], // 非計分板 token 系統的獨立中性灰,批 A 未動,仍是字面 hex
   ["在場設定 .presence-settings", COLOR_SUCCESS_BG], // 批 A-7 起改用 var(--color-success-bg),不再是可 regex 抓的字面 hex,比照上方 .chat-message 直接引用 token 常數
 ];
 
@@ -94,11 +94,7 @@ test("--ink-muted 在這些底色上確實不足,證明加深那一階是必要�
   );
 });
 
-test("三個套用點都改用加深後的 token", () => {
-  // 批 A-7 前是四個(含 .presence-settings .form-hint);批 A-7 把該選擇器改用
-  // var(--color-text-secondary),不再是 --ink-muted-strong,移出此清單(改由上方
-  // PAIRS 測試的「次要文字 on success 底」涵蓋)。其餘三個待 Task 8(群聊/toast)換皮後
-  // 一併移除。
+test.skip("三個套用點都改用加深後的 token(Task 9 移除:批 A-8 已把 .chat-session-summary span/.chat-archived-note/.chat-message__meta 三處全數改用 var(--color-text-secondary),不再套用 --ink-muted-strong,這支測試連同 --ink-muted* token 一併留給 Task 9 刪除)", () => {
   assert.ok(CSS.length > 10_000, "CSS 讀取失敗時計數會全部歸零,先確認掃描集非空");
   const selectors = [".chat-session-summary span", ".chat-archived-note", ".chat-message__meta"];
   assert.equal(selectors.length, 3, "掃描集非空且涵蓋三個套用點");

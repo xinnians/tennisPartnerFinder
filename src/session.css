@@ -73,15 +73,15 @@
   height: 26px;
   place-items: center;
   border-radius: 50%;
-  background: var(--lime);
-  color: var(--navy);
-  font-size: 25px;
+  background: var(--color-signal);
+  color: var(--color-ink);
+  font-size: var(--text-2xl);
   transform: rotate(28deg);
 }
 
-.city-label { color: var(--ink-muted); font-size: 14px; font-weight: 700; }
+.city-label { color: var(--color-text-secondary); font-size: var(--text-base); font-weight: 700; }
 
-.app-header__actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.app-header__actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 
 .session-primary,
 .session-secondary {
@@ -124,10 +124,9 @@
 .map-controls { display: contents; }
 .player-layer-control { position: absolute; z-index: 6; top: 112px; left: clamp(12px, 3vw, 30px); display: grid; justify-items: start; gap: 5px; }
 .player-layer-actions { display: flex; flex-wrap: wrap; gap: 7px; }
-#player-layer-toggle { min-height: 38px; border-radius: 999px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 7px 20px rgba(20, 44, 75, 0.15); }
-#player-layer-toggle.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
-/* 批 A-3 只列 #player-directory-open;原規則與 #player-layer-toggle 共用,拆開後這顆單獨換皮,
-   #player-layer-toggle 留舊值——兩顆按鈕並排會出現圓角/陰影不一致,詳見批 A-3 report concerns。 */
+#player-layer-toggle { min-height: 38px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); box-shadow: var(--elevation-1); }
+#player-layer-toggle.is-active { border-color: var(--color-court); background: var(--color-court); color: var(--color-surface-card); }
+/* 批 A-8:#player-layer-toggle 換皮完成,圓角/陰影已與 #player-directory-open 一致。 */
 #player-directory-open { min-height: 38px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); box-shadow: var(--elevation-1); }
 .player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: rgba(20, 44, 75, 0.92); color: #fff; font-size: 12px; font-weight: 800; }
 
@@ -136,15 +135,15 @@
 .presence-settings .form-hint { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
 .presence-settings__greeting { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-weight: 700; }
 .player-presence, .player-greeting { color: var(--color-success); font-weight: 700; }
-.player-directory-list { display: grid; gap: 9px; margin-top: 14px; }
-.player-directory-row { display: grid; width: 100%; gap: 5px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--navy); text-align: left; }
+.player-directory-list { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+.player-directory-row { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
 .player-directory-row:hover,
-.player-directory-row:focus-visible { border-color: var(--blue); background: var(--mist); }
-.player-directory-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.player-directory-row:focus-visible { border-color: var(--color-court); background: var(--color-info-bg); }
+.player-directory-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .player-directory-row__online,
-.player-directory-row__self { padding: 2px 7px; border-radius: 999px; font-size: 12px; font-weight: 900; }
-.player-directory-row__online { background: #e7f5bf; color: #426713; }
-.player-directory-row__self { background: var(--mist); color: var(--blue); }
+.player-directory-row__self { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 700; }
+.player-directory-row__online { background: var(--color-success-bg); color: var(--color-success); }
+.player-directory-row__self { background: var(--color-info-bg); color: var(--color-court); }
 
 .map-toolbar {
   position: absolute;
@@ -163,10 +162,10 @@
   box-shadow: var(--elevation-1);
 }
 
-.filter-control { display: grid; min-width: 108px; gap: 3px; color: var(--ink-muted); font-size: 11px; font-weight: 800; }
-.filter-control span { padding-left: 2px; }
+.filter-control { display: grid; min-width: 108px; gap: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-xs); font-weight: 700; }
+.filter-control span { padding-left: var(--space-1); }
 .filter-control select,
-.filter-control input { min-width: 0; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--navy); padding: 0 8px; }
+.filter-control input { min-width: 0; height: 34px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); padding: 0 var(--space-2); }
 .filter-control--date { min-width: 126px; }
 
 .filter-chip,
@@ -273,11 +272,11 @@
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-sm);
 }
-.session-ongoing-time { color: var(--blue); font-size: 12px; font-weight: 800; }
+.session-ongoing-time { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; }
 
-.discovery-empty { display: grid; gap: 12px; padding: 20px 8px 8px; color: var(--navy); text-align: center; }
-.discovery-empty p { margin: 0; font-weight: 800; }
-.discovery-empty__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+.discovery-empty { display: grid; gap: var(--space-3); padding: var(--space-5) var(--space-2) var(--space-2); color: var(--color-ink); text-align: center; }
+.discovery-empty p { margin: 0; font-weight: 700; }
+.discovery-empty__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
 .session-secondary { padding: 0 var(--space-3); border: var(--border-strong); background: transparent; color: var(--color-ink); }
 
 #map-data-status {
@@ -294,7 +293,7 @@
   font-size: 13px;
 }
 #map-data-status p { margin: 0; overflow-wrap: anywhere; }
-#map-data-status .session-secondary { margin-top: 7px; min-height: 32px; color: var(--navy); }
+#map-data-status .session-secondary { margin-top: var(--space-2); min-height: 32px; color: var(--color-ink); }
 .map-data-status--loading { background: rgba(20, 44, 75, 0.8); }
 .map-data-status--warning { background: rgba(38, 88, 145, 0.94); }
 .location-feedback { margin-top: 6px !important; color: #fff; font-weight: 800; }
@@ -315,10 +314,10 @@
 .surface--sheet { right: 20px; bottom: 20px; }
 .surface--dialog { top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .surface__copy { margin: var(--space-1) 0 var(--space-4); color: var(--color-text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
-.profile-return-context { margin: 0 0 14px; padding: 10px 11px; border-radius: 10px; background: var(--mist); color: var(--navy); font-size: 13px; font-weight: 800; line-height: 1.5; overflow-wrap: anywhere; }
+.profile-return-context { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
 .profile-form,
 .create-session-form { display: grid; gap: 13px; }
-.candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .candidate-decision-buttons .session-primary { flex: 1 1 132px; }
 .form-field { display: grid; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
@@ -345,8 +344,8 @@
 .create-session-sheet .session-secondary { min-height: 44px; }
 .create-session-sheet .form-fieldset > label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
 
-.option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; color: var(--navy); font-size: 13px; }
-.option-grid label { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); }
+.option-grid label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
 /* 場地題改問處境後每個選項多一句說明，單欄堆疊才讀得完。 */
 .option-grid--stacked { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
 .option-grid--stacked label { align-items: flex-start; min-height: 44px; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
@@ -374,7 +373,7 @@
 .join-session-form,
 .report-form { display: grid; gap: 12px; }
 .join-session-summary { margin-top: 2px; }
-.report-form .form-fieldset label { display: flex; align-items: center; gap: 7px; color: var(--navy); font-size: 13px; font-weight: 700; }
+.report-form .form-fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .bottom-navigation {
   position: fixed;
   z-index: calc(var(--z-drawer) - 1); /* 導覽列在抽屜遮罩之下(對應原 18 < backdrop 20),避免同層時 DOM 較晚的導覽列蓋過遮罩 */
@@ -434,13 +433,13 @@
   border: 0;
 }
 .my-sessions-page,
-.me-page { min-height: calc(100dvh - 66px); padding: clamp(18px, 4vw, 42px) clamp(18px, 4vw, 42px) calc(42px + var(--bottom-navigation-offset)); background: linear-gradient(140deg, #eef4fb, #f7fbf1); }
+.me-page { min-height: calc(100dvh - 66px); padding: clamp(18px, 4vw, 42px) clamp(18px, 4vw, 42px) calc(42px + var(--bottom-navigation-offset)); background: linear-gradient(140deg, var(--color-surface-page), #f7fbf1); }
 .my-sessions-shell { width: min(680px, 100%); margin: 0 auto; }
 .my-sessions-shell__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
-.my-sessions-shell__head h1 { margin: 0; color: var(--navy); font-size: 26px; }
+.my-sessions-shell__head h1 { margin: 0; color: var(--color-ink); font-size: var(--text-2xl); }
 .my-sessions-shell__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .me-shell { display: grid; width: min(680px, 100%); margin: 0 auto; gap: 18px; }
-.me-shell__head h1 { margin: 0; color: var(--navy); font-size: 26px; }
+.me-shell__head h1 { margin: 0; color: var(--color-ink); font-size: var(--text-2xl); }
 .me-identity-card,
 .me-sign-in-card,
 .me-service-links { padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
@@ -462,8 +461,8 @@
 .player-visibility h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .player-visibility .form-hint { margin: 0; }
 .player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
-.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
-.me-edit-profile h2 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.me-edit-profile h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .me-edit-profile .form-hint { margin: 0; }
 .me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }
 .me-page .me-edit-profile .session-secondary,
@@ -484,12 +483,12 @@
 .notification-settings__fieldset legend { padding: 0 var(--space-1); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
 .notification-settings__fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
 /* 訂閱球場改兩段式：主控 checkbox + 可展開的球場清單。 */
-.court-subscribe-all { align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--mist); font-weight: 800; }
-#notification-court-picker { grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 4px; }
-#notification-court-picker label { align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
-#notification-court-picker label:has(input:checked) { border-color: var(--blue); background: var(--mist); }
+.court-subscribe-all { align-items: center; gap: var(--space-2); padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-info-bg); font-weight: 700; }
+#notification-court-picker { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin-top: var(--space-1); }
+#notification-court-picker label { align-items: center; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+#notification-court-picker label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); }
 #notification-court-picker label:has(input:focus-visible),
-.court-subscribe-all:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+.court-subscribe-all:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
 .success-push-prompt { display: grid; flex: 1 1 100%; justify-items: start; gap: var(--space-2); margin: var(--space-2) 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-ink); }
 .success-push-prompt p { margin: 0; }
 @media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } }
@@ -500,13 +499,13 @@
 .blocked-player-list { display: grid; gap: var(--space-2); }
 .blocked-player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
 .blocked-player-row span { min-width: 0; overflow-wrap: anywhere; }
-.my-sessions-section { display: grid; gap: 9px; margin-top: 24px; }
-.my-sessions-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.my-sessions-section__head h2 { margin: 0; color: var(--navy); font-size: 20px; }
-.my-sessions-section__head span { color: var(--ink-muted); font-size: 12px; font-weight: 800; }
-.my-sessions-list { display: grid; gap: 10px; }
-.my-sessions-empty { display: grid; gap: 9px; margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: #fff; color: var(--navy); }
-.my-sessions-empty h2 { margin: 0; font-size: 18px; }
+.my-sessions-section { display: grid; gap: var(--space-2); margin-top: var(--space-6); }
+.my-sessions-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.my-sessions-section__head h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); }
+.my-sessions-section__head span { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+.my-sessions-list { display: grid; gap: var(--space-2); }
+.my-sessions-empty { display: grid; gap: var(--space-2); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
+.my-sessions-empty h2 { margin: 0; font-size: var(--text-lg); }
 .my-session-card,
 .my-action-card { display: grid; gap: var(--space-2); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
 .my-session-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
@@ -516,17 +515,16 @@
 .my-session-card__status { color: var(--color-text-secondary); text-transform: lowercase; }
 .my-session-card h3,
 .my-action-card h3 { margin: 0; overflow-wrap: anywhere; font-size: var(--text-md); }
-/* 批 A-7：.my-history-reason 與 .my-session-card p/.my-action-card p 原共用一條規則;
-   .my-history-reason 選擇器本身不在本任務 grep 範圍(Step 1 未命中),拆開後單獨留舊值,
-   待 Task 8(殘餘元件)處理,見 task-7-report concerns。 */
 .my-session-card p,
 .my-action-card p { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
-.my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--ink-muted); font-size: 13px; line-height: 1.5; }
+.my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
 .my-session-card__time { color: var(--color-court) !important; font-weight: 700; }
 .my-session-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
-.session-tertiary { min-height: 34px; padding: 0 5px; border: 0; background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 800; text-decoration: underline; }
-.my-history-reason { margin-top: -4px; padding: 0 4px; }
-.my-sessions-message { margin: 10px 0; color: var(--ink-muted); font-size: 13px; font-weight: 800; }
+/* 文字鈕契約(Task 4):.session-tertiary 比照 secondary 語意,無框;字色比照既有 .filters-reset
+   的文字鈕前例採 court(可互動強調色),而非 text-secondary(純資訊態),因底線本身已標示可點擊。 */
+.session-tertiary { min-height: 34px; padding: 0 var(--space-1); border: 0; background: transparent; color: var(--color-court); font-size: var(--text-sm); font-weight: 700; text-decoration: underline; }
+.my-history-reason { margin-top: -4px; padding: 0 var(--space-1); }
+.my-sessions-message { margin: var(--space-2) 0; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
 .session-detail { display: grid; gap: var(--space-3); }
 .session-detail p { margin: 0; padding-bottom: var(--space-2); border-bottom: var(--border-thin); color: var(--color-ink); line-height: 1.55; overflow-wrap: anywhere; }
 .session-detail p[data-session-field="time"],
@@ -551,50 +549,52 @@
 .player-avatar { position: relative; display: inline-grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-surface-page); color: var(--color-court); font-weight: 700; }
 .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .player-avatar__fallback { display: grid; width: 100%; height: 100%; place-items: center; }
-.profile-avatar-preview { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px; border-radius: 11px; background: var(--mist); color: var(--navy); }
-.profile-avatar-preview p { margin: 0; font-size: 13px; font-weight: 800; }
+.profile-avatar-preview { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.profile-avatar-preview p { margin: 0; font-size: var(--text-sm); font-weight: 700; }
 .session-chat-sheet { display: flex; flex-direction: column; width: min(520px, calc(100vw - 40px)); }
-.chat-session-summary { display: grid; gap: 4px; position: sticky; top: 0; z-index: 1; margin-bottom: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--mist); color: var(--navy); }
-.chat-session-summary span { color: var(--ink-muted-strong); font-size: 13px; }
-.chat-roster { display: grid; gap: 7px; margin-bottom: 12px; }
-.chat-roster h3 { margin: 0; color: var(--navy); font-size: 14px; }
-.chat-roster [data-chat-roster] { display: flex; flex-wrap: wrap; gap: 6px; }
-.chat-roster__member { padding: 6px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--line); color: var(--navy); font-size: 12px; font-weight: 800; }
-.chat-feed { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-height: 120px; overflow-y: auto; padding: 4px 2px 12px; }
+.chat-session-summary { display: grid; gap: var(--space-1); position: sticky; top: 0; z-index: 1; margin-bottom: var(--space-3); padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.chat-session-summary span { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.chat-roster { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.chat-roster h3 { margin: 0; color: var(--color-ink); font-size: var(--text-base); }
+.chat-roster [data-chat-roster] { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chat-roster__member { padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-surface-card); border: var(--border-thin); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.chat-feed { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-2); min-height: 120px; overflow-y: auto; padding: var(--space-1) var(--space-1) var(--space-3); }
 .chat-feed__empty { margin: auto; text-align: center; }
-.chat-message { align-self: flex-start; max-width: 88%; padding: 9px 11px; border-radius: 12px 12px 12px 3px; background: var(--mist); color: var(--navy); overflow-wrap: anywhere; }
-.chat-message--self { align-self: flex-end; border-radius: 12px 12px 3px 12px; background: #e5f0ff; }
-.chat-message--system { align-self: center; max-width: 96%; background: transparent; color: var(--ink-muted); font-size: 12px; text-align: center; }
+/* 聊天泡泡契約(brief Step 1):他人 info-bg、自己 success-bg、系統訊息文字 text-secondary;
+   泡泡尾角原 3px(相鄰一階內)併入 radius-sm。 */
+.chat-message { align-self: flex-start; max-width: 88%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm); background: var(--color-info-bg); color: var(--color-ink); overflow-wrap: anywhere; }
+.chat-message--self { align-self: flex-end; border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-md); background: var(--color-success-bg); }
+.chat-message--system { align-self: center; max-width: 96%; background: transparent; color: var(--color-text-secondary); font-size: var(--text-sm); text-align: center; }
 .chat-message p { margin: 0; }
-.chat-message__sender { margin-bottom: 4px !important; color: var(--blue); font-size: 11px; font-weight: 900; }
+.chat-message__sender { margin-bottom: var(--space-1) !important; color: var(--color-court); font-size: var(--text-xs); font-weight: 700; }
 .chat-message__body { white-space: pre-wrap; line-height: 1.5; }
-.chat-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; color: var(--ink-muted-strong); font-size: 12px; }
-.chat-message__meta .session-tertiary { min-width: 44px; min-height: 44px; padding: 0 2px; font-size: 12px; }
-.chat-archived-note { margin: 0 0 8px; padding: 9px 10px; border-radius: 9px; background: #f2f3f5; color: var(--ink-muted-strong); font-size: 13px; font-weight: 800; }
-.chat-composer { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--navy); font-size: 13px; font-weight: 800; }
-.chat-composer textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 9px; padding: 9px; color: var(--navy); font: inherit; }
-.chat-composer textarea:disabled { background: #f2f3f5; color: var(--ink-muted); }
-.chat-composer__actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.chat-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-sm); }
+.chat-message__meta .session-tertiary { min-width: 44px; min-height: 44px; padding: 0 var(--space-1); font-size: var(--text-sm); }
+.chat-archived-note { margin: 0 0 var(--space-2); padding: var(--space-2); border-radius: var(--radius-md); background: #f2f3f5; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+.chat-composer { display: grid; gap: var(--space-2); padding-top: var(--space-2); border-top: var(--border-thin); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.chat-composer textarea { width: 100%; resize: vertical; border: var(--border-thin); border-radius: var(--radius-md); padding: var(--space-2); color: var(--color-ink); font: inherit; }
+.chat-composer textarea:disabled { background: #f2f3f5; color: var(--color-text-secondary); }
+.chat-composer__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .chat-composer__actions .form-hint { margin: 0; }
-.player-profile { display: grid; gap: 7px; margin-bottom: 16px; padding: 13px; border-radius: 12px; background: var(--mist); color: var(--navy); }
+.player-profile { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
 .player-profile p { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
 .player-invite-form,
-.player-invite-options { display: grid; gap: 10px; }
-.player-invite-option { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--navy); }
+.player-invite-options { display: grid; gap: var(--space-2); }
+.player-invite-option { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-1) var(--space-2); padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); color: var(--color-ink); }
 .player-invite-option input { grid-row: 1 / span 4; align-self: start; }
-.player-invite-option span { overflow-wrap: anywhere; color: var(--ink-muted); font-size: 12px; }
-.player-invite-success { margin: 0; padding: 9px 10px; border-radius: 8px; background: #eef8e7; color: #2d6a30; font-weight: 800; }
+.player-invite-option span { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.player-invite-success { margin: 0; padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-success); font-weight: 700; }
 .player-invite-empty { display: grid; justify-items: start; }
 
-#toast-root { position: fixed; z-index: 40; right: 16px; bottom: calc(16px + var(--bottom-navigation-offset)); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
-.toast { padding: 11px 14px; border-radius: 11px; background: var(--navy); color: #fff; box-shadow: var(--shadow); font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+#toast-root { position: fixed; z-index: var(--z-toast); right: 16px; bottom: calc(16px + var(--bottom-navigation-offset)); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-ink); color: var(--color-surface-card); box-shadow: var(--elevation-2); font-size: var(--text-base); font-weight: 700; overflow-wrap: anywhere; }
 
 @media (max-width: 700px) {
   .app-header { min-height: 60px; gap: var(--space-2); padding: var(--space-2) var(--space-3); }
   .app-brand { font-size: var(--text-xl); }
-  .app-brand__ball { width: 23px; height: 23px; font-size: 22px; }
-  .city-label { font-size: 12px; }
-  .app-header__actions { gap: 6px; }
+  .app-brand__ball { width: 23px; height: 23px; font-size: var(--text-2xl); }
+  .city-label { font-size: var(--text-sm); }
+  .app-header__actions { gap: var(--space-2); }
   .location-button { min-width: 44px; min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-sm); }
   .app-brand,
   .filter-control select,
@@ -624,9 +624,9 @@
   .surface--sheet { right: 10px; bottom: 10px; }
   .surface--dialog { top: 50%; }
   .my-sessions-page,
-  .me-page { min-height: calc(100dvh - 60px); padding: 18px 12px calc(18px + var(--bottom-navigation-offset)); }
-  .my-sessions-shell__head h1 { font-size: 23px; }
-  .me-shell__head h1 { font-size: 23px; }
+  .me-page { min-height: calc(100dvh - 60px); padding: var(--space-5) var(--space-3) calc(18px + var(--bottom-navigation-offset)); }
+  .my-sessions-shell__head h1 { font-size: var(--text-2xl); }
+  .me-shell__head h1 { font-size: var(--text-2xl); }
 }
 
 @media (max-width: 390px) {
