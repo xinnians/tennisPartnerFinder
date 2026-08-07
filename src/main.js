@@ -497,16 +497,16 @@ function syncBottomNavigation() {
   else meTab?.removeAttribute("aria-current");
   const badge = document.getElementById("my-sessions-badge");
   const mySessionState = controller?.getMySessionState?.();
-  const count = mySessionState?.groups?.pendingHostRequestCount ?? 0;
+  const count = mySessionState?.groups?.needsActionCount ?? 0;
   if (badge) {
     badge.hidden = count <= 0;
     badge.textContent = count > 0 ? String(count) : "";
     badge.setAttribute("aria-hidden", "true");
   }
-  const badgeLabel = count > 0 ? `我的球局，${count} 位待審核申請者` : "我的球局";
+  const badgeLabel = count > 0 ? `我的球局，${count} 項待處理` : "我的球局";
   mySessionsTab?.setAttribute("aria-label", badgeLabel);
   const badgeStatus = document.getElementById("my-sessions-badge-status");
-  if (badgeStatus) badgeStatus.textContent = count > 0 ? `${count} 位待審核申請者` : "沒有待審核申請者";
+  if (badgeStatus) badgeStatus.textContent = count > 0 ? `${count} 項待處理` : "沒有待處理事項";
 }
 
 function captureMySessionsFocus(root) {

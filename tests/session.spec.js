@@ -1069,6 +1069,10 @@ test("a visible player can be invited from the directory list, join group chat, 
     await page.getByTestId("my-sessions-tab").click();
     const invite = page.getByTestId("invite-row");
     await expect(invite).toContainText(context.host.nickname);
+    // needsActionCount 計入 invite,不只 host-request:受邀者自己沒有任何 host-request,
+    // 徽章仍要因這一筆待回覆邀請而顯示。
+    await expect(page.locator("#my-sessions-badge")).toHaveText("1");
+    await expect(page.getByTestId("my-sessions-tab")).toHaveAttribute("aria-label", "我的球局，1 項待處理");
     await page.getByTestId(`accept-invite-${sessionId}`).click();
     await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 

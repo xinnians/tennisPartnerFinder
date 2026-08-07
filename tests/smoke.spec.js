@@ -567,7 +567,7 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
       groups: {
         history: [],
         needsAction: [],
-        pendingHostRequestCount: 0,
+        needsActionCount: 0,
         upcoming: [
           {
             canWithdraw: true,
@@ -687,7 +687,7 @@ test("join and create success moments offer push only when the device can enable
       renderMySessionsPage(document.getElementById("my-sessions-root"), {
         authenticated: true,
         createdSessionId: sessionInput.sessionId,
-        groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [sessionInput] },
+        groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [sessionInput] },
         notificationSettings: settings,
         onEnablePush: async () => {
           window.__successPushCalls.push("create");
@@ -1055,7 +1055,7 @@ test("undecided candidate sessions keep their court list and time range across p
             { kind: "invite", session },
             { kind: "guest-request", session },
           ],
-          pendingHostRequestCount: 1,
+          needsActionCount: 3,
           upcoming: [session],
         },
       });
@@ -1148,7 +1148,7 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
         groups: {
           history: [],
           needsAction: [{ kind: "invite", session }],
-          pendingHostRequestCount: 0,
+          needsActionCount: 1,
           upcoming: [session],
         },
       });
@@ -1206,7 +1206,7 @@ test("My Sessions preserves the initiating action and its error across a private
     const render = () =>
       renderMySessionsPage(root, {
         authenticated: true,
-        groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+        groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
         onCancel: async () => {
           window.__mySessionActionCalls = (window.__mySessionActionCalls ?? 0) + 1;
           await pending;
@@ -1256,7 +1256,7 @@ test("My Sessions renders an escaped invite card with stable response testids", 
     };
     renderMySessionsPage(root, {
       authenticated: true,
-      groups: { history: [], needsAction: [{ kind: "invite", session }], pendingHostRequestCount: 0, upcoming: [] },
+      groups: { history: [], needsAction: [{ kind: "invite", session }], needsActionCount: 1, upcoming: [] },
     });
     window.__invitePayload = payload;
   });
@@ -1302,7 +1302,7 @@ test("invite response buttons dispatch, stay pending across replacement, and foc
     const pendingAccept = new Promise((_, reject) => {
       rejectAccept = reject;
     });
-    const groups = { history: [], needsAction: [{ kind: "invite", session }], pendingHostRequestCount: 0, upcoming: [] };
+    const groups = { history: [], needsAction: [{ kind: "invite", session }], needsActionCount: 1, upcoming: [] };
     const render = () =>
       renderMySessionsPage(root, {
         actionScopeKey: "account-a",
@@ -1365,7 +1365,7 @@ test("declined My Sessions history uses neutral participation wording", async ({
           viewerRole: "guest",
         }],
         needsAction: [],
-        pendingHostRequestCount: 0,
+        needsActionCount: 0,
         upcoming: [],
       },
     });
@@ -1421,7 +1421,7 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
     document.getElementById("me-page").hidden = false;
     renderMySessionsPage(document.getElementById("my-sessions-root"), {
       authenticated: true,
-      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     });
     let release;
     const pending = new Promise((resolve) => {
@@ -1774,8 +1774,8 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
       viewerRole: "host",
     };
     const request = { nickname: "待處理球友", participantId: 16, profileId: 26, role: "guest", status: "requested" };
-    const groupsWithRequest = { history: [], needsAction: [{ kind: "host-request", participant: request, session }], pendingHostRequestCount: 1, upcoming: [session] };
-    const groupsAfterReview = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] };
+    const groupsWithRequest = { history: [], needsAction: [{ kind: "host-request", participant: request, session }], needsActionCount: 1, upcoming: [session] };
+    const groupsAfterReview = { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] };
     const render = ({ groups, onAccept = async () => {}, scopeKey }) =>
       renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onAccept });
 
@@ -1819,7 +1819,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
     window.__releaseAccountAAction = release;
     render(
       "account-a",
-      { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+      { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
       async () => {
         await pending;
         throw new Error("登入狀態已變更，請重新整理後再試。");
@@ -1851,7 +1851,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
     renderMySessionsPage(root, {
       actionScopeKey: "account-b",
       authenticated: true,
-      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
     });
   });
   const accountBWithdraw = page.locator("[data-my-action='withdraw'][data-session-id='733']");
@@ -2749,7 +2749,7 @@ test("My Sessions gives accepted members chat access without rendering retired c
     };
     renderMySessionsPage(root, {
       authenticated: true,
-      groups: { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [session] },
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
     });
   });
 
@@ -2790,7 +2790,7 @@ test("a host request card names an absent NTRP instead of displaying NTRP 0.0", 
             },
           },
         ],
-        pendingHostRequestCount: 1,
+        needsActionCount: 1,
         upcoming: [],
       },
     });
@@ -3475,7 +3475,7 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
       groups: {
         history: [],
         needsAction: [],
-        pendingHostRequestCount: 0,
+        needsActionCount: 0,
         upcoming: [
           { ...base, canWithdraw: true, viewerParticipantStatus: "accepted" },
           { ...base, canWithdraw: true, sessionId: 8202, viewerParticipantStatus: "requested" },

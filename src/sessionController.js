@@ -226,7 +226,7 @@ export function groupMySessions(items = [], now = new Date()) {
   return {
     history,
     needsAction,
-    pendingHostRequestCount: needsAction.filter((entry) => entry.kind === "host-request").length,
+    needsActionCount: needsAction.length,
     upcoming,
   };
 }

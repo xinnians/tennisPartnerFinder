@@ -1312,7 +1312,7 @@ export function renderMySessionsPage(
   {
     courts = [],
     createdSessionId = null,
-    groups = { history: [], needsAction: [], pendingHostRequestCount: 0, upcoming: [] },
+    groups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     onAccept = () => {},
     onAcceptInvite = () => {},
     onBack = () => {},

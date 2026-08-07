@@ -556,7 +556,11 @@ test("My Sessions groups private lifecycle rows by the next safe action", () => 
 
   const groups = groupMySessions([acceptedGuest, staleOpenGuest, host, guestWaiting, declinedGuest, playedGuest], now);
 
-  assert.equal(groups.pendingHostRequestCount, 2, "only host-owned requested guests receive a badge count");
+  assert.equal(
+    groups.needsActionCount,
+    groups.needsAction.length,
+    "needsActionCount tracks the full needs-action queue (invite + guest-request + host-request), not just host requests"
+  );
   assert.deepEqual(
     groups.needsAction.map((entry) => [entry.kind, entry.session.sessionId, entry.participant?.participantId ?? null]),
     [
@@ -669,7 +673,8 @@ test("My Sessions hydrates host-only rosters for the badge and refreshes details
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
 
   assert.deepEqual(rosterCalls, [51]);
-  assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
+  const groupsAfterRosterHydrate = harness.controller.getMySessionGroups();
+  assert.equal(groupsAfterRosterHydrate.needsActionCount, groupsAfterRosterHydrate.needsAction.length);
 
   await harness.controller.refreshMySessions();
 
@@ -704,7 +709,8 @@ test("a host review uses an authorized roster request and refreshes My Sessions 
   await harness.controller.reviewMySessionParticipant(61, 72, "accepted");
 
   assert.deepEqual(calls, [[61, 72]]);
-  assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 0);
+  const groupsAfterAccept = harness.controller.getMySessionGroups();
+  assert.equal(groupsAfterAccept.needsActionCount, groupsAfterAccept.needsAction.length);
   assert.ok(harness.toasts.includes("已接受申請。"));
 });
 
@@ -926,7 +932,8 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
 
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
   await harness.controller.refreshMySessions();
-  assert.equal(harness.controller.getMySessionGroups().pendingHostRequestCount, 1);
+  const groupsAfterManualRefresh = harness.controller.getMySessionGroups();
+  assert.equal(groupsAfterManualRefresh.needsActionCount, groupsAfterManualRefresh.needsAction.length);
 
   rows = [];
   await harness.controller.refreshMySessions();
@@ -935,7 +942,8 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
 
   await harness.controller.setAuthState(null, null);
   assert.equal(harness.mySessionChanges.at(-1).authenticated, false, "sign-out publishes the anonymous My Sessions state");
-  assert.equal(harness.mySessionChanges.at(-1).groups.pendingHostRequestCount, 0);
+  const groupsAfterSignOut = harness.mySessionChanges.at(-1).groups;
+  assert.equal(groupsAfterSignOut.needsActionCount, groupsAfterSignOut.needsAction.length);
   assert.deepEqual(harness.mySessionChanges.at(-1).groups.upcoming, []);
 });
 
@@ -959,7 +967,7 @@ test("a failed roster read is visible as an error instead of a false zero-badge 
   const state = harness.controller.getMySessionState();
   assert.equal(state.status, "error");
   assert.match(state.error, /待審核申請暫時無法載入/);
-  assert.equal(state.groups.pendingHostRequestCount, 0);
+  assert.equal(state.groups.needsActionCount, state.groups.needsAction.length);
   assert.equal(harness.mySessionChanges.at(-1).status, "error");
 });
 
