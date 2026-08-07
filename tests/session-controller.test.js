@@ -2363,7 +2363,7 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   await fullHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(fullIntent.value(), null);
   assert.deepEqual(fullHarness.toasts, ["球局已額滿，已回到附近球局。"]);
-  assert.equal(fullHarness.renders.at(-1).expanded, true);
+  assert.equal(fullHarness.renders.at(-1).drawerState, "full");
   assert.equal(fullHarness.confirmations.length, 0);
 
   for (const [status, message] of [
@@ -2390,7 +2390,35 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   await unavailableHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(unavailableIntent.value(), null);
   assert.deepEqual(unavailableHarness.toasts, ["球局已取消、結束或不再開放，已回到附近球局。"]);
-  assert.equal(unavailableHarness.renders.at(-1).expanded, true);
+  assert.equal(unavailableHarness.renders.at(-1).drawerState, "full");
+});
+
+test("setDrawerState accepts the three-value enum, ignores illegal values, and setDrawerExpanded stays a compatible boolean wrapper", () => {
+  const harness = createHarness();
+  const { controller } = harness;
+
+  controller.setDrawerState("half");
+  assert.equal(harness.renders.at(-1).drawerState, "half");
+
+  controller.setDrawerState("full");
+  assert.equal(harness.renders.at(-1).drawerState, "full");
+
+  controller.setDrawerState("collapsed");
+  assert.equal(harness.renders.at(-1).drawerState, "collapsed");
+
+  const rendersBeforeIllegal = harness.renders.length;
+  controller.setDrawerState("expanded");
+  controller.setDrawerState(true);
+  controller.setDrawerState(null);
+  controller.setDrawerState(undefined);
+  assert.equal(harness.renders.length, rendersBeforeIllegal, "illegal values are ignored and do not publish");
+  assert.equal(harness.renders.at(-1).drawerState, "collapsed", "state is unchanged by illegal values");
+
+  controller.setDrawerExpanded(true);
+  assert.equal(harness.renders.at(-1).drawerState, "full", "setDrawerExpanded(true) maps to full");
+
+  controller.setDrawerExpanded(false);
+  assert.equal(harness.renders.at(-1).drawerState, "collapsed", "setDrawerExpanded(false) maps to collapsed");
 });
 
 test("closing login or a recovered join confirmation clears only its matching intent", async () => {

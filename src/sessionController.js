@@ -332,7 +332,7 @@ export function createSessionController({
     userLocation: null,
     locationBlocked: false,
     locationMessage: "",
-    drawerExpanded: false,
+    drawerState: "collapsed",
     mapUnavailable: false,
     discoveryStatus: "idle",
     discoveryMessage: "",
@@ -425,7 +425,7 @@ export function createSessionController({
     const sessions = visibleSessions();
     render({
       sessions,
-      expanded: state.drawerExpanded,
+      drawerState: state.drawerState,
       hasUserLocation: Boolean(state.userLocation),
       filters: state.filters,
       courts: state.courts,
@@ -930,9 +930,14 @@ export function createSessionController({
     publish();
   }
 
-  function setDrawerExpanded(expanded) {
-    state.drawerExpanded = Boolean(expanded);
+  function setDrawerState(value) {
+    if (value !== "collapsed" && value !== "half" && value !== "full") return;
+    state.drawerState = value;
     publish();
+  }
+
+  function setDrawerExpanded(expanded) {
+    setDrawerState(expanded ? "full" : "collapsed");
   }
 
   function setFilter(key, value) {
@@ -950,7 +955,7 @@ export function createSessionController({
 
   function setMapUnavailable() {
     state.mapUnavailable = true;
-    state.drawerExpanded = true;
+    state.drawerState = "full";
     publish();
   }
 
@@ -1450,7 +1455,7 @@ export function createSessionController({
     const options = { reason: "stale-intent", restoreFocus: false };
     closeActiveJoinConfirmation(undefined, options);
     closeActiveDetail(undefined, options);
-    state.drawerExpanded = true;
+    state.drawerState = "full";
     publish();
     toast(message);
   }
@@ -2315,6 +2320,7 @@ export function createSessionController({
     setAuthState,
     setCourts,
     setDrawerExpanded,
+    setDrawerState,
     setFilter,
     setMapUnavailable,
     togglePlayerVisibility,
