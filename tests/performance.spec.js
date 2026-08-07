@@ -65,6 +65,7 @@ test("slow discovery keeps the map shell, base courts, and status usable before 
   await expect(loadingStatus).toHaveAttribute("aria-live", "polite");
   await expect(loadingStatus).toContainText("正在載入球局資料");
   await drawerToggle.click();
+  await page.getByTestId("drawer-expand").click();
   const loadingDrawer = page.locator("#nearby-sessions-list");
   await expect(loadingDrawer).toHaveAttribute("role", "dialog");
   await expect(loadingDrawer.getByRole("status")).toContainText("正在載入球局資料");
@@ -146,7 +147,7 @@ test("an in-context drawer retry replaces the semantic error state with results"
   await expect(mapStatus).toHaveAttribute("role", "status");
   await expect(mapStatus).toContainText("球局資料暫時無法載入");
   await page.locator("#nearby-sessions-toggle").click();
-  const drawer = page.getByRole("dialog", { name: "附近球局" });
+  const drawer = page.getByRole("region", { name: "附近球局" });
   await expect(drawer.getByRole("alert")).toContainText("球局資料暫時無法載入");
   const retry = drawer.locator("#drawer-map-retry");
   await retry.click();
@@ -176,6 +177,8 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   const drawerToggle = page.locator("#nearby-sessions-toggle");
   await drawerToggle.focus();
   await drawerToggle.press("Enter");
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await page.getByTestId("drawer-expand").click();
   const drawer = page.getByRole("dialog", { name: "附近球局" });
   const drawerClose = drawer.getByRole("button", { name: "關閉附近球局" });
   const lastDrawerCard = drawer.locator("[data-testid='session-card']").last();
@@ -286,6 +289,7 @@ test("a delayed discovery refresh keeps drawer focus on a durable target", async
   const drawer = page.getByRole("dialog", { name: "附近球局" });
   await expect(mapStatus).toBeHidden();
   await page.locator("#nearby-sessions-toggle").click();
+  await page.getByTestId("drawer-expand").click();
   const card = drawer.locator("[data-testid='session-card']").first();
   await card.focus();
 

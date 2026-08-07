@@ -32,7 +32,14 @@ function resolveRestoreTarget(target) {
   // An authoritative refresh can remove a public card while its detail and
   // confirmation are still open. Return focus to the persistent drawer
   // surface so closing those layers never leaves a keyboard user at body.
-  return scope.querySelector("[data-nearby-dialog] [data-nearby-close]");
+  // 批 C2-2:full 才有「×」關閉鈕(data-nearby-close 只在 [data-nearby-dialog] 裡);
+  // half 沒有 dialog 屬性,退而求其次用「收合」鈕,兩者都沒有才退到摘要條本身——
+  // 不能只認 full 專屬選擇器,否則半開時這裡永遠找不到東西,焦點就掉回 body。
+  return (
+    scope.querySelector("[data-nearby-dialog] [data-nearby-close]") ??
+    scope.querySelector('[data-testid="drawer-collapse"]') ??
+    scope.querySelector("#nearby-sessions-toggle")
+  );
 }
 
 function mountSurface(root, { id, label, className = "", html, onClose, onMount } = {}) {

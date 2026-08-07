@@ -215,8 +215,25 @@
 #nearby-sessions-summary { overflow-wrap: anywhere; font-size: var(--text-md); font-weight: 700; }
 .nearby-sessions__summary-detail { grid-column: 1 / 2; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.45; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-.nearby-sessions__list { max-height: min(64dvh, 520px); padding: 0 var(--space-3) var(--space-4); overflow-y: auto; border-top: 1px solid var(--color-line); }
+.nearby-sessions__list {
+  max-height: min(64dvh, 520px);
+  padding: 0 var(--space-3) var(--space-4);
+  overflow-y: auto;
+  border-top: 1px solid var(--color-line);
+  /* 批 C2-2:全檔第一個 transition。半開↔全開/收合切換時的高度變化改用漸變,而不是
+     hidden 屬性那種瞬間切換;reduced-motion 使用者關閉在下方。 */
+  transition: max-height 220ms ease;
+}
+/* 半開:約視窗 45%,露出清單頭＋約 1.5-2 張卡,地圖仍可互動(不套用 dialog/isolation)。 */
+.nearby-sessions__list[data-drawer-state="half"] { max-height: 45dvh; }
 .nearby-sessions__list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
+.nearby-sessions__half-actions { display: flex; flex: 0 0 auto; gap: var(--space-2); }
+.nearby-sessions__half-actions .session-secondary { min-width: 44px; min-height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nearby-sessions__list { transition: none; }
+}
+
 .surface__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
 .nearby-sessions__list-head p { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
 .surface__eyebrow { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }

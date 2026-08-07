@@ -367,7 +367,11 @@ test("a stale Join rejection returns keyboard focus from closing surfaces to the
   await expect(page.locator("#session-sheet")).toBeHidden();
   await expect(page.locator(`[data-session-id="${sessionId}"]`)).toHaveCount(0);
   await expect(page.locator("#nearby-sessions-list")).toBeVisible();
-  await expect(page.locator("#nearby-sessions-list [data-nearby-close]")).toBeFocused();
+  // 這條路徑不會讓抽屜變 full(不是 closeForStaleIntent 的 auto-expand,是
+  // requestJoin 的 SESSION_EXPIRED 分支,不碰 drawerState),點擊摘要條後停在
+  // half——回復目標是 half 的「收合」鈕,不是 full 專屬的「×」。
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(page.locator("#nearby-sessions-list [data-testid='drawer-collapse']")).toBeFocused();
 });
 
 test("a stale same-account profile read cannot overwrite a saved profile or its recovered Join confirmation", async ({ page }) => {

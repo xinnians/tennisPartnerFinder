@@ -146,6 +146,11 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
 
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("role", "region");
+  await expect(page.locator("#nearby-sessions-backdrop")).toBeHidden();
+  await page.getByTestId("drawer-expand").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "full");
   await expect(page.locator("#nearby-sessions-backdrop")).toBeVisible();
   await expect(page.locator(".app-header")).toHaveJSProperty("inert", true);
   await expect(page.locator("#map")).toHaveJSProperty("inert", true);
@@ -391,6 +396,7 @@ test("My Sessions has a bottom navigation destination and stays isolated beneath
   await page.getByTestId("map-tab").click();
   await expect(page.locator("#tab-map")).toBeVisible();
   await page.locator("#nearby-sessions-toggle").click();
+  await page.getByTestId("drawer-expand").click();
   await expect(page.locator(".bottom-navigation")).toHaveJSProperty("inert", true);
   await page.keyboard.press("Escape");
   await expect(page.locator(".bottom-navigation")).toHaveJSProperty("inert", false);
@@ -439,6 +445,7 @@ test("closing the nearby drawer cannot steal focus from a newly selected base-co
   await page.goto("/");
 
   await page.locator("#nearby-sessions-toggle").click();
+  await page.getByTestId("drawer-expand").click();
   await expect(page.locator("[data-nearby-close]")).toBeFocused();
   await page.keyboard.press("Escape");
 
@@ -1024,7 +1031,7 @@ test("candidate session cards and details resolve every court until Boolean deci
       const { openSessionSheet, renderNearbySessionsDrawer } = await import("/src/sessionViews.js");
       renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
         courts: catalogue,
-        expanded: true,
+        drawerState: "full",
         sessions: [session],
       });
       openSessionSheet(session, { action: { label: "申請加入" }, courts: catalogue });

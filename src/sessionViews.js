@@ -583,6 +583,14 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
   };
 }
 
+// 三段抽屜 half/full 共用的「目前開著的清單面板」查詢：collapsed 時 section 帶
+// hidden，回傳 null;half/full 都用同一個 #nearby-sessions-list 節點,只差 role/dialog
+// 屬性,不能再用 [data-nearby-dialog](只有 full 才有)當作「有沒有開」的唯一判準。
+function activeDrawerPanel(root) {
+  const panel = root.querySelector("#nearby-sessions-list");
+  return panel && !panel.hidden ? panel : null;
+}
+
 function rememberFocusedSessionCard(root) {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !root.contains(active)) return;
@@ -590,9 +598,11 @@ function rememberFocusedSessionCard(root) {
     setDrawerFocusIntent(root, DRAWER_TOGGLE_FOCUS);
     return;
   }
-  if (active.matches("[data-nearby-close]")) {
+  if (active.matches("[data-nearby-close], [data-testid='drawer-collapse']")) {
     // The loading fallback is only a temporary reachable target. Preserve the
     // original card/action intent through the next authoritative rerender.
+    // half 的「收合」鈕是 full「×」關閉鈕的對應物,兩者都收斂回同一個
+    // DRAWER_CLOSE_FOCUS 意圖。
     if (!drawerLoadingFocusFallbacks.has(root)) setDrawerFocusIntent(root, DRAWER_CLOSE_FOCUS);
     return;
   }
@@ -615,7 +625,7 @@ function clearDrawerFocusIntent(root) {
 }
 
 function drawerRecoveryTarget(root) {
-  const panel = root.querySelector("[data-nearby-dialog]");
+  const panel = activeDrawerPanel(root);
   if (!panel) return null;
   return (
     panel.querySelector("#drawer-map-retry") ??
@@ -628,10 +638,16 @@ function drawerRecoveryTarget(root) {
 }
 
 function focusDrawerLoadingFallback(root) {
-  const close = root.querySelector("[data-nearby-dialog] [data-nearby-close]");
-  if (!close) return;
+  const panel = activeDrawerPanel(root);
+  // full 有「×」關閉鈕;half 沒有,退而求其次用「收合」鈕;兩者都沒有(理論上不會發生,
+  // 面板都開著卻連 toggle 都找不到)才退到抽屜自己的摘要條。
+  const target =
+    panel?.querySelector("[data-nearby-close]") ??
+    panel?.querySelector("[data-testid='drawer-collapse']") ??
+    root.querySelector("#nearby-sessions-toggle");
+  if (!target) return;
   drawerLoadingFocusFallbacks.add(root);
-  close.focus({ preventScroll: true });
+  target.focus({ preventScroll: true });
 }
 
 function restoreFocusedSessionCard(root) {
@@ -654,14 +670,16 @@ function restoreFocusedSessionCard(root) {
       }
       return;
     }
-    const panel = root.querySelector("[data-nearby-dialog]");
+    const panel = activeDrawerPanel(root);
     if (!panel) {
       clearDrawerFocusIntent(root);
       return;
     }
     if (focusIntent === DRAWER_CLOSE_FOCUS) {
       clearDrawerFocusIntent(root);
-      panel.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
+      (panel.querySelector("[data-nearby-close]") ?? panel.querySelector("[data-testid='drawer-collapse']"))?.focus({
+        preventScroll: true,
+      });
       return;
     }
     const actionId = focusIntent.startsWith(DRAWER_ACTION_FOCUS_PREFIX)
@@ -1471,26 +1489,31 @@ function wireSessionCards(root, onOpenSession) {
   });
 }
 
-function setDrawerModal(root, expanded) {
+// full 才是 modal:push isolation、顯示 backdrop。half 完全不呼叫這裡的 isModal=true
+// 分支——地圖、header、bottom nav 在半開時維持可互動。
+function setDrawerModal(root, isModal) {
   const backdrop = document.getElementById("nearby-sessions-backdrop");
   const release = drawerIsolations.get(root);
   const toggle = root.querySelector("#nearby-sessions-toggle");
-  if (expanded && !release) drawerIsolations.set(root, pushDrawerIsolation(toggle));
-  if (!expanded && release) {
+  if (isModal && !release) drawerIsolations.set(root, pushDrawerIsolation(toggle));
+  if (!isModal && release) {
     release();
     drawerIsolations.delete(root);
   }
-  if (backdrop) backdrop.hidden = !expanded;
+  if (backdrop) backdrop.hidden = !isModal;
 }
 
-function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle }) {
+function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen = false, onToggle }) {
   drawerBindings.get(root)?.abort();
   const bindings = new AbortController();
   drawerBindings.set(root, bindings);
   const { signal } = bindings;
   const panel = root.querySelector("[data-nearby-dialog]");
-  const close = () => {
-    onToggle(false);
+  // 收合的共用出口:full 的「×」/backdrop/Escape 與 half 的「收合」鈕/Escape/下滑
+  // 都收斂到同一個 collapse(),回 collapsed 後把焦點還給摘要條——full 原本就這樣做,
+  // half 只是新增的第二個入口,焦點還原邏輯沒有理由不同。
+  const collapse = () => {
+    onToggle("collapsed");
     requestAnimationFrame(() => {
       const toggle = root.querySelector("#nearby-sessions-toggle");
       const active = document.activeElement;
@@ -1504,15 +1527,15 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
     });
   };
 
-  if (expanded && panel) {
-    panel.querySelector("[data-nearby-close]")?.addEventListener("click", close, { signal });
-    document.getElementById("nearby-sessions-backdrop")?.addEventListener("click", close, { signal });
+  if (drawerState === "full" && panel) {
+    panel.querySelector("[data-nearby-close]")?.addEventListener("click", collapse, { signal });
+    document.getElementById("nearby-sessions-backdrop")?.addEventListener("click", collapse, { signal });
     panel.addEventListener(
       "keydown",
       (event) => {
         if (event.key === "Escape") {
           event.preventDefault();
-          close();
+          collapse();
           return;
         }
         if (event.key !== "Tab") return;
@@ -1554,6 +1577,26 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
     }
   }
 
+  if (drawerState === "half") {
+    root.querySelector('[data-testid="drawer-collapse"]')?.addEventListener("click", collapse, { signal });
+    // half 不是 dialog,沒有 focus trap 可以攔 Escape;監聽要掛在 document 上才能不管
+    // 焦點在哪都收得到。掛在 document 上就必須自己防兩件事:(1) 上層還有 sheet/dialog
+    // 開著時不能搶著收合——sheets.js 的 Escape handler 用 capture+stopPropagation,
+    // 正常情況這裡根本收不到事件,但仍加一層明確檢查,不依賴事件相位這種隱性順序；
+    // (2) 只在目前確實是 half 時動作,避免殘留 binding 誤觸發(靠每次重繪都
+    // abort()+重綁,天然滿足)。
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Escape") return;
+        if (document.querySelector("#sheet-root .surface, #modal-root .surface")) return;
+        event.preventDefault();
+        collapse();
+      },
+      { signal }
+    );
+  }
+
   let pointerStart = null;
   root.addEventListener(
     "pointerdown",
@@ -1565,20 +1608,31 @@ function wireDrawerInteractions(root, { expanded, focusOnOpen = false, onToggle 
   root.addEventListener(
     "pointerup",
     (event) => {
-      if (pointerStart != null && pointerStart - event.clientY > 44) onToggle(true);
+      if (pointerStart == null) return;
+      const delta = pointerStart - event.clientY;
       pointerStart = null;
+      // 上滑 collapsed→half→full、下滑 full→half→collapsed:一次手勢只走一段,
+      // 閾值沿用既有 44px。方向與目前段位都取自這次 render 綁定當下的 drawerState
+      // closure——手勢發生在兩次 render 之間,和舊碼「每次 render 重綁」的模式一致。
+      if (delta > 44) {
+        if (drawerState === "collapsed") onToggle("half");
+        else if (drawerState === "half") onToggle("full");
+      } else if (delta < -44) {
+        if (drawerState === "full") onToggle("half");
+        else if (drawerState === "half") collapse();
+      }
     },
     { signal }
   );
 }
 
-/** Render the map-bound session summary and its expandable, keyboard-safe drawer. */
+/** Render the map-bound session summary and its collapsed/half/full drawer. */
 export function renderNearbySessionsDrawer(
   root,
   {
     sessions = [],
     courts = [],
-    expanded = false,
+    drawerState = "collapsed",
     hasUserLocation = false,
     mapStatus = { kind: "idle", message: "" },
     filters = null,
@@ -1592,11 +1646,17 @@ export function renderNearbySessionsDrawer(
     onSubscribe = () => {},
   } = {}
 ) {
-  // A render replaces the toggle node. Release its old inert state first, then
-  // apply a fresh layer to the newly rendered node below.
-  const wasExpanded = root.querySelector("#nearby-sessions-toggle")?.getAttribute("aria-expanded") === "true";
+  // A render replaces the toggle/list nodes. Release any previous full
+  // isolation first, then apply a fresh layer (if still full) below.
+  // wasState 讀前一次渲染留在 DOM 上的 data-drawer-state,取代舊版靠
+  // aria-expanded 判斷「剛才是不是開著」——boolean 分不出 half/full,三段一定要
+  // 從專屬屬性讀,才能正確判斷「這次是不是剛進 full」。
+  const wasState = root.querySelector("#nearby-sessions-list")?.dataset.drawerState ?? "collapsed";
   rememberFocusedSessionCard(root);
   setDrawerModal(root, false);
+  const isHalf = drawerState === "half";
+  const isFull = drawerState === "full";
+  const isOpen = isHalf || isFull;
   const count = sessions.length;
   const summary = `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
   const nearestVenue = sessions[0] ? sessionVenuePresentation(sessions[0], courts) : null;
@@ -1606,7 +1666,7 @@ export function renderNearbySessionsDrawer(
       ? "移動地圖或調整篩選條件，查看可加入的球局。"
       : "找台北市的公開網球球局，看到合適的直接申請加入。";
   const activeDrawerStatus =
-    expanded && mapStatus?.kind === "warning" && mapStatus?.message
+    isOpen && mapStatus?.kind === "warning" && mapStatus?.message
       ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(mapStatus.message)}</p></div>`
       : "";
   const drawerContent =
@@ -1628,19 +1688,35 @@ export function renderNearbySessionsDrawer(
               filtersActive: !isDefaultFilters(filters),
             });
 
-  root.innerHTML = `
-    <button type="button" id="nearby-sessions-toggle" class="nearby-sessions__toggle" aria-expanded="${expanded}" aria-controls="nearby-sessions-list">
-      <span id="nearby-sessions-summary">${esc(summary)}</span>
-      <span class="nearby-sessions__summary-detail">${esc(nearest)}</span>
-      <span aria-hidden="true">${expanded ? "⌄" : "⌃"}</span>
-    </button>
-    <section id="nearby-sessions-list" class="nearby-sessions__list"${expanded ? "" : " hidden"} ${
-      expanded ? 'role="dialog" aria-modal="true" aria-label="附近球局" tabindex="-1" data-nearby-dialog' : ""
-    }>
-      <div class="nearby-sessions__list-head">
+  // full 的清單頭原樣保留單一「×」關閉鈕;half 換成「展開」/「收合」兩顆 44px 控制鈕
+  // (無手勢環境的鍵盤/螢幕閱讀器入口),不是在原本的×旁邊加,是整段換掉。
+  const listHead = isHalf
+    ? `<div class="nearby-sessions__list-head">
+        <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
+        <div class="nearby-sessions__half-actions">
+          <button type="button" class="session-secondary" data-testid="drawer-expand">展開</button>
+          <button type="button" class="session-secondary" data-testid="drawer-collapse">收合</button>
+        </div>
+      </div>`
+    : `<div class="nearby-sessions__list-head">
         <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
         <button type="button" class="surface__close" data-nearby-close aria-label="關閉附近球局">×</button>
-      </div>
+      </div>`;
+
+  root.innerHTML = `
+    <button type="button" id="nearby-sessions-toggle" class="nearby-sessions__toggle" aria-expanded="${isOpen}" aria-controls="nearby-sessions-list">
+      <span id="nearby-sessions-summary">${esc(summary)}</span>
+      <span class="nearby-sessions__summary-detail">${esc(nearest)}</span>
+      <span aria-hidden="true">${isOpen ? "⌄" : "⌃"}</span>
+    </button>
+    <section id="nearby-sessions-list" class="nearby-sessions__list"${isOpen ? "" : " hidden"} data-drawer-state="${drawerState}" ${
+      isFull
+        ? 'role="dialog" aria-modal="true" aria-label="附近球局" tabindex="-1" data-nearby-dialog'
+        : isHalf
+          ? 'role="region" aria-label="附近球局"'
+          : ""
+    }>
+      ${listHead}
       ${activeDrawerStatus}
       <div class="nearby-sessions__cards">
         ${drawerContent}
@@ -1648,15 +1724,19 @@ export function renderNearbySessionsDrawer(
     </section>`;
 
   const toggle = root.querySelector("#nearby-sessions-toggle");
-  toggle.addEventListener("click", () => onToggle(!expanded));
+  // collapsed 時點摘要條進半開;half/full 時點摘要條(full 下其實已被 inert 擋掉
+  // 點擊)回 collapsed——只有「進半開」是規格明訂的行為,其餘沿用舊版「再點一次
+  // 收起」的直覺,不額外分支。
+  toggle.addEventListener("click", () => onToggle(drawerState === "collapsed" ? "half" : "collapsed"));
   wireSessionCards(root, onOpenSession);
   root.querySelector("#discovery-reset")?.addEventListener("click", onReset);
   root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
   root.querySelector("#discovery-subscribe")?.addEventListener("click", onSubscribe);
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
   root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
-  setDrawerModal(root, expanded);
-  wireDrawerInteractions(root, { expanded, focusOnOpen: expanded && !wasExpanded, onToggle });
+  root.querySelector('[data-testid="drawer-expand"]')?.addEventListener("click", () => onToggle("full"));
+  setDrawerModal(root, isFull);
+  wireDrawerInteractions(root, { drawerState, focusOnOpen: isFull && wasState !== "full", onToggle });
   restoreFocusedSessionCard(root);
 }
 
