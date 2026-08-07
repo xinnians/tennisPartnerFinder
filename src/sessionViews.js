@@ -2294,6 +2294,35 @@ function selectedCourtValues(select, fallback = new Set()) {
   return selected.size ? selected : new Set(fallback);
 }
 
+/** Checkbox counterpart of selectedCourtValues: reads any live user selection before a re-render replaces it. */
+function selectedCourtCheckboxValues(container, fallback = new Set()) {
+  const selected = new Set(
+    [...(container?.querySelectorAll("input[name='profile-courts']:checked") ?? [])].map((input) => input.value)
+  );
+  return selected.size ? selected : new Set(fallback);
+}
+
+/** Checkbox counterpart of updateCourtSelect for the profile「常打球場」picker (cf. #notification-court-picker template). */
+function updateCourtCheckboxes(container, status, courts, { ready = true, selected = new Set() } = {}) {
+  if (!container) return;
+  const nextCourts = taipeiCourts(courts);
+  const selectedValues = selected instanceof Set ? selected : new Set(selected ?? []);
+  container.innerHTML =
+    ready && nextCourts.length
+      ? nextCourts
+          .map((court) => {
+            const isChecked = selectedValues.has(String(court.id)) || selectedValues.has(court.name);
+            return `<label><input type="checkbox" name="profile-courts" value="${esc(court.id)}" data-testid="profile-court-${esc(
+              court.id
+            )}"${isChecked ? " checked" : ""}> <span>${esc(court.name)} · ${esc(court.district || "台北市")}</span></label>`;
+          })
+          .join("")
+      : "";
+  if (!status) return;
+  status.hidden = ready && nextCourts.length > 0;
+  status.textContent = !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。";
+}
+
 /** Replace only court options so delayed data never discards the user's draft. */
 function updateCourtSelect(select, status, courts, { ready = true, selected = new Set(), multiple = false } = {}) {
   if (!select) return;
@@ -2319,10 +2348,8 @@ function selectedValues(form, name) {
 }
 
 function profileFormValue(form, fallbackProfile = {}, fallbackCourts = new Set()) {
-  const courtSelect = form.querySelector("[name='profile-courts']");
-  const courts = courtSelect?.options.length
-    ? new Set([...courtSelect.querySelectorAll("option:checked")].map((option) => option.value))
-    : new Set(fallbackCourts);
+  const courtInputs = form.querySelectorAll("[name='profile-courts']");
+  const courts = courtInputs.length ? selectedValues(form, "profile-courts") : new Set(fallbackCourts);
   const nicknameInput = form.querySelector("[name='profile-nickname']");
   const ntrpInput = form.querySelector("[name='profile-ntrp']");
   const ntrpValue = ntrpInput?.value.trim();
@@ -2431,7 +2458,7 @@ export function openProfileCompletionSheet({
         ${
           compactCreateGate
             ? ""
-            : `<fieldset class="form-fieldset"><legend>常打球場</legend><select name="profile-courts" multiple size="4" aria-label="常打球場" disabled></select><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
+            : `<fieldset class="form-fieldset"><legend>常打球場</legend><div class="option-grid option-grid--stacked" data-profile-courts data-testid="profile-courts-picker"></div><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
         <fieldset class="form-fieldset"><legend>常打類型</legend><div class="option-grid">${PROFILE_PLAY_TYPES.map(
           (type) =>
             `<label><input type="checkbox" name="profile-types" value="${esc(type)}"${selectedTypes.has(type) ? " checked" : ""} /> ${esc(
@@ -2453,13 +2480,12 @@ export function openProfileCompletionSheet({
   wireAvatarFallbacks(mounted.root);
   const error = mounted.root.querySelector("[data-profile-error]");
   const submit = mounted.root.querySelector("[data-testid='profile-save']");
-  const courtSelect = mounted.root.querySelector("[name='profile-courts']");
+  const courtsContainer = mounted.root.querySelector("[data-profile-courts]");
   const courtsStatus = mounted.root.querySelector("[data-profile-courts-status]");
   const setCourts = (nextCourts, { ready = true } = {}) => {
-    updateCourtSelect(courtSelect, courtsStatus, nextCourts, {
-      multiple: true,
+    updateCourtCheckboxes(courtsContainer, courtsStatus, nextCourts, {
       ready,
-      selected: selectedCourtValues(courtSelect, selectedCourts),
+      selected: selectedCourtCheckboxValues(courtsContainer, selectedCourts),
     });
   };
   setCourts(courts, { ready: courtsReady });

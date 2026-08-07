@@ -287,7 +287,7 @@ test("an incomplete signed-in profile saves atomically and returns to the Join c
   await expect(profile).toBeVisible();
   await expect(profile).toContainText(`完成後將回到：${published.context.host.courts[0]}・`);
   await profile.getByLabel("公開暱稱").fill(published.context.guest.nickname);
-  await profile.getByLabel("常打球場").selectOption(String(published.courtId));
+  await profile.getByTestId(`profile-court-${published.courtId}`).check();
   await profile.getByLabel("單打", { exact: true }).check();
   await profile.getByTestId("profile-save").click();
 
@@ -413,7 +413,7 @@ test("a stale same-account profile read cannot overwrite a saved profile or its 
   await staleReadFetched;
 
   await profile.getByLabel("公開暱稱").fill(published.context.guest.nickname);
-  await profile.getByLabel("常打球場").selectOption(String(published.courtId));
+  await profile.getByTestId(`profile-court-${published.courtId}`).check();
   await profile.getByLabel("單打", { exact: true }).check();
   await profile.getByTestId("profile-save").click();
   await expect(page.locator("#join-session-confirmation")).toBeVisible();

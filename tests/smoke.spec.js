@@ -2815,7 +2815,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await expect(createProfile).toContainText("要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。");
   await expect(createProfile.getByLabel("公開暱稱")).toBeVisible();
   await expect(createProfile.getByLabel(/NTRP 程度/)).toBeVisible();
-  await expect(createProfile.getByLabel("常打球場")).toHaveCount(0);
+  await expect(createProfile.getByRole("group", { name: "常打球場" })).toHaveCount(0);
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
@@ -3112,8 +3112,10 @@ test("delayed Taipei court options hydrate open profile and create forms without
     });
   });
   const profile = page.locator("#profile-completion-sheet");
-  const profileCourts = profile.getByLabel("常打球場");
-  await expect(profileCourts).toBeDisabled();
+  const profileCourts = profile.locator("[data-profile-courts]");
+  const profileCourtsStatus = profile.locator("[data-profile-courts-status]");
+  await expect(profileCourts.locator("input[type=checkbox]")).toHaveCount(0);
+  await expect(profileCourtsStatus).toContainText("正在載入台北市球場…");
   await profile.getByLabel("公開暱稱").fill("草稿球友");
   await profile.getByLabel("單打", { exact: true }).check();
   await page.evaluate(() =>
@@ -3125,11 +3127,11 @@ test("delayed Taipei court options hydrate open profile and create forms without
       { ready: true }
     )
   );
-  await expect(profileCourts).toBeEnabled();
-  await expect(profileCourts.locator("option")).toHaveText(["示範球場"]);
+  await expect(profileCourts.locator("input[type=checkbox]")).toHaveCount(1);
+  await expect(profileCourts).toContainText("示範球場");
   await expect(profile.getByLabel("公開暱稱")).toHaveValue("草稿球友");
   await expect(profile.getByLabel("單打", { exact: true })).toBeChecked();
-  await profileCourts.selectOption("8");
+  await profile.getByTestId("profile-court-8").check();
   await page.evaluate(() =>
     window.__delayedProfileSheet.setCourts(
       [
@@ -3139,7 +3141,8 @@ test("delayed Taipei court options hydrate open profile and create forms without
       { ready: true }
     )
   );
-  await expect(profileCourts.locator("option:checked")).toHaveText(["示範球場"]);
+  await expect(profile.getByTestId("profile-court-8")).toBeChecked();
+  await expect(profile.getByTestId("profile-court-10")).not.toBeChecked();
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
@@ -3214,10 +3217,42 @@ test("a mock profile save preserves existing courts while the catalogue has no o
   });
 
   const profile = page.locator("#profile-completion-sheet");
-  await expect(profile.getByLabel("常打球場")).toBeDisabled();
+  await expect(profile.locator("[data-profile-courts] input")).toHaveCount(0);
   await profile.getByTestId("profile-save").click();
   await expect(profile).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__mockSavedProfileCourts)).toEqual(["既有台北球場"]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("profile sheet saves selected home courts via checkboxes", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    window.__savedProfileCourts = null;
+    openProfileCompletionSheet({
+      courts: [
+        { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+        { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+        { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+      ],
+      courtsReady: true,
+      onSave: async (draft) => {
+        window.__savedProfileCourts = [...draft.courts].sort();
+        return draft;
+      },
+      profile: { courts: new Set(), nick: "球場球友", ntrp: null, slots: new Set(), types: new Set() },
+    });
+  });
+
+  const profile = page.locator("#profile-completion-sheet");
+  await profile.getByTestId("profile-court-8").check();
+  await profile.getByTestId("profile-court-9").check();
+  await profile.getByTestId("profile-save").click();
+  await expect(profile).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__savedProfileCourts)).toEqual(["8", "9"]);
   expect(runtimeErrors).toEqual([]);
 });
 
