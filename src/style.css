@@ -1,7 +1,10 @@
 :root {
   color: var(--color-text-primary);
   background: var(--color-surface-page);
-  font-family: "Noto Sans TC", system-ui, sans-serif;
+  /* 批 B-8:改引 --font-body(原本是與 token 值幾乎重複的字面 "Noto Sans TC" 堆疊,
+     token 定義後從未被引用);token 已在 index.html 載入 Noto Sans TC 400/500/700,
+     故拿掉 system-ui 後備風險低。 */
+  font-family: var(--font-body);
   font-synthesis: none;
 }
 

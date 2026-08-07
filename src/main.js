@@ -469,7 +469,6 @@ function renderDiscovery(view) {
     mapStatus: view.mapStatus,
     filters: view.filters,
     authenticated: Boolean(authSession),
-    mapStatusKind: view.mapStatus?.kind,
     onToggle: controller.setDrawerExpanded,
     onOpenSession: controller.openSession,
     onReset: controller.resetFilters,

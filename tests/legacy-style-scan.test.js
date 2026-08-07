@@ -16,10 +16,9 @@ const SCAN_PATHS = [...srcFiles, "index.html"];
 const FILES = SCAN_PATHS.map((path) => [path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8")]);
 
 // 計分板換皮(批 A)後不可回流的舊視覺常數;新增舊值前先讀 spec 2026-08-07。
-// BANNED 清單刻意不擴充 rgba 樣式:批 B 才會清完地圖漸層 #dfeefa、backdrop rgba(11,28,50)、
-// .player-layer-status 舊 rgba 等殘值;掃描面已擴大,但門檻值清單要等批 B 清完殘值後才加,
-// 現在加會讓這批殘值提前判紅,誤傷尚未排入本波 scope 的工作。
-const BANNED = ["#d7f22a", "#2465bd", "#142c4b", "#eef4fb", "#64758b", "#d6e1ee", "Baloo"];
+// 批 B-8 清完地圖漸層 #dfeefa、backdrop rgba(11,28,50)、.player-layer-status 舊 rgba(20,44,75)
+// 殘值後,將這兩組 rgba 數字家族補進封條,防止舊 navy 基底(rgb(11,28,50)/rgb(20,44,75))回流。
+const BANNED = ["#d7f22a", "#2465bd", "#142c4b", "#eef4fb", "#64758b", "#d6e1ee", "Baloo", "20, 44, 75", "11, 28, 50"];
 
 test("舊視覺常數不再出現於任何樣式來源", () => {
   // 下限抓 src/ 目前 22 個 .css/.js 檔 + index.html = 23 的保守值,

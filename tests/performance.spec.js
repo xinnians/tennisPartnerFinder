@@ -375,3 +375,22 @@ test("a stale opening focus callback cannot steal focus after an immediate drawe
   await expect(nextCard).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });
+
+test("a 667px tall viewport never leaves the document scrollable past its own height", async ({ page }) => {
+  // 批 B-8(B7):.map-page 在窄視窗曾固定 min-height:620px,矮於 620px 的視窗(如 iPhone SE
+  // 390×667)高度不夠時仍撐出這個底線,把 document 撐高到超出可視區,產生垂直捲動。
+  // min-height 改成 min(620px, calc(100dvh - 60px)) 後,高度應貼齊視窗而不外溢。
+  test.skip(isLocalHarness, "This is a deterministic layout check independent of the data source.");
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 667 });
+  await installFakeMaps(page);
+  await page.goto("/");
+  await expect(page.getByRole("region", { name: "台北市球局地圖" })).toBeVisible();
+
+  const overflow = await page.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    innerHeight: window.innerHeight,
+  }));
+  expect(overflow.scrollHeight).toBeLessThanOrEqual(overflow.innerHeight + 1);
+  expect(runtimeErrors).toEqual([]);
+});

@@ -1583,7 +1583,6 @@ export function renderNearbySessionsDrawer(
     mapStatus = { kind: "idle", message: "" },
     filters = null,
     authenticated = false,
-    mapStatusKind = "idle",
     onToggle = () => {},
     onOpenSession = () => {},
     onReset = () => {},
