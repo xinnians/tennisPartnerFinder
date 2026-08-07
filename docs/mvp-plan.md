@@ -260,6 +260,41 @@ hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA
 
 本計畫不授權自動 deployment、hosted DB reset、環境變數寫入、migration push 或社群發文。
 
+## Hosted migration 執行紀錄（2026-08-07：訂閱上限＋信任數字）
+
+`202608050001_court_subscription_limit` 與 `202608060001_trust_counts` 的 hosted 狀態。
+備份與 preflight 留存於 `~/tennisPartnerFinder-backups/20260807-110130/`（`preflight.md` 含完整表格）。
+
+**補記**：`202608050001`（球場訂閱上限改為「當下台北市 active 球場總數」）先前已套用至 hosted
+但未在本頁留下紀錄；2026-08-07 的 `migration list` 顯示它 local↔remote 已對齊，於此補登。
+
+`202608060001` 於 2026-08-07 套用（負責人授權並親自執行 `supabase db push`）。
+
+1. **備份與 count preflight**：**完成**。`supabase db dump` 取得 schema 152K／data 48K→58K；
+   migration 前筆數 profiles 3、sessions 13、session_participants 22、session_messages 12、
+   notification_outbox 26、push_subscriptions 3、court_subscriptions 54、courts 85、reports 0、
+   player_blocks 0、player_presence 0。計數以 `courts 85` 與 `profiles 3` 兩個錨點對 2026-08-04
+   基線交叉驗證一致。
+2. **Migration list 對齊**：**完成**。套用前 22/22 對齊、`202608060001` 為唯一 pending；
+   套用後 **23/23 全數相符、零 pending**。
+3. **匿名安全（本次增量面）**：**完成**。匿名 REST 實測：
+   - `session_discovery` `select=*` 回傳**恰 25 欄且與 allowlist 逐欄同序**；明列 25 欄 select 回 200。
+   - `session_discovery?select=hosted_played_count` 與 `select=played_count` 皆回 400（42703 不存在）
+     ——兩個新欄位**未外洩到匿名面**。
+   - `session_join_preview`、`player_directory` 皆回 401（42501 permission denied）。
+   - 12 個 raw 面（`sessions`、`profiles`、`session_participants`、`session_messages`、
+     `player_blocks`、`player_presence`、`notification_outbox`、`push_subscriptions`、
+     `court_subscriptions`、`notification_prefs`、`reports`、`session_candidate_courts`）
+     全部 401。
+4. **本機 gate（套用前，PM 親跑）**：`db 774 PASS／unit 206／mock 175+3／local 33+8／mobile 4／
+   build 67 modules`；seed `--check` 綠；`git diff --check` exit 0。canary 三拍獨立重跑：
+   存量 774 綠 → 匿名面注入一欄後 test 42、409 精確指名且其餘 470 全過 → 重置後 774 綠、
+   `session_discovery` 回 25 欄、零殘留。
+5. **回退方式**：本 migration 零資料變更；回退＝重新套用三個物件的既有定義
+   （`202607270006:113`、`202607270001:791`、`202607270004:196`）。
+6. **未做**：Edge Function 未重新部署（本 migration 不動 outbox 與 payload）；
+   cron 未重新確認（不在本 migration 範圍）。
+
 ## 首兩週的社群與指標
 
 ### 分發管道與文案（2026-08-04 拍板）
