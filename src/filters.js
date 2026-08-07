@@ -18,6 +18,34 @@ export const DEFAULT_FILTER_STATE = {
   types: new Set(),
   venueTypes: new Set(),
 };
+/**
+ * Compare a filters object field-by-field against DEFAULT_FILTER_STATE.
+ * `types` and `venueTypes` are Sets, so they compare by size and membership
+ * rather than reference. A non-object `filters` (null/undefined/other) is
+ * treated as "no filters applied" and returns true, matching the meaning of
+ * an absent filters state everywhere else in this module.
+ */
+export function isDefaultFilters(filters) {
+  if (filters == null || typeof filters !== "object") return true;
+
+  return (
+    filters.district === DEFAULT_FILTER_STATE.district &&
+    filters.courtId === DEFAULT_FILTER_STATE.courtId &&
+    filters.date === DEFAULT_FILTER_STATE.date &&
+    filters.band === DEFAULT_FILTER_STATE.band &&
+    setEquals(selectedTypes(filters.types), DEFAULT_FILTER_STATE.types) &&
+    setEquals(selectedTypes(filters.venueTypes), DEFAULT_FILTER_STATE.venueTypes)
+  );
+}
+
+function setEquals(left, right) {
+  if (left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
+}
+
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function asFiniteNumber(value) {
