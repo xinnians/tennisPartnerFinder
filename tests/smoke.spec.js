@@ -3815,3 +3815,107 @@ test("an unloaded court catalogue shows no subscription count", async ({ page })
   await expect(page.locator("#me-root")).not.toContainText("已訂閱 0 座");
   expect(runtimeErrors).toEqual([]);
 });
+
+test("openFilterSheet mounts a dialog with seven data-filter groups and closes on Escape", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openFilterSheet } = await import("/src/sessionViews.js");
+    const { COURTS } = await import("/src/mockData.js");
+    const { DEFAULT_FILTER_STATE } = await import("/src/filters.js");
+    window.__filterSheetCloseCalls = 0;
+    window.__filterSheet = openFilterSheet({
+      filters: { ...DEFAULT_FILTER_STATE, types: new Set(), venueTypes: new Set() },
+      courts: COURTS,
+      onSetFilter: () => {},
+      onReset: () => {},
+      onClose: () => {
+        window.__filterSheetCloseCalls += 1;
+      },
+    });
+  });
+
+  const sheet = page.locator("#filters-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toHaveAttribute("role", "dialog");
+  await expect(sheet).toHaveAttribute("aria-label", "篩選球局");
+  await expect(sheet.locator("h2")).toHaveText("篩選球局");
+
+  const fieldGroups = await page.evaluate(() =>
+    [...document.querySelectorAll("#filters-sheet [data-filter]")].map((node) => node.dataset.filter)
+  );
+  // 七組：行政區、球場、日期、程度、打法、場地型、清除，全部用 data-filter 屬性辨識。
+  expect(new Set(fieldGroups)).toEqual(new Set(["district", "courtId", "date", "band", "types", "venueTypes", "reset"]));
+
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__filterSheetCloseCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the filter sheet applies a district change immediately to the background drawer summary and keeps keyboard focus off body", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const firstSummary = await page.evaluate(async () => {
+    const { openFilterSheet, renderNearbySessionsDrawer } = await import("/src/sessionViews.js");
+    const { MOCK_SESSIONS, COURTS } = await import("/src/mockData.js");
+    const { filterSessions, DEFAULT_FILTER_STATE } = await import("/src/filters.js");
+
+    // 獨立、脫離真實 controller publish 週期的抽屜節點：避免 mock 2.5 秒 discovery
+    // delay 之後真實 controller 重繪蓋掉這裡的斷言，見 task-2-report concerns。
+    const drawerRoot = document.createElement("div");
+    drawerRoot.id = "filter-sheet-test-drawer";
+    document.body.appendChild(drawerRoot);
+
+    let testFilters = { ...DEFAULT_FILTER_STATE, types: new Set(), venueTypes: new Set() };
+    window.__filterSheetSummaries = [];
+    const renderDrawer = () => {
+      renderNearbySessionsDrawer(drawerRoot, {
+        sessions: filterSessions(MOCK_SESSIONS, testFilters),
+        courts: COURTS,
+      });
+      window.__filterSheetSummaries.push(drawerRoot.querySelector("#nearby-sessions-summary").textContent);
+    };
+    renderDrawer();
+
+    openFilterSheet({
+      filters: testFilters,
+      courts: COURTS,
+      onSetFilter: (field, value) => {
+        testFilters = { ...testFilters, [field]: value };
+        renderDrawer();
+      },
+      onReset: () => {},
+      onClose: () => {},
+    });
+    return window.__filterSheetSummaries[0];
+  });
+  // mock 資料共 8 局全部可加入，正向前提在先，下面篩到內湖區才有意義。
+  expect(firstSummary).toContain("8 場可加入");
+
+  const districtSelect = page.locator('#filters-sheet select[data-filter="district"]');
+  await districtSelect.focus();
+  await districtSelect.selectOption("內湖區");
+
+  await expect.poll(() => page.evaluate(() => window.__filterSheetSummaries.at(-1))).toContain("2 場可加入");
+  expect(
+    await page.evaluate(() => document.activeElement === document.querySelector('#filters-sheet select[data-filter="district"]'))
+  ).toBe(true);
+
+  // 鍵盤操作打法 chip 也不可把焦點丟到 body（批 B Task 4 的教訓：async 重繪吃焦點）。
+  await page.evaluate(() => document.querySelector('#filters-sheet [data-filter="types"][data-value="單打"]').focus());
+  await page.keyboard.press("Enter");
+  expect(
+    await page.evaluate(() => ({
+      isBody: document.activeElement === document.body,
+      isChip: document.activeElement === document.querySelector('#filters-sheet [data-filter="types"][data-value="單打"]'),
+    }))
+  ).toEqual({ isBody: false, isChip: true });
+
+  expect(runtimeErrors).toEqual([]);
+});

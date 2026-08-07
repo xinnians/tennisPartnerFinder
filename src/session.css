@@ -335,6 +335,20 @@
 .create-session-sheet .session-secondary { min-height: 44px; }
 .create-session-sheet .form-fieldset > label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
 
+/* 批 C1 Task 2:篩選 sheet(尚未接 UI 入口)。控件走 data-filter 屬性，樣式沿用批 A
+   表單契約(.form-field/44px)與既有 .band-option／.filter-chip／.filters-reset 視覺，
+   但不重用 .chip-type／.chip-venue／既有 id——那兩個 class 被 main.js renderFilters／
+   wireFilters 用 document 級 querySelectorAll 選取，重用會被地圖工具列的重繪覆寫選中態
+   (見 task-2 ground truth 意外 4/6)。 */
+.filter-sheet-form { display: grid; gap: 13px; }
+.filter-sheet-band-options { display: grid; gap: var(--space-1); }
+.filter-sheet-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.filter-sheet .form-field select,
+.filter-sheet .form-field input,
+.filter-sheet .band-option,
+.filter-sheet .filter-chip,
+.filter-sheet .filters-reset { min-height: 44px; }
+
 /* 建局／編輯表單的「進階設定（選填）」摺疊區:預設收合，展開箭頭沿用瀏覽器預設 marker。 */
 .form-optional { display: grid; gap: 13px; border: var(--border-thin); border-radius: var(--radius-md); padding: var(--space-3); }
 .form-optional > summary { box-sizing: border-box; min-height: 44px; padding: 11px var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }

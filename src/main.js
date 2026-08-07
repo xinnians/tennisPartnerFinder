@@ -71,6 +71,7 @@ import {
   openCreateSessionSheet,
   openDecideSessionSheet,
   openEditSessionSheet,
+  openFilterSheet,
   openJoinSessionConfirmation,
   openProfileCompletionSheet,
   openPlayerCardSheet,
@@ -98,6 +99,8 @@ let google = null;
 let map = null;
 let courts = [];
 let courtsReady = false;
+// 批 C1 Task 2:openFilters() 的資料來源,尚未接 UI 入口(見 task-2-brief)。
+let latestFilters = null;
 let courtCatalogueStatus = "loading";
 let sessionMarkers = [];
 let courtMarkers = [];
@@ -431,6 +434,18 @@ function renderFilters(filters) {
   });
 }
 
+// 批 C1 Task 2:openFilterSheet 的接線層包裝,暴露給後續批次接 UI 入口用;本任務不呼叫它
+// (見 task-2-brief「不加 UI 入口」)。
+function openFilters(handlers = {}) {
+  return openFilterSheet({
+    filters: latestFilters ?? undefined,
+    courts,
+    onSetFilter: (field, value) => controller.setFilter(field, value),
+    onReset: () => controller.resetFilters(),
+    onClose: handlers.onClose,
+  });
+}
+
 function renderSessionMarkers(sessions) {
   if (!google || !map) return;
   const groups = groupSessionsByCourt(courts, sessions);
@@ -460,6 +475,7 @@ function renderPlayerLayer(view) {
 }
 
 function renderDiscovery(view) {
+  latestFilters = view.filters;
   renderFilters(view.filters);
   renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
     sessions: view.sessions,
@@ -1214,6 +1230,9 @@ function init() {
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
     openCourtPlayersDrawer: (court, players, handlers) => openCourtPlayersDrawer(court, players, handlers),
     openPlayerDirectoryList: (handlers) => openPlayerDirectoryList(handlers),
+    // 批 C1 Task 2:sessionController.js 尚未辨識這個 key,純粹暴露給後續批次接線,
+    // 目前不會被呼叫(不加 UI 入口)。
+    openFiltersSheet: (handlers) => openFilters(handlers),
     openPlayerCard: (player, handlers) => openPlayerCardSheet(player, handlers),
     openCreateSession,
     openDecideSession: openDecideSessionSheet,

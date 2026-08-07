@@ -1,5 +1,5 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
-import { isDefaultFilters } from "./filters.js";
+import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters } from "./filters.js";
 import { pushDrawerIsolation } from "./modalIsolation.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
@@ -3004,6 +3004,199 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
   };
   setDirectory({ status: "loading" });
   return { ...mounted, setDirectory };
+}
+
+const FILTER_SHEET_PLAY_TYPES = ["單打", "雙打", "練球"];
+const FILTER_SHEET_VENUE_TYPES = [
+  ["booked", "已訂場"],
+  ["walk_on", "現場等場"],
+  ["candidates", "候選局"],
+];
+
+function cloneSheetFilters(filters) {
+  const source = filters && typeof filters === "object" ? filters : DEFAULT_FILTER_STATE;
+  return {
+    district: source.district || "",
+    courtId: source.courtId ?? null,
+    date: source.date || null,
+    band: source.band || "all",
+    types: new Set(source.types instanceof Set ? source.types : (source.types ?? [])),
+    venueTypes: new Set(source.venueTypes instanceof Set ? source.venueTypes : (source.venueTypes ?? [])),
+  };
+}
+
+function toggledFilterSet(existing, value) {
+  const next = new Set(existing);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+}
+
+/**
+ * Open a standalone filter sheet mirroring the map-toolbar filters, isolated in
+ * #sheet-root with its own single change/click delegation. Controls identify
+ * themselves via `data-filter` (never the map-toolbar's ids, e.g. #district-filter)
+ * so this can be mounted alongside the toolbar without id/selector collisions
+ * (see batch C1 task-2 ground truth §意外 4/6). No caller wires a UI entry point
+ * to this yet — batch C1 task 2 only ships the sheet itself.
+ */
+export function openFilterSheet({
+  filters = DEFAULT_FILTER_STATE,
+  courts = [],
+  onSetFilter = () => {},
+  onReset = () => {},
+  onClose = () => {},
+} = {}) {
+  let currentFilters = cloneSheetFilters(filters);
+  const courtList = Array.isArray(courts) ? courts : [];
+  const districts = [...new Set(courtList.map((court) => court.district).filter(Boolean))].sort();
+
+  const mounted = mountSheet({
+    id: "filters-sheet",
+    label: "篩選球局",
+    className: "filter-sheet",
+    onClose,
+    html: `
+      <div class="surface__head">
+        <div><h2>篩選球局</h2></div>
+        <button type="button" class="surface__close" data-surface-close aria-label="關閉篩選">×</button>
+      </div>
+      <div class="filter-sheet-form">
+        <label class="form-field">
+          <span>行政區</span>
+          <select data-filter="district">
+            <option value="">全部行政區</option>
+            ${districts.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="form-field">
+          <span>球場</span>
+          <select data-filter="courtId">
+            <option value="">全部球場</option>
+            ${courtList.map((court) => `<option value="${esc(court.id)}">${esc(court.name)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="form-field">
+          <span>日期</span>
+          <input type="date" data-filter="date" />
+        </label>
+        <fieldset class="form-fieldset">
+          <legend>程度</legend>
+          <div class="filter-sheet-band-options" role="group" aria-label="依 NTRP 程度篩選">
+            ${BANDS.map(
+              (band) =>
+                `<button type="button" class="band-option" data-filter="band" data-value="${esc(
+                  band.key
+                )}" aria-pressed="false">${esc(band.label)}</button>`
+            ).join("")}
+          </div>
+        </fieldset>
+        <fieldset class="form-fieldset">
+          <legend>打法</legend>
+          <div class="filter-sheet-chips" role="group" aria-label="打法">
+            ${FILTER_SHEET_PLAY_TYPES.map(
+              (type) =>
+                `<button type="button" class="filter-chip" data-filter="types" data-value="${esc(
+                  type
+                )}" aria-pressed="false">${esc(type)}</button>`
+            ).join("")}
+          </div>
+        </fieldset>
+        <fieldset class="form-fieldset">
+          <legend>場地類型</legend>
+          <div class="filter-sheet-chips" role="group" aria-label="場地類型">
+            ${FILTER_SHEET_VENUE_TYPES.map(
+              ([value, label]) =>
+                `<button type="button" class="filter-chip" data-filter="venueTypes" data-value="${esc(
+                  value
+                )}" aria-pressed="false">${esc(label)}</button>`
+            ).join("")}
+          </div>
+        </fieldset>
+        <button type="button" class="filters-reset" data-filter="reset">清除</button>
+      </div>`,
+  });
+
+  const root = mounted.root;
+
+  function syncControls() {
+    const district = root.querySelector('select[data-filter="district"]');
+    if (district) district.value = currentFilters.district || "";
+    const court = root.querySelector('select[data-filter="courtId"]');
+    if (court) court.value = currentFilters.courtId == null ? "" : String(currentFilters.courtId);
+    const date = root.querySelector('input[data-filter="date"]');
+    if (date) date.value = currentFilters.date || "";
+    root.querySelectorAll('[data-filter="band"]').forEach((button) => {
+      const selected = button.dataset.value === currentFilters.band;
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    root.querySelectorAll('[data-filter="types"]').forEach((button) => {
+      const selected = currentFilters.types.has(button.dataset.value);
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+    root.querySelectorAll('[data-filter="venueTypes"]').forEach((button) => {
+      const selected = currentFilters.venueTypes.has(button.dataset.value);
+      button.classList.toggle("is-active", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+  }
+
+  // 單一 change 委派：district/courtId select 與 date input 三個欄位共用。
+  root.addEventListener("change", (event) => {
+    const target = event.target.closest("[data-filter]");
+    if (!target) return;
+    const field = target.dataset.filter;
+    if (field === "district") {
+      currentFilters.district = target.value;
+      onSetFilter("district", target.value);
+    } else if (field === "courtId") {
+      currentFilters.courtId = target.value || null;
+      onSetFilter("courtId", target.value || null);
+    } else if (field === "date") {
+      currentFilters.date = target.value || null;
+      onSetFilter("date", target.value || null);
+    } else {
+      return;
+    }
+    syncControls();
+  });
+
+  // 單一 click 委派：程度／打法／場地型 chips 與清除鈕共用。
+  root.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-filter]");
+    if (!target) return;
+    const field = target.dataset.filter;
+    if (field === "reset") {
+      currentFilters = cloneSheetFilters(DEFAULT_FILTER_STATE);
+      onReset();
+      syncControls();
+      return;
+    }
+    if (field === "band") {
+      currentFilters.band = target.dataset.value;
+      onSetFilter("band", target.dataset.value);
+    } else if (field === "types") {
+      currentFilters.types = toggledFilterSet(currentFilters.types, target.dataset.value);
+      onSetFilter("types", currentFilters.types);
+    } else if (field === "venueTypes") {
+      currentFilters.venueTypes = toggledFilterSet(currentFilters.venueTypes, target.dataset.value);
+      onSetFilter("venueTypes", currentFilters.venueTypes);
+    } else {
+      return;
+    }
+    syncControls();
+  });
+
+  syncControls();
+  return {
+    ...mounted,
+    setFilters: (nextFilters) => {
+      currentFilters = cloneSheetFilters(nextFilters);
+      syncControls();
+    },
+  };
 }
 
 function playerInviteOption(session, courts = []) {
