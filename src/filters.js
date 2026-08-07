@@ -18,24 +18,54 @@ export const DEFAULT_FILTER_STATE = {
   types: new Set(),
   venueTypes: new Set(),
 };
+
+/**
+ * Count the number of active filters in a filters object.
+ * Each of six filter dimensions (district, courtId, date, band, types, venueTypes)
+ * contributes 1 to the count if it differs from DEFAULT_FILTER_STATE.
+ * Non-object filters (null/undefined/other) return 0.
+ *
+ * This function is the source of truth for filter state comparison.
+ * isDefaultFilters is implemented as countActiveFilters(filters) === 0
+ * to avoid logic duplication between the two functions.
+ */
+export function countActiveFilters(filters) {
+  if (filters == null || typeof filters !== "object") return 0;
+
+  let count = 0;
+
+  // district: active if non-empty string
+  if (filters.district !== DEFAULT_FILTER_STATE.district) count++;
+
+  // courtId: active if not null
+  if (filters.courtId !== DEFAULT_FILTER_STATE.courtId) count++;
+
+  // date: active if not null and not empty string
+  if (filters.date !== DEFAULT_FILTER_STATE.date) count++;
+
+  // band: active if not "all"
+  if (filters.band !== DEFAULT_FILTER_STATE.band) count++;
+
+  // types: active if Set is non-empty
+  if (selectedTypes(filters.types).size > 0) count++;
+
+  // venueTypes: active if Set is non-empty
+  if (selectedTypes(filters.venueTypes).size > 0) count++;
+
+  return count;
+}
+
 /**
  * Compare a filters object field-by-field against DEFAULT_FILTER_STATE.
- * `types` and `venueTypes` are Sets, so they compare by size and membership
- * rather than reference. A non-object `filters` (null/undefined/other) is
- * treated as "no filters applied" and returns true, matching the meaning of
- * an absent filters state everywhere else in this module.
+ * A non-object `filters` (null/undefined/other) is treated as "no filters applied"
+ * and returns true, matching the meaning of an absent filters state everywhere
+ * else in this module.
+ *
+ * Implementation: returns true iff countActiveFilters(filters) === 0,
+ * ensuring both functions stay synchronized.
  */
 export function isDefaultFilters(filters) {
-  if (filters == null || typeof filters !== "object") return true;
-
-  return (
-    filters.district === DEFAULT_FILTER_STATE.district &&
-    filters.courtId === DEFAULT_FILTER_STATE.courtId &&
-    filters.date === DEFAULT_FILTER_STATE.date &&
-    filters.band === DEFAULT_FILTER_STATE.band &&
-    setEquals(selectedTypes(filters.types), DEFAULT_FILTER_STATE.types) &&
-    setEquals(selectedTypes(filters.venueTypes), DEFAULT_FILTER_STATE.venueTypes)
-  );
+  return countActiveFilters(filters) === 0;
 }
 
 function setEquals(left, right) {
