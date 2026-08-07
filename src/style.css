@@ -1,6 +1,6 @@
 :root {
-  color: #142c4b;
-  background: #f5f8fb;
+  color: var(--color-text-primary);
+  background: var(--color-surface-page);
   font-family: "Noto Sans TC", system-ui, sans-serif;
   font-synthesis: none;
 }
@@ -21,7 +21,7 @@ button { cursor: pointer; }
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible { outline: 3px solid #2465bd; outline-offset: 2px; }
+select:focus-visible { outline: 3px solid var(--color-court); outline-offset: 2px; }
 
 button:disabled { cursor: not-allowed; opacity: 0.58; }
 

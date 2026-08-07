@@ -26,18 +26,6 @@
   --elevation-1: 0 2px 8px rgba(18, 41, 28, 0.10);
   --elevation-2: 0 14px 32px rgba(18, 41, 28, 0.22);
   --z-header: 10; --z-map-controls: 6; --z-drawer: 20; --z-sheet: 31; --z-toast: 40;
-  /* ==== 以下為舊 token,逐區退場,Task 9 移除 ==== */
-  --navy: #142c4b;
-  --blue: #2465bd;
-  --lime: #d7f22a;
-  --paper: #ffffff;
-  --mist: #eef4fb;
-  --ink-muted: #64758b;
-  /* 次要文字放在任何有色淺底上都不到 AA 的 4.5:1(mist 4.2538、自己的聊天泡泡 4.0903、
-     封存提示 4.2416、在場設定 4.4695),這一階是同色系加深後的通過值。 */
-  --ink-muted-strong: #57677c;
-  --line: #d6e1ee;
-  --shadow: 0 14px 36px rgba(20, 44, 75, 0.18);
   --bottom-navigation-height: 68px;
   --bottom-navigation-offset: calc(var(--bottom-navigation-height) + env(safe-area-inset-bottom, 0px));
 }

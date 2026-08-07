@@ -28,10 +28,6 @@ function cssValue(pattern, label) {
   return match[1].toLowerCase();
 }
 
-const INK_MUTED = cssValue(/--ink-muted:\s*(#[0-9a-f]{6})/i, "--ink-muted");
-const INK_MUTED_STRONG = cssValue(/--ink-muted-strong:\s*(#[0-9a-f]{6})/i, "--ink-muted-strong");
-const MIST = cssValue(/--mist:\s*(#[0-9a-f]{6})/i, "--mist");
-
 const COLOR_INK = cssValue(/--color-ink:\s*(#[0-9a-f]{6})/i, "--color-ink");
 const COLOR_COURT = cssValue(/--color-court:\s*(#[0-9a-f]{6})/i, "--color-court");
 const COLOR_SIGNAL = cssValue(/--color-signal:\s*(#[0-9a-f]{6})/i, "--color-signal");
@@ -77,31 +73,22 @@ const BACKGROUNDS = [
 test("次要文字 token 在每一個實際底色上都達 AA 4.5:1", () => {
   assert.equal(BACKGROUNDS.length, 5, "掃描集非空且涵蓋五種底色");
   for (const [label, background] of BACKGROUNDS) {
-    const ratio = contrast(INK_MUTED_STRONG, background);
+    const ratio = contrast(COLOR_TEXT_SECONDARY, background);
     assert.ok(
       ratio >= 4.5,
-      `${label}(${background}):--ink-muted-strong ${INK_MUTED_STRONG} 只有 ${ratio.toFixed(4)}:1`
+      `${label}(${background}):--color-text-secondary ${COLOR_TEXT_SECONDARY} 只有 ${ratio.toFixed(4)}:1`
     );
   }
 });
 
-test("--ink-muted 在這些底色上確實不足,證明加深那一階是必要的而非多餘", () => {
-  const failures = BACKGROUNDS.filter(([, background]) => contrast(INK_MUTED, background) < 4.5);
-  assert.equal(
-    failures.length,
-    BACKGROUNDS.length,
-    `若 --ink-muted 已足夠,--ink-muted-strong 就該併回去;目前不足的有 ${failures.length}/${BACKGROUNDS.length}`
-  );
-});
-
-test.skip("三個套用點都改用加深後的 token(Task 9 移除:批 A-8 已把 .chat-session-summary span/.chat-archived-note/.chat-message__meta 三處全數改用 var(--color-text-secondary),不再套用 --ink-muted-strong,這支測試連同 --ink-muted* token 一併留給 Task 9 刪除)", () => {
+test("三個套用點都改用 --color-text-secondary(批 A-8 已把 .chat-session-summary span/.chat-archived-note/.chat-message__meta 三處全數改用此 token,批 A-9 移除 --ink-muted-strong 舊 token 後改驗新 token)", () => {
   assert.ok(CSS.length > 10_000, "CSS 讀取失敗時計數會全部歸零,先確認掃描集非空");
   const selectors = [".chat-session-summary span", ".chat-archived-note", ".chat-message__meta"];
   assert.equal(selectors.length, 3, "掃描集非空且涵蓋三個套用點");
   for (const selector of selectors) {
     const rule = CSS.match(new RegExp(`\\n${selector.replace(/[.]/g, "\\.")} \\{([^}]*)\\}`));
     assert.ok(rule, `讀不到 ${selector} 的規則`);
-    assert.match(rule[1], /var\(--ink-muted-strong\)/, `${selector} 沒有改用 --ink-muted-strong`);
+    assert.match(rule[1], /var\(--color-text-secondary\)/, `${selector} 沒有改用 var(--color-text-secondary)`);
   }
 });
 
