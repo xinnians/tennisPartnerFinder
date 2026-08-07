@@ -1624,7 +1624,6 @@ export function renderNearbySessionsDrawer(
               onReset,
               onExpandBounds,
               onOpenCreate,
-              onRetry,
               onSubscribe,
               filtersActive: !isDefaultFilters(filters),
             });
@@ -1676,7 +1675,6 @@ export function renderDiscoveryEmpty({
   onReset = () => {},
   onExpandBounds = () => {},
   onOpenCreate = () => {},
-  onRetry = () => {},
   onSubscribe = () => {},
   filtersActive = false,
 } = {}) {
