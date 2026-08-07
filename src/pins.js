@@ -1,7 +1,7 @@
-const NAVY = "#142c4b";
-const BLUE = "#2465bd";
-const LIME = "#d7f22a";
-const SOFT_BLUE = "#dce8fa";
+const NAVY = "#12291c";   // 計分板 --color-ink;pins.js 無法讀 CSS 變數,值與 session.css 同步
+const BLUE = "#1c5c3c";   // --color-court
+const LIME = "#ddf53c";   // --color-signal
+const SOFT_BLUE = "#e8f2e3"; // --color-success-bg(聚合底)
 
 function svgToDataUri(svg) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.trim())}`;
@@ -24,8 +24,8 @@ const CLUSTER_PIN_URL = svgToDataUri(`
   </svg>`);
 const COURT_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25">
-    <circle cx="12.5" cy="12.5" r="10.5" fill="#fff" stroke="#64758b" stroke-width="1.8"/>
-    <circle cx="12.5" cy="12.5" r="3.4" fill="#64758b"/>
+    <circle cx="12.5" cy="12.5" r="10.5" fill="#fff" stroke="#46554b" stroke-width="1.8"/>
+    <circle cx="12.5" cy="12.5" r="3.4" fill="#46554b"/>
   </svg>`);
 const USER_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">

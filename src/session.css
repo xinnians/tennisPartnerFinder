@@ -83,9 +83,17 @@
 
 .app-header__actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
 
-.location-button,
 .session-primary,
-.session-secondary,
+.session-secondary {
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+/* 批 A-3 範圍只含地圖工具列;.session-primary/.session-secondary 留在上面舊 token 規則,
+   等其他任務再套用計分板 token,避免這裡動到 me-page/create-session 等範圍外按鈕。 */
+.location-button,
 .filters-reset,
 .chip-type,
 .chip-venue,
@@ -93,11 +101,11 @@
 .band-option {
   min-height: 38px;
   border: 0;
-  border-radius: 10px;
-  font-weight: 800;
+  border-radius: var(--radius-md);
+  font-weight: 700;
 }
 
-.location-button { padding: 0 13px; background: var(--mist); color: var(--navy); }
+.location-button { padding: 0 var(--space-3); background: var(--color-info-bg); color: var(--color-ink); }
 
 .session-primary { padding: 0 15px; background: var(--lime); color: var(--navy); box-shadow: inset 0 -2px 0 rgba(20, 44, 75, 0.12); }
 
@@ -115,9 +123,11 @@
 .map-controls { display: contents; }
 .player-layer-control { position: absolute; z-index: 6; top: 112px; left: clamp(12px, 3vw, 30px); display: grid; justify-items: start; gap: 5px; }
 .player-layer-actions { display: flex; flex-wrap: wrap; gap: 7px; }
-#player-layer-toggle,
-#player-directory-open { min-height: 38px; border-radius: 999px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 7px 20px rgba(20, 44, 75, 0.15); }
+#player-layer-toggle { min-height: 38px; border-radius: 999px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 7px 20px rgba(20, 44, 75, 0.15); }
 #player-layer-toggle.is-active { border-color: var(--blue); background: var(--blue); color: #fff; }
+/* 批 A-3 只列 #player-directory-open;原規則與 #player-layer-toggle 共用,拆開後這顆單獨換皮,
+   #player-layer-toggle 留舊值——兩顆按鈕並排會出現圓角/陰影不一致,詳見批 A-3 report concerns。 */
+#player-directory-open { min-height: 38px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); box-shadow: var(--elevation-1); }
 .player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: rgba(20, 44, 75, 0.92); color: #fff; font-size: 12px; font-weight: 800; }
 
 .presence-settings { display: grid; gap: 10px; margin: 16px 0; padding: 16px; border: 1px solid #c8dc9d; border-radius: 14px; background: #f7fbe9; }
@@ -143,13 +153,13 @@
   right: clamp(12px, 3vw, 30px);
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: var(--space-2);
   max-width: 910px;
-  padding: 9px;
+  padding: var(--space-2);
   border: 1px solid rgba(255, 255, 255, 0.92);
-  border-radius: 15px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 8px 25px rgba(20, 44, 75, 0.12);
+  box-shadow: var(--elevation-1);
 }
 
 .filter-control { display: grid; min-width: 108px; gap: 3px; color: var(--ink-muted); font-size: 11px; font-weight: 800; }
@@ -161,14 +171,14 @@
 .filter-chip,
 .chip-type,
 .chip-venue,
-.filters-reset { padding: 0 10px; background: var(--mist); color: var(--navy); white-space: nowrap; }
+.filters-reset { padding: 0 var(--space-2); background: var(--color-info-bg); color: var(--color-ink); white-space: nowrap; }
 .chip-type.is-active,
 .chip-venue.is-active,
 .filter-chip.is-active,
-.band-option.is-active { background: var(--blue); color: #fff; }
+.band-option.is-active { background: var(--color-ink); color: var(--color-surface-card); }
 .type-chips,
-.venue-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.filters-reset { background: transparent; color: var(--blue); }
+.venue-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.filters-reset { background: transparent; color: var(--color-court); }
 
 .level-popover {
   position: absolute;
@@ -176,15 +186,15 @@
   top: 92px;
   left: clamp(12px, 3vw, 30px);
   width: 178px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: #fff;
-  box-shadow: var(--shadow);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-card);
+  box-shadow: var(--elevation-1);
 }
-.level-popover p { margin: 0 0 8px; color: var(--ink-muted); font-size: 12px; font-weight: 800; }
-#band-options { display: grid; gap: 5px; }
-.band-option { width: 100%; padding: 0 10px; text-align: left; background: var(--mist); color: var(--navy); }
+.level-popover p { margin: 0 0 var(--space-2); color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+#band-options { display: grid; gap: var(--space-1); }
+.band-option { width: 100%; padding: 0 var(--space-2); text-align: left; background: var(--color-info-bg); color: var(--color-ink); }
 
 .nearby-sessions {
   position: absolute;
@@ -572,16 +582,16 @@
   .app-brand__ball { width: 23px; height: 23px; font-size: 22px; }
   .city-label { font-size: 12px; }
   .app-header__actions { gap: 6px; }
-  .location-button { min-width: 44px; min-height: 44px; padding: 0 8px; font-size: 12px; }
+  .location-button { min-width: 44px; min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-sm); }
   .app-brand,
   .filter-control select,
   .filter-control input { min-height: 44px; }
   #player-layer-toggle,
   #player-directory-open { min-width: 44px; min-height: 44px; }
   .map-page { height: calc(100dvh - 60px); min-height: 620px; }
-  .map-controls { position: absolute; z-index: 6; top: 10px; right: 10px; left: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+  .map-controls { position: absolute; z-index: var(--z-map-controls); top: 10px; right: 10px; left: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); pointer-events: none; }
   .map-controls > * { pointer-events: auto; }
-  .map-toolbar { position: static; order: 1; width: 100%; max-height: none; gap: 6px; align-items: flex-end; flex-wrap: wrap; box-sizing: border-box; padding: 7px; }
+  .map-toolbar { position: static; order: 1; width: 100%; max-height: none; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap; box-sizing: border-box; padding: var(--space-2); }
   .level-popover { position: static; order: 2; }
   .player-layer-control { position: static; order: 3; }
   .filter-control { min-width: calc(33.333% - 5px); flex: 1 1 30%; }
@@ -589,7 +599,7 @@
   .filter-chip,
   .chip-type,
   .chip-venue,
-  .filters-reset { min-width: 44px; min-height: 44px; padding: 0 8px; font-size: 12px; }
+  .filters-reset { min-width: 44px; min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-sm); }
   .type-chips,
   .venue-chips { flex: 1 1 auto; }
   .level-popover { top: 148px; left: 10px; }
