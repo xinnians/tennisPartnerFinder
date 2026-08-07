@@ -1013,8 +1013,11 @@ test("authenticated players persist the authoritative court subscription set wit
   await page.getByTestId("me-tab").click();
   const settings = page.locator("#me-root .notification-settings");
   await expect(settings).not.toContainText("行政區");
-  // 細選兩座：逐一勾選，驗證非全選路徑也送得出正確的 id。
+  // 零訂閱預設收合（新使用者不該一進來就面對 53 座球場），要先展開才選得到。
+  await expect(page.locator("#notification-court-picker")).toBeHidden();
+  await page.getByTestId("toggle-court-picker").click();
   await expect(page.locator("#notification-court-picker")).toBeVisible();
+  // 細選兩座：逐一勾選，驗證非全選路徑也送得出正確的 id。
   for (const courtId of selectedCourtIds) {
     await page.getByTestId(`notification-court-${courtId}`).check();
   }
@@ -1514,8 +1517,12 @@ test("every Me control keeps focus through a background rerender", async ({ page
   // 對稱掃描：不列舉 testid，往後加進「我」頁的控件會自動納入這道守衛。
   const controls = page.locator("#me-root button, #me-root input, #me-root select, #me-root a[href]");
   const total = await controls.count();
-  // 同上：訂閱球場改 checkbox 後掃描集實測 69，下限一併上調。
-  expect(total, "掃描集不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(40);
+  // 組成感知：球場 checkbox 數量會蓋過非球場控件，分開數才抓得到後者整組消失。
+  const nonCourtTotal = await page
+    .locator("#me-root button, #me-root a[href], #me-root select, #me-root input:not([data-notification-court])")
+    .count();
+  expect(nonCourtTotal, "非球場控件不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(15);
+  expect(total, "掃描集不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(nonCourtTotal);
 
   const landings = [];
   for (let index = 0; index < total; index += 1) {
@@ -1541,5 +1548,54 @@ test("every Me control keeps focus through a background rerender", async ({ page
   }
   const dropped = landings.filter((entry) => entry.landedOnBody);
   expect(dropped, `重繪後焦點掉到 body 的控件：${JSON.stringify(dropped)}`).toEqual([]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("checking the last court collapses the picker without dropping focus to body", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const actor = await createCompleteActor(context.host);
+  const { data: taipeiCourts, error: courtsError } = await actor.client
+    .from("courts")
+    .select("id")
+    .eq("city", "台北市")
+    .eq("is_active", true)
+    .order("id");
+  if (courtsError) throw courtsError;
+  const courtIds = taipeiCourts.map((row) => row.id);
+  expect(courtIds.length).toBeGreaterThan(1);
+  const lastCourtId = courtIds.at(-1);
+  // 先訂到只差一座，這樣 UI 上勾最後一座就會觸發「全選 → 自動收合」。
+  const { error: seedError } = await actor.client.rpc("set_court_subscriptions", {
+    p_court_ids: courtIds.slice(0, -1),
+  });
+  if (seedError) throw seedError;
+
+  await gotoWithSession(page, actor.session);
+  await page.getByTestId("me-tab").click();
+  const picker = page.locator("#notification-court-picker");
+  // 部分訂閱 → 預設展開，正向前提在先。
+  await expect(picker).toBeVisible();
+  await expect(picker.locator("input[data-notification-court]")).toHaveCount(courtIds.length);
+
+  const lastCourt = page.getByTestId(`notification-court-${lastCourtId}`);
+  // 進頁後還有幾波背景重繪，focus 可能被還原邏輯接走；重試到焦點真的停在它身上再按鍵。
+  await expect
+    .poll(async () => {
+      await lastCourt.focus();
+      return lastCourt.evaluate((node) => node === document.activeElement);
+    })
+    .toBe(true);
+  await lastCourt.press("Space");
+
+  // 勾滿即收合；剛才那顆 checkbox 隨即隱形，還原目標必須換人。
+  await expect(page.getByTestId("subscribe-all-courts")).toBeChecked();
+  await expect(picker).toBeHidden();
+  await expect(page.locator("#me-root")).toContainText(`已訂閱 ${courtIds.length} 座`);
+  expect(
+    await page.evaluate(() => document.activeElement === document.body || document.activeElement == null),
+    "勾到最後一座後焦點掉到 body"
+  ).toBe(false);
+  await expect(page.getByTestId("toggle-court-picker")).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });

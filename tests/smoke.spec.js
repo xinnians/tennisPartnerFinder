@@ -1546,11 +1546,13 @@ test("Me notification settings save six preferences and Taipei court subscriptio
   await expect(page.getByTestId("notification-chat-message")).toBeChecked();
   await expect(page.getByTestId("notification-session-reminder")).toBeChecked();
   await expect(settings).toContainText("場地時間定案與球局取消一定會通知，無法關閉");
-  // 三座球場都沒訂閱 → 主控未勾、細選展開、計數為 0。
+  // 三座球場都沒訂閱 → 主控未勾、計數為 0、清單預設收合。
   await expect(page.getByTestId("subscribe-all-courts")).toBeEnabled();
   await expect(page.getByTestId("subscribe-all-courts")).not.toBeChecked();
-  await expect(page.locator("#notification-court-picker")).toBeVisible();
   await expect(settings).toContainText("已訂閱 0 座");
+  await expect(page.locator("#notification-court-picker")).toBeHidden();
+  await page.getByTestId("toggle-court-picker").click();
+  await expect(page.locator("#notification-court-picker")).toBeVisible();
 
   await page.getByTestId("enable-push").click();
   await expect.poll(() => page.evaluate(() => window.__enablePushCalls)).toBe(1);
@@ -3557,5 +3559,25 @@ test("subscribing to every Taipei court collapses the picker and reopens on dema
   await expect.poll(() => page.evaluate(() => window.__savedCourts)).toEqual([8, 10]);
   await expect(page.getByTestId("subscribe-all-courts")).not.toBeChecked();
   await expect(page.locator("#me-root")).toContainText("已訂閱 2 座");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("an unloaded court catalogue shows no subscription count", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("me-page").hidden = false;
+    // 球場目錄還沒載入：交集必然是 0，但那不代表使用者「訂閱了 0 座」。
+    renderMePage(root, { authSession: { user: { id: "empty-courts-test" } }, courts: [] });
+  });
+
+  // 正向前提：通知區塊有渲染，下面的 count(0) 才不是掃到空頁面。
+  await expect(page.locator("#me-root .notification-settings")).toBeVisible();
+  await expect(page.locator("#me-root [data-court-subscription-count]")).toHaveCount(0);
+  await expect(page.locator("#me-root")).not.toContainText("已訂閱 0 座");
   expect(runtimeErrors).toEqual([]);
 });

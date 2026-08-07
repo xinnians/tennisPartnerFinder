@@ -87,7 +87,7 @@ import {
   renderNearbySessionsDrawer,
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
-import { shouldReleasePendingMeFocus } from "./meFocus.js";
+import { canReceiveFocus, shouldReleasePendingMeFocus } from "./meFocus.js";
 import { enableBrowserPush } from "./notificationPush.js";
 import { createPresenceTracker } from "./playerPresence.js";
 import { eligibilityFromPrivateProfile } from "./profile.js";
@@ -647,7 +647,10 @@ function restoreMeFocus(root, focus, generation) {
       return;
     }
     const target = resolveMeFocus(root, focus);
-    if (target && !target.disabled) target.focus({ preventScroll: true });
+    const courtPickerToggle = root.querySelector("[data-court-picker-toggle]");
+    // 目標可能已被收合（球場清單勾滿後會自動收起），對隱形元素 focus() 是空操作。
+    if (canReceiveFocus(target)) target.focus({ preventScroll: true });
+    else if (canReceiveFocus(courtPickerToggle)) courtPickerToggle.focus({ preventScroll: true });
     else root.querySelector("[data-me-heading]")?.focus({ preventScroll: true });
     pendingMeFocus = null;
   });

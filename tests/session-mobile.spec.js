@@ -146,22 +146,30 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   const undersizedMeControls = async () =>
     (
       await meSettingControls.evaluateAll((elements) =>
-        elements.map((element) => {
-          // 被 label 包住的輸入框，實際觸控目標是整個 label。
-          const target = element.closest("label") ?? element;
-          const box = target.getBoundingClientRect();
-          return {
-            height: box.height,
-            label: element.getAttribute("data-testid") ?? element.tagName.toLowerCase(),
-            width: box.width,
-          };
-        })
+        elements
+          // 訂閱球場清單收合是合法狀態，收合中的 checkbox 量到 0×0，量它們只會噴偽紅。
+          .filter((element) => element.checkVisibility())
+          .map((element) => {
+            // 被 label 包住的輸入框，實際觸控目標是整個 label。
+            const target = element.closest("label") ?? element;
+            const box = target.getBoundingClientRect();
+            return {
+              height: box.height,
+              label: element.getAttribute("data-testid") ?? element.tagName.toLowerCase(),
+              width: box.width,
+            };
+          })
       )
     ).filter((box) => box.width < 44 || box.height < 44);
-  // 掃描集非空且不得因 selector 寫錯而縮水。
-  // 下限隨訂閱球場改成 checkbox 清單而上調（實測 69）：留餘裕給球場目錄增減，
-  // 但仍抓得到 selector 寫錯只掃到零星控件的情況。
-  await expect.poll(async () => await meSettingControls.count()).toBeGreaterThanOrEqual(40);
+  // 下限要組成感知：球場 checkbox 有 53 個，單一總數下限會被它們灌滿，非球場控件
+  // 整組消失也偵測不到。所以分開數，且都只數看得見的（收合中的清單不算）。
+  const visibleCount = (locator) =>
+    locator.evaluateAll((elements) => elements.filter((element) => element.checkVisibility()).length);
+  const nonCourtControls = page.locator(
+    "#me-page button, #me-page a[href], #me-page select, #me-page input:not([data-notification-court])"
+  );
+  await expect.poll(async () => await visibleCount(nonCourtControls)).toBeGreaterThanOrEqual(15);
+  await expect.poll(async () => await visibleCount(meSettingControls)).toBeGreaterThanOrEqual(15);
   await expect
     .poll(undersizedMeControls, { message: "390px 下「我」頁全部互動控件必須 ≥44×44" })
     .toEqual([]);

@@ -2,6 +2,7 @@ import { TAIPEI_TIME_ZONE } from "./config.js";
 import { pushDrawerIsolation } from "./modalIsolation.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
+import { canReceiveFocus } from "./meFocus.js";
 import { esc } from "./util.js";
 
 const GOOGLE_AVATAR_URL = /^https:\/\/lh[0-9]+[.]googleusercontent[.]com\//;
@@ -130,8 +131,11 @@ export function renderMePage(
   const subscribedCourtCount = notificationCourts.filter((court) => notification.courtIds.has(Number(court.id))).length;
   // 訂閱數等於當下全部台北市 active 球場時視為「全選」：主控勾起、細選清單收合。
   const subscribedToEveryCourt = notificationCourts.length > 0 && subscribedCourtCount === notificationCourts.length;
-  const courtPickerExpanded = !subscribedToEveryCourt;
-  const courtSubscriptionSummary = `已訂閱 ${subscribedCourtCount} 座`;
+  // 只有「訂了一部分」才預設展開。全選不必再看清單；零訂閱是每個新使用者的狀態，
+  // 展開會把 53 座球場推到頁面上，把封鎖清單與站務連結擠到捲不到的地方。
+  const courtPickerExpanded = subscribedCourtCount > 0 && !subscribedToEveryCourt;
+  // 球場目錄還沒載入時交集必然是 0，這時報「已訂閱 0 座」是假的，不要輸出。
+  const courtSubscriptionSummary = notificationCourts.length ? `已訂閱 ${subscribedCourtCount} 座` : "";
   setMySessionActionScope(root, authSession?.user?.id ?? null);
   root.innerHTML = `<div class="me-shell">
     <div class="me-shell__head"><p class="surface__eyebrow">我</p><h1 tabindex="-1" data-me-heading>帳號與站務</h1></div>
@@ -242,7 +246,7 @@ export function renderMePage(
               )}</span></label>`
           )
           .join("")}</div>
-        <p class="form-hint" role="status" data-court-subscription-count>${esc(courtSubscriptionSummary)}</p>
+        ${courtSubscriptionSummary ? `<p class="form-hint" role="status" data-court-subscription-count>${esc(courtSubscriptionSummary)}</p>` : ""}
         ${notificationCourts.length ? "" : '<p class="form-hint" role="status">球場資料尚未就緒，請稍候。</p>'}
       </fieldset>
     </section>
@@ -1197,7 +1201,12 @@ async function runNotificationSettingAction(root, callback) {
       // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
       const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
       const target = focusIsLoose ? findNotificationControl(root, focusedDescriptor) : null;
-      if (target && !target.disabled) target.focus({ preventScroll: true });
+      if (canReceiveFocus(target)) target.focus({ preventScroll: true });
+      else if (focusIsLoose) {
+        // 勾到最後一座球場會讓清單自動收合，原目標隨即隱形；退回展開鈕才不會掉到 body。
+        const toggle = root.querySelector("[data-court-picker-toggle]");
+        if (canReceiveFocus(toggle)) toggle.focus({ preventScroll: true });
+      }
     }
   }
 }
@@ -1255,7 +1264,7 @@ async function runPresenceSettingAction(root, callback) {
       // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
       const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
       const target = focusIsLoose ? root.querySelector(focusedSelector) : null;
-      if (target && !target.disabled) target.focus({ preventScroll: true });
+      if (canReceiveFocus(target)) target.focus({ preventScroll: true });
     }
   }
 }
