@@ -356,9 +356,9 @@
 | 5 建局表單簡化 | **ACCEPTED_WITH_NOTES** | `ca1801f` | 0 blocker。四常數拆分解除兩個地雷;flaky 定位並修好(180 跑 0 紅)。兩項 major 帶批 6:`<p>` 巢在 `<label>` 內(兩處)、選中態小字對比 4.25:1(預設選中即失敗) |
 | 6 訂閱球場兩段式 | **ACCEPTED**(一輪補件) | `233a924` | 批 5 四項夾帶 M1-M4 全修好。補件修 F1 焦點掉 body(還原只檢查 disabled 未檢查可見性)、F2 守衛偽紅、F3 下限灌水、F4 預設態頁長 4609→1953px、F5 假計數。**未解**:細選仍是 53 個扁平 checkbox,挑 3-8 座比改版前更累(見待拍板) |
 | 7 信任數字 | **ACCEPTED**(0 blocker)**+ hosted 已套用**(2026-08-07,`migration list` 23/23;匿名複驗:discovery 恰 25 欄、兩個新欄 42703 不存在、兩 view 401、12 個 raw 面 401;紀錄見 `docs/mvp-plan.md`)。批 1-7 已 push,preview `...-git-cla-6f302a-...` 實測四格導覽在線、真實模式讀到 2 場球局、篩選 chip 剩三個 | `e71e2c9` | 唯一 migration `202608060001`。**WIP 來源事故**:PM 壓縮前用 Bash heredoc 自行實作,壓縮後認不出,誤當來歷不明派工;實作方跨 session 鑑識指回 PM,ian 的「指派給開發 session」已是對此的裁決。WIP 降為可棄草稿、PM 跑的證據全數作廢重跑。PM 獨立複驗:三份 SoT diff(`review_join_request` 恰好一行/121 行)、canary 三拍自跑、對比度自算、完整 gate 自跑。**PM 的 §1 有一條誤判**(`player_directory` 匿名拒絕斷言其實在 `session_rls.sql:635-640`,逐行 grep 跨不過多行 `throws_ok`) |
-| 9a 新使用者預設訂全市 | **待派**(批 8 驗收後發) | — | 自原批 9 拆出獨立出貨。**有時效**:只對新使用者在「首次完成個人檔案」時生效,發布期沒做的話那批人永遠零訂閱,且不可事後隱式補寫(資料模型分不出「沒選過」與「選了零座」)。純前端零 migration。已驗證錨點:`main.js:362` `const saved = await saveCurrentProfile(draft);`、`main.js:730` `await saveCourtSubscriptions(nextCourtIds);`、`dataApi.js:782`／`:830` 定義、`sessionController.js:924` `state.courts`、上限見 `202608050001:11-18`。**落點由實作方提案後才動工** |
+| 9a 新使用者預設訂全市 | **待派**(批 8 已驗收,可發) | — | **夾帶一行**:編輯表單「適合程度」也掛 `NTRP_SCALE_EXPLANATION`(批 8 提案 1;同一欄位建局有說明、編輯沒有是新的不一致)。自原批 9 拆出獨立出貨。**有時效**:只對新使用者在「首次完成個人檔案」時生效,發布期沒做的話那批人永遠零訂閱,且不可事後隱式補寫(資料模型分不出「沒選過」與「選了零座」)。純前端零 migration。已驗證錨點:`main.js:362` `const saved = await saveCurrentProfile(draft);`、`main.js:730` `await saveCourtSubscriptions(nextCourtIds);`、`dataApi.js:782`／`:830` 定義、`sessionController.js:924` `state.courts`、上限見 `202608050001:11-18`。**落點由實作方提案後才動工** |
 | 9b 共用球場選擇器 | **暫緩**(2026-08-07,ian:「先這樣使用看看」) | — | 原拍板為開全範圍,同日改為暫緩,等真實使用行為再定方向。三個呼叫點共用元件,但 min/max 與「全選」語意**各自不同**;純前端零 migration。詳見下方「ian 拍板」2。**重啟訊號**:使用者實際抱怨挑球場麻煩,或 directory gate(常打球場必填)被觀察到卡住轉換 |
-| 8 定詞表+視覺+a11y 收尾 | **派工中**(2026-08-07 11:2x) | — | 已擴充,見下方清單。派工單附六處替換的現行原文、`vacancyLabel` 的 5 呼叫點+3 測試斷言耦合盤點;「對拉」清查 PM 已代查完(hosted 單打 9／雙打 3／**對拉 1**,`EDIT_PLAY_TYPES` 不可收窄)。**建局/編輯表單既有 44px 缺口經獨立重量為 7+3=10 個(非 37),約 6 條 CSS**;`.surface__close` 全站 sheet 共用,獨立 commit 且守衛用對稱式 |
+| 8 定詞表+視覺+a11y 收尾 | **ACCEPTED**(0 blocker) | `ea4a41b` | 七個 commit。「對拉」清查 PM 代查完(hosted 單打 9／雙打 3／**對拉 1**,`EDIT_PLAY_TYPES` 不可收窄,既有測試綠)。**三處偏離派工單,全部是 PM 錯**:①A2 用詞——PM 寫「主揪婉拒了你的申請」會撞掉**兩條**既有守衛(`smoke.spec.js:1377`、`session.spec.js:837` 的 `not.toContainText("主揪婉拒")`),且違反 SPEC:179 定詞表(統一詞是「婉拒」,未要求點名主揪),更與批 7 已上線 hosted 的推播 body 打架;實作方改用「你的加入申請已被婉拒」與推播**逐字一致**。②PM 建議在 `sessionViews.js:1594` 補 `esc()` 會造成**雙重轉義**(PM 實測 `&amp;amp;`),該值已在 `:1616` 邊界轉義。③觸控缺口**實測 13 個非 10 個**(建局 8、編輯 5),PM 的 10 是手數的繼承值。**PM 完全漏掉的兩項**:自己的聊天泡泡 `#e5f0ff` 對比 **4.0903**(最差,且非 mist 底,PM 的「mist 系容器」框法掃不到)、圖釘內點 `fill` 也是 `#99aac1`(**2.3664**,PM 只點名描邊)。 |**建局/編輯表單既有 44px 缺口經獨立重量為 7+3=10 個(非 37),約 6 條 CSS**;`.surface__close` 全站 sheet 共用,獨立 commit 且守衛用對稱式 |
 
 ## 測試基準(批 3a 結案時,PM 親跑)
 
@@ -410,6 +410,21 @@ B1 迴歸保護:抽 exported 純函式 `shouldReleasePendingMeFocus` + node unit
    **已寫進 rules,標明不可因「看起來沒用」而刪除。**
 3. **`src/mockData.js` 不補計數**。mock 專案的正反前提已由 `smoke.spec.js:758` 的測試自帶
    fixture 覆蓋。本機 demo 畫面看不到這行是可接受的——demo 不是出貨面。
+
+## 批 8 留下的殘餘(2026-08-07)
+
+1. **`--ink-muted` 只在白／近白底安全**。批 8 實測:它在 `#eef4fb` 4.2538、`#e5f0ff` 4.0903、
+   `#f2f3f5` 4.2416、`#f7fbe9` 4.4695 —— **任何有色淺底都不到 4.5:1**。
+   `src/` 仍有約 20 處 `var(--ink-muted)` 未逐一量測底色(不在批 8 的 D 節清單內)。
+   **暫行規則**:新增次要文字一律預設 `--ink-muted-strong`。
+   **未決**:發布前要不要做一次 runtime 全掃(在瀏覽器解析實際 computed 底色再算),
+   或直接把 `--ink-muted` 併掉。
+2. `.create-session-sheet .form-fieldset > label` 目前同時蓋到加入方式(需要)與候選球場提示
+   (不需要但無害)。若日後該 fieldset 加入純文字 label,會被撐成 44px。現無此情形。
+3. `tests/smoke.spec.js` 已 3600+ 行。不影響正確性;若有下一輪,建議按面向拆檔。
+4. **D4 的訂閱超量早退分支無測試**:`saveCourtSelection` 是 `renderMePage` 的閉包,
+   且 `courtIds` 上界即 `notificationCourts.length`,**經 UI 到不了該分支**。
+   已補 `error.focus()` 但未偽造入口——這是正確取捨,不是缺口。
 
 ## 跨批延後項(無明確歸屬,擇批處理)
 
