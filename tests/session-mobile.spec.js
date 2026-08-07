@@ -314,16 +314,31 @@ test("the filter sheet open button, filter sheet controls, and profile-completio
     .toEqual([]);
   await page.keyboard.press("Escape");
 
-  // 完成個人檔案 sheet(standalone 模式,「我」頁的編輯入口):暱稱／NTRP／53 座台北市球場
-  // checkbox／4 個常打類型／6 個時段／儲存鈕。掃描集下限 60:留裕度給球場目錄增減,但仍遠高於
-  // 「球場清單整組沒渲染」時只剩 14 個控件的情況,能抓到那種回歸。
+  // 完成個人檔案 sheet(standalone 模式,「我」頁的編輯入口):暱稱／NTRP／台北市 active
+  // 球場 checkbox(數量 n 隨 data/courts.json 目錄增減,CLAUDE.md 明文允許常規整併)／
+  // 4 個常打類型／6 個時段／儲存鈕。
+  // fix round 1(PM 審查):原本掃描集下限固定 60,對現值 67(53 座球場)只留 13% 裕度——
+  // 砍幾座球場就會產生與 44px 無關的假紅,不是「砍半才假紅」。改成兩層,球場數與結構控件數
+  // 分開驗證:(1) 扣掉球場 checkbox 後的結構控件數(關閉鈕1＋暱稱1＋NTRP1＋常打類型4＋
+  // 可打時段6＋儲存鈕1＝14)是固定值,與目錄大小無關;(2) 球場 checkbox 數 n 只要求 ≥1,
+  // 確認清單真的有渲染(n=0 代表壞掉)。n 由獨立 root(`[data-profile-courts]`,球場清單專屬
+  // 容器)量出,不是用總數反推,兩個數字互相獨立。
   await page.getByTestId("me-tab").click();
   await page.getByTestId("edit-profile").click();
   const profileSheet = page.locator("#profile-completion-sheet");
   await expect(profileSheet).toBeVisible();
+  const courtCheckboxCount = async () => (await measure("#profile-completion-sheet [data-profile-courts]")).length;
+  const structuralControlCount = async () => {
+    const [total, courts] = await Promise.all([
+      measure("#profile-completion-sheet").then((targets) => targets.length),
+      courtCheckboxCount(),
+    ]);
+    return total - courts;
+  };
+  await expect.poll(courtCheckboxCount, { message: "球場 checkbox 掃描集不得為空" }).toBeGreaterThan(0);
   await expect
-    .poll(async () => (await measure("#profile-completion-sheet")).length, { message: "個人檔案 sheet 掃描集不得為空" })
-    .toBeGreaterThanOrEqual(60);
+    .poll(structuralControlCount, { message: "個人檔案 sheet 非球場結構控件掃描集不得低於固定下限 14" })
+    .toBeGreaterThanOrEqual(14);
   await expect
     .poll(async () => await undersized("#profile-completion-sheet"), {
       message: "390px 下個人檔案 sheet 全部點擊目標必須 ≥44×44",
