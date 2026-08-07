@@ -14,7 +14,7 @@ exception when others then
 end;
 $$;
 
-select plan(20);
+select plan(25);
 
 select has_column('public', 'profiles', 'avatar_url', 'profiles stores the allowlisted Google avatar URL');
 select has_view('public', 'session_join_preview', 'authenticated join preview view exists');
@@ -24,8 +24,8 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'session_join_preview'
   ),
-  'session_id,role,nickname,ntrp,avatar_url',
-  'join preview has the exact ordered five-column allowlist'
+  'session_id,role,nickname,ntrp,avatar_url,hosted_played_count',
+  'join preview has the exact ordered six-column allowlist'
 );
 select is(
   (
@@ -33,8 +33,8 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'session_join_preview'
   ),
-  5::bigint,
-  'join preview schema scan is nonempty and contains exactly five columns'
+  6::bigint,
+  'join preview schema scan is nonempty and contains exactly six columns'
 );
 select is(
   coalesce(has_table_privilege('authenticated', to_regclass('public.session_join_preview'), 'select'), false),
@@ -279,6 +279,61 @@ select is(
   pg_temp.text_outcome($$select is_public::text from public.profiles where user_id = '00000000-0000-0000-0000-000000009601'$$),
   'true',
   'avatar synchronization does not overwrite player-directory visibility'
+);
+
+-- 主揪的中性聚合數:只計該 profile 作為 host 且 sessions.status = 'played' 的球局。
+-- 這段刻意放在檔尾,前面所有斷言都已跑完,轉狀態不會擾動它們。
+-- 三個相異值 0 → 1 → 2 逐一釘死,不與動態 count(*) 互比——動態比對在計數寫成
+-- 「全表 count」時仍會兩邊一起錯而假綠。
+
+select is(
+  (select hosted_played_count from public.session_join_preview
+   where session_id = current_setting('pgtap.active_preview_session_id')::bigint
+     and role = 'host' limit 1),
+  0,
+  'hosted_played_count is 0 when the host has no played session'
+);
+
+-- 狀態機允許 open → played 的條件是 old.start_at 已過且未逾 24 小時。
+-- 這兩局的 start_at 在 fixture 就已經是過去式(-3h / -1h),不需要動時間逃生門。
+update public.sessions set status = 'played'
+where id = current_setting('pgtap.expired_booked_session_id')::bigint;
+
+select is(
+  (select hosted_played_count from public.session_join_preview
+   where session_id = current_setting('pgtap.active_preview_session_id')::bigint
+     and role = 'host' limit 1),
+  1,
+  'hosted_played_count is 1 after exactly one hosted session turns played'
+);
+
+update public.sessions set status = 'played'
+where id = current_setting('pgtap.expired_candidate_session_id')::bigint;
+
+select is(
+  (select hosted_played_count from public.session_join_preview
+   where session_id = current_setting('pgtap.active_preview_session_id')::bigint
+     and role = 'host' limit 1),
+  2,
+  'hosted_played_count is 2 after a second hosted session turns played'
+);
+
+-- 錨點:主揪名下共 4 局但只有 2 局 played。若計數漏掉 status 過濾,上一條會拿到 4。
+select is(
+  (select count(*)::integer from public.sessions
+   where host_profile_id = current_setting('pgtap.preview_host_profile_id')::bigint),
+  4,
+  'the preview host owns four sessions in total, so 2 is not a bare all-status count'
+);
+
+-- 這一欄是 per-profile 不是 per-session:同一局的已確認 guest 沒主辦過任何球局,應為 0。
+select is(
+  (select hosted_played_count from public.session_join_preview
+   where session_id = current_setting('pgtap.active_preview_session_id')::bigint
+     and role = 'guest'
+     and nickname = '已確認球友' limit 1),
+  0,
+  'hosted_played_count stays 0 for a guest row in a session whose host has two'
 );
 
 select * from finish();

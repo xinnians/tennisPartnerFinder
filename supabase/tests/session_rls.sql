@@ -191,7 +191,7 @@ begin
 end;
 $$;
 
-select plan(465);
+select plan(472);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -616,7 +616,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'player_directory'
   ),
-  'profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self',
+  'profile_id,nickname,ntrp,play_types,slot_codes,court_id,court_name,court_district,court_lat,court_lng,is_self,played_count',
   'player_directory has the exact allowlist'
 );
 select is(
@@ -4589,6 +4589,154 @@ select is((select decided_at is not null from public.session_discovery where ses
 set local role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000009101',true); select is(public.cancel_session(current_setting('pgtap.stage2_instant_session')::bigint),'OK','cancel fixture cancels a session with accepted guests');
 reset role;
 select is((select not exists (select 1 from jsonb_object_keys(payload) key where key not in ('court','message','slots_remaining','start_at','url')) from public.notification_outbox where event_type='session_cancelled' and session_id=current_setting('pgtap.stage2_instant_session')::bigint order by id desc limit 1),true,'session_cancelled payload passes the key allowlist');
+
+-- ---------------------------------------------------------------------------
+-- 批 7:player_directory.played_count 的兩個過濾條件都要 load-bearing。
+--
+-- 目錄既有 fixture(1001／1002)貫穿整份檔案的 lifecycle 斷言,替它加球局會擾動
+-- 主揪開局上限之類的既有計數,所以這裡用一組獨立 profile,並整段放在檔尾。
+-- 四局全部走 RPC 建立與接受,不繞過 trigger;只有時間位移與最後的 canary 用
+-- superuser 直寫,並各自在原地說明理由。
+-- ---------------------------------------------------------------------------
+
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  created_at, updated_at, raw_app_meta_data, raw_user_meta_data
+)
+values
+  ('00000000-0000-0000-0000-000000009801', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'played-count-target@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb),
+  ('00000000-0000-0000-0000-000000009802', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'played-count-viewer@example.test', 'test', now(), now(), now(), '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb)
+on conflict (id) do nothing;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009801', true);
+select set_config('pgtap.played_count_target_profile_id', public.save_my_profile(
+  'Played Count Target', 3.5, null,
+  array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+  array['雙打']::text[], array['we-a']::text[]
+)::text, true);
+select public.set_player_visibility(true);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select set_config('pgtap.played_count_viewer_profile_id', public.save_my_profile(
+  'Played Count Viewer', 4.0, null,
+  array[(select id from public.courts where is_active and city = '台北市' order by id limit 1)]::bigint[],
+  array['雙打']::text[], array['we-a']::text[]
+)::text, true);
+
+select set_config('pgtap.played_count_s1', public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '1 day', 3.0, 5.0, 2, '__pgtap_b7_pc_s1__', 'approval')::text, true);
+select set_config('pgtap.played_count_s2', public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '1 day', 3.0, 5.0, 2, '__pgtap_b7_pc_s2__', 'approval')::text, true);
+select set_config('pgtap.played_count_s3', public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '1 day', 3.0, 5.0, 2, '__pgtap_b7_pc_s3__', 'approval')::text, true);
+select set_config('pgtap.played_count_s4', public.create_session((select id from public.courts where is_active and city = '台北市' order by id limit 1), '雙打', now() + interval '1 day', 3.0, 5.0, 2, '__pgtap_b7_pc_s4__', 'approval')::text, true);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009801', true);
+select public.request_to_join_session(current_setting('pgtap.played_count_s1')::bigint);
+select public.request_to_join_session(current_setting('pgtap.played_count_s2')::bigint);
+select public.request_to_join_session(current_setting('pgtap.played_count_s3')::bigint);
+select public.request_to_join_session(current_setting('pgtap.played_count_s4')::bigint);
+
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select public.review_join_request(current_setting('pgtap.played_count_s1')::bigint, (select participant_id from public.session_participant_roster where session_id = current_setting('pgtap.played_count_s1')::bigint and nickname = 'Played Count Target'), 'accepted');
+select public.review_join_request(current_setting('pgtap.played_count_s2')::bigint, (select participant_id from public.session_participant_roster where session_id = current_setting('pgtap.played_count_s2')::bigint and nickname = 'Played Count Target'), 'accepted');
+select public.review_join_request(current_setting('pgtap.played_count_s3')::bigint, (select participant_id from public.session_participant_roster where session_id = current_setting('pgtap.played_count_s3')::bigint and nickname = 'Played Count Target'), 'accepted');
+select public.review_join_request(current_setting('pgtap.played_count_s4')::bigint, (select participant_id from public.session_participant_roster where session_id = current_setting('pgtap.played_count_s4')::bigint and nickname = 'Played Count Target'), 'accepted');
+reset role;
+
+-- confirm_session_attendance 要求 start_at 已過,用既有逃生門把四局一起移到 1 小時前。
+select set_config('private.allow_session_time_change', '1', true);
+update public.sessions set start_at = now() - interval '1 hour'
+where notes in ('__pgtap_b7_pc_s1__', '__pgtap_b7_pc_s2__', '__pgtap_b7_pc_s3__', '__pgtap_b7_pc_s4__');
+select set_config('private.allow_session_time_change', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select is(
+  pg_temp.text_outcome($$select played_count::text from public.player_directory where profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint$$),
+  '0',
+  'played_count is 0 while every accepted participation is still unconfirmed'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009801', true);
+select public.confirm_session_attendance(current_setting('pgtap.played_count_s1')::bigint);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select is(
+  pg_temp.text_outcome($$select played_count::text from public.player_directory where profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint$$),
+  '1',
+  'played_count is 1 after exactly one attendance confirmation'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009801', true);
+select public.confirm_session_attendance(current_setting('pgtap.played_count_s2')::bigint);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select is(
+  pg_temp.text_outcome($$select played_count::text from public.player_directory where profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint$$),
+  '2',
+  'played_count is 2 after a second attendance confirmation'
+);
+reset role;
+
+-- 反例一:accepted 但未確認。目標此刻有 4 筆 accepted、只有 2 筆 played_confirmed,
+-- 上一條卻是 2——若 played_confirmed 過濾不 load-bearing,它會是 4。
+select is(
+  (select count(*)::integer || '/' || count(*) filter (where played_confirmed)::integer
+   from public.session_participants
+   where profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint
+     and status = 'accepted'),
+  '4/2',
+  'the target holds four accepted participations of which only two are confirmed'
+);
+
+-- 「已確認但非 accepted」在正常路徑不可達:trigger 擋住已確認參加者離開 accepted。
+-- 先把 s1 的開始時間移回未來,排除退出窗口那條守衛,讓紅的原因只剩這個不變式。
+select set_config('private.allow_session_time_change', '1', true);
+update public.sessions set start_at = now() + interval '2 days' where notes = '__pgtap_b7_pc_s1__';
+select set_config('private.allow_session_time_change', '', true);
+select throws_ok(
+  $$
+    update public.session_participants set status = 'withdrawn'
+    where session_id = current_setting('pgtap.played_count_s1')::bigint
+      and profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint
+  $$,
+  'P0001', 'INVALID_TRANSITION',
+  'a confirmed participation cannot leave accepted, so played_confirmed implies accepted'
+);
+select set_config('private.allow_session_time_change', '1', true);
+update public.sessions set start_at = now() - interval '1 hour' where notes = '__pgtap_b7_pc_s1__';
+select set_config('private.allow_session_time_change', '', true);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009801', true);
+select public.confirm_session_attendance(current_setting('pgtap.played_count_s4')::bigint);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select is(
+  pg_temp.text_outcome($$select played_count::text from public.player_directory where profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint$$),
+  '3',
+  'played_count is 3 once a third participation is confirmed'
+);
+reset role;
+
+-- 反例二:已確認但非 accepted。上一條證明它不可達,所以只能繞過 trigger 強制製造,
+-- 用來證明 view 的 status = 'accepted' 過濾即使在不變式被繞過時仍然有牙。
+-- 用 session_replication_role 而不是 alter table disable trigger:後者在交易內會因
+-- 既有 deferred trigger events 而報 "cannot ALTER TABLE ... pending trigger events"。
+set local session_replication_role = replica;
+update public.session_participants set status = 'withdrawn'
+where session_id = current_setting('pgtap.played_count_s4')::bigint
+  and profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint;
+set local session_replication_role = default;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000009802', true);
+select is(
+  pg_temp.text_outcome($$select played_count::text from public.player_directory where profile_id = current_setting('pgtap.played_count_target_profile_id')::bigint$$),
+  '2',
+  'played_count drops back to 2 when a confirmed participation is forced out of accepted'
+);
+reset role;
 
 select * from finish();
 
