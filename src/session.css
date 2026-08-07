@@ -5,6 +5,9 @@
   --paper: #ffffff;
   --mist: #eef4fb;
   --ink-muted: #64758b;
+  /* 次要文字放在任何有色淺底上都不到 AA 的 4.5:1(mist 4.2538、自己的聊天泡泡 4.0903、
+     封存提示 4.2416、在場設定 4.4695),這一階是同色系加深後的通過值。 */
+  --ink-muted-strong: #57677c;
   --line: #d6e1ee;
   --shadow: 0 14px 36px rgba(20, 44, 75, 0.18);
   --bottom-navigation-height: 68px;
@@ -90,7 +93,7 @@
 
 .presence-settings { display: grid; gap: 10px; margin: 16px 0; padding: 16px; border: 1px solid #c8dc9d; border-radius: 14px; background: #f7fbe9; }
 .presence-settings h3 { margin: 0; color: var(--navy); }
-.presence-settings .form-hint { margin: 5px 0 0; }
+.presence-settings .form-hint { margin: 5px 0 0; color: var(--ink-muted-strong); }
 .presence-settings__greeting { display: flex; align-items: center; gap: 7px; color: var(--navy); font-weight: 800; }
 .player-presence, .player-greeting { color: #426713; font-weight: 800; }
 .player-directory-list { display: grid; gap: 9px; margin-top: 14px; }
@@ -483,7 +486,7 @@
    所以固定用 #57677c:對 --mist 5.2164:1、對 --paper 5.7750:1,兩種底色都過。
    第二個選擇器只是為了追平上一行的特異性(0,2,1),靠順序取勝。 */
 .trust-count,
-.join-preview__person span.trust-count { color: #57677c; font-size: 12px; }
+.join-preview__person span.trust-count { color: var(--ink-muted-strong); font-size: 12px; }
 .player-avatar { position: relative; display: inline-grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: 50%; background: #dfeaf8; color: var(--blue); font-weight: 900; }
 .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .player-avatar__fallback { display: grid; width: 100%; height: 100%; place-items: center; }
@@ -491,7 +494,7 @@
 .profile-avatar-preview p { margin: 0; font-size: 13px; font-weight: 800; }
 .session-chat-sheet { display: flex; flex-direction: column; width: min(520px, calc(100vw - 40px)); }
 .chat-session-summary { display: grid; gap: 4px; position: sticky; top: 0; z-index: 1; margin-bottom: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--mist); color: var(--navy); }
-.chat-session-summary span { color: var(--ink-muted); font-size: 13px; }
+.chat-session-summary span { color: var(--ink-muted-strong); font-size: 13px; }
 .chat-roster { display: grid; gap: 7px; margin-bottom: 12px; }
 .chat-roster h3 { margin: 0; color: var(--navy); font-size: 14px; }
 .chat-roster [data-chat-roster] { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -504,9 +507,9 @@
 .chat-message p { margin: 0; }
 .chat-message__sender { margin-bottom: 4px !important; color: var(--blue); font-size: 11px; font-weight: 900; }
 .chat-message__body { white-space: pre-wrap; line-height: 1.5; }
-.chat-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; color: var(--ink-muted); font-size: 10px; }
-.chat-message__meta .session-tertiary { min-width: 44px; min-height: 44px; padding: 0 2px; font-size: 10px; }
-.chat-archived-note { margin: 0 0 8px; padding: 9px 10px; border-radius: 9px; background: #f2f3f5; color: var(--ink-muted); font-size: 13px; font-weight: 800; }
+.chat-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 5px; color: var(--ink-muted-strong); font-size: 12px; }
+.chat-message__meta .session-tertiary { min-width: 44px; min-height: 44px; padding: 0 2px; font-size: 12px; }
+.chat-archived-note { margin: 0 0 8px; padding: 9px 10px; border-radius: 9px; background: #f2f3f5; color: var(--ink-muted-strong); font-size: 13px; font-weight: 800; }
 .chat-composer { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--navy); font-size: 13px; font-weight: 800; }
 .chat-composer textarea { width: 100%; resize: vertical; border: 1px solid var(--line); border-radius: 9px; padding: 9px; color: var(--navy); font: inherit; }
 .chat-composer textarea:disabled { background: #f2f3f5; color: var(--ink-muted); }

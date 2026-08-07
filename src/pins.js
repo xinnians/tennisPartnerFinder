@@ -24,8 +24,8 @@ const CLUSTER_PIN_URL = svgToDataUri(`
   </svg>`);
 const COURT_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" viewBox="0 0 25 25">
-    <circle cx="12.5" cy="12.5" r="10.5" fill="#fff" stroke="#99aac1" stroke-width="1.8"/>
-    <circle cx="12.5" cy="12.5" r="3.4" fill="#99aac1"/>
+    <circle cx="12.5" cy="12.5" r="10.5" fill="#fff" stroke="#64758b" stroke-width="1.8"/>
+    <circle cx="12.5" cy="12.5" r="3.4" fill="#64758b"/>
   </svg>`);
 const USER_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
