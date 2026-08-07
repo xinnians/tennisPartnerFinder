@@ -219,7 +219,7 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
   await expect(sheet.locator("[data-decision-terminal]")).toBeHidden();
 });
 
-test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ page }) => {
+test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ baseURL, page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -238,7 +238,10 @@ test("a hash session link opens its detail, copies a stable share link, and give
   await expect(detail).toBeVisible();
   await expect(detail).toContainText("台北網球中心");
   await detail.locator("[data-session-action='copy-link']").click();
-  await expect.poll(() => page.evaluate(() => window.__copiedSessionLink)).toBe("http://127.0.0.1:5174/#/session/9001");
+  // 由 baseURL 推導,不寫死 port:同一支測試在 mock 兩個 project 之外若換 port 也不會假紅。
+  await expect
+    .poll(() => page.evaluate(() => window.__copiedSessionLink))
+    .toBe(new URL("/#/session/9001", baseURL).toString());
   await expect(page.locator("#toast-root")).toContainText("球局連結已複製");
 
   await page.goto("/#/session/999999");
@@ -808,6 +811,8 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
   await expect(preview.locator("img[src='x']")).toHaveCount(0);
   // 中性聚合數:主揪的 3 顯示、guest 的 0 整行不畫,所以整份名單只有一個 .trust-count。
   await expect(preview.locator(".trust-count")).toHaveCount(1);
+  // D5:替代字母只是裝飾,暱稱就在旁邊;與 alt="" 的 img 一致不重複朗讀。
+  await expect(preview.locator("[data-avatar-fallback]").first()).toHaveAttribute("aria-hidden", "true");
   await expect(preview.locator("[data-join-preview-person]").first().locator(".trust-count")).toHaveText("已成局 3 次");
 
   const hostImage = preview.locator("[data-join-preview-person]").first().locator("img");
@@ -1373,6 +1378,38 @@ test("declined My Sessions history uses neutral participation wording", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a failed presence setting keeps focus on the control instead of jumping to the alert", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("me-page").hidden = false;
+    renderMePage(document.getElementById("me-root"), {
+      authSession: { user: { id: "presence-failure-test" } },
+      onSetPresenceSharing: async () => {
+        throw new Error("在線設定暫時無法更新。");
+      },
+      playerVisibility: false,
+      presence: { locationStatus: "idle", openToGreeting: false, sharePresence: false },
+      profile: { nick: "測試球友", ntrp: 3.5 },
+    });
+  });
+
+  const presenceToggle = page.getByTestId("presence-sharing-toggle");
+  await presenceToggle.focus();
+  await presenceToggle.click();
+
+  const error = page.locator("[data-presence-error]");
+  await expect(error).toBeVisible();
+  await expect(error).toHaveText("在線設定暫時無法更新。");
+  // 落點與「我」頁其他設定一致:留在剛操作的控制項,role="alert" 自行朗讀。
+  await expect(presenceToggle).toBeFocused();
+  await expect(error).not.toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("Me owns player visibility while My Sessions omits both moved settings and preserves pending and error state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -1411,34 +1448,45 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await expect(toggle).toHaveAttribute("role", "switch");
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await expect(toggle).toHaveText("已關閉");
+  // D1:switch 的可及名稱要是狀態式、含主題,並且含可見文字(WCAG 2.5.3 Label in Name)。
+  await expect(toggle).toHaveAttribute("aria-label", "球友卡：已關閉");
+  await expect(toggle).toHaveAttribute("aria-describedby", "player-visibility-hint");
+  const presenceToggle = page.getByTestId("presence-sharing-toggle");
+  await expect(presenceToggle).toHaveAttribute("role", "switch");
+  await expect(presenceToggle).toHaveAttribute("aria-checked", "false");
+  // 可見文字改狀態式,不再與 aria-checked 打架(原本關閉時寫「開啟在線分享」)。
+  await expect(presenceToggle).toHaveText("已關閉");
+  await expect(presenceToggle).toHaveAttribute("aria-label", "在線分享：已關閉");
+  await expect(presenceToggle).toHaveAttribute("aria-describedby", "presence-sharing-hint");
+  // aria-describedby 指到的元素必須真的存在,否則等於沒有說明。
+  await expect(page.locator("#me-root #player-visibility-hint")).toHaveCount(1);
+  await expect(page.locator("#me-root #presence-sharing-hint")).toHaveCount(1);
+  // D2:登入態只有一個 h1,其後一律 h2,不得再出現跳級或倒序。
+  await expect
+    .poll(() =>
+      page.locator("#me-root :is(h1,h2,h3,h4,h5,h6)").evaluateAll((nodes) => nodes.map((node) => node.tagName))
+    )
+    .toEqual(["H1", "H2", "H2", "H2", "H2", "H2", "H2"]);
   await expect(page.locator(".player-visibility")).toContainText(
     "開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。"
   );
-  expect(
-    await page.locator(".me-identity-card").evaluate(
-      (node) => node.nextElementSibling?.classList.contains("me-edit-profile") === true
+  // 一條有序斷言取代原本五組 nextElementSibling:限定 #me-root(原本會掃到整份文件)、
+  // 走 expect.poll(原本是 await + 裸 expect 的瞬時快照),而且多插一個區塊也會紅。
+  const ME_SECTION_ORDER = [
+    "me-identity-card",
+    "me-edit-profile",
+    "player-visibility",
+    "presence-settings",
+    "notification-settings",
+    "blocked-player-settings",
+  ];
+  await expect
+    .poll(() =>
+      page
+        .locator(ME_SECTION_ORDER.map((name) => `#me-root .${name}`).join(", "))
+        .evaluateAll((nodes, order) => nodes.map((node) => [...node.classList].find((name) => order.includes(name))), ME_SECTION_ORDER)
     )
-  ).toBe(true);
-  expect(
-    await page.locator(".me-edit-profile").evaluate(
-      (node) => node.nextElementSibling?.classList.contains("player-visibility") === true
-    )
-  ).toBe(true);
-  expect(
-    await page.locator(".player-visibility").evaluate(
-      (node) => node.nextElementSibling?.classList.contains("presence-settings") === true
-    )
-  ).toBe(true);
-  expect(
-    await page.locator(".presence-settings").evaluate(
-      (node) => node.nextElementSibling?.nextElementSibling?.classList.contains("notification-settings") === true
-    )
-  ).toBe(true);
-  expect(
-    await page.locator(".notification-settings").evaluate(
-      (node) => node.nextElementSibling?.classList.contains("blocked-player-settings") === true
-    )
-  ).toBe(true);
+    .toEqual(ME_SECTION_ORDER);
   await expect(page.locator("#my-sessions-root .my-sessions-section")).not.toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='player-visibility-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='presence-sharing-toggle']")).toHaveCount(0);
@@ -1932,10 +1980,15 @@ test("drawer, filters, session sheet, and empty reset preserve the session-only 
   await expect(sheet.locator("[data-session-field='host']")).toContainText("示範");
   await expect(sheet.locator("[data-session-field='notes']")).toContainText("本機示範");
   await expect(sheet.getByRole("button", { name: "申請加入" })).toBeVisible();
-  const fieldOrder = await sheet.locator("[data-session-field], [data-session-action]").evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute("data-session-field") ?? node.getAttribute("data-session-action"))
-  );
-  expect(fieldOrder).toEqual(["venue", "court", "time", "details", "host", "notes", "copy-link", "primary"]);
+  await expect
+    .poll(() =>
+      sheet
+        .locator("[data-session-field], [data-session-action]")
+        .evaluateAll((nodes) =>
+          nodes.map((node) => node.getAttribute("data-session-field") ?? node.getAttribute("data-session-action"))
+        )
+    )
+    .toEqual(["venue", "court", "time", "details", "host", "notes", "copy-link", "primary"]);
   await expectWithinViewport(page, sheet);
 
   await page.keyboard.press("Escape");
@@ -2590,10 +2643,13 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await expect(createSheet).toContainText(
     "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。"
   );
-  const requiredOrder = await form
-    .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-1']")
-    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")));
-  expect(requiredOrder).toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-1"]);
+  await expect
+    .poll(() =>
+      form
+        .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-1']")
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")))
+    )
+    .toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-1"]);
 
   await form.getByTestId("session-now-start").click();
   await expect(form.getByTestId("session-start-at")).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);

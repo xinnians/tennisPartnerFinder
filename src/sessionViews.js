@@ -20,7 +20,7 @@ function avatarMarkup({ avatarUrl = "", nickname = "" } = {}) {
   const safeUrl = safeGoogleAvatarUrl(avatarUrl);
   return `<span class="player-avatar" data-player-avatar>
     ${safeUrl ? `<img src="${esc(safeUrl)}" alt="" referrerpolicy="no-referrer" />` : ""}
-    <span class="player-avatar__fallback" data-avatar-fallback${safeUrl ? " hidden" : ""}>${esc(avatarInitial(nickname))}</span>
+    <span class="player-avatar__fallback" data-avatar-fallback aria-hidden="true"${safeUrl ? " hidden" : ""}>${esc(avatarInitial(nickname))}</span>
   </span>`;
 }
 
@@ -164,7 +164,7 @@ export function renderMePage(
         </section>
         <section class="me-edit-profile" aria-label="個人檔案">
           <div>
-            <h3>個人檔案</h3>
+            <h2>個人檔案</h2>
             <p class="form-hint">暱稱、NTRP 與常打球場；暱稱與 NTRP 會出現在你建立或加入的球局。</p>
           </div>
           <button type="button" class="session-secondary" data-testid="edit-profile">編輯</button>
@@ -179,21 +179,23 @@ export function renderMePage(
       authenticated
         ? `<section class="player-visibility" aria-label="球友卡">
       <div>
-        <h3>球友卡</h3>
-        <p class="form-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。</p>
+        <h2>球友卡</h2>
+        <p class="form-hint" id="player-visibility-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。</p>
       </div>
       <button type="button" class="session-secondary" data-my-action="toggle-visibility"
         role="switch" aria-checked="${playerVisibility ? "true" : "false"}"
+        aria-label="球友卡：${playerVisibility ? "已開啟" : "已關閉"}" aria-describedby="player-visibility-hint"
         data-testid="player-visibility-toggle">${playerVisibility ? "已開啟" : "已關閉"}</button>
     </section>
     <section class="presence-settings" aria-labelledby="presence-settings-title">
       <div>
-        <h3 id="presence-settings-title">在線狀態</h3>
-        <p class="form-hint">開啟期間你的所在球場只對其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
+        <h2 id="presence-settings-title">在線狀態</h2>
+        <p class="form-hint" id="presence-sharing-hint">開啟期間你的所在球場只對其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
       </div>
       <button type="button" class="session-secondary" data-set-presence-sharing data-presence-control
         role="switch" aria-checked="${presenceSettings.sharePresence ? "true" : "false"}"
-        data-testid="presence-sharing-toggle">${presenceSettings.sharePresence ? "一鍵隱藏" : "開啟在線分享"}</button>
+        aria-label="在線分享：${presenceSettings.sharePresence ? "已開啟" : "已關閉"}" aria-describedby="presence-sharing-hint"
+        data-testid="presence-sharing-toggle">${presenceSettings.sharePresence ? "已開啟" : "已關閉"}</button>
       <p class="form-hint" data-testid="presence-location-status">${esc(presenceLocationHint(presenceSettings))}</p>
       <label class="presence-settings__greeting"><input type="checkbox" data-open-to-greeting data-presence-control data-testid="open-to-greeting-toggle"${
         presenceSettings.openToGreeting ? " checked" : ""
@@ -204,7 +206,7 @@ export function renderMePage(
     <section class="notification-settings" aria-labelledby="notification-settings-title">
       <div class="notification-settings__head">
         <div>
-          <h3 id="notification-settings-title">通知設定</h3>
+          <h2 id="notification-settings-title">通知設定</h2>
           <p class="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
         </div>
         <button type="button" class="session-secondary" data-enable-push data-notification-control
@@ -268,13 +270,13 @@ export function renderMePage(
     </section>
     <section class="blocked-player-settings" aria-labelledby="blocked-player-settings-title">
       <div>
-        <h3 id="blocked-player-settings-title">我的封鎖清單</h3>
+        <h2 id="blocked-player-settings-title">我的封鎖清單</h2>
         <p class="form-hint">解除封鎖後，系統會重新讀取目前的權威清單。</p>
       </div>
       <p class="my-sessions-message" data-blocked-players-status role="status" aria-live="polite"${
         blockedPlayersStatus === "loading" ? "" : " hidden"
       }>正在讀取封鎖清單…</p>
-      <p class="form-error" data-blocked-players-error role="alert"${blockedPlayersError ? "" : " hidden"}>${esc(
+      <p class="form-error" data-blocked-players-error role="alert" tabindex="-1"${blockedPlayersError ? "" : " hidden"}>${esc(
         blockedPlayersError
       )}</p>
       <div class="blocked-player-list" data-testid="blocked-player-list">${
@@ -357,6 +359,9 @@ export function renderMePage(
       if (error) {
         error.textContent = "訂閱球場數量超過目前可選的台北市球場。";
         error.hidden = false;
+        // 這條是不經 runNotificationSettingAction 的早退分支,焦點沒有任何人托管;
+        // 勾選框已被 restoreCourtSelection 復原,所以退到錯誤訊息而不是留在 body。
+        if (canReceiveFocus(error)) error.focus({ preventScroll: true });
       }
       return;
     }
@@ -1264,8 +1269,11 @@ async function runPresenceSettingAction(root, callback) {
     if (error) {
       error.textContent = cause?.message || "在線設定暫時無法更新，請稍後再試。";
       error.hidden = false;
-      error.focus({ preventScroll: true });
     }
+    // 失敗後的落點與「我」頁其他設定一致:留在剛操作的控制項。role="alert" 本來就會
+    // 自動朗讀,再把焦點搬過去會讓使用者得先走回來才能重試;控制項接不住時才退到
+    // 錯誤訊息(見 finally)。原本這裡直接 error.focus(),同一頁兩種落點。
+    restoreFocus = true;
     return false;
   } finally {
     // 同 runNotificationSettingAction：重繪後的 markup 是 disabled 的權威。在線設定的
@@ -1283,6 +1291,10 @@ async function runPresenceSettingAction(root, callback) {
       const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
       const target = focusIsLoose ? root.querySelector(focusedSelector) : null;
       if (canReceiveFocus(target)) target.focus({ preventScroll: true });
+      else if (focusIsLoose && error && !error.hidden && canReceiveFocus(error)) {
+        // 控制項接不住(被收合、被移除)時才退到錯誤訊息,不讓焦點留在 body。
+        error.focus({ preventScroll: true });
+      }
     }
   }
 }

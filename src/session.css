@@ -92,7 +92,7 @@
 .player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: rgba(20, 44, 75, 0.92); color: #fff; font-size: 12px; font-weight: 800; }
 
 .presence-settings { display: grid; gap: 10px; margin: 16px 0; padding: 16px; border: 1px solid #c8dc9d; border-radius: 14px; background: #f7fbe9; }
-.presence-settings h3 { margin: 0; color: var(--navy); }
+.presence-settings h2 { margin: 0; color: var(--navy); }
 .presence-settings .form-hint { margin: 5px 0 0; color: var(--ink-muted-strong); }
 .presence-settings__greeting { display: flex; align-items: center; gap: 7px; color: var(--navy); font-weight: 800; }
 .player-presence, .player-greeting { color: #426713; font-weight: 800; }
@@ -401,11 +401,11 @@
 .me-identity-card .session-secondary,
 .me-sign-in-card .session-primary { min-width: 44px; min-height: 44px; }
 .player-visibility { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
-.player-visibility h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.player-visibility h2 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .player-visibility .form-hint { margin: 0; }
 .player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
 .me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
-.me-edit-profile h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.me-edit-profile h2 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .me-edit-profile .form-hint { margin: 0; }
 .me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }
 .me-page .me-edit-profile .session-secondary,
@@ -418,7 +418,7 @@
 .me-page .blocked-player-settings .session-secondary { min-height: 44px; }
 .notification-settings { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
 .notification-settings__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.notification-settings h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.notification-settings h2 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .notification-settings .form-hint { margin: 0; }
 .notification-settings__hint { color: var(--blue); font-weight: 800; }
 .notification-settings__ios-hint { padding: 9px 10px; border-radius: 9px; background: var(--mist); color: var(--navy); }
@@ -432,12 +432,11 @@
 #notification-court-picker label:has(input:checked) { border-color: var(--blue); background: var(--mist); }
 #notification-court-picker label:has(input:focus-visible),
 .court-subscribe-all:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
-.notification-settings__migration { margin: 0; padding: 9px 10px; border-radius: 9px; background: #fff6d8; color: #6d4a00; font-size: 13px; font-weight: 800; }
 .success-push-prompt { display: grid; flex: 1 1 100%; justify-items: start; gap: 8px; margin: 10px 0; padding: 12px; border: 1px solid #c8dc9d; border-radius: 11px; background: #f7fbe9; color: var(--navy); }
 .success-push-prompt p { margin: 0; }
 @media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } }
 .blocked-player-settings { display: grid; gap: 10px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
-.blocked-player-settings h3 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
+.blocked-player-settings h2 { margin: 0 0 4px; color: var(--navy); font-size: 17px; }
 .blocked-player-settings .form-hint,
 .blocked-player-settings .surface__copy { margin: 0; }
 .blocked-player-list { display: grid; gap: 8px; }
