@@ -4152,7 +4152,7 @@ export function openEditSessionSheet(
           session.ntrpMin ?? ""
         )}" /></label><label class="form-field" for="session-edit-ntrp-max"><span>最高 NTRP</span><input id="session-edit-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
           session.ntrpMax ?? ""
-        )}" /></label></div></fieldset>
+        )}" /></label></div><p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p></fieldset>
         <label class="form-field" for="session-edit-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-edit-fee-note" name="feeNote" maxlength="500" rows="2">${esc(
           session.feeNote ?? ""
         )}</textarea></label>

@@ -9,13 +9,13 @@ import {
   validateUpdateSessionInput,
 } from "../src/sessionViews.js";
 
-test("NTRP 說明只有一份來源,兩個掛載點都引用同一個常數", () => {
+test("NTRP 說明只有一份來源,三個掛載點都引用同一個常數", () => {
   const source = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
   assert.ok(source.length > 100_000, "來源讀取失敗時計數會全部歸零,先確認掃描集非空");
   // 字面值恰好一次(定義處);少於一次代表被改寫,多於一次代表有人另抄了一份。
   assert.equal(source.split(NTRP_SCALE_EXPLANATION).length - 1, 1);
-  // 符號恰好三次:一次 export、兩個掛載點。
-  assert.equal(source.split("NTRP_SCALE_EXPLANATION").length - 1, 3);
+  // 符號恰好四次:一次 export、三個掛載點(個人檔案、建局、編輯)。
+  assert.equal(source.split("NTRP_SCALE_EXPLANATION").length - 1, 4);
 });
 
 test("create form converts datetime-local as Asia/Taipei instead of the browser timezone", () => {

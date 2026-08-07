@@ -4918,6 +4918,11 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   });
 
   const editForm = page.getByTestId("session-edit-form");
+  // 同一個「適合程度」欄位在建局有說明、編輯沒有是不一致;三處共用同一個匯出常數。
+  const ntrpExplanation = await page.evaluate(
+    async () => (await import("/src/sessionViews.js")).NTRP_SCALE_EXPLANATION
+  );
+  await expect(editForm.locator("[data-ntrp-explanation]")).toHaveText(ntrpExplanation);
   const options = editForm.getByTestId("session-edit-play-type").locator("option");
   // 正向前提：三個新選項在；額外那一個才是為既有球局保留的。
   await expect(options).toHaveText(["單打", "雙打", "練球", "對拉"]);
