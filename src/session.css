@@ -479,6 +479,11 @@
 .join-preview__person div { display: grid; gap: 2px; min-width: 0; }
 .join-preview__person strong { overflow-wrap: anywhere; }
 .join-preview__person span:not(.player-avatar, .player-avatar__fallback) { color: var(--ink-muted); font-size: 12px; }
+/* 中性聚合數。周圍次要文字用 --ink-muted,但它對 --mist 只有 4.2538:1(AA 要 4.5),
+   所以固定用 #57677c:對 --mist 5.2164:1、對 --paper 5.7750:1,兩種底色都過。
+   第二個選擇器只是為了追平上一行的特異性(0,2,1),靠順序取勝。 */
+.trust-count,
+.join-preview__person span.trust-count { color: #57677c; font-size: 12px; }
 .player-avatar { position: relative; display: inline-grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: 50%; background: #dfeaf8; color: var(--blue); font-weight: 900; }
 .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .player-avatar__fallback { display: grid; width: 100%; height: 100%; place-items: center; }

@@ -776,9 +776,10 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
       startAt: "2099-07-19T01:00:00.000Z",
     };
     const participants = [
-      { avatarUrl: "", nickname: "<img src=x onerror=alert(1)>", ntrp: null, role: "guest", sessionId: 881 },
+      { avatarUrl: "", hostedPlayedCount: 0, nickname: "<img src=x onerror=alert(1)>", ntrp: null, role: "guest", sessionId: 881 },
       {
         avatarUrl: "https://lh3.googleusercontent.com/a/stage-t45-host",
+        hostedPlayedCount: 3,
         nickname: "名單主揪",
         ntrp: 3.5,
         role: "host",
@@ -805,6 +806,9 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
   await expect(preview.locator("[data-join-preview-person]").nth(1)).toContainText("尚未填寫 NTRP");
   await expect(preview).toContainText("<img src=x onerror=alert(1)>");
   await expect(preview.locator("img[src='x']")).toHaveCount(0);
+  // 中性聚合數:主揪的 3 顯示、guest 的 0 整行不畫,所以整份名單只有一個 .trust-count。
+  await expect(preview.locator(".trust-count")).toHaveCount(1);
+  await expect(preview.locator("[data-join-preview-person]").first().locator(".trust-count")).toHaveText("已成局 3 次");
 
   const hostImage = preview.locator("[data-join-preview-person]").first().locator("img");
   await expect(hostImage).toHaveAttribute("src", "https://lh3.googleusercontent.com/a/stage-t45-host");

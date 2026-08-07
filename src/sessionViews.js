@@ -34,6 +34,18 @@ function wireAvatarFallbacks(root) {
   });
 }
 
+/**
+ * 中性聚合數:只陳述事實,不做比率、星等或排名;N 為 0 時整行不顯示。
+ *
+ * 三個呼叫點(加入前名單主揪列、球友名單列、球友卡)的容器都是 grid,所以這個 span
+ * 會自成一列,不需要各自加 display。
+ */
+function trustCountMarkup(count, label) {
+  const value = Number(count ?? 0);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return `<span class="trust-count">${esc(label.replace("{n}", String(value)))}</span>`;
+}
+
 function joinPreviewMarkup({ participants = [], status = "loading" } = {}) {
   if (status === "loading") return '<p class="form-hint" role="status">正在載入已確認參加者…</p>';
   if (status === "error") return '<p class="form-hint" role="status">參加者名單暫時無法載入。</p>';
@@ -45,7 +57,7 @@ function joinPreviewMarkup({ participants = [], status = "loading" } = {}) {
         ${avatarMarkup(participant)}
         <div><strong>${esc(participant.nickname)}</strong><span>${participant.role === "host" ? "主揪" : "已確認"} · ${esc(
           formatNtrp(participant.ntrp)
-        )}</span></div>
+        )}</span>${participant.role === "host" ? trustCountMarkup(participant.hostedPlayedCount, "已成局 {n} 次") : ""}</div>
       </article>`
     )
     .join("")}</div>`;
@@ -2857,7 +2869,7 @@ function playerDirectoryRowsMarkup(players) {
             <span class="player-directory-row__head"><strong>${esc(player.nickname || "未命名球友")}</strong>${
               player.isPresent ? '<span class="player-directory-row__online">在線</span>' : ""
             }${player.isSelf ? '<span class="player-directory-row__self">這是你</span>' : ""}</span>
-            <span>${esc(formatNtrp(player.ntrp))} · ${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
+            <span>${esc(formatNtrp(player.ntrp))} · ${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>${trustCountMarkup(player.playedCount, "已打 {n} 場")}
             <span>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</span>
             <span>常打球場：${esc((player.courtNames ?? []).join("、") || player.courtName || "未填球場")}</span>
           </button>`
@@ -2959,6 +2971,7 @@ export function openPlayerCardSheet(
       </div>
       <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
         <p><strong>${esc(formatNtrp(player.ntrp))}</strong></p>
+        ${trustCountMarkup(player.playedCount, "已打 {n} 場")}
         ${player.isPresent ? `<p>在線狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
         ${player.openToGreeting ? `<p class="player-greeting">${esc(playerGreetingLabel(player))}</p>` : ""}
         <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>

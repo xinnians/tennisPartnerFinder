@@ -5,6 +5,7 @@ import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
 import { installFakeMaps } from "./fixtures/fakeMaps.js";
 import { courtIdByName, createProfile, makeClient, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
 import {
+  callSessionRpc,
   createFutureSessionInput,
   createSessionTestContext,
   createSessionViaRpc,
@@ -1598,4 +1599,91 @@ test("checking the last court collapses the picker without dropping focus to bod
   ).toBe(false);
   await expect(page.getByTestId("toggle-court-picker")).toBeFocused();
   expect(runtimeErrors).toEqual([]);
+});
+
+test("neutral counts stay hidden at zero and appear on all three surfaces once a session is played", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+
+  const acceptGuestInto = async (sessionId) => {
+    const { data: roster, error } = await host.client
+      .from("session_participant_roster")
+      .select("participant_id")
+      .eq("session_id", sessionId)
+      .eq("profile_id", guest.profileId)
+      .single();
+    if (error) throw error;
+    await reviewJoinRequestViaRpc(host.client, { decision: "accepted", participantId: roster.participant_id, sessionId });
+  };
+  const openPreviewSheet = async (sessionId) => {
+    await page.locator("#nearby-sessions-toggle").click();
+    await page.locator(`#nearby-sessions-list [data-session-id='${sessionId}']`).first().click();
+    await expect(page.locator("#session-sheet")).toBeVisible();
+  };
+
+  try {
+    const courtId = await courtIdByName(host.client, context.host.courts[0]);
+    // 觀察用的未來球局:主揪 + 一位已確認 guest,加入前名單會同時畫出兩列。
+    const previewSessionId = await createSessionViaRpc(
+      host.client,
+      createFutureSessionInput({ courtId, notes: `trust-count-${context.runId}`, slotsTotal: 2 })
+    );
+    await requestToJoinSessionViaRpc(guest.client, previewSessionId);
+    await acceptGuestInto(previewSessionId);
+    expect(await setPlayerVisibilityViaRpc(guest.client, true)).toBe("OK");
+
+    // ── 反向前提:三個面在計數為 0 時都不畫這一行 ──────────────────────
+    await gotoWithSession(page, guest.session);
+    await openPreviewSheet(previewSessionId);
+    const preview = page.locator("#session-sheet [data-session-join-preview]");
+    // 掃描集非空:兩列真的畫出來了,0 個 .trust-count 才是「沒顯示」而不是「沒資料」。
+    await expect(preview.locator("[data-join-preview-person]")).toHaveCount(2);
+    await expect(preview.locator(".trust-count")).toHaveCount(0);
+
+    await switchBrowserSession(page, host.session);
+    await page.getByTestId("player-directory-open").click();
+    const directoryRow = page.getByTestId(`player-directory-row-${guest.profileId}`);
+    await expect(directoryRow).toContainText(context.guest.nickname);
+    await expect(directoryRow.locator(".trust-count")).toHaveCount(0);
+    await directoryRow.click();
+    const playerCard = page.locator("#player-card-sheet");
+    await expect(playerCard).toBeVisible();
+    await expect(playerCard.locator(".trust-count")).toHaveCount(0);
+
+    // ── 讓兩個計數各自 +1:主揪回報打成、guest 確認到場 ─────────────────
+    // 開始時間放在 1 分鐘前(create_session 容許 5 分鐘內),不必等待就能回報打成。
+    const playedSessionId = await createSessionViaRpc(
+      host.client,
+      createFutureSessionInput({
+        courtId,
+        notes: `trust-count-played-${context.runId}`,
+        slotsTotal: 1,
+        startAt: new Date(Date.now() - 60_000).toISOString(),
+      })
+    );
+    await requestToJoinSessionViaRpc(guest.client, playedSessionId);
+    await acceptGuestInto(playedSessionId);
+    expect(await callSessionRpc(host.client, "mark_session_played", { p_session_id: playedSessionId })).toBe("OK");
+    expect(await callSessionRpc(guest.client, "confirm_session_attendance", { p_session_id: playedSessionId })).toBe("OK");
+
+    // ── 正向前提:同樣三個面現在各顯示一則中性事實 ────────────────────
+    await switchBrowserSession(page, host.session);
+    await page.getByTestId("player-directory-open").click();
+    await expect(directoryRow.locator(".trust-count")).toHaveText("已打 1 場");
+    await directoryRow.click();
+    await expect(playerCard).toBeVisible();
+    await expect(playerCard.locator(".trust-count")).toHaveText("已打 1 場");
+
+    await switchBrowserSession(page, guest.session);
+    await openPreviewSheet(previewSessionId);
+    await expect(preview.locator("[data-join-preview-person]")).toHaveCount(2);
+    // 只有主揪那一列有計數;guest 沒開過局,所以整份名單只有一個 .trust-count。
+    await expect(preview.locator(".trust-count")).toHaveCount(1);
+    await expect(preview.locator("[data-join-preview-person]").first().locator(".trust-count")).toHaveText("已成局 1 次");
+    expect(runtimeErrors).toEqual([]);
+  } finally {
+    await Promise.allSettled([setPlayerVisibilityViaRpc(guest.client, false)]);
+  }
 });
