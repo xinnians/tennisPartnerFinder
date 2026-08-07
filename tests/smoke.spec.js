@@ -2557,10 +2557,16 @@ test("profile and create sheets disclose public nickname use and retain a local-
 
   const disclosure =
     "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
+  // 兩個掛載點都比對「模組匯出的那一份」,任何一處寫死成不同文字都會紅。
+  const ntrpExplanation = await page.evaluate(
+    async () => (await import("/src/sessionViews.js")).NTRP_SCALE_EXPLANATION
+  );
+  expect(ntrpExplanation).toContain("NTRP 是網球程度自評分級");
   const profile = page.locator("#profile-completion-sheet");
   await expect(profile).toBeVisible();
   await expect(profile.getByLabel("公開暱稱")).toBeVisible();
   await expect(profile.getByText(disclosure)).toBeVisible();
+  await expect(profile.locator("[data-ntrp-explanation]")).toHaveText(ntrpExplanation);
   await expect(profile).toContainText("完成後將回到：示範球場・");
   await page.keyboard.press("Escape");
 
@@ -2579,6 +2585,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await expect(createSheet).toBeVisible();
   await expect(page.getByTestId("session-create-modal")).toBeVisible();
   await expect(createSheet.getByText(disclosure)).toBeVisible();
+  await expect(createSheet.locator("[data-ntrp-explanation]")).toHaveText(ntrpExplanation);
   await expect(form.locator('input[name="joinMode"][value="instant"]')).toBeChecked();
   await expect(createSheet).toContainText(
     "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。"

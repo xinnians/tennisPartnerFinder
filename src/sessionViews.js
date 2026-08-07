@@ -105,6 +105,10 @@ const DRAWER_ACTION_IDS = new Set(["discovery-reset", "discovery-retry", "drawer
 export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
 
+/** 全站唯一一份 NTRP 說明,個人檔案與建局表單共用;兩處不可各寫一份。 */
+export const NTRP_SCALE_EXPLANATION =
+  "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
+
 /** Render the account and service skeleton for the Me destination. */
 export function renderMePage(
   root,
@@ -2371,7 +2375,8 @@ export function openProfileCompletionSheet({
           !compactCreateGate || needsNtrp
             ? `<label class="form-field" for="profile-ntrp"><span>${compactCreateGate ? "NTRP 程度" : "NTRP 程度（選填）"}</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="0.1" value="${esc(
                 profile.ntrp ?? ""
-              )}" inputmode="decimal" placeholder="尚未填寫" /></label>`
+              )}" inputmode="decimal" placeholder="尚未填寫" /></label>
+              <p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p>`
             : ""
         }
         ${
@@ -2477,7 +2482,7 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
           <label><input type="radio" name="joinMode" value="instant" checked /> 直接加入（先到先得，立即成局）</label>
           <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。</p>
         </fieldset>
-        <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div></fieldset>
+        <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div><p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p></fieldset>
         <label class="form-field" for="session-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-fee-note" name="feeNote" maxlength="500" rows="2"></textarea></label>
         <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>

@@ -1,7 +1,22 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { taipeiLocalDateTimeToIso, validateCreateSessionInput, validateUpdateSessionInput } from "../src/sessionViews.js";
+import {
+  NTRP_SCALE_EXPLANATION,
+  taipeiLocalDateTimeToIso,
+  validateCreateSessionInput,
+  validateUpdateSessionInput,
+} from "../src/sessionViews.js";
+
+test("NTRP 說明只有一份來源,兩個掛載點都引用同一個常數", () => {
+  const source = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
+  assert.ok(source.length > 100_000, "來源讀取失敗時計數會全部歸零,先確認掃描集非空");
+  // 字面值恰好一次(定義處);少於一次代表被改寫,多於一次代表有人另抄了一份。
+  assert.equal(source.split(NTRP_SCALE_EXPLANATION).length - 1, 1);
+  // 符號恰好三次:一次 export、兩個掛載點。
+  assert.equal(source.split("NTRP_SCALE_EXPLANATION").length - 1, 3);
+});
 
 test("create form converts datetime-local as Asia/Taipei instead of the browser timezone", () => {
   assert.equal(taipeiLocalDateTimeToIso("2026-07-18T09:30"), "2026-07-18T01:30:00.000Z");
