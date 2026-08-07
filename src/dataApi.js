@@ -53,7 +53,7 @@ const SESSION_ROSTER_COLUMNS = [
   "role",
   "status",
 ];
-const SESSION_JOIN_PREVIEW_COLUMNS = ["session_id", "role", "nickname", "ntrp", "avatar_url"];
+const SESSION_JOIN_PREVIEW_COLUMNS = ["session_id", "role", "nickname", "ntrp", "avatar_url", "hosted_played_count"];
 
 const SESSION_MESSAGE_FEED_COLUMNS = [
   "message_id",
@@ -88,6 +88,7 @@ const PLAYER_DIRECTORY_COLUMNS = [
   "court_lat",
   "court_lng",
   "is_self",
+  "played_count",
 ];
 const PLAYER_PRESENCE_DIRECTORY_COLUMNS = [
   "profile_id",
@@ -357,6 +358,7 @@ export function mapSessionJoinPreviewRow(row = {}) {
     nickname: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
     avatarUrl: asText(row.avatar_url),
+    hostedPlayedCount: Number(row.hosted_played_count ?? 0),
   };
 }
 
@@ -367,6 +369,7 @@ function mapMockSessionJoinPreviewRow(row = {}) {
     nickname: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
     avatarUrl: asText(row.avatarUrl),
+    hostedPlayedCount: Number(row.hostedPlayedCount ?? 0),
   };
 }
 
@@ -407,6 +410,7 @@ export function mapPlayerDirectoryRow(row = {}) {
     courtLat: asNumber(row.court_lat),
     courtLng: asNumber(row.court_lng),
     isSelf: asBoolean(row.is_self),
+    playedCount: Number(row.played_count ?? 0),
   };
 }
 

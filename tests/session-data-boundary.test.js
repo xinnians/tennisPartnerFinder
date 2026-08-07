@@ -497,6 +497,7 @@ test("player directory mapper keeps its exact public allowlist", () => {
     court_lat: "25.067446",
     court_lng: "121.596648",
     is_self: false,
+    played_count: "7",
     line_id: "must-not-leak",
     real_name: "must-not-leak",
   };
@@ -513,6 +514,7 @@ test("player directory mapper keeps its exact public allowlist", () => {
     "court_lat",
     "court_lng",
     "is_self",
+    "played_count",
   ]);
   assert.equal(PLAYER_DIRECTORY_SELECT.includes("*"), false);
   assert.equal(PLAYER_DIRECTORY_SELECT.includes("line_id"), false);
@@ -528,6 +530,7 @@ test("player directory mapper keeps its exact public allowlist", () => {
     "courtLat",
     "courtLng",
     "isSelf",
+    "playedCount",
   ].sort());
   assert.deepEqual(mapPlayerDirectoryRow(directoryRow), {
     profileId: 8001,
@@ -541,7 +544,11 @@ test("player directory mapper keeps its exact public allowlist", () => {
     courtLat: 25.067446,
     courtLng: 121.596648,
     isSelf: false,
+    playedCount: 7,
   });
+  // 缺欄與 null 都要落到 0,UI 才有辦法用「N 為 0 就整行不顯示」當唯一判準。
+  assert.equal(mapPlayerDirectoryRow({ played_count: null }).playedCount, 0);
+  assert.equal(mapPlayerDirectoryRow({}).playedCount, 0);
 });
 
 test("player directory mock data is cloned and constrained to requested bounds", async () => {
@@ -1033,7 +1040,7 @@ test("session messages load only from the ordered safe feed and map its allowlis
   assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
 });
 
-test("join preview loads only the five authenticated display fields and maps no identity", async () => {
+test("join preview loads only the six authenticated display fields and maps no identity", async () => {
   const calls = [];
   const query = {
     select(value) {
@@ -1053,6 +1060,7 @@ test("join preview loads only the five authenticated display fields and maps no 
             nickname: "確認球友",
             ntrp: "3.5",
             avatar_url: "https://lh3.googleusercontent.com/a/safe-preview",
+            hosted_played_count: "4",
             profile_id: 999,
             line_id: "must-not-map",
           },
@@ -1078,6 +1086,7 @@ test("join preview loads only the five authenticated display fields and maps no 
       nickname: "確認球友",
       ntrp: 3.5,
       avatarUrl: "https://lh3.googleusercontent.com/a/safe-preview",
+      hostedPlayedCount: 4,
     },
   ]);
   assert.deepEqual(calls, [
@@ -1094,18 +1103,27 @@ test("join preview loads only the five authenticated display fields and maps no 
       avatar_url: null,
       participant_id: 123,
     }),
-    { sessionId: 82, role: "host", nickname: "主揪", ntrp: null, avatarUrl: "" }
+    { sessionId: 82, role: "host", nickname: "主揪", ntrp: null, avatarUrl: "", hostedPlayedCount: 0 }
   );
 });
 
 test("mock join preview uses only fictional display data and has a nonempty demonstration", async () => {
   const mockRows = [
-    { sessionId: 9001, role: "guest", nickname: "示範球友", ntrp: null, avatarUrl: "" },
-    { sessionId: 9002, role: "host", nickname: "其他示範", ntrp: 3.5, avatarUrl: "" },
+    { sessionId: 9001, role: "guest", nickname: "示範球友", ntrp: null, avatarUrl: "", hostedPlayedCount: 0 },
+    { sessionId: 9002, role: "host", nickname: "其他示範", ntrp: 3.5, avatarUrl: "", hostedPlayedCount: 6 },
   ];
   const api = createDataApi({ configured: false, mockSessionJoinPreviews: mockRows });
 
   assert.deepEqual(await api.loadSessionJoinPreview(9001), [mockRows[0]]);
+  // demo 端的計數也要走同一條正規化,缺欄時落到 0 而不是 undefined。
+  assert.deepEqual(await api.loadSessionJoinPreview(9002), [mockRows[1]]);
+  assert.equal(
+    (await createDataApi({
+      configured: false,
+      mockSessionJoinPreviews: [{ sessionId: 9003, role: "host", nickname: "無計數示範" }],
+    }).loadSessionJoinPreview(9003))[0].hostedPlayedCount,
+    0
+  );
   assert.equal(JSON.stringify(await api.loadSessionJoinPreview(9001)).includes("line"), false);
 });
 
