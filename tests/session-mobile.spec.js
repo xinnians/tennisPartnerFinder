@@ -346,3 +346,55 @@ test("the filter sheet open button, filter sheet controls, and profile-completio
     .toEqual([]);
   expect(runtimeErrors).toEqual([]);
 });
+
+test("the drawer expand/collapse buttons in half state keep 44px touch targets", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
+
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  // 點擊摘要條打開抽屜到 half（半開）狀態
+  const nearbySessionsSummary = page.locator("#nearby-sessions-summary");
+  await expect(nearbySessionsSummary).toBeVisible();
+  await nearbySessionsSummary.click();
+
+  // 驗證 half 態已設置
+  const drawer = page.locator("#nearby-sessions-list");
+  await expect(drawer).toHaveAttribute("data-drawer-state", "half");
+
+  // 掃描 half 態的抽屜控制鈕
+  const expandButton = page.getByTestId("drawer-expand");
+  const collapseButton = page.getByTestId("drawer-collapse");
+
+  // 驗證兩顆鈕都可見
+  await expect(expandButton).toBeVisible();
+  await expect(collapseButton).toBeVisible();
+
+  // 掃描它們的尺寸
+  const buttons = await page.locator('[data-testid="drawer-expand"], [data-testid="drawer-collapse"]').evaluateAll(
+    (elements) =>
+      elements.map((element) => {
+        const box = element.getBoundingClientRect();
+        return {
+          testid: element.getAttribute("data-testid"),
+          height: Math.round(box.height),
+          width: Math.round(box.width),
+        };
+      })
+  );
+
+  // 非空集合斷言：掃到的鈕數 =2
+  expect(buttons).toHaveLength(2);
+
+  // 驗證每顆鈕都 ≥44×44
+  for (const button of buttons) {
+    expect(button.width).toBeGreaterThanOrEqual(44);
+    expect(button.height).toBeGreaterThanOrEqual(44);
+  }
+
+  expect(runtimeErrors).toEqual([]);
+});
