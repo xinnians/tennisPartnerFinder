@@ -478,6 +478,7 @@ test("a host creates a candidate session in the form and a guest joins it", asyn
   await form.getByTestId("session-range-end").fill(taipeiInput(end));
   await form.getByTestId("session-play-type").selectOption("單打");
   await form.locator("input[name='joinMode'][value='approval']").check();
+  await form.locator(".form-optional summary").click();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("現場均分");
   await form.getByLabel("備註（選填，最多 500 字）").fill(notes);
   await form.getByTestId("session-submit").click();
@@ -542,6 +543,7 @@ test("a host decides a candidate session into one solid pin and the database rec
   await createForm.getByTestId("session-start-at").fill(new Date(startAt.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16));
   await createForm.getByTestId("session-range-end").fill(new Date(rangeEnd.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16));
   await createForm.getByTestId("session-play-type").selectOption("單打");
+  await createForm.locator(".form-optional summary").click();
   await createForm.getByLabel("備註（選填，最多 500 字）").fill(notes);
   await createForm.getByTestId("session-submit").click();
   await expect(page.locator("#my-sessions-page")).toBeVisible();
@@ -620,6 +622,7 @@ test("a host edits a single-court session and sees authoritative card and detail
   await form.getByTestId("session-edit-play-type").selectOption("雙打");
   await expect(form.getByTestId("session-edit-slots-3")).toBeChecked();
   await form.getByTestId("session-edit-slots-2").check();
+  await form.locator(".form-optional summary").click();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 200");
   await form.getByLabel("備註（選填，最多 500 字）").fill(updatedNotes);
   await form.getByTestId("session-edit-submit").click();
@@ -654,6 +657,7 @@ test("a host creates a now-start direct session in the form, then a guest joins 
   await form.getByTestId("session-play-type").selectOption("單打");
   await form.getByTestId("session-slots-1").check();
   await form.locator("input[name='joinMode'][value='instant']").check();
+  await form.locator(".form-optional summary").click();
   await form.getByLabel("備註（選填，最多 500 字）").fill(notes);
   await form.getByTestId("session-submit").click();
 

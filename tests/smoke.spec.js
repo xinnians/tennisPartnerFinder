@@ -2888,6 +2888,40 @@ test("create sheet submits a walk-on session with one authoritative court", asyn
   expect(runtimeErrors).toEqual([]);
 });
 
+test("create sheet submits legal required fields with advanced settings left collapsed and optional fields null", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__collapsedCreatePayload = null;
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
+      onSubmit: async (payload) => {
+        window.__collapsedCreatePayload = payload;
+      },
+    });
+  });
+
+  const form = page.getByTestId("session-form");
+  await expect(form.locator(".form-optional")).not.toHaveAttribute("open");
+  await form.getByTestId("session-court").selectOption("8");
+  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByTestId("session-slots-1").check();
+  await form.getByTestId("session-submit").click();
+
+  await expect.poll(() => page.evaluate(() => window.__collapsedCreatePayload)).toMatchObject({
+    feeNote: null,
+    notes: null,
+    ntrpMax: null,
+    ntrpMin: null,
+  });
+  await expect(form.locator(".form-optional")).not.toHaveAttribute("open");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("create sheet progressively discloses all three venue types and submits candidate courts as an array", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -2929,6 +2963,7 @@ test("create sheet progressively discloses all three venue types and submits can
   await form.getByTestId("session-play-type").selectOption("雙打");
   await expect(form.getByTestId("session-slots-3")).toBeChecked();
   await form.getByTestId("session-slots-2").check();
+  await form.locator(".form-optional summary").click();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 150 元");
   await form.getByTestId("session-submit").click();
 
@@ -3118,6 +3153,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
   await form.getByTestId("session-play-type").selectOption("單打");
   await form.getByTestId("session-slots-2").check();
+  await form.locator(".form-optional summary").click();
   await form.locator("#session-ntrp-min").fill("3.0");
   await form.locator("#session-ntrp-max").fill("4.0");
   await form.locator("#session-notes").fill("保留這段草稿");

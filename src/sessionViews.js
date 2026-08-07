@@ -2531,9 +2531,11 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
           <label><input type="radio" name="joinMode" value="instant" checked /> 直接加入（先到先得，立即成局）</label>
           <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。</p>
         </fieldset>
+        <details class="form-optional"><summary>進階設定（選填）</summary>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div><p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p></fieldset>
         <label class="form-field" for="session-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-fee-note" name="feeNote" maxlength="500" rows="2"></textarea></label>
         <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
+        </details>
         <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
         <p class="form-error" data-create-error role="alert" hidden></p>
         <button type="submit" class="session-primary" data-testid="session-submit">建立球局</button>
@@ -2796,6 +2798,7 @@ export function openEditSessionSheet(
               } /><span>${value} 位</span></label>`
           )
           .join("")}</div><p class="form-hint">不含你自己。</p></fieldset>
+        <details class="form-optional"><summary>進階設定（選填）</summary>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-edit-ntrp-min"><span>最低 NTRP</span><input id="session-edit-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
           session.ntrpMin ?? ""
         )}" /></label><label class="form-field" for="session-edit-ntrp-max"><span>最高 NTRP</span><input id="session-edit-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
@@ -2807,6 +2810,7 @@ export function openEditSessionSheet(
         <label class="form-field" for="session-edit-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-edit-notes" name="notes" maxlength="500" rows="4">${esc(
           session.notes ?? ""
         )}</textarea></label>
+        </details>
         <p class="form-error" data-edit-error role="alert" hidden></p>
         <button type="submit" class="session-primary" data-testid="session-edit-submit">儲存變更</button>
       </form>`,
