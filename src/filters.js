@@ -40,7 +40,7 @@ export function countActiveFilters(filters) {
   // courtId: active if not null
   if (filters.courtId !== DEFAULT_FILTER_STATE.courtId) count++;
 
-  // date: active if not null and not empty string
+  // date: active if not null
   if (filters.date !== DEFAULT_FILTER_STATE.date) count++;
 
   // band: active if not "all"
@@ -66,14 +66,6 @@ export function countActiveFilters(filters) {
  */
 export function isDefaultFilters(filters) {
   return countActiveFilters(filters) === 0;
-}
-
-function setEquals(left, right) {
-  if (left.size !== right.size) return false;
-  for (const value of left) {
-    if (!right.has(value)) return false;
-  }
-  return true;
 }
 
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
