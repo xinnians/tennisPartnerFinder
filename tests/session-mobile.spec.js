@@ -23,6 +23,42 @@ function captureRuntimeErrors(page) {
   return errors;
 }
 
+// 對稱式掃描:掃 root 底下全部互動元素,不列舉 testid——往後新增欄位會自動納入。
+// 兩條委派規則(不是白名單,是「誰才是真正的點擊目標」):
+//   1. 被 <label> 包住的 input,點擊目標是那個 label,label 自己在掃描集裡量。
+//   2. 不含任何表單控件的 <label>,是指向相鄰控件的純文字標籤,不是獨立目標。
+// 批 C1-4:從單一「建立/編輯表單」測試抽成模組級 helper,篩選 sheet 與個人檔案 sheet 的
+// 掃描共用同一套規則,不各自重寫一份容易走樣的複本。
+function createTouchTargetScanner(page) {
+  const measure = (root) =>
+    page.locator(root).evaluateAll((roots) => {
+      const targets = [];
+      for (const node of roots) {
+        for (const element of node.querySelectorAll("button, a[href], select, input, textarea, label, [role='switch']")) {
+          if (!element.checkVisibility()) continue;
+          const wrappingLabel = element.closest("label");
+          if (element.tagName !== "LABEL" && wrappingLabel && wrappingLabel !== element) continue;
+          if (element.tagName === "LABEL" && !element.querySelector("input, select, textarea")) continue;
+          const box = element.getBoundingClientRect();
+          targets.push({
+            height: Math.round(box.height),
+            // fix round 1:用 ?? 時,沒有 id 的元素 element.id 是空字串("")而非 null/undefined,
+            // ?? 不會往下 fallback,診斷名稱就印成空字串。改用 || 讓空字串也落到下一層。
+            name:
+              element.getAttribute("data-testid") ||
+              element.id ||
+              `${element.tagName.toLowerCase()}.${element.className || "(無 class)"}`,
+            width: Math.round(box.width),
+          });
+        }
+      }
+      return targets;
+    });
+  const undersized = async (root) =>
+    (await measure(root)).filter((target) => target.width < 44 || target.height < 44);
+  return { measure, undersized };
+}
+
 test("four bottom destinations fit 390px and keep every touch target at least 44px", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");
@@ -217,34 +253,7 @@ test("the create and edit forms keep every 390px touch target at 44px", async ({
   await setBrowserSession(page, host.session);
   await page.goto("/");
 
-  // 對稱式掃描:掃 root 底下全部互動元素,不列舉 testid——這兩張表單往後新增欄位會自動納入。
-  // 兩條委派規則(不是白名單,是「誰才是真正的點擊目標」):
-  //   1. 被 <label> 包住的 input,點擊目標是那個 label,label 自己在掃描集裡量。
-  //   2. 不含任何表單控件的 <label>,是指向相鄰控件的純文字標籤,不是獨立目標。
-  const measure = (root) =>
-    page.locator(root).evaluateAll((roots) => {
-      const targets = [];
-      for (const node of roots) {
-        for (const element of node.querySelectorAll("button, a[href], select, input, textarea, label, [role='switch']")) {
-          if (!element.checkVisibility()) continue;
-          const wrappingLabel = element.closest("label");
-          if (element.tagName !== "LABEL" && wrappingLabel && wrappingLabel !== element) continue;
-          if (element.tagName === "LABEL" && !element.querySelector("input, select, textarea")) continue;
-          const box = element.getBoundingClientRect();
-          targets.push({
-            height: Math.round(box.height),
-            name:
-              element.getAttribute("data-testid") ??
-              element.id ??
-              `${element.tagName.toLowerCase()}.${element.className || "(無 class)"}`,
-            width: Math.round(box.width),
-          });
-        }
-      }
-      return targets;
-    });
-  const undersized = async (root) =>
-    (await measure(root)).filter((target) => target.width < 44 || target.height < 44);
+  const { measure, undersized } = createTouchTargetScanner(page);
 
   await page.getByTestId("create-session-tab").click();
   await expect(page.locator("#session-create-modal")).toBeVisible();
@@ -266,6 +275,59 @@ test("the create and edit forms keep every 390px touch target at 44px", async ({
     .toBeGreaterThanOrEqual(8);
   await expect
     .poll(async () => await undersized("#session-edit-sheet"), { message: "390px 下編輯表單全部點擊目標必須 ≥44×44" })
+    .toEqual([]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+// 批 C1-4:批 C1-3 把 #filter-sheet-open 接上批 C1-2 的篩選 sheet,兩者過去都沒有 44px 掃描
+// 覆蓋。順帶收批 B 帶走項——完成個人檔案 sheet(含常打球場 checkbox 清單)也還沒有專屬 44px
+// 量測,一併補上。
+test("the filter sheet open button, filter sheet controls, and profile-completion sheet keep every 390px touch target at 44px", async ({
+  page,
+}) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+
+  await installFakeMaps(page);
+  await setBrowserSession(page, host.session);
+  await page.goto("/");
+
+  const { measure, undersized } = createTouchTargetScanner(page);
+
+  // #filter-sheet-open 是地圖工具列的主鈕,本身不在 sheet 內,獨立量測。
+  const openButton = page.locator("#filter-sheet-open");
+  await expect(openButton).toBeVisible();
+  await expect.poll(async () => (await openButton.boundingBox())?.width).toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => (await openButton.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+
+  await openButton.click();
+  const filterSheet = page.locator("#filters-sheet");
+  await expect(filterSheet).toBeVisible();
+  // 掃描集下限 14:關閉鈕＋行政區／球場／日期三個欄位＋5 個程度按鈕＋3 個打法 chip＋3 個
+  // 場地類型 chip＋清除鈕＝16,取略低的 14 留一點裕度但仍能抓到「整組消失」的回歸。
+  await expect
+    .poll(async () => (await measure("#filters-sheet")).length, { message: "篩選 sheet 掃描集不得為空" })
+    .toBeGreaterThanOrEqual(14);
+  await expect
+    .poll(async () => await undersized("#filters-sheet"), { message: "390px 下篩選 sheet 全部點擊目標必須 ≥44×44" })
+    .toEqual([]);
+  await page.keyboard.press("Escape");
+
+  // 完成個人檔案 sheet(standalone 模式,「我」頁的編輯入口):暱稱／NTRP／53 座台北市球場
+  // checkbox／4 個常打類型／6 個時段／儲存鈕。掃描集下限 60:留裕度給球場目錄增減,但仍遠高於
+  // 「球場清單整組沒渲染」時只剩 14 個控件的情況,能抓到那種回歸。
+  await page.getByTestId("me-tab").click();
+  await page.getByTestId("edit-profile").click();
+  const profileSheet = page.locator("#profile-completion-sheet");
+  await expect(profileSheet).toBeVisible();
+  await expect
+    .poll(async () => (await measure("#profile-completion-sheet")).length, { message: "個人檔案 sheet 掃描集不得為空" })
+    .toBeGreaterThanOrEqual(60);
+  await expect
+    .poll(async () => await undersized("#profile-completion-sheet"), {
+      message: "390px 下個人檔案 sheet 全部點擊目標必須 ≥44×44",
+    })
     .toEqual([]);
   expect(runtimeErrors).toEqual([]);
 });

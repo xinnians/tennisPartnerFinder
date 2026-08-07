@@ -394,3 +394,22 @@ test("a 667px tall viewport never leaves the document scrollable past its own he
   expect(overflow.scrollHeight).toBeLessThanOrEqual(overflow.innerHeight + 1);
   expect(runtimeErrors).toEqual([]);
 });
+
+// 批 C1-4:批 C1-3 把 .map-toolbar 收斂到 #filter-sheet-open／#date-filter／#level-chip
+// 三個控件後,現況單列高度為 82px(最高子項 .filter-control--date 64px＋上下 padding 16px＋
+// 1px×2 border)。閾值取 110px:高於現況留粗略字型/瀏覽器差異緩衝,但明顯低於任何兩列版面
+// 的下限——兩列至少要「最短列 44px ＋ 列間 gap 8px ＋ 最高列 64px ＋ padding16px ＋ border2px」
+// ≈134px。.map-toolbar 沒有設 flex-wrap(預設 nowrap),因此目前結構上不可能換列;這條斷言是
+// 防止未來有人加 flex-wrap:wrap 或塞回更多控件時的回歸守衛。
+test("390px map toolbar renders as a single row", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const toolbar = page.locator(".map-toolbar");
+  await expect(toolbar).toBeVisible();
+  const box = await toolbar.boundingBox();
+  expect(box.height).toBeLessThanOrEqual(110);
+  expect(runtimeErrors).toEqual([]);
+});

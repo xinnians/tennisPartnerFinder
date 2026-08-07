@@ -302,6 +302,10 @@
 .profile-return-context { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
 .profile-form,
 .create-session-form { display: grid; gap: 13px; }
+/* 批 C1-4:批 6(ea4a41b)只覆蓋 .create-session-sheet 的 .session-primary/.session-secondary,
+   個人檔案 sheet 的儲存鈕(.profile-form [data-testid=profile-save])當時不在範圍內,實測仍是
+   基底 38px。比照同一批的 scoped 覆寫慣例,掛在 .profile-sheet 上。 */
+.profile-sheet .session-primary { min-height: 44px; }
 .candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .candidate-decision-buttons .session-primary { flex: 1 1 132px; }
 .form-field { display: grid; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
@@ -348,7 +352,10 @@
 .form-optional > summary:focus-visible { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
 
 .option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); }
-.option-grid label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; overflow-wrap: anywhere; }
+/* 批 C1-4 實測:未加 min-height 時量到 19px。這顆同時管到個人檔案 sheet 的常打類型／可打
+   時段 checkbox 與「我」頁 #notification-court-picker 展開時的球場 checkbox(同一 class),
+   兩邊都需要 44px,不另外拆 selector。 */
+.option-grid label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: 44px; overflow-wrap: anywhere; }
 /* 場地題改問處境後每個選項多一句說明，單欄堆疊才讀得完。 */
 .option-grid--stacked { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
 .option-grid--stacked label { align-items: flex-start; min-height: 44px; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
