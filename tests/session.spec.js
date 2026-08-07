@@ -622,7 +622,10 @@ test("a host edits a single-court session and sees authoritative card and detail
   await form.getByTestId("session-edit-play-type").selectOption("雙打");
   await expect(form.getByTestId("session-edit-slots-3")).toBeChecked();
   await form.getByTestId("session-edit-slots-2").check();
-  await form.locator(".form-optional summary").click();
+  // 這局帶入 createFutureSessionInput 預設的 NTRP 3.0–4.0 與既有備註；選填欄位已有值時
+  // details 必須預設展開（不可用摺疊藏起既有資料），不需再點 summary。
+  await expect(form.locator(".form-optional")).toHaveAttribute("open");
+  await expect(form.locator("#session-edit-ntrp-min")).toBeVisible();
   await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 200");
   await form.getByLabel("備註（選填，最多 500 字）").fill(updatedNotes);
   await form.getByTestId("session-edit-submit").click();

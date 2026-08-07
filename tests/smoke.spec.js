@@ -3638,12 +3638,49 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   // 正向前提：三個新選項在；額外那一個才是為既有球局保留的。
   await expect(options).toHaveText(["單打", "雙打", "練球", "對拉"]);
   await expect(editForm.getByTestId("session-edit-play-type")).toHaveValue("對拉");
+  // 這局的 NTRP／費用說明／備註四欄皆空，進階設定摺疊區必須維持預設收合。
+  await expect(editForm.locator(".form-optional")).not.toHaveAttribute("open");
 
   // 只改缺額，打法維持「對拉」——前端驗證不得擋下既有球局。
   await editForm.getByTestId("session-edit-slots-3").check();
   await editForm.getByTestId("session-edit-submit").click();
   await expect.poll(() => page.evaluate(() => window.__editedInput?.playType)).toBe("對拉");
   await expect.poll(() => page.evaluate(() => window.__editedInput?.slotsMissing)).toBe(3);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("edit sheet expands advanced settings by default when the session already has NTRP, fee note, or notes", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openEditSessionSheet } = await import("/src/sessionViews.js");
+    openEditSessionSheet(
+      {
+        courtId: 8,
+        feeNote: "每人 150 元",
+        notes: "自備新球",
+        ntrpMax: 4,
+        ntrpMin: 3,
+        playType: "單打",
+        sessionId: 4343,
+        slotsTotal: 1,
+        startAt: "2099-07-18T01:30:00.000Z",
+        venueType: "booked",
+      },
+      { courts: [{ city: "台北市", id: 8, name: "示範球場" }] }
+    );
+  });
+
+  const editForm = page.getByTestId("session-edit-form");
+  await expect(editForm).toBeVisible();
+  // 漸進式揭露反模式防呆：已填的選填欄位不可被預設收合藏起來。
+  await expect(editForm.locator(".form-optional")).toHaveAttribute("open");
+  await expect(editForm.locator("#session-edit-ntrp-min")).toBeVisible();
+  await expect(editForm.locator("#session-edit-ntrp-min")).toHaveValue("3");
+  await expect(editForm.locator("#session-edit-ntrp-max")).toHaveValue("4");
+  await expect(editForm.getByLabel("費用說明（選填，最多 500 字）")).toHaveValue("每人 150 元");
+  await expect(editForm.getByLabel("備註（選填，最多 500 字）")).toHaveValue("自備新球");
   expect(runtimeErrors).toEqual([]);
 });
 

@@ -242,6 +242,19 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   await expect(createSubmit).toBeFocused();
   await createSubmit.press("Tab");
   await expect(createClose).toBeFocused();
+
+  // B-6 摺疊：summary 本身是 tab stop；details 收合時內部欄位（NTRP／費用說明／備註）不進 tab 序列。
+  const createForm = createSheet.getByTestId("session-form");
+  const instantJoinMode = createForm.locator("input[name='joinMode'][value='instant']");
+  const advancedSummary = createForm.locator(".form-optional summary");
+  await instantJoinMode.focus();
+  await instantJoinMode.press("Tab");
+  await expect(advancedSummary).toBeFocused();
+  await advancedSummary.press("Tab");
+  await expect(createSubmit).toBeFocused();
+  await createSubmit.press("Shift+Tab");
+  await expect(advancedSummary).toBeFocused();
+
   await page.keyboard.press("Escape");
   await expect(createTrigger).toBeFocused();
   expect(runtimeErrors).toEqual([]);

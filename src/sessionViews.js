@@ -2768,6 +2768,10 @@ export function openEditSessionSheet(
   session,
   { courts = [], courtsReady = true, onClose = () => {}, onSubmit = async () => {} } = {}
 ) {
+  // 漸進式揭露反模式防呆:已填的選填欄位不可被預設收合藏起來,四欄任一有值就預設展開。
+  const hasOptionalValues = [session.ntrpMin, session.ntrpMax, session.feeNote, session.notes].some(
+    (value) => value != null && String(value).trim() !== ""
+  );
   const mounted = mountSheet({
     id: "session-edit-sheet",
     label: "編輯球局",
@@ -2798,7 +2802,7 @@ export function openEditSessionSheet(
               } /><span>${value} 位</span></label>`
           )
           .join("")}</div><p class="form-hint">不含你自己。</p></fieldset>
-        <details class="form-optional"><summary>進階設定（選填）</summary>
+        <details class="form-optional"${hasOptionalValues ? " open" : ""}><summary>進階設定（選填）</summary>
         <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-edit-ntrp-min"><span>最低 NTRP</span><input id="session-edit-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
           session.ntrpMin ?? ""
         )}" /></label><label class="form-field" for="session-edit-ntrp-max"><span>最高 NTRP</span><input id="session-edit-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" value="${esc(
