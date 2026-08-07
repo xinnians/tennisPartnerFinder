@@ -268,6 +268,8 @@
 .session-secondary { padding: 0 var(--space-3); border: var(--border-strong); background: transparent; color: var(--color-ink); }
 
 #map-data-status {
+  /* 深底浮動 chip 契約比照 .bottom-navigation:固定用 --color-ink 不透明底,
+     不循原本 navy/blue rgba 半透明映射(fix wave 2026-08-07,批 A final review F1)。 */
   position: absolute;
   z-index: 6;
   left: clamp(12px, 3vw, 30px);
@@ -275,16 +277,16 @@
   max-width: min(420px, calc(100% - 24px));
   padding: 10px 12px;
   border-radius: 11px;
-  background: rgba(20, 44, 75, 0.91);
-  color: #fff;
-  box-shadow: 0 7px 21px rgba(20, 44, 75, 0.2);
-  font-size: 13px;
+  background: var(--color-ink);
+  color: var(--color-surface-card);
+  box-shadow: var(--elevation-2);
+  font-size: var(--text-sm);
 }
 #map-data-status p { margin: 0; overflow-wrap: anywhere; }
-#map-data-status .session-secondary { margin-top: var(--space-2); min-height: 32px; color: var(--color-ink); }
-.map-data-status--loading { background: rgba(20, 44, 75, 0.8); }
-.map-data-status--warning { background: rgba(38, 88, 145, 0.94); }
-.location-feedback { margin-top: 6px !important; color: #fff; font-weight: 800; }
+#map-data-status .session-secondary { margin-top: var(--space-2); min-height: 32px; background: var(--color-surface-card); color: var(--color-ink); }
+.map-data-status--loading { background: var(--color-ink); }
+.map-data-status--warning { background: var(--color-ink); }
+.location-feedback { margin-top: 6px !important; color: #fff; font-weight: 700; }
 
 .surface-backdrop { position: fixed; z-index: calc(var(--z-sheet) - 1); inset: 0; background: rgba(11, 28, 50, 0.38); }
 .surface {
@@ -506,7 +508,7 @@
 .my-session-card p,
 .my-action-card p { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
 .my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
-.my-session-card__time { color: var(--color-court) !important; font-weight: 700; }
+.my-session-card__time { color: var(--color-court) !important; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .my-session-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
 /* 文字鈕契約(Task 4):.session-tertiary 比照 secondary 語意,無框;字色比照既有 .filters-reset
    的文字鈕前例採 court(可互動強調色),而非 text-secondary(純資訊態),因底線本身已標示可點擊。 */
