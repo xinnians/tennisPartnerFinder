@@ -2146,6 +2146,19 @@ test("map idle refreshes the current bounds and session pins remain keyboard-com
   expect(runtimeErrors).toEqual([]);
 });
 
+test("signed-out first-visit empty state explains the product instead of just prompting a retry", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await setFakeMapBounds(page, { south: 25.14, west: 121.6, north: 25.16, east: 121.62 });
+  await page.waitForTimeout(310);
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#discovery-empty")).toBeVisible();
+  await expect(page.locator(".nearby-sessions__summary-detail")).toContainText("公開網球球局");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a discovery rerender cannot let an underlying drawer overtake a sheet modal", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

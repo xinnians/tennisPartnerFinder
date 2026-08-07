@@ -1595,7 +1595,9 @@ export function renderNearbySessionsDrawer(
   const nearestVenue = sessions[0] ? sessionVenuePresentation(sessions[0], courts) : null;
   const nearest = sessions[0]
     ? `${nearestVenue.time} · ${nearestVenue.court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
-    : "移動地圖或調整篩選條件，查看可加入的球局。";
+    : authenticated
+      ? "移動地圖或調整篩選條件，查看可加入的球局。"
+      : "找台北市的公開網球球局，看到合適的直接申請加入。";
   const activeDrawerStatus =
     expanded && mapStatus?.kind === "warning" && mapStatus?.message
       ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(mapStatus.message)}</p></div>`
