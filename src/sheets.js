@@ -32,14 +32,19 @@ function resolveRestoreTarget(target) {
   // An authoritative refresh can remove a public card while its detail and
   // confirmation are still open. Return focus to the persistent drawer
   // surface so closing those layers never leaves a keyboard user at body.
-  // 批 C2-2:full 才有「×」關閉鈕(data-nearby-close 只在 [data-nearby-dialog] 裡);
-  // half 沒有 dialog 屬性,退而求其次用「收合」鈕,兩者都沒有才退到摘要條本身——
-  // 不能只認 full 專屬選擇器,否則半開時這裡永遠找不到東西,焦點就掉回 body。
-  return (
-    scope.querySelector("[data-nearby-dialog] [data-nearby-close]") ??
-    scope.querySelector('[data-testid="drawer-collapse"]') ??
-    scope.querySelector("#nearby-sessions-toggle")
-  );
+  // 批 C2-2 fix round 1(review Important):這個 fallback 鏈原本(改動前)只有
+  // [data-nearby-dialog] [data-nearby-close] 一條,且是無條件套用——resolveRestoreTarget
+  // 是通用函式,任何 mountSheet/mountDialog(My Sessions 卡片開的 report/chat sheet 等,
+  // 完全跟抽屜無關)都會走到這裡。half 沒有 [data-nearby-dialog],批 C2-2 一度把
+  // 「收合」鈕/toggle 也加進同一條無條件 fallback,結果變成任何非抽屜 surface 的卡片
+  // 消失後關閉,焦點都會被無條件送去抽屜 toggle——擴散到抽屜以外、零測試覆蓋的規模。
+  // 修正:「收合」鈕/toggle 只在還原目標原本就屬於抽屜語境時使用(target.drawerId
+  // 有值,即 captureRestoreTarget 當初用 node.closest("#nearby-sessions-drawer")
+  // 命中);非抽屜語境維持修法前行為——只試 full 專屬選擇器,找不到就不移動焦點。
+  const drawerCloseFallback = target.drawerId
+    ? scope.querySelector('[data-testid="drawer-collapse"]') ?? scope.querySelector("#nearby-sessions-toggle")
+    : null;
+  return scope.querySelector("[data-nearby-dialog] [data-nearby-close]") ?? drawerCloseFallback;
 }
 
 function mountSurface(root, { id, label, className = "", html, onClose, onMount } = {}) {

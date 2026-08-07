@@ -1973,6 +1973,80 @@ test("report dialog requires a reason, preserves failures, and acknowledges a su
   expect(runtimeErrors).toEqual([]);
 });
 
+// 批 C2-2 fix round 1(review Important):sheets.js 的 resolveRestoreTarget 是通用
+// 函式,不是抽屜專屬——這裡驗證非抽屜語境(My Sessions 卡片開的檢舉 dialog)的卡片
+// 在 dialog 開著時消失、關閉 dialog 後,焦點不會被誤導跳去抽屜的摘要條(toggle)。
+// 修法前(無 half/full 新 fallback 前)這裡就是「找不到就不移動」,落在 body——
+// 這條測試把這個既有行為鎖住,防止未來又把抽屜專屬 fallback 無條件擴大到所有 surface。
+test("closing a non-drawer report dialog after its trigger card disappears does not steal focus to the drawer toggle", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: {
+        history: [],
+        needsAction: [],
+        needsActionCount: 0,
+        upcoming: [
+          {
+            court: "青年公園網球場",
+            courtDistrict: "萬華區",
+            hostNickname: "示範主揪",
+            hostNtrp: 3.5,
+            ntrpMax: 4,
+            ntrpMin: 3,
+            playType: "雙打",
+            sessionId: 424242,
+            slotsRemaining: 1,
+            startAt: "2099-07-19T01:00:00.000Z",
+            status: "open",
+            viewerParticipantStatus: "accepted",
+            viewerRole: "guest",
+          },
+        ],
+      },
+    });
+  });
+
+  const reportButton = page.getByTestId("report-session-424242");
+  await reportButton.focus();
+  await expect(reportButton).toBeFocused();
+
+  await page.evaluate(async () => {
+    const { openReportDialog } = await import("/src/sessionViews.js");
+    openReportDialog({ targetLabel: "青年公園網球場 · 週六上午" });
+  });
+  await expect(page.locator("#report-dialog")).toBeVisible();
+
+  // 模擬背景重繪把這張卡從清單移除(球局已被取消/使用者離開等)——觸發它的按鈕連帶消失。
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
+    });
+  });
+  await expect(page.getByTestId("report-session-424242")).toHaveCount(0);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#report-dialog")).toBeHidden();
+
+  // 修法前行為:resolveRestoreTarget 找不到卡片、也找不到 full 專屬的
+  // [data-nearby-dialog] [data-nearby-close](這裡抽屜是 collapsed),不移動焦點,
+  // 落在瀏覽器把已移除節點的焦點預設收回的 body。
+  await expect(page.locator("#nearby-sessions-toggle")).not.toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a pending withdrawal accepts only one intentional submission", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
