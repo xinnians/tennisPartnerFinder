@@ -159,7 +159,9 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
       )
     ).filter((box) => box.width < 44 || box.height < 44);
   // 掃描集非空且不得因 selector 寫錯而縮水。
-  await expect.poll(async () => await meSettingControls.count()).toBeGreaterThanOrEqual(20);
+  // 下限隨訂閱球場改成 checkbox 清單而上調（實測 69）：留餘裕給球場目錄增減，
+  // 但仍抓得到 selector 寫錯只掃到零星控件的情況。
+  await expect.poll(async () => await meSettingControls.count()).toBeGreaterThanOrEqual(40);
   await expect
     .poll(undersizedMeControls, { message: "390px 下「我」頁全部互動控件必須 ≥44×44" })
     .toEqual([]);
@@ -193,7 +195,7 @@ test("a 390px invited player can accept the invite card and open group chat", as
   expect(runtimeErrors).toEqual([]);
 });
 
-test("every create-form control keeps a 44px touch target at 390px", async ({ page }) => {
+test("the create form's venue and slot options keep 44px touch targets at 390px", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);

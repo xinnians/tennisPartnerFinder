@@ -127,6 +127,11 @@ export function renderMePage(
   const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
     (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
   );
+  const subscribedCourtCount = notificationCourts.filter((court) => notification.courtIds.has(Number(court.id))).length;
+  // 訂閱數等於當下全部台北市 active 球場時視為「全選」：主控勾起、細選清單收合。
+  const subscribedToEveryCourt = notificationCourts.length > 0 && subscribedCourtCount === notificationCourts.length;
+  const courtPickerExpanded = !subscribedToEveryCourt;
+  const courtSubscriptionSummary = `已訂閱 ${subscribedCourtCount} 座`;
   setMySessionActionScope(root, authSession?.user?.id ?? null);
   root.innerHTML = `<div class="me-shell">
     <div class="me-shell__head"><p class="surface__eyebrow">我</p><h1 tabindex="-1" data-me-heading>帳號與站務</h1></div>
@@ -217,17 +222,27 @@ export function renderMePage(
       </fieldset>
       <fieldset class="notification-settings__fieldset">
         <legend>訂閱球場的新球局</legend>
-        <p class="form-hint">可複選台北市球場；只有所選球場的新球局會通知你。</p>
-        <select class="notification-settings__court-select" data-notification-courts data-notification-control
-          data-testid="notification-court-subscriptions" aria-label="訂閱球場" multiple size="4"${
+        <p class="form-hint">只有所選球場的新球局會通知你。</p>
+        <label class="court-subscribe-all"><input type="checkbox" data-subscribe-all-courts data-notification-control
+          data-testid="subscribe-all-courts"${subscribedToEveryCourt ? " checked" : ""}${
             notificationCourts.length ? "" : " disabled"
-          }>${notificationCourts
-            .map(
-              (court) => `<option value="${esc(court.id)}"${notification.courtIds.has(Number(court.id)) ? " selected" : ""}>${esc(
-                court.name
-              )} · ${esc(court.district || "台北市")}</option>`
-            )
-            .join("")}</select>
+          }> <span>全台北市球場</span></label>
+        <button type="button" class="session-secondary" data-court-picker-toggle data-notification-control
+          data-testid="toggle-court-picker" aria-expanded="${courtPickerExpanded ? "true" : "false"}"
+          aria-controls="notification-court-picker"${notificationCourts.length ? "" : " disabled"}>只訂閱特定球場</button>
+        <div class="option-grid" id="notification-court-picker" data-notification-courts${
+          courtPickerExpanded ? "" : " hidden"
+        }>${notificationCourts
+          .map(
+            (court) =>
+              `<label><input type="checkbox" data-notification-court data-notification-control value="${esc(court.id)}" data-testid="notification-court-${esc(
+                court.id
+              )}"${notification.courtIds.has(Number(court.id)) ? " checked" : ""}> <span>${esc(court.name)} · ${esc(
+                court.district || "台北市"
+              )}</span></label>`
+          )
+          .join("")}</div>
+        <p class="form-hint" role="status" data-court-subscription-count>${esc(courtSubscriptionSummary)}</p>
         ${notificationCourts.length ? "" : '<p class="form-hint" role="status">球場資料尚未就緒，請稍候。</p>'}
       </fieldset>
     </section>
@@ -300,14 +315,22 @@ export function renderMePage(
       });
     });
   });
-  const courtSubscriptions = root.querySelector("[data-notification-courts]");
-  courtSubscriptions?.addEventListener("change", () => {
-    const courtIds = [...courtSubscriptions.selectedOptions].map((option) => Number(option.value));
-    const restoreCourtSelection = () => {
-      [...courtSubscriptions.options].forEach((option) => {
-        option.selected = notification.courtIds.has(Number(option.value));
-      });
-    };
+  const courtPicker = root.querySelector("[data-notification-courts]");
+  const courtBoxes = () => [...root.querySelectorAll("[data-notification-court]")];
+  const subscribeAll = root.querySelector("[data-subscribe-all-courts]");
+  const courtPickerToggle = root.querySelector("[data-court-picker-toggle]");
+  const courtCountLabel = root.querySelector("[data-court-subscription-count]");
+  const selectedCourtIds = () => courtBoxes().filter((box) => box.checked).map((box) => Number(box.value));
+  const paintCourtSelection = (ids) => {
+    const chosen = new Set(ids.map(Number));
+    courtBoxes().forEach((box) => {
+      box.checked = chosen.has(Number(box.value));
+    });
+    if (subscribeAll) subscribeAll.checked = notificationCourts.length > 0 && chosen.size === notificationCourts.length;
+    if (courtCountLabel) courtCountLabel.textContent = `已訂閱 ${chosen.size} 座`;
+  };
+  const restoreCourtSelection = () => paintCourtSelection([...notification.courtIds]);
+  const saveCourtSelection = (courtIds) => {
     if (courtIds.length > notificationCourts.length) {
       restoreCourtSelection();
       const error = root.querySelector("[data-notification-error]");
@@ -317,9 +340,23 @@ export function renderMePage(
       }
       return;
     }
+    paintCourtSelection(courtIds);
     void runNotificationSettingAction(root, () => onSaveCourtSubscriptions(courtIds)).then((saved) => {
       if (!saved) restoreCourtSelection();
     });
+  };
+  subscribeAll?.addEventListener("change", () => {
+    saveCourtSelection(subscribeAll.checked ? notificationCourts.map((court) => Number(court.id)) : []);
+  });
+  courtPickerToggle?.addEventListener("click", () => {
+    if (!courtPicker) return;
+    const expanded = courtPicker.hidden;
+    courtPicker.hidden = !expanded;
+    courtPickerToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+  });
+  courtPicker?.addEventListener("change", (event) => {
+    if (!(event.target instanceof HTMLElement) || !event.target.matches("[data-notification-court]")) return;
+    saveCourtSelection(selectedCourtIds());
   });
   // 解除封鎖獨立綁定，不沿用 My Sessions 的 [data-my-action] 委派迴圈——那個迴圈同時處理
   // 球局卡片動作，整段複製過來會把不屬於本頁的動作一併帶進來。
@@ -1090,7 +1127,11 @@ function presenceLocationHint({ locationStatus, sharePresence }) {
 function notificationControlDescriptor(control) {
   if (!(control instanceof HTMLElement)) return null;
   if (control.matches("[data-enable-push]")) return { selector: "[data-enable-push]" };
-  if (control.matches("[data-notification-courts]")) return { selector: "[data-notification-courts]" };
+  if (control.matches("[data-subscribe-all-courts]")) return { selector: "[data-subscribe-all-courts]" };
+  if (control.matches("[data-court-picker-toggle]")) return { selector: "[data-court-picker-toggle]" };
+  if (control.matches("[data-notification-court]")) {
+    return { courtId: control.value, selector: "[data-notification-court]" };
+  }
   if (control.matches("[data-notification-pref]")) {
     return { preference: control.dataset.notificationPref, selector: "[data-notification-pref]" };
   }
@@ -1099,6 +1140,13 @@ function notificationControlDescriptor(control) {
 
 function findNotificationControl(root, descriptor) {
   if (!descriptor) return null;
+  if (descriptor.courtId != null) {
+    return (
+      [...root.querySelectorAll(descriptor.selector)].find(
+        (control) => String(control.value) === String(descriptor.courtId)
+      ) ?? null
+    );
+  }
   if (descriptor.preference == null) return root.querySelector(descriptor.selector);
   return (
     [...root.querySelectorAll(descriptor.selector)].find(
@@ -2392,9 +2440,9 @@ export function openCreateSessionSheet({ courts = [], courtsReady = true, onClos
         <div class="form-field" data-candidate-court-fields hidden><label for="session-candidate-courts">候選球場（選擇 2–3 座）</label><select id="session-candidate-courts" name="candidateCourtIds" data-testid="session-candidate-courts" multiple size="4" disabled></select><p class="form-hint" data-create-candidate-courts-status role="status" aria-live="polite"></p><p class="form-hint" data-candidate-selection-hint>請選擇 2 到 3 座球場，之後再定案場地與時間。</p></div>
         <div class="form-field"><div class="form-field__label-row"><label for="session-start-at">台北時間</label><button type="button" class="session-secondary" data-now-start data-testid="session-now-start">現在開打</button></div><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></div>
         <label class="form-field" for="session-range-end" data-candidate-range-field hidden><span>時間範圍結束</span><input id="session-range-end" name="rangeEndLocal" data-testid="session-range-end" type="datetime-local" disabled /></label>
-        <label class="form-field" for="session-play-type"><span>打法</span><select id="session-play-type" name="playType" data-testid="session-play-type" required><option value="">請選擇打法</option>${CREATE_SESSION_PLAY_TYPES.map(
+        <div class="form-field"><label for="session-play-type">打法</label><select id="session-play-type" name="playType" data-testid="session-play-type" required aria-describedby="session-play-type-hint"><option value="">請選擇打法</option>${CREATE_SESSION_PLAY_TYPES.map(
           (type) => `<option value="${esc(type)}">${esc(type)}</option>`
-        ).join("")}</select><p class="form-hint">${esc(PLAY_TYPE_HINT)}</p></label>
+        ).join("")}</select><p class="form-hint" id="session-play-type-hint">${esc(PLAY_TYPE_HINT)}</p></div>
         <fieldset class="form-fieldset"><legend>還缺幾位</legend><div class="slots-options">${[1, 2, 3]
           .map(
             (value) =>
@@ -2657,12 +2705,12 @@ export function openEditSessionSheet(
           taipeiDateTimeLocalValue(session.startAt, { includeMilliseconds: true })
         )}" step="0.001" required /></label>
         <div class="form-field"><label for="session-edit-court">台北市球場</label><select id="session-edit-court" name="courtId" data-testid="session-edit-court" required disabled></select><p class="form-hint" data-edit-courts-status role="status" aria-live="polite"></p></div>
-        <label class="form-field" for="session-edit-play-type"><span>打法</span><select id="session-edit-play-type" name="playType" data-testid="session-edit-play-type" required>${(session.playType === "對拉"
+        <div class="form-field"><label for="session-edit-play-type">打法</label><select id="session-edit-play-type" name="playType" data-testid="session-edit-play-type" required aria-describedby="session-edit-play-type-hint">${(session.playType === "對拉"
           ? [...CREATE_SESSION_PLAY_TYPES, "對拉"]
           : CREATE_SESSION_PLAY_TYPES
         )
           .map((type) => `<option value="${esc(type)}"${type === session.playType ? " selected" : ""}>${esc(type)}</option>`)
-          .join("")}</select><p class="form-hint">${esc(PLAY_TYPE_HINT)}</p></label>
+          .join("")}</select><p class="form-hint" id="session-edit-play-type-hint">${esc(PLAY_TYPE_HINT)}</p></div>
         <fieldset class="form-fieldset"><legend>還缺幾位</legend><div class="slots-options">${[1, 2, 3]
           .map(
             (value) =>

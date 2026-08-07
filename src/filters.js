@@ -10,8 +10,6 @@ export const BANDS = [
   { key: "pro", label: "5.0 +", min: 5, max: Number.POSITIVE_INFINITY },
 ];
 
-export const TYPES = ["單打", "雙打", "練球"];
-
 export const DEFAULT_FILTER_STATE = {
   district: "",
   courtId: null,

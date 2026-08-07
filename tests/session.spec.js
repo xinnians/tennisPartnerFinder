@@ -1013,10 +1013,13 @@ test("authenticated players persist the authoritative court subscription set wit
   await page.getByTestId("me-tab").click();
   const settings = page.locator("#me-root .notification-settings");
   await expect(settings).not.toContainText("行政區");
-  const courtSelect = page.getByTestId("notification-court-subscriptions");
-  await expect(courtSelect).toBeEnabled();
-  await courtSelect.selectOption(selectedCourtIds.map(String));
+  // 細選兩座：逐一勾選，驗證非全選路徑也送得出正確的 id。
+  await expect(page.locator("#notification-court-picker")).toBeVisible();
+  for (const courtId of selectedCourtIds) {
+    await page.getByTestId(`notification-court-${courtId}`).check();
+  }
   await expect(page.locator("#toast-root")).toContainText("球場訂閱已儲存");
+  await expect(page.locator("#me-root")).toContainText(`已訂閱 ${selectedCourtIds.length} 座`);
 
   await expect
     .poll(async () => {
@@ -1511,7 +1514,8 @@ test("every Me control keeps focus through a background rerender", async ({ page
   // 對稱掃描：不列舉 testid，往後加進「我」頁的控件會自動納入這道守衛。
   const controls = page.locator("#me-root button, #me-root input, #me-root select, #me-root a[href]");
   const total = await controls.count();
-  expect(total, "掃描集不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(12);
+  // 同上：訂閱球場改 checkbox 後掃描集實測 69，下限一併上調。
+  expect(total, "掃描集不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(40);
 
   const landings = [];
   for (let index = 0; index < total; index += 1) {

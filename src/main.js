@@ -575,7 +575,9 @@ function captureMeFocus(root) {
   if (active.matches('[data-my-action="toggle-visibility"]')) return { kind: "player-visibility" };
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
   if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
-  if (active.matches("[data-notification-courts]")) return { kind: "notification-courts" };
+  if (active.matches("[data-subscribe-all-courts]")) return { kind: "subscribe-all-courts" };
+  if (active.matches("[data-court-picker-toggle]")) return { kind: "court-picker-toggle" };
+  if (active.matches("[data-notification-court]")) return { courtId: active.value, kind: "notification-court" };
   if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
   if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches(".me-service-links a")) return { href: active.getAttribute("href") ?? "", kind: "service-link" };
@@ -607,7 +609,13 @@ function resolveMeFocus(root, focus) {
       (input) => input.dataset.notificationPref === focus.preference
     );
   }
-  if (focus.kind === "notification-courts") return root.querySelector("[data-notification-courts]");
+  if (focus.kind === "subscribe-all-courts") return root.querySelector("[data-subscribe-all-courts]");
+  if (focus.kind === "court-picker-toggle") return root.querySelector("[data-court-picker-toggle]");
+  if (focus.kind === "notification-court") {
+    return [...root.querySelectorAll("[data-notification-court]")].find(
+      (box) => String(box.value) === String(focus.courtId)
+    );
+  }
   if (focus.kind === "presence-sharing") return root.querySelector("[data-set-presence-sharing]");
   if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
   if (focus.kind === "service-link") {

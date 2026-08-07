@@ -1440,13 +1440,13 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await expect(page.locator("#my-sessions-root [data-testid='presence-sharing-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='open-to-greeting-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='enable-push']")).toHaveCount(0);
-  await expect(page.locator("#my-sessions-root [data-testid='notification-court-subscriptions']")).toHaveCount(0);
+  await expect(page.locator("#my-sessions-root [data-testid='subscribe-all-courts']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='blocked-player-list']")).toHaveCount(0);
   await expect(page.locator("#me-root [data-testid='player-visibility-toggle']")).toHaveCount(1);
   await expect(page.locator("#me-root [data-testid='presence-sharing-toggle']")).toHaveCount(1);
   await expect(page.locator("#me-root [data-testid='open-to-greeting-toggle']")).toHaveCount(1);
   await expect(page.locator("#me-root [data-testid='enable-push']")).toHaveCount(1);
-  await expect(page.locator("#me-root [data-testid='notification-court-subscriptions']")).toHaveCount(1);
+  await expect(page.locator("#me-root [data-testid='subscribe-all-courts']")).toHaveCount(1);
   await expect(page.locator("#me-root [data-testid='blocked-player-list']")).toHaveCount(1);
 
   await toggle.click();
@@ -1546,8 +1546,11 @@ test("Me notification settings save six preferences and Taipei court subscriptio
   await expect(page.getByTestId("notification-chat-message")).toBeChecked();
   await expect(page.getByTestId("notification-session-reminder")).toBeChecked();
   await expect(settings).toContainText("場地時間定案與球局取消一定會通知，無法關閉");
-  const courtSelect = page.getByTestId("notification-court-subscriptions");
-  await expect(courtSelect).toBeEnabled();
+  // 三座球場都沒訂閱 → 主控未勾、細選展開、計數為 0。
+  await expect(page.getByTestId("subscribe-all-courts")).toBeEnabled();
+  await expect(page.getByTestId("subscribe-all-courts")).not.toBeChecked();
+  await expect(page.locator("#notification-court-picker")).toBeVisible();
+  await expect(settings).toContainText("已訂閱 0 座");
 
   await page.getByTestId("enable-push").click();
   await expect.poll(() => page.evaluate(() => window.__enablePushCalls)).toBe(1);
@@ -1564,8 +1567,17 @@ test("Me notification settings save six preferences and Taipei court subscriptio
     sessionUpdatedEnabled: true,
   });
 
-  await courtSelect.selectOption(["8", "10"]);
+  // 細選路徑：逐一勾兩座，計數與送出的 id 都要跟著走。
+  await page.getByTestId("notification-court-8").check();
+  await expect(settings).toContainText("已訂閱 1 座");
+  await page.getByTestId("notification-court-10").check();
   await expect.poll(() => page.evaluate(() => window.__savedCourtSubscriptions)).toEqual([8, 10]);
+  await expect(settings).toContainText("已訂閱 2 座");
+  await expect(page.getByTestId("subscribe-all-courts")).not.toBeChecked();
+  // 主控一鍵全選：送出的 id 數必須等於當下台北市 active 球場數。
+  await page.getByTestId("subscribe-all-courts").check();
+  await expect.poll(() => page.evaluate(() => window.__savedCourtSubscriptions)).toEqual([8, 9, 10]);
+  await expect(settings).toContainText("已訂閱 3 座");
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1594,13 +1606,15 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
     });
   });
 
-  const courtSelect = page.getByTestId("notification-court-subscriptions");
-  await courtSelect.selectOption(Array.from({ length: 11 }, (_, index) => String(index + 1)));
+  // 正向前提：11 座都渲染成 checkbox，下面的全選才驗得到「全部」。
+  const courtBoxes = page.locator("#notification-court-picker input[data-notification-court]");
+  await expect(courtBoxes).toHaveCount(11);
+  await page.getByTestId("subscribe-all-courts").check();
   await expect.poll(() => page.evaluate(() => window.__savedElevenCourts)).toEqual(
     Array.from({ length: 11 }, (_, index) => index + 1)
   );
   await expect(page.locator("#me-root [data-notification-error]")).toBeHidden();
-  await expect(courtSelect.locator("option:checked")).toHaveCount(11);
+  await expect(page.locator("#me-root")).toContainText("已訂閱 11 座");
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3498,5 +3512,50 @@ test("the type filter offers three chips and no longer lists 對拉", async ({ p
   await expect(chips).toHaveCount(3);
   await expect(chips).toHaveText(["單打", "雙打", "練球"]);
   await expect(page.locator('.type-chips [data-type="對拉"]')).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("subscribing to every Taipei court collapses the picker and reopens on demand", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("me-page").hidden = false;
+    const courts = [
+      { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
+      { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
+      { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+    ];
+    renderMePage(root, {
+      authSession: { user: { id: "court-subscription-test" } },
+      courts,
+      // 已訂閱全部：重載後主控應為勾選、清單收合。
+      notificationSettings: { courtIds: courts.map((court) => court.id) },
+      onSaveCourtSubscriptions: async (courtIds) => {
+        window.__savedCourts = courtIds;
+      },
+    });
+  });
+
+  const picker = page.locator("#notification-court-picker");
+  const toggle = page.getByTestId("toggle-court-picker");
+  // 正向前提：三座都渲染了，下面的收合斷言才不是掃到空集合。
+  await expect(picker.locator("input[data-notification-court]")).toHaveCount(3);
+  await expect(page.getByTestId("subscribe-all-courts")).toBeChecked();
+  await expect(picker).toBeHidden();
+  await expect(page.locator("#me-root")).toContainText("已訂閱 3 座");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  // 展開後可單獨取消一座，主控隨即變成未勾。
+  await toggle.click();
+  await expect(picker).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await page.getByTestId("notification-court-9").uncheck();
+  await expect.poll(() => page.evaluate(() => window.__savedCourts)).toEqual([8, 10]);
+  await expect(page.getByTestId("subscribe-all-courts")).not.toBeChecked();
+  await expect(page.locator("#me-root")).toContainText("已訂閱 2 座");
   expect(runtimeErrors).toEqual([]);
 });
