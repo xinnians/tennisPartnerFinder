@@ -101,7 +101,7 @@ const MY_SESSION_LIFECYCLE_ACTIONS = new Set([
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
-const DRAWER_ACTION_IDS = new Set(["discovery-reset", "discovery-retry", "drawer-map-retry", "discovery-expand", "discovery-first"]);
+const DRAWER_ACTION_IDS = new Set(["discovery-reset", "drawer-map-retry", "discovery-expand", "discovery-first"]);
 
 export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
@@ -612,7 +612,6 @@ function drawerRecoveryTarget(root) {
   const panel = root.querySelector("[data-nearby-dialog]");
   if (!panel) return null;
   return (
-    panel.querySelector("#discovery-retry") ??
     panel.querySelector("#drawer-map-retry") ??
     panel.querySelector("[data-session-id]") ??
     panel.querySelector("#discovery-expand") ??
@@ -1617,8 +1616,7 @@ export function renderNearbySessionsDrawer(
               onExpandBounds,
               onOpenCreate,
               onRetry,
-              filtersActive: filters != null && !isDefaultFilters(filters),
-              isError: mapStatusKind === "error",
+              filtersActive: !isDefaultFilters(filters),
             });
 
   root.innerHTML = `
@@ -1646,7 +1644,6 @@ export function renderNearbySessionsDrawer(
   root.querySelector("#discovery-reset")?.addEventListener("click", onReset);
   root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
-  root.querySelector("#discovery-retry")?.addEventListener("click", onRetry);
   root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
   setDrawerModal(root, expanded);
   wireDrawerInteractions(root, { expanded, focusOnOpen: expanded && !wasExpanded, onToggle });
@@ -1656,10 +1653,13 @@ export function renderNearbySessionsDrawer(
 /**
  * Render the standard session-only empty state in the active drawer.
  * Buttons render by situation: "清除篩選" only when filters differ from the
- * default state, "重新載入" only when the map status is an error;
- * "擴大地圖範圍" and the primary "開第一局" CTA are always present. Built as
- * an array so a future situational button (e.g. a court-subscribe shortcut)
- * can slot in without restructuring this function.
+ * default state; "擴大地圖範圍" and the primary "開第一局" CTA are always
+ * present. There is no situational "重新載入" here — the mapStatus==="error"
+ * case never reaches this function (renderNearbySessionsDrawer's outer
+ * ternary short-circuits to the #drawer-map-retry status branch first), so
+ * that button and its isError flag were removed as unreachable. Built as an
+ * array so a future situational button (e.g. a court-subscribe shortcut) can
+ * slot in without restructuring this function.
  */
 export function renderDiscoveryEmpty({
   onReset = () => {},
@@ -1667,11 +1667,9 @@ export function renderDiscoveryEmpty({
   onOpenCreate = () => {},
   onRetry = () => {},
   filtersActive = false,
-  isError = false,
 } = {}) {
   const buttons = [];
   if (filtersActive) buttons.push('<button type="button" id="discovery-reset" class="session-secondary">清除篩選</button>');
-  if (isError) buttons.push('<button type="button" id="discovery-retry" class="session-secondary">重新載入</button>');
   buttons.push('<button type="button" id="discovery-expand" class="session-secondary">擴大地圖範圍</button>');
   buttons.push('<button type="button" id="discovery-first" class="session-primary">開第一局</button>');
   return `<div id="discovery-empty" class="discovery-empty">
