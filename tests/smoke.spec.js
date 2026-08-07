@@ -1999,7 +1999,10 @@ test("drawer, filters, session sheet, and empty reset preserve the session-only 
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#discovery-empty")).toBeVisible();
   await expect(page.locator("#discovery-empty")).toContainText("這個範圍暫時沒有可加入的球局");
-  await expect(page.locator("#discovery-retry")).toBeVisible();
+  await expect(page.locator("#discovery-retry")).toBeHidden();
+  await expect(page.locator("#discovery-reset")).toBeVisible();
+  await expect(page.locator("#discovery-expand")).toBeVisible();
+  await expect(page.locator("#discovery-first")).toBeVisible();
   await page.locator("#discovery-reset").click();
   await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
 
@@ -2136,6 +2139,10 @@ test("map idle refreshes the current bounds and session pins remain keyboard-com
   await page.waitForTimeout(310);
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#discovery-empty")).toBeVisible();
+  await expect(page.locator("#discovery-retry")).toBeHidden();
+  await expect(page.locator("#discovery-reset")).toBeHidden();
+  await expect(page.locator("#discovery-expand")).toBeVisible();
+  await expect(page.locator("#discovery-first")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 

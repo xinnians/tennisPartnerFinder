@@ -1,4 +1,5 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
+import { isDefaultFilters } from "./filters.js";
 import { pushDrawerIsolation } from "./modalIsolation.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
@@ -614,8 +615,8 @@ function drawerRecoveryTarget(root) {
     panel.querySelector("#discovery-retry") ??
     panel.querySelector("#drawer-map-retry") ??
     panel.querySelector("[data-session-id]") ??
-    panel.querySelector("#discovery-reset") ??
     panel.querySelector("#discovery-expand") ??
+    panel.querySelector("#discovery-reset") ??
     panel.querySelector("#discovery-first")
   );
 }
@@ -1611,7 +1612,14 @@ export function renderNearbySessionsDrawer(
           )}</p><button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button></div>`
         : count
           ? sessions.map((session) => sessionCard(session, { courts })).join("")
-          : renderDiscoveryEmpty({ onReset, onExpandBounds, onOpenCreate, onRetry, asMarkup: true });
+          : renderDiscoveryEmpty({
+              onReset,
+              onExpandBounds,
+              onOpenCreate,
+              onRetry,
+              filtersActive: filters != null && !isDefaultFilters(filters),
+              isError: mapStatusKind === "error",
+            });
 
   root.innerHTML = `
     <button type="button" id="nearby-sessions-toggle" class="nearby-sessions__toggle" aria-expanded="${expanded}" aria-controls="nearby-sessions-list">
@@ -1645,19 +1653,33 @@ export function renderNearbySessionsDrawer(
   restoreFocusedSessionCard(root);
 }
 
-/** Render the standard session-only empty state in the active drawer. */
-export function renderDiscoveryEmpty({ onReset = () => {}, onExpandBounds = () => {}, onOpenCreate = () => {}, onRetry = () => {}, asMarkup = false } = {}) {
-  const html = `<div id="discovery-empty" class="discovery-empty">
+/**
+ * Render the standard session-only empty state in the active drawer.
+ * Buttons render by situation: "清除篩選" only when filters differ from the
+ * default state, "重新載入" only when the map status is an error;
+ * "擴大地圖範圍" and the primary "開第一局" CTA are always present. Built as
+ * an array so a future situational button (e.g. a court-subscribe shortcut)
+ * can slot in without restructuring this function.
+ */
+export function renderDiscoveryEmpty({
+  onReset = () => {},
+  onExpandBounds = () => {},
+  onOpenCreate = () => {},
+  onRetry = () => {},
+  filtersActive = false,
+  isError = false,
+} = {}) {
+  const buttons = [];
+  if (filtersActive) buttons.push('<button type="button" id="discovery-reset" class="session-secondary">清除篩選</button>');
+  if (isError) buttons.push('<button type="button" id="discovery-retry" class="session-secondary">重新載入</button>');
+  buttons.push('<button type="button" id="discovery-expand" class="session-secondary">擴大地圖範圍</button>');
+  buttons.push('<button type="button" id="discovery-first" class="session-primary">開第一局</button>');
+  return `<div id="discovery-empty" class="discovery-empty">
     <p>這個範圍暫時沒有可加入的球局</p>
     <div class="discovery-empty__actions">
-      <button type="button" id="discovery-reset" class="session-secondary">清除篩選</button>
-      <button type="button" id="discovery-retry" class="session-secondary">重新載入</button>
-      <button type="button" id="discovery-expand" class="session-secondary">擴大地圖範圍</button>
-      <button type="button" id="discovery-first" class="session-primary">開第一局</button>
+      ${buttons.join("\n      ")}
     </div>
   </div>`;
-  if (asMarkup) return html;
-  return html;
 }
 
 function acceptedChatRoster(roster) {

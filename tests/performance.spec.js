@@ -258,7 +258,7 @@ test("a stale drawer card hands keyboard focus to the empty-state retry", async 
   await card.focus();
   await setFakeMapBounds(page, { south: 25.14, west: 121.6, north: 25.16, east: 121.62 });
   await expect(page.locator("#discovery-empty")).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)).toBe("discovery-retry");
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)).toBe("discovery-expand");
   expect(runtimeErrors).toEqual([]);
 });
 
