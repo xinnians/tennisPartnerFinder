@@ -534,11 +534,11 @@
 .join-preview__person { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: var(--space-2); color: var(--color-ink); }
 .join-preview__person div { display: grid; gap: var(--space-1); min-width: 0; }
 .join-preview__person strong { overflow-wrap: anywhere; }
-.join-preview__person span:not(.player-avatar, .player-avatar__fallback) { color: var(--color-text-secondary); font-size: var(--text-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; } /* 「主揪/已確認 · NTRP」的 NTRP 數字節點,採 Task 4 混排折衷 */
+.join-preview__person span:not(.player-avatar, .player-avatar__fallback) { color: var(--color-text-secondary); font-size: var(--text-sm); } /* 內容「主揪/已確認 · NTRP」以中文開頭,不套 mono(fix round 1,見 task-5-report) */
 /* 第二個選擇器只是為了追平上一行 :not() 的特異性(0,2,1),靠順序取勝。
    顏色改用計分板次要文字 token,AA 對比已在 :root --color-text-secondary 定義處驗證,不需另加深。 */
 .trust-count,
-.join-preview__person span.trust-count { color: var(--color-text-secondary); font-size: var(--text-sm); font-family: var(--font-mono); font-variant-numeric: tabular-nums; } /* spec §2:計數徽章屬 mono 類別 */
+.join-preview__person span.trust-count { color: var(--color-text-secondary); font-size: var(--text-sm); } /* 內容「已成局 {n} 次」以中文開頭,不套 mono(fix round 1,見 task-5-report) */
 .player-avatar { position: relative; display: inline-grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-surface-page); color: var(--color-court); font-weight: 700; }
 .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .player-avatar__fallback { display: grid; width: 100%; height: 100%; place-items: center; }
