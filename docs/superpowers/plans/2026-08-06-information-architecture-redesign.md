@@ -357,7 +357,7 @@
 | 6 訂閱球場兩段式 | **ACCEPTED**(一輪補件) | `233a924` | 批 5 四項夾帶 M1-M4 全修好。補件修 F1 焦點掉 body(還原只檢查 disabled 未檢查可見性)、F2 守衛偽紅、F3 下限灌水、F4 預設態頁長 4609→1953px、F5 假計數。**未解**:細選仍是 53 個扁平 checkbox,挑 3-8 座比改版前更累(見待拍板) |
 | 7 信任數字 | **ACCEPTED**(0 blocker)**+ hosted 已套用**(2026-08-07,`migration list` 23/23;匿名複驗:discovery 恰 25 欄、兩個新欄 42703 不存在、兩 view 401、12 個 raw 面 401;紀錄見 `docs/mvp-plan.md`)。批 1-7 已 push,preview `...-git-cla-6f302a-...` 實測四格導覽在線、真實模式讀到 2 場球局、篩選 chip 剩三個 | `e71e2c9` | 唯一 migration `202608060001`。**WIP 來源事故**:PM 壓縮前用 Bash heredoc 自行實作,壓縮後認不出,誤當來歷不明派工;實作方跨 session 鑑識指回 PM,ian 的「指派給開發 session」已是對此的裁決。WIP 降為可棄草稿、PM 跑的證據全數作廢重跑。PM 獨立複驗:三份 SoT diff(`review_join_request` 恰好一行/121 行)、canary 三拍自跑、對比度自算、完整 gate 自跑。**PM 的 §1 有一條誤判**(`player_directory` 匿名拒絕斷言其實在 `session_rls.sql:635-640`,逐行 grep 跨不過多行 `throws_ok`) |
 | 9 共用球場選擇器 + 新使用者預設訂全市 | 未開始(2026-08-07 新增) | — | ian 拍板開全範圍。三個呼叫點共用元件,但 min/max 與「全選」語意**各自不同**;純前端零 migration。詳見下方「ian 拍板」1、2 |
-| 8 定詞表+視覺+a11y 收尾 | 未開始 | — | 已擴充,見下方清單。**建局/編輯表單既有 44px 缺口經獨立重量為 7+3=10 個(非 37),約 6 條 CSS**;`.surface__close` 全站 sheet 共用,獨立 commit 且守衛用對稱式 |
+| 8 定詞表+視覺+a11y 收尾 | **派工中**(2026-08-07 11:2x) | — | 已擴充,見下方清單。派工單附六處替換的現行原文、`vacancyLabel` 的 5 呼叫點+3 測試斷言耦合盤點;「對拉」清查 PM 已代查完(hosted 單打 9／雙打 3／**對拉 1**,`EDIT_PLAY_TYPES` 不可收窄)。**建局/編輯表單既有 44px 缺口經獨立重量為 7+3=10 個(非 37),約 6 條 CSS**;`.surface__close` 全站 sheet 共用,獨立 commit 且守衛用對稱式 |
 
 ## 測試基準(批 3a 結案時,PM 親跑)
 
