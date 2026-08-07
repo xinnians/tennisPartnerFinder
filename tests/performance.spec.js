@@ -306,6 +306,19 @@ test("drawer redraws preserve a focused collapsed toggle and empty-state action"
     document.querySelector("#date-filter")?.dispatchEvent(new Event("input", { bubbles: true }));
   });
   await expect.poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)).toBe("discovery-first");
+
+  // 對稱案例：批 B-4 fix round 1 補了 DRAWER_ACTION_IDS 收 "discovery-subscribe"，這裡鎖住
+  // 回歸——沒收的話，這顆按鈕上的鍵盤焦點在抽屜重繪時會被 drawerRecoveryTarget() fallback
+  // 誤導去 #discovery-expand，而不是留在原按鈕上。
+  const subscribe = page.locator("#discovery-subscribe");
+  await expect(subscribe).toBeVisible();
+  await subscribe.focus();
+  await page.evaluate(() => {
+    document.querySelector("#date-filter")?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName))
+    .toBe("discovery-subscribe");
   expect(runtimeErrors).toEqual([]);
 });
 

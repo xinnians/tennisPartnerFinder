@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
-import { installFakeMaps } from "./fixtures/fakeMaps.js";
+import { installFakeMaps, setFakeMapBounds } from "./fixtures/fakeMaps.js";
 import { courtIdByName, createProfile, makeClient, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
 import {
   callSessionRpc,
@@ -1549,6 +1549,38 @@ test("every Me control keeps focus through a background rerender", async ({ page
   }
   const dropped = landings.filter((entry) => entry.landedOnBody);
   expect(dropped, `重繪後焦點掉到 body 的控件：${JSON.stringify(dropped)}`).toEqual([]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the discovery empty-state subscribe shortcut opens Me and focuses the notification settings heading on real auth", async ({
+  page,
+}) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const { session } = await signUpUser(context.host.email);
+
+  await gotoWithSession(page, session);
+  await page.locator("#nearby-sessions-toggle").click();
+  // 遠離台北市的座標，保證不論其他測試在本機共用 DB 建了多少球局都掃不到。
+  await setFakeMapBounds(page, { south: -1, west: -1, north: -0.99, east: -0.99 });
+  await expect(page.locator("#discovery-empty")).toBeVisible();
+  const subscribeButton = page.locator("#discovery-subscribe");
+  await expect(subscribeButton).toBeVisible();
+
+  // showMePage 會同步排 rAF 聚焦一次，接著 fire-and-forget 觸發 reloadCurrentProfile／
+  // refreshNotificationSettings，兩者完成後各自呼叫 renderMeDestination background 重繪。
+  // 只斷言 toBeFocused() 會在第一次 rAF 就通過（那次本來就沒壞過），測不到批 B-4
+  // fix round 1 的 Critical 回歸：焦點被背景重繪吃掉。這裡明確等 notification_prefs
+  // 這個背景重繪一定會打的請求完成，再等一輪 rAF 讓對應的 renderMeDestination 真的跑完，
+  // 才檢查焦點——這樣才是在「重繪之後」而不是「重繪之前」驗證。
+  const notificationPrefsResponse = page.waitForResponse(
+    (response) => response.url().includes("/rest/v1/notification_prefs") && response.request().method() === "GET"
+  );
+  await subscribeButton.click();
+  await expect(page.locator("#me-page")).toBeVisible();
+  await notificationPrefsResponse;
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator("[data-notification-settings-heading]")).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });
 

@@ -124,6 +124,9 @@ let createdSessionFocusId = null;
 let meRenderGeneration = 0;
 let mySessionsRenderGeneration = 0;
 let pendingMeFocus = null;
+// renderMeDestination() 換血 root.innerHTML 期間為 true，讓 focusout 監聽器忽略那次自己
+// 造成的合成事件；細節見 renderMeDestination() 內對應註解。
+let suppressMeFocusRelease = false;
 let pendingMySessionsFocus = null;
 let notificationSettings = defaultNotificationSettings();
 let presenceLocationStatus = "idle";
@@ -573,6 +576,7 @@ function captureMeFocus(root) {
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !root.contains(active)) return null;
   if (active.matches("[data-me-heading]")) return { kind: "heading" };
+  if (active.matches("[data-notification-settings-heading]")) return { kind: "notification-settings-heading" };
   if (active.matches('[data-testid="me-sign-in"]')) return { kind: "sign-in" };
   if (active.matches('[data-testid="me-sign-out"]')) return { kind: "sign-out" };
   if (active.matches('[data-testid="edit-profile"]')) return { kind: "edit-profile" };
@@ -603,6 +607,7 @@ function captureMeFocus(root) {
 function resolveMeFocus(root, focus) {
   if (!focus) return null;
   if (focus.kind === "heading") return root.querySelector("[data-me-heading]");
+  if (focus.kind === "notification-settings-heading") return root.querySelector("[data-notification-settings-heading]");
   if (focus.kind === "sign-in") return root.querySelector('[data-testid="me-sign-in"]');
   if (focus.kind === "sign-out") return root.querySelector('[data-testid="me-sign-out"]');
   if (focus.kind === "edit-profile") return root.querySelector('[data-testid="edit-profile"]');
@@ -827,6 +832,10 @@ function renderMeDestination() {
     root.addEventListener("focusout", (event) => {
       // 焦點還原改由 runPresenceSettingAction 明確托管，這裡不再為 disable 情境留後路：
       // 只要焦點離開 root 就放棄還原，避免背景重繪把焦點從頁面外搶回來。
+      // suppressMeFocusRelease 期間跳過：那是本函式自己 renderMePage() 換血 DOM 造成的
+      // 合成 focusout（relatedTarget 必為 null），不是使用者主動把焦點移出 root，見下方
+      // renderMePage() 呼叫前後的說明。
+      if (suppressMeFocusRelease) return;
       if (shouldReleasePendingMeFocus(root, event.relatedTarget)) pendingMeFocus = null;
     });
   }
@@ -835,6 +844,17 @@ function renderMeDestination() {
   else if (activePage !== "me") pendingMeFocus = null;
   const generation = ++meRenderGeneration;
   const state = controller?.getMySessionState?.() ?? {};
+  // renderMePage() 下面會整段換掉 root.innerHTML，若舊焦點節點正好在 root 內，瀏覽器會
+  // 同步發出 focusout（relatedTarget=null）。這個訊號在既有 shouldReleasePendingMeFocus
+  // 語意裡代表「使用者主動把焦點移出 root」，但這裡其實是本函式自己的 DOM 換血造成，不是
+  // 使用者動作——JS 是單執行緒，使用者不可能在這段同步呼叫期間插入真正的焦點操作。放行的話，
+  // 上面剛設好的 pendingMeFocus 會被自己的重繪立刻清空：連續兩個 renderMeDestination()
+  // 在同一顆 rAF 之前接力發生時（例如 showMePage 同時觸發 reloadCurrentProfile 與
+  // refreshNotificationSettings，兩者都在本機 Supabase 上快到搶在下一顆 rAF 前完成），
+  // 第二次呼叫的 captureMeFocus 會看到 activeElement 已經掉回 body、pendingMeFocus 也被
+  // 清空，焦點意圖永久遺失，即使兩邊都有各自對應的 kind 分支也救不回來
+  // （fix round 1 實測抓到此案例，非臆測）。
+  suppressMeFocusRelease = true;
   renderMePage(root, {
     authSession,
     avatarUrl: currentAuthAvatarUrl(),
@@ -858,6 +878,7 @@ function renderMeDestination() {
     profile: currentProfile ?? defaultProfile(),
     supportHref: supportContactHref(),
   });
+  suppressMeFocusRelease = false;
   restoreMeFocus(root, focus, generation);
   syncBottomNavigation();
 }
@@ -897,6 +918,14 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
 function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   activePage = "me";
   pendingMySessionsFocus = null;
+  // reloadCurrentProfile／refreshNotificationSettings 下面都是 fire-and-forget，兩者完成
+  // 時各自呼叫 renderMeDestination()。若在下面那顆 rAF 真的把焦點送進通知設定標題「之前」，
+  // 這兩個背景重繪其中一個先跑，captureMeFocus 會看到 activeElement 還停在 body（因為
+  // rAF 還沒排到），必須有 pendingMeFocus 這個字面種子讓 renderMeDestination 自己的
+  // captureMeFocus(root) ?? pendingMeFocus 撿得到意圖，走既有的 restoreMeFocus／世代校驗
+  // 管線把焦點送到（可能已經被重繪替換過的）新標題節點。沒有這行，兩個背景重繪前後夾殺時
+  // 焦點會永久掉在 body——這是 fix round 1 實測抓到的既有機制邊界，不是單純漏一個 kind 分支。
+  if (focusNotificationSettings) pendingMeFocus = { kind: "notification-settings-heading" };
   controller.setDrawerExpanded(false);
   document.getElementById("tab-map").hidden = true;
   document.getElementById("my-sessions-page").hidden = true;
@@ -908,6 +937,10 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   void controller.refreshMyPlayerBlocks();
   if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
   if (focusNotificationSettings) {
+    // 這顆 rAF 是快樂路徑：多數情況下背景重繪還沒發生，它先把焦點送到位並讓頁面自然捲到
+    // 通知設定區（preventScroll:false）。上面 seed 的 pendingMeFocus 則是兜底：就算它被
+    // 背景重繪搶先一步，既有 restoreMeFocus 管線仍會用 preventScroll:true 把焦點送回正確
+    // 節點，只是不保證那一次會自動捲動。
     requestAnimationFrame(() => {
       document.querySelector("#me-root [data-notification-settings-heading]")?.focus({ preventScroll: false });
     });
