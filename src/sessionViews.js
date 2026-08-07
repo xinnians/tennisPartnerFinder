@@ -101,7 +101,13 @@ const MY_SESSION_LIFECYCLE_ACTIONS = new Set([
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
-const DRAWER_ACTION_IDS = new Set(["discovery-reset", "drawer-map-retry", "discovery-expand", "discovery-first"]);
+const DRAWER_ACTION_IDS = new Set([
+  "discovery-reset",
+  "drawer-map-retry",
+  "discovery-expand",
+  "discovery-subscribe",
+  "discovery-first",
+]);
 
 export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
@@ -207,7 +213,7 @@ export function renderMePage(
     <section class="notification-settings" aria-labelledby="notification-settings-title">
       <div class="notification-settings__head">
         <div>
-          <h2 id="notification-settings-title">通知設定</h2>
+          <h2 id="notification-settings-title" tabindex="-1" data-notification-settings-heading>通知設定</h2>
           <p class="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
         </div>
         <button type="button" class="session-secondary" data-enable-push data-notification-control
@@ -615,6 +621,7 @@ function drawerRecoveryTarget(root) {
     panel.querySelector("#drawer-map-retry") ??
     panel.querySelector("[data-session-id]") ??
     panel.querySelector("#discovery-expand") ??
+    panel.querySelector("#discovery-subscribe") ??
     panel.querySelector("#discovery-reset") ??
     panel.querySelector("#discovery-first")
   );
@@ -1583,6 +1590,7 @@ export function renderNearbySessionsDrawer(
     onExpandBounds = () => {},
     onOpenCreate = () => {},
     onRetry = () => {},
+    onSubscribe = () => {},
   } = {}
 ) {
   // A render replaces the toggle node. Release its old inert state first, then
@@ -1618,6 +1626,7 @@ export function renderNearbySessionsDrawer(
               onExpandBounds,
               onOpenCreate,
               onRetry,
+              onSubscribe,
               filtersActive: !isDefaultFilters(filters),
             });
 
@@ -1645,6 +1654,7 @@ export function renderNearbySessionsDrawer(
   wireSessionCards(root, onOpenSession);
   root.querySelector("#discovery-reset")?.addEventListener("click", onReset);
   root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
+  root.querySelector("#discovery-subscribe")?.addEventListener("click", onSubscribe);
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
   root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
   setDrawerModal(root, expanded);
@@ -1655,24 +1665,26 @@ export function renderNearbySessionsDrawer(
 /**
  * Render the standard session-only empty state in the active drawer.
  * Buttons render by situation: "清除篩選" only when filters differ from the
- * default state; "擴大地圖範圍" and the primary "開第一局" CTA are always
- * present. There is no situational "重新載入" here — the mapStatus==="error"
+ * default state; "擴大地圖範圍"、"有新球局時通知我" 與主要的「開第一局」CTA
+ * 恆在。There is no situational "重新載入" here — the mapStatus==="error"
  * case never reaches this function (renderNearbySessionsDrawer's outer
  * ternary short-circuits to the #drawer-map-retry status branch first), so
  * that button and its isError flag were removed as unreachable. Built as an
- * array so a future situational button (e.g. a court-subscribe shortcut) can
- * slot in without restructuring this function.
+ * array so future situational buttons can slot in without restructuring
+ * this function.
  */
 export function renderDiscoveryEmpty({
   onReset = () => {},
   onExpandBounds = () => {},
   onOpenCreate = () => {},
   onRetry = () => {},
+  onSubscribe = () => {},
   filtersActive = false,
 } = {}) {
   const buttons = [];
   if (filtersActive) buttons.push('<button type="button" id="discovery-reset" class="session-secondary">清除篩選</button>');
   buttons.push('<button type="button" id="discovery-expand" class="session-secondary">擴大地圖範圍</button>');
+  buttons.push('<button type="button" id="discovery-subscribe" class="session-secondary">有新球局時通知我</button>');
   buttons.push('<button type="button" id="discovery-first" class="session-primary">開第一局</button>');
   return `<div id="discovery-empty" class="discovery-empty">
     <p>這個範圍暫時沒有可加入的球局</p>

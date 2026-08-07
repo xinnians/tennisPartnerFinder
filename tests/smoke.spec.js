@@ -2159,6 +2159,45 @@ test("signed-out first-visit empty state explains the product instead of just pr
   expect(runtimeErrors).toEqual([]);
 });
 
+test("the empty-state subscribe shortcut opens Me and can focus the notification settings heading", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await setFakeMapBounds(page, { south: 25.14, west: 121.6, north: 25.16, east: 121.62 });
+  await page.waitForTimeout(310);
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#discovery-empty")).toBeVisible();
+  const subscribeButton = page.locator("#discovery-subscribe");
+  await expect(subscribeButton).toBeVisible();
+  await expect(subscribeButton).toHaveText("有新球局時通知我");
+  await expect(subscribeButton).toHaveClass(/session-secondary/);
+
+  await subscribeButton.click();
+  await expect(page.locator("#tab-map")).toBeHidden();
+  await expect(page.locator("#my-sessions-page")).toBeHidden();
+  await expect(page.locator("#me-page")).toBeVisible();
+
+  // Mock 模式沒有真登入（VITE_SUPABASE_URL 固定為 "___"，main.js 的 authSession
+  // 永遠是 null），通知設定區只在 authenticated 才渲染，showMePage 的真實點擊路徑
+  // 無法在這個 harness 走到已登入內容。這裡改用既有的 renderMePage 直接渲染慣例
+  // （比照本檔 "Me notification settings save six preferences" 測試）驗證
+  // sessionViews.js 承諾的掛點契約：標題確實可以是 document.activeElement。
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
+    renderMePage(root, {
+      authSession: { user: { id: "discovery-subscribe-focus-test" } },
+      profile: { nick: "測試球友", ntrp: 3.5 },
+    });
+    document.querySelector("[data-notification-settings-heading]")?.focus({ preventScroll: false });
+  });
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.hasAttribute("data-notification-settings-heading")))
+    .toBe(true);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a discovery rerender cannot let an underlying drawer overtake a sheet modal", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

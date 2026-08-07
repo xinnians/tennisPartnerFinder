@@ -473,6 +473,7 @@ function renderDiscovery(view) {
     onExpandBounds: controller.expandBounds,
     onOpenCreate: controller.openCreateIntent,
     onRetry: controller.retryDiscovery,
+    onSubscribe: () => showMePage({ focusNotificationSettings: true }),
   });
   renderMapDataStatus(document.getElementById("map-data-status"), {
     ...view.mapStatus,
@@ -893,7 +894,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   }
 }
 
-function showMePage({ focus = false } = {}) {
+function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   activePage = "me";
   pendingMySessionsFocus = null;
   controller.setDrawerExpanded(false);
@@ -906,6 +907,11 @@ function showMePage({ focus = false } = {}) {
   void refreshNotificationSettings();
   void controller.refreshMyPlayerBlocks();
   if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
+  if (focusNotificationSettings) {
+    requestAnimationFrame(() => {
+      document.querySelector("#me-root [data-notification-settings-heading]")?.focus({ preventScroll: false });
+    });
+  }
 }
 
 function populateCourtFilters(nextCourts) {
