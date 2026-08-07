@@ -87,12 +87,13 @@
 .session-secondary {
   min-height: 38px;
   border: 0;
-  border-radius: 10px;
-  font-weight: 800;
+  border-radius: var(--radius-md);
+  font-weight: 700;
 }
 
-/* 批 A-3 範圍只含地圖工具列;.session-primary/.session-secondary 留在上面舊 token 規則,
-   等其他任務再套用計分板 token,避免這裡動到 me-page/create-session 等範圍外按鈕。 */
+/* 批 A-4 已將 .session-primary/.session-secondary 套用計分板按鈕契約(見下方與 279 行);
+   #map-data-status/.form-field__label-row 等處的 .session-secondary 覆寫仍留舊值,
+   非本任務 Files 範圍,見 task-4-report concerns。 */
 .location-button,
 .filters-reset,
 .chip-type,
@@ -107,7 +108,7 @@
 
 .location-button { padding: 0 var(--space-3); background: var(--color-info-bg); color: var(--color-ink); }
 
-.session-primary { padding: 0 15px; background: var(--lime); color: var(--navy); box-shadow: inset 0 -2px 0 rgba(20, 44, 75, 0.12); }
+.session-primary { padding: 0 var(--space-4); background: var(--color-ink); color: var(--color-signal); }
 
 .map-page {
   position: relative;
@@ -198,20 +199,21 @@
 
 .nearby-sessions {
   position: absolute;
-  z-index: 21;
+  z-index: calc(var(--z-drawer) + 1);
   right: clamp(12px, 3vw, 30px);
   bottom: calc(20px + var(--bottom-navigation-offset));
   width: min(370px, calc(100% - 24px));
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.95);
-  border-radius: 18px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-top: var(--border-strong);
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elevation-2);
 }
 
 .nearby-sessions__backdrop {
   position: fixed;
-  z-index: 20;
+  z-index: var(--z-drawer);
   inset: 0;
   background: rgba(11, 28, 50, 0.38);
 }
@@ -221,62 +223,62 @@
   grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
   min-height: 76px;
-  gap: 4px 10px;
-  padding: 13px 16px;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border: 0;
   background: transparent;
-  color: var(--navy);
+  color: var(--color-ink);
   text-align: left;
 }
 
-#nearby-sessions-summary { overflow-wrap: anywhere; font-size: 16px; font-weight: 900; }
-.nearby-sessions__summary-detail { grid-column: 1 / 2; overflow-wrap: anywhere; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
+#nearby-sessions-summary { overflow-wrap: anywhere; font-size: var(--text-md); font-weight: 700; }
+.nearby-sessions__summary-detail { grid-column: 1 / 2; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.45; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-.nearby-sessions__list { max-height: min(64dvh, 520px); padding: 0 12px 14px; overflow-y: auto; border-top: 1px solid var(--line); }
-.nearby-sessions__list-head,
+.nearby-sessions__list { max-height: min(64dvh, 520px); padding: 0 var(--space-3) var(--space-4); overflow-y: auto; border-top: 1px solid var(--color-line); }
+.nearby-sessions__list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
 .surface__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 2px 10px; }
-.nearby-sessions__list-head p,
+.nearby-sessions__list-head p { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; }
 .surface__eyebrow { margin: 0 0 2px; color: var(--blue); font-size: 12px; font-weight: 900; }
-.nearby-sessions__list-head h2,
+.nearby-sessions__list-head h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); line-height: 1.25; }
 .surface h2 { margin: 0; color: var(--navy); font-size: 20px; line-height: 1.25; }
 
 .surface__close { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--mist); color: var(--navy); font-size: 25px; line-height: 1; }
-.nearby-sessions__cards { display: grid; gap: 9px; }
-.nearby-sessions__status { margin: 0 0 10px; padding: 9px 10px; border-radius: 10px; background: var(--mist); color: var(--navy); font-size: 13px; font-weight: 800; }
+.nearby-sessions__cards { display: grid; gap: var(--space-2); }
+.nearby-sessions__status { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .nearby-sessions__status p { margin: 0; overflow-wrap: anywhere; }
-.nearby-sessions__status .session-secondary { margin-top: 8px; }
+.nearby-sessions__status .session-secondary { margin-top: var(--space-2); }
 
-.session-card { display: grid; width: 100%; gap: 3px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--navy); text-align: left; }
-.session-card:hover { border-color: var(--blue); background: #f8fbff; }
-.session-card__time { color: var(--blue); font-size: 13px; font-weight: 900; }
-.session-card__court { overflow-wrap: anywhere; font-size: 15px; font-weight: 900; }
+.session-card { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.session-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
+.session-card__time { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.session-card__court { overflow-wrap: anywhere; font-size: var(--text-md); font-weight: 700; }
 .session-card__meta,
-.session-card__host { overflow-wrap: anywhere; color: var(--ink-muted); font-size: 12px; line-height: 1.45; }
-.session-card--compact { padding: 11px; }
-.player-card { display: grid; width: 100%; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--navy); text-align: left; }
-.player-card:hover { border-color: var(--blue); background: #f8fbff; }
-.player-card span { color: var(--ink-muted); font-size: 12px; }
-.session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 800; line-height: 1.4; }
+.session-card__host { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.session-card--compact { padding: var(--space-3); }
+.player-card { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.player-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
+.player-card span { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 700; line-height: 1.4; }
 .session-badge--instant {
-  background: var(--lime);
-  color: var(--navy);
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
+  background: var(--color-signal);
+  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
 }
 .session-badge--ongoing {
-  background: var(--blue);
-  color: #fff;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 12px;
+  background: var(--color-ink);
+  color: var(--color-signal);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
 }
 .session-ongoing-time { color: var(--blue); font-size: 12px; font-weight: 800; }
 
 .discovery-empty { display: grid; gap: 12px; padding: 20px 8px 8px; color: var(--navy); text-align: center; }
 .discovery-empty p { margin: 0; font-weight: 800; }
 .discovery-empty__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
-.session-secondary { padding: 0 13px; border: 1px solid var(--line); background: #fff; color: var(--blue); }
+.session-secondary { padding: 0 var(--space-3); border: var(--border-strong); background: transparent; color: var(--color-ink); }
 
 #map-data-status {
   position: absolute;
@@ -603,8 +605,8 @@
   .type-chips,
   .venue-chips { flex: 1 1 auto; }
   .level-popover { top: 148px; left: 10px; }
-  .nearby-sessions { right: 12px; bottom: calc(12px + var(--bottom-navigation-offset)); width: calc(100% - 24px); border-radius: 17px; }
-  .nearby-sessions__toggle { min-height: 70px; padding: 11px 13px; }
+  .nearby-sessions { right: 12px; bottom: calc(12px + var(--bottom-navigation-offset)); width: calc(100% - 24px); border-radius: var(--radius-md) var(--radius-md) 0 0; }
+  .nearby-sessions__toggle { min-height: 70px; padding: var(--space-3) var(--space-3); }
   .nearby-sessions__list { max-height: min(58dvh, 500px); }
   #map-data-status { position: static; order: 4; width: 100%; max-width: none; box-sizing: border-box; }
   .surface { width: calc(100vw - 20px); max-height: 80dvh; padding: 15px; }
