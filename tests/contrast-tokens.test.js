@@ -71,7 +71,7 @@ const BACKGROUNDS = [
   ["自己的聊天泡泡 .chat-message--self", cssValue(/\.chat-message--self \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-message--self 背景")],
   ["球局摘要 .chat-session-summary", MIST],
   ["封存提示 .chat-archived-note", cssValue(/\.chat-archived-note \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-archived-note 背景")],
-  ["在場設定 .presence-settings", cssValue(/\.presence-settings \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".presence-settings 背景")],
+  ["在場設定 .presence-settings", COLOR_SUCCESS_BG], // 批 A-7 起改用 var(--color-success-bg),不再是可 regex 抓的字面 hex,比照上方 .chat-message 直接引用 token 常數
 ];
 
 test("次要文字 token 在每一個實際底色上都達 AA 4.5:1", () => {
@@ -94,14 +94,15 @@ test("--ink-muted 在這些底色上確實不足,證明加深那一階是必要�
   );
 });
 
-test("四個套用點都改用加深後的 token", () => {
+test("三個套用點都改用加深後的 token", () => {
+  // 批 A-7 前是四個(含 .presence-settings .form-hint);批 A-7 把該選擇器改用
+  // var(--color-text-secondary),不再是 --ink-muted-strong,移出此清單(改由上方
+  // PAIRS 測試的「次要文字 on success 底」涵蓋)。其餘三個待 Task 8(群聊/toast)換皮後
+  // 一併移除。
   assert.ok(CSS.length > 10_000, "CSS 讀取失敗時計數會全部歸零,先確認掃描集非空");
-  for (const selector of [
-    ".presence-settings .form-hint",
-    ".chat-session-summary span",
-    ".chat-archived-note",
-    ".chat-message__meta",
-  ]) {
+  const selectors = [".chat-session-summary span", ".chat-archived-note", ".chat-message__meta"];
+  assert.equal(selectors.length, 3, "掃描集非空且涵蓋三個套用點");
+  for (const selector of selectors) {
     const rule = CSS.match(new RegExp(`\\n${selector.replace(/[.]/g, "\\.")} \\{([^}]*)\\}`));
     assert.ok(rule, `讀不到 ${selector} 的規則`);
     assert.match(rule[1], /var\(--ink-muted-strong\)/, `${selector} 沒有改用 --ink-muted-strong`);
