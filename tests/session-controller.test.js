@@ -2363,7 +2363,8 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   await fullHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(fullIntent.value(), null);
   assert.deepEqual(fullHarness.toasts, ["球局已額滿，已回到附近球局。"]);
-  assert.equal(fullHarness.renders.at(-1).drawerState, "full");
+  // 批 C2-3:closeForStaleIntent 的 auto-expand 映射由 full 改 half(讓地圖保持可見)。
+  assert.equal(fullHarness.renders.at(-1).drawerState, "half");
   assert.equal(fullHarness.confirmations.length, 0);
 
   for (const [status, message] of [
@@ -2390,7 +2391,7 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   await unavailableHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(unavailableIntent.value(), null);
   assert.deepEqual(unavailableHarness.toasts, ["球局已取消、結束或不再開放，已回到附近球局。"]);
-  assert.equal(unavailableHarness.renders.at(-1).drawerState, "full");
+  assert.equal(unavailableHarness.renders.at(-1).drawerState, "half");
 });
 
 test("setDrawerState accepts the three-value enum, ignores illegal values, and setDrawerExpanded stays a compatible boolean wrapper", () => {

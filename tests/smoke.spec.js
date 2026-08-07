@@ -477,6 +477,140 @@ test("opening the nearby drawer cannot steal focus from an immediate session-car
   expect(runtimeErrors).toEqual([]);
 });
 
+test("the half-open drawer keeps the map layer hit-testable and its base-court pin clickable", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(page.locator("#nearby-sessions-backdrop")).toBeHidden();
+  await expect(page.locator("#map")).toHaveJSProperty("inert", false);
+
+  // Probe a point that is genuinely open map (below the map toolbar, above the
+  // half drawer) instead of a fixed corner — at narrow widths the toolbar sits
+  // in normal flow at the top of .map-page, so a naive top-left probe can land
+  // on that legitimate overlay control instead of proving anything about the
+  // drawer.
+  const geometry = await page.evaluate(() => {
+    const mapRect = document.getElementById("map").getBoundingClientRect();
+    const drawerRect = document.getElementById("nearby-sessions-drawer").getBoundingClientRect();
+    const toolbarRect = document.querySelector(".map-toolbar")?.getBoundingClientRect() ?? null;
+    return {
+      mapRect: { x: mapRect.x, y: mapRect.y, width: mapRect.width, height: mapRect.height },
+      drawerRect: { x: drawerRect.x, y: drawerRect.y, width: drawerRect.width, height: drawerRect.height },
+      openAreaTop: toolbarRect ? toolbarRect.bottom : mapRect.top,
+    };
+  });
+  const probePoint = {
+    x: geometry.mapRect.x + geometry.mapRect.width / 2,
+    y: (geometry.openAreaTop + geometry.drawerRect.y) / 2,
+  };
+  // The probe point must sit outside the half drawer's own box, or a hit
+  // there would prove nothing about the map layer being reachable.
+  const outsideDrawer =
+    probePoint.x < geometry.drawerRect.x ||
+    probePoint.x > geometry.drawerRect.x + geometry.drawerRect.width ||
+    probePoint.y < geometry.drawerRect.y ||
+    probePoint.y > geometry.drawerRect.y + geometry.drawerRect.height;
+  expect(outsideDrawer).toBe(true);
+
+  const hit = await page.evaluate(
+    ({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return { insideMap: Boolean(element?.closest("#map")) };
+    },
+    probePoint
+  );
+  expect(hit.insideMap).toBe(true);
+
+  // Pick whichever base-court pin is not visually covered by the half drawer —
+  // at narrow widths the drawer spans nearly the full width across its band,
+  // so a hardcoded pin id could legitimately sit underneath it.
+  const basePins = page.getByRole("button", { name: /地圖圖釘 球場/ });
+  const basePinCount = await basePins.count();
+  let clickablePin = null;
+  for (let index = 0; index < basePinCount; index += 1) {
+    const candidate = basePins.nth(index);
+    const box = await candidate.boundingBox();
+    if (!box) continue;
+    const overlapsDrawer = !(
+      box.x + box.width < geometry.drawerRect.x ||
+      box.x > geometry.drawerRect.x + geometry.drawerRect.width ||
+      box.y + box.height < geometry.drawerRect.y ||
+      box.y > geometry.drawerRect.y + geometry.drawerRect.height
+    );
+    if (!overlapsDrawer) {
+      clickablePin = candidate;
+      break;
+    }
+  }
+  // At very narrow viewports the half drawer's own bottom band can cover every
+  // currently rendered base-court pin (it spans nearly the full width there).
+  // That is ordinary z-order occlusion, not the drawer making the map inert —
+  // the elementFromPoint/inert assertions above already cover that claim on
+  // every project. Skip only the click-through-to-a-pin verification when no
+  // pin is geometrically reachable at this viewport.
+  test.skip(!clickablePin, "no base-court pin is clear of the half drawer at this viewport width");
+  await clickablePin.click();
+  await expect(page.locator("#court-session-sheet")).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("half drawer: opening a session detail sheet and closing it restores half and focus to the originating card", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+
+  const card = page.locator("[data-testid='session-card']").first();
+  await card.focus();
+  await card.press("Enter");
+  await expect(page.locator("#session-sheet")).toBeVisible();
+  // The sheet floats above a persistent half drawer — it must not silently
+  // promote the drawer to full underneath it.
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#session-sheet")).toBeHidden();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(card).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("swiping the drawer up moves it one segment at a time, and swiping down reverses it one segment at a time", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const drawer = page.locator("#nearby-sessions-drawer");
+  const list = page.locator("#nearby-sessions-list");
+  await expect(list).toHaveAttribute("data-drawer-state", "collapsed");
+
+  // wireDrawerInteractions binds pointerdown/pointerup directly on #nearby-sessions-drawer
+  // and re-binds on every render, so each gesture must wait for the previous
+  // one's render to land before firing (the 44px threshold is unchanged).
+  const swipe = async (delta) => {
+    const start = 300;
+    await drawer.dispatchEvent("pointerdown", { clientY: start, pointerId: 1 });
+    await drawer.dispatchEvent("pointerup", { clientY: start - delta, pointerId: 1 });
+  };
+
+  await swipe(100); // up: collapsed -> half
+  await expect(list).toHaveAttribute("data-drawer-state", "half");
+  await swipe(100); // up: half -> full
+  await expect(list).toHaveAttribute("data-drawer-state", "full");
+
+  await swipe(-100); // down: full -> half
+  await expect(list).toHaveAttribute("data-drawer-state", "half");
+  await swipe(-100); // down: half -> collapsed
+  await expect(list).toHaveAttribute("data-drawer-state", "collapsed");
+  await expect(list).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a top sheet consumes Escape before the underlying nearby drawer", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -2218,6 +2352,12 @@ test("location denial is non-repeating and Maps authentication fallback keeps di
   await expect(fallbackAnnouncement).toHaveAttribute("aria-live", "polite");
   await expect(fallbackAnnouncement).toHaveJSProperty("inert", false);
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
+  // 批 C2-3:setMapUnavailable() 的 auto-expand 目標由 full 改為 half——地圖既已不可用,
+  // 驗證抽屜真的落在 half(非 modal:無 data-drawer-state="full"、無 backdrop、header
+  // 不 inert),不是舊語意的 full modal。
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(page.locator("#nearby-sessions-backdrop")).toBeHidden();
+  await expect(page.locator(".app-header")).toHaveJSProperty("inert", false);
   await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "false");
@@ -2298,6 +2438,35 @@ test("signed-out first-visit empty state explains the product instead of just pr
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#discovery-empty")).toBeVisible();
   await expect(page.locator(".nearby-sessions__summary-detail")).toContainText("公開網球球局");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("empty-state contextual buttons and the subscribe shortcut are visible and clickable while the drawer is half", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#date-filter").fill("2099-01-01");
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(page.locator("#nearby-sessions-backdrop")).toBeHidden();
+  await expect(page.locator("#map")).toHaveJSProperty("inert", false);
+  await expect(page.locator("#discovery-empty")).toBeVisible();
+
+  // B2 情境按鈕(有作用中篩選時才有的「清除篩選」＋恆在的「擴大地圖範圍」／「開第一局」)
+  // 與 B6 訂閱捷徑(「有新球局時通知我」)在 half 都要可見、可點,不是只在 full 才成立。
+  const resetButton = page.locator("#discovery-reset");
+  const expandButton = page.locator("#discovery-expand");
+  const subscribeButton = page.locator("#discovery-subscribe");
+  const firstButton = page.locator("#discovery-first");
+  for (const button of [resetButton, expandButton, subscribeButton, firstButton]) {
+    await expect(button).toBeVisible();
+    await expect(button).toBeEnabled();
+  }
+
+  await resetButton.click();
+  await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
   expect(runtimeErrors).toEqual([]);
 });
 

@@ -399,6 +399,44 @@ test("a 667px tall viewport never leaves the document scrollable past its own he
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a 390×667 half-open drawer reveals at least 1.5 session cards without scrolling", async ({ page }) => {
+  // 批 C2-3(design spec 假設 1):「半開高度 45%（±5% 實作時視覺對照微調，390×667 下至少
+  // 露出 1.5 張卡）」。實測(見下方量測):list-head(標題＋展開/收合 44px 鈕列)本身在
+  // 390 寬就吃掉 95px,卡片本身高 187px,45dvh(300px)扣掉 list-head 只剩約 1.09 張卡的
+  // 可視高度;就算把 max-height 頂到 spec 允許的 ±5% 上限(50dvh)也只到約 1.27 張,仍摸不到
+  // 1.5——這已超出「視覺對照微調」的範圍,真要達標得縮 list-head 或卡片本身的高度,是需要
+  // 使用者拍板的產品層取捨,不是 Task 3(測試 only、不動 session.css)能單方決定的。
+  // 用 test.fail() 誠實留下這個已量測的落差、不擋 commit;等後續任務真的調整高度後,這裡
+  // 會轉為「非預期通過」提醒把這個標記拿掉,不會被靜默遺忘。
+  test.skip(isLocalHarness, "This is a deterministic layout check independent of the data source.");
+  test.fail(
+    true,
+    "已知落差(批 C2-3 量測):390×667 half 目前只露出約 1.09 張卡(list-head 95px + 卡片 187px 吃光 45dvh),達不到 spec 假設 1 的 1.5 張目標,修法待使用者拍板 list-head/卡片高度或超出 ±5% 的 CSS 調整。"
+  );
+  const runtimeErrors = captureConsoleErrors(page);
+  await page.setViewportSize({ width: 390, height: 667 });
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+
+  const measurement = await page.evaluate(() => {
+    const list = document.getElementById("nearby-sessions-list");
+    const cards = [...list.querySelectorAll("[data-testid='session-card']")];
+    if (cards.length < 2) return null;
+    // .nearby-sessions__list has overflow-y:auto + an explicit max-height, so
+    // its own boundingClientRect is already clipped to what's on screen — no
+    // need to reason about scrollHeight vs viewport separately.
+    const listBottom = list.getBoundingClientRect().bottom;
+    const firstCardRect = cards[0].getBoundingClientRect();
+    return { revealedHeight: listBottom - firstCardRect.top, cardHeight: firstCardRect.height };
+  });
+  expect(measurement).not.toBeNull();
+  expect(measurement.revealedHeight / measurement.cardHeight).toBeGreaterThanOrEqual(1.5);
+  expect(runtimeErrors).toEqual([]);
+});
+
 // 批 C1-4:批 C1-3 把 .map-toolbar 收斂到 #filter-sheet-open／#date-filter／#level-chip
 // 三個控件後,現況單列高度為 82px(最高子項 .filter-control--date 64px＋上下 padding 16px＋
 // 1px×2 border)。閾值取 110px:高於現況留粗略字型/瀏覽器差異緩衝,但明顯低於任何兩列版面

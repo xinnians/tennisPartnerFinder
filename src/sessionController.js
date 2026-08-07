@@ -955,7 +955,10 @@ export function createSessionController({
 
   function setMapUnavailable() {
     state.mapUnavailable = true;
-    state.drawerState = "full";
+    // 批 C2-3:auto-expand 映射 half(spec §3「讓地圖保持可見」)——地圖本身既然不可用,
+    // 這裡的「保持可見」實質是不 push full 的 modal isolation,讓抽屜以外的頁面殼
+    // (header/bottom nav)維持可互動,而不是真的還能看到地圖。
+    state.drawerState = "half";
     publish();
   }
 
@@ -1455,7 +1458,8 @@ export function createSessionController({
     const options = { reason: "stale-intent", restoreFocus: false };
     closeActiveJoinConfirmation(undefined, options);
     closeActiveDetail(undefined, options);
-    state.drawerState = "full";
+    // 批 C2-3:同上,auto-expand 映射 half,不再強制進 full modal。
+    state.drawerState = "half";
     publish();
     toast(message);
   }
