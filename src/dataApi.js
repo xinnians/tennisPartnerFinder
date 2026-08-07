@@ -157,7 +157,7 @@ const ACTION_MESSAGES = {
   SESSION_ARCHIVED: "這個球局已封存，無法再傳送訊息。",
   SESSION_STARTED: "球局已超過可加入時間。",
   SESSION_LIMIT: "你同時開放中的球局已達上限，請先處理現有球局。",
-  ALREADY_REQUESTED: "您已申請加入這個球局。",
+  ALREADY_REQUESTED: "你已申請加入這個球局。",
   ALREADY_DECIDED: "你先前已退出或未通過這一局，無法再次申請。",
   NOT_SESSION_HOST: "只有主揪可以執行這個操作。",
   NOT_ACCEPTED_PARTICIPANT: "只有已接受的參與者可以執行這個操作。",

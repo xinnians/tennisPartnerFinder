@@ -627,12 +627,12 @@ test("a host edits a single-court session and sees authoritative card and detail
 
   const card = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id="${sessionId}"]`).locator("xpath=ancestor::article");
   await expect(card).toContainText(secondCourtName);
-  await expect(card).toContainText("剩 2 位");
+  await expect(card).toContainText("缺 2 位");
   await card.locator("[data-open-my-session]").click();
   const detail = page.locator("#session-sheet");
   await expect(detail).toContainText(secondCourtName);
   await expect(detail).toContainText(updatedNotes);
-  await expect(detail).toContainText("剩 2 位");
+  await expect(detail).toContainText("缺 2 位");
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -832,8 +832,8 @@ test("accepting the final vacancy declines the remaining request, and an accepte
 
   await switchBrowserSession(page, declinedGuest.session);
   await page.getByTestId("my-sessions-tab").click();
-  await expect(page.locator("#my-history")).toContainText("未加入");
-  await expect(page.locator("#my-history")).toContainText("這次參與未成立");
+  await expect(page.locator("#my-history")).toContainText("已婉拒");
+  await expect(page.locator("#my-history")).toContainText("你的加入申請已被婉拒");
   await expect(page.locator("#my-history")).not.toContainText("主揪婉拒");
 
   await switchBrowserSession(page, acceptedGuest.session);
@@ -845,7 +845,7 @@ test("accepting the final vacancy declines the remaining request, and an accepte
   await switchBrowserSession(page, host.session);
   await page.getByTestId("my-sessions-tab").click();
   await page.locator("#my-sessions-refresh").click();
-  await expect(page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article")).toContainText("開放報名");
+  await expect(page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article")).toContainText("開放加入");
 });
 
 test("two isolated host clients can accept only one final vacancy without exposing a second contact", async () => {

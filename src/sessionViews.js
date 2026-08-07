@@ -713,7 +713,7 @@ function ntrpRange(session) {
 function vacancyLabel(session) {
   const remaining = Number(session.slotsRemaining);
   if (!Number.isFinite(remaining) || remaining <= 0) return "已額滿";
-  return `剩 ${remaining} 位`;
+  return `缺 ${remaining} 位`;
 }
 
 const VENUE_TYPE_LABELS = {
@@ -755,7 +755,7 @@ function candidateDecisionExplanation(session) {
 }
 
 function completionLabel(session) {
-  return session.hostProfileComplete ? "檔案已完成" : "檔案待完成";
+  return session.hostProfileComplete ? "資料完整" : "資料未完成";
 }
 
 function nowStartSessionMarkup(session) {
@@ -786,7 +786,9 @@ function sessionCard(session, { compact = false, courts = [] } = {}) {
 function mySessionReason(session) {
   const status = String(session?.status ?? "").toLowerCase();
   const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-  if (participantStatus === "declined") return "這次參與未成立";
+  // 用被動句、不點名主揪:與 202608060001 已上線的推播 body「你的加入申請已被婉拒。」
+  // 逐字一致(定詞表的目的),同時保住 smoke.spec.js 那條「歷史不得出現『主揪婉拒』」的既有守衛。
+  if (participantStatus === "declined") return "你的加入申請已被婉拒";
   if (participantStatus === "withdrawn") return "你已退出這一局";
   if (status === "played") return "本局已回報打成";
   if (status === "cancelled") return "主揪已取消這一局";
@@ -798,7 +800,7 @@ function mySessionRole(session) {
   if (String(session?.viewerRole) === "host") return "我是主揪";
   const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
   if (participantStatus === "requested") return "申請中";
-  if (participantStatus === "declined") return "未加入";
+  if (participantStatus === "declined") return "已婉拒";
   if (participantStatus === "withdrawn") return "已退出";
   return participantStatus === "accepted" ? "已核准加入" : "參與者";
 }
@@ -812,7 +814,7 @@ function mySessionStatus(session) {
       cancelled: "已取消",
       expired: "已結束",
       full: "已額滿",
-      open: "開放報名",
+      open: "開放加入",
       played: "已打成",
       started: "已開始",
     }[status] ?? "狀態待確認"

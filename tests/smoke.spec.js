@@ -633,8 +633,8 @@ test("join confirmation repeats the safe summary and becomes an in-place success
   await expect(confirmation.getByTestId("session-join-form")).toBeVisible();
   await expect(confirmation.getByTestId("join-session")).toBeVisible();
   await expect(confirmation).toContainText("青年公園網球場 · 萬華區");
-  await expect(confirmation).toContainText("單打 · NTRP 3.0–4.0 · 剩 1 位");
-  await expect(confirmation).toContainText("主揪 公開主揪 · NTRP 3.5 · 檔案已完成");
+  await expect(confirmation).toContainText("單打 · NTRP 3.0–4.0 · 缺 1 位");
+  await expect(confirmation).toContainText("主揪 公開主揪 · NTRP 3.5 · 資料完整");
   await expect(confirmation).toContainText("自備新球");
   await confirmation.getByTestId("join-session").click();
   await expect(confirmation.getByTestId("session-join-form")).toBeHidden();
@@ -1367,8 +1367,8 @@ test("declined My Sessions history uses neutral participation wording", async ({
   });
 
   const history = page.locator("#my-history");
-  await expect(history).toContainText("未加入");
-  await expect(history).toContainText("這次參與未成立");
+  await expect(history).toContainText("已婉拒");
+  await expect(history).toContainText("你的加入申請已被婉拒");
   await expect(history).not.toContainText("主揪婉拒");
   expect(runtimeErrors).toEqual([]);
 });
