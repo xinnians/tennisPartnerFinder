@@ -320,16 +320,20 @@
 .create-session-form { display: grid; gap: 13px; }
 .candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
 .candidate-decision-buttons .session-primary { flex: 1 1 132px; }
-.form-field { display: grid; gap: 6px; color: var(--navy); font-size: 13px; font-weight: 800; }
-.form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.form-field__label-row .session-secondary { min-height: 44px; font-size: 12px; }
+.form-field { display: grid; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.form-field__label-row .session-secondary { min-height: 44px; font-size: var(--text-sm); }
 .form-field input,
 .form-field select,
 .form-field textarea,
-.form-fieldset select { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--navy); padding: 9px 10px; font: inherit; font-weight: 500; }
+.form-fieldset select { width: 100%; min-width: 0; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-sm); background: var(--color-surface-card); color: var(--color-ink); padding: var(--space-2); font: inherit; font-weight: 500; }
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.form-fieldset select:focus { border-color: var(--color-court); }
 .form-field textarea { resize: vertical; }
-.form-fieldset { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 11px; border: 1px solid var(--line); border-radius: 11px; }
-.form-fieldset legend { padding: 0 4px; color: var(--navy); font-size: 13px; font-weight: 800; }
+.form-fieldset { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); }
+.form-fieldset legend { padding: 0 var(--space-1); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .form-fieldset select { min-height: 108px; }
 .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 /* 390px 觸控目標:建局與編輯表單共用 .create-session-sheet,一次覆蓋兩張表單。
@@ -344,26 +348,28 @@
 .option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; color: var(--navy); font-size: 13px; }
 .option-grid label { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
 /* 場地題改問處境後每個選項多一句說明，單欄堆疊才讀得完。 */
-.option-grid--stacked { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-.option-grid--stacked label { align-items: flex-start; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
-.option-grid--stacked label span { display: grid; gap: 2px; font-weight: 800; }
-.option-grid--stacked label small { color: var(--ink-muted); font-size: 12px; font-weight: 600; line-height: 1.45; }
-.option-grid--stacked label:has(input:checked) { border-color: var(--blue); background: var(--mist); }
-/* 選中態背景是 --mist，--ink-muted 在它上面只有 4.25:1，改深一階才過 AA。 */
-.option-grid--stacked label:has(input:checked) small { color: #57677c; }
-.option-grid--stacked label:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+.option-grid--stacked { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.option-grid--stacked label { align-items: flex-start; min-height: 44px; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.option-grid--stacked label span { display: grid; gap: var(--space-1); font-weight: 700; }
+.option-grid--stacked label small { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 600; line-height: 1.45; }
+.option-grid--stacked label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); }
+/* 選中態底改為 --color-info-bg 後，--color-text-secondary 對它的對比約 6.9:1，通過 AA，沿用同一 token 即可(舊 #57677c 加深值已無必要)。 */
+.option-grid--stacked label:has(input:checked) small { color: var(--color-text-secondary); }
+.option-grid--stacked label:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
 /* 缺額用 radio 做成並排按鈕：取值路徑仍是表單的 name，鍵盤方向鍵也還能切換。 */
-.slots-options { display: flex; gap: 8px; }
-.slots-options label { position: relative; display: flex; flex: 1 1 0; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--navy); font-size: 14px; font-weight: 800; }
+.slots-options { display: flex; gap: var(--space-2); }
+.slots-options label { position: relative; display: flex; flex: 1 1 0; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
 .slots-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.slots-options label:has(input:checked) { border-color: var(--blue); background: var(--blue); color: #fff; }
-.slots-options label:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 2px; }
+/* 缺額選中態沿用實心填色契約(同 #player-layer-toggle.is-active)，不套用 info-bg 淺底選中規則——
+   淺底會讓白字對比崩潰，此處只逐值代換顏色 token，不改變視覺語意。 */
+.slots-options label:has(input:checked) { border-color: var(--color-court); background: var(--color-court); color: var(--color-surface-card); }
+.slots-options label:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
 .form-hint,
 .form-disclosure,
 .form-error { margin: 0; overflow-wrap: anywhere; }
-.form-hint { color: var(--ink-muted); font-size: 12px; line-height: 1.5; }
-.form-disclosure { padding: 10px 11px; border-left: 3px solid var(--lime); border-radius: 8px; background: #f5f9e5; color: var(--navy); font-size: 13px; font-weight: 700; line-height: 1.55; }
-.form-error { padding: 9px 10px; border-radius: 8px; background: #fff0ef; color: #a1241b; font-size: 13px; font-weight: 800; line-height: 1.5; }
+.form-hint { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.form-disclosure { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--color-court); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.55; }
+.form-error { padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-danger-bg); color: var(--color-danger); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; }
 .surface__message { margin: var(--space-3) 0 0; color: var(--color-ink); font-size: var(--text-base); font-weight: 700; line-height: 1.55; overflow-wrap: anywhere; }
 .join-session-form,
 .report-form { display: grid; gap: 12px; }
