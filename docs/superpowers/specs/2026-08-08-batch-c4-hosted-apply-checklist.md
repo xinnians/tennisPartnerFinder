@@ -1,7 +1,10 @@
 # 批 C4 Hosted 套用清單：group-chat 未讀（session_chat_read_cursors + unread_message_count）
 
 日期：2026-08-08
-狀態：**待 user 人工執行；本批（C4-3）只撰寫本清單，未實際套用 hosted，未跑下列任何步驟。**
+狀態：**hosted 專屬步驟（§1 preflight 備份與 dump、§2 migration list 對齊、§4 套用、
+§5 套用後 hosted 驗證）全數未執行，由 user 人工進行；本頁本身只是清單，C4-3 沒有代跑。
+local 端驗證（§3 本機 release gate，含 `test:db` 799 綠、`test:local`／`supabase-mobile-chromium`／
+`test:mock`／`build`／`git diff --check`）已在 C4-3 批內完成，逐項數字見 §3 footnote。**
 前置：C4-1（DB 契約，commit `73891fc`）、C4-2（前端接線，commit `7cd74db`）、
 C4-3（local journey + 本清單）皆已 local 全綠。
 
