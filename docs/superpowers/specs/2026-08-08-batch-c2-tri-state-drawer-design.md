@@ -1,7 +1,7 @@
 # 批 C2：三段式球局抽屜 — Design Spec
 
 日期：2026-08-08
-狀態：待 user 核可
+狀態：已核可並驗收（2026-08-08；半開露卡目標與假設 3 依驗收拍板修訂，見 §8）
 前置：批 A／B／C1 已驗收。已拍板：收合態點擊摘要條→**半開**（漸進揭露）；
 **全開維持 modal**（現行 dialog 行為），只有半開是新的非 modal 態。
 
@@ -11,8 +11,8 @@
 背景並蓋掉地圖——清單與地圖互斥，無法邊看清單邊對照球場位置；手勢只支援上滑開
 （>44px），沒有下滑關。
 
-目標：新增「半開」中間態——清單露出約兩張卡、地圖仍可互動、雙向可達；
-全開與收合行為不變。
+目標：新增「半開」中間態——清單露出約一張卡（下一張露頭）、地圖仍可互動、
+雙向可達；全開與收合行為不變。
 
 ## 2. 三段狀態機
 
@@ -23,7 +23,8 @@ collapsed ◀──下滑/點收合鈕/Escape── half ◀──關閉鈕/Esca
 
 - **collapsed**：現行摘要條（含批 B 的未登入文案邏輯）。
 - **half（新）**：
-  - 高度約視窗 45%（露出約 2 張卡＋列表頭），清單可捲動。
+  - 高度約視窗 45%（390×667 露出約 1 張卡＋下一張露頭；2026-08-08 拍板維持
+    45dvh 與批 A 卡片密度），清單可捲動。
   - **非 modal**：無 backdrop、不 push `modalIsolation`、無 focus trap；
     role 用 `region`＋`aria-label="附近球局"`（非 dialog）。
   - 地圖仍可互動：拖動、縮放、點 pin（pin 開詳情 sheet 蓋在半開之上，關閉
@@ -39,10 +40,11 @@ collapsed ◀──下滑/點收合鈕/Escape── half ◀──關閉鈕/Esca
 
 ## 3. 既有行為映射
 
-- 程式內所有 `setDrawerExpanded(true)` 的 auto-expand 點（如深連結、B6 前的
-  互動）映射到 **half**（讓地圖保持可見的精神）；`setDrawerExpanded(false)`
-  →collapsed。controller 狀態由 boolean 改三值 enum（`collapsed|half|full`），
-  改動前 grep 全 writer／consumer（工程紀律）。
+- auto-expand 映射 **half**（讓地圖保持可見的精神）：實際寫入點經 ground truth
+  確認只有兩處——`setMapUnavailable`（地圖不可用）與 stale-intent 回退；深連結
+  `#/session/:id` 成功路徑本就不碰抽屜狀態，維持現狀（sheet 蓋在收合抽屜上）。
+  controller 狀態由 boolean 改三值 enum（`collapsed|half|full`），改動前 grep
+  全 writer／consumer（工程紀律；實作時另收編兩處繞過 setter 的直接賦值）。
 - 空狀態（B2 情境按鈕＋B6 訂閱捷徑）在 half 與 full 都完整呈現。
 - `drawerRecoveryTarget` 焦點回復鏈語意不變，作用於 half 與 full。
 - 批 C1 帶走項在本批收：(a) courts 載入完成前 `#filter-sheet-open` disabled
@@ -71,7 +73,7 @@ collapsed ◀──下滑/點收合鈕/Escape── half ◀──關閉鈕/Esca
 ## 6. 驗收條件
 
 1. §5 測試全綠（mock＋受影響 local journey）；`build`／`git diff --check` 乾淨。
-2. 手動走查：390px 半開時可同時看到清單兩張卡與地圖，並能點 pin 開詳情。
+2. 手動走查：390px 半開時可同時看到清單至少一張卡與地圖，並能點 pin 開詳情。
 3. 鍵盤走查：無手勢完成三段切換與回復。
 
 ## 7. 非目標
@@ -82,8 +84,12 @@ C3 join 單層化、C4 群聊未讀；桌面版抽屜重新布局；清單虛擬
 ## 8. 假設（user 掃過勾錯）
 
 1. 半開高度 45%（±5% 實作時視覺對照微調，390×667 下至少露出 1 張卡）。
+   ——2026-08-08 驗收拍板：原目標 1.5 張實測不可達（45dvh=1.09、50dvh=1.27），
+   維持 45dvh 與批 A 卡片密度，目標定 ≥1，半開定位為「瞥一眼＋對照地圖」。
 2. full 的關閉鈕與 Escape 一律回 **collapsed**（單一心智模型：關閉＝收起；
    half 才是瀏覽態）。若你偏好 full→Escape 回 half（漸退），勾此條。
-3. auto-expand 一律映射 half（含深連結 `#/session/:id` 開 sheet 前的抽屜行為
-   ——sheet 蓋在半開上，關 sheet 後見半開清單）。
+3. auto-expand 一律映射 half。
+   ——2026-08-08 驗收追認修正：原文括號內「深連結開 sheet 前抽屜先展開」與
+   現實不符（深連結路徑不碰抽屜狀態），依 ground truth 修正為僅
+   `setMapUnavailable` 與 stale-intent 兩點映射 half，深連結維持現狀。
 4. 半開進入不搶焦點；「展開／收合」控制鈕放清單頭右側。
