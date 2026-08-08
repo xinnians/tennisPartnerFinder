@@ -399,20 +399,11 @@ test("a 667px tall viewport never leaves the document scrollable past its own he
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a 390×667 half-open drawer reveals at least 1.5 session cards without scrolling", async ({ page }) => {
-  // 批 C2-3(design spec 假設 1):「半開高度 45%（±5% 實作時視覺對照微調，390×667 下至少
-  // 露出 1.5 張卡）」。實測(見下方量測):list-head(標題＋展開/收合 44px 鈕列)本身在
-  // 390 寬就吃掉 95px,卡片本身高 187px,45dvh(300px)扣掉 list-head 只剩約 1.09 張卡的
-  // 可視高度;就算把 max-height 頂到 spec 允許的 ±5% 上限(50dvh)也只到約 1.27 張,仍摸不到
-  // 1.5——這已超出「視覺對照微調」的範圍,真要達標得縮 list-head 或卡片本身的高度,是需要
-  // 使用者拍板的產品層取捨,不是 Task 3(測試 only、不動 session.css)能單方決定的。
-  // 用 test.fail() 誠實留下這個已量測的落差、不擋 commit;等後續任務真的調整高度後,這裡
-  // 會轉為「非預期通過」提醒把這個標記拿掉,不會被靜默遺忘。
+test("a 390×667 half-open drawer reveals at least 1 session card without scrolling", async ({ page }) => {
+  // 批 C2(2026-08-08 user 拍板):「維持 45dvh 與批 A 卡片密度，半開露卡目標由 ≥1.5 改 ≥1」。
+  // 實測(見下方量測):list-head(標題＋展開/收合 44px 鈕列)在 390 寬吃掉 95px,卡片本身高 187px,
+  // 45dvh(300px)扣掉 list-head 剩約 1.09 張卡的可視高度,已超過 ≥1 目標;無需調整 CSS。
   test.skip(isLocalHarness, "This is a deterministic layout check independent of the data source.");
-  test.fail(
-    true,
-    "已知落差(批 C2-3 量測):390×667 half 目前只露出約 1.09 張卡(list-head 95px + 卡片 187px 吃光 45dvh),達不到 spec 假設 1 的 1.5 張目標,修法待使用者拍板 list-head/卡片高度或超出 ±5% 的 CSS 調整。"
-  );
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 667 });
   await installFakeMaps(page);
@@ -433,7 +424,7 @@ test("a 390×667 half-open drawer reveals at least 1.5 session cards without scr
     return { revealedHeight: listBottom - firstCardRect.top, cardHeight: firstCardRect.height };
   });
   expect(measurement).not.toBeNull();
-  expect(measurement.revealedHeight / measurement.cardHeight).toBeGreaterThanOrEqual(1.5);
+  expect(measurement.revealedHeight / measurement.cardHeight).toBeGreaterThanOrEqual(1);
   expect(runtimeErrors).toEqual([]);
 });
 
