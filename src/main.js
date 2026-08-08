@@ -86,6 +86,7 @@ import {
   renderPlayerLayerToggle,
   renderMySessionsPage,
   renderNearbySessionsDrawer,
+  nearbySessionsSummaryText,
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
 import { canReceiveFocus, shouldReleasePendingMeFocus } from "./meFocus.js";
@@ -503,6 +504,13 @@ function renderDiscovery(view) {
     locationMessage: view.locationMessage,
     onRetry: controller.retryDiscovery,
   });
+  // #nearby-sessions-count-status 是 index.html 裡固定不動的持久節點,不在
+  // renderNearbySessionsDrawer 每次 innerHTML 整段重建的範圍內——比照
+  // #my-sessions-badge-status(見 syncBottomNavigation)的模式,只在原地更新
+  // textContent,螢幕閱讀器才能可靠收到這顆 live region 的計數變動播報;掛在會被
+  // 摧毀重建的節點上,新節點帶著 aria-live 屬性一起被建立時,AT 不保證會註冊到它。
+  const countStatus = document.getElementById("nearby-sessions-count-status");
+  if (countStatus) countStatus.textContent = nearbySessionsSummaryText(view.sessions.length, view.hasUserLocation);
 }
 
 function syncBottomNavigation() {

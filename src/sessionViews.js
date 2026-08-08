@@ -1590,10 +1590,15 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen =
       (event) => {
         if (event.key !== "Escape") return;
         if (document.querySelector("#sheet-root .surface, #modal-root .surface")) return;
-        // level popover 有自己的 capture-phase Escape 攔截(main.js wireFilters)先關掉
-        // 它自己並 stopPropagation,正常情況這裡根本收不到事件;這裡再加一層明確排除,
-        // 不依賴事件相位這種隱性順序,理由同上面 sheet/dialog 檢查。
-        if (document.getElementById("level-popover")?.hidden === false) return;
+        // level popover 的 capture-phase Escape 攔截(main.js wireFilters)關閉它自己時
+        // 一定會呼叫 preventDefault(),不管 stopPropagation 那步有沒有真的擋下這次事件
+        // 往下傳。改看 event.defaultPrevented(「這顆 Escape 已被上層消費」)而不是
+        // popover.hidden 目前的值——popover 那層 handler 在呼叫 stopPropagation 之前
+        // 就已經把 hidden 設成 true,若只查 hidden 狀態,一旦上層的 stopPropagation 失效
+        // 或被移除,這裡讀到的 hidden 早就是 true,guard 反而會誤判「popover 本來就關著」
+        // 而放行收合,防線形同虛設。defaultPrevented 是這次事件物件自帶的旗標,不受
+        // popover 當下狀態或呼叫順序影響,才是真正獨立於第一層的第二道防線。
+        if (event.defaultPrevented) return;
         event.preventDefault();
         collapse();
       },
@@ -1630,6 +1635,13 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen =
   );
 }
 
+// 抽屜摘要文字的單一來源。main.js 的 renderDiscovery 也要用同一句文案更新一顆
+// drawer 重建範圍之外的持久 live region(見 index.html #nearby-sessions-count-status),
+// 兩處若各自組字串,文案改一邊漏另一邊不會有任何測試或型別錯誤能抓到。
+export function nearbySessionsSummaryText(count, hasUserLocation) {
+  return `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
+}
+
 /** Render the map-bound session summary and its collapsed/half/full drawer. */
 export function renderNearbySessionsDrawer(
   root,
@@ -1662,7 +1674,7 @@ export function renderNearbySessionsDrawer(
   const isFull = drawerState === "full";
   const isOpen = isHalf || isFull;
   const count = sessions.length;
-  const summary = `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
+  const summary = nearbySessionsSummaryText(count, hasUserLocation);
   const nearestVenue = sessions[0] ? sessionVenuePresentation(sessions[0], courts) : null;
   const nearest = sessions[0]
     ? `${nearestVenue.time} · ${nearestVenue.court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
@@ -1696,7 +1708,7 @@ export function renderNearbySessionsDrawer(
   // (無手勢環境的鍵盤/螢幕閱讀器入口),不是在原本的×旁邊加,是整段換掉。
   const listHead = isHalf
     ? `<div class="nearby-sessions__list-head">
-        <div><p>附近球局</p><h2 aria-live="polite">${esc(summary)}</h2></div>
+        <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
         <div class="nearby-sessions__half-actions">
           <button type="button" class="session-secondary" data-testid="drawer-expand">展開</button>
           <button type="button" class="session-secondary" data-testid="drawer-collapse">收合</button>

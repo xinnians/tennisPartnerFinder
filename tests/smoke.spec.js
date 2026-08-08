@@ -163,7 +163,10 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("role", "region");
-  await expect(page.locator("#nearby-sessions-list h2")).toHaveAttribute("aria-live", "polite");
+  // Live-region count announcements live on a node outside the drawer's
+  // destroy-and-rebuild subtree (see the dedicated aria-live test below) so a
+  // freshly created node never has to pick up its aria-live wiring mid-mutation.
+  await expect(page.locator("#nearby-sessions-count-status")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("#nearby-sessions-backdrop")).toBeHidden();
   await page.getByTestId("drawer-expand").click();
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "full");
@@ -239,6 +242,24 @@ test("the filter badge counts active filters and mirrors date/band both ways wit
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
 
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the persistent count live region announces the current session count and updates when a filter narrows it", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const countStatus = page.locator("#nearby-sessions-count-status");
+  await expect(countStatus).toHaveAttribute("aria-live", "polite");
+  await expect(countStatus).toHaveAttribute("aria-atomic", "true");
+  await expect(countStatus).toHaveText(/8 場可加入/);
+
+  await page.locator("#filter-sheet-open").click();
+  const districtSelect = page.locator('#filters-sheet select[data-filter="district"]');
+  await districtSelect.selectOption("內湖區");
+
+  await expect(countStatus).toHaveText(/2 場可加入/);
   expect(runtimeErrors).toEqual([]);
 });
 
