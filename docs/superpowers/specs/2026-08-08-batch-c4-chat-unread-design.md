@@ -20,11 +20,14 @@
 
 ```text
 session_id  bigint  not null  references sessions
-profile_id  uuid    not null  references profiles
+profile_id  bigint  not null  references profiles
 last_read_message_id  bigint  not null default 0
 updated_at  timestamptz not null default now()
 primary key (session_id, profile_id)
 ```
+
+（2026-08-08 ground truth 修正：`profile_id` 原誤寫 uuid；全庫 `profiles.id`
+一律 bigint。）
 
 - 對 `anon`／`authenticated` revoke all（比照 `session_messages`／`player_blocks`
   的 raw-table 紀律）；只有 definer RPC 與 view 內部可觸。
@@ -45,9 +48,11 @@ primary key (session_id, profile_id)
   **排除 viewer 自己發的**、且依既有雙向封鎖可見性過濾（與 feed 同語意——
   數字永不大於 viewer 實際看得到的訊息數）；system 訊息計入（feed 可見即計）。
 - 此 view 為 owner-only，加欄無隱私面擴大；訊息本文不進 view，只有數字。
-- `session_rls.sql` 的有序欄位 allowlist 字串同步更新（改欄必紅的既有 gate）。
+- 測試守護升級（2026-08-08 ground truth 修正：此 view 現行斷言是**無序
+  count(*)=10 存在性檢查**（session_rls.sql:373-384），非有序字串）：本批把它
+  升級為有序欄位 allowlist 斷言（11 欄含新欄），對齊其他 view 的守護等級。
 
-### 2.4 pgTAP（`supabase/tests/session_rls.sql` 或新檔）
+### 2.4 pgTAP（依先例擴充 `supabase/tests/session_chat.sql`；allowlist 升級在 `session_rls.sql`）
 
 - cursor 表對 anon／authenticated 的 select/insert/update/delete 全拒。
 - `mark_session_chat_read`：匿名拒；非成員 `NOT_SESSION_MEMBER`；成員 OK 且冪等。
