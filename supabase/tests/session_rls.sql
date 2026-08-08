@@ -370,17 +370,21 @@ select is(
   'id,session_id,sport_code,court_id,court,court_district,court_lat,court_lng,start_at,play_type,ntrp_min,ntrp_max,slots_total,slots_remaining,notes,host_nickname,host_ntrp,host_profile_complete,status,join_mode,venue_type,range_end,candidate_court_ids,fee_note,decided_at',
   'discovery has the exact public SessionSummary allowlist'
 );
+-- Batch C4-1: upgraded from an unordered count(*) = 10 existence check to an
+-- ordered allowlist string, so adding a column without listing it here goes
+-- red instead of silently passing (the prior IN(...) + count(*) = 10 shape
+-- stayed green after any column addition that didn't touch the IN list).
+-- unread_message_count sorts last because it is appended at the end of the
+-- view's SELECT list; the other ten keep their existing relative order.
 select is(
-  exists (
-    select 1
+  (
+    select string_agg(column_name, ',' order by ordinal_position)
     from information_schema.columns
     where table_schema = 'public' and table_name = 'my_session_participations'
-      and column_name in ('viewer_role', 'viewer_participant_status', 'viewer_played_confirmed', 'updated_at', 'can_cancel', 'can_withdraw', 'can_confirm_played', 'can_confirm_attendance', 'join_mode', 'can_respond_invite')
-    group by table_schema, table_name
-    having count(*) = 10
+      and column_name in ('viewer_role', 'viewer_participant_status', 'viewer_played_confirmed', 'updated_at', 'can_cancel', 'can_withdraw', 'can_confirm_played', 'can_confirm_attendance', 'join_mode', 'can_respond_invite', 'unread_message_count')
   ),
-  true,
-  'my sessions includes viewer lifecycle and action fields'
+  'viewer_role,viewer_participant_status,viewer_played_confirmed,updated_at,can_cancel,can_withdraw,can_confirm_played,can_confirm_attendance,join_mode,can_respond_invite,unread_message_count',
+  'my sessions includes the exact ordered viewer lifecycle, action, and unread allowlist'
 );
 select is(
   exists (

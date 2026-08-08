@@ -5,11 +5,14 @@ begin;
 -- missing contract, then skips dependent checks instead of aborting the file
 -- on an undefined relation.  Once installed, every assertion below executes
 -- against the real view, RPCs, constraints, and lifecycle triggers.
-select plan(168);
+-- Batch C4-1 extends this same conditional-skip contract to the read-cursor
+-- table added in 202608080001_chat_read_cursors.sql.
+select plan(193);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
 select has_view('public', 'my_player_blocks', 'my player blocks view exists');
+select has_table('public', 'session_chat_read_cursors', 'session chat read cursors table exists');
 
 create function pg_temp.age_chat_session_for_expiry(p_session_id bigint)
 returns void
@@ -154,11 +157,27 @@ declare
   baseline_block_count bigint;
   posted_body text := 'private body must not be pushed';
   fixture_line text := 'chat-host-line';
+  mark_read_expected_max_id bigint;
+  unread_session_id bigint;
+  second_unread_session_id bigint;
+  -- integer (not bigint), matching unread_message_count's ::int view type so
+  -- every is() comparison below is integer-vs-integer, mirroring the
+  -- hosted_played_count precedent in session_join_preview.sql (bare integer
+  -- literals compared directly, no explicit cast needed).
+  baseline_unread_count integer;
+  unread_update_start_at timestamptz;
+  unread_update_court_id bigint;
+  unread_update_slots integer;
+  unread_update_ntrp_min numeric;
+  unread_update_ntrp_max numeric;
+  unread_update_play_type text;
+  unread_update_fee_note text;
 begin
   if to_regclass('public.session_messages') is null
     or to_regclass('public.session_message_feed') is null
-    or to_regclass('public.my_player_blocks') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 165);
+    or to_regclass('public.my_player_blocks') is null
+    or to_regclass('public.session_chat_read_cursors') is null then
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 189);
     return;
   end if;
 
@@ -847,6 +866,17 @@ begin
   return next is(has_table_privilege('authenticated', 'public.player_blocks', 'update'), false, 'authenticated cannot directly update player_blocks');
   return next is(has_table_privilege('authenticated', 'public.player_blocks', 'delete'), false, 'authenticated cannot directly delete player_blocks');
 
+  -- Batch C4-1: the read-cursor table is browser-inaccessible in both
+  -- directions, same as session_messages and player_blocks above.
+  return next is(has_table_privilege('anon', 'public.session_chat_read_cursors', 'select'), false, 'anon cannot select session_chat_read_cursors');
+  return next is(has_table_privilege('anon', 'public.session_chat_read_cursors', 'insert'), false, 'anon cannot insert session_chat_read_cursors');
+  return next is(has_table_privilege('anon', 'public.session_chat_read_cursors', 'update'), false, 'anon cannot update session_chat_read_cursors');
+  return next is(has_table_privilege('anon', 'public.session_chat_read_cursors', 'delete'), false, 'anon cannot delete session_chat_read_cursors');
+  return next is(has_table_privilege('authenticated', 'public.session_chat_read_cursors', 'select'), false, 'authenticated cannot directly select session_chat_read_cursors');
+  return next is(has_table_privilege('authenticated', 'public.session_chat_read_cursors', 'insert'), false, 'authenticated cannot directly insert session_chat_read_cursors');
+  return next is(has_table_privilege('authenticated', 'public.session_chat_read_cursors', 'update'), false, 'authenticated cannot directly update session_chat_read_cursors');
+  return next is(has_table_privilege('authenticated', 'public.session_chat_read_cursors', 'delete'), false, 'authenticated cannot directly delete session_chat_read_cursors');
+
   execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
   return next throws_ok(
     format('select public.post_session_message(%s, %s)', main_session_id, 'null'),
@@ -907,6 +937,173 @@ begin
   return next is((select body from public.session_messages where session_id = main_session_id and sender_profile_id = host_id and body = 'nbsp-edge' || chr(160) || 'nbsp-inner' order by id desc limit 1), 'nbsp-edge' || chr(160) || 'nbsp-inner', 'NBSP edges are trimmed while the inner NBSP and content remain');
   return next is((select body from public.session_messages where session_id = main_session_id and sender_profile_id = host_id and body = 'zwsp-edge' || chr(8203) || 'zwsp-inner' order by id desc limit 1), 'zwsp-edge' || chr(8203) || 'zwsp-inner', 'zero-width-space edges are trimmed while the inner character and content remain');
   return next is((select body from public.session_messages where session_id = main_session_id and sender_profile_id = host_id and body = 'bom-edge' || chr(65279) || 'bom-inner' order by id desc limit 1), 'bom-edge' || chr(65279) || 'bom-inner', 'byte-order-mark edges are trimmed while the inner character and content remain');
+
+  -- Batch C4-1: mark_session_chat_read reuses post_session_message's
+  -- accepted-member gate, but has no SESSION_ARCHIVED branch (spec 2.2:
+  -- archived sessions may still be marked read).
+  execute 'set local role anon';
+  return next throws_ok(
+    format('select public.mark_session_chat_read(%s)', main_session_id),
+    '42501',
+    null,
+    'anon cannot call mark_session_chat_read'
+  );
+  execute 'reset role';
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', requested_user::text, true);
+  return next throws_ok(
+    format('select public.mark_session_chat_read(%s)', main_session_id),
+    'P0001',
+    'NOT_SESSION_MEMBER',
+    'a requested (non-accepted) guest cannot mark_session_chat_read'
+  );
+  execute 'reset role';
+
+  select max(id) into mark_read_expected_max_id from public.session_messages where session_id = main_session_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  return next is(public.mark_session_chat_read(main_session_id), 'OK', 'accepted member can mark_session_chat_read');
+  execute 'reset role';
+  return next is(
+    (select last_read_message_id from public.session_chat_read_cursors where session_id = main_session_id and profile_id = accepted_id),
+    mark_read_expected_max_id,
+    'mark_session_chat_read upserts the cursor to the session max message id'
+  );
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  return next is(public.mark_session_chat_read(main_session_id), 'OK', 'mark_session_chat_read is idempotent on a repeat call');
+  execute 'reset role';
+  return next is(
+    (select last_read_message_id from public.session_chat_read_cursors where session_id = main_session_id and profile_id = accepted_id),
+    mark_read_expected_max_id,
+    'a repeat mark_session_chat_read call leaves the cursor unchanged'
+  );
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  return next is(public.mark_session_chat_read(archive_session_id), 'OK', 'accepted member can mark_session_chat_read on an already-archived session');
+  execute 'reset role';
+
+  -- Batch C4-1: unread_message_count correctness on my_session_participations.
+  -- An isolated fixture keeps these counts fully deterministic: host plus two
+  -- accepted guests, no prior chat/block history to account for.
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '22 days', 3, 4, 3, '__pgtap_chat_unread__', 'approval', 'booked', null, null, null) into unread_session_id;
+  execute 'reset role';
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true); perform public.request_to_join_session(unread_session_id); execute 'reset role';
+  select id into participant_id from public.session_participants where session_id = unread_session_id and profile_id = accepted_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.review_join_request(unread_session_id, participant_id, 'accepted');
+  execute 'reset role';
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true); perform public.request_to_join_session(unread_session_id); execute 'reset role';
+  select id into participant_id from public.session_participants where session_id = unread_session_id and profile_id = observer_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.review_join_request(unread_session_id, participant_id, 'accepted');
+  execute 'reset role';
+
+  select count(*) into baseline_unread_count from public.session_messages where session_id = unread_session_id;
+
+  -- Case: baseline unread includes the two join system messages for every
+  -- accepted member, since neither message's sender is the viewer.
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    baseline_unread_count,
+    'unread baseline for an accepted member counts every prior visible system message'
+  );
+
+  -- Case: another member's message increments the viewer's unread count by one.
+  perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  perform public.post_session_message(unread_session_id, 'unread case: accepted speaks');
+  perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    baseline_unread_count + 1,
+    'a message from another accepted member increments the viewer unread count by one'
+  );
+
+  -- Case: the sender never counts their own message toward their own unread total.
+  perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    baseline_unread_count,
+    'the sender does not count their own message toward their own unread total'
+  );
+
+  -- Case: marking the session read zeroes the viewer's unread count.
+  perform public.mark_session_chat_read(unread_session_id);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    0,
+    'marking the session read zeroes the viewer unread count'
+  );
+  execute 'reset role';
+
+  -- Case: a blocked sender's message does not count toward the blocker's
+  -- unread total, but the same message still counts for an unblocked member
+  -- (the block filter is directional, mirroring session_message_feed).
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.set_player_block(observer_id, true);
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', observer_user::text, true);
+  perform public.post_session_message(unread_session_id, 'unread case: blocked observer speaks');
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    baseline_unread_count + 1,
+    'a message from a blocked sender does not count toward the blocker unread total'
+  );
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    1,
+    'an unblocked member still counts the same message as unread'
+  );
+  execute 'reset role';
+
+  -- Case: a system message counts toward unread even for the member whose
+  -- own action triggered it, since system messages never carry a sender.
+  select session_row.start_at, session_row.court_id, session_row.slots_total, session_row.ntrp_min, session_row.ntrp_max, session_row.play_type, session_row.fee_note
+  into unread_update_start_at, unread_update_court_id, unread_update_slots, unread_update_ntrp_min, unread_update_ntrp_max, unread_update_play_type, unread_update_fee_note
+  from public.sessions session_row where session_row.id = unread_session_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  perform public.update_session(unread_session_id, unread_update_start_at, unread_update_court_id, unread_update_slots, unread_update_ntrp_min, unread_update_ntrp_max, unread_update_play_type, unread_update_fee_note, 'unread case: system message note');
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    baseline_unread_count + 2,
+    'a system message increments unread even for the member whose action triggered it'
+  );
+  execute 'reset role';
+
+  -- Case: a second, unrelated session's chat activity does not leak into
+  -- the first session's unread count (per-session isolation). Hosted by
+  -- accepted_id (not host_id): host_id already carries four still-open
+  -- sessions from earlier fixtures in this file, one short of the
+  -- five-concurrent-open-session SESSION_LIMIT, so a sixth host_id session
+  -- here would raise SESSION_LIMIT instead of exercising isolation.
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  select public.create_session(court_id, '雙打', now() + interval '22 days 1 hour', 3, 4, 2, '__pgtap_chat_unread_other__', 'approval', 'booked', null, null, null) into second_unread_session_id;
+  execute 'reset role';
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true); perform public.request_to_join_session(second_unread_session_id); execute 'reset role';
+  select id into participant_id from public.session_participants where session_id = second_unread_session_id and profile_id = host_id;
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', accepted_user::text, true);
+  perform public.review_join_request(second_unread_session_id, participant_id, 'accepted');
+  perform public.post_session_message(second_unread_session_id, 'second session unread message');
+  execute 'reset role';
+
+  execute 'set local role authenticated'; perform set_config('request.jwt.claim.sub', host_user::text, true);
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = unread_session_id),
+    baseline_unread_count + 2,
+    'a second session unread event does not leak into the first session unread count'
+  );
+  return next is(
+    (select unread_message_count from public.my_session_participations where session_id = second_unread_session_id),
+    2,
+    'the second session tracks its own unread count independently (one join system message plus one user message)'
+  );
+  execute 'reset role';
 end;
 $$;
 
