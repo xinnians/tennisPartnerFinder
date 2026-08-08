@@ -2072,7 +2072,7 @@ function submittingActionsMarkup(expectedAccepted) {
 
 function successActionsMarkup(message, notificationSettings) {
   return `
-    <h3 class="surface__message" data-testid="join-success-title" tabindex="-1" role="status" aria-live="polite">${esc(
+    <h3 class="surface__message" data-testid="join-success-title" tabindex="-1">${esc(
       message
     )}</h3>
     ${successPushPromptMarkup(notificationSettings, {
@@ -2172,7 +2172,8 @@ export function openSessionSheet(
 
   function focusInStage(preferredSelector = null) {
     const preferred = preferredSelector ? container.querySelector(preferredSelector) : null;
-    const target = preferred ?? container.querySelector(JOIN_STAGE_FOCUSABLE_SELECTOR) ?? container;
+    const primaryCta = container.querySelector('[data-session-action="primary"]');
+    const target = preferred ?? primaryCta ?? container.querySelector(JOIN_STAGE_FOCUSABLE_SELECTOR) ?? container;
     target.focus({ preventScroll: true });
   }
 

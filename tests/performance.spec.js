@@ -242,8 +242,11 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   await confirmationSubmit.press("Tab");
   await expect(confirmationClose).toBeFocused();
   // 假設 1:confirming 態 Escape 先退回 idle,sheet 不關;第二次 Escape 才關閉。
+  // C3 final review polish:退回 idle 時焦點優先落主 CTA。
   await page.keyboard.press("Escape");
   await expect(confirmation.locator('[data-join-stage="idle"]')).toBeVisible();
+  const idlePrimaryCta = confirmation.locator('[data-session-action="primary"]');
+  await expect(idlePrimaryCta).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(createTrigger).toBeFocused();
 
