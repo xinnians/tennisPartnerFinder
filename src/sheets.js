@@ -47,7 +47,7 @@ function resolveRestoreTarget(target) {
   return scope.querySelector("[data-nearby-dialog] [data-nearby-close]") ?? drawerCloseFallback;
 }
 
-function mountSurface(root, { id, label, className = "", html, onClose, onMount } = {}) {
+function mountSurface(root, { id, label, className = "", html, onClose, onMount, onEscape } = {}) {
   const active = surfaces.get(root);
   // When a detail replaces a court sheet in the same root, retain the court
   // opener rather than the card about to be removed with the old surface.
@@ -86,6 +86,10 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount 
       // frame. Consume Escape here so that same event cannot close an
       // underlying drawer after this top surface restores its opener.
       event.stopPropagation();
+      // 批 C3-2:join 單層化——sheet 內部可以有自己的「先退一步」語意(例如
+      // confirming 態的 Escape 應該退回 idle,而不是整張 sheet 關掉)。onEscape
+      // 若回傳 true 代表呼叫端已經自行處理過這次 Escape,這裡就不再呼叫 close()。
+      if (onEscape?.()) return;
       close();
       return;
     }

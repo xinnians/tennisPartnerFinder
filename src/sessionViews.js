@@ -1992,7 +1992,89 @@ export function openSessionChatSheet(
   return { ...mounted, setArchived, setState };
 }
 
-/** Open a public session detail sheet with the privacy-reviewed field order. */
+const JOIN_STAGE_FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function joinConfirmHintText(expectedAccepted) {
+  return expectedAccepted
+    ? "確認後將直接加入這場球局，加入後即可在球局群組聊天協調細節。"
+    : "確認後將送出申請，主揪會在球局流程中處理申請。";
+}
+
+/** The three OK outcomes plus the accepted branch, unchanged from the retired dialog. */
+function joinSuccessMessage(result) {
+  if (result?.accepted) return "已加入球局！前往我的球局開啟群組聊天。";
+  if (result?.outcome === "OK_NTRP_MISSING") return "已送出申請；你尚未填寫 NTRP，等待主揪回覆。";
+  if (result?.outcome === "OK_NTRP_OUT_OF_RANGE") return "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。";
+  return "已送出申請，等待主揪回覆。";
+}
+
+function idleActionsMarkup({ action, canDecide, canEdit, canChat, canReport }) {
+  const primaryDisabled = action?.disabled ? " disabled" : "";
+  return `
+    <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
+    ${canDecide ? '<button type="button" class="session-primary" data-session-action="decide">定案場地與時間</button>' : ""}
+    ${canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : ""}
+    ${
+      canChat && action?.kind !== "chat"
+        ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>'
+        : ""
+    }
+    <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
+      action?.label ?? "申請加入"
+    )}</button>
+    ${
+      action?.secondaryLabel
+        ? `<button type="button" class="session-secondary" data-session-action="secondary">${esc(action.secondaryLabel)}</button>`
+        : ""
+    }
+    ${canReport ? '<button type="button" class="session-tertiary" data-session-action="report">檢舉此球局</button>' : ""}
+  `;
+}
+
+function confirmingActionsMarkup(expectedAccepted) {
+  return `
+    <p class="form-hint" data-testid="join-confirm-hint">${esc(joinConfirmHintText(expectedAccepted))}</p>
+    <button type="button" class="session-secondary" data-testid="join-cancel">取消</button>
+    <button type="button" class="session-primary" data-testid="join-confirm">確認送出</button>
+  `;
+}
+
+function submittingActionsMarkup(expectedAccepted) {
+  return `
+    <p class="form-hint" data-testid="join-confirm-hint">${esc(joinConfirmHintText(expectedAccepted))}</p>
+    <button type="button" class="session-secondary" data-testid="join-cancel" disabled>取消</button>
+    <button type="button" class="session-primary" data-testid="join-confirm" disabled>送出中…</button>
+  `;
+}
+
+function successActionsMarkup(message, notificationSettings) {
+  return `
+    <h3 class="surface__message" data-testid="join-success-title" tabindex="-1" role="status" aria-live="polite">${esc(
+      message
+    )}</h3>
+    ${successPushPromptMarkup(notificationSettings, {
+      message: "開啟推播，才不會錯過主揪的審核結果與球局變更。",
+      testId: "join-success-enable-push",
+    })}
+    <button type="button" class="session-primary" data-testid="join-open-my-sessions">查看我的球局</button>
+  `;
+}
+
+function errorActionsMarkup(message) {
+  return `
+    <p class="form-error" data-testid="join-error" role="alert">${esc(message)}</p>
+    <button type="button" class="session-primary" data-testid="join-retry">重試</button>
+  `;
+}
+
+/**
+ * Open a public session detail sheet with the privacy-reviewed field order.
+ *
+ * 批 C3-2:join 旅程單層化。動作區是就地切換的四態狀態機
+ * (idle/confirming/submitting/success/error,容器帶 `data-join-stage`),不再開
+ * 第二層 join confirmation dialog——舊的獨立確認 dialog 函式已整支退役。
+ */
 export function openSessionSheet(
   session,
   {
@@ -2003,20 +2085,37 @@ export function openSessionSheet(
     canReport = false,
     showJoinPreview = false,
     courts = [],
+    notificationSettings = {},
+    initialStage = "idle",
     onCopyLink = () => {},
     onDecide = () => {},
     onEdit = () => {},
     onChat = () => {},
     onPrimary = () => {},
+    onConfirmJoin = async () => ({}),
+    onEnablePush = () => {},
+    onViewMySessions = () => {},
     onReport = () => {},
     onWithdraw = () => {},
+    onClose = () => {},
   } = {}
 ) {
-  const primaryDisabled = action?.disabled ? " disabled" : "";
   const venue = sessionVenuePresentation(session, courts);
+  let stage = initialStage;
+  let confirmingExpectedAccepted = Boolean(action?.expectedAccepted);
+  let submitting = false;
+
   const mounted = mountSheet({
     id: "session-sheet",
     label: "球局詳情",
+    onClose,
+    onEscape: () => {
+      // 假設 1(design spec):confirming 態 Escape 先退一步回 idle,sheet 不關;
+      // 其餘四態(idle/submitting/success/error)交回 mountSheet 現行關閉語意。
+      if (stage !== "confirming") return false;
+      setStage("idle");
+      return true;
+    },
     html: `
       <div class="surface__head">
         <div><p class="surface__eyebrow">球局詳情</p><h2>可加入的網球球局</h2></div>
@@ -2042,65 +2141,143 @@ export function openSessionSheet(
         <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         ${action?.note ? `<p class="form-hint" data-session-action-note>${esc(action.note)}</p>` : ""}
         <p class="form-error" data-session-report-error role="alert" hidden></p>
-        <div class="session-detail__actions">
-          <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
-          ${canDecide ? '<button type="button" class="session-primary" data-session-action="decide">定案場地與時間</button>' : ""}
-          ${canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : ""}
-          ${canChat && action?.label !== "群組聊天" ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>' : ""}
-          <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
-            action?.label ?? "申請加入"
-          )}</button>
-          ${
-            action?.secondaryLabel
-              ? `<button type="button" class="session-secondary" data-session-action="secondary">${esc(action.secondaryLabel)}</button>`
-              : ""
-          }
-          ${
-            canReport
-              ? '<button type="button" class="session-tertiary" data-session-action="report">檢舉此球局</button>'
-              : ""
-          }
-        </div>
+        <div class="session-detail__actions" tabindex="-1"></div>
       </div>`,
   });
-  mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
-  mounted.root.querySelector('[data-session-action="decide"]')?.addEventListener("click", onDecide);
-  mounted.root.querySelector('[data-session-action="edit"]')?.addEventListener("click", onEdit);
-  mounted.root.querySelector('[data-session-action="chat"]')?.addEventListener("click", onChat);
-  const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
-  copyLinkButton?.addEventListener("click", async () => {
-    copyLinkButton.disabled = true;
-    try {
-      await onCopyLink();
-    } catch (copyError) {
-      const error = mounted.root.querySelector("[data-session-report-error]");
-      error.textContent = copyError?.message || "目前無法複製連結，請手動複製網址。";
-      error.hidden = false;
-    } finally {
-      if (mounted.root.contains(copyLinkButton)) copyLinkButton.disabled = false;
-    }
-  });
-  const reportButton = mounted.root.querySelector('[data-session-action="report"]');
-  reportButton?.addEventListener("click", async () => {
-    const error = mounted.root.querySelector("[data-session-report-error]");
-    reportButton.disabled = true;
-    error.hidden = true;
-    try {
-      await onReport();
-    } catch (reportError) {
-      error.textContent = reportError?.message || "目前無法開啟檢舉。";
-      error.hidden = false;
-    } finally {
-      if (mounted.root.contains(reportButton)) reportButton.disabled = false;
-    }
-  });
-  const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
+
+  const container = mounted.root.querySelector(".session-detail__actions");
   const setJoinPreview = createJoinPreviewSetter(mounted.root);
-  secondaryButton?.addEventListener("click", () => {
-    // The modal confirmation owns submission locking and inline withdrawal errors.
-    onWithdraw();
-  });
-  return { ...mounted, setJoinPreview };
+
+  function focusInStage(preferredSelector = null) {
+    const preferred = preferredSelector ? container.querySelector(preferredSelector) : null;
+    const target = preferred ?? container.querySelector(JOIN_STAGE_FOCUSABLE_SELECTOR) ?? container;
+    target.focus({ preventScroll: true });
+  }
+
+  function wireIdle() {
+    mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
+    mounted.root.querySelector('[data-session-action="decide"]')?.addEventListener("click", onDecide);
+    mounted.root.querySelector('[data-session-action="edit"]')?.addEventListener("click", onEdit);
+    mounted.root.querySelector('[data-session-action="chat"]')?.addEventListener("click", onChat);
+    const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
+    copyLinkButton?.addEventListener("click", async () => {
+      copyLinkButton.disabled = true;
+      try {
+        await onCopyLink();
+      } catch (copyError) {
+        const error = mounted.root.querySelector("[data-session-report-error]");
+        error.textContent = copyError?.message || "目前無法複製連結，請手動複製網址。";
+        error.hidden = false;
+      } finally {
+        if (mounted.root.contains(copyLinkButton)) copyLinkButton.disabled = false;
+      }
+    });
+    const reportButton = mounted.root.querySelector('[data-session-action="report"]');
+    reportButton?.addEventListener("click", async () => {
+      const error = mounted.root.querySelector("[data-session-report-error]");
+      reportButton.disabled = true;
+      error.hidden = true;
+      try {
+        await onReport();
+      } catch (reportError) {
+        error.textContent = reportError?.message || "目前無法開啟檢舉。";
+        error.hidden = false;
+      } finally {
+        if (mounted.root.contains(reportButton)) reportButton.disabled = false;
+      }
+    });
+    const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
+    secondaryButton?.addEventListener("click", () => {
+      onWithdraw();
+    });
+  }
+
+  function wireConfirming() {
+    container.querySelector('[data-testid="join-cancel"]')?.addEventListener("click", () => {
+      setStage("idle");
+    });
+    container.querySelector('[data-testid="join-confirm"]')?.addEventListener("click", () => {
+      void submitJoin();
+    });
+  }
+
+  function wireSuccess() {
+    wireSuccessPushPrompt(mounted.root, onEnablePush);
+    container.querySelector('[data-testid="join-open-my-sessions"]')?.addEventListener("click", () => {
+      mounted.close({ reason: "view-my-sessions", restoreFocus: false });
+      onViewMySessions();
+    });
+  }
+
+  function wireError() {
+    container.querySelector('[data-testid="join-retry"]')?.addEventListener("click", () => {
+      setStage("confirming");
+    });
+  }
+
+  function renderStage(nextStage, message = "") {
+    if (nextStage === "idle") container.innerHTML = idleActionsMarkup({ action, canDecide, canEdit, canChat, canReport });
+    else if (nextStage === "confirming") container.innerHTML = confirmingActionsMarkup(confirmingExpectedAccepted);
+    else if (nextStage === "submitting") container.innerHTML = submittingActionsMarkup(confirmingExpectedAccepted);
+    else if (nextStage === "success") container.innerHTML = successActionsMarkup(message, notificationSettings);
+    else if (nextStage === "error") container.innerHTML = errorActionsMarkup(message);
+    container.dataset.joinStage = nextStage;
+    stage = nextStage;
+  }
+
+  // 四態切換一律只替換 `.session-detail__actions` 這顆容器的內容,不重灌整張
+  // sheet(批 B Task 4 教訓);每次切換後明確把焦點移到新態的第一個可操作元素
+  // (或成功卡標題),絕不放任它落回 body。
+  function setStage(nextStage, message = "") {
+    renderStage(nextStage, message);
+    if (nextStage === "idle") wireIdle();
+    else if (nextStage === "confirming") wireConfirming();
+    else if (nextStage === "success") wireSuccess();
+    else if (nextStage === "error") wireError();
+    focusInStage(nextStage === "success" ? '[data-testid="join-success-title"]' : null);
+  }
+
+  async function submitJoin() {
+    if (submitting) return;
+    submitting = true;
+    setStage("submitting");
+    try {
+      const result = await onConfirmJoin();
+      if (result?.joinSubmitted) {
+        setStage("success", joinSuccessMessage(result));
+      } else {
+        setStage("error", result?.joinError || "申請失敗，請稍後再試。");
+      }
+    } catch (submitError) {
+      setStage("error", submitError?.message || "申請失敗，請稍後再試。");
+    } finally {
+      submitting = false;
+    }
+  }
+
+  function enterConfirming({ expectedAccepted } = {}) {
+    if (expectedAccepted !== undefined) confirmingExpectedAccepted = Boolean(expectedAccepted);
+    setStage("confirming");
+  }
+
+  // Initial render never goes through setStage(): a freshly mounted idle
+  // sheet must NOT steal focus here — mountSurface's own generic fallback
+  // (requestAnimationFrame, only if nothing already has focus) puts it on
+  // the × close button, matching every other sheet in this app. Any other
+  // initial stage (only "confirming", from a resumed Join intent) has no
+  // such fallback to lean on and must claim its own focus synchronously,
+  // before that fallback's requestAnimationFrame runs.
+  renderStage(initialStage);
+  if (initialStage === "idle") {
+    wireIdle();
+  } else {
+    if (initialStage === "confirming") wireConfirming();
+    else if (initialStage === "success") wireSuccess();
+    else if (initialStage === "error") wireError();
+    focusInStage(initialStage === "success" ? '[data-testid="join-success-title"]' : null);
+  }
+
+  return { ...mounted, setJoinPreview, enterConfirming };
 }
 
 /** Explain a public deep link that no longer resolves to an available session. */
@@ -2115,125 +2292,6 @@ export function openSessionUnavailableSheet() {
       </div>
       <p class="surface__message">這個球局可能已下架、不再開放，或連結有誤。</p>`,
   });
-}
-
-/** Ask for an intentional confirmation before the join lifecycle RPC. */
-export function openJoinSessionConfirmation(
-  session,
-  {
-    courts = [],
-    expectedAccepted = false,
-    notificationSettings = {},
-    onClose = () => {},
-    onConfirm = () => {},
-    onEnablePush = () => {},
-    onViewMySessions = () => {},
-    showJoinPreview = false,
-  } = {}
-) {
-  const title = expectedAccepted ? "直接加入這場球局？" : "申請加入這一局？";
-  const venue = sessionVenuePresentation(session, courts);
-  let joined = false;
-  const mounted = mountDialog({
-    id: "join-session-confirmation",
-    label: expectedAccepted ? title : "確認申請加入",
-    onClose: (detail) => {
-      onClose(detail);
-      // Joining closes the public detail beneath this dialog. When the user
-      // dismisses the success state, that original trigger no longer exists,
-      // so hand focus to a durable navigation target instead of document.body.
-      if (joined) requestAnimationFrame(() => document.getElementById("my-sessions-tab")?.focus({ preventScroll: true }));
-    },
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">${expectedAccepted ? "確認加入" : "確認申請"}</p><h2>${title}</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉確認">×</button>
-      </div>
-      <form data-testid="session-join-form" class="join-session-form" novalidate>
-        <div class="session-detail join-session-summary">
-          <span class="session-badge" data-join-field="venue">${esc(venue.badge)}</span>
-          <p data-join-field="court"><strong>${esc(venue.court)}</strong></p>
-          <p data-join-field="time">${esc(venue.time)}</p>
-          ${
-            venue.undecidedCandidates
-              ? `<p class="form-hint" data-join-candidate-explanation>${esc(candidateDecisionExplanation(session))}</p>`
-              : ""
-          }
-          <p data-join-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
-          <p data-join-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
-            completionLabel(session)
-          )}</p>
-          ${joinPreviewSection(showJoinPreview)}
-          ${session.feeNote ? `<p data-join-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
-          <p data-join-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
-        </div>
-        <p class="surface__copy">${expectedAccepted ? "加入後即可在球局群組聊天協調細節。" : "送出後，主揪會在球局流程中處理申請。"}</p>
-        <p class="form-error" data-join-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-confirm-join data-testid="join-session">${expectedAccepted ? "直接加入" : "確認申請加入"}</button>
-      </form>
-      <p class="surface__message" data-join-success role="status" aria-live="polite" tabindex="-1" hidden>已送出申請，等待主揪回覆。</p>
-      <div class="session-detail__actions" data-join-success-actions hidden>
-        <button type="button" class="session-primary" data-join-view-my-sessions>前往我的球局</button>
-        ${successPushPromptMarkup(notificationSettings, {
-          message: "開啟推播，才不會錯過主揪的審核結果與球局變更。",
-          testId: "join-success-enable-push",
-        })}
-      </div>`,
-  });
-  const form = mounted.root.querySelector("[data-testid='session-join-form']");
-  const confirmButton = mounted.root.querySelector("[data-confirm-join]");
-  const error = mounted.root.querySelector("[data-join-error]");
-  const success = mounted.root.querySelector("[data-join-success]");
-  const successActions = mounted.root.querySelector("[data-join-success-actions]");
-  const viewMySessions = mounted.root.querySelector("[data-join-view-my-sessions]");
-  const setJoinPreview = createJoinPreviewSetter(mounted.root);
-  wireSuccessPushPrompt(mounted.root, onEnablePush);
-  let submitting = false;
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (submitting) return;
-    submitting = true;
-    confirmButton.disabled = true;
-    error.hidden = true;
-    try {
-      const result = await onConfirm(mounted.close);
-      if (result?.joinSubmitted && mounted.root.contains(form)) {
-        joined = true;
-        form.hidden = true;
-        success.textContent =
-          result.accepted
-            ? "已加入球局！前往我的球局開啟群組聊天。"
-            : result.outcome === "OK_NTRP_MISSING"
-              ? "已送出申請；你尚未填寫 NTRP，等待主揪回覆。"
-              : result.outcome === "OK_NTRP_OUT_OF_RANGE"
-                ? "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"
-                : "已送出申請，等待主揪回覆。";
-        success.hidden = false;
-        successActions.hidden = false;
-        viewMySessions.focus({ preventScroll: true });
-      } else if (result?.joinError && mounted.root.contains(error)) {
-        error.textContent = result.joinError;
-        error.hidden = false;
-      }
-    } catch (submitError) {
-      if (mounted.root.contains(error)) {
-        error.textContent = submitError?.message || "申請失敗，請稍後再試。";
-        error.hidden = false;
-      }
-    } finally {
-      // requestJoin keeps this dialog available after a recoverable failure;
-      // restore one deliberate retry only if this is still the mounted dialog.
-      if (mounted.root.contains(confirmButton) && !form.hidden) {
-        submitting = false;
-        confirmButton.disabled = false;
-      }
-    }
-  });
-  viewMySessions?.addEventListener("click", () => {
-    mounted.close({ reason: "view-my-sessions", restoreFocus: false });
-    onViewMySessions();
-  });
-  return { ...mounted, setJoinPreview };
 }
 
 /** Require an explicit in-project warning before a member exits a session. */

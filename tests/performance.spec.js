@@ -206,30 +206,44 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
 
   const createTrigger = page.getByTestId("create-session-tab");
   await createTrigger.focus();
+  // 批 C3-2:join 確認態併進同一張 detail sheet,不再是獨立 dialog——這裡改用
+  // openSessionSheet 的 initialStage:"confirming" 直接開一張已在確認態的 sheet,
+  // 驗證 Tab trap 涵蓋「×」關閉鈕與 confirming 態的取消/確認送出兩鈕。
   await page.evaluate(async () => {
-    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
-    openJoinSessionConfirmation({
-      court: "示範球場",
-      courtDistrict: "大安區",
-      hostNickname: "示範松果",
-      hostNtrp: 3.5,
-      hostProfileComplete: true,
-      notes: "鍵盤測試",
-      ntrpMax: 4,
-      ntrpMin: 3,
-      playType: "單打",
-      slotsRemaining: 1,
-      startAt: "2099-07-18T01:30:00.000Z",
-    });
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    openSessionSheet(
+      {
+        court: "示範球場",
+        courtDistrict: "大安區",
+        hostNickname: "示範松果",
+        hostNtrp: 3.5,
+        hostProfileComplete: true,
+        notes: "鍵盤測試",
+        ntrpMax: 4,
+        ntrpMin: 3,
+        playType: "單打",
+        sessionId: 9401,
+        slotsRemaining: 1,
+        startAt: "2099-07-18T01:30:00.000Z",
+      },
+      { action: { label: "申請加入", kind: "join", expectedAccepted: false }, initialStage: "confirming" }
+    );
   });
-  const confirmation = page.getByRole("dialog", { name: "確認申請加入" });
-  const confirmationClose = confirmation.getByRole("button", { name: "關閉確認" });
-  const confirmationSubmit = confirmation.getByTestId("join-session");
+  const confirmation = page.getByRole("dialog", { name: "球局詳情" });
+  const confirmationClose = confirmation.getByRole("button", { name: "關閉球局詳情" });
+  const confirmationCancel = confirmation.getByTestId("join-cancel");
+  const confirmationSubmit = confirmation.getByTestId("join-confirm");
+  // confirming 進場焦點落在態內第一個可操作元素(取消),不是 sheet 的「×」。
+  await expect(confirmationCancel).toBeFocused();
+  await confirmationCancel.press("Shift+Tab");
   await expect(confirmationClose).toBeFocused();
   await confirmationClose.press("Shift+Tab");
   await expect(confirmationSubmit).toBeFocused();
   await confirmationSubmit.press("Tab");
   await expect(confirmationClose).toBeFocused();
+  // 假設 1:confirming 態 Escape 先退回 idle,sheet 不關;第二次 Escape 才關閉。
+  await page.keyboard.press("Escape");
+  await expect(confirmation.locator('[data-join-stage="idle"]')).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(createTrigger).toBeFocused();
 

@@ -303,7 +303,6 @@ export function createSessionController({
   renderPins = () => {},
   renderPlayers = () => {},
   openSession = () => {},
-  openJoinConfirmation = () => {},
   openCourtDrawer = () => {},
   openCourtPlayersDrawer = () => {},
   openPlayerDirectoryList = () => {},
@@ -356,7 +355,6 @@ export function createSessionController({
   let latestParticipationRequest = 0;
   let latestRosterRequest = 0;
   const detailJoinPreviewContext = { requestId: 0 };
-  const confirmationJoinPreviewContext = { requestId: 0 };
   let latestLocationRequest = 0;
   let latestPlayerRequest = 0;
   let latestPlayerDirectoryRequest = 0;
@@ -368,9 +366,15 @@ export function createSessionController({
   let activeDetail = null;
   let activeDetailSession = null;
   let activeDetailActionKey = null;
+  let activeDetailConfirmingAuth = null;
+  // 批 C3-2:join 單層化——確認/送出中/成功都內嵌同一張 detail sheet,不再是獨立
+  // confirmation surface。join 成功後 refreshAuthoritativeState 會讓 discovery/
+  // participation 都反映剛加入的結果,若不暫停 reconcile,detail 會被自己剛做的
+  // join 判成「資料已變」而被 closeActiveDetail 關掉,蓋掉正要顯示的成功卡。
+  // 用 sessionId 範圍限制暫停,只在「這個 refresh 是為了顯示這個 session 剛完成的
+  // join」這個精確窗口內生效,不影響其他 session 的 reconcile。
+  let suppressReconcileSessionId = null;
   let activeCourtDrawer = null;
-  let activeJoinConfirmation = null;
-  let activeJoinConfirmationSessionId = null;
   let activeCreateSession = null;
   let activeDecisionSession = null;
   let activeEditSession = null;
@@ -595,19 +599,24 @@ export function createSessionController({
 
   function actionFor(session) {
     const terminal = terminalAction(session);
-    if (terminal) return { label: terminal, disabled: true };
+    if (terminal) return { label: terminal, disabled: true, kind: "terminal" };
     const participation = currentParticipation(session.sessionId);
-    if (participation?.viewerParticipantStatus === "accepted") return { label: "群組聊天" };
+    if (participation?.viewerParticipantStatus === "accepted") return { label: "群組聊天", kind: "chat" };
     if (participation?.viewerParticipantStatus === "requested") {
-      return { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請" };
+      return { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請", kind: "waiting" };
     }
     if (String(session.status).toLowerCase() === "full" || Number(session.slotsRemaining) <= 0) {
-      return { label: "已額滿", disabled: true };
+      return { label: "已額滿", disabled: true, kind: "full" };
     }
     const viewerNtrp = Number(state.profile?.ntrpValue);
     const hasViewerNtrp = state.profile?.ntrpValue != null && Number.isFinite(viewerNtrp);
     if (state.authSession && !hasViewerNtrp && state.profile?.ntrp === false) {
-      return { label: "申請加入", note: "尚未填寫程度；補填 NTRP 可先確認是否符合球局範圍，仍可直接送出申請。" };
+      return {
+        label: "申請加入",
+        note: "尚未填寫程度；補填 NTRP 可先確認是否符合球局範圍，仍可直接送出申請。",
+        kind: "join",
+        expectedAccepted: false,
+      };
     }
     const sessionMin = Number(session.ntrpMin);
     const sessionMax = Number(session.ntrpMax);
@@ -617,10 +626,15 @@ export function createSessionController({
       Number.isFinite(sessionMin) &&
       Number.isFinite(sessionMax);
     if (hasViewerNtrp && hasSessionRange && (viewerNtrp < sessionMin || viewerNtrp > sessionMax)) {
-      return { label: "申請加入", note: "你的 NTRP 不在球局設定的 NTRP 範圍內，仍可送出申請由主揪審核。" };
+      return {
+        label: "申請加入",
+        note: "你的 NTRP 不在球局設定的 NTRP 範圍內，仍可送出申請由主揪審核。",
+        kind: "join",
+        expectedAccepted: false,
+      };
     }
-    if (String(session.joinMode) === "instant") return { label: "直接加入" };
-    return { label: "申請加入" };
+    if (String(session.joinMode) === "instant") return { label: "直接加入", kind: "join", expectedAccepted: true };
+    return { label: "申請加入", kind: "join", expectedAccepted: false };
   }
 
   function captureAuthSnapshot() {
@@ -1019,7 +1033,7 @@ export function createSessionController({
     else publish();
   }
 
-  function openSessionDetail(session) {
+  function openSessionDetail(session, { initialStage = "idle" } = {}) {
     // mountSheet replaces a court drawer in the same root and preserves that
     // drawer's original opener for focus restoration. Forget the controller
     // reference without closing the surface ahead of that hand-off.
@@ -1041,13 +1055,30 @@ export function createSessionController({
       canDecide,
       canEdit,
       showJoinPreview,
+      initialStage,
       onDecide: () => openSessionDecision(session.sessionId),
       onEdit: () => openSessionEdit(session.sessionId),
       onChat: () => openSessionChat(session.sessionId),
       onPrimary: () => startPrimaryAction(session, detail),
+      onConfirmJoin: () => requestJoin(session, detail, activeDetailConfirmingAuth),
       canReport: Boolean(state.authSession && profileIsReady(state.profile)),
       onReport: () => openSessionReport(session.sessionId),
       onWithdraw: () => withdraw(session, detail),
+      onClose: ({ reason = "dismiss" } = {}) => {
+        if (activeDetail === detail) {
+          activeDetail = null;
+          activeDetailSession = null;
+          activeDetailActionKey = null;
+          activeDetailConfirmingAuth = null;
+        }
+        // requireSessionAction always saves a "join" intent before this sheet
+        // ever reaches confirming (see its first line). A plain idle browse
+        // never matches that intent, so this clear is a harmless no-op then;
+        // once the sheet does represent an in-flight join attempt, an
+        // intentional dismissal must abandon it so a later reload cannot
+        // resume straight back into confirming.
+        if (reason === "dismiss") clearIntent({ action: "join", sessionId: session.sessionId });
+      },
     });
     activeDetail = detail?.close ? detail : null;
     activeDetailSession = activeDetail ? session : null;
@@ -1073,6 +1104,15 @@ export function createSessionController({
     try {
       const session = await api.loadSessionSummary(normalizedSessionId);
       if (!session) return { status: "unavailable" };
+      // 批 C3-2:main.js 的 hash 深連結開啟與 resumePendingIntent 的 join resume
+      // 都不互相 await,兩條都可能在對方之後才把自己的 loadSessionSummary 讀完。
+      // 單層化前兩者互不干擾(confirmation 是獨立 dialog root);單層化後都搶同一個
+      // sheetRoot,晚到的一方若無條件 openSessionDetail 會把先到的一方蓋回 idle。
+      // 這裡先查:若已經有這個 session 的 detail 開著(不論被誰、用哪個 stage 開的),
+      // 就不要再蓋一次,保留它目前的狀態。
+      if (activeDetail && activeDetailSession && String(activeDetailSession.sessionId) === String(session.sessionId)) {
+        return { session, status: "opened" };
+      }
       openSessionDetail(session);
       return { session, status: "opened" };
     } catch {
@@ -1337,30 +1377,37 @@ export function createSessionController({
 
   function closeActiveDetail(detail = activeDetail, options = {}) {
     if (!detail || activeDetail !== detail) return;
-    const { preserveJoinConfirmation = false, ...closeOptions } = options;
     activeDetail = null;
     activeDetailSession = null;
     activeDetailActionKey = null;
-    if (!preserveJoinConfirmation) closeActiveJoinConfirmation(undefined, closeOptions);
-    detail.close?.(closeOptions);
+    activeDetailConfirmingAuth = null;
+    detail.close?.(options);
+  }
+
+  function reconcileSuppressed(session) {
+    return (
+      suppressReconcileSessionId != null && session && String(session.sessionId) === String(suppressReconcileSessionId)
+    );
   }
 
   function reconcileActiveDetail(bounds = state.bounds) {
-    if (!activeDetail || !activeDetailSession) return;
+    if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
     const freshSession = state.sessions.find((entry) => String(entry.sessionId) === String(activeDetailSession.sessionId));
     // A viewport result may omit a still-valid session simply because it is
     // now off-screen. Only close when this authoritative response actually
     // includes the detail session and its rendered fields have changed.
     if (freshSession && !sameSessionDetail(activeDetailSession, freshSession)) {
-      closeActiveDetail();
+      closeActiveDetail(undefined, { reason: "stale-authority" });
     } else if (!freshSession && boundsContainSession(bounds, activeDetailSession)) {
-      closeActiveDetail();
+      closeActiveDetail(undefined, { reason: "stale-authority" });
     }
   }
 
   function reconcileActiveDetailParticipation() {
-    if (!activeDetail || !activeDetailSession) return;
-    if (actionKey(actionFor(activeDetailSession)) !== activeDetailActionKey) closeActiveDetail();
+    if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
+    if (actionKey(actionFor(activeDetailSession)) !== activeDetailActionKey) {
+      closeActiveDetail(undefined, { reason: "stale-authority" });
+    }
   }
 
   function reconcileActiveChatParticipation() {
@@ -1378,13 +1425,6 @@ export function createSessionController({
     const drawer = activeCourtDrawer;
     activeCourtDrawer = null;
     drawer?.close?.(options);
-  }
-
-  function closeActiveJoinConfirmation(confirmation = activeJoinConfirmation, options = {}) {
-    if (!confirmation || activeJoinConfirmation !== confirmation) return;
-    activeJoinConfirmation = null;
-    activeJoinConfirmationSessionId = null;
-    confirmation.close?.(options);
   }
 
   function closeActiveCreateSession(options = {}) {
@@ -1452,7 +1492,6 @@ export function createSessionController({
 
   function closeForStaleIntent(message) {
     const options = { reason: "stale-intent", restoreFocus: false };
-    closeActiveJoinConfirmation(undefined, options);
     closeActiveDetail(undefined, options);
     // 批 C2-3:同上,auto-expand 映射 half,不再強制進 full modal。
     state.drawerState = "half";
@@ -1460,43 +1499,23 @@ export function createSessionController({
     toast(message);
   }
 
-  function openJoinConfirmationForSession(session, detail = null) {
-    const intent = { action: "join", sessionId: session.sessionId };
+  // 批 C3-2:join 單層化——「進入確認態」不再開第二層 dialog,而是讓 detail sheet
+  // 就地切態。手動點擊路徑已經有開著的 detail(activeDetail === detail),直接呼叫
+  // 它的 enterConfirming;resume 路徑(見 resumePendingIntent)還沒有任何 sheet,
+  // 走 else 分支以 initialStage:"confirming" 開一張新的。兩條路徑共用同一組
+  // lifecycle in-flight 防呆與 confirmingAuth 快照時機。
+  function enterJoinConfirming(session, detail = null) {
     if (lifecycleActionIsInFlight(session.sessionId)) {
       toast("這個球局的操作正在處理中。");
-      return null;
+      return;
     }
-    if (activeJoinConfirmation && String(activeJoinConfirmationSessionId) === String(session.sessionId)) {
-      return activeJoinConfirmation;
+    const expectedAccepted = Boolean(actionFor(session).expectedAccepted);
+    activeDetailConfirmingAuth = captureAuthSnapshot();
+    if (detail && activeDetail === detail) {
+      detail.enterConfirming?.({ expectedAccepted });
+      return;
     }
-    const confirmingAuth = captureAuthSnapshot();
-    const expectedAccepted = actionFor(session).label === "直接加入";
-    closeActiveJoinConfirmation();
-    let confirmation = null;
-    confirmation = openJoinConfirmation(session, {
-      courts: state.courts,
-      expectedAccepted,
-      showJoinPreview: true,
-      onClose: ({ reason = "dismiss" } = {}) => {
-        if (activeJoinConfirmation === confirmation) {
-          activeJoinConfirmation = null;
-          activeJoinConfirmationSessionId = null;
-        }
-        if (reason === "dismiss") clearIntent(intent);
-      },
-      onConfirm: (close) => requestJoin(session, close, detail, confirmingAuth, confirmation),
-    });
-    activeJoinConfirmation = confirmation?.close ? confirmation : null;
-    activeJoinConfirmationSessionId = activeJoinConfirmation ? session.sessionId : null;
-    if (activeJoinConfirmation) {
-      void hydrateSessionJoinPreview(
-        session.sessionId,
-        activeJoinConfirmation,
-        confirmationJoinPreviewContext,
-        confirmingAuth
-      );
-    }
-    return confirmation;
+    openSessionDetail(session, { initialStage: "confirming" });
   }
 
   function openProfileForIntent(intent, { returnSession = null } = {}) {
@@ -1557,7 +1576,7 @@ export function createSessionController({
       openCreateSessionForIntent(savedIntent);
       return;
     }
-    if (session) openJoinConfirmationForSession(session, detail);
+    if (session) enterJoinConfirming(session, detail);
   }
 
   function startPrimaryAction(session, detail) {
@@ -1580,25 +1599,19 @@ export function createSessionController({
     return Boolean(participationReady && discoveryReady);
   }
 
-  async function requestJoin(session, close, detail, confirmingAuth, confirmation) {
+  async function requestJoin(session, detail, confirmingAuth) {
     if (!isCurrentAuthSnapshot(confirmingAuth)) {
-      close?.();
-      closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
       toast("登入狀態已變更，請重新開啟球局。");
       return { joinError: "登入狀態已變更，請重新開啟球局。" };
     }
     if (!profileMeetsGate(state.profile, "nickname")) {
-      close?.();
-      closeActiveJoinConfirmation(confirmation);
       closeActiveDetail(detail);
       requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
       return { joinError: "請先填寫公開暱稱。" };
     }
     const mutation = beginLifecycleAction("join", session.sessionId, confirmingAuth);
     if (!mutation) {
-      close?.();
-      closeActiveJoinConfirmation(confirmation);
       toast("這個球局的操作正在處理中。");
       return { joinError: "這個球局的操作正在處理中。" };
     }
@@ -1607,18 +1620,29 @@ export function createSessionController({
       if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
       clearIntent({ action: "join", sessionId: session.sessionId });
       if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-        close?.();
-        closeActiveJoinConfirmation(confirmation);
         closeActiveDetail(detail);
         await refreshAuthoritativeState(confirmingAuth);
         toast("球局狀態已更新，請重新載入。");
         return { joinError: "球局狀態已更新，請重新載入。" };
       }
-      // Keep the deliberate confirmation visible as the success surface. The
-      // detail sheet can close without implicitly dismissing that dialog.
-      closeActiveDetail(detail, { reason: "join-submitted", preserveJoinConfirmation: true });
-      if (!(await refreshAuthoritativeState(confirmingAuth))) {
-        return { joinError: "球局狀態暫時無法重新載入，請重新整理後再試。" };
+      // The detail sheet is itself the success surface now (single-layer
+      // join). Do not close it — instead suppress the reconcile functions
+      // for exactly this session while the refresh below legitimately
+      // changes this session's own slotsRemaining/participation, so they
+      // cannot mistake "my own join just landed" for "stale, close me".
+      suppressReconcileSessionId = session.sessionId;
+      try {
+        if (!(await refreshAuthoritativeState(confirmingAuth))) {
+          return { joinError: "球局狀態暫時無法重新載入，請重新整理後再試。" };
+        }
+      } finally {
+        if (suppressReconcileSessionId === session.sessionId) suppressReconcileSessionId = null;
+      }
+      if (activeDetail === detail) {
+        const freshSession =
+          state.sessions.find((entry) => String(entry.sessionId) === String(session.sessionId)) ?? session;
+        activeDetailSession = freshSession;
+        activeDetailActionKey = actionKey(actionFor(freshSession));
       }
       return { ...result, joinSubmitted: true };
     } catch (error) {
@@ -1626,9 +1650,9 @@ export function createSessionController({
       await refreshAuthoritativeState(confirmingAuth);
       const message = error?.message || "申請失敗，請稍後再試。";
       // A stale discovery response can legitimately close the underlying
-      // detail (and therefore this confirmation) before its inline error is
-      // rendered. Announce that result instead of silently discarding it.
-      if (activeJoinConfirmation !== confirmation) toast(message);
+      // detail before its inline error is rendered. Announce that result
+      // instead of silently discarding it.
+      if (activeDetail !== detail) toast(message);
       return { joinError: message };
     } finally {
       finishLifecycleAction(mutation);
@@ -2119,7 +2143,19 @@ export function createSessionController({
         openProfileForIntent(intent, { returnSession: target });
         return true;
       }
-      openJoinConfirmationForSession(target);
+      // 批 C3-2:resume 過去是直接開獨立 confirmation dialog(見 ground truth 意外
+      // 2),與手動點擊路徑(先開 detail sheet 再進 confirming)不對稱。單層化後
+      // resume 也走 enterJoinConfirming,以 initialStage:"confirming" 直接開一張
+      // 已經是確認態的 detail sheet,gate 完成後一步到確認,不再閃過一層獨立
+      // dialog。main.js 的 hash 深連結開啟跟這裡都不互相 await,可能已經先開好
+      // 同一個 session 的 idle detail(見 openSessionFromLink 的對稱防呆)——這裡
+      // 若發現 activeDetail 剛好就是同一個 session,直接升級那張既有的,不要另開
+      // 一張新的蓋掉它。
+      const existingDetail =
+        activeDetail && activeDetailSession && String(activeDetailSession.sessionId) === String(target.sessionId)
+          ? activeDetail
+          : null;
+      enterJoinConfirming(target, existingDetail);
       return true;
     })();
     resumeInFlight.set(resumeKey, operation);
@@ -2227,11 +2263,13 @@ export function createSessionController({
       closeActiveProfilePrompt(options);
       closeActiveReportDialog(options);
       closeActiveChat(options);
-      closeActiveJoinConfirmation(undefined, options);
       closeActiveDetail(undefined, options);
     } else {
       if (ntrpWasLost) closeActiveCreateSession({ reason: "ntrp-gate-lost", restoreFocus: false });
-      if (nicknameWasLost) closeActiveJoinConfirmation(undefined, { reason: "nickname-gate-lost", restoreFocus: false });
+      // 批 C3-2:join confirmation 已併入 detail sheet,不再是獨立 surface;失去
+      // nickname gate 時改直接關掉 detail(若那張 detail 正代表一次 join 嘗試,
+      // closeActiveDetail 的 onClose 會一併清掉對應的 pending intent)。
+      if (nicknameWasLost) closeActiveDetail(undefined, { reason: "nickname-gate-lost", restoreFocus: false });
       const promptGate = profileGateForIntent(activeProfileIntent);
       if (activeProfilePrompt && promptGate && !previousGates[promptGate] && nextGates[promptGate]) {
         closeActiveProfilePrompt({ reason: "profile-gate-resolved", restoreFocus: false });

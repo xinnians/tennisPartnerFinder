@@ -72,7 +72,6 @@ import {
   openDecideSessionSheet,
   openEditSessionSheet,
   openFilterSheet,
-  openJoinSessionConfirmation,
   openProfileCompletionSheet,
   openPlayerCardSheet,
   openPlayerDirectoryList,
@@ -1231,15 +1230,15 @@ function init() {
     renderPins: renderSessionMarkers,
     renderPlayers: renderPlayerLayer,
     openSession: (session, handlers) =>
+      // 批 C3-2:join 確認/送出中/成功都內嵌同一張 detail sheet,不再有獨立的
+      // openJoinConfirmation 接線——這裡把原本只給那條路徑的 notificationSettings/
+      // onEnablePush/onViewMySessions 併入唯一的 openSession 接線。
       openSessionSheet(session, {
         ...handlers,
-        onCopyLink: () => copySessionShareLink(session.sessionId),
-      }),
-    openJoinConfirmation: (session, handlers) =>
-      openJoinSessionConfirmation(session, {
-        ...handlers,
         notificationSettings,
+        onCopyLink: () => copySessionShareLink(session.sessionId),
         onEnablePush: enablePushNotifications,
+        // Task 2 範圍:CTA 只關 sheet＋切 My Sessions,不聚焦新參與卡(聚焦拆參留 Task 3)。
         onViewMySessions: () => showMySessionsPage(null, { focus: true }),
       }),
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),

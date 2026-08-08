@@ -719,37 +719,42 @@ test("a pending join confirmation accepts only one intentional submission", asyn
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
+  // 批 C3-2:join 確認併進同一張 detail sheet,不再開獨立 dialog——直接以
+  // initialStage:"confirming" 開 sheet 驗證雙擊只送出一次。
   await page.evaluate(async () => {
-    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await import("/src/sessionViews.js");
     let releaseConfirmation;
     window.__joinConfirmationCalls = 0;
     window.__releaseJoinConfirmation = () => releaseConfirmation?.();
     const pendingConfirmation = new Promise((resolve) => {
       releaseConfirmation = resolve;
     });
-    openJoinSessionConfirmation(
+    openSessionSheet(
       { court: "示範球場", startAt: "2026-07-19T01:00:00.000Z" },
       {
-        onConfirm: async (close) => {
+        action: { label: "申請加入", kind: "join", expectedAccepted: false },
+        initialStage: "confirming",
+        onConfirmJoin: async () => {
           window.__joinConfirmationCalls += 1;
           await pendingConfirmation;
-          close();
+          return { joinSubmitted: true };
         },
       }
     );
   });
 
-  const confirm = page.locator("#join-session-confirmation [data-confirm-join]");
+  const sheet = page.locator("#session-sheet");
+  const confirm = sheet.getByTestId("join-confirm");
   await expect(confirm).toBeVisible();
   await page.evaluate(() => {
-    const button = document.querySelector("#join-session-confirmation [data-confirm-join]");
+    const button = document.querySelector('#session-sheet [data-testid="join-confirm"]');
     button?.click();
     button?.click();
   });
   await expect.poll(() => page.evaluate(() => window.__joinConfirmationCalls)).toBe(1);
   await expect(confirm).toBeDisabled();
   await page.evaluate(() => window.__releaseJoinConfirmation());
-  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  await expect(sheet.getByTestId("join-success-title")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -880,13 +885,15 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
   expect(runtimeErrors).toEqual([]);
 });
 
-test("join confirmation repeats the safe summary and becomes an in-place success state", async ({ page }) => {
+test("join confirmation shares the sheet's own summary (no repeat) and becomes an in-place success state", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
+  // 批 C3-2:join 確認併進同一張 detail sheet,不再重複渲染球局摘要——detail 上方
+  // 欄位只出現一次,confirming 態只加差異提示(join 型式)。
   await page.evaluate(async () => {
-    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
-    openJoinSessionConfirmation(
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    openSessionSheet(
       {
         court: "青年公園網球場",
         courtDistrict: "萬華區",
@@ -897,11 +904,14 @@ test("join confirmation repeats the safe summary and becomes an in-place success
         ntrpMax: 4,
         ntrpMin: 3,
         playType: "單打",
+        sessionId: 9402,
         slotsRemaining: 1,
         startAt: "2026-07-19T01:00:00.000Z",
       },
       {
-        onConfirm: async () => ({ joinSubmitted: true }),
+        action: { label: "申請加入", kind: "join", expectedAccepted: false },
+        initialStage: "confirming",
+        onConfirmJoin: async () => ({ joinSubmitted: true }),
         onViewMySessions: () => {
           window.__joinSuccessDestinationCalls = (window.__joinSuccessDestinationCalls ?? 0) + 1;
         },
@@ -909,20 +919,25 @@ test("join confirmation repeats the safe summary and becomes an in-place success
     );
   });
 
-  const confirmation = page.locator("#join-session-confirmation");
-  await expect(confirmation.getByTestId("session-join-form")).toBeVisible();
-  await expect(confirmation.getByTestId("join-session")).toBeVisible();
-  await expect(confirmation).toContainText("青年公園網球場 · 萬華區");
-  await expect(confirmation).toContainText("單打 · NTRP 3.0–4.0 · 缺 1 位");
-  await expect(confirmation).toContainText("主揪 公開主揪 · NTRP 3.5 · 資料完整");
-  await expect(confirmation).toContainText("自備新球");
-  await confirmation.getByTestId("join-session").click();
-  await expect(confirmation.getByTestId("session-join-form")).toBeHidden();
-  await expect(confirmation).toContainText("已送出申請，等待主揪回覆。");
-  const mySessionsCta = confirmation.getByRole("button", { name: "前往我的球局" });
-  await expect(mySessionsCta).toBeFocused();
+  const sheet = page.locator("#session-sheet");
+  await expect(sheet.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await expect(sheet.getByTestId("join-confirm")).toBeVisible();
+  await expect(sheet.getByTestId("join-cancel")).toBeVisible();
+  // 摘要只在 detail 本體出現一次,confirming 不重複渲染。
+  await expect(sheet).toContainText("青年公園網球場 · 萬華區");
+  await expect(sheet).toContainText("單打 · NTRP 3.0–4.0 · 缺 1 位");
+  await expect(sheet).toContainText("主揪 公開主揪 · NTRP 3.5 · 資料完整");
+  await expect(sheet).toContainText("自備新球");
+  await expect(sheet.locator('[data-session-field="court"]')).toHaveCount(1);
+  await sheet.getByTestId("join-confirm").click();
+  await expect(sheet.locator('[data-join-stage="success"]')).toBeVisible();
+  await expect(sheet.getByTestId("join-cancel")).toHaveCount(0);
+  await expect(sheet).toContainText("已送出申請，等待主揪回覆。");
+  const successTitle = sheet.getByTestId("join-success-title");
+  await expect(successTitle).toBeFocused();
+  const mySessionsCta = sheet.getByTestId("join-open-my-sessions");
   await mySessionsCta.click();
-  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  await expect(sheet).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationCalls)).toBe(1);
   expect(runtimeErrors).toEqual([]);
 });
@@ -948,12 +963,16 @@ test("join and create success moments offer push only when the device can enable
     viewerRole: "host",
   };
 
+  // 批 C3-2:join 成功卡併進同一張 detail sheet,不再開獨立 dialog——直接以
+  // initialStage:"confirming" 開 sheet,點 join-confirm 進成功態。
   await page.evaluate(async (sessionInput) => {
-    const { openJoinSessionConfirmation, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { openSessionSheet, renderMySessionsPage } = await import("/src/sessionViews.js");
     window.__successPushCalls = [];
-    openJoinSessionConfirmation(sessionInput, {
+    openSessionSheet(sessionInput, {
+      action: { label: "申請加入", kind: "join", expectedAccepted: false },
+      initialStage: "confirming",
       notificationSettings: { pushStatus: "idle", webPushConfigured: true },
-      onConfirm: async () => ({ joinSubmitted: true }),
+      onConfirmJoin: async () => ({ joinSubmitted: true }),
       onEnablePush: async () => {
         window.__successPushCalls.push("join");
         return "enabled";
@@ -974,8 +993,8 @@ test("join and create success moments offer push only when the device can enable
     };
   }, session);
 
-  const confirmation = page.locator("#join-session-confirmation");
-  await confirmation.getByTestId("join-session").click();
+  const confirmation = page.locator("#session-sheet");
+  await confirmation.getByTestId("join-confirm").click();
   const joinPush = confirmation.getByTestId("join-success-enable-push");
   await expect(joinPush).toBeVisible();
   await expect(confirmation).toContainText("加入主畫面");
@@ -1004,30 +1023,34 @@ test("join and create success moments offer push only when the device can enable
   ]) {
     await page.evaluate(
       async ({ sessionInput, settings: nextSettings }) => {
-        const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
-        openJoinSessionConfirmation(sessionInput, {
+        const { openSessionSheet } = await import("/src/sessionViews.js");
+        openSessionSheet(sessionInput, {
+          action: { label: "申請加入", kind: "join", expectedAccepted: false },
+          initialStage: "confirming",
           notificationSettings: nextSettings,
-          onConfirm: async () => ({ joinSubmitted: true }),
+          onConfirmJoin: async () => ({ joinSubmitted: true }),
         });
       },
       { sessionInput: session, settings }
     );
-    const nextConfirmation = page.locator("#join-session-confirmation");
-    await nextConfirmation.getByTestId("join-session").click();
+    const nextConfirmation = page.locator("#session-sheet");
+    await nextConfirmation.getByTestId("join-confirm").click();
     await expect(nextConfirmation.getByTestId("join-success-enable-push")).toHaveCount(0);
     await page.keyboard.press("Escape");
   }
 
   await page.evaluate(async (sessionInput) => {
-    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
-    openJoinSessionConfirmation(sessionInput, {
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    openSessionSheet(sessionInput, {
+      action: { label: "申請加入", kind: "join", expectedAccepted: false },
+      initialStage: "confirming",
       notificationSettings: { pushStatus: "idle", webPushConfigured: true },
-      onConfirm: async () => ({ joinSubmitted: true }),
+      onConfirmJoin: async () => ({ joinSubmitted: true }),
       onEnablePush: async () => "unsupported",
     });
   }, session);
-  const unsupportedConfirmation = page.locator("#join-session-confirmation");
-  await unsupportedConfirmation.getByTestId("join-session").click();
+  const unsupportedConfirmation = page.locator("#session-sheet");
+  await unsupportedConfirmation.getByTestId("join-confirm").click();
   const unsupportedPush = unsupportedConfirmation.getByTestId("join-success-enable-push");
   await unsupportedPush.click();
   await expect(unsupportedPush).toBeDisabled();
@@ -1039,8 +1062,10 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
+  // 批 C3-2:join preview 只在 detail sheet 出現一次(idle 態就已 hydrate,
+  // confirming 沿用同一份),不再有獨立 confirmation surface 各自渲染一次。
   await page.evaluate(async () => {
-    const { openJoinSessionConfirmation, openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await import("/src/sessionViews.js");
     const session = {
       court: "青年公園網球場",
       courtDistrict: "萬華區",
@@ -1068,19 +1093,9 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
     ];
     const detail = openSessionSheet(session, { action: { label: "申請加入" }, showJoinPreview: true });
     detail.setJoinPreview({ participants, status: "ready" });
-    window.__joinPreviewDetailText = document.querySelector("#session-sheet [data-session-join-preview]")?.textContent;
-    window.__joinPreviewDetailNestedAttack = Boolean(
-      document.querySelector("#session-sheet [data-session-join-preview] img[src='x']")
-    );
-    detail.close({ restoreFocus: false });
-
-    const confirmation = openJoinSessionConfirmation(session, { showJoinPreview: true });
-    confirmation.setJoinPreview({ participants, status: "ready" });
   });
 
-  expect(await page.evaluate(() => window.__joinPreviewDetailText)).toContain("名單主揪");
-  expect(await page.evaluate(() => window.__joinPreviewDetailNestedAttack)).toBe(false);
-  const preview = page.locator("#join-session-confirmation [data-session-join-preview]");
+  const preview = page.locator("#session-sheet [data-session-join-preview]");
   await expect(preview).toContainText("已確認參加者");
   await expect(preview.locator("[data-join-preview-person]").first()).toContainText("主揪");
   await expect(preview.locator("[data-join-preview-person]").nth(1)).toContainText("尚未填寫 NTRP");
@@ -1124,9 +1139,11 @@ test("an expected instant outcome explains group chat and shows accepted success
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
+  // 批 C3-2:instant join 也走兩段確認(spec 假設 4),同一張 detail sheet 內嵌
+  // confirming/success,不再開獨立的「直接加入這場球局？」dialog。
   await page.evaluate(async () => {
-    const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
-    openJoinSessionConfirmation(
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    openSessionSheet(
       {
         court: "大佳河濱公園網球場",
         courtDistrict: "中山區",
@@ -1138,12 +1155,14 @@ test("an expected instant outcome explains group chat and shows accepted success
         ntrpMax: 4.5,
         ntrpMin: 3,
         playType: "雙打",
+        sessionId: 9403,
         slotsRemaining: 2,
         startAt: "2026-07-19T01:00:00.000Z",
       },
       {
-        expectedAccepted: true,
-        onConfirm: async () => ({ accepted: true, joinSubmitted: true }),
+        action: { label: "直接加入", kind: "join", expectedAccepted: true },
+        initialStage: "confirming",
+        onConfirmJoin: async () => ({ accepted: true, joinSubmitted: true }),
         onViewMySessions: () => {
           window.__instantJoinSuccessDestinationCalls = (window.__instantJoinSuccessDestinationCalls ?? 0) + 1;
         },
@@ -1151,13 +1170,13 @@ test("an expected instant outcome explains group chat and shows accepted success
     );
   });
 
-  const confirmation = page.getByRole("dialog", { name: "直接加入這場球局？" });
-  await expect(confirmation.getByRole("heading", { name: "直接加入這場球局？" })).toBeVisible();
+  const confirmation = page.locator("#session-sheet");
   await expect(confirmation).toContainText("加入後即可在球局群組聊天協調細節。");
-  await confirmation.getByRole("button", { name: "直接加入" }).click();
+  await confirmation.getByTestId("join-confirm").click();
   await expect(confirmation).toContainText("已加入球局！前往我的球局開啟群組聊天。");
-  const mySessionsCta = confirmation.getByRole("button", { name: "前往我的球局" });
-  await expect(mySessionsCta).toBeFocused();
+  const successTitle = confirmation.getByTestId("join-success-title");
+  await expect(successTitle).toBeFocused();
+  const mySessionsCta = confirmation.getByTestId("join-open-my-sessions");
   await mySessionsCta.click();
   await expect(confirmation).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__instantJoinSuccessDestinationCalls)).toBe(1);
@@ -1174,8 +1193,8 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
     ["OK_NTRP_OUT_OF_RANGE", "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"],
   ]) {
     await page.evaluate(async (nextOutcome) => {
-      const { openJoinSessionConfirmation } = await import("/src/sessionViews.js");
-      openJoinSessionConfirmation(
+      const { openSessionSheet } = await import("/src/sessionViews.js");
+      openSessionSheet(
         {
           court: "示範球場",
           courtDistrict: "大安區",
@@ -1186,19 +1205,24 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
           ntrpMax: 4,
           ntrpMin: 3,
           playType: "單打",
+          sessionId: 9404,
           slotsRemaining: 1,
           startAt: "2099-07-19T01:00:00.000Z",
         },
-        { expectedAccepted: false, onConfirm: async () => ({ accepted: false, joinSubmitted: true, outcome: nextOutcome }) }
+        {
+          action: { label: "申請加入", kind: "join", expectedAccepted: false },
+          initialStage: "confirming",
+          onConfirmJoin: async () => ({ accepted: false, joinSubmitted: true, outcome: nextOutcome }),
+        }
       );
     }, outcome);
 
-    const confirmation = page.locator("#join-session-confirmation");
-    await expect(confirmation.getByRole("heading", { name: "申請加入這一局？" })).toBeVisible();
-    await expect(confirmation.getByRole("button", { name: "確認申請加入" })).toBeVisible();
-    await confirmation.getByTestId("join-session").click();
+    const confirmation = page.locator("#session-sheet");
+    await expect(confirmation.getByTestId("join-confirm")).toBeVisible();
+    await expect(confirmation.getByTestId("join-cancel")).toBeVisible();
+    await confirmation.getByTestId("join-confirm").click();
     await expect(confirmation.getByText(message)).toBeVisible();
-    await expect(confirmation.getByRole("button", { name: "前往我的球局" })).toBeFocused();
+    await expect(confirmation.getByTestId("join-success-title")).toBeFocused();
     await page.keyboard.press("Escape");
   }
   expect(runtimeErrors).toEqual([]);
@@ -1357,17 +1381,17 @@ test("undecided candidate sessions keep their court list and time range across p
   }
   await page.keyboard.press("Escape");
 
+  // 批 C3-2:候選局說明文字只在 detail 本體(不受 join 狀態機影響的區塊)出現一次,
+  // 不再有獨立 confirmation surface 各自渲染一份。
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openJoinSessionConfirmation, openSessionSheet } = await import("/src/sessionViews.js");
+      const { openSessionSheet } = await import("/src/sessionViews.js");
       openSessionSheet(session, { action: { label: "申請加入" }, courts: catalogue });
-      openJoinSessionConfirmation(session, { courts: catalogue });
     },
     { candidateSession, courts }
   );
   const explanation = "前從候選球場中定案場地與確切時間，定案後會通知你。";
   await expect(page.locator("#session-sheet")).toContainText(explanation);
-  await expect(page.locator("#join-session-confirmation")).toContainText(explanation);
   await page.keyboard.press("Escape");
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {

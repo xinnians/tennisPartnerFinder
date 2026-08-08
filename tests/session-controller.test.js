@@ -119,12 +119,20 @@ function createIntentStore(initial = null) {
 function createSurface(onClose = () => {}) {
   return {
     closeCalls: 0,
+    // 批 C3-2:join 單層化後,detail sheet 自己就是確認態的容器,不再有獨立的
+    // openJoinConfirmation fake——controller 改呼叫 detail.enterConfirming(...),
+    // 這裡記錄每次呼叫的 payload(expectedAccepted 等)供白箱斷言取代原本的
+    // harness.confirmations.at(-1).handlers.expectedAccepted。
+    confirmingCalls: [],
     courtUpdates: [],
     joinPreviewUpdates: [],
     stateUpdates: [],
     close(options) {
       this.closeCalls += 1;
       onClose(options);
+    },
+    enterConfirming(options) {
+      this.confirmingCalls.push(options);
     },
     setCourts(courts, options) {
       this.courtUpdates.push({ courts, options });
@@ -166,14 +174,17 @@ test("authenticated detail and join confirmation load the accepted preview while
     { participants: [preview[1], preview[0]], status: "ready" },
   ]);
 
+  // 批 C3-2:join 確認併進同一張 detail,不再開第二層 confirmation surface,
+  // 進 confirming 也不再重新拉一次 join preview——detail 打開當下就已經 hydrate
+  // 過,confirming 只是原地切態,沿用同一份已載入的名單。
   authenticated.opened.at(-1).handlers.onPrimary();
   await flush();
-  assert.equal(authenticated.confirmations.at(-1).handlers.showJoinPreview, true);
-  assert.deepEqual(authenticated.confirmations.at(-1).detail.joinPreviewUpdates, [
+  assert.deepEqual(authenticated.opened.at(-1).detail.confirmingCalls, [{ expectedAccepted: false }]);
+  assert.deepEqual(authenticated.opened.at(-1).detail.joinPreviewUpdates, [
     { participants: [], status: "loading" },
     { participants: [preview[1], preview[0]], status: "ready" },
   ]);
-  assert.deepEqual(previewLoads, [41, 41]);
+  assert.deepEqual(previewLoads, [41]);
 
   const anonymous = createHarness({
     api: {
@@ -223,52 +234,10 @@ test("the newest session detail preview wins when an older session request resol
   ]);
 });
 
-test("the newest join confirmation preview wins when an older session request resolves last", async () => {
-  const firstPreview = deferred();
-  const secondPreview = deferred();
-  const previewLoads = [];
-  const sessions = [futureSession({ sessionId: 41 }), futureSession({ court: "第二球場", sessionId: 42 })];
-  const harness = createHarness({
-    api: {
-      loadSessionDiscovery: async () => sessions,
-      loadSessionJoinPreview: (sessionId) => {
-        previewLoads.push(sessionId);
-        return sessionId === 41 ? firstPreview.promise : secondPreview.promise;
-      },
-    },
-  });
-  await harness.controller.setAuthState(
-    { user: { id: "join-preview-confirmation-race" } },
-    { directory: false, nickname: true, ntrp: true }
-  );
-  await harness.controller.loadDiscovery();
-
-  harness.controller.openSession(41);
-  harness.opened.at(-1).handlers.onPrimary();
-  const firstConfirmation = harness.confirmations.at(-1).detail;
-  harness.controller.openSession(42);
-  harness.opened.at(-1).handlers.onPrimary();
-  const secondConfirmation = harness.confirmations.at(-1).detail;
-
-  const secondParticipants = [{ avatarUrl: "", nickname: "第二局主揪", ntrp: 4, role: "host", sessionId: 42 }];
-  secondPreview.resolve(secondParticipants);
-  await flush();
-  firstPreview.resolve([{ avatarUrl: "", nickname: "第一局主揪", ntrp: 3.5, role: "host", sessionId: 41 }]);
-  await flush();
-
-  assert.deepEqual(firstConfirmation.joinPreviewUpdates, [{ participants: [], status: "loading" }]);
-  assert.deepEqual(secondConfirmation.joinPreviewUpdates, [
-    { participants: [], status: "loading" },
-    { participants: secondParticipants, status: "ready" },
-  ]);
-  assert.deepEqual(previewLoads, [41, 41, 42, 42]);
-});
-
 function createHarness(overrides = {}) {
   const renders = [];
   const pinBatches = [];
   const opened = [];
-  const confirmations = [];
   const courtDrawers = [];
   const playerDrawers = [];
   const playerDirectories = [];
@@ -298,13 +267,11 @@ function createHarness(overrides = {}) {
     renderPins: (sessions) => pinBatches.push(sessions),
     renderPlayers: (view) => playerRenders.push(view),
     openSession: (openedSession, handlers) => {
-      const detail = createSurface();
-      opened.push({ detail, handlers, session: openedSession });
-      return detail;
-    },
-    openJoinConfirmation: (openedSession, handlers) => {
+      // 批 C3-2:join 確認/送出中/成功都併進這張 detail(handlers.onClose 是
+      // openSessionDetail 新接的意圖清除/自我歸零 hook),不再有獨立的
+      // openJoinConfirmation fake。
       const detail = createSurface(handlers.onClose);
-      confirmations.push({ detail, handlers, session: openedSession });
+      opened.push({ detail, handlers, session: openedSession });
       return detail;
     },
     openWithdrawConfirmation:
@@ -382,7 +349,6 @@ function createHarness(overrides = {}) {
   const controller = rawController;
   return {
     api,
-    confirmations,
     chatSheets,
     controller,
     courtDrawers,
@@ -1095,16 +1061,13 @@ test("expired join and withdrawal refresh authority without success toasts", asy
   await joinHarness.controller.loadDiscovery();
   const joinDetail = openAction(joinHarness);
   joinDetail.handlers.onPrimary();
-  const joinConfirmation = joinHarness.confirmations.at(-1);
-  let confirmationClosed = 0;
-  await joinConfirmation.handlers.onConfirm(() => {
-    confirmationClosed += 1;
-  });
+  await joinDetail.handlers.onConfirmJoin();
 
   assert.equal(joinCalls, 1);
   assert.ok(discoveryCalls >= 2, "expired join reloads discovery");
   assert.ok(participationCalls >= 2, "expired join reloads participation");
-  assert.equal(confirmationClosed, 1);
+  // 批 C3-2:confirmation 併進 detail 後,兩者是同一顆 surface,SESSION_EXPIRED
+  // 只會關這一顆(closeCalls===1),不再有獨立的第二顆 confirmation 要另外關。
   assert.equal(joinDetail.detail.closeCalls, 1, "expired result closes obsolete detail actions");
   assert.deepEqual(joinHarness.toasts, ["球局狀態已更新，請重新載入。"]);
 
@@ -1179,8 +1142,7 @@ test("a stale join rejection announces its reason when authority refresh closes 
   await harness.controller.loadDiscovery();
   const detail = openAction(harness);
   detail.handlers.onPrimary();
-  const confirmation = harness.confirmations.at(-1);
-  const result = await confirmation.handlers.onConfirm(() => {});
+  const result = await detail.handlers.onConfirmJoin();
 
   assert.match(result.joinError, /球局已額滿/);
   assert.equal(detail.detail.closeCalls, 1, "authoritative discovery removes the stale detail");
@@ -1276,7 +1238,7 @@ test("an ephemeral location never reaches the join mutation payload", async () =
 
   const detail = openAction(harness);
   detail.handlers.onPrimary();
-  await harness.confirmations.at(-1).handlers.onConfirm(() => {});
+  await detail.handlers.onConfirmJoin();
   assert.deepEqual(mutationArgs, [[harness.session.sessionId]]);
   assert.doesNotMatch(JSON.stringify(mutationArgs), /25\.03|121\.55/);
 });
@@ -1337,7 +1299,7 @@ test("eligible instant sessions use a direct-join action while approval sessions
   const instantDetail = openAction(instantHarness);
   assert.equal(instantDetail.handlers.action.label, "直接加入");
   instantDetail.handlers.onPrimary();
-  assert.equal(instantHarness.confirmations.at(-1).handlers.expectedAccepted, true);
+  assert.deepEqual(instantDetail.detail.confirmingCalls, [{ expectedAccepted: true }]);
 
   const approvalSession = futureSession({ joinMode: "approval" });
   const approvalHarness = createHarness({ session: approvalSession });
@@ -1349,7 +1311,7 @@ test("eligible instant sessions use a direct-join action while approval sessions
   const approvalDetail = openAction(approvalHarness);
   assert.equal(approvalDetail.handlers.action.label, "申請加入");
   approvalDetail.handlers.onPrimary();
-  assert.equal(approvalHarness.confirmations.at(-1).handlers.expectedAccepted, false);
+  assert.deepEqual(approvalDetail.detail.confirmingCalls, [{ expectedAccepted: false }]);
 });
 
 test("join actions preflight missing and out-of-range viewer NTRP without blocking either join mode", async () => {
@@ -1364,8 +1326,9 @@ test("join actions preflight missing and out-of-range viewer NTRP without blocki
     assert.equal(missingAction.label, "申請加入");
     assert.equal(missingAction.disabled, undefined);
     assert.match(missingAction.note, /補填 NTRP/);
-    openAction(missing).handlers.onPrimary();
-    assert.equal(missing.confirmations.at(-1).handlers.expectedAccepted, false);
+    const missingDetail = openAction(missing);
+    missingDetail.handlers.onPrimary();
+    assert.deepEqual(missingDetail.detail.confirmingCalls, [{ expectedAccepted: false }]);
 
     const outOfRange = createHarness({ session: futureSession({ joinMode }) });
     await outOfRange.controller.setAuthState(
@@ -1377,8 +1340,9 @@ test("join actions preflight missing and out-of-range viewer NTRP without blocki
     assert.equal(outOfRangeAction.label, "申請加入");
     assert.equal(outOfRangeAction.disabled, undefined);
     assert.match(outOfRangeAction.note, /不在球局設定的 NTRP 範圍/);
-    openAction(outOfRange).handlers.onPrimary();
-    assert.equal(outOfRange.confirmations.at(-1).handlers.expectedAccepted, false);
+    const outOfRangeDetail = openAction(outOfRange);
+    outOfRangeDetail.handlers.onPrimary();
+    assert.deepEqual(outOfRangeDetail.detail.confirmingCalls, [{ expectedAccepted: false }]);
   }
 });
 
@@ -1655,12 +1619,12 @@ test("an account switch invalidates a pending join confirmation before it can mu
   await harness.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true });
   const detail = openAction(harness);
   detail.handlers.onPrimary();
-  const staleConfirmation = harness.confirmations.at(-1);
-  assert.ok(staleConfirmation, "eligible account A can open a confirmation");
+  assert.equal(detail.detail.confirmingCalls.length, 1, "eligible account A can enter confirming");
 
   await harness.controller.setAuthState({ user: { id: "account-b" } }, { directory: true, nickname: true, ntrp: true });
-  assert.equal(staleConfirmation.detail.closeCalls, 1, "switching identity closes the pending confirmation");
-  await staleConfirmation.handlers.onConfirm(() => {});
+  // 批 C3-2:confirmation 就是這張 detail 本身,身分切換關掉的是同一顆 surface。
+  assert.equal(detail.detail.closeCalls, 1, "switching identity closes the pending confirmation");
+  await detail.handlers.onConfirmJoin();
   assert.equal(requestCalls, 0, "a stale confirmation cannot send B's join RPC");
 });
 
@@ -1679,11 +1643,10 @@ test("a same-account profile eligibility reset invalidates its pending join conf
   await harness.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true });
   const detail = openAction(harness);
   detail.handlers.onPrimary();
-  const staleConfirmation = harness.confirmations.at(-1);
 
   await harness.controller.setAuthState({ user: { id: "account-a" } }, null);
-  assert.equal(staleConfirmation.detail.closeCalls, 1, "profile loading cannot leave a previously eligible confirmation open");
-  await staleConfirmation.handlers.onConfirm(() => {});
+  assert.equal(detail.detail.closeCalls, 1, "profile loading cannot leave a previously eligible confirmation open");
+  await detail.handlers.onConfirmJoin();
   assert.equal(requestCalls, 0, "the stale handler re-checks profile eligibility before an RPC");
 });
 
@@ -1704,7 +1667,7 @@ test("an in-flight join cannot refresh or announce success after its account cha
   await harness.controller.loadDiscovery();
   const detail = openAction(harness);
   detail.handlers.onPrimary();
-  const mutation = harness.confirmations.at(-1).handlers.onConfirm(() => {});
+  const mutation = detail.handlers.onConfirmJoin();
   await flush();
 
   await harness.controller.setAuthState({ user: { id: "account-b" } }, { directory: true, nickname: true, ntrp: true });
@@ -1761,17 +1724,18 @@ test("a dismissed join confirmation cannot start a second lifecycle RPC for the 
   await harness.controller.loadDiscovery();
   const detail = openAction(harness);
   detail.handlers.onPrimary();
-  const confirmation = harness.confirmations.at(-1);
-  const mutation = confirmation.handlers.onConfirm(() => {});
+  const mutation = detail.handlers.onConfirmJoin();
   await flush();
   assert.equal(joinCalls, 1);
 
-  // The dialog can be dismissed while the network is pending. Reopening the
-  // same detail must not create another confirmation/RPC for this lifecycle.
-  confirmation.detail.close();
+  // The sheet can be dismissed while the network is pending. Reopening the
+  // same detail must not create another confirmation surface/RPC for this
+  // lifecycle (批 C3-2:confirmation 併進 detail,「reopen」就是再開一次
+  // openSessionDetail——in-flight 防呆要讓它不落地)。
+  detail.detail.close();
   detail.handlers.onPrimary();
   await flush();
-  assert.equal(harness.confirmations.length, 1);
+  assert.equal(harness.opened.length, 1);
   assert.equal(joinCalls, 1);
   assert.ok(harness.toasts.includes("這個球局的操作正在處理中。"));
 
@@ -1829,7 +1793,7 @@ test("an in-flight join blocks a conflicting withdrawal for the same account and
   await harness.controller.loadDiscovery();
   const joinDetail = openAction(harness);
   joinDetail.handlers.onPrimary();
-  const joinMutation = harness.confirmations.at(-1).handlers.onConfirm(() => {});
+  const joinMutation = joinDetail.handlers.onConfirmJoin();
   await flush();
 
   // An external refresh can legitimately make the CTA look like a withdraw
@@ -1862,19 +1826,17 @@ test("a completed join closes only its own confirmation, not a newer confirmatio
   await harness.controller.loadDiscovery();
   const firstDetail = openAction(harness, firstSession.sessionId);
   firstDetail.handlers.onPrimary();
-  const firstConfirmation = harness.confirmations.at(-1);
-  const firstMutation = firstConfirmation.handlers.onConfirm(() => {});
+  const firstMutation = firstDetail.handlers.onConfirmJoin();
   await flush();
 
-  firstConfirmation.detail.close();
+  firstDetail.detail.close();
   const secondDetail = openAction(harness, secondSession.sessionId);
   secondDetail.handlers.onPrimary();
-  const secondConfirmation = harness.confirmations.at(-1);
-  assert.notEqual(secondConfirmation, firstConfirmation);
+  assert.notEqual(secondDetail.detail, firstDetail.detail);
 
   pendingJoin.resolve({ outcome: "OK", reloadRequired: false });
   await firstMutation;
-  assert.equal(secondConfirmation.detail.closeCalls, 0, "a stale completion must not close another session's confirmation");
+  assert.equal(secondDetail.detail.closeCalls, 0, "a stale completion must not close another session's confirmation");
 });
 
 test("a late map-ready location replay suppresses its own idle refresh", async () => {
@@ -2109,10 +2071,15 @@ test("an anonymous Join intent restores the same target into confirmation withou
   assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
   assert.equal(harness.loginPrompts.length, 1);
 
+  // 批 C3-2:resume 現在直接以 initialStage:"confirming" 開一張新的 detail
+  // sheet(見 sessionController.js 的 resumePendingIntent → enterJoinConfirming),
+  // 不再開獨立的 confirmation surface;第一個 opened 是匿名時的 idle 詳情,
+  // 第二個才是 resume 開的確認態。
   await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(targetLoads, 1);
-  assert.equal(harness.confirmations.length, 1);
-  assert.equal(harness.confirmations[0].session.sessionId, 41);
+  assert.equal(harness.opened.length, 2);
+  assert.equal(harness.opened.at(-1).session.sessionId, 41);
+  assert.equal(harness.opened.at(-1).handlers.initialStage, "confirming");
   assert.equal(joinRequests, 0, "resume must still require an intentional confirmation");
 });
 
@@ -2132,8 +2099,17 @@ test("an incomplete profile retains Join context and resumes only after profile 
   assert.deepEqual(harness.profilePrompts[0].intent, { action: "join", sessionId: 41 });
   assert.equal(harness.profilePrompts[0].returnSession.court, "示範球場");
 
+  // 真實 DOM:promptProfile 的 profile sheet 掛在 sheet root,mountSurface 會以
+  // reason:"replace" 關掉底下的 detail sheet(controller 的 activeDetail 隨之歸零,
+  // 但 replace ≠ dismiss,不清 intent)。fake 沒有 root 概念,這裡手動重現該替換,
+  // resume 才會如實開出第二張 initialStage:"confirming" 的 sheet,而不是命中
+  // resumePendingIntent 針對 hash 深連結競態的 existingDetail 重用分支。
+  harness.opened.at(-1).detail.close({ reason: "replace", restoreFocus: false });
+
   await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
-  assert.equal(harness.confirmations.length, 1);
+  assert.equal(harness.opened.length, 2);
+  assert.equal(harness.opened.at(-1).session.sessionId, 41);
+  assert.equal(harness.opened.at(-1).handlers.initialStage, "confirming");
   assert.equal(intentStore.value().sessionId, 41);
 });
 
@@ -2167,8 +2143,10 @@ test("a same-account auth refresh cannot strand an in-flight Join intent", async
   target.resolve(futureSession());
   await Promise.all([firstAuth, refresh]);
 
-  assert.equal(harness.confirmations.length, 1);
-  assert.equal(harness.confirmations[0].session.sessionId, 41);
+  // resumeInFlight 用 [epoch, identity, action, sessionId] 去重,兩次同帳號、
+  // 同 gate 的 setAuthState 只會讓 resume 真正落地一次(opened 只多一筆)。
+  assert.equal(harness.opened.length, 1);
+  assert.equal(harness.opened.at(-1).session.sessionId, 41);
   assert.deepEqual(intentStore.value(), { action: "join", sessionId: 41 });
 });
 
@@ -2185,12 +2163,12 @@ test("a same-account auth refresh keeps an already-open confirmation actionable"
 
   await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   await harness.controller.loadDiscovery();
-  openAction(harness).handlers.onPrimary();
-  const confirmation = harness.confirmations.at(-1);
+  const detail = openAction(harness);
+  detail.handlers.onPrimary();
 
   await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
-  assert.equal(confirmation.detail.closeCalls, 0);
-  await confirmation.handlers.onConfirm(() => {});
+  assert.equal(detail.detail.closeCalls, 0);
+  await detail.handlers.onConfirmJoin();
   assert.equal(joinRequests, 1);
 });
 
@@ -2284,7 +2262,7 @@ test("join intent resume is silent while profile loads, reports errors, and open
     status: "loading",
   });
   assert.deepEqual(loading.toasts, []);
-  assert.equal(loading.confirmations.length, 0);
+  assert.equal(loading.opened.length, 0);
   assert.deepEqual(loadingIntent.value(), { action: "join", sessionId: 41 });
 
   await loading.controller.setAuthState(session, {
@@ -2293,7 +2271,8 @@ test("join intent resume is silent while profile loads, reports errors, and open
     ntrp: true,
     status: "ready",
   });
-  assert.equal(loading.confirmations.length, 1);
+  assert.equal(loading.opened.length, 1);
+  assert.equal(loading.opened.at(-1).handlers.initialStage, "confirming");
 
   const failed = createHarness({
     intentStore: createIntentStore({ action: "join", sessionId: 41 }),
@@ -2365,7 +2344,7 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   assert.deepEqual(fullHarness.toasts, ["球局已額滿，已回到附近球局。"]);
   // 批 C2-3:closeForStaleIntent 的 auto-expand 映射由 full 改 half(讓地圖保持可見)。
   assert.equal(fullHarness.renders.at(-1).drawerState, "half");
-  assert.equal(fullHarness.confirmations.length, 0);
+  assert.equal(fullHarness.opened.length, 0);
 
   for (const [status, message] of [
     ["cancelled", "球局已取消，已回到附近球局。"],
@@ -2380,7 +2359,7 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
     await harness.controller.setAuthState({ user: { id: `guest-${status}` } }, { directory: true, nickname: true, ntrp: true });
     assert.equal(intentStore.value(), null, `${status} clears the original intent`);
     assert.deepEqual(harness.toasts, [message]);
-    assert.equal(harness.confirmations.length, 0);
+    assert.equal(harness.opened.length, 0);
   }
 
   const unavailableIntent = createIntentStore({ action: "join", sessionId: 41 });
@@ -2428,7 +2407,10 @@ test("closing login or a recovered join confirmation clears only its matching in
 
   intentStore.save({ action: "join", sessionId: 41 });
   await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
-  harness.confirmations[0].handlers.onClose();
+  // 批 C3-2:resume 開的是一張新的、initialStage:"confirming" 的 detail
+  // sheet——它自己的 onClose(openSessionDetail 接的那個)才是現在唯一會清 intent
+  // 的地方,不再有獨立的 confirmation surface。
+  harness.opened.at(-1).handlers.onClose();
   assert.equal(intentStore.value(), null);
 });
 
@@ -3038,9 +3020,10 @@ test("explicit profile gates allow nickname-only joins and NTRP-ready creation w
     { directory: false, nickname: true, ntrp: false }
   );
   await joinHarness.controller.loadDiscovery();
-  openAction(joinHarness).handlers.onPrimary();
-  assert.equal(joinHarness.confirmations.length, 1, "a nickname-only profile reaches the Join confirmation");
-  await joinHarness.confirmations.at(-1).handlers.onConfirm(() => {});
+  const joinDetail = openAction(joinHarness);
+  joinDetail.handlers.onPrimary();
+  assert.equal(joinDetail.detail.confirmingCalls.length, 1, "a nickname-only profile reaches confirming");
+  await joinDetail.handlers.onConfirmJoin();
   assert.equal(joinRequests, 1, "the Join request reaches its nickname-gated RPC");
 
   const createHarnessForNtrp = createHarness();

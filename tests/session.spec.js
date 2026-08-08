@@ -211,16 +211,23 @@ test("anonymous Join resumes the same live target as a confirmation, never an au
   await page.locator("#session-sheet [data-session-action='primary']").click();
   await expect(page.locator("#login-dialog")).toBeVisible();
 
+  // 批 C3-2:join 確認併進同一張 #session-sheet,resume 直接以確認態重開它,
+  // 不再是獨立的 #join-session-confirmation dialog。
   await setBrowserSession(page, guestSession);
   await page.reload();
-  await expect(page.locator("#join-session-confirmation")).toBeVisible();
-  await expect(page.locator("#join-session-confirmation")).toContainText(published.context.host.courts[0]);
+  const sheet = page.locator("#session-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await expect(sheet).toContainText(published.context.host.courts[0]);
   expect(joinRequests).toBe(0);
 
+  // 假設 1:第一次 Escape 只退回 idle,sheet 不關;第二次才真的關閉並清掉 intent。
   await page.keyboard.press("Escape");
-  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  await expect(sheet.locator('[data-join-stage="idle"]')).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
   await page.reload();
-  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  await expect(page.locator('[data-join-stage="confirming"]')).toHaveCount(0);
 });
 
 test("a hash session link survives the login gate and resumes the same live session", async ({ page }) => {
@@ -243,8 +250,10 @@ test("a hash session link survives the login gate and resumes the same live sess
 
   await setBrowserSession(page, guestSession);
   await page.reload();
-  await expect(page.locator("#join-session-confirmation")).toBeVisible();
-  await expect(page.locator("#join-session-confirmation")).toContainText(published.context.host.courts[0]);
+  const resumedSheet = page.locator("#session-sheet");
+  await expect(resumedSheet).toBeVisible();
+  await expect(resumedSheet.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await expect(resumedSheet).toContainText(published.context.host.courts[0]);
 });
 
 test("an initial signed-out bootstrap clears an old session intent before another account can resume it", async ({ page }) => {
@@ -272,7 +281,7 @@ test("an initial signed-out bootstrap clears an old session intent before anothe
 
   await setBrowserSession(page, guestSession);
   await page.reload();
-  await expect(page.locator("#join-session-confirmation")).toBeHidden();
+  await expect(page.locator('[data-join-stage="confirming"]')).toHaveCount(0);
 });
 
 test("an incomplete signed-in profile saves atomically and returns to the Join confirmation", async ({ page }) => {
@@ -291,8 +300,10 @@ test("an incomplete signed-in profile saves atomically and returns to the Join c
   await profile.getByLabel("單打", { exact: true }).check();
   await profile.getByTestId("profile-save").click();
 
-  await expect(page.locator("#join-session-confirmation")).toBeVisible();
-  await expect(page.locator("#join-session-confirmation")).toContainText(published.context.host.courts[0]);
+  const resumedSheet = page.locator("#session-sheet");
+  await expect(resumedSheet).toBeVisible();
+  await expect(resumedSheet.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await expect(resumedSheet).toContainText(published.context.host.courts[0]);
 });
 
 test("saving a profile before court options are ready preserves its existing court", async ({ page }) => {
@@ -359,12 +370,11 @@ test("a stale Join rejection returns keyboard focus from closing surfaces to the
   await gotoWithSession(page, guest.session);
   await openPublishedSession(page, sessionId);
   await page.locator("#session-sheet [data-session-action='primary']").click();
-  const confirmation = page.locator("#join-session-confirmation");
-  await expect(confirmation).toBeVisible();
-  await confirmation.getByTestId("join-session").click();
+  const confirmation = page.locator("#session-sheet");
+  await expect(confirmation.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await confirmation.getByTestId("join-confirm").click();
 
   await expect(confirmation).toBeHidden();
-  await expect(page.locator("#session-sheet")).toBeHidden();
   await expect(page.locator(`[data-session-id="${sessionId}"]`)).toHaveCount(0);
   await expect(page.locator("#nearby-sessions-list")).toBeVisible();
   // 這條路徑不會讓抽屜變 full(不是 closeForStaleIntent 的 auto-expand,是
@@ -420,10 +430,11 @@ test("a stale same-account profile read cannot overwrite a saved profile or its 
   await profile.getByTestId(`profile-court-${published.courtId}`).check();
   await profile.getByLabel("單打", { exact: true }).check();
   await profile.getByTestId("profile-save").click();
-  await expect(page.locator("#join-session-confirmation")).toBeVisible();
+  const resumedSheet = page.locator("#session-sheet");
+  await expect(resumedSheet.locator('[data-join-stage="confirming"]')).toBeVisible();
 
   releaseStaleRead();
-  await expect(page.locator("#join-session-confirmation")).toBeVisible();
+  await expect(resumedSheet.locator('[data-join-stage="confirming"]')).toBeVisible();
   await expect(profile).toBeHidden();
 });
 
@@ -509,11 +520,12 @@ test("a host creates a candidate session in the form and a guest joins it", asyn
   await card.click();
   const detail = page.locator("#session-sheet");
   await detail.getByRole("button", { name: "申請加入" }).click();
-  const confirmation = page.locator("#join-session-confirmation");
+  const confirmation = detail;
+  await expect(confirmation.locator('[data-join-stage="confirming"]')).toBeVisible();
   await expect(confirmation).toContainText("青年公園網球場");
   await expect(confirmation).toContainText("百齡河濱公園網球場");
-  await confirmation.getByTestId("join-session").click();
-  await expect(confirmation.locator("[data-join-success]")).toBeVisible();
+  await confirmation.getByTestId("join-confirm").click();
+  await expect(confirmation.locator('[data-join-stage="success"]')).toBeVisible();
 
   const { data: participation, error: participationError } = await guest.client
     .from("my_session_participations")
@@ -688,11 +700,11 @@ test("a host creates a now-start direct session in the form, then a guest joins 
   const detail = page.locator("#session-sheet");
   await expect(detail.locator(".session-badge--ongoing")).toHaveText("進行中");
   await detail.getByRole("button", { name: "直接加入" }).click();
-  const confirmation = page.locator("#join-session-confirmation");
-  await expect(confirmation).toBeVisible();
-  await confirmation.getByTestId("join-session").click();
-  await expect(confirmation.locator("[data-join-success]")).toBeVisible();
-  await confirmation.getByRole("button", { name: "前往我的球局" }).click();
+  const confirmation = detail;
+  await expect(confirmation.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await confirmation.getByTestId("join-confirm").click();
+  await expect(confirmation.locator('[data-join-stage="success"]')).toBeVisible();
+  await confirmation.getByTestId("join-open-my-sessions").click();
 
   await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
 
@@ -730,12 +742,13 @@ test("instant local join accepts immediately and opens group chat without host r
   await expect(detail.locator(".session-badge--instant")).toHaveText("直接加入");
   await detail.getByRole("button", { name: "直接加入" }).click();
 
-  const confirmation = page.locator("#join-session-confirmation");
-  await expect(confirmation).toBeVisible();
-  await expect(confirmation.getByTestId("join-session")).toHaveText("直接加入");
-  await confirmation.getByTestId("join-session").click();
-  await expect(confirmation.locator("[data-join-success]")).toHaveText("已加入球局！前往我的球局開啟群組聊天。");
-  await confirmation.getByRole("button", { name: "前往我的球局" }).click();
+  const confirmation = detail;
+  await expect(confirmation.locator('[data-join-stage="confirming"]')).toBeVisible();
+  // 統一鈕文成「確認送出」,join 型式改由差異提示文字區分 instant 與 approval。
+  await expect(confirmation.getByTestId("join-confirm-hint")).toContainText("直接加入");
+  await confirmation.getByTestId("join-confirm").click();
+  await expect(confirmation.getByTestId("join-success-title")).toHaveText("已加入球局！前往我的球局開啟群組聊天。");
+  await confirmation.getByTestId("join-open-my-sessions").click();
 
   const guestUpcoming = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`);
   await expect(guestUpcoming).toBeVisible();
@@ -764,12 +777,12 @@ test("host sees a safe requested roster first, can report it, then accepts and e
   await gotoWithSession(page, guest.session);
   await openPublishedSession(page, sessionId);
   await page.locator("#session-sheet [data-session-action='primary']").click();
-  const confirmation = page.locator("#join-session-confirmation");
-  await expect(confirmation.getByTestId("session-join-form")).toBeVisible();
-  await confirmation.getByTestId("join-session").click();
+  const confirmation = page.locator("#session-sheet");
+  await expect(confirmation.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await confirmation.getByTestId("join-confirm").click();
   await expect(confirmation).toContainText("已送出申請，等待主揪回覆。");
   await expect.poll(() => page.evaluate((key) => sessionStorage.getItem(key), PENDING_SESSION_INTENT_KEY)).toBeNull();
-  await confirmation.getByRole("button", { name: "前往我的球局" }).click();
+  await confirmation.getByTestId("join-open-my-sessions").click();
   await expect(page.locator("#my-sessions-page")).toBeVisible();
   await expect(page.locator("#my-sessions-root [data-my-sessions-heading]")).toBeFocused();
   await expect(page.getByTestId(`open-chat-${sessionId}`)).toHaveCount(0);

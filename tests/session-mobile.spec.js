@@ -135,15 +135,17 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   await expect(page.locator("#login-dialog")).toBeVisible();
   await expectWithinViewport(page, page.locator("#login-dialog"));
 
+  // 批 C3-2:join 確認併進同一張 detail sheet;gate 完成後 resume 直接以
+  // initialStage:"confirming" 重開 #session-sheet,不再是獨立的
+  // #join-session-confirmation dialog。
   await switchBrowserSession(page, guest.session);
-  const confirmation = page.locator("#join-session-confirmation");
-  await expect(confirmation).toBeVisible();
-  await expect(confirmation.getByTestId("session-join-form")).toBeVisible();
-  await expectWithinViewport(page, confirmation);
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[data-join-stage="confirming"]')).toBeVisible();
+  await expectWithinViewport(page, sheet);
   expect(joinRequests).toBe(0);
-  await confirmation.getByTestId("join-session").click();
-  await expect(confirmation).toContainText("已送出申請，等待主揪回覆。");
-  await confirmation.getByRole("button", { name: "關閉確認" }).click();
+  await sheet.getByTestId("join-confirm").click();
+  await expect(sheet).toContainText("已送出申請，等待主揪回覆。");
+  await sheet.getByRole("button", { name: "關閉球局詳情" }).click();
 
   const mySessionsTab = page.getByTestId("my-sessions-tab");
   await mySessionsTab.focus();
