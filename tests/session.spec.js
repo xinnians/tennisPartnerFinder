@@ -752,6 +752,9 @@ test("instant local join accepts immediately and opens group chat without host r
 
   const guestUpcoming = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`);
   await expect(guestUpcoming).toBeVisible();
+  // 批 C3-3:CTA 現在把 sessionId 交回 main.js,聚焦這張剛加入的參與卡,不再只
+  // 聚焦頁面標題(見同檔下一條測試對 pending outcome 的對應斷言)。
+  await expect(guestUpcoming).toBeFocused();
   await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   await expect(page.locator("#my-sessions-page")).not.toContainText(context.observer.nickname);
 
@@ -784,7 +787,12 @@ test("host sees a safe requested roster first, can report it, then accepts and e
   await expect.poll(() => page.evaluate((key) => sessionStorage.getItem(key), PENDING_SESSION_INTENT_KEY)).toBeNull();
   await confirmation.getByTestId("join-open-my-sessions").click();
   await expect(page.locator("#my-sessions-page")).toBeVisible();
-  await expect(page.locator("#my-sessions-root [data-my-sessions-heading]")).toBeFocused();
+  // 批 C3-3:approval outcome 的 session 落在 needsAction 的 guest-request 卡(還
+  // 沒被主揪接受,不會出現在 upcoming),CTA 現在聚焦這張卡的撤回申請鈕,不再是
+  // 退回聚焦頁面標題(見 ground truth 意外 3 與實作時發現的 needsAction 缺口)。
+  const guestRequestWithdraw = page.locator(`[data-guest-request-session='${sessionId}'] [data-my-action='withdraw']`);
+  await expect(guestRequestWithdraw).toBeFocused();
+  await expect(page.locator("#my-sessions-root [data-my-sessions-heading]")).not.toBeFocused();
   await expect(page.getByTestId(`open-chat-${sessionId}`)).toHaveCount(0);
 
   await switchBrowserSession(page, host.session);

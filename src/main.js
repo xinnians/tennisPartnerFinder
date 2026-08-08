@@ -127,6 +127,11 @@ let profileLoadStatus = "idle";
 let profileRevision = 0;
 let activePage = "map";
 let createdSessionFocusId = null;
+// 批 C3-3:createdSessionFocusId 現在同時服務 create 與 join 兩種來源
+// ("created"|"joined")。reason 只決定 renderMySessionsDestination() 要不要把它
+// 當成 createdSessionId(觸發「球局已建立」文案＋create 專屬推播 prompt)往下傳；
+// 卡片聚焦本身兩種 reason 都要做,見 renderMySessionsPage 的 highlightSessionId。
+let createdSessionFocusReason = null;
 let meRenderGeneration = 0;
 let mySessionsRenderGeneration = 0;
 let pendingMeFocus = null;
@@ -802,7 +807,12 @@ async function enablePushNotifications() {
 function renderMySessionsDestination() {
   if (!controller) return;
   const state = controller.getMySessionState();
-  const createdSessionId = createdSessionFocusId;
+  // 批 C3-3:createdSessionFocusId 拆成兩個用途——highlightSessionId 給卡片聚焦
+  // (create/joined 都要),createdSessionId 只在 reason==="created" 時才往下傳,
+  // 避免 join 使用者看到 create 專屬的「球局已建立」文案與推播 prompt
+  // (renderMySessionsPage 內兩處分支,見 ground truth 意外 3)。
+  const focusSessionId = createdSessionFocusId;
+  const createdSessionId = createdSessionFocusReason === "created" ? focusSessionId : null;
   const root = document.getElementById("my-sessions-root");
   const focus = activePage === "my-sessions" ? captureMySessionsFocus(root) ?? pendingMySessionsFocus : null;
   if (focus) pendingMySessionsFocus = focus;
@@ -813,6 +823,7 @@ function renderMySessionsDestination() {
     authenticated: state.authenticated,
     courts,
     createdSessionId,
+    highlightSessionId: focusSessionId,
     errorMessage: state.error,
     groups: state.groups,
     onAccept: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "accepted"),
@@ -821,8 +832,9 @@ function renderMySessionsDestination() {
     onCancel: controller.cancelMySession,
     onConfirmAttendance: controller.confirmMySessionAttendance,
     onCreatedSessionFocus: () => {
-      if (createdSessionFocusId !== createdSessionId) return false;
+      if (createdSessionFocusId !== focusSessionId) return false;
       createdSessionFocusId = null;
+      createdSessionFocusReason = null;
       return true;
     },
     onDecline: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
@@ -921,10 +933,16 @@ function showMapPage({ focus = false } = {}) {
   if (focus) requestAnimationFrame(() => document.getElementById("map-tab")?.focus({ preventScroll: true }));
 }
 
-function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
+// 批 C3-3:第一參數泛化為 { sessionId, reason }(或 null/未傳＝無聚焦目標，例如底部
+// 導覽「我的球局」分頁鈕)。reason 只決定 renderMySessionsDestination() 是否顯示
+// create 專屬文案；卡片聚焦本身兩種 reason 都適用，見該函式內的 highlightSessionId。
+function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
   activePage = "my-sessions";
   pendingMeFocus = null;
-  if (createdSessionId != null) createdSessionFocusId = createdSessionId;
+  if (focusTarget?.sessionId != null) {
+    createdSessionFocusId = focusTarget.sessionId;
+    createdSessionFocusReason = focusTarget.reason ?? null;
+  }
   controller.setDrawerState("collapsed");
   document.getElementById("tab-map").hidden = true;
   document.getElementById("me-page").hidden = true;
@@ -1238,8 +1256,10 @@ function init() {
         notificationSettings,
         onCopyLink: () => copySessionShareLink(session.sessionId),
         onEnablePush: enablePushNotifications,
-        // Task 2 範圍:CTA 只關 sheet＋切 My Sessions,不聚焦新參與卡(聚焦拆參留 Task 3)。
-        onViewMySessions: () => showMySessionsPage(null, { focus: true }),
+        // 批 C3-3:sheet 把剛加入的 sessionId 交回來(見 sessionViews.js 的
+        // wireSuccess),用 reason:"joined" 聚焦新參與卡,不顯示 create 專屬的
+        // 「球局已建立」文案——不再只聚焦頁面標題。
+        onViewMySessions: (sessionId) => showMySessionsPage({ sessionId, reason: "joined" }),
       }),
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
     openCourtPlayersDrawer: (court, players, handlers) => openCourtPlayersDrawer(court, players, handlers),
@@ -1254,7 +1274,10 @@ function init() {
     openWithdrawConfirmation: openWithdrawSessionConfirmation,
     promptProfile: openProfileCompletion,
     reloadCurrentProfile,
-    showCreatedSession: showMySessionsPage,
+    // 批 C3-3:controller 仍只傳原始 sessionId(見 sessionController.js 的
+    // showCreatedSession(result?.sessionId))；這裡在接線邊界補上 reason:"created"，
+    // controller 本身不需要知道 reason 字串這個 view 層概念。
+    showCreatedSession: (sessionId) => showMySessionsPage({ sessionId, reason: "created" }),
     onMySessionsChange: () => {
       if (!controller) return;
       // Keep the hidden destination in sync as well. Otherwise an account

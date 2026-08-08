@@ -753,6 +753,10 @@ test("a pending join confirmation accepts only one intentional submission", asyn
   });
   await expect.poll(() => page.evaluate(() => window.__joinConfirmationCalls)).toBe(1);
   await expect(confirm).toBeDisabled();
+  // 批 C3-3(補 Task 2 審查遺留):submitting 態兩鈕皆 disabled,
+  // JOIN_STAGE_FOCUSABLE_SELECTOR 排除 disabled 元素找不到目標,焦點 fallback 回
+  // 帶 tabindex="-1" 的動作區容器本身(同一個節點也帶 data-join-stage),不落 body。
+  await expect(sheet.locator('[data-join-stage="submitting"]')).toBeFocused();
   await page.evaluate(() => window.__releaseJoinConfirmation());
   await expect(sheet.getByTestId("join-success-title")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
@@ -912,8 +916,11 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
         action: { label: "申請加入", kind: "join", expectedAccepted: false },
         initialStage: "confirming",
         onConfirmJoin: async () => ({ joinSubmitted: true }),
-        onViewMySessions: () => {
+        // 批 C3-3:CTA 現在把 session.sessionId 交回呼叫端(main.js 用它聚焦 My
+        // Sessions 新參與卡),這裡記錄實際收到的參數值,不只是呼叫次數。
+        onViewMySessions: (sessionId) => {
           window.__joinSuccessDestinationCalls = (window.__joinSuccessDestinationCalls ?? 0) + 1;
+          window.__joinSuccessDestinationArgs = (window.__joinSuccessDestinationArgs ?? []).concat([sessionId]);
         },
       }
     );
@@ -939,6 +946,95 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
   await mySessionsCta.click();
   await expect(sheet).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationCalls)).toBe(1);
+  await expect
+    .poll(() => page.evaluate(() => window.__joinSuccessDestinationArgs))
+    .toEqual([9402]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("an accepted joined session focuses its own upcoming card without the create-session copy", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  // 批 C3-3:createdSessionId 拆參——highlightSessionId 純做卡片聚焦比對(create／
+  // join 兩種來源都可傳),createdSessionId 只在真正的 create 流程才傳,才會觸發
+  // 「球局已建立」文案與 create 專屬推播 prompt。這裡模擬 main.js 的 join CTA 接線
+  // (reason:"joined" → 只傳 highlightSessionId,不傳 createdSessionId)。
+  const acceptedSession = {
+    court: "青年公園網球場",
+    courtDistrict: "萬華區",
+    playType: "雙打",
+    sessionId: 9501,
+    slotsRemaining: 0,
+    startAt: "2099-08-03T10:00:00+08:00",
+    status: "open",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  };
+
+  await page.evaluate(async (session) => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
+      highlightSessionId: session.sessionId,
+    });
+  }, acceptedSession);
+
+  const root = page.locator("#my-sessions-root");
+  await expect(root).not.toContainText("球局已建立");
+  await expect(root).toContainText("依目前需要處理的事項與球局時間排序。");
+  await expect(root.getByTestId("created-session-enable-push")).toHaveCount(0);
+  const openButton = page.locator(
+    `#my-upcoming-sessions [data-open-my-session][data-session-id='${acceptedSession.sessionId}']`
+  );
+  await expect(openButton).toBeFocused();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("a pending guest request focuses its own withdraw button, not the page heading, without the create-session copy", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  // 批 C3-3 意外(不在 ground truth 內,實作時發現):approval／NTRP 缺／NTRP 範圍外
+  // 三種 outcome 送出後,session 落在 needsAction 的 guest-request(不是 upcoming),
+  // 舊聚焦骨架只查 upcoming——若不擴充,這三種 outcome 點 CTA 後焦點會直接掉回
+  // body。guestRequestCard 現在也接受 highlightSessionId,聚焦其唯一的可操作元素
+  // (撤回申請鈕)。
+  const pendingSession = {
+    court: "大安運動中心",
+    courtDistrict: "大安區",
+    playType: "單打",
+    sessionId: 9502,
+    startAt: "2099-08-03T10:00:00+08:00",
+    status: "open",
+  };
+
+  await page.evaluate(async (session) => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: {
+        history: [],
+        needsAction: [{ kind: "guest-request", session }],
+        needsActionCount: 1,
+        upcoming: [],
+      },
+      highlightSessionId: session.sessionId,
+    });
+  }, pendingSession);
+
+  const root = page.locator("#my-sessions-root");
+  await expect(root).not.toContainText("球局已建立");
+  await expect(page.locator("#my-sessions-root [data-my-sessions-heading]")).not.toBeFocused();
+  const withdrawButton = page.locator(
+    `[data-guest-request-session='${pendingSession.sessionId}'] [data-my-action='withdraw']`
+  );
+  await expect(withdrawButton).toBeFocused();
   expect(runtimeErrors).toEqual([]);
 });
 

@@ -861,7 +861,7 @@ function mySessionActionButton(session, { action, label, testId }) {
   )}"${testId ? ` data-testid="${esc(testId)}"` : ""}>${esc(label)}</button>`;
 }
 
-function mySessionCard(session, { courts = [], createdSessionId = null } = {}) {
+function mySessionCard(session, { courts = [], highlightSessionId = null } = {}) {
   const venue = sessionVenuePresentation(session, courts);
   const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
   const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
@@ -890,7 +890,7 @@ function mySessionCard(session, { courts = [], createdSessionId = null } = {}) {
   ]
     .filter(Boolean)
     .join("");
-  return `<article class="my-session-card"${String(session.sessionId) === String(createdSessionId) ? ' data-created-session="true"' : ""}>
+  return `<article class="my-session-card"${String(session.sessionId) === String(highlightSessionId) ? ' data-created-session="true"' : ""}>
     <div class="my-session-card__head"><span class="my-session-card__role">${esc(mySessionRole(session))}</span><span class="my-session-card__status">${esc(
       mySessionStatus(session)
     )}</span></div>
@@ -935,9 +935,13 @@ function inviteCard({ session }, courts = []) {
   </article>`;
 }
 
-function guestRequestCard({ session }, courts = []) {
+function guestRequestCard({ session }, courts = [], { highlightSessionId = null } = {}) {
   const venue = sessionVenuePresentation(session, courts);
-  return `<article class="my-action-card" data-guest-request-session="${esc(session.sessionId)}">
+  // 批 C3-3:一個剛加入的 session 若還在等主揪審核(approval/NTRP 缺/範圍外三種
+  // outcome),不會落在 upcoming,而是落在這裡——聚焦骨架必須也覆蓋這張卡,否則
+  // CTA「查看我的球局」對這三種 outcome 會讓焦點掉回 body(mySessionCard 的
+  // 聚焦骨架只查 upcoming,見 renderMySessionsPage 尾端)。
+  return `<article class="my-action-card" data-guest-request-session="${esc(session.sessionId)}"${String(session.sessionId) === String(highlightSessionId) ? ' data-created-session="true"' : ""}>
     <p class="my-action-card__eyebrow">等待主揪回覆</p>
     <h3><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)} · ${esc(venue.time)}</h3>
     <p>你的申請已送出，主揪回覆前可自行撤回。</p>
@@ -1330,6 +1334,11 @@ export function renderMySessionsPage(
   {
     courts = [],
     createdSessionId = null,
+    // 批 C3-3:createdSessionId 泛化拆參。createdSessionId 只驅動 create 專屬的
+    // 「球局已建立」文案與推播 prompt(reason==="created" 時才傳);highlightSessionId
+    // 純做卡片聚焦比對,create/join 兩種 reason 都可以傳,語意中性。未傳
+    // highlightSessionId 時 fallback 回 createdSessionId,向後相容既有呼叫端。
+    highlightSessionId = null,
     groups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     onAccept = () => {},
     onAcceptInvite = () => {},
@@ -1361,6 +1370,7 @@ export function renderMySessionsPage(
   const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
   const history = Array.isArray(groups.history) ? groups.history : [];
   const notification = normalizedNotificationSettings(notificationSettings);
+  const focusSessionId = highlightSessionId ?? createdSessionId;
   const needsActionSection = `<section class="my-sessions-section" aria-labelledby="my-needs-action-title">
       <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(needsAction.length)} 項</span></div>
       <div id="my-needs-action" class="my-sessions-list">${
@@ -1371,7 +1381,7 @@ export function renderMySessionsPage(
                   ? hostRequestCard(entry, courts)
                   : entry.kind === "invite"
                     ? inviteCard(entry, courts)
-                    : guestRequestCard(entry, courts)
+                    : guestRequestCard(entry, courts, { highlightSessionId: focusSessionId })
               )
               .join("")
           : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
@@ -1407,7 +1417,7 @@ export function renderMySessionsPage(
       <div id="my-upcoming-sessions" class="my-sessions-list">${
         upcoming.length
           ? upcoming
-              .map((session) => mySessionCard(session, { courts, createdSessionId }))
+              .map((session) => mySessionCard(session, { courts, highlightSessionId: focusSessionId }))
               .join("")
           : '<p class="surface__copy">目前沒有即將打球的球局。</p>'
       }</div>
@@ -1419,7 +1429,7 @@ export function renderMySessionsPage(
           ? history
               .map(
                 (session) =>
-                  `${mySessionCard(session, { courts, createdSessionId })}<p class="my-history-reason">${esc(
+                  `${mySessionCard(session, { courts, highlightSessionId: focusSessionId })}<p class="my-history-reason">${esc(
                     mySessionReason(session)
                   )}</p>`
               )
@@ -1474,9 +1484,21 @@ export function renderMySessionsPage(
     });
   });
   syncPendingMySessionActions(root);
-  if (createdSessionId && upcoming.some((session) => String(session.sessionId) === String(createdSessionId))) {
+  // 批 C3-3:聚焦目標可能落在兩個互斥的清單之一——accepted(instant 加入／host
+  // 自己)在 upcoming,走 mySessionCard 的「查看球局」鈕;仍在等主揪審核的三種
+  // outcome(approval／NTRP 缺／範圍外)在 needsAction 的 guest-request,走
+  // guestRequestCard 的「撤回申請」鈕(卡片內唯一可聚焦元素)。同一個 sessionId
+  // 只會出現在其中一個群組,兩個 selector 用逗號並列,只有比對得上的那張卡會真的
+  // 帶有 data-created-session。
+  const focusInUpcoming = upcoming.some((session) => String(session.sessionId) === String(focusSessionId));
+  const focusInNeedsAction = needsAction.some(
+    (entry) => entry.kind === "guest-request" && String(entry.session.sessionId) === String(focusSessionId)
+  );
+  if (focusSessionId && (focusInUpcoming || focusInNeedsAction)) {
     requestAnimationFrame(() => {
-      const target = root.querySelector("[data-created-session] [data-open-my-session]");
+      const target = root.querySelector(
+        "[data-created-session] [data-open-my-session], [data-created-session] [data-my-action='withdraw']"
+      );
       if (!target || !onCreatedSessionFocus()) return;
       target.focus({ preventScroll: true });
     });
@@ -2205,7 +2227,9 @@ export function openSessionSheet(
     wireSuccessPushPrompt(mounted.root, onEnablePush);
     container.querySelector('[data-testid="join-open-my-sessions"]')?.addEventListener("click", () => {
       mounted.close({ reason: "view-my-sessions", restoreFocus: false });
-      onViewMySessions();
+      // 批 C3-3:CTA 現在把剛加入的 sessionId 交回呼叫端,讓 My Sessions 可以聚焦
+      // 這一張新參與卡(而不是只聚焦頁面標題)——見 main.js 的 onViewMySessions 接線。
+      onViewMySessions(session.sessionId);
     });
   }
 
