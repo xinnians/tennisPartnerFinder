@@ -1590,6 +1590,10 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen =
       (event) => {
         if (event.key !== "Escape") return;
         if (document.querySelector("#sheet-root .surface, #modal-root .surface")) return;
+        // level popover 有自己的 capture-phase Escape 攔截(main.js wireFilters)先關掉
+        // 它自己並 stopPropagation,正常情況這裡根本收不到事件;這裡再加一層明確排除,
+        // 不依賴事件相位這種隱性順序,理由同上面 sheet/dialog 檢查。
+        if (document.getElementById("level-popover")?.hidden === false) return;
         event.preventDefault();
         collapse();
       },
@@ -1692,7 +1696,7 @@ export function renderNearbySessionsDrawer(
   // (無手勢環境的鍵盤/螢幕閱讀器入口),不是在原本的×旁邊加,是整段換掉。
   const listHead = isHalf
     ? `<div class="nearby-sessions__list-head">
-        <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
+        <div><p>附近球局</p><h2 aria-live="polite">${esc(summary)}</h2></div>
         <div class="nearby-sessions__half-actions">
           <button type="button" class="session-secondary" data-testid="drawer-expand">展開</button>
           <button type="button" class="session-secondary" data-testid="drawer-collapse">收合</button>

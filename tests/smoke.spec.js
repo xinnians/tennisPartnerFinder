@@ -163,6 +163,7 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("role", "region");
+  await expect(page.locator("#nearby-sessions-list h2")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("#nearby-sessions-backdrop")).toBeHidden();
   await page.getByTestId("drawer-expand").click();
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "full");
@@ -652,6 +653,44 @@ test("a top sheet consumes Escape before the underlying nearby drawer", async ({
     sheetOpened: true,
     sheetPresent: false,
   });
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("clicking the drawer's collapse control directly collapses the half-open drawer", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+
+  await page.getByTestId("drawer-collapse").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "collapsed");
+  await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "false");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("Escape closes an open level popover before it reaches the half-open drawer beneath it", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+
+  await page.locator("#level-chip").click();
+  await expect(page.locator("#level-popover")).toBeVisible();
+  await expect(page.locator("#level-chip")).toHaveAttribute("aria-expanded", "true");
+
+  // First Escape must only close the popover: the half drawer beneath it stays open.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#level-popover")).toBeHidden();
+  await expect(page.locator("#level-chip")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+
+  // With the popover gone, a second Escape now reaches the drawer and collapses it.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "collapsed");
   expect(runtimeErrors).toEqual([]);
 });
 

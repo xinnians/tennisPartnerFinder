@@ -918,7 +918,7 @@ function showMySessionsPage(createdSessionId = null, { focus = false } = {}) {
   activePage = "my-sessions";
   pendingMeFocus = null;
   if (createdSessionId != null) createdSessionFocusId = createdSessionId;
-  controller.setDrawerExpanded(false);
+  controller.setDrawerState("collapsed");
   document.getElementById("tab-map").hidden = true;
   document.getElementById("me-page").hidden = true;
   const page = document.getElementById("my-sessions-page");
@@ -946,7 +946,7 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   // 管線把焦點送到（可能已經被重繪替換過的）新標題節點。沒有這行，兩個背景重繪前後夾殺時
   // 焦點會永久掉在 body——這是 fix round 1 實測抓到的既有機制邊界，不是單純漏一個 kind 分支。
   if (focusNotificationSettings) pendingMeFocus = { kind: "notification-settings-heading" };
-  controller.setDrawerExpanded(false);
+  controller.setDrawerState("collapsed");
   document.getElementById("tab-map").hidden = true;
   document.getElementById("my-sessions-page").hidden = true;
   const page = document.getElementById("me-page");
@@ -1006,6 +1006,22 @@ function wireFilters() {
       chip.setAttribute("aria-expanded", "false");
     });
   });
+  // popover 不是 sheet/dialog,不掛 sheets.js 的 focus-trap 機制,得自己攔 Escape。
+  // 用 capture(跟 sheets.js onKeyDown 同一招)保證比 sessionViews.js half 抽屜掛在
+  // document 的 bubble-phase Escape 監聽器先跑,關掉 popover 後 stopPropagation,
+  // 讓那次按鍵不會再往下收合抽屜——popover 開著時 Escape 只該關 popover。
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape") return;
+      if (popover.hidden) return;
+      event.preventDefault();
+      event.stopPropagation();
+      popover.hidden = true;
+      chip.setAttribute("aria-expanded", "false");
+    },
+    true
+  );
 
   document.getElementById("filter-sheet-open").addEventListener("click", () => {
     activeFilterSheet = openFilters();

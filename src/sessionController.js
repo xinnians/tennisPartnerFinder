@@ -936,10 +936,6 @@ export function createSessionController({
     publish();
   }
 
-  function setDrawerExpanded(expanded) {
-    setDrawerState(expanded ? "full" : "collapsed");
-  }
-
   function setFilter(key, value) {
     if (DEFAULT_FILTER_STATE[key] instanceof Set) {
       state.filters[key] = value instanceof Set ? new Set(value) : new Set(value ?? []);
@@ -2323,7 +2319,6 @@ export function createSessionController({
     retryDiscovery,
     setAuthState,
     setCourts,
-    setDrawerExpanded,
     setDrawerState,
     setFilter,
     setMapUnavailable,

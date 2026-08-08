@@ -2394,9 +2394,11 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   assert.equal(unavailableHarness.renders.at(-1).drawerState, "half");
 });
 
-test("setDrawerState accepts the three-value enum, ignores illegal values, and setDrawerExpanded stays a compatible boolean wrapper", () => {
+test("setDrawerState accepts the three-value enum and ignores illegal values", () => {
   const harness = createHarness();
   const { controller } = harness;
+
+  assert.equal(typeof controller.setDrawerExpanded, "undefined", "setDrawerExpanded wrapper is retired; callers use setDrawerState directly");
 
   controller.setDrawerState("half");
   assert.equal(harness.renders.at(-1).drawerState, "half");
@@ -2414,12 +2416,6 @@ test("setDrawerState accepts the three-value enum, ignores illegal values, and s
   controller.setDrawerState(undefined);
   assert.equal(harness.renders.length, rendersBeforeIllegal, "illegal values are ignored and do not publish");
   assert.equal(harness.renders.at(-1).drawerState, "collapsed", "state is unchanged by illegal values");
-
-  controller.setDrawerExpanded(true);
-  assert.equal(harness.renders.at(-1).drawerState, "full", "setDrawerExpanded(true) maps to full");
-
-  controller.setDrawerExpanded(false);
-  assert.equal(harness.renders.at(-1).drawerState, "collapsed", "setDrawerExpanded(false) maps to collapsed");
 });
 
 test("closing login or a recovered join confirmation clears only its matching intent", async () => {
