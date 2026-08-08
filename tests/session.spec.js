@@ -1470,6 +1470,154 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a new chat message raises the recipient's unread badge and nav dot, and opening chat clears both against the real database", async ({
+  page,
+}) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `unread-${context.runId}`, slotsTotal: 1 })
+  );
+  await requestToJoinSessionViaRpc(guest.client, sessionId);
+  const { data: roster, error: rosterError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id,profile_id,role,status")
+    .eq("session_id", sessionId);
+  if (rosterError) throw rosterError;
+  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  expect(guestRequest).toBeTruthy();
+  await reviewJoinRequestViaRpc(host.client, {
+    decision: "accepted",
+    participantId: guestRequest.participant_id,
+    sessionId,
+  });
+
+  const chatButton = page.getByTestId(`open-chat-${sessionId}`);
+  const navDot = page.locator("#my-sessions-unread-dot");
+  const chat = page.getByTestId("session-chat-sheet");
+
+  // 接受加入會觸發「XX 加入了球局」系統訊息，guest 的未讀基準線因此不是 0。先開一次聊天
+  // 把這個基準線標成已讀，之後才能對「A 發一則新訊息 → +1」做乾淨的斷言，而不是斷言一個
+  // 不確定的基準線數字。
+  await gotoWithSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await chatButton.click();
+  await expect(chat).toBeVisible();
+  await expect(chat.getByText(`${context.guest.nickname} 加入了球局`)).toBeVisible();
+  await chat.locator("[data-surface-close]").click();
+  await expect(chatButton).toHaveText("群組聊天");
+  await expect(chatButton).not.toHaveAttribute("aria-label");
+  await expect(navDot).toBeHidden();
+
+  // Host 送出一則真訊息（guest 沒在看）。
+  const messageBody = `未讀閉環 ${context.runId}`;
+  const { error: postError } = await host.client.rpc("post_session_message", {
+    p_body: messageBody,
+    p_session_id: sessionId,
+  });
+  if (postError) throw postError;
+
+  // Guest 手動重新整理 My Sessions（非輪詢）：卡片文案與 nav 圓點都要反映資料庫的新未讀數。
+  await page.locator("#my-sessions-refresh").click();
+  await expect(chatButton).toHaveText("群組聊天（1）");
+  await expect(chatButton).toHaveAttribute("aria-label", "群組聊天，1 則未讀訊息");
+  await expect(navDot).toBeVisible();
+
+  // 開啟聊天：訊息可見，且不用手動整理就自動歸零（樂觀清零 + 背景 mark_session_chat_read）。
+  await chatButton.click();
+  await expect(chat).toBeVisible();
+  await expect(chat.getByText(messageBody)).toBeVisible();
+  await expect(chatButton).toHaveText("群組聊天");
+  await expect(chatButton).not.toHaveAttribute("aria-label");
+  await expect(navDot).toBeHidden();
+  await chat.locator("[data-surface-close]").click();
+
+  // 牙證：證明 mark_session_chat_read 真的把游標寫進資料庫，不是只有前端樂觀清零——
+  // 用整頁重新載入（真正重新打 network，不是沿用記憶體狀態）確認未讀數仍是 0。
+  await switchBrowserSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await expect(chatButton).toHaveText("群組聊天");
+  await expect(navDot).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("blocking a sender drops their messages from both the unread count and the visible chat feed, keeping the two in lockstep", async ({
+  page,
+}) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `block-unread-${context.runId}`, slotsTotal: 1 })
+  );
+  await requestToJoinSessionViaRpc(guest.client, sessionId);
+  const { data: roster, error: rosterError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id,profile_id,role,status")
+    .eq("session_id", sessionId);
+  if (rosterError) throw rosterError;
+  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  expect(guestRequest).toBeTruthy();
+  await reviewJoinRequestViaRpc(host.client, {
+    decision: "accepted",
+    participantId: guestRequest.participant_id,
+    sessionId,
+  });
+
+  // unread_message_count 與 session_message_feed 共用同一套成員資格＋雙向封鎖 predicate，
+  // 所以在 guest 從未標記已讀（cursor 預設 0）的狀態下，這兩個數字理論上必須永遠相等——
+  // 這是本測試要驗證的不變量，不是去斷言某個手算的基準數字。
+  async function unreadAndFeedCounts() {
+    const [participationResult, feedResult] = await Promise.all([
+      guest.client.from("my_session_participations").select("unread_message_count").eq("session_id", sessionId).single(),
+      guest.client.from("session_message_feed").select("message_id").eq("session_id", sessionId),
+    ]);
+    if (participationResult.error) throw participationResult.error;
+    if (feedResult.error) throw feedResult.error;
+    return { feedVisible: feedResult.data.length, unread: participationResult.data.unread_message_count };
+  }
+
+  const baseline = await unreadAndFeedCounts();
+  expect(baseline.unread, "unread must match the visible feed before any message is sent").toBe(baseline.feedVisible);
+
+  const { error: postError } = await host.client.rpc("post_session_message", {
+    p_body: `封鎖前訊息 ${context.runId}`,
+    p_session_id: sessionId,
+  });
+  if (postError) throw postError;
+
+  const beforeBlock = await unreadAndFeedCounts();
+  expect(beforeBlock.feedVisible).toBe(baseline.feedVisible + 1);
+  expect(beforeBlock.unread, "unread must still match the visible feed once the host's message is unblocked").toBe(
+    beforeBlock.feedVisible
+  );
+
+  const { error: blockError } = await guest.client.rpc("set_player_block", {
+    p_blocked: true,
+    p_profile_id: host.profileId,
+  });
+  if (blockError) throw blockError;
+
+  const afterBlock = await unreadAndFeedCounts();
+  expect(afterBlock.feedVisible, "the blocked sender's message must disappear from the feed").toBe(baseline.feedVisible);
+  expect(afterBlock.unread, "unread must drop back in lockstep with the now-smaller visible feed").toBe(afterBlock.feedVisible);
+
+  // 同一個不變量透過真實 UI 再驗一次，不只是直接查 view。
+  await gotoWithSession(page, guest.session);
+  await page.getByTestId("my-sessions-tab").click();
+  const chatButton = page.getByTestId(`open-chat-${sessionId}`);
+  const expectedLabel = afterBlock.unread > 0 ? `群組聊天（${afterBlock.unread}）` : "群組聊天";
+  await expect(chatButton).toHaveText(expectedLabel);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("the Me profile entry edits without a gate and refreshes the identity card in place", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
