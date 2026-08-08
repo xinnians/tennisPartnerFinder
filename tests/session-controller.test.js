@@ -540,6 +540,16 @@ test("My Sessions groups private lifecycle rows by the next safe action", () => 
   assert.equal(groups.history[1].canConfirmAttendance, true, "played history can retain its server-authorized attendance action");
 });
 
+test("My Sessions groups expose a hasUnread aggregate for any session with an unread chat count", () => {
+  const now = new Date("2026-07-17T04:00:00.000Z");
+  const readSession = futureSession({ sessionId: 20, unreadMessageCount: 0, viewerParticipantStatus: "accepted" });
+  const unreadSession = futureSession({ sessionId: 21, unreadMessageCount: 3, viewerParticipantStatus: "accepted" });
+
+  assert.equal(groupMySessions([], now).hasUnread, false);
+  assert.equal(groupMySessions([readSession], now).hasUnread, false);
+  assert.equal(groupMySessions([readSession, unreadSession], now).hasUnread, true);
+});
+
 test("My Sessions puts a responsive guest invitation in needs action as an invite", () => {
   const invitedSession = futureSession({
     canRespondInvite: true,
@@ -3325,6 +3335,125 @@ test("chat refreshes on foreground visibility and after posting", async () => {
   await harness.chatSheets.at(-1).handlers.onPost("回前景後送訊");
   assert.deepEqual(posts, [[711, "回前景後送訊"]]);
   assert.deepEqual(messageLoads, [711, 711, 711]);
+});
+
+test("opening chat marks it read, optimistically zeroes the unread count, and throttles duplicate RPC calls until a newer message arrives", async () => {
+  const session = futureSession({
+    canWithdraw: true,
+    sessionId: 731,
+    unreadMessageCount: 2,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const visibilityTarget = new EventTarget();
+  Object.defineProperty(visibilityTarget, "visibilityState", { configurable: true, value: "visible", writable: true });
+  let messageBatch = [
+    { body: "先到先贏", createdAt: "2026-08-08T01:00:00Z", isSelf: false, kind: "user", messageId: 1, senderNickname: "球友", senderProfileId: 92, sessionId: 731 },
+    { body: "球場見", createdAt: "2026-08-08T01:05:00Z", isSelf: false, kind: "user", messageId: 2, senderNickname: "球友", senderProfileId: 92, sessionId: 731 },
+  ];
+  const markReadCalls = [];
+  const harness = createHarness({
+    session,
+    visibilityTarget,
+    api: {
+      loadMySessions: async () => [session],
+      loadSessionMessages: async () => messageBatch,
+      loadSessionRoster: async () => [],
+      markSessionChatRead: async (sessionId) => {
+        markReadCalls.push(sessionId);
+        return { outcome: "OK" };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState(
+    { user: { id: "unread-clear-member" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  harness.controller.openSessionChat(session.sessionId);
+  await flush();
+
+  assert.deepEqual(markReadCalls, [731], "opening chat marks the session read exactly once");
+  assert.equal(
+    harness.controller.getMySessionState().groups.upcoming.find((entry) => entry.sessionId === 731)?.unreadMessageCount,
+    0,
+    "the optimistic clear zeroes the unread count before the authoritative reload lands"
+  );
+  assert.equal(harness.controller.getMySessionState().groups.hasUnread, false);
+
+  // 同一批訊息(同一個最新 message id)重跑 refreshActiveChat(visibilitychange 等高頻
+  // 重跑場景)不應重打 mark_session_chat_read——冪等節流以「這次開聊天期間已標過的最新
+  // message id」為準,不是每次重跑都無條件再呼叫一次。
+  visibilityTarget.dispatchEvent(new Event("visibilitychange"));
+  await flush();
+  assert.deepEqual(markReadCalls, [731], "an unchanged message feed does not repeat the mark-read RPC");
+
+  // 新訊息進來後,節流游標前進,下一次重跑理應再標一次已讀。
+  messageBatch = [
+    ...messageBatch,
+    { body: "新訊息", createdAt: "2026-08-08T01:10:00Z", isSelf: false, kind: "user", messageId: 3, senderNickname: "球友", senderProfileId: 92, sessionId: 731 },
+  ];
+  visibilityTarget.dispatchEvent(new Event("visibilitychange"));
+  await flush();
+  assert.deepEqual(markReadCalls, [731, 731], "a newer message resets the throttle and triggers another mark-read call");
+});
+
+test("a failing mark-read RPC does not interrupt the chat sheet and is retried on the next refresh", async () => {
+  const session = futureSession({
+    canWithdraw: true,
+    sessionId: 732,
+    unreadMessageCount: 1,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const visibilityTarget = new EventTarget();
+  Object.defineProperty(visibilityTarget, "visibilityState", { configurable: true, value: "visible", writable: true });
+  const message = {
+    body: "打不打",
+    createdAt: "2026-08-08T01:00:00Z",
+    isSelf: false,
+    kind: "user",
+    messageId: 5,
+    senderNickname: "球友",
+    senderProfileId: 92,
+    sessionId: 732,
+  };
+  let markReadCalls = 0;
+  let markReadShouldFail = true;
+  const harness = createHarness({
+    session,
+    visibilityTarget,
+    api: {
+      loadMySessions: async () => [session],
+      loadSessionMessages: async () => [message],
+      loadSessionRoster: async () => [],
+      markSessionChatRead: async () => {
+        markReadCalls += 1;
+        if (markReadShouldFail) throw new Error("網路暫時失敗");
+        return { outcome: "OK" };
+      },
+    },
+  });
+
+  await harness.controller.setAuthState(
+    { user: { id: "unread-retry-member" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
+  const sheet = harness.controller.openSessionChat(session.sessionId);
+  await flush();
+
+  assert.equal(markReadCalls, 1, "the failing RPC is still attempted once");
+  assert.equal(sheet.stateUpdates.at(-1).status, "ready", "a failing best-effort mark-read must not surface a chat load error");
+  assert.equal(
+    harness.controller.getMySessionState().groups.upcoming.find((entry) => entry.sessionId === 732)?.unreadMessageCount,
+    0,
+    "the optimistic clear still applies even though the RPC failed; the next authoritative reload corrects it if wrong"
+  );
+
+  markReadShouldFail = false;
+  visibilityTarget.dispatchEvent(new Event("visibilitychange"));
+  await flush();
+  assert.equal(markReadCalls, 2, "an earlier failure keeps the throttle open so the next refresh retries the RPC");
 });
 
 test("chat governance reports the exact visible message, blocks its sender, and reloads authority", async () => {

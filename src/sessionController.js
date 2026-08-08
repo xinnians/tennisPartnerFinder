@@ -161,6 +161,16 @@ function compareHistorySession(left, right) {
   );
 }
 
+/** Highest messageId present in a chat feed batch, or null when the batch is empty/unusable. */
+function latestChatMessageId(messages) {
+  let latest = null;
+  for (const message of Array.isArray(messages) ? messages : []) {
+    const id = Number(message?.messageId);
+    if (Number.isFinite(id) && (latest == null || id > latest)) latest = id;
+  }
+  return latest;
+}
+
 /**
  * Arrange private My Sessions rows around the next safe action. Host request
  * rows are supplied by an already-authorized roster hydrate; public discovery
@@ -171,8 +181,10 @@ export function groupMySessions(items = [], now = new Date()) {
   const needsAction = [];
   const upcoming = [];
   const history = [];
+  let hasUnread = false;
 
   for (const session of Array.isArray(items) ? items : []) {
+    if (Number(session?.unreadMessageCount) > 0) hasUnread = true;
     const status = String(session?.status ?? "").toLowerCase();
     const viewerRole = String(session?.viewerRole ?? "").toLowerCase();
     const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
@@ -224,6 +236,7 @@ export function groupMySessions(items = [], now = new Date()) {
   upcoming.sort(compareSessionStart);
   history.sort(compareHistorySession);
   return {
+    hasUnread,
     history,
     needsAction,
     needsActionCount: needsAction.length,
@@ -1138,6 +1151,28 @@ export function createSessionController({
     context.sheet?.close?.(options);
   }
 
+  // 批 C4-2:已讀游標只掛在這次開聊天期間存活的 context 上,不是跨 session 的全域
+  // Map——每次 openSessionChat 重開都是新 context,重新標記一次也符合 RPC 冪等語意;
+  // 節流只為壓掉同一次開啟期間 visibilitychange 等高頻重跑造成的重複呼叫。
+  async function markActiveChatRead(context) {
+    if (typeof api?.markSessionChatRead !== "function") return;
+    const latestId = latestChatMessageId(context.messages);
+    if (latestId == null || context.lastMarkedMessageId === latestId) return;
+    if (Number(context.session.unreadMessageCount) !== 0) {
+      context.session.unreadMessageCount = 0;
+      notifyMySessions();
+    }
+    try {
+      await api.markSessionChatRead(context.session.sessionId);
+      context.lastMarkedMessageId = latestId;
+    } catch {
+      // Best-effort:失敗不可中斷已顯示的聊天內容,也不重丟例外。故意不還原上面的
+      // 樂觀清零(短暫顯示 0 屬可接受),也不設定 lastMarkedMessageId,讓下一次
+      // refreshActiveChat(例如下一次 visibilitychange)重試同一個 message id 的
+      // mark_session_chat_read;真正的權威數字則交由下一次 reloadParticipation 訂正。
+    }
+  }
+
   async function refreshActiveChat(context = activeChat) {
     if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
     if (typeof api?.loadSessionMessages !== "function" || typeof api?.loadSessionRoster !== "function") return false;
@@ -1152,6 +1187,7 @@ export function createSessionController({
       context.messages = Array.isArray(messages) ? messages : [];
       context.roster = Array.isArray(roster) ? roster : [];
       context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "ready" });
+      await markActiveChatRead(context);
       return true;
     } catch {
       if (activeChat !== context || requestId !== context.requestId || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
@@ -1252,6 +1288,7 @@ export function createSessionController({
     });
     context = {
       authSnapshot,
+      lastMarkedMessageId: null,
       messages: [],
       onVisibilityChange: () => {
         if (visibilityTarget?.visibilityState === "visible" && activeChat === context) void refreshActiveChat(context);

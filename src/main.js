@@ -44,6 +44,7 @@ import {
   loadSessionJoinPreview,
   loadSessionRoster,
   loadSessionSummary,
+  markSessionChatRead,
   markSessionPlayed,
   onAuthStateChange,
   postSessionMessage,
@@ -535,7 +536,14 @@ function syncBottomNavigation() {
     badge.textContent = count > 0 ? String(count) : "";
     badge.setAttribute("aria-hidden", "true");
   }
-  const badgeLabel = count > 0 ? `我的球局，${count} 項待處理` : "我的球局";
+  // 批 C4-2:未讀圓點是獨立於 needsActionCount 的第二個聚合信號(任一局
+  // unread>0),不取代、也不合併進數字徽章本身——兩者可同時出現。圓點對 AT 一律
+  // 靜默(aria-hidden,比照數字徽章),播報只靠這顆 tab 自己的 aria-label，跟既有
+  // #my-sessions-badge-status live region 的分工模式一致。
+  const hasUnread = mySessionState?.groups?.hasUnread === true;
+  const unreadDot = document.getElementById("my-sessions-unread-dot");
+  if (unreadDot) unreadDot.hidden = !hasUnread;
+  const badgeLabel = `我的球局${count > 0 ? `，${count} 項待處理` : ""}${hasUnread ? "，有未讀訊息" : ""}`;
   mySessionsTab?.setAttribute("aria-label", badgeLabel);
   const badgeStatus = document.getElementById("my-sessions-badge-status");
   if (badgeStatus) badgeStatus.textContent = count > 0 ? `${count} 項待處理` : "沒有待處理事項";
@@ -1228,6 +1236,7 @@ function init() {
       loadSessionJoinPreview,
       loadSessionRoster,
       loadSessionSummary,
+      markSessionChatRead,
       markSessionPlayed,
       requestToJoinSession,
       inviteToSession,

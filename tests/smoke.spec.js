@@ -3265,6 +3265,53 @@ test("My Sessions gives accepted members chat access without rendering retired c
   expect(runtimeErrors).toEqual([]);
 });
 
+test("My Sessions chat button surfaces an unread count without disturbing the zero-state label", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const baseSession = {
+      court: "青年公園網球場",
+      courtDistrict: "萬華區",
+      hostNickname: "聯絡主揪",
+      hostNtrp: 3.5,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "單打",
+      slotsRemaining: 1,
+      startAt: "2099-07-19T01:00:00.000Z",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole: "host",
+    };
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: {
+        history: [],
+        needsAction: [],
+        needsActionCount: 0,
+        upcoming: [
+          { ...baseSession, sessionId: 741, unreadMessageCount: 3 },
+          { ...baseSession, sessionId: 742, unreadMessageCount: 0 },
+        ],
+      },
+    });
+  });
+
+  const unreadButton = page.getByTestId("open-chat-741");
+  await expect(unreadButton).toHaveText("群組聊天（3）");
+  await expect(unreadButton).toHaveAttribute("aria-label", "群組聊天，3 則未讀訊息");
+
+  const readButton = page.getByTestId("open-chat-742");
+  await expect(readButton).toHaveText("群組聊天");
+  await expect(readButton).not.toHaveAttribute("aria-label");
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a host request card names an absent NTRP instead of displaying NTRP 0.0", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

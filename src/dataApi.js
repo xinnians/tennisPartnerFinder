@@ -40,6 +40,7 @@ const MY_SESSION_COLUMNS = [
   "range_end",
   "decided_at",
   "fee_note",
+  "unread_message_count",
 ];
 
 const SESSION_ROSTER_COLUMNS = [
@@ -332,6 +333,9 @@ export function mapMySession(row = {}) {
     canConfirmPlayed: asBoolean(row.can_confirm_played),
     canConfirmAttendance: asBoolean(row.can_confirm_attendance),
     canRespondInvite: asBoolean(row.can_respond_invite),
+    // 未讀數是 UI 判斷（>0 顯示徽章/圓點）的輸入，不可為 null——asNumber 對缺欄位回傳
+    // null，這裡明確補一個預設 0，別的欄位允許 null 但這個不行。
+    unreadMessageCount: asNumber(row.unread_message_count) ?? 0,
   };
 }
 
@@ -958,6 +962,16 @@ export function createDataApi({
     return { outcome };
   }
 
+  async function markSessionChatRead(sessionId) {
+    // 比照 loadSessionMessages/loadSessionRoster 這對緊鄰的聊天讀取函式：mock 模式
+    // 直接給合理值,不讓 sessionController 的 best-effort 呼叫點必須自己 try/catch
+    // 一個在 mock 模式下必然因 requireClient() 而丟例外的呼叫。
+    if (!configured) return { outcome: "OK" };
+    const outcome = await callRpc("mark_session_chat_read", { p_session_id: asNumber(sessionId) });
+    if (outcome !== "OK") throw new SessionActionError("UNKNOWN_ACTION_ERROR");
+    return { outcome };
+  }
+
   async function setPlayerBlock(profileId, blocked) {
     const outcome = await callRpc("set_player_block", {
       p_profile_id: asNumber(profileId),
@@ -1014,6 +1028,7 @@ export function createDataApi({
     markSessionPlayed,
     confirmSessionAttendance,
     postSessionMessage,
+    markSessionChatRead,
     setPlayerBlock,
     createReport,
   };
@@ -1056,6 +1071,7 @@ export const cancelSession = (...args) => defaultDataApi.cancelSession(...args);
 export const markSessionPlayed = (...args) => defaultDataApi.markSessionPlayed(...args);
 export const confirmSessionAttendance = (...args) => defaultDataApi.confirmSessionAttendance(...args);
 export const postSessionMessage = (...args) => defaultDataApi.postSessionMessage(...args);
+export const markSessionChatRead = (...args) => defaultDataApi.markSessionChatRead(...args);
 export const setPlayerBlock = (...args) => defaultDataApi.setPlayerBlock(...args);
 export const createReport = (...args) => defaultDataApi.createReport(...args);
 

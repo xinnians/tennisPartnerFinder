@@ -861,17 +861,25 @@ function mySessionActionButton(session, { action, label, testId }) {
   )}"${testId ? ` data-testid="${esc(testId)}"` : ""}>${esc(label)}</button>`;
 }
 
+// 批 C4-2:未讀數只改按鈕文案／aria-label,不動 canChat 這個既有結構化判斷點。
+// 0（或缺欄位）維持原本純文字「群組聊天」,不額外掛 aria-label——accessible name
+// 沿用文字內容,跟改動前完全一致。
+function mySessionChatButtonMarkup(session) {
+  const unreadCount = Math.max(0, Number(session.unreadMessageCount) || 0);
+  const label = unreadCount > 0 ? `群組聊天（${unreadCount}）` : "群組聊天";
+  const ariaLabel = unreadCount > 0 ? ` aria-label="${esc(`群組聊天，${unreadCount} 則未讀訊息`)}"` : "";
+  return `<button type="button" class="session-primary" data-open-chat data-session-id="${esc(
+    session.sessionId
+  )}" data-testid="open-chat-${esc(session.sessionId)}"${ariaLabel}>${esc(label)}</button>`;
+}
+
 function mySessionCard(session, { courts = [], highlightSessionId = null } = {}) {
   const venue = sessionVenuePresentation(session, courts);
   const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
   const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
   const actions = [
     `<button type="button" class="session-secondary" data-open-my-session data-session-id="${esc(session.sessionId)}">查看球局</button>`,
-    canChat
-      ? `<button type="button" class="session-primary" data-open-chat data-session-id="${esc(
-          session.sessionId
-        )}" data-testid="open-chat-${esc(session.sessionId)}">群組聊天</button>`
-      : "",
+    canChat ? mySessionChatButtonMarkup(session) : "",
     hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt)
       ? mySessionActionButton(session, { action: "decide", label: "定案場地與時間" })
       : "",

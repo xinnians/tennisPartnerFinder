@@ -226,6 +226,7 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     range_end: null,
     decided_at: null,
     fee_note: "每人 120 元",
+    unread_message_count: "2",
   };
 
   const publicSummary = mapSessionSummary(row);
@@ -252,11 +253,24 @@ test("public and My Sessions mappers keep an explicit allowlist", () => {
     "canConfirmAttendance",
     "canRespondInvite",
     "decidedAt",
+    "unreadMessageCount",
   ].sort());
   assert.equal(mine.updatedAt, "2026-07-17T00:00:00.000Z");
   assert.equal(mine.canRespondInvite, true);
+  assert.equal(mine.unreadMessageCount, 2);
   assert.equal("lineId" in mine, false);
   assert.equal("profileId" in mine, false);
+});
+
+test("My Sessions mapper defaults an absent unread chat count to zero instead of null", () => {
+  assert.equal(mapMySession({}).unreadMessageCount, 0);
+  assert.equal(mapMySession({ unread_message_count: null }).unreadMessageCount, 0);
+  assert.equal(mapMySession({ unread_message_count: "5" }).unreadMessageCount, 5);
+});
+
+test("markSessionChatRead no-ops with a reasonable mock outcome instead of throwing when unconfigured", async () => {
+  const api = createDataApi({ configured: false });
+  assert.deepEqual(await api.markSessionChatRead(41), { outcome: "OK" });
 });
 
 test("private roster and profile mappers stay separate from public summaries", () => {
@@ -319,6 +333,7 @@ test("main forwards every Stage 1–3 data API capability into the session contr
     "decideSessionCourt",
     "loadSessionMessages",
     "postSessionMessage",
+    "markSessionChatRead",
     "setPlayerBlock",
     "loadMyPlayerBlocks",
     "loadCourtSubscriptions",
@@ -334,6 +349,16 @@ test("main forwards every Stage 1–3 data API capability into the session contr
     assert.match(apiBlock, new RegExp(`\\b${key},`), `${key} is passed to createSessionController`);
     assert.equal(typeof api[key], "function", `${key} remains available from dataApi`);
   }
+});
+
+test("main's bottom navigation sync reads the unread aggregate into an independent nav dot", async () => {
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const syncBlock = source.match(/function syncBottomNavigation\(\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+  assert.notEqual(syncBlock, "", "bottom navigation sync source scan must inspect a nonempty block");
+  assert.match(syncBlock, /groups\?\.hasUnread/, "the sync reads groups.hasUnread, not just needsActionCount");
+  assert.match(syncBlock, /my-sessions-unread-dot/, "the sync targets a dedicated unread dot element");
+  assert.match(syncBlock, /有未讀訊息/, "the unread state is folded into the tab's aria-label announcement");
 });
 
 test("main includes court catalogue status when deriving private profile eligibility", async () => {
