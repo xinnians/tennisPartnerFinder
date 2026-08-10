@@ -110,13 +110,38 @@ export function groupSessionsByCourt(courts = [], sessions = []) {
     }));
 }
 
+// 批 D3:釘面時間文字的極簡台北時區 helper(避免 map 層反向依賴 view 層;
+// 值語意與 sessionViews 的 taipeiClock/時段範圍一致)。
+const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
+function taipeiPinClock(value) {
+  const date = new Date(value ?? "");
+  if (Number.isNaN(date.getTime())) return "";
+  const taipei = new Date(date.getTime() + TAIPEI_OFFSET_MS);
+  return `${String(taipei.getUTCHours()).padStart(2, "0")}:${String(taipei.getUTCMinutes()).padStart(2, "0")}`;
+}
+function taipeiPinHourRange(startAt, rangeEnd) {
+  const start = new Date(startAt ?? "");
+  const end = new Date(rangeEnd ?? "");
+  if (Number.isNaN(start.getTime())) return "";
+  if (Number.isNaN(end.getTime())) return taipeiPinClock(startAt);
+  const hourOf = (date) => new Date(date.getTime() + TAIPEI_OFFSET_MS).getUTCHours();
+  return `${hourOf(start)}–${hourOf(end)}`;
+}
+
 /** Replace visible session markers while preserving the lower-priority court base layer. */
 export function renderSessionPins(google, map, groups, { onSession = () => {}, onCluster = () => {} } = {}, oldMarkers = []) {
   oldMarkers.forEach((marker) => marker.setMap(null));
   return groups.map(({ court, sessions, undecidedCandidateSessionIds = [] }) => {
     const multiple = sessions.length >= 2;
     const undecided = !multiple && undecidedCandidateSessionIds.some((id) => String(id) === String(sessions[0]?.sessionId));
-    const pin = multiple ? sessionClusterPin(google, sessions.length) : undecided ? candidateSessionPin(google) : sessionPin(google, sessions[0]);
+    const single = sessions[0];
+    const startTime = new Date(single?.startAt ?? "").getTime();
+    const ongoing = !undecided && Number.isFinite(startTime) && startTime <= Date.now();
+    const pin = multiple
+      ? sessionClusterPin(google, sessions.length)
+      : undecided
+        ? candidateSessionPin(google, { range: taipeiPinHourRange(single?.startAt, single?.rangeEnd) })
+        : sessionPin(google, { time: taipeiPinClock(single?.startAt), instant: single?.joinMode === "instant", ongoing });
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },
@@ -205,6 +230,16 @@ export function setUserLocation({ lat, lng }, radiusMeters) {
     userMarker.setMap?.(runtimeMap);
   }
   return bounds;
+}
+
+/** 批 D3:右下控制直欄的 ±1 級縮放(dc L82-83 的 +/− 對應)。 */
+export function zoomMapBy(delta) {
+  if (!runtimeMap?.getZoom || !runtimeMap?.setZoom) return null;
+  const current = Number(runtimeMap.getZoom());
+  if (!Number.isFinite(current)) return null;
+  const next = Math.min(20, Math.max(8, current + delta));
+  runtimeMap.setZoom(next);
+  return next;
 }
 
 /** Fit the public Taipei City discovery bounds without exposing a location. */

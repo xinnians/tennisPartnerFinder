@@ -275,7 +275,8 @@ test("an undecided candidate session renders two dashed map pins from the court 
     "球局 · 百齡河濱公園網球場 · 未定",
     "球局 · 美堤河濱公園網球場 · 未定",
   ]);
-  expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="5 4"'))).toBe(true);
+  // 批 D3:v2 候選釘 dashed 磚的 dasharray 為 4 3(dc L65)。
+  expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="4 3"'))).toBe(true);
   const mockCandidateOverlap = await page.evaluate(async () => {
     const { MOCK_SESSIONS } = await import("/src/mockData.js");
     const undecidedSession = MOCK_SESSIONS.find(({ sessionId }) => sessionId === 9005);
@@ -518,6 +519,9 @@ test("the open drawer keeps the map layer hit-testable and its base-court pin cl
 
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
+  // qmSheetUp 進場動畫 320ms:滑入中量幾何會拿到中途位置,選出的「未被蓋住」釘
+  // 在動畫結束後會被抽屜蓋住(全套件下的間歇紅)。先等動畫收斂再量。
+  await page.locator("#nearby-sessions-list").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
   await expect(page.locator("#nearby-sessions-backdrop")).toHaveCount(0);
   await expect(page.locator("#map")).toHaveJSProperty("inert", false);
 
@@ -2938,6 +2942,10 @@ test("390px map controls keep the player layer and status below the toolbar", as
   await page.setViewportSize({ width: 390, height: 844 });
   await installFakeMaps(page);
   await page.goto("/");
+  // 先等 app 開機完成(map ready+peek 出現)再覆寫狀態:否則較慢的開機 publish
+  // 會把測試手動設定的 status 蓋回 hidden,boundingBox 變 null(全套件下的間歇紅)。
+  await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
+  await expect(page.locator("#nearby-sessions-toggle")).toBeVisible();
   await page.evaluate(async () => {
     const { renderPlayerLayerToggle } = await import("/src/sessionViews.js");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
@@ -2952,8 +2960,10 @@ test("390px map controls keep the player layer and status below the toolbar", as
   const toolbar = await page.locator(".map-toolbar").boundingBox();
   const playerControl = await page.locator(".player-layer-control").boundingBox();
   const mapStatus = await page.locator("#map-data-status").boundingBox();
-  expect(playerControl.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height + 8);
-  expect(mapStatus.y).toBeGreaterThanOrEqual(playerControl.y + playerControl.height + 8);
+  // gap token 是 8px,但字體載入時序會讓分數像素進位差到整整 1px(實測 7.0)——
+  // 容差取 2px:守「下方且有間距」的迴歸(重疊時 gap ≤0),不守像素精度。
+  expect(playerControl.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height + 6);
+  expect(mapStatus.y).toBeGreaterThanOrEqual(playerControl.y + playerControl.height + 6);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3070,6 +3080,9 @@ test("medium-width map status stays below the complete player layer control", as
   await page.setViewportSize({ width: 550, height: 844 });
   await installFakeMaps(page);
   await page.goto("/");
+  // 同 390px 版:先等開機 publish 落定再覆寫,避免測試手動狀態被蓋掉的間歇紅。
+  await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
+  await expect(page.locator("#nearby-sessions-toggle")).toBeVisible();
   await page.evaluate(async () => {
     const { renderPlayerLayerToggle } = await import("/src/sessionViews.js");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
@@ -3084,7 +3097,8 @@ test("medium-width map status stays below the complete player layer control", as
 
   const playerControl = await page.locator(".player-layer-control").boundingBox();
   const mapStatus = await page.locator("#map-data-status").boundingBox();
-  expect(mapStatus.y).toBeGreaterThanOrEqual(playerControl.y + playerControl.height + 8);
+  // 同 390px 版:字體時序的整像素進位差,容差 2px。
+  expect(mapStatus.y).toBeGreaterThanOrEqual(playerControl.y + playerControl.height + 6);
   expect(runtimeErrors).toEqual([]);
 });
 

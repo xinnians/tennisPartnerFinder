@@ -114,10 +114,14 @@
 .map-controls { display: contents; }
 .player-layer-control { position: absolute; z-index: 6; top: 112px; left: clamp(12px, 3vw, 30px); display: grid; justify-items: start; gap: 5px; }
 .player-layer-actions { display: flex; flex-wrap: wrap; gap: 7px; }
-#player-layer-toggle { min-height: 38px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); box-shadow: var(--elevation-1); }
-#player-layer-toggle.is-active { border-color: var(--color-court); background: var(--color-court); color: var(--color-surface-card); }
-/* 批 A-8:#player-layer-toggle 換皮完成,圓角/陰影已與 #player-directory-open 一致。 */
 #player-directory-open { min-height: 38px; border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); box-shadow: var(--elevation-1); }
+
+/* 批 D3:右下控制直欄(dc L81-86):44px 白鈕 1.5px ink 框;
+   「顯示在線」開啟態 ink 反相 signal icon(dc L958)。定位在 peek 列上方。 */
+.map-zoom-controls { position: absolute; z-index: var(--z-map-controls); right: 14px; bottom: calc(88px + var(--bottom-navigation-offset)); display: flex; flex-direction: column; gap: 8px; }
+.map-zoom-controls button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1.5px solid var(--color-ink); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); color: var(--color-ink); font-family: var(--font-mono); font-weight: 600; font-size: 20px; line-height: 1; box-shadow: 0 4px 12px rgba(18, 41, 28, 0.16); transition: transform 0.1s; }
+.map-zoom-controls button:active { transform: scale(0.92); }
+#player-layer-toggle.is-active { background: var(--color-ink); color: var(--color-signal); }
 .player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: var(--color-ink); color: var(--color-surface-card); font-size: var(--text-sm); font-weight: 700; }
 
 .presence-settings { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-success-bg); }

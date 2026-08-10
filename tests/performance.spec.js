@@ -421,6 +421,8 @@ test("a 390×667 open drawer reveals at least 1 session card without scrolling",
 
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
+  // 等 qmSheetUp 進場動畫收斂再量,避免拿到滑入中的幾何。
+  await page.locator("#nearby-sessions-list").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
 
   const measurement = await page.evaluate(() => {
     const list = document.getElementById("nearby-sessions-list");

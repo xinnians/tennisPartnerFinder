@@ -20,6 +20,7 @@ import {
   renderSessionPins,
   setUserLocation,
   subscribeToMapIdle,
+  zoomMapBy,
 } from "./map.js";
 import {
   acceptSessionParticipant,
@@ -1300,6 +1301,9 @@ function init() {
   renderMeDestination();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
+  // 批 D3:右下控制直欄縮放;地圖不可用(fallback 模式)時為安全 no-op。
+  document.getElementById("map-zoom-in")?.addEventListener("click", () => zoomMapBy(1));
+  document.getElementById("map-zoom-out")?.addEventListener("click", () => zoomMapBy(-1));
   document.getElementById("player-layer-toggle").addEventListener("click", () => controller.togglePlayerLayer());
   document.getElementById("player-directory-open").addEventListener("click", () => controller.openPlayerDirectory());
   document.querySelector(".app-brand").addEventListener("click", (event) => {

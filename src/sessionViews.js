@@ -3529,7 +3529,12 @@ export function renderPlayerLayerToggle(button, { message = "", on = false, stat
   if (!button) return;
   button.setAttribute("aria-pressed", String(Boolean(on)));
   button.classList.toggle("is-active", Boolean(on));
-  button.textContent = on ? "隱藏在線" : "顯示在線";
+  // 批 D3:toggle 改為控制直欄的 icon 鈕,可讀文字住在 visually-hidden span
+  //(佈局不吃字寬,測試與 SR 讀到的字不變);找不到 span 時退回整鈕文字。
+  const layerText = on ? "隱藏在線" : "顯示在線";
+  const layerTextNode = button.querySelector("[data-player-layer-text]");
+  if (layerTextNode) layerTextNode.textContent = layerText;
+  else button.textContent = layerText;
   const statusRoot = document.getElementById("player-layer-status");
   if (!statusRoot) return;
   statusRoot.hidden = !message;
