@@ -269,6 +269,9 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
     const { openCreateSessionSheet } = await import("/src/sessionViews.js");
     openCreateSessionSheet({ courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }] });
   });
+  // 批 D5:開球局改全螢幕殼,「×」變成左上 40px→44px 返回鈕,aria-label 沿用
+  // 「關閉開球局」不變;成功頁預設 hidden,不進 tab 序列,所以殼內最後一個可
+  // tab 到的元素仍是固定底鈕(發布球局)。
   const createSheet = page.getByRole("dialog", { name: "開球局" });
   const createClose = createSheet.getByRole("button", { name: "關閉開球局" });
   const createSubmit = createSheet.getByTestId("session-submit");
@@ -278,17 +281,22 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   await createSubmit.press("Tab");
   await expect(createClose).toBeFocused();
 
-  // B-6 摺疊：summary 本身是 tab stop；details 收合時內部欄位（NTRP／費用說明／備註）不進 tab 序列。
+  // 批 D5:「進階設定」details/summary 退場,改用 mode-conditional 區塊(hidden
+  // 屬性驅動)。同一個「非目前分支的欄位不進焦點/tab 序列」不變量改驗證:切到
+  // 候選模式後,候選球場 grid 可聚焦、已定模式的球場 grid 變 hidden;切回去則相反。
   const createForm = createSheet.getByTestId("session-form");
-  const instantJoinMode = createForm.locator("input[name='joinMode'][value='instant']");
-  const advancedSummary = createForm.locator(".form-optional summary");
-  await instantJoinMode.focus();
-  await instantJoinMode.press("Tab");
-  await expect(advancedSummary).toBeFocused();
-  await advancedSummary.press("Tab");
-  await expect(createSubmit).toBeFocused();
-  await createSubmit.press("Shift+Tab");
-  await expect(advancedSummary).toBeFocused();
+  await createForm.getByTestId("session-venue-candidates").click();
+  await expect(createForm.getByTestId("session-candidate-courts")).toBeVisible();
+  await expect(createForm.getByTestId("session-court")).toBeHidden();
+  const firstCandidateCourt = createForm.getByTestId("create-candidate-court-8");
+  await firstCandidateCourt.focus();
+  await expect(firstCandidateCourt).toBeFocused();
+  await createForm.getByTestId("create-mode-fixed").click();
+  await expect(createForm.getByTestId("session-court")).toBeVisible();
+  await expect(createForm.getByTestId("session-candidate-courts")).toBeHidden();
+  const firstFixedCourt = createForm.getByTestId("create-court-8");
+  await firstFixedCourt.focus();
+  await expect(firstFixedCourt).toBeFocused();
 
   await page.keyboard.press("Escape");
   await expect(createTrigger).toBeFocused();

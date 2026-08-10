@@ -3316,25 +3316,22 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await expect(page.getByTestId("session-create-modal")).toBeVisible();
   await expect(createSheet.getByText(disclosure)).toBeVisible();
   await expect(createSheet.locator("[data-ntrp-explanation]")).toHaveText(ntrpExplanation);
-  await expect(form.locator('input[name="joinMode"][value="instant"]')).toBeChecked();
+  // 批 D5:「直接加入」原生 radio 退場,改 toggle-switch,預設仍是開(instant)。
+  await expect(form.getByTestId("create-instant-toggle")).toHaveAttribute("aria-checked", "true");
   await expect(createSheet).toContainText(
     "選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。"
   );
-  await expect
-    .poll(() =>
-      form
-        .locator("[data-testid='session-court'], [data-testid='session-start-at'], [data-testid='session-play-type'], [data-testid='session-slots-1']")
-        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")))
-    )
-    .toEqual(["session-court", "session-start-at", "session-play-type", "session-slots-1"]);
 
+  // 批 D5:「現在開打」移入時間 chips 列首,仍寫回同一顆 session-start-at(現為
+  // hidden input),語意不變。
   await form.getByTestId("session-now-start").click();
   await expect(form.getByTestId("session-start-at")).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 
-  await form.getByTestId("session-court").selectOption("8");
-  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
-  await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-1").check();
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-09:00").click();
+  await form.getByTestId("create-play-type-單打").click();
   await form.getByTestId("session-submit").click();
   await expect(form.getByRole("alert")).toContainText("本機示範資料僅供瀏覽");
   await expect(createSheet).toBeVisible();
@@ -3531,29 +3528,34 @@ test("create sheet submits a walk-on session with one authoritative court", asyn
     });
   });
 
+  // 批 D5:session-venue-walk-on 錨點退場(已定/候選 segmented 只剩兩鍵,
+  // 已訂場/走場改由單一 toggle 表達)。walk_on = fixed 模式 + 已訂場 toggle
+  // 保持關閉(預設態),所以這裡完全不用碰 toggle;下一行直接斷言它仍是關閉的,
+  // 確認「什麼都不點就是 walk_on」這個推導路徑。
   const form = page.getByTestId("session-form");
-  await form.getByTestId("session-venue-walk-on").check();
-  await expect(form.getByTestId("session-venue-walk-on")).toBeChecked();
+  await expect(form.getByTestId("session-venue-booked")).toHaveAttribute("aria-checked", "false");
   await expect(form.getByTestId("session-court")).toBeVisible();
   await expect(form.getByTestId("session-candidate-courts")).toBeHidden();
-  await form.getByTestId("session-court").selectOption("8");
-  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
-  await form.getByTestId("session-play-type").selectOption("單打");
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-09:00").click();
   await form.getByTestId("session-submit").click();
 
   await expect.poll(() => page.evaluate(() => window.__walkOnCreatePayload)).toMatchObject({
     candidateCourtIds: null,
     courtId: 8,
     joinMode: "instant",
+    playType: "雙打",
     rangeEnd: null,
-    slotsTotal: 1,
-    startAt: "2099-07-18T01:30:00.000Z",
+    slotsTotal: 2,
+    startAt: "2099-07-18T01:00:00.000Z",
     venueType: "walk_on",
   });
   expect(runtimeErrors).toEqual([]);
 });
 
-test("create sheet submits legal required fields with advanced settings left collapsed and optional fields null", async ({ page }) => {
+test("create sheet submits sensible defaults when only a court and start time are chosen", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3569,25 +3571,30 @@ test("create sheet submits legal required fields with advanced settings left col
     });
   });
 
+  // 批 D5:「進階設定」收合區退場,NTRP 改「找的程度」chips(預設「不限」)、
+  // 打法 chips(預設「雙打」)、缺額 stepper(預設 2)——除了球場與時間,其餘皆有
+  // 產品預設值,不點也送得出合法 payload。
   const form = page.getByTestId("session-form");
-  await expect(form.locator(".form-optional")).not.toHaveAttribute("open");
-  await form.getByTestId("session-court").selectOption("8");
-  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
-  await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-1").check();
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-09:00").click();
   await form.getByTestId("session-submit").click();
 
   await expect.poll(() => page.evaluate(() => window.__collapsedCreatePayload)).toMatchObject({
     feeNote: null,
+    joinMode: "instant",
     notes: null,
     ntrpMax: null,
     ntrpMin: null,
+    playType: "雙打",
+    slotsTotal: 2,
+    venueType: "walk_on",
   });
-  await expect(form.locator(".form-optional")).not.toHaveAttribute("open");
   expect(runtimeErrors).toEqual([]);
 });
 
-test("create sheet progressively discloses all three venue types and submits candidate courts as an array", async ({ page }) => {
+test("create sheet switches to candidate mode and submits up to three candidate courts as an array", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3595,51 +3602,164 @@ test("create sheet progressively discloses all three venue types and submits can
   await page.evaluate(async () => {
     const { openCreateSessionSheet } = await import("/src/sessionViews.js");
     window.__stage4bCreatePayload = null;
+    window.__stage4bToasts = [];
     openCreateSessionSheet({
       courts: [
         { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
         { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
         { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
+        { city: "台北市", district: "松山區", id: 11, name: "第四球場" },
       ],
       onSubmit: async (payload) => {
         window.__stage4bCreatePayload = payload;
       },
+      toast: (message) => window.__stage4bToasts.push(message),
     });
   });
 
   const sheet = page.locator("#session-create-modal");
   const form = sheet.getByTestId("session-form");
-  await expect(form.getByTestId("session-venue-booked")).toBeChecked();
-  await expect(form.getByTestId("session-court")).toBeVisible();
-  await expect(form.getByTestId("session-candidate-courts")).toBeHidden();
-  await expect(form.getByTestId("session-range-end")).toBeHidden();
-
-  await form.getByTestId("session-venue-walk-on").check();
+  await expect(form.getByTestId("create-mode-fixed")).toHaveAttribute("aria-pressed", "true");
   await expect(form.getByTestId("session-court")).toBeVisible();
   await expect(form.getByTestId("session-candidate-courts")).toBeHidden();
 
-  await form.getByTestId("session-venue-candidates").check();
+  // 批 D5:候選模式改由 segmented「先列候選」單鍵切換(session-venue-candidates
+  // 錨點改掛在這顆鈕上),不再是三值 radio 之一。
+  await form.getByTestId("session-venue-candidates").click();
+  await expect(form.getByTestId("session-venue-candidates")).toHaveAttribute("aria-pressed", "true");
   await expect(form.getByTestId("session-court")).toBeHidden();
   await expect(form.getByTestId("session-candidate-courts")).toBeVisible();
-  await expect(form.getByTestId("session-range-end")).toBeVisible();
-  await form.getByTestId("session-candidate-courts").selectOption(["8", "9", "10"]);
-  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
-  await form.getByTestId("session-range-end").fill("2099-07-18T12:00");
-  await form.getByTestId("session-play-type").selectOption("雙打");
-  await expect(form.getByTestId("session-slots-3")).toBeChecked();
-  await form.getByTestId("session-slots-2").check();
-  await form.locator(".form-optional summary").click();
-  await form.getByLabel("費用說明（選填，最多 500 字）").fill("每人 150 元");
+
+  await form.getByTestId("create-candidate-court-8").click();
+  await form.getByTestId("create-candidate-court-9").click();
+  await form.getByTestId("create-candidate-court-10").click();
+  // 已選滿 3 座後再點第 4 座:擋下並丟 toast,不動既有 3 個選取(dc §2 上限規則)。
+  await form.getByTestId("create-candidate-court-11").click();
+  await expect.poll(() => page.evaluate(() => window.__stage4bToasts)).toEqual(["候選最多 3 個"]);
+  await expect(form.getByTestId("create-candidate-court-11")).not.toHaveClass(/is-selected/);
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-slot-afternoon").click();
+  // 缺幾位 stepper:+1 到 3 再 −1 回 2,證明 stepper 本身可雙向運作。
+  await form.getByTestId("create-need-plus").click();
+  await expect(form.getByTestId("create-need-value")).toHaveText("3");
+  await form.getByTestId("create-need-minus").click();
+  await expect(form.getByTestId("create-need-value")).toHaveText("2");
+  await form.getByTestId("session-fee-note").fill("每人 150 元");
   await form.getByTestId("session-submit").click();
 
   await expect.poll(() => page.evaluate(() => window.__stage4bCreatePayload)).toMatchObject({
     candidateCourtIds: [8, 9, 10],
     courtId: null,
     feeNote: "每人 150 元",
-    rangeEnd: "2099-07-18T04:00:00.000Z",
+    rangeEnd: "2099-07-18T09:00:00.000Z",
     slotsTotal: 2,
     venueType: "candidates",
   });
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("create sheet blocks publish with guidance toast until the venue requirement is met", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__blockedToasts = [];
+    window.__blockedSubmitCount = 0;
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
+      onSubmit: async () => {
+        window.__blockedSubmitCount += 1;
+      },
+      toast: (message) => window.__blockedToasts.push(message),
+    });
+  });
+
+  // 批 D5 決策 13:底鈕沒有 native disabled,未完成點擊只由 toast 引導,submit
+  // 事件本身不可觸發 onSubmit。這裡完全不選球場/時間就點發布。
+  const form = page.getByTestId("session-form");
+  await form.getByTestId("session-submit").click();
+  await expect.poll(() => page.evaluate(() => window.__blockedToasts)).toEqual(["先選好球場與開始時間"]);
+  expect(await page.evaluate(() => window.__blockedSubmitCount)).toBe(0);
+
+  await form.getByTestId("session-venue-candidates").click();
+  await form.getByTestId("session-submit").click();
+  await expect.poll(() => page.evaluate(() => window.__blockedToasts)).toEqual([
+    "先選好球場與開始時間",
+    "先選 2–3 個候選球場與時段",
+  ]);
+  expect(await page.evaluate(() => window.__blockedSubmitCount)).toBe(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("create sheet switches to its own success page after publish and routes 查看我的球局 through onViewMySessions", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__viewMySessionsCalls = [];
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
+      onSubmit: async () => ({ sessionId: 555 }),
+      onViewMySessions: (sessionId) => window.__viewMySessionsCalls.push(sessionId),
+    });
+  });
+
+  const sheet = page.locator("#session-create-modal");
+  const form = sheet.getByTestId("session-form");
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-19:00").click();
+  await form.getByTestId("session-submit").click();
+
+  // 批 D5 決策 14:成功後 sheet 不自動關閉,改在同一張 sheet 內切到成功頁。
+  await expect(form).toBeHidden();
+  const doneTitle = sheet.getByTestId("create-done-title");
+  await expect(doneTitle).toBeVisible();
+  await expect(doneTitle).toBeFocused();
+  await expect(sheet.getByTestId("create-done-card")).toContainText("示範球場");
+  await expect(sheet.getByTestId("create-done-card")).toContainText("雙打");
+  await expect(sheet.getByTestId("create-done-card")).toContainText("缺 2");
+  await expect(sheet.getByTestId("create-done-card")).toContainText("19:00");
+
+  await sheet.getByTestId("create-done-view-my-sessions").click();
+  await expect(sheet).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.__viewMySessionsCalls)).toEqual([555]);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("create sheet success page's 回到地圖 closes without triggering My Sessions navigation", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    window.__viewMySessionsCalls = [];
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
+      onSubmit: async () => ({ sessionId: 556 }),
+      onViewMySessions: (sessionId) => window.__viewMySessionsCalls.push(sessionId),
+    });
+  });
+
+  const sheet = page.locator("#session-create-modal");
+  const form = sheet.getByTestId("session-form");
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-19:00").click();
+  await form.getByTestId("session-submit").click();
+  await expect(sheet.getByTestId("create-done-title")).toBeVisible();
+
+  await sheet.getByTestId("create-done-back-to-map").click();
+  await expect(sheet).toBeHidden();
+  expect(await page.evaluate(() => window.__viewMySessionsCalls)).toEqual([]);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -3810,21 +3930,23 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await expect(profile.getByTestId("profile-court-10")).not.toBeChecked();
   await page.keyboard.press("Escape");
 
+  // 批 D5:球場改 grid 而非 select,「草稿」已經是 JS state(form 物件)而非讀
+  // DOM——courts 延遲抵達時只重繪 grid 選項,不會動到其他欄位已寫入的 state,
+  // 所以這裡改成驗證「courts 就緒前填的其他欄位在 setCourts 之後還在」。
   await page.evaluate(async () => {
     const { openCreateSessionSheet } = await import("/src/sessionViews.js");
     window.__delayedCreateSheet = openCreateSessionSheet({ courts: [], courtsReady: false });
   });
   const create = page.locator("#session-create-modal");
   const form = create.getByTestId("session-form");
-  const createCourts = form.getByTestId("session-court");
-  await expect(createCourts).toBeDisabled();
-  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
-  await form.getByTestId("session-play-type").selectOption("單打");
-  await form.getByTestId("session-slots-2").check();
-  await form.locator(".form-optional summary").click();
-  await form.locator("#session-ntrp-min").fill("3.0");
-  await form.locator("#session-ntrp-max").fill("4.0");
-  await form.locator("#session-notes").fill("保留這段草稿");
+  const createCourtsStatus = form.locator("[data-create-courts-status]");
+  await expect(createCourtsStatus).toContainText("正在載入台北市球場…");
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-09:00").click();
+  await form.getByTestId("create-play-type-單打").click();
+  await form.getByTestId("create-band-lo").click();
+  await form.getByTestId("session-notes").fill("保留這段草稿");
   await page.evaluate(() =>
     window.__delayedCreateSheet.setCourts(
       [
@@ -3834,15 +3956,14 @@ test("delayed Taipei court options hydrate open profile and create forms without
       { ready: true }
     )
   );
-  await expect(createCourts).toBeEnabled();
-  await expect(createCourts.locator("option")).toHaveText(["請選擇球場", "示範球場 · 大安區"]);
-  await expect(form.getByTestId("session-start-at")).toHaveValue("2099-07-18T09:30");
-  await expect(form.getByTestId("session-play-type")).toHaveValue("單打");
-  await expect(form.getByTestId("session-slots-2")).toBeChecked();
-  await expect(form.locator("#session-ntrp-min")).toHaveValue("3.0");
-  await expect(form.locator("#session-ntrp-max")).toHaveValue("4.0");
-  await expect(form.locator("#session-notes")).toHaveValue("保留這段草稿");
-  await createCourts.selectOption("8");
+  await expect(createCourtsStatus).toBeHidden();
+  await expect(form.getByTestId("session-court")).toContainText("示範球場");
+  await expect(form.getByTestId("session-court").locator("[data-role='court']")).toHaveCount(1);
+  await expect(form.getByTestId("session-start-at")).toHaveValue("2099-07-18T09:00");
+  await expect(form.getByTestId("create-play-type-單打")).toHaveClass(/is-selected/);
+  await expect(form.getByTestId("create-band-lo")).toHaveClass(/is-selected/);
+  await expect(form.getByTestId("session-notes")).toHaveValue("保留這段草稿");
+  await form.getByTestId("create-court-8").click();
   await page.evaluate(() =>
     window.__delayedCreateSheet.setCourts(
       [
@@ -3852,7 +3973,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
       { ready: true }
     )
   );
-  await expect(createCourts).toHaveValue("8");
+  await expect(form.getByTestId("create-court-8")).toHaveClass(/is-selected/);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -4267,38 +4388,37 @@ test("the create form asks about the venue situation and offers three play types
   const createSheet = page.locator("#session-create-modal");
   const form = createSheet.getByTestId("session-form");
 
-  // B-1：第一題改問處境，三個 value 與 testid 不變。
-  await expect(form.locator("legend").first()).toHaveText("場地確定了嗎？");
-  await expect(form.getByTestId("session-venue-booked")).toHaveValue("booked");
-  await expect(form.getByTestId("session-venue-walk-on")).toHaveValue("walk_on");
-  await expect(form.getByTestId("session-venue-candidates")).toHaveValue("candidates");
-  await expect(createSheet).toContainText("已訂好場地");
-  await expect(createSheet).toContainText("球場確定，但要現場排隊");
-  await expect(createSheet).toContainText("還沒確定，先列候選");
-  await expect(createSheet).toContainText("公共球場現場輪流，人到齊不保證馬上有場地。");
+  // 批 D5:場地情境改問「已定球場／先列候選」segmented + 「已訂場」toggle;
+  // 舊三值 radio 與其逐條說明文案退場,新版由 segmented 標籤 + toggle 副標接手。
+  await expect(form.getByTestId("create-mode-fixed")).toHaveText("已定球場");
+  await expect(form.getByTestId("session-venue-candidates")).toHaveText("先列候選");
+  await expect(createSheet).toContainText("已預訂場地，費用到場均分。");
+  await expect(createSheet).toContainText("候選模式先不填訂場");
 
-  // B-3：建局打法三個（正向量前提在先，反向斷言才有意義）。
-  const playTypeOptions = form.getByTestId("session-play-type").locator("option:not([value=''])");
-  await expect(playTypeOptions).toHaveCount(3);
-  await expect(playTypeOptions).toHaveText(["單打", "雙打", "練球"]);
-  await expect(form.getByTestId("session-play-type").locator("option[value='對拉']")).toHaveCount(0);
+  // 打法三個 chips（正向量前提在先，反向斷言才有意義）。
+  const playTypeChips = form.locator('[data-role="play-type"]');
+  await expect(playTypeChips).toHaveCount(3);
+  await expect(playTypeChips).toHaveText(["單打", "雙打", "練球"]);
+  await expect(form.getByTestId("create-play-type-對拉")).toHaveCount(0);
   await expect(createSheet).toContainText("練球｜餵球、對拉、發球等不計分的練習。");
 
-  // B-4：缺額三顆按鈕與文案。
-  const slotButtons = form.locator(".slots-options label");
-  await expect(slotButtons).toHaveCount(3);
+  // 缺幾位改 stepper，文案保留。
+  await expect(form.getByTestId("create-need-value")).toHaveText("2");
   await expect(createSheet).toContainText("不含你自己。");
 
-  // 單打→1、雙打→3 的連動保留。
-  await form.getByTestId("session-play-type").selectOption("單打");
-  await expect(form.getByTestId("session-slots-1")).toBeChecked();
-  await form.getByTestId("session-play-type").selectOption("雙打");
-  await expect(form.getByTestId("session-slots-3")).toBeChecked();
+  // 單打→1、雙打→3 的連動保留（stepper 版）。
+  await form.getByTestId("create-play-type-單打").click();
+  await expect(form.getByTestId("create-need-value")).toHaveText("1");
+  await form.getByTestId("create-play-type-雙打").click();
+  await expect(form.getByTestId("create-need-value")).toHaveText("3");
 
-  // 手動改選仍送得出正確的值。
-  await form.getByTestId("session-slots-2").check();
-  await form.getByTestId("session-court").selectOption("8");
-  await form.getByTestId("session-start-at").fill("2099-07-18T09:30");
+  // 手動改選（− 一次)仍送得出正確的值。
+  await form.getByTestId("create-need-minus").click();
+  await expect(form.getByTestId("create-need-value")).toHaveText("2");
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-09:00").click();
   await form.getByTestId("session-submit").click();
   await expect.poll(() => page.evaluate(() => window.__createdInput?.slotsTotal)).toBe(2);
   await expect.poll(() => page.evaluate(() => window.__createdInput?.playType)).toBe("雙打");

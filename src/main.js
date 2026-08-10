@@ -410,12 +410,20 @@ function openProfileCompletion({
   return mounted;
 }
 
-function openCreateSession({ courts: selectableCourts, courtsReady: formCourtsReady, onClose, onSubmit } = {}) {
+function openCreateSession({
+  courts: selectableCourts,
+  courtsReady: formCourtsReady,
+  onClose,
+  onSubmit,
+  onViewMySessions,
+} = {}) {
   return openCreateSessionSheet({
     courts: selectableCourts ?? courts,
     courtsReady: formCourtsReady ?? courtsReady,
     onClose,
     onSubmit,
+    onViewMySessions,
+    toast,
   });
 }
 

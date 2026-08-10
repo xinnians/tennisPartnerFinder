@@ -446,10 +446,6 @@ function taipeiDateTimeLocalValue(value = new Date(), { includeMilliseconds = fa
   return includeMilliseconds ? `${secondValue}.${String(taipei.getUTCMilliseconds()).padStart(3, "0")}` : includeSeconds ? secondValue : minuteValue;
 }
 
-function taipeiNowStartValue(now = new Date()) {
-  return taipeiDateTimeLocalValue(now);
-}
-
 function ntrpEndpoint(value) {
   const number = Number(value);
   return Number.isFinite(number) && number >= 1 && number <= 7 && Number.isInteger(number * 2) ? number : null;
@@ -2983,161 +2979,649 @@ export function openProfileCompletionSheet({
   return { ...mounted, setCourts };
 }
 
-/** A single, scrollable Taipei create-session sheet with all required fields first. */
-export function openCreateSessionSheet({ courts = [], courtsReady = true, onClose = () => {}, onSubmit = async () => {} } = {}) {
+// ============================================================
+// 批 D5(v2 改版):開球局改全螢幕計分板流程。dc 抽取規格(§0-8)逐字值見批次
+// 派工單;此區塊只放 create 表單專用的純函式(可單元測試),DOM 組裝在
+// openCreateSessionSheet 內。CREATE_NTRP_BANDS 與 D4a 篩選 BANDS(filters.js)
+// 的 0/9 哨兵無關,兩者刻意不共用——建局表單的「不限」要落地成 ntrpMin/Max
+// 皆 null(既有 validateCreateSessionInput 的「選填」語意),不是字面 1..7,
+// 否則詳情頁與篩選會把「不限」誤顯示成「NTRP 1.0–7.0」。
+const CREATE_DATE_CHIP_KEYS = ["today", "tomorrow", "sat", "sun"];
+const CREATE_DATE_CHIP_WORDS = { today: "今天", tomorrow: "明天", sat: "週六", sun: "週日" };
+const CREATE_TIME_PRESETS = ["06:30", "08:00", "09:00", "14:00", "17:00", "18:00", "19:00", "20:00", "21:00"];
+const CREATE_TIME_MIN_MINUTES = 360; // 06:00(dc bumpTime 邊界)
+const CREATE_TIME_MAX_MINUTES = 1320; // 22:00 — 抽取規格明白指出不是 21:45
+const CREATE_TIME_CUSTOM_DEFAULT = "19:30";
+export const CREATE_SLOT_OPTIONS = [
+  { endHour: 10, key: "morning", label: "早上 06–10", startHour: 6 },
+  { endHour: 17, key: "afternoon", label: "下午 14–17", startHour: 14 },
+  { endHour: 22, key: "evening", label: "晚上 18–22", startHour: 18 },
+];
+export const CREATE_NTRP_BANDS = [
+  { key: "any", label: "不限", max: null, min: null },
+  { key: "lo", label: "≤ 3.0", max: 3, min: 1 },
+  { key: "mid", label: "3.0–4.0", max: 4, min: 3 },
+  { key: "hi", label: "4.0–5.0", max: 5, min: 4 },
+  { key: "pro", label: "5.0 +", max: 7, min: 5 },
+];
+
+function freshCreateSessionForm() {
+  return {
+    band: "any", // dc 預設 mid 是原型假資料;「不限」才符合現行選填語意,回報標注
+    booked: false,
+    candCourts: {},
+    court: null,
+    customDate: "",
+    dateKey: "today",
+    feeNote: "",
+    instant: true,
+    mode: "fixed",
+    need: 2,
+    note: "",
+    nowStart: false,
+    slot: null,
+    time: null,
+    timeCustom: false,
+    type: "雙打",
+  };
+}
+
+/** venueType 由「已定球場／先列候選」segmented + 「已訂場」toggle 推導,單元測試覆蓋。 */
+export function deriveCreateVenueType(mode, booked) {
+  if (mode === "cand") return "candidates";
+  return booked ? "booked" : "walk_on";
+}
+
+/** 建局專用 NTRP 區間映射;'any' 回傳 null/null(=不限,對映 validateCreateSessionInput 的選填語意)。 */
+export function createNtrpRangeForBand(bandKey) {
+  const band = CREATE_NTRP_BANDS.find((candidate) => candidate.key === bandKey) ?? CREATE_NTRP_BANDS[0];
+  return { ntrpMax: band.max, ntrpMin: band.min };
+}
+
+/** 日期 chip 推導出的實際日期(週六/週日=下一個該星期日,今天即週六則同今天)。 */
+export function createDateChipDate(key, now = new Date()) {
+  const parts = taipeiParts(now);
+  if (!parts) return now;
+  const daysAhead = { sat: (6 - parts.weekday + 7) % 7, sun: (0 - parts.weekday + 7) % 7, today: 0, tomorrow: 1 }[key];
+  return daysAhead == null ? now : new Date(now.getTime() + daysAhead * 86_400_000);
+}
+
+function createDateChipLabel(key, now = new Date()) {
+  const word = CREATE_DATE_CHIP_WORDS[key];
+  if (!word) return "自訂";
+  const parts = taipeiParts(createDateChipDate(key, now));
+  return parts ? `${word} ${padTwo(parts.month)}/${padTwo(parts.day)}` : word;
+}
+
+function taipeiDateValue(value, now = new Date()) {
+  const parts = taipeiParts(value ?? now);
+  return parts ? `${parts.year}-${padTwo(parts.month)}-${padTwo(parts.day)}` : "";
+}
+
+/** 表單目前選中的日期(YYYY-MM-DD,Taipei);'custom' 用使用者填的 customDate。 */
+export function resolveCreateDateValue(form, now = new Date()) {
+  if (form.dateKey === "custom") return form.customDate || "";
+  return taipeiDateValue(createDateChipDate(form.dateKey, now), now);
+}
+
+/** ±15 分鐘 stepper,邊界 06:00–22:00(見抽取規格「找不到/需注意」)。 */
+export function bumpCreateTimeMinutes(time, deltaMinutes) {
+  const [hourText, minuteText] = String(time || CREATE_TIME_CUSTOM_DEFAULT).split(":");
+  let minutes = Number(hourText) * 60 + Number(minuteText) + deltaMinutes;
+  minutes = Math.max(CREATE_TIME_MIN_MINUTES, Math.min(CREATE_TIME_MAX_MINUTES, minutes));
+  return `${padTwo(Math.floor(minutes / 60))}:${padTwo(minutes % 60)}`;
+}
+
+/** 已定模式:日期＋時間組成 datetime-local 字串,交給既有 validateCreateSessionInput。 */
+export function createFixedStartAtLocal(form, now = new Date()) {
+  const dateValue = resolveCreateDateValue(form, now);
+  if (!dateValue || !form.time) return "";
+  return `${dateValue}T${form.time}`;
+}
+
+/** 候選模式:日期＋時段起訖組成 startAtLocal/rangeEndLocal。 */
+export function createCandidateWindowLocal(form, now = new Date()) {
+  const dateValue = resolveCreateDateValue(form, now);
+  const slot = CREATE_SLOT_OPTIONS.find((option) => option.key === form.slot);
+  if (!dateValue || !slot) return { rangeEndLocal: "", startAtLocal: "" };
+  return {
+    rangeEndLocal: `${dateValue}T${padTwo(slot.endHour)}:00`,
+    startAtLocal: `${dateValue}T${padTwo(slot.startHour)}:00`,
+  };
+}
+
+/** 底鈕守門(dc canPublish,§7):候選=候選≥2＋時段已選;已定=球場＋時間已選。 */
+export function createSessionFormCanPublish(form) {
+  if (form.mode === "cand") {
+    const count = Object.values(form.candCourts).filter(Boolean).length;
+    return count >= 2 && Boolean(form.slot);
+  }
+  return Boolean(form.court) && Boolean(form.time);
+}
+
+/** 把表單狀態轉成 validateCreateSessionInput 吃的原始欄位(字串/陣列),不改動該函式本身的契約。 */
+export function createSessionFormRawInput(form, now = new Date()) {
+  const isCandidate = form.mode === "cand";
+  const venueType = deriveCreateVenueType(form.mode, form.booked);
+  const { ntrpMax, ntrpMin } = createNtrpRangeForBand(form.band);
+  const candidateWindow = isCandidate ? createCandidateWindowLocal(form, now) : null;
+  return {
+    candidateCourtIds: isCandidate
+      ? Object.keys(form.candCourts).filter((id) => form.candCourts[id])
+      : [],
+    courtId: isCandidate ? "" : (form.court ?? ""),
+    feeNote: form.feeNote,
+    joinMode: form.instant ? "instant" : "approval",
+    notes: form.note,
+    ntrpMax: ntrpMax == null ? "" : String(ntrpMax),
+    ntrpMin: ntrpMin == null ? "" : String(ntrpMin),
+    playType: form.type,
+    rangeEndLocal: isCandidate ? candidateWindow.rangeEndLocal : "",
+    slotsTotal: String(form.need),
+    startAtLocal: isCandidate ? candidateWindow.startAtLocal : createFixedStartAtLocal(form, now),
+    venueType,
+  };
+}
+
+function createCourtCellMarkup(court, { role, selected }) {
+  const testPrefix = role === "court" ? "create-court" : "create-candidate-court";
+  return `<button type="button" class="create-v2__court-cell${selected ? " is-selected" : ""}" data-role="${esc(
+    role
+  )}" data-value="${esc(court.id)}" data-testid="${testPrefix}-${esc(court.id)}">
+    <span class="create-v2__court-name">${esc(court.name)}</span>
+    <span class="create-v2__court-sub">${esc(court.district || "台北市")}</span>
+  </button>`;
+}
+
+/** 開球局全螢幕流程(批 D5):計分板視覺,含成功頁;大量複用 D1/D4 語彙。 */
+export function openCreateSessionSheet({
+  courts = [],
+  courtsReady = true,
+  onClose = () => {},
+  onSubmit = async () => {},
+  onViewMySessions = () => {},
+  toast = () => {},
+} = {}) {
+  const now = () => new Date();
+  const form = freshCreateSessionForm();
   const mounted = mountSheet({
     id: "session-create-modal",
     label: "開球局",
-    className: "create-session-sheet",
+    className: "create-v2",
     onClose,
     html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">開球局</p><h2>建立你的下一場球局</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉開球局">×</button>
+      <div class="create-v2__head" data-screen-label="開球局">
+        <button type="button" class="create-v2__back" data-surface-close aria-label="關閉開球局">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div><p class="surface__eyebrow">HOST A MATCH</p><h2>開球局</h2></div>
       </div>
-      <form class="create-session-form" data-testid="session-form" novalidate>
-        <fieldset class="form-fieldset"><legend>場地確定了嗎？</legend><div class="option-grid option-grid--stacked">
-          <label><input type="radio" name="venueType" value="booked" data-testid="session-venue-booked" checked /> <span>已訂好場地<small>時間與球場都確定了。</small></span></label>
-          <label><input type="radio" name="venueType" value="walk_on" data-testid="session-venue-walk-on" /> <span>球場確定，但要現場排隊<small>公共球場現場輪流，人到齊不保證馬上有場地。</small></span></label>
-          <label><input type="radio" name="venueType" value="candidates" data-testid="session-venue-candidates" /> <span>還沒確定，先列候選<small>先列 2–3 座候選球場與時間範圍，之後再定案通知大家。</small></span></label>
-        </div></fieldset>
-        <div class="form-field" data-single-court-fields><label for="session-court">台北市球場</label><select id="session-court" name="courtId" data-testid="session-court" required disabled></select><p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p></div>
-        <div class="form-field" data-candidate-court-fields hidden><label for="session-candidate-courts">候選球場（選擇 2–3 座）</label><select id="session-candidate-courts" name="candidateCourtIds" data-testid="session-candidate-courts" multiple size="4" disabled></select><p class="form-hint" data-create-candidate-courts-status role="status" aria-live="polite"></p><p class="form-hint" data-candidate-selection-hint>請選擇 2 到 3 座球場，之後再定案場地與時間。</p></div>
-        <div class="form-field"><div class="form-field__label-row"><label for="session-start-at">台北時間</label><button type="button" class="session-secondary" data-now-start data-testid="session-now-start">現在開打</button></div><input id="session-start-at" name="startAtLocal" data-testid="session-start-at" type="datetime-local" required /></div>
-        <label class="form-field" for="session-range-end" data-candidate-range-field hidden><span>時間範圍結束</span><input id="session-range-end" name="rangeEndLocal" data-testid="session-range-end" type="datetime-local" disabled /></label>
-        <div class="form-field"><label for="session-play-type">打法</label><select id="session-play-type" name="playType" data-testid="session-play-type" required aria-describedby="session-play-type-hint"><option value="">請選擇打法</option>${CREATE_SESSION_PLAY_TYPES.map(
-          (type) => `<option value="${esc(type)}">${esc(type)}</option>`
-        ).join("")}</select><p class="form-hint" id="session-play-type-hint">${esc(PLAY_TYPE_HINT)}</p></div>
-        <fieldset class="form-fieldset"><legend>還缺幾位</legend><div class="slots-options">${[1, 2, 3]
-          .map(
-            (value) =>
-              `<label><input type="radio" name="slotsTotal" value="${value}" data-testid="session-slots-${value}" /><span>${value} 位</span></label>`
-          )
-          .join("")}</div><p class="form-hint">不含你自己。</p></fieldset>
-        <fieldset class="form-fieldset"><legend>加入方式</legend>
-          <label><input type="radio" name="joinMode" value="approval" /> 需審核（你逐一核准申請者）</label>
-          <label><input type="radio" name="joinMode" value="instant" checked /> 直接加入（先到先得，立即成局）</label>
-          <p class="form-hint">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。</p>
-        </fieldset>
-        <details class="form-optional"><summary>進階設定（選填）</summary>
-        <fieldset class="form-fieldset"><legend>適合程度（選填）</legend><div class="form-row"><label class="form-field" for="session-ntrp-min"><span>最低 NTRP</span><input id="session-ntrp-min" name="ntrpMin" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label><label class="form-field" for="session-ntrp-max"><span>最高 NTRP</span><input id="session-ntrp-max" name="ntrpMax" type="number" min="1" max="7" step="0.5" inputmode="decimal" /></label></div><p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p></fieldset>
-        <label class="form-field" for="session-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="session-fee-note" name="feeNote" maxlength="500" rows="2"></textarea></label>
-        <label class="form-field" for="session-notes"><span>備註（選填，最多 500 字）</span><textarea id="session-notes" name="notes" maxlength="500" rows="4"></textarea></label>
-        </details>
-        <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
-        <p class="form-error" data-create-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-testid="session-submit">建立球局</button>
-      </form>`,
+      <div class="create-v2__scroll qm-scroll">
+        <form class="create-v2__form" data-testid="session-form" novalidate>
+          <section class="create-v2__card">
+            <p class="create-v2__label">球場</p>
+            <div class="create-v2__segmented" role="group" aria-label="場地確定了嗎？">
+              <button type="button" class="create-v2__seg-btn" data-role="mode" data-value="fixed" data-testid="create-mode-fixed" aria-pressed="true">已定球場</button>
+              <button type="button" class="create-v2__seg-btn" data-role="mode" data-value="cand" data-testid="session-venue-candidates" aria-pressed="false">先列候選</button>
+            </div>
+            <div data-single-court-fields>
+              <div class="create-v2__court-grid qm-scroll" data-testid="session-court" role="group" aria-label="選擇球場"></div>
+              <p class="form-hint" data-create-courts-status role="status" aria-live="polite"></p>
+            </div>
+            <div data-candidate-court-fields hidden>
+              <p class="create-v2__hint" data-candidate-selection-hint></p>
+              <div class="create-v2__court-grid qm-scroll" data-testid="session-candidate-courts" role="group" aria-label="候選球場（最多 3 座）"></div>
+              <p class="form-hint" data-create-candidate-courts-status role="status" aria-live="polite"></p>
+            </div>
+          </section>
+
+          <section class="create-v2__card">
+            <p class="create-v2__label">日期</p>
+            <div class="create-v2__chip-row" role="group" aria-label="日期">
+              ${CREATE_DATE_CHIP_KEYS.map(
+                (key) =>
+                  `<button type="button" class="chip chip--form" data-role="date" data-value="${esc(
+                    key
+                  )}" data-testid="create-date-${esc(key)}">${esc(createDateChipLabel(key, now()))}</button>`
+              ).join("")}
+              <button type="button" class="chip chip--form" data-role="date" data-value="custom" data-testid="create-date-custom">自訂</button>
+            </div>
+            <p class="create-v2__custom-date" data-custom-date-field hidden>
+              <input type="date" data-testid="create-date-custom-input" aria-label="自訂日期" />
+            </p>
+
+            <div data-candidate-slot-fields hidden>
+              <p class="create-v2__label create-v2__label--mt">時段範圍</p>
+              <div class="create-v2__chip-row" role="group" aria-label="時段範圍">
+                ${CREATE_SLOT_OPTIONS.map(
+                  (option) =>
+                    `<button type="button" class="chip chip--time" data-role="slot" data-value="${esc(
+                      option.key
+                    )}" data-testid="create-slot-${esc(option.key)}">${esc(option.label)}</button>`
+                ).join("")}
+              </div>
+            </div>
+
+            <div data-fixed-time-fields>
+              <p class="create-v2__label create-v2__label--mt">開始時間</p>
+              <div class="create-v2__chip-row create-v2__chip-row--scroll qm-scroll" role="group" aria-label="開始時間">
+                <button type="button" class="chip chip--time" data-role="time-now" data-testid="session-now-start">現在開打</button>
+                ${CREATE_TIME_PRESETS.map(
+                  (time) =>
+                    `<button type="button" class="chip chip--time" data-role="time" data-value="${esc(
+                      time
+                    )}" data-testid="create-time-${esc(time)}">${esc(time)}</button>`
+                ).join("")}
+                <button type="button" class="chip chip--time" data-role="time-custom" data-testid="create-time-custom">自訂</button>
+              </div>
+              <div class="create-v2__stepper" data-time-stepper hidden>
+                <p class="create-v2__stepper-label">自訂開始（每 15 分）</p>
+                <button type="button" class="create-v2__stepper-btn" data-role="time-step" data-value="-15" data-testid="create-time-minus" aria-label="開始時間往前 15 分">−</button>
+                <output class="create-v2__stepper-value" data-testid="create-time-value">${esc(CREATE_TIME_CUSTOM_DEFAULT)}</output>
+                <button type="button" class="create-v2__stepper-btn" data-role="time-step" data-value="15" data-testid="create-time-plus" aria-label="開始時間往後 15 分">＋</button>
+              </div>
+            </div>
+            <input type="hidden" name="startAtLocal" data-testid="session-start-at" />
+          </section>
+
+          <section class="create-v2__card">
+            <p class="create-v2__label">打法</p>
+            <div class="create-v2__chip-row" role="group" aria-label="打法">
+              ${CREATE_SESSION_PLAY_TYPES.map(
+                (type) =>
+                  `<button type="button" class="chip chip--form" data-role="play-type" data-value="${esc(
+                    type
+                  )}" data-testid="create-play-type-${esc(type)}">${esc(type)}</button>`
+              ).join("")}
+            </div>
+            <p class="form-hint">${esc(PLAY_TYPE_HINT)}</p>
+            <p class="create-v2__label create-v2__label--mt">找的程度</p>
+            <div class="create-v2__chip-row" role="group" aria-label="找的程度">
+              ${CREATE_NTRP_BANDS.map(
+                (band) =>
+                  `<button type="button" class="chip chip--time" data-role="band" data-value="${esc(
+                    band.key
+                  )}" data-testid="create-band-${esc(band.key)}">${esc(band.label)}</button>`
+              ).join("")}
+            </div>
+            <p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p>
+          </section>
+
+          <section class="create-v2__card">
+            <div class="create-v2__stepper-row">
+              <p class="create-v2__stepper-title">缺幾位</p>
+              <button type="button" class="create-v2__stepper-btn" data-role="need-step" data-value="-1" data-testid="create-need-minus" aria-label="缺額減少一位">−</button>
+              <output class="create-v2__stepper-value create-v2__stepper-value--lg" data-testid="create-need-value">2</output>
+              <button type="button" class="create-v2__stepper-btn" data-role="need-step" data-value="1" data-testid="create-need-plus" aria-label="缺額增加一位">＋</button>
+            </div>
+            <p class="form-hint">不含你自己。</p>
+            <input type="hidden" name="slotsTotal" data-testid="session-slots-value" />
+
+            <div class="create-v2__toggle-row">
+              <div class="create-v2__toggle-copy">
+                <p class="create-v2__toggle-title">直接加入</p>
+                <p class="create-v2__toggle-sub">選擇直接加入後，已填暱稱且 NTRP 符合球局範圍的球友會直接加入；未填 NTRP 或超出範圍者會改為申請，由你審核。加入後可在球局群組聊天協調。</p>
+              </div>
+              <button type="button" class="toggle-switch" role="switch" data-role="instant-toggle" data-testid="create-instant-toggle" aria-checked="true" aria-label="直接加入：已開啟"></button>
+            </div>
+
+            <div class="create-v2__toggle-row" data-booked-toggle-field>
+              <div class="create-v2__toggle-copy">
+                <p class="create-v2__toggle-title">已訂場</p>
+                <p class="create-v2__toggle-sub">已預訂場地，費用到場均分。</p>
+              </div>
+              <button type="button" class="toggle-switch" role="switch" data-role="booked-toggle" data-testid="session-venue-booked" aria-checked="false" aria-label="已訂場：已關閉"></button>
+            </div>
+            <p class="create-v2__hint" data-candidate-booked-alt hidden>候選模式先不填訂場 — 定案球場後再補訂場資訊，成員會收到通知。</p>
+          </section>
+
+          <section class="create-v2__card">
+            <label class="create-v2__label" for="session-fee-note">費用說明（選填，最多 500 字）</label>
+            <textarea id="session-fee-note" class="create-v2__textarea" data-testid="session-fee-note" maxlength="500" rows="2"></textarea>
+            <label class="create-v2__label create-v2__label--mt" for="session-notes">備註（選填，最多 500 字）</label>
+            <textarea id="session-notes" class="create-v2__textarea" data-testid="session-notes" maxlength="500" rows="4" placeholder="球風、注意事項、集合方式…"></textarea>
+          </section>
+
+          <div class="create-v2__footer" data-create-footer>
+            <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
+            <p class="form-error" data-create-error role="alert" hidden></p>
+            <button type="submit" class="create-v2__publish" data-testid="session-submit">發布球局</button>
+          </div>
+        </form>
+
+        <div class="create-v2__done" data-create-done hidden>
+          <div class="create-v2__done-badge" aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <h3 class="create-v2__done-title" tabindex="-1" data-testid="create-done-title">球局已發布！</h3>
+          <p class="create-v2__done-copy">已出現在地圖上，<br />有人報名時會通知你。</p>
+          <div class="create-v2__done-card" data-testid="create-done-card">
+            <div class="time-tile time-tile--done"><span class="time-tile__start" data-done-time></span><span class="time-tile__date" data-done-date></span></div>
+            <div class="create-v2__done-card-copy">
+              <p class="create-v2__done-court" data-done-court></p>
+              <p class="create-v2__done-meta" data-done-meta></p>
+            </div>
+            <span class="slots-brick" data-done-need></span>
+          </div>
+          <button type="button" class="session-primary create-v2__done-primary" data-testid="create-done-view-my-sessions">查看我的球局</button>
+          <button type="button" class="create-v2__done-secondary" data-testid="create-done-back-to-map">回到地圖</button>
+        </div>
+      </div>`,
   });
-  const form = mounted.root.querySelector("[data-testid='session-form']");
-  const error = mounted.root.querySelector("[data-create-error]");
-  const submit = mounted.root.querySelector("[data-testid='session-submit']");
-  const startAtInput = mounted.root.querySelector("[data-testid='session-start-at']");
-  const nowStartButton = mounted.root.querySelector("[data-now-start]");
-  const courtSelect = mounted.root.querySelector("[data-testid='session-court']");
-  const candidateCourtSelect = mounted.root.querySelector("[data-testid='session-candidate-courts']");
-  const courtsStatus = mounted.root.querySelector("[data-create-courts-status]");
-  const candidateCourtsStatus = mounted.root.querySelector("[data-create-candidate-courts-status]");
-  const candidateSelectionHint = mounted.root.querySelector("[data-candidate-selection-hint]");
-  const singleCourtFields = mounted.root.querySelector("[data-single-court-fields]");
-  const candidateCourtFields = mounted.root.querySelector("[data-candidate-court-fields]");
-  const candidateRangeField = mounted.root.querySelector("[data-candidate-range-field]");
-  const rangeEndInput = mounted.root.querySelector("[data-testid='session-range-end']");
-  const playTypeSelect = mounted.root.querySelector("[data-testid='session-play-type']");
-  const setSlotsTotal = (value) => {
-    mounted.root.querySelectorAll("[name='slotsTotal']").forEach((radio) => {
-      radio.checked = radio.value === String(value);
-    });
-  };
-  let availableCourts = courts;
-  let courtOptionsReady = courtsReady;
-  const selectedCandidateIds = () =>
-    new Set([...(candidateCourtSelect?.selectedOptions ?? [])].map((option) => option.value));
-  const updateCandidateHint = () => {
-    if (!candidateSelectionHint) return;
-    const count = selectedCandidateIds().size;
-    candidateSelectionHint.textContent =
-      count === 1
-        ? "只選一座球場時，請改用「已訂場」或「現場等場」。"
-        : count >= 2
-          ? `已選 ${count} 座球場。`
-          : "請選擇 2 到 3 座球場，之後再定案場地與時間。";
-  };
-  const syncVenueFields = () => {
-    const venueType = form?.querySelector("[name='venueType']:checked")?.value ?? "booked";
-    const candidates = venueType === "candidates";
-    if (singleCourtFields) singleCourtFields.hidden = candidates;
-    if (candidateCourtFields) candidateCourtFields.hidden = !candidates;
-    if (candidateRangeField) candidateRangeField.hidden = !candidates;
-    if (courtSelect) {
-      courtSelect.required = !candidates;
-      courtSelect.disabled = candidates || !courtOptionsReady || courtSelect.options.length <= 1;
-    }
-    if (candidateCourtSelect) {
-      candidateCourtSelect.required = candidates;
-      candidateCourtSelect.disabled = !candidates || !courtOptionsReady || candidateCourtSelect.options.length === 0;
-    }
-    if (rangeEndInput) {
-      rangeEndInput.required = candidates;
-      rangeEndInput.disabled = !candidates;
-    }
-    updateCandidateHint();
-  };
-  const setCourts = (nextCourts, { ready = true } = {}) => {
-    availableCourts = nextCourts;
-    courtOptionsReady = ready;
-    updateCourtSelect(courtSelect, courtsStatus, nextCourts, {
-      ready,
-      selected: selectedCourtValues(courtSelect),
-    });
-    updateCourtSelect(candidateCourtSelect, candidateCourtsStatus, nextCourts, {
-      multiple: true,
-      ready,
-      selected: selectedCourtValues(candidateCourtSelect),
-    });
-    syncVenueFields();
-  };
-  setCourts(availableCourts, { ready: courtOptionsReady });
-  form?.querySelectorAll("[name='venueType']").forEach((input) => input.addEventListener("change", syncVenueFields));
-  candidateCourtSelect?.addEventListener("change", updateCandidateHint);
-  playTypeSelect?.addEventListener("change", () => {
-    if (playTypeSelect.value === "單打") setSlotsTotal(1);
-    if (playTypeSelect.value === "雙打") setSlotsTotal(3);
-  });
-  nowStartButton?.addEventListener("click", () => {
-    if (!(startAtInput instanceof HTMLInputElement)) return;
-    startAtInput.value = taipeiNowStartValue();
-    startAtInput.focus();
-  });
+
+  const surface = mounted.surface;
+  const formElement = surface.querySelector("[data-testid='session-form']");
+  const doneSection = surface.querySelector("[data-create-done]");
+  const footer = surface.querySelector("[data-create-footer]");
+  const errorNode = surface.querySelector("[data-create-error]");
+  const publishButton = surface.querySelector("[data-testid='session-submit']");
+  const fixedCourtFields = surface.querySelector("[data-single-court-fields]");
+  const candidateCourtFields = surface.querySelector("[data-candidate-court-fields]");
+  const fixedCourtGrid = surface.querySelector("[data-testid='session-court']");
+  const candidateCourtGrid = surface.querySelector("[data-testid='session-candidate-courts']");
+  const courtsStatus = surface.querySelector("[data-create-courts-status]");
+  const candidateCourtsStatus = surface.querySelector("[data-create-candidate-courts-status]");
+  const candidateSelectionHint = surface.querySelector("[data-candidate-selection-hint]");
+  const customDateField = surface.querySelector("[data-custom-date-field]");
+  const customDateInput = surface.querySelector("[data-testid='create-date-custom-input']");
+  const fixedTimeFields = surface.querySelector("[data-fixed-time-fields]");
+  const candidateSlotFields = surface.querySelector("[data-candidate-slot-fields]");
+  const timeStepper = surface.querySelector("[data-time-stepper]");
+  const timeStepperValue = surface.querySelector("[data-testid='create-time-value']");
+  const needValue = surface.querySelector("[data-testid='create-need-value']");
+  const instantToggle = surface.querySelector("[data-testid='create-instant-toggle']");
+  const bookedToggle = surface.querySelector("[data-testid='session-venue-booked']");
+  const bookedToggleField = surface.querySelector("[data-booked-toggle-field]");
+  const candidateBookedAlt = surface.querySelector("[data-candidate-booked-alt]");
+  const startAtHiddenInput = surface.querySelector("[data-testid='session-start-at']");
+  const slotsHiddenInput = surface.querySelector("[data-testid='session-slots-value']");
+  const doneTitle = surface.querySelector("[data-testid='create-done-title']");
+  const doneTime = surface.querySelector("[data-done-time]");
+  const doneDate = surface.querySelector("[data-done-date]");
+  const doneCourt = surface.querySelector("[data-done-court]");
+  const doneMeta = surface.querySelector("[data-done-meta]");
+  const doneNeed = surface.querySelector("[data-done-need]");
+  const feeNoteInput = surface.querySelector("[data-testid='session-fee-note']");
+  const notesInput = surface.querySelector("[data-testid='session-notes']");
+
+  let availableCourts = taipeiCourts(courts);
+  let courtsReadyFlag = Boolean(courtsReady);
+  let stage = "form";
   let submitting = false;
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (submitting) return;
-    const formData = new FormData(form);
-    const validation = validateCreateSessionInput({
-      ...Object.fromEntries(formData.entries()),
-      candidateCourtIds: formData.getAll("candidateCourtIds"),
+  let doneSessionId = null;
+
+  function renderCourtGrids() {
+    const ready = courtsReadyFlag && availableCourts.length > 0;
+    if (fixedCourtGrid) {
+      fixedCourtGrid.innerHTML = ready
+        ? availableCourts
+            .map((court) => createCourtCellMarkup(court, { role: "court", selected: Number(court.id) === form.court }))
+            .join("")
+        : "";
+    }
+    if (candidateCourtGrid) {
+      candidateCourtGrid.innerHTML = ready
+        ? availableCourts
+            .map((court) => createCourtCellMarkup(court, { role: "cand-court", selected: Boolean(form.candCourts[court.id]) }))
+            .join("")
+        : "";
+    }
+    const statusText = !courtsReadyFlag ? "正在載入台北市球場…" : availableCourts.length ? "" : "目前沒有可選的台北市球場。";
+    if (courtsStatus) {
+      courtsStatus.hidden = ready;
+      courtsStatus.textContent = statusText;
+    }
+    if (candidateCourtsStatus) {
+      candidateCourtsStatus.hidden = ready;
+      candidateCourtsStatus.textContent = statusText;
+    }
+  }
+
+  function sync() {
+    const isCand = form.mode === "cand";
+    surface.querySelectorAll('[data-role="mode"]').forEach((button) => {
+      const active = button.dataset.value === form.mode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
     });
+    if (fixedCourtFields) fixedCourtFields.hidden = isCand;
+    if (candidateCourtFields) candidateCourtFields.hidden = !isCand;
+    if (fixedTimeFields) fixedTimeFields.hidden = isCand;
+    if (candidateSlotFields) candidateSlotFields.hidden = !isCand;
+    if (bookedToggleField) bookedToggleField.hidden = isCand;
+    if (candidateBookedAlt) candidateBookedAlt.hidden = !isCand;
+
+    surface.querySelectorAll('[data-role="court"]').forEach((button) => {
+      button.classList.toggle("is-selected", Number(button.dataset.value) === form.court);
+    });
+    surface.querySelectorAll('[data-role="cand-court"]').forEach((button) => {
+      button.classList.toggle("is-selected", Boolean(form.candCourts[button.dataset.value]));
+    });
+    const candCount = Object.values(form.candCourts).filter(Boolean).length;
+    if (candidateSelectionHint) {
+      candidateSelectionHint.innerHTML = `還沒訂到場？先列 2–3 個候選，之後再定案（已選 <span class="create-v2__mono">${candCount}</span>/3）`;
+    }
+
+    surface.querySelectorAll('[data-role="date"]').forEach((button) => {
+      button.classList.toggle("is-selected", button.dataset.value === form.dateKey);
+    });
+    if (customDateField) customDateField.hidden = form.dateKey !== "custom";
+    if (customDateInput && customDateInput.value !== form.customDate) customDateInput.value = form.customDate || "";
+
+    surface.querySelectorAll('[data-role="slot"]').forEach((button) => {
+      button.classList.toggle("is-selected", button.dataset.value === form.slot);
+    });
+
+    surface.querySelectorAll('[data-role="time"]').forEach((button) => {
+      button.classList.toggle("is-selected", button.dataset.value === form.time && !form.timeCustom && !form.nowStart);
+    });
+    surface.querySelector('[data-role="time-now"]')?.classList.toggle("is-selected", form.nowStart);
+    surface.querySelector('[data-role="time-custom"]')?.classList.toggle("is-selected", form.timeCustom);
+    if (timeStepper) timeStepper.hidden = !form.timeCustom;
+    if (timeStepperValue) timeStepperValue.textContent = form.time || CREATE_TIME_CUSTOM_DEFAULT;
+
+    surface.querySelectorAll('[data-role="play-type"]').forEach((button) => {
+      button.classList.toggle("is-selected", button.dataset.value === form.type);
+    });
+    surface.querySelectorAll('[data-role="band"]').forEach((button) => {
+      button.classList.toggle("is-selected", button.dataset.value === form.band);
+    });
+
+    if (needValue) needValue.textContent = String(form.need);
+    if (slotsHiddenInput) slotsHiddenInput.value = String(form.need);
+    if (startAtHiddenInput) {
+      startAtHiddenInput.value = isCand
+        ? createCandidateWindowLocal(form, now()).startAtLocal
+        : createFixedStartAtLocal(form, now());
+    }
+
+    if (instantToggle) {
+      instantToggle.setAttribute("aria-checked", String(form.instant));
+      instantToggle.setAttribute("aria-label", `直接加入：${form.instant ? "已開啟" : "已關閉"}`);
+    }
+    if (bookedToggle) {
+      bookedToggle.setAttribute("aria-checked", String(form.booked));
+      bookedToggle.setAttribute("aria-label", `已訂場：${form.booked ? "已開啟" : "已關閉"}`);
+    }
+
+    const ready = createSessionFormCanPublish(form);
+    if (publishButton) {
+      publishButton.classList.toggle("is-ready", ready);
+      publishButton.textContent = ready ? "發布球局" : isCand ? "選 2–3 個候選與時段" : "選好球場與開始時間";
+    }
+  }
+
+  renderCourtGrids();
+  sync();
+
+  function showError(message) {
+    if (!errorNode) return;
+    errorNode.hidden = false;
+    errorNode.textContent = message;
+  }
+
+  function hideError() {
+    if (!errorNode) return;
+    errorNode.hidden = true;
+    errorNode.textContent = "";
+  }
+
+  function showDone(value, result) {
+    stage = "done";
+    doneSessionId = result?.sessionId ?? null;
+    if (doneTime) doneTime.textContent = taipeiClock(value.startAt);
+    if (doneDate) doneDate.textContent = taipeiTileDate(value.startAt);
+    const isCand = value.venueType === "candidates";
+    const courtId = isCand ? value.candidateCourtIds?.[0] : value.courtId;
+    const court = availableCourts.find((candidate) => String(candidate.id) === String(courtId));
+    if (doneCourt) doneCourt.textContent = court?.name ?? "球場待確認";
+    if (doneMeta) {
+      doneMeta.textContent = isCand
+        ? `候選 ${value.candidateCourtIds?.length ?? 0} 座球場・${court?.district ?? "台北市"}`
+        : `${value.playType}・${court?.district ?? "台北市"}`;
+    }
+    if (doneNeed) doneNeed.textContent = `缺 ${value.slotsTotal}`;
+    if (formElement) formElement.hidden = true;
+    if (footer) footer.hidden = true;
+    if (doneSection) doneSection.hidden = false;
+    requestAnimationFrame(() => doneTitle?.focus({ preventScroll: true }));
+  }
+
+  surface.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-role]");
+    if (!target || target.disabled) return;
+    const role = target.dataset.role;
+    if (role === "mode") {
+      form.mode = target.dataset.value;
+      sync();
+    } else if (role === "court") {
+      form.court = Number(target.dataset.value);
+      sync();
+    } else if (role === "cand-court") {
+      const id = target.dataset.value;
+      const isOn = Boolean(form.candCourts[id]);
+      const selectedCount = Object.values(form.candCourts).filter(Boolean).length;
+      if (!isOn && selectedCount >= 3) {
+        toast("候選最多 3 個");
+        return;
+      }
+      const nextCandCourts = { ...form.candCourts, [id]: !isOn };
+      if (!nextCandCourts[id]) delete nextCandCourts[id];
+      form.candCourts = nextCandCourts;
+      sync();
+    } else if (role === "date") {
+      form.dateKey = target.dataset.value;
+      if (form.dateKey === "custom" && !form.customDate) form.customDate = taipeiDateValue(now(), now());
+      form.nowStart = false;
+      sync();
+    } else if (role === "slot") {
+      form.slot = target.dataset.value;
+      sync();
+    } else if (role === "time") {
+      form.time = target.dataset.value;
+      form.timeCustom = false;
+      form.nowStart = false;
+      sync();
+    } else if (role === "time-custom") {
+      form.time = form.timeCustom ? form.time || CREATE_TIME_CUSTOM_DEFAULT : CREATE_TIME_CUSTOM_DEFAULT;
+      form.timeCustom = true;
+      form.nowStart = false;
+      sync();
+    } else if (role === "time-now") {
+      const current = now();
+      form.dateKey = "today";
+      form.customDate = "";
+      form.time = taipeiClock(current);
+      form.timeCustom = false;
+      form.nowStart = true;
+      sync();
+    } else if (role === "time-step") {
+      form.time = bumpCreateTimeMinutes(form.time, Number(target.dataset.value));
+      form.nowStart = false;
+      sync();
+    } else if (role === "play-type") {
+      // 既有連動保留:單打→1、雙打→3(練球不動,沿用改版前 playTypeSelect change
+      // 行為)。原生 select 的 change 只在值真的變動時觸發,這裡改用 click 委派要
+      // 自行擋掉「重點已選中的 chip」,否則手動調過的缺額會被無謂地推翻覆寫。
+      const changed = target.dataset.value !== form.type;
+      form.type = target.dataset.value;
+      if (changed) {
+        if (form.type === "單打") form.need = 1;
+        else if (form.type === "雙打") form.need = 3;
+      }
+      sync();
+    } else if (role === "band") {
+      form.band = target.dataset.value;
+      sync();
+    } else if (role === "need-step") {
+      form.need = Math.max(1, Math.min(3, form.need + Number(target.dataset.value)));
+      sync();
+    } else if (role === "instant-toggle") {
+      form.instant = !form.instant;
+      sync();
+    } else if (role === "booked-toggle") {
+      form.booked = !form.booked;
+      sync();
+    }
+  });
+
+  customDateInput?.addEventListener("change", () => {
+    form.dateKey = "custom";
+    form.customDate = customDateInput.value;
+    form.nowStart = false;
+    sync();
+  });
+
+  // 費用說明／備註是自由輸入,不影響任何其他控件的視覺狀態,只更新 state,
+  // 不呼叫 sync()(避免每個按鍵都重掃全表單,也不需要——這兩個欄位沒有衍生視覺)。
+  feeNoteInput?.addEventListener("input", () => {
+    form.feeNote = feeNoteInput.value;
+  });
+  notesInput?.addEventListener("input", () => {
+    form.note = notesInput.value;
+  });
+
+  surface.querySelector('[data-testid="create-done-view-my-sessions"]')?.addEventListener("click", () => {
+    mounted.close({ reason: "view-my-sessions", restoreFocus: false });
+    onViewMySessions(doneSessionId);
+  });
+  surface.querySelector('[data-testid="create-done-back-to-map"]')?.addEventListener("click", () => {
+    mounted.close();
+  });
+
+  formElement?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submitting || stage !== "form") return;
+    if (!createSessionFormCanPublish(form)) {
+      toast(form.mode === "cand" ? "先選 2–3 個候選球場與時段" : "先選好球場與開始時間");
+      return;
+    }
+    const validation = validateCreateSessionInput(createSessionFormRawInput(form, now()));
     if (!validation.valid) {
-      error.hidden = false;
-      error.textContent = Object.values(validation.errors)[0];
+      showError(Object.values(validation.errors)[0]);
       return;
     }
     submitting = true;
-    submit.disabled = true;
-    error.hidden = true;
+    if (publishButton) publishButton.disabled = true;
+    hideError();
     try {
-      await onSubmit(validation.value, () => mounted.close({ reason: "complete" }));
+      const result = await onSubmit(validation.value);
+      showDone(validation.value, result);
     } catch (submitError) {
-      error.hidden = false;
-      error.textContent = submitError?.message || "建立球局失敗，請稍後再試。";
+      showError(submitError?.message || "建立球局失敗，請稍後再試。");
     } finally {
-      if (mounted.root.contains(submit)) {
-        submitting = false;
-        submit.disabled = false;
-      }
+      submitting = false;
+      if (mounted.root.contains(publishButton)) publishButton.disabled = false;
     }
   });
+
+  const setCourts = (nextCourts, { ready = true } = {}) => {
+    availableCourts = taipeiCourts(nextCourts);
+    courtsReadyFlag = Boolean(ready);
+    renderCourtGrids();
+    sync();
+  };
+
   return { ...mounted, setCourts };
 }
 

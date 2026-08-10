@@ -891,6 +891,128 @@
 .player-invite-success { margin: 0; padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-success); font-weight: 700; }
 .player-invite-empty { display: grid; justify-items: start; }
 
+/* ============================================================
+   批 D5(v2 改版):開球局改全螢幕計分板流程(dc §1-6)。大量複用 D1 語彙
+  (.chip/.chip--form/.chip--time/.toggle-switch/.time-tile/.slots-brick/
+   qmSlide/qmPop/--ease-brand/--color-disabled-*),這裡只補全螢幕殼、卡片、
+   segmented、stepper、固定底鈕與成功頁——D1 沒有的部分。
+   ============================================================ */
+
+/* .qm-scroll 是抽取規格 §0 的基礎規則,D1-D4 都還沒有實際呼叫點;這裡是第一個
+   消費者(捲動區與時間 chips 橫捲列都要用),故在此補上定義而非疊加到 D1 段。 */
+.qm-scroll { scrollbar-width: none; }
+.qm-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 殼(dc L474-475):dc 用 position:absolute+z-index:66 疊在自家單頁 app 殼上;
+   本站 #sheet-root 掛在 body 層級,改用既有 .surface 的 fixed 定位語意(z-sheet
+   而非新開一個 66 的一次性數值)才能真正貼滿視窗,不隨 #sheet-root 的父層位置
+   偏移。header 上緣 padding dc 是 52px(assumes 原生 App 瀏海安全區),比照
+   D4a 對 .map-topbar 的既有偏離(14px)改用本站慣用值,不套用原稿 50px+。
+   互動目標:dc 的返回鈕/segmented 都是 40px,依本站既有升級慣例
+  (.session-detail__close 36→44 的同一手法)一律升到 44px,不只在手機斷點才升。 */
+.surface.create-v2 {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-page);
+  animation: qmSlide 0.3s var(--ease-brand);
+}
+.create-v2__head { flex: none; display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
+.create-v2__back { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); cursor: pointer; transition: transform 0.1s; }
+.create-v2__back:active { transform: scale(0.92); }
+.create-v2__head h2 { font-size: var(--text-xl); }
+.create-v2__scroll { position: relative; flex: 1; overflow-y: auto; padding: 4px 16px 130px; }
+
+/* 卡片式區塊共用殼(dc §8):首張無 margin-top,其餘 12px。 */
+.create-v2__card { margin-top: 12px; padding: 14px; border: var(--border-thin); border-radius: var(--radius-lg); background: var(--color-surface-card); }
+.create-v2__card:first-child { margin-top: 0; }
+.create-v2__label { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; letter-spacing: 1px; }
+.create-v2__label--mt { margin: 14px 0 10px; }
+.create-v2__hint { margin: 0 0 8px; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.create-v2__mono { font-family: var(--font-mono); font-weight: 600; }
+
+/* segmented(dc L487-489):40px 升 44px,見殼註解。 */
+.create-v2__segmented { display: flex; height: 44px; margin-bottom: 10px; border: var(--border-strong); border-radius: var(--radius-md); overflow: hidden; }
+.create-v2__seg-btn { flex: 1; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; }
+.create-v2__seg-btn + .create-v2__seg-btn { border-left: var(--border-strong); }
+.create-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
+
+/* 球場卡格(dc L494-497 已定/候選逐字共用):台北市數十座球場,dc 原型只有數座,
+   加內捲上限(批次核可延伸),不做搜尋框。 */
+.create-v2__court-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 320px; overflow-y: auto; }
+.create-v2__court-cell { min-height: 44px; padding: 10px 11px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; cursor: pointer; transition: transform 0.1s; }
+.create-v2__court-cell:active { transform: scale(0.97); }
+.create-v2__court-cell.is-selected { border: var(--border-strong); background: var(--color-ink); }
+.create-v2__court-cell.is-selected .create-v2__court-name { color: var(--color-surface-card); }
+.create-v2__court-cell.is-selected .create-v2__court-sub { color: #9db3a4; }
+.create-v2__court-name { display: block; font-size: 13px; font-weight: 700; line-height: 1.35; }
+.create-v2__court-sub { display: block; margin-top: 2px; color: var(--color-text-secondary); font-size: 11px; }
+
+/* 時間卡:日期 chip 用 .chip.chip--form,時段/開始時間用 .chip.chip--time(D1
+   既有)。這裡只補列容器與橫捲時間列、自訂日期輸入、自訂時間 stepper。 */
+.create-v2__chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.create-v2__chip-row--scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+.create-v2__chip-row--scroll > * { flex: none; }
+.create-v2__custom-date { margin: 8px 0 0; }
+.create-v2__custom-date input { min-height: 44px; width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-sm); background: var(--color-surface-card); color: var(--color-ink); padding: var(--space-2); font: inherit; }
+
+/* 自訂時間 / 缺幾位共用的 ± stepper 列(dc L536-542 與 L568/L570 逐字同款 44px 鈕)。 */
+.create-v2__stepper { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.create-v2__stepper-label { flex: 1; margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); }
+.create-v2__stepper-btn { flex: none; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-family: var(--font-mono); font-weight: 600; font-size: 18px; line-height: 1; cursor: pointer; transition: transform 0.1s; }
+.create-v2__stepper-btn:active { transform: scale(0.9); }
+.create-v2__stepper-value { display: inline-block; width: 64px; text-align: center; font-family: var(--font-mono); font-weight: 600; font-size: 20px; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.create-v2__stepper-value--lg { width: 34px; font-size: var(--text-2xl); }
+.create-v2__stepper-row { display: flex; align-items: center; gap: 12px; }
+.create-v2__stepper-title { flex: 1; margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+
+/* 人數卡的加入方式／已訂場 toggle 列(dc L573 分隔線款式套用到兩列)。 */
+.create-v2__toggle-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-info-bg); }
+.create-v2__toggle-copy { flex: 1; min-width: 0; }
+.create-v2__toggle-title { margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.create-v2__toggle-sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+
+.create-v2__textarea { width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-page); color: var(--color-ink); padding: 11px 13px; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.55; resize: none; outline: none; }
+
+/* 固定底鈕(dc L590-592):漸層座 + 雙態視覺鈕,無 native disabled——未完成點擊
+   由 toast 引導,不擋 submit 事件本身。 */
+/* fix round 1(實測):漸層座視覺上頂端透明,但整個 padded box 預設仍會吃掉
+   點擊——蓋住底下捲動內容(候選程度 chip、缺幾位 stepper 等)點不到。比照
+   .map-topbar 的既有解法:容器本身 pointer-events:none,只有實際子元素(文案/
+   錯誤/按鈕)恢復 auto。 */
+.create-v2__footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 26px; background: linear-gradient(rgba(250, 249, 243, 0), var(--color-surface-page) 30%); pointer-events: none; }
+/* fix round 2(實測):前一版把 pointer-events:auto 還給「所有直接子元素」,
+   disclosure/error 這兩段純文字 <p> 沒有可互動內容,卻仍以整段文字寬度攔截
+   點擊——只有真正可互動的發布鈕需要 auto,文字段落維持 none 讓點擊穿透到
+   捲動內容。 */
+.create-v2__footer .form-disclosure,
+.create-v2__footer .form-error { margin-bottom: var(--space-2); }
+.create-v2__publish { pointer-events: auto; width: 100%; min-height: 54px; border: 0; border-radius: var(--radius-md); background: var(--color-disabled-bg); color: var(--color-disabled-text); font-family: var(--font-body); font-weight: 700; font-size: 16px; cursor: pointer; transition: transform 0.1s; }
+.create-v2__publish:active { transform: scale(0.98); }
+.create-v2__publish.is-ready { background: var(--color-ink); color: var(--color-signal); box-shadow: 0 10px 22px rgba(18, 41, 28, 0.32); }
+
+/* 成功頁(dc §6):qmPop 進場,新球局卡預覽複用 .time-tile(--done 覆寫 60px 版)
+   與 .slots-brick(逐字相符,不再另定義)。 */
+.create-v2__done { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 0 28px 40px; text-align: center; animation: qmPop 0.3s var(--ease-brand); }
+.create-v2__done-badge { display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; border: 2.5px solid var(--color-ink); background: var(--color-signal); color: var(--color-ink); box-shadow: 0 12px 26px rgba(221, 245, 60, 0.5); }
+.create-v2__done-title { margin: 18px 0 0; color: var(--color-ink); font-size: 21px; font-weight: 700; }
+.create-v2__done-copy { margin: 6px 0 0; color: var(--color-text-secondary); font-size: 13.5px; line-height: 1.6; }
+.create-v2__done-card { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 20px; padding: 12px; border: var(--border-strong); border-radius: var(--radius-lg); background: var(--color-surface-card); text-align: left; }
+.time-tile--done { width: 60px; gap: 2px; }
+.create-v2__done-card-copy { flex: 1; min-width: 0; }
+.create-v2__done-court { margin: 0; overflow-wrap: anywhere; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.create-v2__done-meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.create-v2__done-primary { width: 100%; min-height: 52px; margin-top: 22px; }
+.create-v2__done-secondary { width: 100%; min-height: 46px; margin-top: 4px; border: 0; background: none; color: var(--color-text-secondary); font-family: var(--font-body); font-size: var(--text-base); font-weight: 600; cursor: pointer; }
+
 /* 批 D1:toast 改 v2 規格——中置於導覽列上方、signal ✓、qmToast 進場(dc L671-674)。
    偏離稿面兩點:keyframes 的 -50% 位移移到 #toast-root(結構不同),nowrap 改
    overflow-wrap(中文長句在 390px 會爆版,a11y 取捨)。 */
@@ -988,6 +1110,8 @@
 /* ---- toggle 開關 52×31(dc L578 + on/off 值 L1010):
         knob 用 left 位移動畫(照稿),aria-checked 驅動狀態。 ---- */
 .toggle-switch { position: relative; flex: none; width: 52px; height: 31px; padding: 0; border: 1.5px solid var(--color-ink); border-radius: var(--radius-xl); background: var(--color-info-bg); transition: background 0.15s; cursor: pointer; }
+/* dc 軌道 31px 高不足 44px 觸控目標;::after 已被 knob 占用,用 ::before 撐透明熱區(31+7×2=45)。 */
+.toggle-switch::before { content: ""; position: absolute; inset: -7px; }
 .toggle-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 23px; height: 23px; box-sizing: border-box; border: 1.5px solid var(--color-ink); border-radius: 50%; background: var(--color-surface-card); transition: left 0.15s; }
 .toggle-switch[aria-checked="true"] { background: var(--color-ink); }
 .toggle-switch[aria-checked="true"]::after { left: 25px; background: var(--color-signal); }

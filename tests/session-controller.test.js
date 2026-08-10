@@ -252,6 +252,7 @@ function createHarness(overrides = {}) {
   const reportDialogs = [];
   const mySessionChanges = [];
   const toasts = [];
+  const createdSessionCalls = [];
   const session = overrides.session ?? futureSession();
   const api = {
     loadSessionDiscovery: async () => [session],
@@ -343,6 +344,7 @@ function createHarness(overrides = {}) {
     reloadCurrentProfile: overrides.reloadCurrentProfile,
     onMySessionsChange: (nextState) => mySessionChanges.push(nextState),
     intentStore: overrides.intentStore,
+    showCreatedSession: (sessionId) => createdSessionCalls.push(sessionId),
     toast: (message) => toasts.push(message),
     visibilityTarget: overrides.visibilityTarget,
   });
@@ -352,6 +354,7 @@ function createHarness(overrides = {}) {
     chatSheets,
     controller,
     courtDrawers,
+    createdSessionCalls,
     createSheets,
     decisionSheets,
     editSheets,
@@ -2324,6 +2327,129 @@ test("an account switch closes account-bound create and profile forms before the
   await profileHarness.controller.setAuthState({ user: { id: "account-b" } }, { directory: true, nickname: true, ntrp: true });
 
   assert.equal(staleProfile.detail.closeCalls, 1);
+});
+
+// 批 D5:submitCreateSession 不再自動 close()/showCreatedSession()——sheet 留
+// 在原地渲染自己的成功頁,只有使用者點成功頁的「查看我的球局」才觸發
+// onViewMySessions(見 sessionController.js 的 openCreateSessionForIntent)。
+test("create session publish keeps the sheet open for its own success page and defers My Sessions navigation to onViewMySessions", async () => {
+  const created = [];
+  const harness = createHarness({
+    api: {
+      createSession: async (input) => {
+        created.push(input);
+        return { sessionId: 4242 };
+      },
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
+  harness.controller.openCreateIntent();
+  const sheet = harness.createSheets.at(-1);
+
+  const input = { courtId: 8, playType: "雙打", slotsTotal: 2, startAt: "2099-07-18T01:00:00.000Z", venueType: "walk_on" };
+  const result = await sheet.handlers.onSubmit(input);
+
+  assert.deepEqual(created, [input]);
+  assert.equal(result.sessionId, 4242);
+  assert.equal(sheet.detail.closeCalls, 0);
+  assert.deepEqual(harness.createdSessionCalls, []);
+  assert.deepEqual(harness.toasts, ["球局已發布！"]);
+
+  sheet.handlers.onViewMySessions(result.sessionId);
+  assert.deepEqual(harness.createdSessionCalls, [4242]);
+});
+
+test("create session publish still refreshes public and private authority before toasting", async () => {
+  const calls = [];
+  const harness = createHarness({
+    api: {
+      createSession: async () => {
+        calls.push(["create"]);
+        return { sessionId: 1 };
+      },
+      loadSessionDiscovery: async () => {
+        calls.push(["public"]);
+        return [];
+      },
+      loadMySessions: async () => {
+        calls.push(["private"]);
+        return [];
+      },
+    },
+  });
+  await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
+  harness.controller.openCreateIntent();
+  const sheet = harness.createSheets.at(-1);
+  calls.length = 0;
+  await sheet.handlers.onSubmit({ courtId: 8 });
+  assert.ok(calls.some(([kind]) => kind === "public"));
+  assert.ok(calls.some(([kind]) => kind === "private"));
+});
+
+// 批 D5 決策 8/2/13/4-5 的純函式單元覆蓋(venueType 推導、NTRP band 映射、
+// canPublish 守門、日期＋時間組合)——sessionViews.js 是瀏覽器 ESM 模組但函式
+// 本身無 DOM 依賴,node:test 可直接 import 執行。
+test("D5 venueType derivation: fixed+booked=booked, fixed+not booked=walk_on, cand=candidates regardless of booked", async () => {
+  const { deriveCreateVenueType } = await import("../src/sessionViews.js");
+  assert.equal(deriveCreateVenueType("fixed", true), "booked");
+  assert.equal(deriveCreateVenueType("fixed", false), "walk_on");
+  assert.equal(deriveCreateVenueType("cand", true), "candidates");
+  assert.equal(deriveCreateVenueType("cand", false), "candidates");
+});
+
+test("D5 create-form NTRP band mapping: 'any' is null/null (unlimited), others are the labelled numeric range", async () => {
+  const { createNtrpRangeForBand } = await import("../src/sessionViews.js");
+  assert.deepEqual(createNtrpRangeForBand("any"), { ntrpMax: null, ntrpMin: null });
+  assert.deepEqual(createNtrpRangeForBand("lo"), { ntrpMax: 3, ntrpMin: 1 });
+  assert.deepEqual(createNtrpRangeForBand("mid"), { ntrpMax: 4, ntrpMin: 3 });
+  assert.deepEqual(createNtrpRangeForBand("hi"), { ntrpMax: 5, ntrpMin: 4 });
+  assert.deepEqual(createNtrpRangeForBand("pro"), { ntrpMax: 7, ntrpMin: 5 });
+});
+
+test("D5 canPublish gate: fixed needs court+time, candidates needs >=2 courts and a slot", async () => {
+  const { createSessionFormCanPublish } = await import("../src/sessionViews.js");
+  assert.equal(createSessionFormCanPublish({ court: null, mode: "fixed", time: "09:00" }), false);
+  assert.equal(createSessionFormCanPublish({ court: 8, mode: "fixed", time: null }), false);
+  assert.equal(createSessionFormCanPublish({ court: 8, mode: "fixed", time: "09:00" }), true);
+  assert.equal(createSessionFormCanPublish({ candCourts: { 8: true }, mode: "cand", slot: "morning" }), false);
+  assert.equal(createSessionFormCanPublish({ candCourts: { 8: true, 9: true }, mode: "cand", slot: null }), false);
+  assert.equal(createSessionFormCanPublish({ candCourts: { 8: true, 9: true }, mode: "cand", slot: "morning" }), true);
+});
+
+test("D5 fixed-mode date+time combination converts to the datetime-local string validateCreateSessionInput expects", async () => {
+  const { createFixedStartAtLocal } = await import("../src/sessionViews.js");
+  const now = new Date("2026-08-10T04:00:00.000Z"); // 2026-08-10 12:00 Taipei,週一
+  assert.equal(createFixedStartAtLocal({ dateKey: "today", time: "19:00" }, now), "2026-08-10T19:00");
+  assert.equal(createFixedStartAtLocal({ dateKey: "tomorrow", time: "06:30" }, now), "2026-08-11T06:30");
+  // 週六 chip:下一個週六;今天(週一)不是週六,故往前推算到 08/15。
+  assert.equal(createFixedStartAtLocal({ dateKey: "sat", time: "09:00" }, now), "2026-08-15T09:00");
+  assert.equal(createFixedStartAtLocal({ customDate: "2099-01-01", dateKey: "custom", time: "21:00" }, now), "2099-01-01T21:00");
+  assert.equal(createFixedStartAtLocal({ dateKey: "today", time: null }, now), "");
+});
+
+test("D5 candidate-mode date+slot combination derives both startAtLocal and rangeEndLocal from the same day", async () => {
+  const { createCandidateWindowLocal } = await import("../src/sessionViews.js");
+  const now = new Date("2026-08-10T04:00:00.000Z");
+  assert.deepEqual(createCandidateWindowLocal({ dateKey: "today", slot: "morning" }, now), {
+    rangeEndLocal: "2026-08-10T10:00",
+    startAtLocal: "2026-08-10T06:00",
+  });
+  assert.deepEqual(createCandidateWindowLocal({ dateKey: "today", slot: "evening" }, now), {
+    rangeEndLocal: "2026-08-10T22:00",
+    startAtLocal: "2026-08-10T18:00",
+  });
+  assert.deepEqual(createCandidateWindowLocal({ dateKey: "today", slot: null }, now), {
+    rangeEndLocal: "",
+    startAtLocal: "",
+  });
+});
+
+test("D5 custom start-time stepper clamps to 06:00-22:00 in 15-minute steps", async () => {
+  const { bumpCreateTimeMinutes } = await import("../src/sessionViews.js");
+  assert.equal(bumpCreateTimeMinutes("19:30", 15), "19:45");
+  assert.equal(bumpCreateTimeMinutes("19:30", -15), "19:15");
+  assert.equal(bumpCreateTimeMinutes("05:50", -15), "06:00");
+  assert.equal(bumpCreateTimeMinutes("21:50", 15), "22:00");
 });
 
 test("active profile and create forms receive courts loaded after they open", async () => {

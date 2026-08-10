@@ -2055,7 +2055,15 @@ export function createSessionController({
     });
   }
 
-  async function submitCreateSession(input, close, sheet, openedAuthSnapshot = captureAuthSnapshot()) {
+  // 批 D5:全螢幕流程改由 sheet 自己在同一張表單內切換「已發布」成功頁,
+  // controller 不再自動 close()/showCreatedSession()——那兩個動作現在只在使用者
+  // 點成功頁的「查看我的球局」/「回到地圖」時才由 sheet 觸發(見
+  // openCreateSessionForIntent 的 onViewMySessions)。mutation 成功後若 auth 在
+  // discovery/participation refresh 期間變了,一律 throw(不能悄悄略過)——sheet
+  // 收到 throw 會走 inline error 分支,不會渲染成功頁,滿足「auth 變更時不得渲染
+  // 成功頁」的不變量;此為既有「refresh 後 auth 不符就靜默 return」行為的刻意
+  // 收斂,回報標注。
+  async function submitCreateSession(input, openedAuthSnapshot = captureAuthSnapshot()) {
     const authSnapshot = openedAuthSnapshot;
     if (!isCurrentAuthSnapshot(authSnapshot) || !profileMeetsGate(state.profile, "ntrp")) {
       throw new Error("登入或個人檔案狀態已變更，請重新開啟表單。");
@@ -2066,15 +2074,14 @@ export function createSessionController({
         throw new Error("登入狀態已變更，請重新開啟表單。");
       }
       clearIntent({ action: "create" });
-      if (activeCreateSession === sheet) activeCreateSession = null;
-      close?.();
       await Promise.all([
         loadDiscovery(state.bounds),
         reloadParticipation(authSnapshot.epoch, authSnapshot.identity),
       ]);
-      if (!isCurrentAuthSnapshot(authSnapshot)) return result;
-      showCreatedSession(result?.sessionId);
-      toast("已建立球局。");
+      if (!isCurrentAuthSnapshot(authSnapshot)) {
+        throw new Error("登入狀態已變更，請重新整理後再試。");
+      }
+      toast("球局已發布！");
       return result;
     } catch (error) {
       if (error?.name === "DataApiUnavailableError") {
@@ -2095,7 +2102,8 @@ export function createSessionController({
         if (activeCreateSession === sheet) activeCreateSession = null;
         if (reason === "dismiss") clearIntent(intent);
       },
-      onSubmit: (input, close) => submitCreateSession(input, close, sheet, openedAuthSnapshot),
+      onSubmit: (input) => submitCreateSession(input, openedAuthSnapshot),
+      onViewMySessions: (sessionId) => showCreatedSession(sessionId),
     });
     activeCreateSession = sheet?.close ? sheet : null;
     return activeCreateSession;
