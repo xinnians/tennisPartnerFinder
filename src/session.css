@@ -159,20 +159,27 @@
 #player-layer-toggle.is-active { background: var(--color-ink); color: var(--color-signal); }
 .player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: var(--color-ink); color: var(--color-surface-card); font-size: var(--text-sm); font-weight: 700; }
 
-.presence-settings { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-success-bg); }
+.presence-settings { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-success-bg); }
 .presence-settings h2 { margin: 0; color: var(--color-ink); }
 .presence-settings .form-hint { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
 .presence-settings__greeting { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-weight: 700; }
 .player-presence, .player-greeting { color: var(--color-success); font-weight: 700; }
-.player-directory-list { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
-.player-directory-row { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.player-directory-list { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+/* 批 D8:列改 dc §2 逐字結構——44px avatar+名/磚/在線·這是你徽章一行+副行+chevron
+  (原本是縱向堆疊四行純段落,汰換不是疊加,理由同 D4b 檔頭同款註記)。 */
+.player-directory-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: var(--space-3); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); color: var(--color-ink); text-align: left; transition: transform 0.12s; }
 .player-directory-row:hover,
 .player-directory-row:focus-visible { border-color: var(--color-court); background: var(--color-info-bg); }
-.player-directory-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.player-directory-row:active { transform: scale(0.98); }
+.player-directory-row__body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.player-directory-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.player-directory-row__head strong { overflow-wrap: anywhere; font-size: 14.5px; font-weight: 700; }
+.player-directory-row__sub { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12px; }
 .player-directory-row__online,
 .player-directory-row__self { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 700; }
 .player-directory-row__online { background: var(--color-success-bg); color: var(--color-success); }
 .player-directory-row__self { background: var(--color-info-bg); color: var(--color-court); }
+.player-directory-row__chevron { flex: none; color: #9aa79b; /* dc 裝飾箭頭專用色(非文字,AA 豁免),同 .session-card__chevron */ font-size: 18px; line-height: 1; }
 
 /* 批 D4a:第二列 chips 容器(dc L100)——沿用既有 .map-toolbar class 名與行動斷點
    order 慣例,但視覺改為透明、可橫向捲動的 chip 列(overflow-x:auto,隱藏捲軸),
@@ -729,14 +736,28 @@
 .my-sessions-shell__head h1 { margin: 0; color: var(--color-ink); font-size: var(--text-2xl); }
 .my-sessions-shell__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .me-shell { display: grid; width: min(680px, 100%); margin: 0 auto; gap: 18px; }
-.me-shell__head h1 { margin: 0; color: var(--color-ink); font-size: var(--text-2xl); }
+/* ============================================================
+   批 D8(v2 改版):「我」頁改 dc 計分板殼(抽取規格 §1)。頁頭沿用 D6/D7 頁殼模式
+   (.messages-page__head 同款 eyebrow+22px 標題,非 dc §0 的 position:absolute;inset:0
+   覆蓋殼——理由同 D7 檔頭 680 行註記,這裡不重複)。既有六個功能區(個人檔案/球友卡/
+   在線狀態/通知設定/封鎖清單 五個 section + profile 卡)一個都不砍、順序不動,只把
+   卡殼升級成 dc §1 的「白卡 1px line radius 12」語彙(dc L219 逐字 border:1px solid
+   #cfd8cd;border-radius:12px,已映射回 var(--border-thin)/字面 12px;12px 不在
+   --radius 階,同 .nearby-peek__create 一類寫法);.presence-settings 的
+   --color-success-bg 底色是批 A-7 既有語意(分享中狀態),不因這裡「白卡」而洗掉。 */
+.me-page-v2__head { margin-bottom: var(--space-2); }
+.me-page-v2__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 2.5px; color: var(--color-court); }
+.me-page-v2__title { margin: 2px 0 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+/* ---- profile 卡+球友卡共用的「avatar+名/副行+NTRP 磚」一列(dc §1 L219-227、
+   §3 L313-321 同一視覺單位,只有名字 17px/18px 一階之差——見呼叫端 --player 修飾)。 ---- */
+.profile-brick-row { display: flex; align-items: center; gap: 13px; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+.profile-brick-row__copy { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.profile-brick-row__copy strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 700; color: var(--color-ink); }
+.profile-brick-row__copy span { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12.5px; }
+.profile-brick-row--player .profile-brick-row__copy strong { font-size: 18px; }
 .me-identity-card,
 .me-sign-in-card,
-.me-service-links { padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
-.me-identity-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
-.me-identity-card__copy { display: grid; gap: var(--space-1); min-width: 0; color: var(--color-ink); }
-.me-identity-card__copy strong { overflow-wrap: anywhere; font-size: var(--text-lg); }
-.me-identity-card__copy span { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.me-service-links { padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
 .me-sign-in-card { display: grid; justify-items: start; gap: var(--space-2); color: var(--color-ink); }
 .me-sign-in-card h2,
 .me-service-links h2 { margin: 0; color: var(--color-ink); font-size: var(--text-lg); }
@@ -745,13 +766,14 @@
 .me-service-links div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .me-service-links a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); color: var(--color-court); font-size: var(--text-base); font-weight: 700; text-decoration: none; }
 .me-service-links a:focus-visible { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
-.me-identity-card .session-secondary,
 .me-sign-in-card .session-primary { min-width: 44px; min-height: 44px; }
-.player-visibility { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+/* 登出(dc L238):紅字文字鈕,無按壓態,但保留 44px 熱區(a11y 升級,dc 沒有這條)。 */
+.me-sign-out-action { display: block; width: 100%; min-height: 44px; margin-top: 4px; padding: 10px; border: 0; background: none; color: var(--color-danger); font-family: var(--font-body); font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; }
+.player-visibility { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
 .player-visibility h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .player-visibility .form-hint { margin: 0; }
 .player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
-.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
 .me-edit-profile h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .me-edit-profile .form-hint { margin: 0; }
 .me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }
@@ -763,7 +785,7 @@
 .me-page .notification-settings__fieldset label,
 .me-page [data-court-picker-toggle],
 .me-page .blocked-player-settings .session-secondary { min-height: 44px; }
-.notification-settings { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.notification-settings { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
 .notification-settings__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .notification-settings h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .notification-settings .form-hint { margin: 0; }
@@ -782,7 +804,7 @@
 .success-push-prompt { display: grid; flex: 1 1 100%; justify-items: start; gap: var(--space-2); margin: var(--space-2) 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-ink); }
 .success-push-prompt p { margin: 0; }
 @media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } }
-.blocked-player-settings { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.blocked-player-settings { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
 .blocked-player-settings h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .blocked-player-settings .form-hint,
 .blocked-player-settings .surface__copy { margin: 0; }
@@ -983,6 +1005,13 @@
 .player-avatar { position: relative; display: inline-grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-surface-page); color: var(--color-court); font-weight: 700; }
 .player-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .player-avatar__fallback { display: grid; width: 100%; height: 100%; place-items: center; }
+/* 批 D8:md/lg 是 dc §1/§2/§3 逐字尺寸,且 dc 三處 avatar 都是 ink 底 signal 字
+  (與這裡 40px 既有版的淺底 court 字不同色系)——只在這兩個 modifier 覆寫顏色,
+   不動 40px 基底(join-preview／個人檔案表單預覽是 D4b/既有面,不在本批範圍)。 */
+.player-avatar--md,
+.player-avatar--lg { background: var(--color-ink); color: var(--color-signal); }
+.player-avatar--md { width: 44px; height: 44px; font-size: 17px; }
+.player-avatar--lg { width: 52px; height: 52px; font-size: 20px; }
 .profile-avatar-preview { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
 .profile-avatar-preview p { margin: 0; font-size: var(--text-sm); font-weight: 700; }
 /* ============================================================
@@ -1207,7 +1236,6 @@
   .my-sessions-page,
   .me-page { min-height: 100dvh; padding: var(--space-5) var(--space-3) calc(18px + var(--bottom-navigation-offset)); }
   .my-sessions-shell__head h1 { font-size: var(--text-2xl); }
-  .me-shell__head h1 { font-size: var(--text-2xl); }
 }
 
 @media (max-width: 390px) {
@@ -1286,9 +1314,62 @@
 
 /* ---- NTRP 磚:大版(我頁/球友卡,dc L225-227)+小版(名單列,dc L299) ---- */
 .ntrp-brick { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 13px; border-radius: var(--radius-md); background: var(--color-ink); }
-.ntrp-brick__eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 10px; letter-spacing: 2px; color: #9db3a4; }
-.ntrp-brick__value { font-family: var(--font-mono); font-weight: 600; font-size: 21px; line-height: 1; color: var(--color-signal); font-variant-numeric: tabular-nums; }
+.ntrp-brick__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 10px; letter-spacing: 2px; color: #9db3a4; }
+.ntrp-brick__value { margin: 0; font-family: var(--font-mono); font-weight: 600; font-size: 21px; line-height: 1; color: var(--color-signal); font-variant-numeric: tabular-nums; }
 .ntrp-brick--sm { display: inline-block; padding: 2px 7px; border-radius: var(--radius-sm); background: var(--color-ink); color: var(--color-signal); font-family: var(--font-mono); font-weight: 600; font-size: 11.5px; }
+
+/* ============================================================
+   批 D8(v2 改版):球友名單 sheet(抽取規格 §2)+球友卡 sheet(§3)+在線球友釘(§4)。
+   兩個 sheet 都改真正貼邊 bottom sheet(取代舊版 .surface--sheet 右下浮卡),語彙
+   複用 D4a filter-sheet 的殼寫法(對稱 inset、qmSheetUp);名單 sheet 額外加
+   max-height 74%+內層捲動(dc §2 逐字),球友卡沿用 D4b session-detail-sheet 同款
+   「overflow-y:auto + 88dvh」可及性偏離(dc 原型無上限,小螢幕會裁切,理由同 D4b
+   檔頭註記,不重複)。
+   ============================================================ */
+.surface.player-directory-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: auto;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: 74dvh;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 26px;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.player-directory-sheet__grabber { flex: none; display: block; width: 44px; height: 5px; margin: 2px auto 12px; border-radius: 3px; background: var(--color-line); }
+.player-directory-sheet__head { flex: none; margin: 0; padding: 0 0 var(--space-2); }
+.player-directory-sheet__sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12.5px; }
+.player-directory-sheet__count { font-family: var(--font-mono); font-weight: 500; }
+.player-directory-sheet__scroll { flex: 1; overflow-y: auto; padding: 2px 2px 4px; }
+
+.surface.player-card-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: auto;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 10px 20px 26px;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.34s var(--ease-brand);
+}
+.player-card-sheet__grabber { display: block; width: 44px; height: 5px; margin: 2px auto 14px; border-radius: 3px; background: var(--color-line); }
+.player-card-sheet__actions { display: flex; gap: 10px; margin-top: 16px; }
+.player-card-sheet__actions .session-secondary { flex: none; padding: 0 16px; min-height: 48px; }
+.player-card-sheet__actions .session-primary { flex: 1; min-height: 48px; }
+.player-card-sheet__footnote { margin: 11px 0 0; text-align: center; color: var(--color-text-secondary); font-size: 11.5px; }
 
 /* ---- 動效原語(dc L15-19 keyframes;時長與 easing 於使用處標注):
         sheetUp .32/.34s ease-brand、fade .2s、pop .18s(popover)/.3s(成功頁)、

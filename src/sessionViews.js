@@ -17,12 +17,33 @@ function avatarInitial(nickname) {
   return [...String(nickname ?? "").trim()][0] || "球";
 }
 
-function avatarMarkup({ avatarUrl = "", nickname = "" } = {}) {
+// 批 D8:size modifier(""=既有 40px、"md"=44px 名單列、"lg"=52px 我頁/球友卡)——
+// 球友（非本人）在資料庫層從不帶 avatarUrl(player_directory/player_presence_directory
+// allowlist 皆無 avatar 欄位,見 .claude/rules/supabase.md),所以 md/lg 呼叫點永遠只會
+// 落回字首 fallback,不會意外冒出 <img>。
+function avatarMarkup({ avatarUrl = "", nickname = "", size = "" } = {}) {
   const safeUrl = safeGoogleAvatarUrl(avatarUrl);
-  return `<span class="player-avatar" data-player-avatar>
+  const sizeClass = size ? ` player-avatar--${size}` : "";
+  return `<span class="player-avatar${sizeClass}" data-player-avatar>
     ${safeUrl ? `<img src="${esc(safeUrl)}" alt="" referrerpolicy="no-referrer" />` : ""}
     <span class="player-avatar__fallback" data-avatar-fallback aria-hidden="true"${safeUrl ? " hidden" : ""}>${esc(avatarInitial(nickname))}</span>
   </span>`;
+}
+
+// 批 D8:NTRP 磚(dc §1/§3 大版、§2 小版)——null/未填一律顯示「—」,不落回
+// Number(null)=0 的舊陷阱(hosted QA 已記過一次教訓,見 memory hosted-qa-minor-copy-bugs)。
+function ntrpBrickValue(ntrp) {
+  return validProfileNtrp(ntrp) ? Number(ntrp).toFixed(1) : "—";
+}
+
+function ntrpBrickMarkup(ntrp) {
+  return `<div class="ntrp-brick"><p class="ntrp-brick__eyebrow">NTRP</p><p class="ntrp-brick__value">${esc(
+    ntrpBrickValue(ntrp)
+  )}</p></div>`;
+}
+
+function ntrpBrickSmMarkup(ntrp) {
+  return `<span class="ntrp-brick--sm">${esc(ntrpBrickValue(ntrp))}</span>`;
 }
 
 function wireAvatarFallbacks(root) {
@@ -45,6 +66,17 @@ function trustCountMarkup(count, label) {
   const value = Number(count ?? 0);
   if (!Number.isFinite(value) || value <= 0) return "";
   return `<span class="trust-count">${esc(label.replace("{n}", String(value)))}</span>`;
+}
+
+// 批 D8:我頁 profile 卡副行「常打 X」——profile.courts 可能存 court.id 或(舊資料)
+// court.name,雙重比對沿用 updateCourtCheckboxes(既有個人檔案表單邏輯)同一寫法,
+// 不是新發明的判準。
+function profileCourtNames(profile, courts) {
+  const selected = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
+  if (!selected.size) return [];
+  return (Array.isArray(courts) ? courts : [])
+    .filter((court) => selected.has(String(court?.id)) || selected.has(court?.name))
+    .map((court) => court.name);
 }
 
 function joinPreviewMarkup({ participants = [], status = "loading" } = {}) {
@@ -148,6 +180,11 @@ export function renderMePage(
 ) {
   const authenticated = Boolean(authSession);
   const nickname = String(profile?.nick ?? "").trim() || "球友";
+  // 批 D8:profile 卡副行——沿用球友名單／球友卡同款「常打 X · 時段 Y」fallback 文案
+  // (playerDirectoryRowsMarkup 既有慣例),不是新造詞。
+  const profileCourtsText = profileCourtNames(profile, courts).join("、") || "未填球場";
+  const profileSlotsText =
+    playerSlotLabels([...(profile?.slots instanceof Set ? profile.slots : (profile?.slots ?? []))]).join("、") || "未填時段";
   const presenceSettings = normalizedPresenceSettings(presence);
   const notification = normalizedNotificationSettings(notificationSettings);
   const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
@@ -164,13 +201,19 @@ export function renderMePage(
   const courtSubscriptionSummary = notificationCourts.length ? `已訂閱 ${subscribedCourtCount} 座` : "";
   setMySessionActionScope(root, authSession?.user?.id ?? null);
   root.innerHTML = `<div class="me-shell">
-    <div class="me-shell__head"><p class="surface__eyebrow">我</p><h1 tabindex="-1" data-me-heading>帳號與站務</h1></div>
+    <div class="me-page-v2__head"><p class="me-page-v2__eyebrow">MY PROFILE</p><h1 tabindex="-1" data-me-heading class="me-page-v2__title">我</h1></div>
     ${
       authenticated
         ? `<section class="me-identity-card" data-testid="me-identity-card" aria-label="目前登入身分">
-          ${avatarMarkup({ avatarUrl, nickname })}
-          <div class="me-identity-card__copy"><strong>${esc(nickname)}</strong><span>${esc(formatNtrp(profile?.ntrp))}</span></div>
-          <button type="button" class="session-secondary" data-testid="me-sign-out">登出</button>
+          <button type="button" class="profile-brick-row" data-testid="me-profile-edit-trigger" aria-label="${esc(
+            `編輯個人檔案：${nickname}`
+          )}">
+            ${avatarMarkup({ avatarUrl, nickname, size: "lg" })}
+            <span class="profile-brick-row__copy"><strong>${esc(nickname)}</strong><span>常打 ${esc(profileCourtsText)} · ${esc(
+              profileSlotsText
+            )}</span></span>
+            ${ntrpBrickMarkup(profile?.ntrp)}
+          </button>
         </section>
         <section class="me-edit-profile" aria-label="個人檔案">
           <div>
@@ -310,11 +353,19 @@ export function renderMePage(
       <h2 id="me-service-title">站務</h2>
       <div>${supportHref ? `<a href="${esc(supportHref)}">聯絡支援</a>` : ""}<a href="/privacy.html">隱私權政策</a></div>
     </section>
+    ${
+      authenticated
+        ? `<button type="button" class="me-sign-out-action" data-testid="me-sign-out">登出</button>`
+        : ""
+    }
   </div>`;
   wireAvatarFallbacks(root);
   root.querySelector('[data-testid="me-sign-in"]')?.addEventListener("click", onSignIn);
   root.querySelector('[data-testid="me-sign-out"]')?.addEventListener("click", onSignOut);
   root.querySelector('[data-testid="edit-profile"]')?.addEventListener("click", onEditProfile);
+  // 批 D8:profile 卡整卡也是編輯入口(映射決策 2),與下方 .me-edit-profile 區塊的
+  // 「編輯」鈕是同一個 onEditProfile、兩個進場點。
+  root.querySelector('[data-testid="me-profile-edit-trigger"]')?.addEventListener("click", onEditProfile);
   root.querySelector('[data-my-action="toggle-visibility"]')?.addEventListener("click", (event) => {
     runMySessionAction(event.currentTarget, onTogglePlayerVisibility, root);
   });
@@ -4160,20 +4211,33 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
   return mounted;
 }
 
+// 批 D8:列改 dc §2 逐字結構(44px avatar+名+.ntrp-brick--sm+副行「常打 X · 時段」+
+// chevron);「在線」「這是你」與 .trust-count 是既有功能,dc 玩具資料沒有這些概念,
+// 刻意保留融入新版列(不是照抄 dc,是既有功能優先——.trust-count 由
+// session.spec.js:1865/1890/1893 的 hosted 測試鎖定,不可移除)。打法整行 dc 沒有,
+// 這裡收斂進副行,不獨立佔一行(dc §2 沒有對應欄位,且沒有測試依賴這行文字)。
 function playerDirectoryRowsMarkup(players) {
   return players.length
     ? players
-        .map(
-          (player) => `<button type="button" class="player-directory-row" data-player-directory-row
+        .map((player) => {
+          const courtsText = (player.courtNames ?? []).join("、") || player.courtName || "未填球場";
+          const slotsText = playerSlotLabels(player.slotCodes).join("、") || "未填時段";
+          return `<button type="button" class="player-directory-row" data-player-directory-row
             data-testid="player-directory-row-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
-            <span class="player-directory-row__head"><strong>${esc(player.nickname || "未命名球友")}</strong>${
-              player.isPresent ? '<span class="player-directory-row__online">在線</span>' : ""
-            }${player.isSelf ? '<span class="player-directory-row__self">這是你</span>' : ""}</span>
-            <span>${esc(formatNtrp(player.ntrp))} · ${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>${trustCountMarkup(player.playedCount, "已打 {n} 場")}
-            <span>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</span>
-            <span>常打球場：${esc((player.courtNames ?? []).join("、") || player.courtName || "未填球場")}</span>
-          </button>`
-        )
+            ${avatarMarkup({ nickname: player.nickname, size: "md" })}
+            <span class="player-directory-row__body">
+              <span class="player-directory-row__head">
+                <strong>${esc(player.nickname || "未命名球友")}</strong>
+                ${ntrpBrickSmMarkup(player.ntrp)}
+                ${player.isPresent ? '<span class="player-directory-row__online">在線</span>' : ""}
+                ${player.isSelf ? '<span class="player-directory-row__self">這是你</span>' : ""}
+              </span>
+              <span class="player-directory-row__sub">常打 ${esc(courtsText)} · ${esc(slotsText)}</span>
+              ${trustCountMarkup(player.playedCount, "已打 {n} 場")}
+            </span>
+            <span class="player-directory-row__chevron" aria-hidden="true">›</span>
+          </button>`;
+        })
         .join("")
     : '<p class="surface__copy">目前沒有公開的球友卡。</p>';
 }
@@ -4184,16 +4248,25 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
   const mounted = mountSheet({
     id: "player-directory-sheet",
     label: "球友名單",
+    className: "player-directory-sheet",
     onClose,
     html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">台北市</p><h2>球友名單</h2></div>
+      <span class="player-directory-sheet__grabber" aria-hidden="true"></span>
+      <div class="surface__head player-directory-sheet__head">
+        <div>
+          <p class="surface__eyebrow">PLAYERS</p>
+          <h2>球友名單</h2>
+          <p class="player-directory-sheet__sub">開放名單的球友 · <span class="player-directory-sheet__count" data-player-directory-count>0</span> 位</p>
+        </div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉球友名單">×</button>
       </div>
-      <p class="surface__copy">在線球友排在前面；點選球友卡可查看邀請入口。</p>
-      <div class="player-directory-list" data-player-directory-list role="list"></div>`,
+      <div class="player-directory-sheet__scroll qm-scroll">
+        <p class="surface__copy">在線球友排在前面；點選球友卡可查看邀請入口。</p>
+        <div class="player-directory-list" data-player-directory-list role="list"></div>
+      </div>`,
   });
   const list = mounted.root.querySelector("[data-player-directory-list]");
+  const countLabel = mounted.root.querySelector("[data-player-directory-count]");
   const wireRows = () => {
     list?.querySelectorAll("[data-player-directory-row]").forEach((row) => {
       row.addEventListener("click", () => {
@@ -4205,6 +4278,10 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
   };
   const setDirectory = ({ players = [], status = "ready" } = {}) => {
     currentPlayers = Array.isArray(players) ? players : [];
+    // dc §2 副行「開放名單的球友 · N 位」只在成功載入後才是真數字;loading/error
+    // 態沿用原有殼但不亂報一個假的 0(容器初值 0 是 mountSheet 首次同步渲染前的
+    // 佔位,並非「已確認 0 位」的宣稱)。
+    if (countLabel && status === "ready") countLabel.textContent = String(currentPlayers.length);
     if (!list) return;
     if (status === "loading") {
       list.innerHTML = '<p class="surface__copy" role="status">正在載入球友名單…</p>';
@@ -4437,7 +4514,14 @@ function playerInviteChoices(sessions, courts = []) {
 /** Open one public player card and, for non-self rows, its host invitation entry point. */
 export function openPlayerCardSheet(
   player,
-  { courts = [], myInvitableSessions = [], onClose = () => {}, onCreate = () => {}, onInvite = async () => {} } = {}
+  {
+    courts = [],
+    myInvitableSessions = [],
+    onClose = () => {},
+    onCreate = () => {},
+    onInvite = async () => {},
+    onSeeDirectory = () => {},
+  } = {}
 ) {
   const inviteSection = player.isSelf
     ? ""
@@ -4455,28 +4539,50 @@ export function openPlayerCardSheet(
           <p class="surface__copy">你目前沒有可邀請的球局</p>
           <button type="button" class="session-primary" data-player-create data-testid="player-create-session">去開球局</button>
         </div>`;
+  // 批 D8:常打／時段抽成變數,同時餵新版頭部副行與既有 .player-profile 段落——
+  // 後者逐字文案是 smoke.spec.js「player drawer and card escape every public
+  // value」測試鎖定的字串(時段：週末下午、mystery<img...>),不可改動計算方式。
+  const courtsText = (player.courtNames ?? []).join("、") || player.courtName || "未填球場";
+  const slotsText = playerSlotLabels(player.slotCodes).join("、") || "未填時段";
   const mounted = mountSheet({
     id: "player-card-sheet",
     label: "球友卡",
+    className: "player-card-sheet",
     onClose,
     html: `
+      <span class="player-card-sheet__grabber" aria-hidden="true"></span>
       <div class="surface__head">
-        <div><p class="surface__eyebrow">${esc(player.courtDistrict || "台北市")}</p><h2>${esc(player.nickname)}</h2></div>
+        <p class="surface__eyebrow">${esc(player.courtDistrict || "台北市")}</p>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉球友卡">×</button>
       </div>
+      <div class="profile-brick-row profile-brick-row--player">
+        ${avatarMarkup({ nickname: player.nickname, size: "lg" })}
+        <span class="profile-brick-row__copy"><strong>${esc(player.nickname)}</strong><span>常打 ${esc(
+          courtsText
+        )} · ${esc(slotsText)}</span></span>
+        ${ntrpBrickMarkup(player.ntrp)}
+      </div>
       <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
-        <p><strong>${esc(formatNtrp(player.ntrp))}</strong></p>
         ${trustCountMarkup(player.playedCount, "已打 {n} 場")}
         ${player.isPresent ? `<p>在線狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
         ${player.openToGreeting ? `<p class="player-greeting">${esc(playerGreetingLabel(player))}</p>` : ""}
         <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>
-        <p>時段：${esc(playerSlotLabels(player.slotCodes).join("、") || "未填時段")}</p>
+        <p>時段：${esc(slotsText)}</p>
         <p>常打球場：${esc(player.courtName || "未填球場")}</p>
       </div>
-      ${inviteSection}`,
+      ${inviteSection}
+      <div class="player-card-sheet__actions">
+        <button type="button" class="session-secondary" data-player-see-directory>看球友名單</button>
+        <button type="button" class="session-primary" data-surface-close>關閉</button>
+      </div>
+      <p class="player-card-sheet__footnote">在線球友為開放名單者;邀約請透過球局。</p>`,
   });
   const wirePlayerCreate = () => mounted.root.querySelector("[data-player-create]")?.addEventListener("click", onCreate);
   wirePlayerCreate();
+  // 映射決策 6:「看球友名單」不直呼 controller,只透過 onSeeDirectory 這條既有
+  // callback 慣例;controller 端接的是既有 openPlayerDirectory 入口(sessionController.js
+  // openPlayer() 已接線),它本身就會關掉這張卡再開名單,這裡不重複 close()。
+  mounted.root.querySelector("[data-player-see-directory]")?.addEventListener("click", onSeeDirectory);
   const form = mounted.root.querySelector(".player-invite-form");
   const setInvitableSessions = (sessions = []) => {
     const options = form?.querySelector("[data-player-invite-options]");

@@ -1347,6 +1347,12 @@ export function createSessionController({
           activePlayerCardGate = null;
         }
       },
+      // 批 D8 映射決策 6:「看球友名單」重用既有 openPlayerDirectory 入口(與地圖
+      // #player-directory-open 同一顆),不是新的 controller surface。它內部的
+      // loadPlayerDirectoryList() 一開頭就會 closeActivePlayerCard(...),所以這張卡
+      // 會被自動關掉、名單接著開啟,不需要在這裡重複 card?.close()。未通過 directory
+      // gate 時 openPlayerDirectory() 會走 requireSessionAction 導去補檔案,不是 no-op。
+      onSeeDirectory: () => openPlayerDirectory(),
       onCreate: () => {
         if (activePlayerCard === card) {
           activePlayerCard = null;

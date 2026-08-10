@@ -3145,6 +3145,92 @@ test("player drawer and card escape every public value and render self and empty
   expect(runtimeErrors).toEqual([]);
 });
 
+// 批 D8:我頁 profile 卡／球友名單列／球友卡改 dc §1-3 的 avatar+NTRP 磚結構——這裡
+// 驗結構(avatar/名/磚/副行對應資料),不只驗存在;NTRP 正反兩例都要驗到,null 必須
+// 顯示「—」而不是 Number(null)=0 的舊陷阱(hosted QA 曾因此出過一次 bug)。
+test("D8 profile card, directory row, and player card render the avatar+NTRP-brick structure and show em dash for unset NTRP", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  // ── 我頁 profile 卡:NTRP 已填正例 ───────────────────────────────
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("me-page").hidden = false;
+    window.__d8EditProfileCalls = 0;
+    renderMePage(root, {
+      authSession: { user: { id: "d8-me-brick" } },
+      courts: [{ id: 8, name: "示範球場", district: "大安區", city: "台北市", isActive: true }],
+      onEditProfile: () => {
+        window.__d8EditProfileCalls += 1;
+      },
+      profile: { courts: new Set(["8"]), nick: "測試球友", ntrp: 3.5, slots: new Set(["we-e"]) },
+    });
+  });
+  const meCard = page.getByTestId("me-identity-card");
+  await expect(meCard.locator(".ntrp-brick__value")).toHaveText("3.5");
+  await expect(meCard.locator(".player-avatar--lg")).toHaveCount(1);
+  await expect(meCard).toContainText("常打 示範球場 · 週末晚上");
+  // 映射決策 2:整張卡也是編輯入口,不只下方 .me-edit-profile 區塊的「編輯」鈕。
+  await page.getByTestId("me-profile-edit-trigger").click();
+  await expect.poll(() => page.evaluate(() => window.__d8EditProfileCalls)).toBe(1);
+
+  // ── 我頁 profile 卡:NTRP 未填反例 → 磚顯示「—」 ───────────────────
+  await page.evaluate(async () => {
+    const { renderMePage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("me-root");
+    renderMePage(root, {
+      authSession: { user: { id: "d8-me-brick" } },
+      profile: { nick: "無程度球友", ntrp: null },
+    });
+  });
+  await expect(page.getByTestId("me-identity-card").locator(".ntrp-brick__value")).toHaveText("—");
+
+  // ── 球友名單列:結構對應資料,含一筆 NTRP null 反例 ──────────────────
+  await page.evaluate(async () => {
+    const { openPlayerDirectoryList } = await import("/src/sessionViews.js");
+    const sheet = openPlayerDirectoryList({});
+    sheet.setDirectory({
+      players: [
+        { courtNames: ["示範球場"], isPresent: false, nickname: "有程度球友", ntrp: 4, profileId: 701, slotCodes: ["we-e"] },
+        { courtNames: ["第二球場"], isPresent: false, nickname: "未填程度球友", ntrp: null, profileId: 702, slotCodes: [] },
+      ],
+      status: "ready",
+    });
+  });
+  const firstRow = page.getByTestId("player-directory-row-701");
+  await expect(firstRow.locator(".player-avatar--md")).toHaveCount(1);
+  await expect(firstRow.locator(".ntrp-brick--sm")).toHaveText("4.0");
+  await expect(firstRow).toContainText("常打 示範球場 · 週末晚上");
+  await expect(page.getByTestId("player-directory-row-702").locator(".ntrp-brick--sm")).toHaveText("—");
+
+  // ── 球友卡:頭部結構+NTRP 磚(null 反例)+逐字註腳+看球友名單觸發 onSeeDirectory ──
+  await page.evaluate(async () => {
+    const { openPlayerCardSheet } = await import("/src/sessionViews.js");
+    window.__d8SeeDirectoryCalls = 0;
+    openPlayerCardSheet(
+      { courtName: "第三球場", isSelf: false, nickname: "球友卡球友", ntrp: null, profileId: 703, slotCodes: ["wd-m"] },
+      {
+        onSeeDirectory: () => {
+          window.__d8SeeDirectoryCalls += 1;
+        },
+      }
+    );
+  });
+  const card = page.locator("#player-card-sheet");
+  await expect(card.locator(".player-avatar--lg")).toHaveCount(1);
+  await expect(card.locator(".ntrp-brick__value")).toHaveText("—");
+  await expect(card).toContainText("常打 第三球場 · 平日早上");
+  await expect(card).toContainText("在線球友為開放名單者;邀約請透過球局。");
+  await page.locator("[data-player-see-directory]").click();
+  await expect.poll(() => page.evaluate(() => window.__d8SeeDirectoryCalls)).toBe(1);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("player invitation form escapes session fields and is pending-safe across success, errors, and stale surfaces", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

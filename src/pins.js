@@ -48,11 +48,16 @@ const USER_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
     <circle cx="14" cy="14" r="10" fill="${LIME}" stroke="${NAVY}" stroke-width="3"/>
   </svg>`);
+// 批 D8:在線球友釘改 dc §4 視覺語言(ink 圓+signal 框+signal 字,dc L72-74 逐字色)。
+// 連結線+chevron 的「旗標貼球場座標」結構是既有設計,不是 dc 的一部分——dc 的釘是
+// 單一球友的精確定位釘,本站保留每球場聚合 count(真實同場多人會疊出 dc 沒有處理過的
+// 情況),故只換色彩語彙,不換成 dc 的 34px 單圓幾何(尺寸/anchor 不動,
+// tests/fixtures/fakeMaps.js 只讀 icon.url／label,不解析 SVG 內容,契約不受影響)。
 const PLAYER_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="86" height="55" viewBox="0 0 86 55">
-    <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${BLUE}" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="56" cy="23" r="20" fill="${SOFT_BLUE}" stroke="${BLUE}" stroke-width="3"/>
-    <path d="M49 40h14l-7 12z" fill="${BLUE}"/>
+    <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${NAVY}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="56" cy="23" r="20" fill="${NAVY}" stroke="${LIME}" stroke-width="3"/>
+    <path d="M49 40h14l-7 12z" fill="${NAVY}"/>
   </svg>`);
 
 const font = "'Noto Sans TC', sans-serif";
@@ -67,15 +72,18 @@ function markerIcon(google, url, width, height, anchorX, anchorY, labelX, labelY
   };
 }
 
+// presenceCount 樣式差異沿用現行語意(批 D8 派工單決策 7):基底釘已經是 ink+signal
+// (見上方 PLAYER_PIN_URL),這裡疊加既有的右上角「線N」signal 徽章,標出這個聚合
+// count 裡有幾位「當下」在分享在場狀態,不是 dc 原型的概念。
 function playerPresencePinUrl(presenceCount) {
   const safePresenceCount = Number.isFinite(Number(presenceCount))
     ? Math.max(0, Math.trunc(Number(presenceCount)))
     : 0;
   return svgToDataUri(`
     <svg xmlns="http://www.w3.org/2000/svg" width="86" height="55" viewBox="0 0 86 55">
-      <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${BLUE}" stroke-width="3" stroke-linecap="round"/>
-      <circle cx="56" cy="23" r="20" fill="${SOFT_BLUE}" stroke="${BLUE}" stroke-width="3"/>
-      <path d="M49 40h14l-7 12z" fill="${BLUE}"/>
+      <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${NAVY}" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="56" cy="23" r="20" fill="${NAVY}" stroke="${LIME}" stroke-width="3"/>
+      <path d="M49 40h14l-7 12z" fill="${NAVY}"/>
       <circle cx="72" cy="10" r="12" fill="${LIME}" stroke="${NAVY}" stroke-width="2"/>
       <text x="72" y="13" text-anchor="middle" fill="${NAVY}" font-family="Arial,sans-serif" font-size="10" font-weight="800">線${safePresenceCount}</text>
     </svg>`);
@@ -126,7 +134,9 @@ export function playerPin(google, count, presenceCount = 0) {
     // The connector begins at the court coordinate while the full-size player
     // control sits to the right of any session pin at that same court.
     icon: markerIcon(google, hasPresence ? playerPresencePinUrl(presenceCount) : PLAYER_PIN_URL, 86, 55, 2, 54, 56, 23),
-    label: { text: String(count), color: NAVY, fontFamily: font, fontSize: "15px", fontWeight: "800" },
+    // 批 D8:磚體改 ink 底(見上方 PLAYER_PIN_URL)後,標籤文字須跟著換成 signal
+    // 色才讀得到(dc L74 逐字 color:#ddf53c),NAVY-on-NAVY 會整個消失。
+    label: { text: String(count), color: LIME, fontFamily: font, fontSize: "15px", fontWeight: "800" },
   };
 }
 
