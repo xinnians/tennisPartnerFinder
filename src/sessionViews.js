@@ -852,10 +852,6 @@ function sessionVenuePresentation(session, courts = []) {
   };
 }
 
-function candidateDecisionExplanation(session) {
-  return `主揪將在 ${taipeiDateTime(session?.startAt)} 前從候選球場中定案場地與確切時間，定案後會通知你。`;
-}
-
 function completionLabel(session) {
   return session.hostProfileComplete ? "資料完整" : "資料未完成";
 }
@@ -2068,26 +2064,133 @@ function joinSuccessMessage(result) {
   return "已送出申請，等待主揪回覆。";
 }
 
-function idleActionsMarkup({ action, canDecide, canEdit, canChat, canReport }) {
+// ==== 批 D4b:v2 動作列(dc L414-426)。canDecide 的「定案」動作已搬到獨立的
+// candidateDecidePanelMarkup(見下方,渲染在 actions 容器之外、不隨五態切換重繪),
+// 這裡不再處理 canDecide——保留簽名不收 canDecide 是刻意的。 ====
+const CTA_CLOCK_ICON =
+  '<svg class="cta-status__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2" stroke-linecap="round"></path></svg>';
+const CTA_CHECK_ICON =
+  '<svg class="cta-status__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>';
+
+function ctaCopyLinkButton() {
+  return '<button type="button" class="session-secondary cta-copy-link" data-session-action="copy-link">複製連結</button>';
+}
+
+function ctaEditButton(canEdit) {
+  return canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : "";
+}
+
+// 批 B Task 4 遺留的防禦性分支:實務上 canChat 恆等於 action.kind==="chat"
+// (兩者都源自同一個 viewerParticipantStatus==="accepted" 判斷),但沿用既有語意
+// 保留這條路徑,不在本批清掉。
+function ctaExtraChatButton(canChat, kind) {
+  return canChat && kind !== "chat"
+    ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>'
+    : "";
+}
+
+function ctaReportButton(canReport) {
+  return canReport ? '<button type="button" class="session-tertiary" data-session-action="report">檢舉此球局</button>' : "";
+}
+
+function ctaTextAction(action, label) {
+  return `<button type="button" class="cta-text-action" data-session-action="${esc(action)}">${esc(label)}</button>`;
+}
+
+function idleActionsMarkup({ action, canEdit, canChat, canReport, isMine }) {
+  const kind = action?.kind;
+  const editButton = ctaEditButton(canEdit);
+  const extraChatButton = ctaExtraChatButton(canChat, kind);
+  const reportButton = ctaReportButton(canReport);
+
+  if (kind === "join") {
+    const instant = Boolean(action?.expectedAccepted);
+    const primaryDisabled = action?.disabled ? " disabled" : "";
+    return `
+      <div class="cta-row">
+        ${ctaCopyLinkButton()}
+        ${editButton}
+        ${extraChatButton}
+        <button type="button" class="session-primary${
+          instant ? " session-primary--instant" : ""
+        }" data-session-action="primary"${primaryDisabled}>${esc(action?.label ?? "申請加入")}</button>
+      </div>
+      ${action?.secondaryLabel ? ctaTextAction("secondary", action.secondaryLabel) : ""}
+      ${reportButton}
+      <p class="cta-footnote">成局後可在球局群組聊天協調細節。</p>
+    `;
+  }
+
+  if (kind === "waiting") {
+    return `
+      <div class="cta-row">
+        ${ctaCopyLinkButton()}
+        ${editButton}
+        <div class="cta-status cta-status--pending" data-session-action="primary" aria-disabled="true">${CTA_CLOCK_ICON}已送出申請 · 等主揪確認</div>
+      </div>
+      ${ctaTextAction("secondary", "取消申請")}
+      ${reportButton}
+    `;
+  }
+
+  if (kind === "chat") {
+    // fix round 1(驗收回歸):主揪的 viewerParticipantStatus 也是 accepted,一樣落在
+    // kind:"chat"——但 can_withdraw 是 guest-only(202607210002_session_join_mode.sql),
+    // 主揪按「取消報名」會被 withdraw_from_session RPC 拒絕。改版前主揪在這裡本來就
+    // 沒有 withdraw 入口(舊版 chat kind 無 secondaryLabel),isMine 時不渲染綠面板與
+    // 「取消報名」,只留 cta-row(複製連結/編輯/群組聊天)+檢舉,避免新引入這個
+    // 對主揪無效的 affordance。dc 的「取消這場球局」紅鈕歸 D6,本批不做。
+    if (isMine) {
+      return `
+        <div class="cta-row">
+          ${ctaCopyLinkButton()}
+          ${editButton}
+          <button type="button" class="session-primary" data-session-action="primary">${esc(action?.label ?? "群組聊天")}</button>
+        </div>
+        ${reportButton}
+      `;
+    }
+    return `
+      <div class="cta-status cta-status--joined">${CTA_CHECK_ICON}已加入這場球局</div>
+      <div class="cta-row">
+        ${ctaCopyLinkButton()}
+        ${editButton}
+        <button type="button" class="session-primary" data-session-action="primary">${esc(action?.label ?? "群組聊天")}</button>
+      </div>
+      ${ctaTextAction("secondary", "取消報名")}
+      ${reportButton}
+    `;
+  }
+
+  if (kind === "full" || kind === "terminal") {
+    return `
+      <div class="cta-row">
+        ${ctaCopyLinkButton()}
+        ${editButton}
+        ${extraChatButton}
+        <button type="button" class="cta-status cta-status--disabled" data-session-action="primary" disabled>${esc(
+          action?.label ?? ""
+        )}</button>
+      </div>
+      ${reportButton}
+    `;
+  }
+
+  // Fallback:action 沒有可辨識的 kind(例如既有測試手寫的 action 物件,先於
+  // D4b 這批 CTA 改版)——保留改版前的通用渲染(按鈕集合不變),只補上 .cta-row
+  // 包裝維持與其他分支一致的水平排列。
   const primaryDisabled = action?.disabled ? " disabled" : "";
   return `
-    <button type="button" class="session-secondary" data-session-action="copy-link">複製連結</button>
-    ${canDecide ? '<button type="button" class="session-primary" data-session-action="decide">定案場地與時間</button>' : ""}
-    ${canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : ""}
-    ${
-      canChat && action?.kind !== "chat"
-        ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>'
-        : ""
-    }
-    <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
-      action?.label ?? "申請加入"
-    )}</button>
-    ${
-      action?.secondaryLabel
-        ? `<button type="button" class="session-secondary" data-session-action="secondary">${esc(action.secondaryLabel)}</button>`
-        : ""
-    }
-    ${canReport ? '<button type="button" class="session-tertiary" data-session-action="report">檢舉此球局</button>' : ""}
+    <div class="cta-row">
+      ${ctaCopyLinkButton()}
+      ${editButton}
+      ${extraChatButton}
+      <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
+        action?.label ?? "申請加入"
+      )}</button>
+    </div>
+    ${action?.secondaryLabel ? ctaTextAction("secondary", action.secondaryLabel) : ""}
+    ${reportButton}
   `;
 }
 
@@ -2127,12 +2230,126 @@ function errorActionsMarkup(message) {
   `;
 }
 
+// ==== 批 D4b:詳情 sheet 頭部/記分板/主揪列/候選面板 helper(dc L333-410)。
+// 這些都是純函式,不含 wiring,只組 markup 字串。 ====
+
+/** 球場名(19px)那一行:未定案候選沿用 venue.court(已是候選球場清單joined);
+ * 其餘沿用 session.court 原始球場名——不再像舊版把行政區併進同一行。 */
+function sessionDetailCourtName(session, venue) {
+  return venue.undecidedCandidates ? venue.court : session?.court || venue.court;
+}
+
+/** 行政區・時間那一行:只有時間片段套 mono(dc L349 inline span)。 */
+function sessionDetailTimeLineMarkup(session, venue) {
+  const districtPrefix = !venue.undecidedCandidates && session?.courtDistrict ? `${esc(session.courtDistrict)} · ` : "";
+  return `${districtPrefix}<span class="session-detail__mono">${esc(venue.time)}</span>`;
+}
+
+/** 頭部 badge 列(dc L342-347):venue 欄位 badge 是既有 My Sessions 共用值
+ * (已訂場/候選局/現場等場),與 dc 的「候選中」「我主揪的」是兩套並存的 badge——
+ * 刻意都保留,不用後者取代前者(取代會牽動 My Sessions/roster 等本批範圍外的呼叫點)。 */
+function sessionDetailBadgesMarkup(session, venue, { isMine = false } = {}) {
+  return [
+    `<span class="session-badge" data-session-field="venue">${esc(venue.badge)}</span>`,
+    session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : "",
+    venue.undecidedCandidates ? "" : nowStartSessionMarkup(session),
+    venue.undecidedCandidates ? '<span class="session-badge session-badge--candidate">候選中</span>' : "",
+    isMine ? '<span class="session-badge session-badge--host">我主揪的</span>' : "",
+  ]
+    .filter(Boolean)
+    .join("");
+}
+
+/** 候選資訊列(guest 視角,dc L367-368):取代退役的 candidateDecisionExplanation()。 */
+function candidateInfoRowMarkup(venue) {
+  const names = (venue.candidateNames ?? []).join("、");
+  return `<p class="candidate-info-panel" data-session-candidate-explanation>候選球場:<strong>${esc(
+    names
+  )}</strong> · 主揪定案後群組通知</p>`;
+}
+
+/** 訂場狀態三態(dc L983):候選未定案一律顯示「定案後補訂場」,壓過 booked 值;
+ * 已定案的候選局(venue.decided)視同已訂場——dc 的簡化資料模型沒有 walk_on
+ * 對應態,這裡另外把「尚未訂場」留給 walk_on(現場等場),屬本批推論延伸。 */
+function hostRowBookedStatus(session, venue) {
+  if (venue.undecidedCandidates) return "定案後補訂場";
+  if (venue.decided) return "✓ 已訂場";
+  // sessionVenuePresentation() defaults a missing venueType to "booked"(見該
+  // function 的 `String(session?.venueType ?? "booked")`);這裡比照同一預設,
+  // 否則沒帶 venueType 的呼叫端會出現頭部 badge 說「已訂場」、這一行卻說
+  // 「尚未訂場」的矛盾(D4b 視覺驗收時肉眼抓到)。
+  return String(session?.venueType ?? "booked") === "walk_on" ? "尚未訂場" : "✓ 已訂場";
+}
+
+/** 主揪列(dc L370-376):avatar 用既有 avatarInitial() helper;NTRP 沿用
+ * formatNtrp() 保留「尚未填寫 NTRP」的空值語意,並在同一行後綴既有的
+ * completionLabel()(資料完整/資料未完成)——dc 原型沒有這個欄位,但它是
+ * CLAUDE.md 明列的匿名公開欄位之一,拿掉等於砍資訊,故意保留,回報標注。 */
+function hostRowMarkup(session, venue) {
+  return `<div class="host-row" data-session-field="host">
+    <span class="host-row__avatar" aria-hidden="true">${esc(avatarInitial(session.hostNickname))}</span>
+    <div class="host-row__copy">
+      <p class="host-row__nameline"><strong>${esc(session.hostNickname)}</strong><span class="host-row__chip">主揪</span></p>
+      <p class="host-row__ntrp"><span class="session-detail__mono">${esc(
+        formatNtrp(session.hostNtrp)
+      )}</span> · ${esc(completionLabel(session))}</p>
+    </div>
+    <p class="host-row__status">${esc(hostRowBookedStatus(session, venue))}</p>
+  </div>`;
+}
+
+/** 記分板缺額格(dc L980 dSpots:ds.need+' 位')——刻意不用既有 vacancyLabel()
+ * 的「缺 N 位/已額滿」格式,因為那個格式是為 CTA 主鈕文案設計的,dc 這一格只要
+ * 裸數字+「位」,額滿時就是「0 位」。 */
+function scoreboardVacancyText(session) {
+  const remaining = Number(session?.slotsRemaining);
+  return `${Number.isFinite(remaining) ? Math.max(0, remaining) : 0} 位`;
+}
+
+/** 候選定案面板要用的球場列(id 對照 courts 目錄取名稱+行政區)。 */
+function candidateCourtRows(session, courts = []) {
+  const catalogue = new Map((Array.isArray(courts) ? courts : []).map((court) => [String(court?.id), court]));
+  return (Array.isArray(session?.candidateCourtIds) ? session.candidateCourtIds : [])
+    .map((courtId) => catalogue.get(String(courtId)))
+    .filter(Boolean);
+}
+
+/**
+ * 候選定案面板(host 視角,dc L381-393):每顆「定案」鈕都呼叫既有 onDecide()
+ * 開完整定案表單,不做逐球場一鍵定案——decide_session_court 還需要使用者在表單
+ * 內收斂場地與時間,原型的單鍵 finalizeCourt 不滿足這個 RPC 契約,此為有意偏離。
+ * 這個面板渲染在 `.session-detail__actions` 之外、不隨五態切換重繪,故其
+ * data-session-action="decide" 鈕在掛載時只需要 wire 一次。
+ */
+function candidateDecidePanelMarkup(session, courts) {
+  const rows = candidateCourtRows(session, courts)
+    .map(
+      (court) => `<div class="candidate-decide-panel__row">
+        <div class="candidate-decide-panel__copy">
+          <p class="candidate-decide-panel__name">${esc(court.name)}</p>
+          <p class="candidate-decide-panel__district">${esc(court.district ?? "")}</p>
+        </div>
+        <button type="button" class="candidate-decide-panel__cta" data-session-action="decide">定案</button>
+      </div>`
+    )
+    .join("");
+  return `<div class="candidate-decide-panel">
+    <p class="candidate-decide-panel__title">候選球場 · 點定案</p>
+    ${rows}
+  </div>`;
+}
+
 /**
  * Open a public session detail sheet with the privacy-reviewed field order.
  *
  * 批 C3-2:join 旅程單層化。動作區是就地切換的四態狀態機
  * (idle/confirming/submitting/success/error,容器帶 `data-join-stage`),不再開
  * 第二層 join confirmation dialog——舊的獨立確認 dialog 函式已整支退役。
+ *
+ * 批 D4b:視覺改 v2 計分板殼(dc L333-426),join 五態狀態機、資料契約與全部
+ * data-testid 不動;canDecide 的「定案」動作搬進候選定案面板(渲染在
+ * `.session-detail__actions` 之外,不隨五態重繪)。新增 isMine 參數(頭部
+ * 「我主揪的」badge 與候選資訊列的 guest-only 條件用)。
  */
 export function openSessionSheet(
   session,
@@ -2142,6 +2359,7 @@ export function openSessionSheet(
     canEdit = false,
     canChat = false,
     canReport = false,
+    isMine = false,
     showJoinPreview = false,
     courts = [],
     notificationSettings = {},
@@ -2167,6 +2385,7 @@ export function openSessionSheet(
   const mounted = mountSheet({
     id: "session-sheet",
     label: "球局詳情",
+    className: "session-detail-sheet",
     onClose,
     onEscape: () => {
       // 假設 1(design spec):confirming 態 Escape 先退一步回 idle,sheet 不關;
@@ -2176,28 +2395,43 @@ export function openSessionSheet(
       return true;
     },
     html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">球局詳情</p><h2>可加入的網球球局</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉球局詳情">×</button>
-      </div>
+      <span class="session-detail-sheet__grabber"></span>
       <div class="session-detail">
-        <span class="session-badge" data-session-field="venue">${esc(venue.badge)}</span>
-        <p data-session-field="court"><strong>${esc(venue.court)}</strong></p>
-        <p data-session-field="time">${esc(venue.time)}</p>
+        <div class="session-detail__head">
+          ${sessionTimeTileMarkup(session, venue, { detail: true })}
+          <div class="session-detail__headcopy">
+            <div class="session-detail__badges">${sessionDetailBadgesMarkup(session, venue, { isMine })}</div>
+            <p class="session-detail__court" data-session-field="court">${esc(sessionDetailCourtName(session, venue))}</p>
+            <p class="session-detail__meta" data-session-field="time">${sessionDetailTimeLineMarkup(session, venue)}</p>
+          </div>
+          <button type="button" class="session-detail__close" data-surface-close aria-label="關閉球局詳情">×</button>
+        </div>
+        <div class="scoreboard-strip session-detail__scoreboard" data-session-field="details">
+          <div class="scoreboard-strip__cell">
+            <p class="scoreboard-strip__eyebrow">TYPE</p>
+            <p class="scoreboard-strip__value">${esc(session.playType)}</p>
+          </div>
+          <div class="scoreboard-strip__cell">
+            <p class="scoreboard-strip__eyebrow">NTRP</p>
+            <p class="scoreboard-strip__value scoreboard-strip__value--mono">${esc(ntrpRange(session))}</p>
+          </div>
+          <div class="scoreboard-strip__cell scoreboard-strip__cell--inverse">
+            <p class="scoreboard-strip__eyebrow">缺額</p>
+            <p class="scoreboard-strip__value scoreboard-strip__value--mono">${esc(scoreboardVacancyText(session))}</p>
+          </div>
+        </div>
+        ${venue.undecidedCandidates && !isMine ? candidateInfoRowMarkup(venue) : ""}
+        ${hostRowMarkup(session, venue)}
+        <p class="session-detail__notes" data-session-field="notes">${esc(
+          session.notes ? `「${session.notes}」` : "沒有補充說明。"
+        )}</p>
         ${
-          venue.undecidedCandidates
-            ? `<p class="form-hint" data-session-candidate-explanation>${esc(candidateDecisionExplanation(session))}</p>`
+          session.feeNote
+            ? `<p class="form-hint" data-session-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>`
             : ""
         }
-        ${venue.undecidedCandidates ? "" : nowStartSessionMarkup(session)}
-        <p data-session-field="details">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</p>
-        ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
-        <p data-session-field="host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))} · ${esc(
-          completionLabel(session)
-        )}</p>
+        ${canDecide ? candidateDecidePanelMarkup(session, courts) : ""}
         ${joinPreviewSection(showJoinPreview)}
-        ${session.feeNote ? `<p data-session-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>` : ""}
-        <p data-session-field="notes">${esc(session.notes || "沒有補充說明。")}</p>
         ${action?.note ? `<p class="form-hint" data-session-action-note>${esc(action.note)}</p>` : ""}
         <p class="form-error" data-session-report-error role="alert" hidden></p>
         <div class="session-detail__actions" tabindex="-1"></div>
@@ -2206,17 +2440,32 @@ export function openSessionSheet(
 
   const container = mounted.root.querySelector(".session-detail__actions");
   const setJoinPreview = createJoinPreviewSetter(mounted.root);
+  // 候選定案面板不在 actions 容器內,不隨五態切換重繪,掛載時 wire 一次即可。
+  mounted.root.querySelectorAll('[data-session-action="decide"]').forEach((button) => {
+    button.addEventListener("click", onDecide);
+  });
 
   function focusInStage(preferredSelector = null) {
     const preferred = preferredSelector ? container.querySelector(preferredSelector) : null;
-    const primaryCta = container.querySelector('[data-session-action="primary"]');
+    // 批 D4b:「等待」「已額滿」「終局」三態的 primary 位不是可聚焦的互動元素
+    // (非按鈕 div,或原生 disabled 按鈕),排除後 fallback 交給下一個真正可聚焦
+    // 的元素(通常是複製連結鈕),而不是對它們呼叫 focus() 變成無效果的 no-op。
+    const primaryCta = container.querySelector(
+      '[data-session-action="primary"]:not([disabled]):not([aria-disabled="true"])'
+    );
     const target = preferred ?? primaryCta ?? container.querySelector(JOIN_STAGE_FOCUSABLE_SELECTOR) ?? container;
     target.focus({ preventScroll: true });
   }
 
   function wireIdle() {
-    mounted.root.querySelector('[data-session-action="primary"]')?.addEventListener("click", onPrimary);
-    mounted.root.querySelector('[data-session-action="decide"]')?.addEventListener("click", onDecide);
+    // 批 D4b:「已送出申請」等待狀態的 primary 位是非按鈕 div(aria-disabled,
+    // 沒有原生 disabled 屬性擋掉點擊),wire 前先排除,避免點擊誤觸 onPrimary。
+    // 候選定案面板的 data-session-action="decide" 鈕已在掛載時 wire 一次
+    // (面板不在這個容器內、不隨五態重繪),這裡不用再處理。
+    const primaryButton = mounted.root.querySelector('[data-session-action="primary"]');
+    if (primaryButton && primaryButton.getAttribute("aria-disabled") !== "true") {
+      primaryButton.addEventListener("click", onPrimary);
+    }
     mounted.root.querySelector('[data-session-action="edit"]')?.addEventListener("click", onEdit);
     mounted.root.querySelector('[data-session-action="chat"]')?.addEventListener("click", onChat);
     const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
@@ -2278,7 +2527,7 @@ export function openSessionSheet(
   }
 
   function renderStage(nextStage, message = "") {
-    if (nextStage === "idle") container.innerHTML = idleActionsMarkup({ action, canDecide, canEdit, canChat, canReport });
+    if (nextStage === "idle") container.innerHTML = idleActionsMarkup({ action, canEdit, canChat, canReport, isMine });
     else if (nextStage === "confirming") container.innerHTML = confirmingActionsMarkup(confirmingExpectedAccepted);
     else if (nextStage === "submitting") container.innerHTML = submittingActionsMarkup(confirmingExpectedAccepted);
     else if (nextStage === "success") container.innerHTML = successActionsMarkup(message, notificationSettings);

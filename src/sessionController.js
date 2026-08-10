@@ -1056,6 +1056,10 @@ export function createSessionController({
     const canDecide = hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt);
     const canEdit = hostCanManage && ["booked", "walk_on"].includes(session.venueType);
     const canChat = String(participation?.viewerParticipantStatus).toLowerCase() === "accepted";
+    // 批 D4b:detail sheet 頭部的「我主揪的」badge 與候選資訊列的 guest-only
+    // 條件用。刻意只看 viewerRole,不像 hostCanManage 那樣還要求 canCancel——
+    // 一場自己主揪但目前不可管理的球局仍然「是我主揪的」。
+    const isMine = String(participation?.viewerRole).toLowerCase() === "host";
     const showJoinPreview = Boolean(state.authSession);
     const previewAuthSnapshot = showJoinPreview ? captureAuthSnapshot() : null;
     let detail = null;
@@ -1065,6 +1069,7 @@ export function createSessionController({
       canChat,
       canDecide,
       canEdit,
+      isMine,
       showJoinPreview,
       initialStage,
       onDecide: () => openSessionDecision(session.sessionId),

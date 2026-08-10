@@ -953,9 +953,16 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
   await expect(sheet.getByTestId("join-confirm")).toBeVisible();
   await expect(sheet.getByTestId("join-cancel")).toBeVisible();
   // 摘要只在 detail 本體出現一次,confirming 不重複渲染。
-  await expect(sheet).toContainText("青年公園網球場 · 萬華區");
-  await expect(sheet).toContainText("單打 · NTRP 3.0–4.0 · 缺 1 位");
-  await expect(sheet).toContainText("主揪 公開主揪 · NTRP 3.5 · 資料完整");
+  // 批 D4b:v2 頭部把球場名(19px)與行政區・時間拆成兩行、記分板條拆成三格
+  // 獨立 cell,原本用 " · " 串接的單一長字串斷成分項比對。
+  await expect(sheet.locator(".session-detail__court")).toHaveText("青年公園網球場");
+  await expect(sheet.locator('[data-session-field="time"]')).toContainText("萬華區");
+  await expect(sheet.locator('[data-session-field="details"]')).toContainText("單打");
+  await expect(sheet.locator('[data-session-field="details"]')).toContainText("NTRP 3.0–4.0");
+  await expect(sheet.locator(".scoreboard-strip__cell--inverse")).toContainText("1 位");
+  await expect(sheet.locator(".host-row")).toContainText("公開主揪");
+  await expect(sheet.locator(".host-row__chip")).toHaveText("主揪");
+  await expect(sheet.locator(".host-row__ntrp")).toHaveText("NTRP 3.5 · 資料完整");
   await expect(sheet).toContainText("自備新球");
   await expect(sheet.locator('[data-session-field="court"]')).toHaveCount(1);
   await sheet.getByTestId("join-confirm").click();
@@ -1301,6 +1308,55 @@ test("an expected instant outcome explains group chat and shows accepted success
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a host viewing their own accepted session sees no withdraw affordance, unlike an accepted guest", async ({ page }) => {
+  // fix round 1(驗收回歸):actionFor 的 kind:"chat" 分支同時涵蓋主揪(host)與
+  // accepted guest——兩者的 viewerParticipantStatus 都是 accepted。但
+  // can_withdraw / withdraw_from_session 是 guest-only
+  // (202607210002_session_join_mode.sql),主揪按「取消報名」會被 RPC 拒絕;改版前
+  // 主揪在詳情 sheet 本來就沒有 withdraw 入口。這裡用同一個 session/action 對照
+  // isMine true/false 兩種視角:host 視角兩者都不存在,guest 視角兩者都存在
+  // ——對稱 control group,證明「不存在」的斷言不是空集合掃描。
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  const session = {
+    court: "青年公園網球場",
+    courtDistrict: "萬華區",
+    hostNickname: "示範松果",
+    hostNtrp: 3.5,
+    hostProfileComplete: true,
+    joinMode: "approval",
+    notes: "",
+    ntrpMax: 4,
+    ntrpMin: 3,
+    playType: "單打",
+    sessionId: 9601,
+    slotsRemaining: 1,
+    startAt: "2099-07-19T01:00:00.000Z",
+  };
+
+  await page.evaluate(async (sessionInput) => {
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    openSessionSheet(sessionInput, { action: { label: "群組聊天", kind: "chat" }, isMine: true });
+  }, session);
+  const hostSheet = page.locator("#session-sheet");
+  await expect(hostSheet.getByRole("button", { name: "群組聊天" })).toBeVisible();
+  await expect(hostSheet.getByText("已加入這場球局")).toHaveCount(0);
+  await expect(hostSheet.getByRole("button", { name: "取消報名" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async (sessionInput) => {
+    const { openSessionSheet } = await import("/src/sessionViews.js");
+    openSessionSheet(sessionInput, { action: { label: "群組聊天", kind: "chat" }, isMine: false });
+  }, session);
+  const guestSheet = page.locator("#session-sheet");
+  await expect(guestSheet.getByRole("button", { name: "群組聊天" })).toBeVisible();
+  await expect(guestSheet.getByText("已加入這場球局")).toBeVisible();
+  await expect(guestSheet.getByRole("button", { name: "取消報名" })).toBeVisible();
+
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("join confirmation distinguishes both requested NTRP outcomes without losing success focus", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -1419,7 +1475,9 @@ test("candidate session cards and details resolve every court until Boolean deci
     { candidateSession, courts }
   );
   const decided = page.locator("#session-sheet");
-  await expect(decided).toContainText("第三球場 · 萬華區");
+  // 批 D4b:v2 頭部把球場名與行政區拆成兩行,不再是同一個 " · " 字串。
+  await expect(decided).toContainText("第三球場");
+  await expect(decided).toContainText("萬華區");
   await expect(decided).toContainText("已定案");
   await expect(decided).not.toContainText("第二球場");
   expect(runtimeErrors).toEqual([]);
@@ -1510,8 +1568,11 @@ test("undecided candidate sessions keep their court list and time range across p
     },
     { candidateSession, courts }
   );
-  const explanation = "前從候選球場中定案場地與確切時間，定案後會通知你。";
-  await expect(page.locator("#session-sheet")).toContainText(explanation);
+  // 批 D4b:候選資訊列文案改採 dc 版本(「候選球場:X、Y · 主揪定案後群組通知」),
+  // 取代退役的 candidateDecisionExplanation()。
+  await expect(page.locator("#session-sheet [data-session-candidate-explanation]")).toContainText(
+    "候選球場:示範球場、第二球場、第三球場 · 主揪定案後群組通知"
+  );
   await page.keyboard.press("Escape");
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {

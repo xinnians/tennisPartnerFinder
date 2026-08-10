@@ -728,15 +728,117 @@
 .session-tertiary { min-height: 34px; padding: 0 var(--space-1); border: 0; background: transparent; color: var(--color-court); font-size: var(--text-sm); font-weight: 700; text-decoration: underline; }
 .my-history-reason { margin-top: -4px; padding: 0 var(--space-1); }
 .my-sessions-message { margin: var(--space-2) 0; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
-.session-detail { display: grid; gap: var(--space-3); }
-.session-detail p { margin: 0; padding-bottom: var(--space-2); border-bottom: var(--border-thin); color: var(--color-ink); line-height: 1.55; overflow-wrap: anywhere; }
-.session-detail p[data-session-field="time"],
-.session-detail p[data-join-field="time"] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; } /* 純時間節點;NTRP 混排在 details/host 三事實句中未加 mono(理由見 task-5-report) */
-.session-detail p:nth-child(2),
-.session-detail p:nth-child(3),
-.session-detail p:nth-child(4) { color: var(--color-text-secondary); }
-.session-detail__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
-.session-detail__actions .session-primary { flex: 1 1 160px; }
+/* ============================================================
+   批 D4b(v2 改版):詳情 sheet 改 dc 計分板殼(dc L333-426)。舊版 `.session-detail p`
+   通用段落規則(逐列 border-bottom、nth-child 配色)假設扁平段落堆疊,新版每個
+   欄位都有自己的 BEM 子 class,故整段汰換,不是疊加。時間磚/記分板條/badge 語彙
+   直接複用檔尾 D1 區塊(.time-tile--detail/.scoreboard-strip/.session-badge 系列),
+   這裡只補 D1 沒有的部分:sheet 殼本身、頭部版面、主揪列、候選面板、CTA 動作列。
+   ============================================================ */
+
+/* ---- sheet 殼(dc L334):貼邊 bottom sheet,無固定高度——與篩選 sheet(top:20%
+   固定高度+內部捲動)不同,這裡讓內容撐開;但本站是 100dvh 固定殼(.map-page
+   overflow:hidden),為避免內容在小螢幕下高於視窗卻無法捲動,保留
+   overflow-y:auto + 慷慨的 max-height(88dvh),不採 dc 原型「完全無上限」的寫法,
+   屬刻意的可及性偏離。 ---- */
+.surface.session-detail-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: auto;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 10px 20px 26px;
+  /* dc L334 詳情 sheet 沒有邊框,只靠 box-shadow 分隔——附近球局抽屜(D2)才是
+     ink 邊框,兩者在 dc 裡刻意不同;明確 border:0 蓋掉 .surface 基底的
+     border-top: var(--border-strong)。 */
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.34s var(--ease-brand);
+}
+.session-detail-sheet__grabber { display: block; width: 44px; height: 5px; margin: 2px auto 14px; border-radius: 3px; background: var(--color-line); }
+
+.session-detail { display: block; }
+
+/* ---- 頭部(dc L336-351):74px 時間磚 + badge/球場名/行政區·時間 + ✕。 ---- */
+.session-detail__head { display: flex; gap: 13px; align-items: flex-start; }
+.session-detail__headcopy { flex: 1; min-width: 0; }
+.session-detail__badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.session-detail__court { margin: 4px 0 0; overflow-wrap: anywhere; font-size: 19px; font-weight: 700; color: var(--color-ink); line-height: 1.3; }
+.session-detail__meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 13px; }
+.session-detail__mono { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+/* dc 是 36px,依本站既有的 a11y 升級慣例(.nearby-drawer__close 同一手法)升為 44px 觸控目標。 */
+.session-detail__close { flex: none; width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--color-line); background: var(--color-surface-card); color: var(--color-text-secondary); font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+.session-detail__close:active { transform: scale(0.92); }
+
+.session-detail__scoreboard { margin-top: 16px; }
+
+/* ---- 候選資訊列(guest 視角,dc L367-368)。 ---- */
+.candidate-info-panel { margin: 13px 0 0; padding: 11px 14px; border-radius: var(--radius-lg); background: var(--color-info-bg); color: var(--color-ink); font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+
+/* ---- 主揪列(dc L370-376)。 ---- */
+.host-row { display: flex; align-items: center; gap: 11px; margin-top: 14px; }
+.host-row__avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--color-ink); color: var(--color-signal); font-weight: 700; font-size: 16px; }
+.host-row__copy { flex: 1; min-width: 0; }
+.host-row__nameline { display: flex; align-items: center; gap: 7px; margin: 0; overflow-wrap: anywhere; font-size: 14.5px; font-weight: 700; color: var(--color-ink); }
+.host-row__chip { font-size: 11px; font-weight: 600; color: var(--color-text-secondary); background: var(--color-info-bg); padding: 2px 7px; border-radius: var(--radius-sm); }
+.host-row__ntrp { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12px; }
+.host-row__status { flex: none; margin: 0; color: var(--color-text-secondary); font-size: 12px; }
+
+/* ---- 備註區(dc L378-379)。 ---- */
+.session-detail__notes { margin: 13px 0 0; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--color-info-bg); color: var(--color-ink); font-size: 13.5px; line-height: 1.6; overflow-wrap: anywhere; }
+/* `.session-detail` 不再是 D1 之前那種靠 grid gap 統一分隔子項的容器(改回
+   block,理由見檔案開頭本區塊註解),feeNote(既有欄位,dc 沒有對應概念,沿用
+   .form-hint 次要文字語意)、join preview、action.note、report-error 這幾個
+   「有時候才出現」的區塊都得自己補上緣間距;用 direct child 選擇器範圍限定在
+   這張 sheet,不動 .form-hint/.form-error/.join-preview 在其他呼叫點的樣子。 */
+.session-detail > .form-hint,
+.session-detail > .form-error { margin-top: 13px; }
+.session-detail > .join-preview { margin-top: 14px; }
+
+/* ---- 候選定案面板(host 視角,dc L381-393):dashed 框與申請者面板(未落地,D6
+   範圍)的實線框對比。定案鈕 dc 是 36px,同上一律升為 44px 觸控目標。 ---- */
+.candidate-decide-panel { margin-top: 14px; padding: 12px 13px; border: 1.5px dashed var(--color-ink); border-radius: var(--radius-lg); }
+.candidate-decide-panel__title { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; color: var(--color-text-secondary); }
+.candidate-decide-panel__row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.candidate-decide-panel__copy { flex: 1; min-width: 0; }
+.candidate-decide-panel__name { margin: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; color: var(--color-ink); }
+.candidate-decide-panel__district { margin: 1px 0 0; color: var(--color-text-secondary); font-size: 11.5px; }
+.candidate-decide-panel__cta { flex: none; height: 44px; padding: 0 14px; border: 0; border-radius: var(--radius-md); background: var(--color-signal); color: var(--color-ink); font-family: var(--font-body); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
+.candidate-decide-panel__cta:active { transform: scale(0.94); }
+
+/* ---- CTA 動作列(dc L414-426)。.session-primary/.session-secondary 基底沿用
+   全站契約(第 114/133/388 行),這裡只在動作列範圍內覆寫尺寸與 join 態專屬的
+   陰影/配色——不 global 覆寫,避免動到表單、My Sessions 等其他呼叫點。容器改
+   flex column:五態(idle/confirming/submitting/success/error)裡不是每個都用
+   `.cta-row` 包兩顆鈕並排(confirming/submitting 的取消/確認送出鈕直接是容器
+   的子元素),column 方向的 stretch 讓它們照樣各自撐滿寬度、垂直堆疊。 ---- */
+.session-detail__actions { display: flex; flex-direction: column; margin-top: 16px; }
+.session-detail__actions .cta-row { display: flex; gap: 10px; }
+.session-detail__actions .session-primary,
+.session-detail__actions .session-secondary,
+.session-detail__actions .cta-status { min-height: 50px; border-radius: var(--radius-md); font-size: 16px; }
+.session-detail__actions .cta-row > .session-primary,
+.session-detail__actions .cta-row > .cta-status { flex: 1; }
+.session-detail__actions .session-primary { box-shadow: 0 8px 18px rgba(18, 41, 28, 0.3); }
+.session-detail__actions .session-primary--instant { background: var(--color-signal); color: var(--color-ink); box-shadow: 0 8px 18px rgba(221, 245, 60, 0.45); }
+.session-detail__actions .cta-row > .session-secondary { flex: none; padding: 0 16px; font-size: 14px; }
+
+.cta-status { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; font-weight: 600; }
+.cta-status__icon { flex: none; }
+.cta-status--pending { background: var(--color-info-bg); color: var(--color-text-secondary); }
+.cta-status--joined { margin-bottom: 10px; background: var(--color-success-bg); color: var(--color-success); font-weight: 700; }
+/* 已額滿／終局(取消/結束/開始)套用 WCAG 對停用控件的對比豁免雙 token,
+   非本批新造——D1 已備妥卻尚未有呼叫點,這裡是第一個使用處。 */
+.cta-status--disabled { background: var(--color-disabled-bg); color: var(--color-disabled-text); font-weight: 700; }
+
+.cta-text-action { display: block; width: 100%; min-height: 44px; margin-top: 4px; border: 0; background: none; color: var(--color-danger); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; }
+.cta-text-action:active { transform: scale(0.98); }
+
+.cta-footnote { margin: 11px 0 0; text-align: center; color: var(--color-text-secondary); font-size: 11.5px; }
 .join-preview { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-info-bg); }
 .join-preview h3 { margin: 0; color: var(--color-ink); font-size: var(--text-base); }
 .join-preview .form-hint { margin: 0; padding: 0; border: 0; }
