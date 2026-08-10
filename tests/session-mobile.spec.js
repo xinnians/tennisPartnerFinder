@@ -32,6 +32,20 @@ function captureRuntimeErrors(page) {
 function createTouchTargetScanner(page) {
   const measure = (root) =>
     page.locator(root).evaluateAll((roots) => {
+      // fix round 1(驗收退回):量的是 getBoundingClientRect(),量不到用
+      // ::before { position:absolute; inset:負值 } 撐出來的透明熱區(.toggle-switch
+      // 就是這樣做——視覺上維持小巧的開關樣式,可點區域另外用偽元素往外擴)。只看
+      // 元素自身框會把這種「熱區比視覺大」的合法設計誤判成違規;改成量「元素自身框
+      // 與 ::before 熱區展開後」兩者取大的有效可點範圍。
+      const effectiveBox = (element) => {
+        const box = element.getBoundingClientRect();
+        const before = getComputedStyle(element, "::before");
+        if (before.content === "none" || (before.position !== "absolute" && before.position !== "fixed")) return box;
+        const expand = (value) => Math.max(0, -(parseFloat(value) || 0));
+        const extraX = expand(before.left) + expand(before.right);
+        const extraY = expand(before.top) + expand(before.bottom);
+        return { height: box.height + extraY, width: box.width + extraX };
+      };
       const targets = [];
       for (const node of roots) {
         for (const element of node.querySelectorAll("button, a[href], select, input, textarea, label, [role='switch']")) {
@@ -39,7 +53,7 @@ function createTouchTargetScanner(page) {
           const wrappingLabel = element.closest("label");
           if (element.tagName !== "LABEL" && wrappingLabel && wrappingLabel !== element) continue;
           if (element.tagName === "LABEL" && !element.querySelector("input, select, textarea")) continue;
-          const box = element.getBoundingClientRect();
+          const box = effectiveBox(element);
           targets.push({
             height: Math.round(box.height),
             // fix round 1:用 ?? 時,沒有 id 的元素 element.id 是空字串("")而非 null/undefined,
@@ -169,7 +183,9 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   await page.keyboard.press("Enter");
   const upcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
   await expect(upcomingCard).toBeVisible();
-  await expect(upcomingCard).toContainText("已核准加入");
+  // 批 D6:狀態章文案改用 mySessionsCardChip() 四型(dc §4 逐字),accepted 且局仍
+  // open/full 時是「已確認」,不再是舊版的「已核准加入」。
+  await expect(upcomingCard).toContainText("已確認");
   await expect(page.getByTestId(`open-chat-${sessionId}`)).toBeVisible();
   const settledUpcomingCard = page.getByTestId(`report-session-${sessionId}`).locator("xpath=ancestor::article");
   await expectScrolledIntoViewport(page, settledUpcomingCard);
@@ -268,6 +284,8 @@ test("the create and edit forms keep every 390px touch target at 44px", async ({
   await page.keyboard.press("Escape");
 
   await page.getByTestId("my-sessions-tab").click();
+  // 批 D6:host 自己主揪的 upcoming 卡只在「我主揪的」分頁,預設分頁是「我報名的」。
+  await page.getByTestId("my-sessions-seg-hosted").click();
   const editButton = page.locator(`#my-upcoming-sessions [data-my-action='edit'][data-session-id='${sessionId}']`);
   await expect(editButton).toBeVisible();
   await editButton.click();
@@ -349,54 +367,46 @@ test("the filter sheet open button, filter sheet controls, and profile-completio
   expect(runtimeErrors).toEqual([]);
 });
 
-test("the drawer expand/collapse buttons in half state keep 44px touch targets", async ({ page }) => {
+// 批 D9:批 D2 把抽屜改成「兩態 peek」(collapsed/open,見 sessionViews.js
+// wireDrawerInteractions/renderNearbySessionsList),不再有三態(collapsed/half/full)
+// 與各自獨立的 drawer-expand/drawer-collapse 鈕——收合態的入口是 #nearby-sessions-toggle
+// 本身(peek 列全域可點,#nearby-sessions-summary 只是它內部一個 visually-hidden 摘要
+// span,不是獨立可點目標),展開態只剩單一 drawer-collapse 把手鈕收合回去。
+// drawer-expand 這個 testid 在目前程式碼裡已不存在,這條測試改驗兩態各自的入口尺寸。
+test("the two-state drawer's collapsed toggle and open-state collapse handle keep 44px touch targets", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const courtId = await courtIdByName(host.client, context.host.courts[0]);
-  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
+  await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, slotsTotal: 1 }));
 
   await installFakeMaps(page);
   await page.goto("/");
 
-  // 點擊摘要條打開抽屜到 half（半開）狀態
-  const nearbySessionsSummary = page.locator("#nearby-sessions-summary");
-  await expect(nearbySessionsSummary).toBeVisible();
-  await nearbySessionsSummary.click();
+  // collapsed 態:入口是 #nearby-sessions-toggle 本身,量它的尺寸。
+  const toggle = page.locator("#nearby-sessions-toggle");
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  const toggleBox = await toggle.boundingBox();
+  expect(toggleBox?.width).toBeGreaterThanOrEqual(44);
+  expect(toggleBox?.height).toBeGreaterThanOrEqual(44);
 
-  // 驗證 half 態已設置
+  await toggle.click();
+
+  // 驗證 open 態已設置。
   const drawer = page.locator("#nearby-sessions-list");
-  await expect(drawer).toHaveAttribute("data-drawer-state", "half");
+  await expect(drawer).toHaveAttribute("data-drawer-state", "open");
 
-  // 掃描 half 態的抽屜控制鈕
-  const expandButton = page.getByTestId("drawer-expand");
+  // open 態唯一的收合控制鈕。
   const collapseButton = page.getByTestId("drawer-collapse");
-
-  // 驗證兩顆鈕都可見
-  await expect(expandButton).toBeVisible();
   await expect(collapseButton).toBeVisible();
+  const collapseBox = await collapseButton.boundingBox();
+  expect(collapseBox?.width).toBeGreaterThanOrEqual(44);
+  expect(collapseBox?.height).toBeGreaterThanOrEqual(44);
 
-  // 掃描它們的尺寸
-  const buttons = await page.locator('[data-testid="drawer-expand"], [data-testid="drawer-collapse"]').evaluateAll(
-    (elements) =>
-      elements.map((element) => {
-        const box = element.getBoundingClientRect();
-        return {
-          testid: element.getAttribute("data-testid"),
-          height: Math.round(box.height),
-          width: Math.round(box.width),
-        };
-      })
-  );
-
-  // 非空集合斷言：掃到的鈕數 =2
-  expect(buttons).toHaveLength(2);
-
-  // 驗證每顆鈕都 ≥44×44
-  for (const button of buttons) {
-    expect(button.width).toBeGreaterThanOrEqual(44);
-    expect(button.height).toBeGreaterThanOrEqual(44);
-  }
+  await collapseButton.click();
+  await expect(drawer).toHaveAttribute("data-drawer-state", "collapsed");
+  await expect(toggle).toBeVisible();
 
   expect(runtimeErrors).toEqual([]);
 });

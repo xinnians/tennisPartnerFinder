@@ -22,9 +22,13 @@ select { font: inherit; }
 
 button { cursor: pointer; }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible { outline: 3px solid var(--color-court); outline-offset: 2px; }
+/* 批 D9 backlog #3(dc L22 逐字):全域 focus-visible 外框,取代原本只涵蓋
+   button/input/select 三個標籤的版本——舊版對 <a>、自訂 tabindex 元素(如
+   session-card、chips)一律沒有預設外框,全靠瀏覽器預設值。個別元件若已有自己的
+   :focus-visible 樣式(如 .form-optional > summary、.option-grid--stacked
+   label:has(input:focus-visible)),選擇器帶 class 的具體性天生高於這條裸
+   :focus-visible,元件版本本來就會贏,不需要額外排除。 */
+:focus-visible { outline: 3px solid var(--color-court); outline-offset: 2px; }
 
 button:disabled { cursor: not-allowed; opacity: 0.58; }
 

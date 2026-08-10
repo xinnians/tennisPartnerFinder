@@ -793,6 +793,13 @@ function ntrpRange(session) {
   return `NTRP ${min.toFixed(1)}–${max.toFixed(1)}`;
 }
 
+// 批 D9 backlog #1:記分板格眉已經是「NTRP」,格值若沿用 ntrpRange() 原輸出會
+// 重複前綴、390px 折兩行;只在這個格值呼叫點剝掉前綴,ntrpRange() 本體與其他
+// 呼叫點(session-card meta、聊天球局資訊列等)維持原字串不動。
+function scoreboardNtrpValue(session) {
+  return ntrpRange(session).replace(/^NTRP /, "");
+}
+
 function vacancyLabel(session) {
   const remaining = Number(session.slotsRemaining);
   if (!Number.isFinite(remaining) || remaining <= 0) return "已額滿";
@@ -1080,7 +1087,7 @@ function mySessionCard(session, { courts = [], highlightSessionId = null, segmen
 
 function hostRequestCard({ participant, session }, courts = []) {
   return `<article class="my-action-card" data-testid="participant-row" data-participant-id="${esc(participant.participantId)}">
-    <p class="my-action-card__eyebrow">需要你處理</p>
+    <p class="my-action-card__eyebrow">新申請</p>
     ${mySessionBriefMarkup(session, { courts, kind: "host-request", segment: "hosted" })}
     <h3>${esc(participant.nickname)} · ${esc(formatNtrp(participant.ntrp))}</h3>
     <p>${esc((participant.playTypes ?? []).join("、") || "尚未填寫打法")} · ${esc((participant.homeCourts ?? []).join("、") || "尚未填寫常打球場")}</p>
@@ -2391,9 +2398,15 @@ function ctaEditButton(canEdit) {
   return canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : "";
 }
 
-// 批 B Task 4 遺留的防禦性分支:實務上 canChat 恆等於 action.kind==="chat"
-// (兩者都源自同一個 viewerParticipantStatus==="accepted" 判斷),但沿用既有語意
-// 保留這條路徑,不在本批清掉。
+// 批 D9 backlog #5 稽核:grep sessionController.js 的 actionFor()/openSessionDetail()
+// 證實 canChat 與 kind==="chat" 並非恆同源,故保留此分支——action.kind 由
+// terminalAction(session)(cancelled/expired/started)優先決定,canChat 只看
+// participation.viewerParticipantStatus==="accepted",兩者計算路徑互不相依。
+// 一場已被主揪取消／過期／開打後成為 terminal 的球局,先前被接受的參加者
+// canChat 仍是 true 但 action.kind 會是 "terminal"(非 "chat"),此時就需要這顆
+// 額外的「群組聊天」CTA(封存局群聊唯讀但仍可讀)。My Sessions 的「查看球局」
+// (data-open-my-session,見 main.js)可對 history 分頁的舊局重新開出這張 detail
+// sheet,是這個分支的真實可達路徑,非防禦性死碼。
 function ctaExtraChatButton(canChat, kind) {
   return canChat && kind !== "chat"
     ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>'
@@ -2544,10 +2557,12 @@ function errorActionsMarkup(message) {
 // ==== 批 D4b:詳情 sheet 頭部/記分板/主揪列/候選面板 helper(dc L333-410)。
 // 這些都是純函式,不含 wiring,只組 markup 字串。 ====
 
-/** 球場名(19px)那一行:未定案候選沿用 venue.court(已是候選球場清單joined);
+/** 球場名(19px)那一行:未定案候選改用 sessionCourtLabel() 同一套 D2 卡片
+ * 「X 等 N 館候選」縮寫公式(批 D9 backlog #2)——完整候選清單只留在下方
+ * candidateInfoRowMarkup() 的候選資訊列,不再頭部/資訊列各重複一份;
  * 其餘沿用 session.court 原始球場名——不再像舊版把行政區併進同一行。 */
 function sessionDetailCourtName(session, venue) {
-  return venue.undecidedCandidates ? venue.court : session?.court || venue.court;
+  return venue.undecidedCandidates ? sessionCourtLabel(session, venue) : session?.court || venue.court;
 }
 
 /** 行政區・時間那一行:只有時間片段套 mono(dc L349 inline span)。 */
@@ -2724,7 +2739,7 @@ export function openSessionSheet(
           </div>
           <div class="scoreboard-strip__cell">
             <p class="scoreboard-strip__eyebrow">NTRP</p>
-            <p class="scoreboard-strip__value scoreboard-strip__value--mono">${esc(ntrpRange(session))}</p>
+            <p class="scoreboard-strip__value scoreboard-strip__value--mono">${esc(scoreboardNtrpValue(session))}</p>
           </div>
           <div class="scoreboard-strip__cell scoreboard-strip__cell--inverse">
             <p class="scoreboard-strip__eyebrow">缺額</p>

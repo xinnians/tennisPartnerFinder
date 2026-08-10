@@ -1089,6 +1089,7 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
             canWithdraw: true,
             court: "青年公園網球場",
             courtDistrict: "萬華區",
+            hostNickname: "主揪",
             playType: "雙打",
             sessionId: 8103,
             slotsRemaining: 0,
@@ -1166,7 +1167,16 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
   await expect(sheet.locator(".session-detail__court")).toHaveText("青年公園網球場");
   await expect(sheet.locator('[data-session-field="time"]')).toContainText("萬華區");
   await expect(sheet.locator('[data-session-field="details"]')).toContainText("單打");
-  await expect(sheet.locator('[data-session-field="details"]')).toContainText("NTRP 3.0–4.0");
+  // 批 D9 backlog #1:記分板格眉已是「NTRP」,格值改剝掉重複前綴(390px 下原本
+  // 折兩行),只在這一格斷言裸範圍;ntrpRange() 本體與其他呼叫點(如下方 host-row
+  // 的 formatNtrp())文案不動。用 :has() 鎖定 NTRP 那一格的 value(而不是對整個
+  // details 容器 not.toContainText("NTRP 3.0"))——details 容器裡格眉本來就會印出
+  // 字面「NTRP」,跟後面的格值文字節點相鄰,Playwright 正規化空白後兩者仍會被
+  // 串成「NTRP 3.0…」,對容器整體斷言「不含」永遠假紅,量測目標必須精確到格值本身。
+  const ntrpCellValue = sheet
+    .locator(".scoreboard-strip__cell", { has: page.locator(".scoreboard-strip__eyebrow", { hasText: "NTRP" }) })
+    .locator(".scoreboard-strip__value");
+  await expect(ntrpCellValue).toHaveText("3.0–4.0");
   await expect(sheet.locator(".scoreboard-strip__cell--inverse")).toContainText("1 位");
   await expect(sheet.locator(".host-row")).toContainText("公開主揪");
   await expect(sheet.locator(".host-row__chip")).toHaveText("主揪");
@@ -1200,6 +1210,7 @@ test("an accepted joined session focuses its own upcoming card without the creat
   const acceptedSession = {
     court: "青年公園網球場",
     courtDistrict: "萬華區",
+    hostNickname: "主揪",
     playType: "雙打",
     sessionId: 9501,
     slotsRemaining: 0,
@@ -1243,6 +1254,7 @@ test("a pending guest request focuses its own withdraw button, not the page head
   const pendingSession = {
     court: "大安運動中心",
     courtDistrict: "大安區",
+    hostNickname: "主揪",
     playType: "單打",
     sessionId: 9502,
     startAt: "2099-08-03T10:00:00+08:00",
@@ -1793,6 +1805,9 @@ test("undecided candidate sessions keep their court list and time range across p
     },
     { candidateSession, courts }
   );
+  // 批 D9 backlog #2:未定案候選局的詳情頭部球場名改用跟 D2 卡片同款
+  // sessionCourtLabel()「首館 等 N 館候選」縮寫,不再重複下方候選資訊列的完整清單。
+  await expect(page.locator("#session-sheet .session-detail__court")).toHaveText("示範球場 等 3 館候選");
   // 批 D4b:候選資訊列文案改採 dc 版本(「候選球場:X、Y · 主揪定案後群組通知」),
   // 取代退役的 candidateDecisionExplanation()。
   await expect(page.locator("#session-sheet [data-session-candidate-explanation]")).toContainText(
@@ -4674,6 +4689,7 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
       canRespondInvite: false,
       court: "示範球場",
       courtDistrict: "大安區",
+      hostNickname: "示範主揪",
       playType: "雙打",
       sessionId: 8201,
       slotsRemaining: 0,
@@ -5104,25 +5120,32 @@ test("closing and reopening the filter sheet three times does not stack delegate
   expect(runtimeErrors).toEqual([]);
 });
 
-// 批 C2-4:courts 目錄尚未載入完成前，篩選主鈕必須 disabled。批 D4a 把行政區改成
-// 固定的 12 區 chips(不再從 courts 派生)，原本「避免下拉永遠空白」的理由已不成立，
-// 但這個保守 gate 本身沒被要求移除，行為維持不變：loadCourtsImmediately 完成後
-// （不論成功或失敗，兩者都代表「已經有終局資料可用」）才能啟用。
-test("the filter sheet button stays disabled until the Taipei court catalogue finishes loading", async ({ page }) => {
+// 批 D9 backlog #4:批 D4a 把行政區改成固定的 12 區 chips(不再從 courts 派生)後，
+// 篩選 sheet 內容已經與 courts 目錄完全無關(openFilterSheet() 的 courts 參數只傳入
+// 未使用)，原本「等 courts 載入完成才解除 disabled，避免下拉永遠空白」的保守 gate
+// 已無理由——已移除 setFilterSheetButtonEnabled()/index.html 初始 disabled。
+// 這裡改驗證:即使 courts 目錄仍在載入中，主鈕也維持可用，點開的 sheet 內容仍完整
+// (12 個行政區 chip 全部到齊，不是退化的空清單)。
+test("the filter sheet button stays enabled and its content is complete even while the Taipei court catalogue is still loading", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await delayMockCourts(page, 800);
   await installFakeMaps(page);
   await page.goto("/", { waitUntil: "commit" });
 
   const filterButton = page.locator("#filter-sheet-open");
-  await expect(filterButton).toBeDisabled();
-  await expect(filterButton).toHaveAttribute("aria-disabled", "true");
-
-  await expect(filterButton).toBeEnabled({ timeout: 3_000 });
+  await expect(filterButton).toBeEnabled();
   await expect(filterButton).not.toHaveAttribute("aria-disabled", "true");
 
   await filterButton.click();
-  await expect(page.locator("#filters-sheet")).toBeVisible();
+  const sheet = page.locator("#filters-sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('.filter-sheet-chips--district [data-filter="districts"]')).toHaveCount(12);
+
+  // courts 目錄稍後才載入完成也不應該有任何額外副作用(如殘留錯誤或重繪把 sheet 關掉)。
+  await page.waitForTimeout(900);
+  await expect(sheet).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 

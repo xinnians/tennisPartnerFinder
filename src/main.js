@@ -656,6 +656,12 @@ function captureMeFocus(root) {
   if (active.matches('[data-testid="me-sign-in"]')) return { kind: "sign-in" };
   if (active.matches('[data-testid="me-sign-out"]')) return { kind: "sign-out" };
   if (active.matches('[data-testid="edit-profile"]')) return { kind: "edit-profile" };
+  // fix round 1(驗收退回,實測抓到):批 D8 新增的 identity card 整列可點入口
+  // (me-profile-edit-trigger)跟既有「編輯」鈕(edit-profile)是兩顆各自獨立的
+  // DOM 元素、同時並存,只接了 onEditProfile 同一個 handler,沒接進這個既有
+  // capture/restore 清單——背景重繪時聚焦在它身上會被這個 capture 漏接,
+  // 掉回 body。比照 edit-profile 同款寫法補上。
+  if (active.matches('[data-testid="me-profile-edit-trigger"]')) return { kind: "profile-edit-trigger" };
   if (active.matches('[data-my-action="toggle-visibility"]')) return { kind: "player-visibility" };
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
   if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
@@ -687,6 +693,7 @@ function resolveMeFocus(root, focus) {
   if (focus.kind === "sign-in") return root.querySelector('[data-testid="me-sign-in"]');
   if (focus.kind === "sign-out") return root.querySelector('[data-testid="me-sign-out"]');
   if (focus.kind === "edit-profile") return root.querySelector('[data-testid="edit-profile"]');
+  if (focus.kind === "profile-edit-trigger") return root.querySelector('[data-testid="me-profile-edit-trigger"]');
   if (focus.kind === "player-visibility") return root.querySelector('[data-my-action="toggle-visibility"]');
   if (focus.kind === "enable-push") return root.querySelector("[data-enable-push]");
   if (focus.kind === "notification-pref") {
@@ -1110,20 +1117,7 @@ function renderBaseCourtPins() {
   courtMarkers = renderCourtBasePins(google, map, courts, (court) => controller.openCourt(court), courtMarkers);
 }
 
-// 批 C2-4:courts 目錄尚未載入完成前，篩選主鈕會開出一個「行政區/球場」下拉永遠
-// 空白的 sheet；用 disabled + aria-disabled 擋住這段競態視窗。index.html 的初始
-// markup 已同步帶 disabled，這裡是 JS 端的權威來源，載入完成（不論成功或失敗）
-// 都要解除，見 loadCourtsImmediately 的 finally。
-function setFilterSheetButtonEnabled(enabled) {
-  const button = document.getElementById("filter-sheet-open");
-  if (!button) return;
-  button.disabled = !enabled;
-  button.setAttribute("aria-disabled", String(!enabled));
-}
-
 function wireFilters() {
-  setFilterSheetButtonEnabled(false);
-
   // 日期 chips(dc L102):單選,再點同顆已選中的 chip 會取消(dateKey 回 null)。
   document.querySelectorAll("[data-date-chip]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1205,10 +1199,6 @@ async function loadCourtsImmediately() {
     else if (activePage === "messages") renderMessagesDestination();
     else if (activePage === "me") renderMeDestination();
     toast("球場資料暫時無法載入。");
-  } finally {
-    // 不論成功或失敗都要解除：sheet 在 courts 是空陣列時仍可正常開啟（行政區/球場
-    // 下拉退化成只有「全部」），永久卡在 disabled 反而讓使用者連篩選程度/日期都做不到。
-    setFilterSheetButtonEnabled(true);
   }
 }
 

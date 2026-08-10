@@ -124,8 +124,10 @@
 
 /* 批 A-4 已將 .session-primary/.session-secondary 套用計分板按鈕契約(見下方與 279 行);
    #map-data-status/.form-field__label-row 等處的 .session-secondary 覆寫仍留舊值,
-   非本任務 Files 範圍,見 task-4-report concerns。 */
-.filters-reset,
+   非本任務 Files 範圍,見 task-4-report concerns。
+   fix round 1(驗收退回,實測抓到):.filters-reset 的 38px 在這裡被下方 216 行的
+   同選擇器覆寫(cascade 後者勝),真正生效的數字改在那裡處理;這裡只留
+   .band-option 用的 38px,不重複兩個互相打架的來源。 */
 .band-option {
   min-height: 38px;
   border: 0;
@@ -213,7 +215,8 @@
 .filter-chip { gap: 6px; }
 .filter-chip__badge { font-family: var(--font-mono); font-weight: 600; font-size: 11px; background: var(--color-ink); color: var(--color-signal); border-radius: var(--radius-sm); padding: 1px 5px; }
 
-.filters-reset { min-height: 38px; border: 0; background: transparent; color: var(--color-court); font-weight: 700; }
+/* fix round 1(驗收退回,實測抓到 390px 掃描 44×38,低於互動目標下限):38px 升 44px。 */
+.filters-reset { min-height: 44px; border: 0; background: transparent; color: var(--color-court); font-weight: 700; }
 
 /* 程度 popover(dc L109-117):錨在程度 chip 下方,qmPop 進場動畫。 */
 .level-popover {
@@ -1136,9 +1139,14 @@
 .create-v2__hint { margin: 0 0 8px; color: var(--color-text-secondary); font-size: var(--text-sm); }
 .create-v2__mono { font-family: var(--font-mono); font-weight: 600; }
 
-/* segmented(dc L487-489):40px 升 44px,見殼註解。 */
-.create-v2__segmented { display: flex; height: 44px; margin-bottom: 10px; border: var(--border-strong); border-radius: var(--radius-md); overflow: hidden; }
-.create-v2__seg-btn { flex: 1; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; }
+/* segmented(dc L487-489):40px 升 44px,見殼註解。
+   fix round 1(驗收退回,實測抓到):44px 原本設在容器(.create-v2__segmented)的
+   border-box 高度上,但容器自己的 1px 上下框各吃掉 1px,實際可點的 <button> 子元素
+   (伸展填滿容器 content box)量出來只有 42px——不是把 44px 標在容器,而是要標在
+   真正互動的元素本身。改成容器高度隨內容(不再寫死 44px),min-height 標在
+   .create-v2__seg-btn 上,子元素本身保證 ≥44px,容器的框線與圓角視覺不變。 */
+.create-v2__segmented { display: flex; margin-bottom: 10px; border: var(--border-strong); border-radius: var(--radius-md); overflow: hidden; }
+.create-v2__seg-btn { flex: 1; min-height: 44px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; }
 .create-v2__seg-btn + .create-v2__seg-btn { border-left: var(--border-strong); }
 .create-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
 
@@ -1177,7 +1185,11 @@
 .create-v2__toggle-title { margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
 .create-v2__toggle-sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
 
-.create-v2__textarea { width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-page); color: var(--color-ink); padding: 11px 13px; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.55; resize: none; outline: none; }
+/* 批 D9 backlog #3:拿掉原本的 outline: none——這顆 textarea 沒有其他替代
+   focus 樣式(不像 .chat-composer input[type="text"] 有 :focus 專屬 border-color
+   當替代視覺提示),留著會讓同specificity 的全域 :focus-visible 外框規則因後定義
+   而被蓋掉,鍵盤 tab 進來時完全沒有 focus 指示。 */
+.create-v2__textarea { width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-page); color: var(--color-ink); padding: 11px 13px; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.55; resize: none; }
 
 /* 固定底鈕(dc L590-592):漸層座 + 雙態視覺鈕,無 native disabled——未完成點擊
    由 toast 引導,不擋 submit 事件本身。 */
