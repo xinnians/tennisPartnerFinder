@@ -711,23 +711,65 @@
 .my-sessions-empty h2 { margin: 0; font-size: var(--text-lg); }
 .my-session-card,
 .my-action-card { display: grid; gap: var(--space-2); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
-.my-session-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.my-session-card__role,
-.my-session-card__status,
 .my-action-card__eyebrow { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
-.my-session-card__status { color: var(--color-text-secondary); text-transform: lowercase; }
-.my-session-card h3,
 .my-action-card h3 { margin: 0; overflow-wrap: anywhere; font-size: var(--text-md); }
-.my-session-card p,
 .my-action-card p { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
 .my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
-.my-session-card__time { color: var(--color-court) !important; font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; } /* 批 B-8:同上,降為已載入的 600 */
 .my-session-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
 /* 文字鈕契約(Task 4):.session-tertiary 比照 secondary 語意,無框;字色比照既有 .filters-reset
    的文字鈕前例採 court(可互動強調色),而非 text-secondary(純資訊態),因底線本身已標示可點擊。 */
 .session-tertiary { min-height: 34px; padding: 0 var(--space-1); border: 0; background: transparent; color: var(--color-court); font-size: var(--text-sm); font-weight: 700; text-decoration: underline; }
 .my-history-reason { margin-top: -4px; padding: 0 var(--space-1); }
 .my-sessions-message { margin: var(--space-2) 0; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+
+/* ============================================================
+   批 D6(v2 改版):「我的球局」改 dc 計分板列表殼(抽取規格 §1-6)。segmented
+   分「我報名的／我主揪的」,清單卡改薄卡列(58px 時間磚)當卡首+右側狀態章;
+   管理列(接受/婉拒/邀請回覆/群聊/生命週期/檢舉)刻意保留在卡首下方同一張卡
+   內——對 dc「點卡才開詳情」的刻意架構偏離(本站申請者管理需一頁可及,見 D6
+   派工單決策 4),故 .my-session-card/.my-action-card 外殼、.my-action-card__eyebrow
+   與 .my-session-card__actions(上方 D1/D4b 既有)原樣沿用,這裡只補頁殼、
+   segmented、薄卡列與狀態章四型。
+   ============================================================ */
+.my-sessions-v2__head { margin-bottom: var(--space-2); }
+.my-sessions-v2__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 2.5px; color: var(--color-court); }
+.my-sessions-v2__head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); margin-top: 2px; }
+.my-sessions-v2__title { margin: 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+.my-sessions-v2__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.my-sessions-v2__tool-btn { min-height: 44px; padding: 0 var(--space-3); font-size: var(--text-sm); }
+
+/* segmented(dc §2 逐字):1.5px ink 框、h44、radius-lg(=10px)、中線只在右格
+  (`+` 相鄰選擇器只加左格),選中態 ink 反相底+signal 字。 */
+.my-sessions-v2__segmented { display: flex; height: 44px; margin-top: 10px; border: var(--border-strong); border-radius: var(--radius-lg); overflow: hidden; }
+.my-sessions-v2__seg-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; }
+.my-sessions-v2__seg-btn + .my-sessions-v2__seg-btn { border-left: var(--border-strong); }
+.my-sessions-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
+.my-sessions-v2__seg-count { font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; }
+
+/* 薄卡列(dc §3 逐字):58px 時間磚(.time-tile--compact,D1 既有)+球場名 ellipsis+
+   meta「打法 · NTRP x–y · 主揪 nick n.n」+右側狀態章。管理列在其下、同一張卡
+   內,沿用上方 .my-session-card__actions(D1)。 */
+.my-session-brief { display: flex; align-items: center; gap: 12px; }
+.my-session-brief__body { flex: 1; min-width: 0; }
+.my-session-brief__court { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.my-session-brief__meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12px; }
+
+/* 狀態章四型(dc §4 逐字)+ 本站延伸「受邀中」(dc 沒有邀請概念,見抽取規格 §4
+   決策)。歷史卡(cancelled/expired/played/withdrawn)不強套四型,呼叫端回傳
+   空字串,交給既有 .my-history-reason 說明。 */
+.my-status-chip { flex: none; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 6px; /* dc §4 字面值,不在 radius 階(慣例同 .nearby-peek__create) */ }
+.my-status-chip--info { background: var(--color-info-bg); color: var(--color-text-secondary); }
+.my-status-chip--success { background: var(--color-success-bg); color: var(--color-success); }
+.my-status-chip--danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.my-status-chip--host { background: var(--color-ink); color: var(--color-signal); }
+
+/* 空狀態(dc §5 逐字):dashed 框,只在該分頁非歷史卡為 0 時由呼叫端插入,與既有
+   #my-needs-action/#my-upcoming-sessions 各自的「目前沒有…」提示並存——那兩個
+   容器 id 是既有測試依賴的錨點,任何分頁都必須存在,見 D6 派工單決策 3。 */
+.my-sessions-v2__empty { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding: 28px 20px; border: 1.5px dashed var(--color-line); border-radius: var(--radius-lg); text-align: center; }
+.my-sessions-v2__empty-text { margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); font-weight: 600; line-height: 1.6; }
+.my-sessions-v2__empty-btn { justify-self: center; min-height: 44px; padding: 0 20px; }
+
 /* ============================================================
    批 D4b(v2 改版):詳情 sheet 改 dc 計分板殼(dc L333-426)。舊版 `.session-detail p`
    通用段落規則(逐列 border-bottom、nth-child 配色)假設扁平段落堆疊,新版每個

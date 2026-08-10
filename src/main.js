@@ -872,6 +872,9 @@ function renderMySessionsDestination() {
       createdSessionFocusReason = null;
       return true;
     },
+    // 批 D6:「我主揪的」分頁空狀態「開球局」鈕——沿用底部導覽 create-session-tab
+    // 同一個入口(controller.openCreateIntent 已含 auth/profile gate),不重新實作。
+    onCreateSession: () => controller.openCreateIntent(),
     onDecline: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
     onDeclineInvite: (sessionId) => controller.respondInvite(sessionId, "declined"),
     onDecide: controller.openSessionDecision,

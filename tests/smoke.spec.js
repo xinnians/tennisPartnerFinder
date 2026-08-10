@@ -458,6 +458,109 @@ test("My Sessions has a bottom navigation destination and stays isolated beneath
   expect(runtimeErrors).toEqual([]);
 });
 
+// fix round 1(驗收退回,人工實測抓到):分頁完全空時,v2 dc 空狀態框跟「需要你
+// 處理」/「即將打球」/「過去紀錄」三段舊佔位文字疊在一起顯示,不符 dc「空分頁只
+// 見一個 dashed 框」的意圖。這條鎖住三種分支:全空(只見一個框)、部分空(維持
+// 既有三段式,佔位文字照舊)、history 非空但 needsAction/upcoming 空(框跟
+// history 卡並存)。
+test("My Sessions empty state shows one dc box instead of stacking three placeholder messages", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    window.__renderEmptyCase = (groups) =>
+      renderMySessionsPage(document.getElementById("my-sessions-root"), { authenticated: true, groups });
+  });
+
+  const root = page.locator("#my-sessions-root");
+
+  // 全空:三段舊佔位文字都不可見,只有 dc 空狀態框;容器 id 仍在 DOM(既有測試/
+  // focus 邏輯的錨點),只是內容清空。
+  await page.evaluate(() =>
+    window.__renderEmptyCase({ history: [], needsAction: [], needsActionCount: 0, upcoming: [] })
+  );
+  await expect(root).not.toContainText("目前沒有需要立即處理的事項");
+  await expect(root).not.toContainText("目前沒有即將打球的球局");
+  await expect(root).not.toContainText("尚無過去紀錄");
+  await expect(root.locator("[data-my-sessions-empty]")).toBeVisible();
+  await expect(root.locator("[data-my-sessions-empty]")).toContainText("還沒報名任何球局");
+  await expect(root.locator("#my-needs-action")).toHaveCount(1);
+  await expect(root.locator("#my-needs-action")).toBeEmpty();
+  await expect(root.locator("#my-upcoming-sessions")).toHaveCount(1);
+  await expect(root.locator("#my-upcoming-sessions")).toBeEmpty();
+  await expect(root.locator("#my-history")).toHaveCount(1);
+  await expect(root.locator("#my-history")).toBeEmpty();
+
+  // 部分空:needsAction 有一項,upcoming/history 仍空——語意不變,兩段舊佔位文字
+  // 照常顯示,dc 空狀態框不出現。
+  await page.evaluate(() =>
+    window.__renderEmptyCase({
+      history: [],
+      needsAction: [
+        {
+          kind: "invite",
+          session: {
+            canRespondInvite: true,
+            court: "測試球場",
+            hostNickname: "主揪",
+            hostNtrp: 4,
+            ntrpMax: 5,
+            ntrpMin: 3,
+            playType: "雙打",
+            sessionId: 9601,
+            slotsRemaining: 1,
+            startAt: "2099-07-19T01:00:00.000Z",
+            status: "open",
+            viewerParticipantStatus: "invited",
+            viewerRole: "guest",
+          },
+        },
+      ],
+      needsActionCount: 1,
+      upcoming: [],
+    })
+  );
+  await expect(root.locator("[data-my-sessions-empty]")).toHaveCount(0);
+  await expect(root).toContainText("目前沒有即將打球的球局");
+  await expect(root).toContainText("尚無過去紀錄");
+
+  // history 非空、needsAction/upcoming 空:dc 空狀態框仍出現,但 history 照常
+  // 顯示自己的標題與卡片,不收成空容器。
+  await page.evaluate(() =>
+    window.__renderEmptyCase({
+      history: [
+        {
+          court: "歷史球場",
+          hostNickname: "主揪",
+          hostNtrp: 4,
+          ntrpMax: 5,
+          ntrpMin: 3,
+          playType: "雙打",
+          sessionId: 9602,
+          slotsRemaining: 1,
+          startAt: "2020-07-19T01:00:00.000Z",
+          status: "expired",
+          viewerParticipantStatus: "accepted",
+          viewerRole: "guest",
+        },
+      ],
+      needsAction: [],
+      needsActionCount: 0,
+      upcoming: [],
+    })
+  );
+  await expect(root.locator("[data-my-sessions-empty]")).toBeVisible();
+  await expect(root).not.toContainText("尚無過去紀錄");
+  await expect(root).toContainText("歷史球場");
+  await expect(root.locator("#my-needs-action")).toBeEmpty();
+  await expect(root.locator("#my-upcoming-sessions")).toBeEmpty();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("anonymous session artifacts strip tainted source fields from HTML, data attributes, markers, and captured JSON", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
@@ -1543,21 +1646,38 @@ test("undecided candidate sessions keep their court list and time range across p
     { candidateSession, courts }
   );
 
-  const privateSurfaces = [
+  // 批 D6:My Sessions 薄卡列改用跟地圖抽屜卡(sessionCard)同一套候選局縮寫
+  // 「首館 等 N 館候選」+時間磚小時範圍(dc §3 逐字),不再是「完整候選清單 ·
+  // 至 HH:MM」的長字串——那個格式只留在不受本批影響的詳情/聊天 sheet。
+  // needsAction 的 host-request 卡只在「我主揪的」分頁,其餘三個(upcoming/
+  // invite-row/guest-request)在預設的「我報名的」分頁,故先驗後者、再切分頁驗前者。
+  const joinedSurfaces = [
     page.locator("#my-upcoming-sessions .my-session-card"),
-    page.getByTestId("participant-row"),
     page.getByTestId("invite-row"),
     page.locator("[data-guest-request-session='8802']"),
-    page.locator("#session-chat-sheet [aria-label='球局資訊']"),
   ];
-  for (const surface of privateSurfaces) {
+  for (const surface of joinedSurfaces) {
     const text = await surface.innerText();
-    expect.soft(text).toContain("候選局");
-    expect.soft(text).toContain("示範球場、第二球場、第三球場");
-    expect.soft(text).toContain("至");
-    expect.soft(text).toContain("13:00");
+    expect.soft(text).toContain("示範球場 等 3 館候選");
+    expect.soft(text).not.toContain("第二球場");
+    expect.soft(text).toContain("9–13");
   }
+
+  const chatText = await page.locator("#session-chat-sheet [aria-label='球局資訊']").innerText();
+  expect.soft(chatText).toContain("候選局");
+  expect.soft(chatText).toContain("示範球場、第二球場、第三球場");
+  expect.soft(chatText).toContain("至");
+  expect.soft(chatText).toContain("13:00");
+  // fix round 1(實測):chat sheet 是 modal(aria-modal + backdrop),沒關掉之前點
+  // segmented 分頁鈕會被 backdrop 攔截(locator.click 30s timeout,error context
+  // 指名 #session-chat-sheet/.surface-backdrop intercepts pointer events)——關掉
+  // 之後才切分頁去驗 hosted-only 的 participant-row。
   await page.keyboard.press("Escape");
+  await page.getByTestId("my-sessions-seg-hosted").click();
+  const hostedText = await page.getByTestId("participant-row").innerText();
+  expect.soft(hostedText).toContain("示範球場 等 3 館候選");
+  expect.soft(hostedText).not.toContain("第二球場");
+  expect.soft(hostedText).toContain("9–13");
 
   // 批 C3-2:候選局說明文字只在 detail 本體(不受 join 狀態機影響的區塊)出現一次,
   // 不再有獨立 confirmation surface 各自渲染一份。
@@ -1639,19 +1759,26 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
     { decidedSession, courts }
   );
 
-  const decidedSurfaces = [
-    page.locator("#my-upcoming-sessions .my-session-card"),
-    page.getByTestId("invite-row"),
-    page.locator("#session-chat-sheet [aria-label='球局資訊']"),
-  ];
+  // 批 D6:My Sessions 薄卡列的球場名沿用 sessionCourtLabel(session?.court 優先於
+  // venue.court),已定案候選局因此只顯示球場名、不附行政區,也不掛「候選局 ·
+  // 已定案」badge——那些欄位（venue.badge/行政區）只留在不受本批影響的詳情/
+  // 聊天 sheet(仍用完整 venue.court)。兩者都在預設的「我報名的」分頁,不需切分頁。
+  const decidedSurfaces = [page.locator("#my-upcoming-sessions .my-session-card"), page.getByTestId("invite-row")];
   for (const surface of decidedSurfaces) {
     const text = await surface.innerText();
-    expect.soft(text).toContain("候選局 · 已定案");
-    expect.soft(text).toContain("第三球場 · 萬華區");
+    expect.soft(text).toContain("第三球場");
     expect.soft(text).toContain("11:00");
     expect.soft(text).not.toContain("第二球場");
     expect.soft(text).not.toContain("至");
+    expect.soft(text).not.toContain("已定案");
   }
+
+  const chatText = await page.locator("#session-chat-sheet [aria-label='球局資訊']").innerText();
+  expect.soft(chatText).toContain("候選局 · 已定案");
+  expect.soft(chatText).toContain("第三球場 · 萬華區");
+  expect.soft(chatText).toContain("11:00");
+  expect.soft(chatText).not.toContain("第二球場");
+  expect.soft(chatText).not.toContain("至");
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1700,6 +1827,8 @@ test("My Sessions preserves the initiating action and its error across a private
     render();
   });
 
+  // 批 D6:viewerRole host 的 upcoming 卡只在「我主揪的」分頁,預設分頁是「我報名的」。
+  await page.getByTestId("my-sessions-seg-hosted").click();
   const cancel = page.locator("[data-my-action='cancel']");
   await cancel.click();
   await expect.poll(() => page.evaluate(() => window.__mySessionActionCalls)).toBe(1);
@@ -1969,7 +2098,14 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
         .evaluateAll((nodes, order) => nodes.map((node) => [...node.classList].find((name) => order.includes(name))), ME_SECTION_ORDER)
     )
     .toEqual(ME_SECTION_ORDER);
-  await expect(page.locator("#my-sessions-root .my-sessions-section")).not.toHaveCount(0);
+  // fix round 1(驗收退回):這裡的 groups 全空,My Sessions 現在只畫 dc 空狀態框
+  // (三段 .my-sessions-section 都收成空容器,見上方新增的專屬回歸測試),不再是
+  // 「至少一個 .my-sessions-section」——原斷言的真正目的只是確認 My Sessions 頁
+  // 在 Me 頁重繪之間仍有自己獨立、有效的畫面,改驗空狀態框存在即可。用
+  // toHaveCount 而非 toBeVisible:這裡只顯示 #me-page,#my-sessions-page 本身仍
+  // hidden(這條測試從未把它切成可見),沿用原斷言「只驗 DOM 存在、不驗可見度」
+  // 的語意。
+  await expect(page.locator("#my-sessions-root [data-my-sessions-empty]")).toHaveCount(1);
   await expect(page.locator("#my-sessions-root [data-testid='player-visibility-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='presence-sharing-toggle']")).toHaveCount(0);
   await expect(page.locator("#my-sessions-root [data-testid='open-to-greeting-toggle']")).toHaveCount(0);
@@ -2269,6 +2405,11 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
     });
   });
 
+  // 批 D6:session 732 是 host-request(host-request kind 恆為「我主揪的」)+
+  // viewerRole host 的 upcoming 卡,兩者都只在 hosted 分頁——預設分頁是「我報名的」,
+  // 先切過去才找得到 accept-participant-16;分頁狀態掛在 root 上,accept 之後的
+  // 重繪(groupsAfterReview)不會把它切回去,聚焦骨架照舊在 hosted 分頁內運作。
+  await page.getByTestId("my-sessions-seg-hosted").click();
   await page.getByTestId("accept-participant-16").click();
   await expect(page.locator("[data-open-my-session][data-session-id='732']")).toBeFocused();
 
@@ -2309,6 +2450,9 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
     );
   });
 
+  // 批 D6:session 733 是 viewerRole guest 的 upcoming 卡,屬「我報名的」分頁;
+  // 前一段把分頁切到「我主揪的」,這裡切回來才找得到它的 withdraw 鈕。
+  await page.getByTestId("my-sessions-seg-joined").click();
   await page.locator("[data-my-action='withdraw'][data-session-id='733']").click();
   await page.evaluate(async () => {
     const { renderMySessionsPage } = await import("/src/sessionViews.js");
@@ -3368,6 +3512,8 @@ test("My Sessions gives accepted members chat access without rendering retired c
     });
   });
 
+  // 批 D6:viewerRole host 的 upcoming 卡只在「我主揪的」分頁,預設分頁是「我報名的」。
+  await page.getByTestId("my-sessions-seg-hosted").click();
   await expect(page.getByTestId("open-chat-739")).toBeVisible();
   await expect(page.locator("[data-copy-contact]")).toHaveCount(0);
   await expect(page.locator(".my-session-contacts")).toHaveCount(0);
@@ -3411,6 +3557,8 @@ test("My Sessions chat button surfaces an unread count without disturbing the ze
     });
   });
 
+  // 批 D6:viewerRole host 的 upcoming 卡只在「我主揪的」分頁,預設分頁是「我報名的」。
+  await page.getByTestId("my-sessions-seg-hosted").click();
   const unreadButton = page.getByTestId("open-chat-741");
   await expect(unreadButton).toHaveText("群組聊天（3）");
   await expect(unreadButton).toHaveAttribute("aria-label", "群組聊天，3 則未讀訊息");
@@ -3447,6 +3595,11 @@ test("a host request card names an absent NTRP instead of displaying NTRP 0.0", 
             },
             session: {
               court: "青年公園網球場",
+              hostNickname: "本人",
+              hostNtrp: 4,
+              ntrpMax: 5,
+              ntrpMin: 3,
+              playType: "雙打",
               sessionId: 740,
               startAt: "2099-07-19T01:00:00.000Z",
             },
@@ -3458,6 +3611,10 @@ test("a host request card names an absent NTRP instead of displaying NTRP 0.0", 
     });
   });
 
+  // 批 D6:kind:"host-request" 恆為「我主揪的」分頁,預設分頁是「我報名的」;
+  // session 補上 playType/host 欄位——薄卡列(mySessionBriefMarkup)的 meta 行會
+  // 讀這些欄位,缺值會讓 template literal 印出字面「undefined」。
+  await page.getByTestId("my-sessions-seg-hosted").click();
   const request = page.getByTestId("participant-row");
   await expect(request).toContainText("未填程度球友 · 尚未填寫 NTRP");
   await expect(request).not.toContainText("NTRP 0.0");
