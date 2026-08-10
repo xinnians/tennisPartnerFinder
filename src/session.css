@@ -20,7 +20,11 @@
   --text-lg: 17px; --text-xl: 20px; --text-2xl: 24px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 20px; --space-6: 24px; --space-7: 32px; --space-8: 40px;
-  --radius-sm: 4px; --radius-md: 8px; --radius-pill: 999px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 10px; --radius-xl: 16px; --radius-pill: 999px;
+  /* 批 D1(v2 改版):停用態雙 token(停用控件依 WCAG 豁免對比)與品牌 easing。 */
+  --color-disabled-bg: #e3e6dc;
+  --color-disabled-text: #8a978c;
+  --ease-brand: cubic-bezier(0.22, 0.61, 0.36, 1);
   --border-strong: 1.5px solid var(--color-ink);
   --border-thin: 1px solid var(--color-line);
   --elevation-1: 0 2px 8px rgba(18, 41, 28, 0.10);
@@ -257,20 +261,37 @@
 .player-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
 .player-card span { color: var(--color-text-secondary); font-size: var(--text-sm); }
 .session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 700; line-height: 1.4; }
+/* 批 D1:badge 縮為 v2 緊湊規格(dc.html L161/L162/L345/L346 逐字值)。 */
 .session-badge--instant {
   background: var(--color-signal);
   color: var(--color-ink);
   border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
+  padding: 2px 6px;
+  font-size: 11px;
 }
 .session-badge--ongoing {
   background: var(--color-ink);
   color: var(--color-signal);
   border-radius: var(--radius-sm);
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
+  padding: 2px 6px;
+  font-size: 11px;
 }
+.session-badge--candidate {
+  border: 1.5px dashed var(--color-ink);
+  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+.session-badge--host {
+  background: var(--color-info-bg);
+  color: var(--color-court);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+/* 「✓ 已訂場」在參考稿是純文字不是 badge(dc L167),照稿。 */
+.booked-note { font-size: 11.5px; font-weight: 600; color: var(--color-court); }
 .session-ongoing-time { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; }
 
 .discovery-empty { display: grid; gap: var(--space-3); padding: var(--space-5) var(--space-2) var(--space-2); color: var(--color-ink); text-align: center; }
@@ -627,8 +648,12 @@
 .player-invite-success { margin: 0; padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-success); font-weight: 700; }
 .player-invite-empty { display: grid; justify-items: start; }
 
-#toast-root { position: fixed; z-index: var(--z-toast); right: 16px; bottom: calc(16px + var(--bottom-navigation-offset)); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
-.toast { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--color-ink); color: var(--color-surface-card); box-shadow: var(--elevation-2); font-size: var(--text-base); font-weight: 700; overflow-wrap: anywhere; }
+/* 批 D1:toast 改 v2 規格——中置於導覽列上方、signal ✓、qmToast 進場(dc L671-674)。
+   偏離稿面兩點:keyframes 的 -50% 位移移到 #toast-root(結構不同),nowrap 改
+   overflow-wrap(中文長句在 390px 會爆版,a11y 取捨)。 */
+#toast-root { position: fixed; z-index: var(--z-toast); left: 50%; bottom: calc(34px + var(--bottom-navigation-offset)); transform: translateX(-50%); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: var(--radius-lg); background: var(--color-ink); color: var(--color-surface-page); box-shadow: var(--elevation-2); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; animation: qmToast 0.22s ease; }
+.toast__check { flex: none; }
 
 @media (max-width: 700px) {
   .app-header { min-height: 60px; gap: var(--space-2); padding: var(--space-2) var(--space-3); }
@@ -671,4 +696,89 @@
   .player-layer-status { max-width: 180px; }
   .discovery-empty__actions > * { flex: 1 1 120px; }
   .option-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   批 D1(v2 改版):基礎元件語彙。值逐字抄自設計參考稿
+   SessionMapApp.dc.html(行號標注於各段),hex 已映射回語意 token。
+   ============================================================ */
+
+/* ---- 時間磚 time-tile:base=球局卡 64px 版(dc L154-156);
+        --compact 58px(L191-193)、--detail 74px/radius-lg(L337-339)、
+        --ongoing 進行中反相(L979)。候選場次只換文字(範圍「18–22」),磚體不變。 ---- */
+.time-tile { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; padding: 9px 0; gap: 3px; border: 1.5px solid var(--color-ink); border-radius: var(--radius-md); background: var(--color-surface-page); }
+.time-tile__start { font-family: var(--font-mono); font-weight: 600; font-size: 16px; line-height: 1; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.time-tile__date { font-size: 10.5px; color: var(--color-text-secondary); }
+.time-tile--compact { width: 58px; padding: 8px 0; gap: 2px; }
+.time-tile--compact .time-tile__start { font-size: 15px; }
+.time-tile--compact .time-tile__date { font-size: 10px; }
+.time-tile--detail { width: 74px; padding: 11px 0; border-radius: var(--radius-lg); }
+.time-tile--detail .time-tile__start { font-size: 19px; }
+.time-tile--ongoing { background: var(--color-ink); }
+.time-tile--ongoing .time-tile__start { color: var(--color-signal); }
+.time-tile--ongoing .time-tile__date { color: #9db3a4; /* 深底非活躍文字慣例色 */ }
+
+/* ---- 記分板條 scoreboard-strip(dc L353-364):格間線=前兩格 border-right;
+        TYPE 格的值是 Noto 700、NTRP/缺額格是 mono 600(照稿,兩型並存)。 ---- */
+.scoreboard-strip { display: grid; grid-template-columns: 1fr 1fr 1fr; overflow: hidden; border: 1.5px solid var(--color-ink); border-radius: var(--radius-lg); background: var(--color-surface-card); }
+.scoreboard-strip__cell { padding: 11px 6px; text-align: center; border-right: 1px solid var(--color-line); }
+.scoreboard-strip__cell:last-child { border-right: 0; }
+.scoreboard-strip__eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; color: var(--color-text-secondary); }
+.scoreboard-strip__value { margin-top: 3px; font-size: 16px; font-weight: 700; color: var(--color-ink); }
+.scoreboard-strip__value--mono { font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.scoreboard-strip__cell--inverse { background: var(--color-ink); border-right: 0; }
+.scoreboard-strip__cell--inverse .scoreboard-strip__eyebrow { color: #9db3a4; }
+.scoreboard-strip__cell--inverse .scoreboard-strip__value { color: var(--color-signal); }
+
+/* ---- 缺 N 磚(dc L166/L271/L608 逐字相同) ---- */
+.slots-brick { flex: none; display: inline-block; padding: 3px 8px; border-radius: var(--radius-sm); background: var(--color-ink); color: var(--color-signal); font-family: var(--font-mono); font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ---- chips 語彙(dc chip() helper L851-853 + 各尺寸殼):
+        未選 white 底 1px line 500;選中 ink 底白字 1.5px ink 框 700;
+        --paper 未選底改 page;尺寸:base h36(頂列)/--form h40/--time h40 mono/--filter h44。 ---- */
+.chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-size: 13.5px; font-weight: 500; transition: transform 0.1s; cursor: pointer; }
+.chip:active { transform: scale(0.94); }
+.chip.is-selected { border: 1.5px solid var(--color-ink); background: var(--color-ink); color: var(--color-surface-card); font-weight: 700; }
+.chip--paper:not(.is-selected) { background: var(--color-surface-page); }
+.chip--form { height: 40px; padding: 0 14px; font-family: var(--font-mono); font-size: 13px; }
+.chip--form:active { transform: scale(0.95); }
+.chip--time { height: 40px; padding: 0 13px; font-family: var(--font-mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.chip--time:active { transform: scale(0.95); }
+.chip--filter { height: 44px; font-family: var(--font-mono); font-size: 14px; }
+.chip--filter:active { transform: scale(0.97); }
+
+/* ---- toggle 開關 52×31(dc L578 + on/off 值 L1010):
+        knob 用 left 位移動畫(照稿),aria-checked 驅動狀態。 ---- */
+.toggle-switch { position: relative; flex: none; width: 52px; height: 31px; padding: 0; border: 1.5px solid var(--color-ink); border-radius: var(--radius-xl); background: var(--color-info-bg); transition: background 0.15s; cursor: pointer; }
+.toggle-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 23px; height: 23px; box-sizing: border-box; border: 1.5px solid var(--color-ink); border-radius: 50%; background: var(--color-surface-card); transition: left 0.15s; }
+.toggle-switch[aria-checked="true"] { background: var(--color-ink); }
+.toggle-switch[aria-checked="true"]::after { left: 25px; background: var(--color-signal); }
+
+/* ---- NTRP 磚:大版(我頁/球友卡,dc L225-227)+小版(名單列,dc L299) ---- */
+.ntrp-brick { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 13px; border-radius: var(--radius-md); background: var(--color-ink); }
+.ntrp-brick__eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 10px; letter-spacing: 2px; color: #9db3a4; }
+.ntrp-brick__value { font-family: var(--font-mono); font-weight: 600; font-size: 21px; line-height: 1; color: var(--color-signal); font-variant-numeric: tabular-nums; }
+.ntrp-brick--sm { display: inline-block; padding: 2px 7px; border-radius: var(--radius-sm); background: var(--color-ink); color: var(--color-signal); font-family: var(--font-mono); font-weight: 600; font-size: 11.5px; }
+
+/* ---- 動效原語(dc L15-19 keyframes;時長與 easing 於使用處標注):
+        sheetUp .32/.34s ease-brand、fade .2s、pop .18s(popover)/.3s(成功頁)、
+        slide .28/.3s ease-brand、toast .22s。 ---- */
+@keyframes qmSheetUp { from { transform: translateY(103%); } to { transform: translateY(0); } }
+@keyframes qmFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qmPop { from { opacity: 0; transform: scale(0.92) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes qmSlide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes qmToast { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- 按壓回饋(dc style-active 對照表):鈕類 transform .1s、卡片類 .12s。
+        既有元件先接上;新畫面元件各自帶 :active(見上方各語彙)。 ---- */
+.session-primary, .session-secondary, .session-tertiary, .location-button, .filter-chip, .band-option, .filters-reset { transition: transform 0.1s; }
+.session-primary:active, .session-secondary:active, .location-button:active, .filter-chip:active, .band-option:active, .session-tertiary:active, .filters-reset:active { transform: scale(0.95); }
+.surface__close { transition: transform 0.1s; }
+.surface__close:active { transform: scale(0.92); }
+.session-card, .player-card { transition: transform 0.12s; }
+.session-card:active, .player-card:active { transform: scale(0.98); }
+
+/* ---- reduced-motion 全域降級(dc L23;涵蓋上方所有動畫與 transition) ---- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
