@@ -1,0 +1,7 @@
+{
+  "projectId": "f654e3fc-35d4-4eed-acb0-6210d8f4fac4",
+  "projectName": "網球球局地圖設計系統",
+  "shape": "hand-authored",
+  "readmeHeader": ".design-sync/conventions.md",
+  "note": "此 repo 非元件庫(原生 ES modules app,無 React/Storybook/dist),走 skill 的 off-script 手工路徑:卡片由 src/session.css 逐值抄錄手寫,來源目錄 ds-bundle/。不產 _ds_sync.json anchor(誠實選項:下次同步全量重驗)。"
+}
