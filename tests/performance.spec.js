@@ -65,9 +65,9 @@ test("slow discovery keeps the map shell, base courts, and status usable before 
   await expect(loadingStatus).toHaveAttribute("aria-live", "polite");
   await expect(loadingStatus).toContainText("正在載入球局資料");
   await drawerToggle.click();
-  await page.getByTestId("drawer-expand").click();
   const loadingDrawer = page.locator("#nearby-sessions-list");
-  await expect(loadingDrawer).toHaveAttribute("role", "dialog");
+  // 批 D2:v2 兩態,抽屜是非 modal region;開啟後焦點交棒給「✕」。
+  await expect(loadingDrawer).toHaveAttribute("role", "region");
   await expect(loadingDrawer.getByRole("status")).toContainText("正在載入球局資料");
   await expect(loadingDrawer.locator("#discovery-empty")).toHaveCount(0);
   await expect(loadingDrawer.locator("[data-nearby-close]")).toBeFocused();
@@ -177,15 +177,10 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   const drawerToggle = page.locator("#nearby-sessions-toggle");
   await drawerToggle.focus();
   await drawerToggle.press("Enter");
-  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
-  await page.getByTestId("drawer-expand").click();
-  const drawer = page.getByRole("dialog", { name: "附近球局" });
+  // 批 D2:v2 兩態抽屜是非 modal region(無 Tab trap),開啟後焦點交棒給「✕」。
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
+  const drawer = page.getByRole("region", { name: "附近球局" });
   const drawerClose = drawer.getByRole("button", { name: "關閉附近球局" });
-  const lastDrawerCard = drawer.locator("[data-testid='session-card']").last();
-  await expect(drawerClose).toBeFocused();
-  await drawerClose.press("Shift+Tab");
-  await expect(lastDrawerCard).toBeFocused();
-  await lastDrawerCard.press("Tab");
   await expect(drawerClose).toBeFocused();
 
   const sessionCard = drawer.locator("[data-testid='session-card']").first();
@@ -303,10 +298,9 @@ test("a delayed discovery refresh keeps drawer focus on a durable target", async
   await page.goto("/");
 
   const mapStatus = page.locator("#map-data-status");
-  const drawer = page.getByRole("dialog", { name: "附近球局" });
+  const drawer = page.getByRole("region", { name: "附近球局" });
   await expect(mapStatus).toBeHidden();
   await page.locator("#nearby-sessions-toggle").click();
-  await page.getByTestId("drawer-expand").click();
   const card = drawer.locator("[data-testid='session-card']").first();
   await card.focus();
 
@@ -416,10 +410,9 @@ test("a 667px tall viewport never leaves the document scrollable past its own he
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a 390×667 half-open drawer reveals at least 1 session card without scrolling", async ({ page }) => {
-  // 批 C2(2026-08-08 user 拍板):「維持 45dvh 與批 A 卡片密度，半開露卡目標由 ≥1.5 改 ≥1」。
-  // 實測(見下方量測):list-head(標題＋展開/收合 44px 鈕列)在 390 寬吃掉 95px,卡片本身高 187px,
-  // 45dvh(300px)扣掉 list-head 剩約 1.09 張卡的可視高度,已超過 ≥1 目標;無需調整 CSS。
+test("a 390×667 open drawer reveals at least 1 session card without scrolling", async ({ page }) => {
+  // 批 D2:v2 抽屜固定 top:31%、貼導覽列上緣(dc L136),露卡空間遠大於舊 45dvh 半開,
+  // 「露卡 ≥1」守衛沿用(user 於批 C2 拍板的目標值),量測容器改為 .nearby-drawer__scroll。
   test.skip(isLocalHarness, "This is a deterministic layout check independent of the data source.");
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 667 });
@@ -427,16 +420,16 @@ test("a 390×667 half-open drawer reveals at least 1 session card without scroll
   await page.goto("/");
 
   await page.locator("#nearby-sessions-toggle").click();
-  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "half");
+  await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
 
   const measurement = await page.evaluate(() => {
     const list = document.getElementById("nearby-sessions-list");
+    const scroll = list.querySelector(".nearby-drawer__scroll");
     const cards = [...list.querySelectorAll("[data-testid='session-card']")];
-    if (cards.length < 2) return null;
-    // .nearby-sessions__list has overflow-y:auto + an explicit max-height, so
-    // its own boundingClientRect is already clipped to what's on screen — no
-    // need to reason about scrollHeight vs viewport separately.
-    const listBottom = list.getBoundingClientRect().bottom;
+    if (cards.length < 2 || !scroll) return null;
+    // .nearby-drawer__scroll 是唯一滾動層(overflow-y:auto+flex:1),其 rect 已被抽屜
+    // 高度裁切,直接相減即為可視高度。
+    const listBottom = scroll.getBoundingClientRect().bottom;
     const firstCardRect = cards[0].getBoundingClientRect();
     return { revealedHeight: listBottom - firstCardRect.top, cardHeight: firstCardRect.height };
   });

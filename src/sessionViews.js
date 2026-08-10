@@ -1,6 +1,5 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
 import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters } from "./filters.js";
-import { pushDrawerIsolation } from "./modalIsolation.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { canReceiveFocus } from "./meFocus.js";
@@ -82,7 +81,6 @@ function createJoinPreviewSetter(root) {
 const dialogFocusable =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const drawerBindings = new WeakMap();
-const drawerIsolations = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
 const mySessionActionStates = new WeakMap();
@@ -583,9 +581,8 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
   };
 }
 
-// 三段抽屜 half/full 共用的「目前開著的清單面板」查詢：collapsed 時 section 帶
-// hidden，回傳 null;half/full 都用同一個 #nearby-sessions-list 節點,只差 role/dialog
-// 屬性,不能再用 [data-nearby-dialog](只有 full 才有)當作「有沒有開」的唯一判準。
+// 「目前開著的抽屜面板」查詢:collapsed 時 section 帶 hidden,回傳 null;
+// v2 兩態下 open 就是唯一的開啟狀態,判準是 hidden 屬性。
 function activeDrawerPanel(root) {
   const panel = root.querySelector("#nearby-sessions-list");
   return panel && !panel.hidden ? panel : null;
@@ -601,8 +598,7 @@ function rememberFocusedSessionCard(root) {
   if (active.matches("[data-nearby-close], [data-testid='drawer-collapse']")) {
     // The loading fallback is only a temporary reachable target. Preserve the
     // original card/action intent through the next authoritative rerender.
-    // half 的「收合」鈕是 full「×」關閉鈕的對應物,兩者都收斂回同一個
-    // DRAWER_CLOSE_FOCUS 意圖。
+    // ✕ 與把手都收斂回同一個 DRAWER_CLOSE_FOCUS 意圖。
     if (!drawerLoadingFocusFallbacks.has(root)) setDrawerFocusIntent(root, DRAWER_CLOSE_FOCUS);
     return;
   }
@@ -664,9 +660,10 @@ function restoreFocusedSessionCard(root) {
         clearDrawerFocusIntent(root);
         toggle.focus({ preventScroll: true });
       } else if (toggle?.getAttribute("aria-expanded") === "true") {
-        // Opening the drawer has its own deliberate first target: its close
-        // control. Do not let a replaced opener compete with that hand-off.
+        // v2:peek 在開啟後隱藏,開啟者的焦點交棒給抽屜的「✕」。非 modal 不設
+        // trap,但鍵盤動線必須跟著進到新揭示的面板,不能落在 body。
         clearDrawerFocusIntent(root);
+        activeDrawerPanel(root)?.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
       }
       return;
     }
@@ -750,6 +747,75 @@ function vacancyLabel(session) {
   return `缺 ${remaining} 位`;
 }
 
+// ==== 批 D2:v2 時間磚與日期分組 helper(格式對照 dc.html L825/L845-846/L915-916) ====
+const TAIPEI_WEEKDAY_WORD = ["日", "一", "二", "三", "四", "五", "六"];
+const padTwo = (value) => String(value).padStart(2, "0");
+
+function taipeiParts(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const taipei = new Date(date.getTime() + TAIPEI_UTC_OFFSET_MS);
+  return {
+    year: taipei.getUTCFullYear(),
+    month: taipei.getUTCMonth() + 1,
+    day: taipei.getUTCDate(),
+    hour: taipei.getUTCHours(),
+    minute: taipei.getUTCMinutes(),
+    weekday: taipei.getUTCDay(),
+  };
+}
+
+function taipeiClock(value) {
+  const parts = taipeiParts(value);
+  return parts ? `${padTwo(parts.hour)}:${padTwo(parts.minute)}` : "";
+}
+
+// 時間磚下行「08/10 一」(dc L825:DAY_OF 去括號版)
+function taipeiTileDate(value) {
+  const parts = taipeiParts(value);
+  return parts ? `${padTwo(parts.month)}/${padTwo(parts.day)} ${TAIPEI_WEEKDAY_WORD[parts.weekday]}` : "";
+}
+
+function taipeiDayKey(value) {
+  const parts = taipeiParts(value);
+  return parts ? `${parts.year}-${padTwo(parts.month)}-${padTwo(parts.day)}` : "";
+}
+
+// 「今天」「明天」或「週X」——組標與 peek「最近」共用(dc DAY_WORD 的動態日期版)
+function taipeiDayWord(value, now = new Date()) {
+  const key = taipeiDayKey(value);
+  if (!key) return "";
+  if (key === taipeiDayKey(now)) return "今天";
+  if (key === taipeiDayKey(new Date(now.getTime() + 86_400_000))) return "明天";
+  const parts = taipeiParts(value);
+  return `週${TAIPEI_WEEKDAY_WORD[parts.weekday]}`;
+}
+
+// 抽屜組標「今天 08/10(一)」(dc L915-916:`${DAY_WORD} ${DAY_OF}`)
+function drawerGroupLabel(value, now = new Date()) {
+  const parts = taipeiParts(value);
+  if (!parts) return "時間待確認";
+  return `${taipeiDayWord(value, now)} ${padTwo(parts.month)}/${padTwo(parts.day)}(${TAIPEI_WEEKDAY_WORD[parts.weekday]})`;
+}
+
+function isOngoingSession(session) {
+  const startAt = new Date(session?.startAt ?? "").getTime();
+  return Number.isFinite(startAt) && startAt <= Date.now();
+}
+
+// 時間磚:一般=HH:MM;未定案候選=小時範圍「18–22」(dc L845-846)
+function sessionTimeTileMarkup(session, venue, { detail = false, compact = false } = {}) {
+  const parts = taipeiParts(session?.startAt);
+  const undecided = venue?.undecidedCandidates === true;
+  const endParts = undecided && session?.rangeEnd ? taipeiParts(session.rangeEnd) : null;
+  const start = undecided && endParts && parts ? `${parts.hour}–${endParts.hour}` : taipeiClock(session?.startAt);
+  const ongoing = !undecided && isOngoingSession(session);
+  const modifiers = `${detail ? " time-tile--detail" : ""}${compact ? " time-tile--compact" : ""}${ongoing ? " time-tile--ongoing" : ""}`;
+  return `<span class="time-tile${modifiers}"><span class="time-tile__start">${esc(start || "--:--")}</span><span class="time-tile__date">${esc(
+    taipeiTileDate(session?.startAt) || "待確認"
+  )}</span></span>`;
+}
+
 const VENUE_TYPE_LABELS = {
   booked: "已訂場",
   candidates: "候選局",
@@ -775,6 +841,7 @@ function sessionVenuePresentation(session, courts = []) {
     .filter(Boolean);
   return {
     badge: VENUE_TYPE_LABELS.candidates,
+    candidateNames: names,
     court: names.join("、") || session?.court || "候選球場待確認",
     decided: false,
     time: session?.rangeEnd
@@ -801,19 +868,35 @@ function nowStartSessionMarkup(session) {
   )}</span>`;
 }
 
+// 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄(標題列/meta/底列)。
+// 候選場次以標題後綴「等 N 館候選」+時段範圍表達(dc L845-846),不另掛 badge。
 function sessionCard(session, { compact = false, courts = [] } = {}) {
   const venue = sessionVenuePresentation(session, courts);
+  const candidateNames = venue.candidateNames ?? [];
+  const courtLabel = venue.undecidedCandidates
+    ? `${candidateNames[0] ?? "候選球場待確認"}${candidateNames.length > 1 ? ` 等 ${candidateNames.length} 館候選` : ""}`
+    : session?.court || venue.court;
+  const hostNtrpValue = Number(session?.hostNtrp);
+  const hostLabel = `主揪 ${session.hostNickname}${Number.isFinite(hostNtrpValue) ? ` ${hostNtrpValue.toFixed(1)}` : ""}`;
+  const ongoing = !venue.undecidedCandidates && isOngoingSession(session);
   return `<button type="button" class="session-card${compact ? " session-card--compact" : ""}" data-testid="session-card" data-session-id="${esc(
     session.sessionId
   )}">
-    <span class="session-card__time">${esc(venue.time)}</span>
-    ${venue.undecidedCandidates ? "" : nowStartSessionMarkup(session)}
-    <span class="session-badge">${esc(venue.badge)}</span>
-    <span class="session-card__court">${esc(venue.court)}</span>
-    <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(vacancyLabel(session))}</span>
-    ${session.feeNote ? `<span class="session-card__meta">${esc(`費用：${session.feeNote}`)}</span>` : ""}
-    ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
-    <span class="session-card__host">主揪 ${esc(session.hostNickname)} · ${esc(formatNtrp(session.hostNtrp))}</span>
+    ${sessionTimeTileMarkup(session, venue, { compact })}
+    <span class="session-card__body">
+      <span class="session-card__title">
+        <span class="session-card__court">${esc(courtLabel)}</span>
+        ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
+        ${ongoing ? '<span class="session-badge session-badge--ongoing">進行中</span>' : ""}
+      </span>
+      <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(hostLabel)}</span>
+      ${session.feeNote ? `<span class="session-card__meta">${esc(`費用：${session.feeNote}`)}</span>` : ""}
+      <span class="session-card__foot">
+        <span class="slots-brick">${esc(vacancyLabel(session))}</span>
+        ${String(session?.venueType ?? "booked") === "booked" ? '<span class="booked-note">✓ 已訂場</span>' : ""}
+        <span class="session-card__chevron" aria-hidden="true">›</span>
+      </span>
+    </span>
   </button>`;
 }
 
@@ -1521,27 +1604,15 @@ function wireSessionCards(root, onOpenSession) {
 
 // full 才是 modal:push isolation、顯示 backdrop。half 完全不呼叫這裡的 isModal=true
 // 分支——地圖、header、bottom nav 在半開時維持可互動。
-function setDrawerModal(root, isModal) {
-  const backdrop = document.getElementById("nearby-sessions-backdrop");
-  const release = drawerIsolations.get(root);
-  const toggle = root.querySelector("#nearby-sessions-toggle");
-  if (isModal && !release) drawerIsolations.set(root, pushDrawerIsolation(toggle));
-  if (!isModal && release) {
-    release();
-    drawerIsolations.delete(root);
-  }
-  if (backdrop) backdrop.hidden = !isModal;
-}
-
-function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen = false, onToggle }) {
+// 批 D2:v2 抽屜是兩態(peek↔open)非 modal(dc L135-176 無 scrim、地圖可互動),
+// full/dialog/isolation 機制隨 v2 退場;collapse 的焦點還原邏輯沿用 C2。
+function wireDrawerInteractions(root, { drawerState = "collapsed", onToggle }) {
   drawerBindings.get(root)?.abort();
   const bindings = new AbortController();
   drawerBindings.set(root, bindings);
   const { signal } = bindings;
-  const panel = root.querySelector("[data-nearby-dialog]");
-  // 收合的共用出口:full 的「×」/backdrop/Escape 與 half 的「收合」鈕/Escape/下滑
-  // 都收斂到同一個 collapse(),回 collapsed 後把焦點還給摘要條——full 原本就這樣做,
-  // half 只是新增的第二個入口,焦點還原邏輯沒有理由不同。
+  // 收合的共用出口:✕/把手/Escape/下滑都收斂到同一個 collapse(),回 collapsed 後
+  // 把焦點還給 peek 列——沿用 C2 的讓位規則(新 surface 或使用者已移動焦點時不搶)。
   const collapse = () => {
     onToggle("collapsed");
     requestAnimationFrame(() => {
@@ -1557,57 +1628,8 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen =
     });
   };
 
-  if (drawerState === "full" && panel) {
-    panel.querySelector("[data-nearby-close]")?.addEventListener("click", collapse, { signal });
-    document.getElementById("nearby-sessions-backdrop")?.addEventListener("click", collapse, { signal });
-    panel.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          collapse();
-          return;
-        }
-        if (event.key !== "Tab") return;
-        const nodes = [...panel.querySelectorAll(dialogFocusable)].filter((node) => !node.hasAttribute("hidden") && !node.closest("[hidden]"));
-        if (!nodes.length) return;
-        const first = nodes[0];
-        const last = nodes[nodes.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      },
-      { signal }
-    );
-    if (focusOnOpen) {
-      const focusDrawerClose = () => {
-        // This callback can survive a synchronous drawer redraw that replaced
-        // the opening controls. A later render owns focus restoration, so an
-        // aborted binding must never reclaim focus from it.
-        if (signal.aborted) return;
-        const active = document.activeElement;
-        const opener = root.querySelector("#nearby-sessions-toggle");
-        const livePanel = root.querySelector("[data-nearby-dialog]");
-        const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
-        // The drawer needs an initial keyboard target, but that deferred move
-        // must yield if the user already reached a card in the same frame.
-        if (hasNewSurface || (active?.isConnected && active !== document.body && active !== document.documentElement && active !== opener)) return;
-        livePanel?.querySelector("[data-nearby-close]")?.focus({ preventScroll: true });
-      };
-      // A render can replace the opener during the click event. Claim focus in
-      // the next microtask, then once more after the frame so a concurrent
-      // court/discovery rerender targets the live drawer rather than its
-      // detached predecessor.
-      queueMicrotask(focusDrawerClose);
-      requestAnimationFrame(focusDrawerClose);
-    }
-  }
-
-  if (drawerState === "half") {
+  if (drawerState === "open") {
+    root.querySelector("[data-nearby-close]")?.addEventListener("click", collapse, { signal });
     root.querySelector('[data-testid="drawer-collapse"]')?.addEventListener("click", collapse, { signal });
     // half 不是 dialog,沒有 focus trap 可以攔 Escape;監聽要掛在 document 上才能不管
     // 焦點在哪都收得到。掛在 document 上就必須自己防兩件事:(1) 上層還有 sheet/dialog
@@ -1650,15 +1672,12 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", focusOnOpen =
       if (pointerStart == null) return;
       const delta = pointerStart - event.clientY;
       pointerStart = null;
-      // 上滑 collapsed→half→full、下滑 full→half→collapsed:一次手勢只走一段,
-      // 閾值沿用既有 44px。方向與目前段位都取自這次 render 綁定當下的 drawerState
-      // closure——手勢發生在兩次 render 之間,和舊碼「每次 render 重綁」的模式一致。
+      // v2 兩態:上滑開、下滑收(dc 原型無手勢,工程保留 C2 的手勢入口),
+      // 閾值沿用既有 44px。狀態取自這次 render 綁定當下的 drawerState closure。
       if (delta > 44) {
-        if (drawerState === "collapsed") onToggle("half");
-        else if (drawerState === "half") onToggle("full");
+        if (drawerState === "collapsed") onToggle("open");
       } else if (delta < -44) {
-        if (drawerState === "full") onToggle("half");
-        else if (drawerState === "half") collapse();
+        if (drawerState === "open") collapse();
       }
     },
     { signal }
@@ -1672,7 +1691,30 @@ export function nearbySessionsSummaryText(count, hasUserLocation) {
   return `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
 }
 
-/** Render the map-bound session summary and its collapsed/half/full drawer. */
+// 批 D2:抽屜清單按日期分組(dc L915-916):組標=詞+日期、延伸線、右側 mono 數量;
+// 空組直接不出現。組間依日期升冪、組內依開始時間升冪。
+function drawerGroupsMarkup(sessions, courts) {
+  const groups = new Map();
+  for (const session of sessions) {
+    const key = taipeiDayKey(session.startAt) || "unknown";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(session);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, items]) => {
+      const sorted = [...items].sort((a, b) => String(a.startAt).localeCompare(String(b.startAt)));
+      return `<div class="session-group">
+        <span class="session-group__label">${esc(drawerGroupLabel(sorted[0].startAt))}</span>
+        <span class="session-group__line" aria-hidden="true"></span>
+        <span class="session-group__count">${sorted.length} 場</span>
+      </div>
+      ${sorted.map((session) => sessionCard(session, { courts })).join("")}`;
+    })
+    .join("");
+}
+
+/** Render the map-bound peek strip and its two-state (collapsed/open) drawer. */
 export function renderNearbySessionsDrawer(
   root,
   {
@@ -1692,97 +1734,83 @@ export function renderNearbySessionsDrawer(
     onSubscribe = () => {},
   } = {}
 ) {
-  // A render replaces the toggle/list nodes. Release any previous full
-  // isolation first, then apply a fresh layer (if still full) below.
-  // wasState 讀前一次渲染留在 DOM 上的 data-drawer-state,取代舊版靠
-  // aria-expanded 判斷「剛才是不是開著」——boolean 分不出 half/full,三段一定要
-  // 從專屬屬性讀,才能正確判斷「這次是不是剛進 full」。
-  const wasState = root.querySelector("#nearby-sessions-list")?.dataset.drawerState ?? "collapsed";
   rememberFocusedSessionCard(root);
-  setDrawerModal(root, false);
-  const isHalf = drawerState === "half";
-  const isFull = drawerState === "full";
-  const isOpen = isHalf || isFull;
+  const isOpen = drawerState === "open";
   const count = sessions.length;
   const summary = nearbySessionsSummaryText(count, hasUserLocation);
-  const nearestVenue = sessions[0] ? sessionVenuePresentation(sessions[0], courts) : null;
-  const nearest = sessions[0]
-    ? `${nearestVenue.time} · ${nearestVenue.court} · ${sessions[0].playType} · ${vacancyLabel(sessions[0])}`
-    : authenticated
-      ? "移動地圖或調整篩選條件，查看可加入的球局。"
-      : "找台北市的公開網球球局，看到合適的直接申請加入。";
+  const filtersActive = !isDefaultFilters(filters);
+  const loading = mapStatus?.kind === "loading";
+  const error = mapStatus?.kind === "error";
+  const first = sessions[0];
+  const nextLabel = first ? `最近 ${taipeiDayWord(first.startAt)} ${taipeiClock(first.startAt)}` : "";
   const activeDrawerStatus =
     isOpen && mapStatus?.kind === "warning" && mapStatus?.message
       ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(mapStatus.message)}</p></div>`
       : "";
-  const drawerContent =
-    mapStatus?.kind === "loading"
-      ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(
-          mapStatus.message || "正在載入球局資料…"
-        )}</p></div>`
-      : mapStatus?.kind === "error"
-        ? `<div class="nearby-sessions__status" role="alert"><p>${esc(
-            mapStatus.message || "球局資料暫時無法載入。"
-          )}</p><button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button></div>`
-        : count
-          ? sessions.map((session) => sessionCard(session, { courts })).join("")
-          : renderDiscoveryEmpty({
-              onReset,
-              onExpandBounds,
-              onOpenCreate,
-              onSubscribe,
-              filtersActive: !isDefaultFilters(filters),
-            });
+  const drawerContent = loading
+    ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(
+        mapStatus.message || "正在載入球局資料…"
+      )}</p></div>`
+    : error
+      ? `<div class="nearby-sessions__status" role="alert"><p>${esc(
+          mapStatus.message || "球局資料暫時無法載入。"
+        )}</p><button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button></div>`
+      : count
+        ? drawerGroupsMarkup(sessions, courts)
+        : renderDiscoveryEmpty({ onReset, onExpandBounds, onOpenCreate, onSubscribe, filtersActive });
 
-  // full 的清單頭原樣保留單一「×」關閉鈕;half 換成「展開」/「收合」兩顆 44px 控制鈕
-  // (無手勢環境的鍵盤/螢幕閱讀器入口),不是在原本的×旁邊加,是整段換掉。
-  const listHead = isHalf
-    ? `<div class="nearby-sessions__list-head">
-        <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
-        <div class="nearby-sessions__half-actions">
-          <button type="button" class="session-secondary" data-testid="drawer-expand">展開</button>
-          <button type="button" class="session-secondary" data-testid="drawer-collapse">收合</button>
-        </div>
-      </div>`
-    : `<div class="nearby-sessions__list-head">
-        <div><p>附近球局</p><h2>${esc(summary)}</h2></div>
-        <button type="button" class="surface__close" data-nearby-close aria-label="關閉附近球局">×</button>
-      </div>`;
+  // peek 列(dc L118-131):有結果=ink 底 count 條;0 結果=白底出路卡。兩者都保留
+  // #nearby-sessions-toggle 開抽屜入口(0 結果時文字本身是入口,dc 原型無此入口,
+  // 工程補上以保住抽屜內既有的「擴大範圍/訂閱通知」出路與鍵盤動線)。
+  const arrow =
+    '<svg class="nearby-peek__arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>';
+  const peek =
+    count || loading || error
+      ? `<button type="button" id="nearby-sessions-toggle" class="nearby-peek"${isOpen ? " hidden" : ""} aria-expanded="${isOpen}" aria-controls="nearby-sessions-list">
+          <span id="nearby-sessions-summary" class="visually-hidden">${esc(summary)}</span>
+          <span class="nearby-peek__count" aria-hidden="true">${loading || error ? "…" : count}</span>
+          <span class="nearby-peek__label" aria-hidden="true">${loading ? "載入中" : error ? "載入失敗" : "場可加入"}</span>
+          ${!loading && !error && nextLabel ? `<span class="nearby-peek__next">${esc(nextLabel)}</span>` : ""}
+          ${arrow}
+        </button>`
+      : `<div class="nearby-peek nearby-peek--empty"${isOpen ? " hidden" : ""}>
+          <button type="button" id="nearby-sessions-toggle" class="nearby-peek__empty-toggle" aria-expanded="${isOpen}" aria-controls="nearby-sessions-list">
+            <span id="nearby-sessions-summary" class="visually-hidden">${esc(summary)}</span>
+            <span aria-hidden="true">沒有符合的球局</span>
+          </button>
+          ${filtersActive ? '<button type="button" id="peek-reset" class="nearby-peek__reset">重設篩選</button>' : ""}
+          <button type="button" id="peek-create" class="nearby-peek__create">開一場</button>
+        </div>`;
 
   root.innerHTML = `
-    <button type="button" id="nearby-sessions-toggle" class="nearby-sessions__toggle" aria-expanded="${isOpen}" aria-controls="nearby-sessions-list">
-      <span id="nearby-sessions-summary">${esc(summary)}</span>
-      <span class="nearby-sessions__summary-detail">${esc(nearest)}</span>
-      <span aria-hidden="true">${isOpen ? "⌄" : "⌃"}</span>
-    </button>
-    <section id="nearby-sessions-list" class="nearby-sessions__list"${isOpen ? "" : " hidden"} data-drawer-state="${drawerState}" ${
-      isFull
-        ? 'role="dialog" aria-modal="true" aria-label="附近球局" tabindex="-1" data-nearby-dialog'
-        : isHalf
-          ? 'role="region" aria-label="附近球局"'
-          : ""
-    }>
-      ${listHead}
+    ${peek}
+    <section id="nearby-sessions-list" class="nearby-drawer"${isOpen ? "" : " hidden"} data-drawer-state="${drawerState}" role="region" aria-label="附近球局">
+      <button type="button" class="nearby-drawer__handle" data-testid="drawer-collapse" aria-label="收合附近球局"><span class="nearby-drawer__bar" aria-hidden="true"></span></button>
+      <div class="nearby-drawer__head">
+        <div>
+          <p class="nearby-drawer__eyebrow">NEARBY MATCHES</p>
+          <div class="nearby-drawer__countrow"><span class="nearby-drawer__count">${loading || error ? "…" : count}</span><span class="nearby-drawer__unit">場可加入</span></div>
+        </div>
+        <button type="button" class="nearby-drawer__close" data-nearby-close aria-label="關閉附近球局">✕</button>
+      </div>
       ${activeDrawerStatus}
-      <div class="nearby-sessions__cards">
-        ${drawerContent}
+      <div class="nearby-drawer__scroll">
+        <div class="nearby-sessions__cards">
+          ${drawerContent}
+        </div>
       </div>
     </section>`;
 
-  const toggle = root.querySelector("#nearby-sessions-toggle");
-  // collapsed 時點摘要條進半開;half/full 時點摘要條(full 下其實已被 inert 擋掉
-  // 點擊)回 collapsed——只有「進半開」是規格明訂的行為,其餘沿用舊版「再點一次
-  // 收起」的直覺,不額外分支。
-  toggle.addEventListener("click", () => onToggle(drawerState === "collapsed" ? "half" : "collapsed"));
+  root.querySelector("#nearby-sessions-toggle")?.addEventListener("click", () => onToggle(isOpen ? "collapsed" : "open"));
   wireSessionCards(root, onOpenSession);
+  root.querySelector("#peek-reset")?.addEventListener("click", onReset);
+  root.querySelector("#peek-create")?.addEventListener("click", onOpenCreate);
   root.querySelector("#discovery-reset")?.addEventListener("click", onReset);
   root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
   root.querySelector("#discovery-subscribe")?.addEventListener("click", onSubscribe);
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
   root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
-  root.querySelector('[data-testid="drawer-expand"]')?.addEventListener("click", () => onToggle("full"));
-  setDrawerModal(root, isFull);
-  wireDrawerInteractions(root, { drawerState, focusOnOpen: isFull && wasState !== "full", onToggle });
+  wireDrawerInteractions(root, { drawerState, onToggle });
   restoreFocusedSessionCard(root);
 }
 

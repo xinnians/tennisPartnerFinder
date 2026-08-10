@@ -958,7 +958,7 @@ export function createSessionController({
   }
 
   function setDrawerState(value) {
-    if (value !== "collapsed" && value !== "half" && value !== "full") return;
+    if (value !== "collapsed" && value !== "open") return;
     state.drawerState = value;
     publish();
   }
@@ -978,10 +978,8 @@ export function createSessionController({
 
   function setMapUnavailable() {
     state.mapUnavailable = true;
-    // 批 C2-3:auto-expand 映射 half(spec §3「讓地圖保持可見」)——地圖本身既然不可用,
-    // 這裡的「保持可見」實質是不 push full 的 modal isolation,讓抽屜以外的頁面殼
-    // (header/bottom nav)維持可互動,而不是真的還能看到地圖。
-    state.drawerState = "half";
+    // 地圖不可用時自動展開抽屜(v2 兩態:open 即非 modal,頁面殼維持可互動)。
+    state.drawerState = "open";
     publish();
   }
 
@@ -1530,8 +1528,8 @@ export function createSessionController({
   function closeForStaleIntent(message) {
     const options = { reason: "stale-intent", restoreFocus: false };
     closeActiveDetail(undefined, options);
-    // 批 C2-3:同上,auto-expand 映射 half,不再強制進 full modal。
-    state.drawerState = "half";
+    // auto-expand 映射 v2 的 open(非 modal)。
+    state.drawerState = "open";
     publish();
     toast(message);
   }

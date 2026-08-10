@@ -2352,8 +2352,8 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   await fullHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(fullIntent.value(), null);
   assert.deepEqual(fullHarness.toasts, ["球局已額滿，已回到附近球局。"]);
-  // 批 C2-3:closeForStaleIntent 的 auto-expand 映射由 full 改 half(讓地圖保持可見)。
-  assert.equal(fullHarness.renders.at(-1).drawerState, "half");
+  // 批 D2:v2 兩態,closeForStaleIntent 的 auto-expand 映射 open(非 modal,地圖可見)。
+  assert.equal(fullHarness.renders.at(-1).drawerState, "open");
   assert.equal(fullHarness.opened.length, 0);
 
   for (const [status, message] of [
@@ -2380,25 +2380,25 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
   await unavailableHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
   assert.equal(unavailableIntent.value(), null);
   assert.deepEqual(unavailableHarness.toasts, ["球局已取消、結束或不再開放，已回到附近球局。"]);
-  assert.equal(unavailableHarness.renders.at(-1).drawerState, "half");
+  assert.equal(unavailableHarness.renders.at(-1).drawerState, "open");
 });
 
-test("setDrawerState accepts the three-value enum and ignores illegal values", () => {
+test("setDrawerState accepts the two-value enum and ignores illegal values", () => {
   const harness = createHarness();
   const { controller } = harness;
 
   assert.equal(typeof controller.setDrawerExpanded, "undefined", "setDrawerExpanded wrapper is retired; callers use setDrawerState directly");
 
-  controller.setDrawerState("half");
-  assert.equal(harness.renders.at(-1).drawerState, "half");
-
-  controller.setDrawerState("full");
-  assert.equal(harness.renders.at(-1).drawerState, "full");
+  controller.setDrawerState("open");
+  assert.equal(harness.renders.at(-1).drawerState, "open");
 
   controller.setDrawerState("collapsed");
   assert.equal(harness.renders.at(-1).drawerState, "collapsed");
 
   const rendersBeforeIllegal = harness.renders.length;
+  // 批 D2:v2 兩態,舊三態的 half/full 也屬非法值,一併驗證被忽略。
+  controller.setDrawerState("half");
+  controller.setDrawerState("full");
   controller.setDrawerState("expanded");
   controller.setDrawerState(true);
   controller.setDrawerState(null);

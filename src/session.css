@@ -182,80 +182,106 @@
 #band-options { display: grid; gap: var(--space-1); }
 .band-option { width: 100%; padding: 0 var(--space-2); text-align: left; background: var(--color-info-bg); color: var(--color-ink); }
 
-.nearby-sessions {
-  position: absolute;
-  z-index: calc(var(--z-drawer) + 1);
-  right: clamp(12px, 3vw, 30px);
-  bottom: calc(20px + var(--bottom-navigation-offset));
-  width: min(370px, calc(100% - 24px));
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.95);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  border-top: var(--border-strong);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: var(--elevation-2);
-}
+/* ==== 批 D2:附近球局改 v2 兩態——peek 列(dc L118-131)+展開抽屜(dc L135-176)。
+   root aside 本身不再是視覺容器,兩個子面板各自 fixed 定位;無 scrim、地圖恆可互動。
+   置中規則:以對稱 inset 取代 translateX,避免與 qmSheetUp 的 transform 打架。 ==== */
+.nearby-sessions { position: static; }
 
-.nearby-sessions__backdrop {
+.nearby-peek {
   position: fixed;
   z-index: var(--z-drawer);
-  inset: 0;
-  background: rgba(18, 41, 28, 0.38); /* ink 基底,比照 --elevation-1/2 既有 rgba(18,41,28,…) 寫法,批 B-8 換掉舊 navy rgba(11,28,50) */
-}
-
-.nearby-sessions__toggle {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  width: 100%;
-  min-height: 76px;
-  gap: var(--space-1) var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  left: max(14px, calc(50% - 246px));
+  right: max(14px, calc(50% - 246px));
+  bottom: calc(16px + var(--bottom-navigation-offset));
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 56px;
+  padding: 0 16px;
   border: 0;
-  background: transparent;
-  color: var(--color-ink);
+  border-radius: var(--radius-lg);
+  background: var(--color-ink);
+  box-shadow: 0 12px 28px rgba(18, 41, 28, 0.38);
+  color: var(--color-surface-card);
   text-align: left;
+  transition: transform 0.12s;
 }
-
-#nearby-sessions-summary { overflow-wrap: anywhere; font-size: var(--text-md); font-weight: 700; }
-.nearby-sessions__summary-detail { grid-column: 1 / 2; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.45; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-
-.nearby-sessions__list {
-  max-height: min(64dvh, 520px);
-  padding: 0 var(--space-3) var(--space-4);
-  overflow-y: auto;
-  border-top: 1px solid var(--color-line);
-  /* 批 C2-2:全檔第一個 transition。半開↔全開/收合切換時的高度變化改用漸變,而不是
-     hidden 屬性那種瞬間切換;reduced-motion 使用者關閉在下方。 */
-  transition: max-height 220ms ease;
+.nearby-peek:active { transform: scale(0.97); }
+.nearby-peek__count { font-family: var(--font-mono); font-weight: 600; font-size: 21px; color: var(--color-signal); font-variant-numeric: tabular-nums; }
+.nearby-peek__label { font-size: 13.5px; font-weight: 600; color: var(--color-surface-card); }
+.nearby-peek__next { margin-left: auto; font-size: 12px; color: #9db3a4; font-variant-numeric: tabular-nums; }
+.nearby-peek__arrow { flex: none; }
+.nearby-peek--empty {
+  height: auto;
+  min-height: 56px;
+  gap: var(--space-2);
+  padding: var(--space-3) 16px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-surface-card);
+  box-shadow: 0 12px 28px rgba(18, 41, 28, 0.2);
+  color: var(--color-ink);
+  transition: none;
 }
-/* 半開:約視窗 45%,露出清單頭＋約 1.5-2 張卡,地圖仍可互動(不套用 dialog/isolation)。 */
-.nearby-sessions__list[data-drawer-state="half"] { max-height: 45dvh; }
-.nearby-sessions__list-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
-.nearby-sessions__half-actions { display: flex; flex: 0 0 auto; gap: var(--space-2); }
-.nearby-sessions__half-actions .session-secondary { min-width: 44px; min-height: 44px; }
+.nearby-peek--empty:active { transform: none; }
+.nearby-peek__empty-toggle { min-height: 44px; padding: 0; border: 0; background: none; color: var(--color-ink); font-size: 13.5px; font-weight: 600; text-align: left; }
+.nearby-peek__reset { margin-left: auto; min-height: 44px; padding: 6px 2px; border: 0; background: none; color: var(--color-court); font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.nearby-peek__create { min-height: 44px; padding: 8px 12px; border: 0; border-radius: 6px; /* dc L130 字面值,不在 radius 階 */ background: var(--color-signal); color: var(--color-ink); font-size: 13px; font-weight: 700; transition: transform 0.1s; }
+.nearby-peek__create:active { transform: scale(0.95); }
+.nearby-peek--empty .nearby-peek__empty-toggle { flex: 1 1 auto; }
+.nearby-peek--empty .nearby-peek__reset { margin-left: 0; }
 
-@media (prefers-reduced-motion: reduce) {
-  .nearby-sessions__list { transition: none; }
+.nearby-drawer {
+  position: fixed;
+  z-index: var(--z-drawer);
+  left: max(0px, calc(50% - 260px));
+  right: max(0px, calc(50% - 260px));
+  top: 31%;
+  bottom: var(--bottom-navigation-offset);
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-surface-card);
+  box-shadow: 0 -14px 40px rgba(18, 41, 28, 0.22);
+  animation: qmSheetUp 0.32s var(--ease-brand);
 }
+.nearby-drawer__handle { flex: none; min-height: 44px; padding: 10px 0 4px; border: 0; background: none; cursor: pointer; }
+.nearby-drawer__bar { display: block; width: 44px; height: 5px; margin: 0 auto; border-radius: 3px; background: var(--color-line); }
+.nearby-drawer__head { flex: none; display: flex; align-items: center; gap: 9px; padding: 2px 18px 12px; }
+.nearby-drawer__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 11.5px; letter-spacing: 2.5px; color: var(--color-court); }
+.nearby-drawer__countrow { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; color: var(--color-ink); }
+.nearby-drawer__count { font-family: var(--font-mono); font-weight: 600; font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+.nearby-drawer__unit { font-size: 15px; font-weight: 700; }
+/* dc 是 36px,依 handoff 自身的 a11y 規範(觸控 ≥44px)升為 44。 */
+.nearby-drawer__close { flex: none; margin-left: auto; width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--color-line); background: var(--color-surface-card); color: var(--color-text-secondary); font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+.nearby-drawer__close:active { transform: scale(0.92); }
+.nearby-drawer__scroll { flex: 1; overflow-y: auto; padding: 0 14px 14px; }
+
+.session-group { display: flex; align-items: center; gap: 8px; margin: 12px 2px 8px; }
+.session-group__label { font-size: 12px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 1px; }
+.session-group__line { flex: 1; height: 1px; background: var(--color-line); }
+.session-group__count { font-family: var(--font-mono); font-weight: 500; font-size: 11.5px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
 
 .surface__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
-.nearby-sessions__list-head p { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
 .surface__eyebrow { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
-.nearby-sessions__list-head h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); line-height: 1.25; }
 .surface h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); line-height: 1.25; }
 
 .surface__close { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-2xl); line-height: 1; }
-.nearby-sessions__cards { display: grid; gap: var(--space-2); }
+.nearby-sessions__cards { display: block; }
 .nearby-sessions__status { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .nearby-sessions__status p { margin: 0; overflow-wrap: anywhere; }
 .nearby-sessions__status .session-secondary { margin-top: var(--space-2); }
 
-.session-card { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+/* 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄三行。 */
+.session-card { display: flex; gap: 12px; width: 100%; margin-bottom: 9px; padding: 12px; border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
 .session-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
-.session-card__time { color: var(--color-court); font-size: var(--text-sm); font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; } /* 批 B-8:index.html 只載 IBM Plex Mono 500/600,font-synthesis:none 不會合成粗體,700 降為已載入的 600,見決策記錄 */
-.session-card__court { overflow-wrap: anywhere; font-size: var(--text-md); font-weight: 700; }
-.session-card__meta,
-.session-card__host { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.45; }
+.session-card__body { flex: 1; min-width: 0; }
+.session-card__title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.session-card__court { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; }
+.session-card__meta { display: block; margin-top: 4px; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12.5px; line-height: 1.45; }
+.session-card__foot { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.session-card__chevron { margin-left: auto; color: #9aa79b; /* dc L168 裝飾箭頭專用色(非文字,AA 豁免) */ font-size: 18px; line-height: 1; }
 .session-card--compact { padding: var(--space-3); }
 .player-card { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
 .player-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
@@ -675,9 +701,6 @@
   .player-layer-control { position: static; order: 3; }
   .filter-chip { min-width: 44px; min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-sm); }
   .level-popover { top: 148px; left: 10px; }
-  .nearby-sessions { right: 12px; bottom: calc(12px + var(--bottom-navigation-offset)); width: calc(100% - 24px); border-radius: var(--radius-md) var(--radius-md) 0 0; }
-  .nearby-sessions__toggle { min-height: 70px; padding: var(--space-3) var(--space-3); }
-  .nearby-sessions__list { max-height: min(58dvh, 500px); }
   #map-data-status { position: static; order: 4; width: 100%; max-width: none; box-sizing: border-box; }
   .surface { width: calc(100vw - 20px); max-height: 80dvh; padding: var(--space-4); }
   .surface--sheet { right: 10px; bottom: 10px; }
