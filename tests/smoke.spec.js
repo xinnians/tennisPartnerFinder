@@ -458,6 +458,111 @@ test("My Sessions has a bottom navigation destination and stays isolated beneath
   expect(runtimeErrors).toEqual([]);
 });
 
+// 批 D7:五格導覽(抽取規格 §1)——找球局/我的球局/置中開球局/訊息/我逐字順序;
+// 徽章分工雙向驗證:數字徽章只在「我的球局」格內、未讀圓點只在「訊息」格內,
+// 兩者互不越界(D7 派工單映射決策 2)。
+test("bottom navigation renders five items in dc order and splits the badge/dot between my-sessions and messages", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const items = page.locator(".bottom-navigation > button");
+  await expect(items).toHaveCount(5);
+  await expect(items.nth(0)).toHaveAttribute("data-testid", "map-tab");
+  await expect(items.nth(1)).toHaveAttribute("data-testid", "my-sessions-tab");
+  await expect(items.nth(2)).toHaveAttribute("data-testid", "create-session-tab");
+  await expect(items.nth(3)).toHaveAttribute("data-testid", "messages-tab");
+  await expect(items.nth(4)).toHaveAttribute("data-testid", "me-tab");
+
+  await expect(page.locator("#my-sessions-tab #my-sessions-badge")).toHaveCount(1);
+  await expect(page.locator("#my-sessions-tab #my-sessions-unread-dot")).toHaveCount(0);
+  await expect(page.locator("#messages-tab #my-sessions-unread-dot")).toHaveCount(1);
+  await expect(page.locator("#messages-tab #my-sessions-badge")).toHaveCount(0);
+
+  await page.getByTestId("messages-tab").click();
+  await expect(page.locator("#tab-map")).toBeHidden();
+  await expect(page.locator("#my-sessions-page")).toBeHidden();
+  await expect(page.locator("#me-page")).toBeHidden();
+  await expect(page.locator("#messages-page")).toBeVisible();
+  await expect(page.getByTestId("messages-tab")).toHaveAttribute("aria-current", "page");
+  expect(runtimeErrors).toEqual([]);
+});
+
+// 批 D7:訊息頁列(dc §3)——未讀點只出現在 unreadMessageCount>0 的那一列,空清單
+// 時只見 dc dashed 空狀態框,兩者互斥;點列會呼叫 onOpenChat(既有
+// controller.openSessionChat 清未讀流程,這裡只驗接線本身)。
+test("messages page marks only the unread row, wires row clicks to onOpenChat, and mutually excludes its empty state", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { renderMessagesPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("messages-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("messages-page").hidden = false;
+    window.__messagesOpened = [];
+    renderMessagesPage(root, {
+      groups: {
+        history: [],
+        needsAction: [],
+        needsActionCount: 0,
+        upcoming: [
+          {
+            court: "青年公園網球場",
+            hostNickname: "示範主揪",
+            playType: "單打",
+            sessionId: 601,
+            startAt: "2099-07-19T01:00:00.000Z",
+            status: "open",
+            unreadMessageCount: 2,
+            viewerParticipantStatus: "accepted",
+            viewerRole: "guest",
+          },
+          {
+            court: "中山運動中心",
+            hostNickname: "另一位主揪",
+            playType: "雙打",
+            sessionId: 602,
+            startAt: "2099-07-20T01:00:00.000Z",
+            status: "open",
+            unreadMessageCount: 0,
+            viewerParticipantStatus: "accepted",
+            viewerRole: "host",
+          },
+        ],
+      },
+      onOpenChat: (sessionId) => window.__messagesOpened.push(sessionId),
+    });
+  });
+
+  const unreadRow = page.getByTestId("messages-row-601");
+  const readRow = page.getByTestId("messages-row-602");
+  await expect(page.locator(".messages-row__unread")).toHaveCount(1);
+  await expect(unreadRow.locator(".messages-row__unread")).toHaveCount(1);
+  await expect(readRow.locator(".messages-row__unread")).toHaveCount(0);
+  // host 視角看自己主揪頭像字顯示「我」,guest 視角顯示主揪暱稱首字(dc §3)。
+  await expect(readRow.locator(".messages-row__avatar")).toHaveText("我");
+  await expect(unreadRow.locator(".messages-row__avatar")).toHaveText("示");
+  await expect(page.locator(".messages-page__empty")).toHaveCount(0);
+
+  await unreadRow.click();
+  await expect.poll(() => page.evaluate(() => window.__messagesOpened)).toEqual(["601"]);
+
+  await page.evaluate(async () => {
+    const { renderMessagesPage } = await import("/src/sessionViews.js");
+    renderMessagesPage(document.getElementById("messages-root"), {
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
+    });
+  });
+  await expect(page.locator(".messages-row")).toHaveCount(0);
+  await expect(page.locator(".messages-page__empty")).toBeVisible();
+  await expect(page.locator(".messages-page__empty")).toContainText("成局後群組聊天會出現在這裡");
+  expect(runtimeErrors).toEqual([]);
+});
+
 // fix round 1(驗收退回,人工實測抓到):分頁完全空時,v2 dc 空狀態框跟「需要你
 // 處理」/「即將打球」/「過去紀錄」三段舊佔位文字疊在一起顯示,不符 dc「空分頁只
 // 見一個 dashed 框」的意圖。這條鎖住三種分支:全空(只見一個框)、部分空(維持
@@ -3249,8 +3354,10 @@ test("390px topbar row1 actions are at least 44px", async ({ page }) => {
     expect(count, "the app-owned touch-target scan must be nonempty").toBeGreaterThan(0);
     for (let index = 0; index < count; index += 1) {
       const box = await targets.nth(index).boundingBox();
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
+      // mobile DPR 縮放下 boundingBox 有 2^-15 級定點數噪音(實測 43.999969…),
+      // epsilon 只吃掉次像素噪音,真實 <44px 的目標仍會紅。
+      expect(box.width).toBeGreaterThanOrEqual(44 - 0.001);
+      expect(box.height).toBeGreaterThanOrEqual(44 - 0.001);
     }
   }
   await page.getByTestId("me-tab").click();
@@ -3308,8 +3415,10 @@ test("390px primary map, filter, and chat governance targets are at least 44px",
     expect(count).toBeGreaterThan(0);
     for (let index = 0; index < count; index += 1) {
       const box = await targets.nth(index).boundingBox();
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.height).toBeGreaterThanOrEqual(44);
+      // mobile DPR 縮放下 boundingBox 有 2^-15 級定點數噪音(實測 43.999969…),
+      // epsilon 只吃掉次像素噪音,真實 <44px 的目標仍會紅。
+      expect(box.width).toBeGreaterThanOrEqual(44 - 0.001);
+      expect(box.height).toBeGreaterThanOrEqual(44 - 0.001);
     }
   }
   expect(runtimeErrors).toEqual([]);
@@ -4358,7 +4467,12 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
       }
     );
     const feed = document.querySelector("[data-chat-feed]");
-    feed.style.height = "1px";
+    // 批 D7:聊天室改全螢幕殼後,.chat-feed 的 flex:1 1 auto 是在一個「有明確高度」的
+    // fixed inset:0 容器內(不再是舊版 auto-height 的浮卡),flex-grow 會把 inline
+    // height 覆蓋回撐滿可用空間——inline height 只決定 flex-basis 起點,不是最終
+    // 尺寸的硬上限。改用 max-height 才能真的把它夾到 1px,逼出這條測試要驗的
+    // 「訊息比可視區高、需要捲動」情境。
+    feed.style.maxHeight = "1px";
     feed.style.overflow = "auto";
     sheet.setState({
       messages: [
@@ -4413,7 +4527,11 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await expect(chat.locator('[data-chat-message-kind="system"]')).toContainText("球局資訊已更新");
   await expect(chat.locator('[data-chat-message-self="true"]')).toContainText("收到");
   await expect(chat.getByText("等待者")).toHaveCount(0);
-  await expect(chat.getByText("主揪")).toBeVisible();
+  // 批 D7:聊天室新增 header 副行(chat-v2__sub,含「主揪 X」文字),此 fixture 沒填
+  // hostNickname 故副行落回泛用「主揪」二字——跟 roster 裡暱稱剛好也叫「主揪」的成員
+  // 撞字,原本不分區域的 chat.getByText("主揪") 會判定成 strict violation。改成跟下一行
+  // 同一套「限定 [data-chat-roster] 範圍」寫法,驗證的仍是 roster 顯示了這位成員。
+  await expect(chat.locator("[data-chat-roster]").getByText("主揪")).toBeVisible();
   await expect(chat.locator("[data-chat-roster]")).toContainText("示範球友");
   const scroll = await chat.locator("[data-chat-feed]").evaluate((feed) => ({
     clientHeight: feed.clientHeight,

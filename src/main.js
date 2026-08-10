@@ -85,6 +85,7 @@ import {
   renderMapDataStatus,
   renderMePage,
   renderPlayerLayerToggle,
+  renderMessagesPage,
   renderMySessionsPage,
   renderNearbySessionsDrawer,
   nearbySessionsSummaryText,
@@ -136,6 +137,7 @@ let createdSessionFocusId = null;
 let createdSessionFocusReason = null;
 let meRenderGeneration = 0;
 let mySessionsRenderGeneration = 0;
+let messagesRenderGeneration = 0;
 let pendingMeFocus = null;
 // renderMeDestination() 換血 root.innerHTML 期間為 true，讓 focusout 監聽器忽略那次自己
 // 造成的合成事件；細節見 renderMeDestination() 內對應註解。
@@ -548,11 +550,14 @@ function renderDiscovery(view) {
 function syncBottomNavigation() {
   const mapTab = document.getElementById("map-tab");
   const mySessionsTab = document.getElementById("my-sessions-tab");
+  const messagesTab = document.getElementById("messages-tab");
   const meTab = document.getElementById("me-tab");
   if (activePage === "map") mapTab?.setAttribute("aria-current", "page");
   else mapTab?.removeAttribute("aria-current");
   if (activePage === "my-sessions") mySessionsTab?.setAttribute("aria-current", "page");
   else mySessionsTab?.removeAttribute("aria-current");
+  if (activePage === "messages") messagesTab?.setAttribute("aria-current", "page");
+  else messagesTab?.removeAttribute("aria-current");
   if (activePage === "me") meTab?.setAttribute("aria-current", "page");
   else meTab?.removeAttribute("aria-current");
   const badge = document.getElementById("my-sessions-badge");
@@ -563,17 +568,21 @@ function syncBottomNavigation() {
     badge.textContent = count > 0 ? String(count) : "";
     badge.setAttribute("aria-hidden", "true");
   }
-  // 批 C4-2:未讀圓點是獨立於 needsActionCount 的第二個聚合信號(任一局
+  // 批 C4-2 起:未讀圓點是獨立於 needsActionCount 的第二個聚合信號(任一局
   // unread>0),不取代、也不合併進數字徽章本身——兩者可同時出現。圓點對 AT 一律
-  // 靜默(aria-hidden,比照數字徽章),播報只靠這顆 tab 自己的 aria-label，跟既有
-  // #my-sessions-badge-status live region 的分工模式一致。
+  // 靜默(aria-hidden,比照數字徽章)。批 D7 起圓點與其播報改隸屬「訊息」格
+  // (dc chatsBadge 語意)——my-sessions-tab 的 aria-label 不再帶「有未讀訊息」段,
+  // 改由 messages-tab 承載,跟既有 #my-sessions-badge-status live region 的分工
+  // 模式一致(各自 tab 自己的 aria-label 負責播報自己的聚合信號)。
   const hasUnread = mySessionState?.groups?.hasUnread === true;
   const unreadDot = document.getElementById("my-sessions-unread-dot");
   if (unreadDot) unreadDot.hidden = !hasUnread;
-  const badgeLabel = `我的球局${count > 0 ? `，${count} 項待處理` : ""}${hasUnread ? "，有未讀訊息" : ""}`;
+  const badgeLabel = `我的球局${count > 0 ? `，${count} 項待處理` : ""}`;
   mySessionsTab?.setAttribute("aria-label", badgeLabel);
   const badgeStatus = document.getElementById("my-sessions-badge-status");
   if (badgeStatus) badgeStatus.textContent = count > 0 ? `${count} 項待處理` : "沒有待處理事項";
+  const messagesLabel = `訊息${hasUnread ? "，有未讀訊息" : ""}`;
+  messagesTab?.setAttribute("aria-label", messagesLabel);
 }
 
 function captureMySessionsFocus(root) {
@@ -960,12 +969,53 @@ function renderMeDestination() {
   syncBottomNavigation();
 }
 
+// 批 D7:訊息頁只有單一互動元素類型(列按鈕),不需要 My Sessions/Me 頁那套多欄位
+// focus capture/restore 機制——這裡用同一個「記住 sessionId、重繪後找回同一顆
+// 按鈕」的輕量版本,足以覆蓋「列表在背景重繪時使用者仍聚焦某一列」的情境。開啟
+// 聊天室本身的回焦點交給 sheets.js 既有的 data-session-id 還原機制(不需要在這裡
+// 額外處理)。
+function captureMessagesFocus(root) {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !root.contains(active)) return null;
+  if (active.matches("[data-message-row]")) return { sessionId: active.dataset.sessionId };
+  return null;
+}
+
+function renderMessagesDestination() {
+  if (!controller) return;
+  const root = document.getElementById("messages-root");
+  if (!root) return;
+  const state = controller.getMySessionState();
+  const focus = activePage === "messages" ? captureMessagesFocus(root) : null;
+  const generation = ++messagesRenderGeneration;
+  renderMessagesPage(root, {
+    courts,
+    groups: state.groups,
+    onOpenChat: (sessionId) => controller.openSessionChat(sessionId),
+  });
+  if (focus) {
+    requestAnimationFrame(() => {
+      if (generation !== messagesRenderGeneration || activePage !== "messages") return;
+      if (document.querySelector("#sheet-root .surface, #modal-root .surface")) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && root.contains(active)) return;
+      const target = [...root.querySelectorAll("[data-message-row]")].find(
+        (button) => String(button.dataset.sessionId) === String(focus.sessionId)
+      );
+      if (target) target.focus({ preventScroll: true });
+      else root.querySelector("[data-messages-heading]")?.focus({ preventScroll: true });
+    });
+  }
+  syncBottomNavigation();
+}
+
 function showMapPage({ focus = false } = {}) {
   activePage = "map";
   pendingMeFocus = null;
   pendingMySessionsFocus = null;
   document.getElementById("tab-map").hidden = false;
   document.getElementById("my-sessions-page").hidden = true;
+  document.getElementById("messages-page").hidden = true;
   document.getElementById("me-page").hidden = true;
   syncBottomNavigation();
   if (focus) requestAnimationFrame(() => document.getElementById("map-tab")?.focus({ preventScroll: true }));
@@ -983,12 +1033,14 @@ function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
   }
   controller.setDrawerState("collapsed");
   document.getElementById("tab-map").hidden = true;
+  document.getElementById("messages-page").hidden = true;
   document.getElementById("me-page").hidden = true;
   const page = document.getElementById("my-sessions-page");
   page.hidden = false;
   renderMySessionsDestination();
   void controller.refreshMySessions().then(() => {
     if (activePage === "my-sessions") renderMySessionsDestination();
+    else if (activePage === "messages") renderMessagesDestination();
     else if (activePage === "me") renderMeDestination();
   });
   if (focus) {
@@ -1012,6 +1064,7 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   controller.setDrawerState("collapsed");
   document.getElementById("tab-map").hidden = true;
   document.getElementById("my-sessions-page").hidden = true;
+  document.getElementById("messages-page").hidden = true;
   const page = document.getElementById("me-page");
   page.hidden = false;
   renderMeDestination();
@@ -1026,6 +1079,28 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
     // 節點，只是不保證那一次會自動捲動。
     requestAnimationFrame(() => {
       document.querySelector("#me-root [data-notification-settings-heading]")?.focus({ preventScroll: false });
+    });
+  }
+}
+
+// 批 D7:訊息頁不新增 dataApi 呼叫——不像 showMySessionsPage 會另外
+// void controller.refreshMySessions()。setAuthState() 在登入/還原 session 時已經
+// 觸發過 reloadParticipation(見 sessionController.js),訊息頁只讀那份既有 state,
+// 不重複打 RPC。
+function showMessagesPage({ focus = false } = {}) {
+  activePage = "messages";
+  pendingMeFocus = null;
+  pendingMySessionsFocus = null;
+  controller.setDrawerState("collapsed");
+  document.getElementById("tab-map").hidden = true;
+  document.getElementById("my-sessions-page").hidden = true;
+  document.getElementById("me-page").hidden = true;
+  const page = document.getElementById("messages-page");
+  page.hidden = false;
+  renderMessagesDestination();
+  if (focus) {
+    requestAnimationFrame(() => {
+      document.querySelector("#messages-root [data-messages-heading]")?.focus({ preventScroll: true });
     });
   }
 }
@@ -1116,6 +1191,7 @@ async function loadCourtsImmediately() {
     }
     renderBaseCourtPins();
     if (activePage === "my-sessions") renderMySessionsDestination();
+    else if (activePage === "messages") renderMessagesDestination();
     else if (activePage === "me") renderMeDestination();
   } catch {
     courts = [];
@@ -1126,6 +1202,7 @@ async function loadCourtsImmediately() {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
     if (activePage === "my-sessions") renderMySessionsDestination();
+    else if (activePage === "messages") renderMessagesDestination();
     else if (activePage === "me") renderMeDestination();
     toast("球場資料暫時無法載入。");
   } finally {
@@ -1333,10 +1410,11 @@ function init() {
     showCreatedSession: (sessionId) => showMySessionsPage({ sessionId, reason: "created" }),
     onMySessionsChange: () => {
       if (!controller) return;
-      // Keep the hidden destination in sync as well. Otherwise an account
+      // Keep the hidden destinations in sync as well. Otherwise an account
       // switch made from the map page could leave a prior account's private
-      // roster values in a hidden DOM subtree.
+      // roster values (or unread chat rows) in a hidden DOM subtree.
       renderMySessionsDestination();
+      renderMessagesDestination();
       if (activePage === "me") renderMeDestination();
     },
     toast,
@@ -1356,6 +1434,7 @@ function init() {
   document.getElementById("map-tab").addEventListener("click", () => showMapPage());
   document.getElementById("create-session-tab").addEventListener("click", () => controller.openCreateIntent());
   document.getElementById("my-sessions-tab").addEventListener("click", () => showMySessionsPage());
+  document.getElementById("messages-tab").addEventListener("click", () => showMessagesPage());
   document.getElementById("me-tab").addEventListener("click", () => showMePage());
   globalThis.addEventListener("hashchange", () => {
     void openSessionHashRoute();

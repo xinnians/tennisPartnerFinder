@@ -799,6 +799,29 @@ function drawerGroupLabel(value, now = new Date()) {
   return `${taipeiDayWord(value, now)} ${padTwo(parts.month)}/${padTwo(parts.day)}(${TAIPEI_WEEKDAY_WORD[parts.weekday]})`;
 }
 
+// 批 D7:訊息列表列與聊天室 header 副行共用(抽取規格 §3 r.sub / §4 chatSub 同一
+// 語意,但只有 §4 給出完整算式:`${DAY_WORD} ${range} · 主揪 ${host}`)。dc 假設
+// 每局都有明確的 start/end,本站資料模型只有候選局才有時段範圍(rangeEnd)、一般
+// 已定案局只有單一 startAt——比照既有 sessionTimeTileMarkup 的 undecided 分支
+// 判準,不虛構不存在的結束時間;日期詞前綴改用 D2 taipeiDayWord(今天/明天/週X)
+// 而非時間磚上的月/日。
+function sessionScheduleLabel(session) {
+  const dayWord = taipeiDayWord(session?.startAt) || "時間待確認";
+  const startClock = taipeiClock(session?.startAt);
+  const undecided = String(session?.venueType) === "candidates" && !session?.decidedAt;
+  const timeLabel = undecided && session?.rangeEnd ? `${startClock}–${taipeiClock(session.rangeEnd)}` : startClock;
+  const hostLabel = String(session?.viewerRole ?? "").toLowerCase() === "host" ? "我" : session?.hostNickname || "主揪";
+  return `${dayWord} ${timeLabel} · 主揪 ${hostLabel}`;
+}
+
+// 訊息列表 44px 頭像字——host 視角看自己主揪顯示「我」,否則主揪暱稱首字
+// (dc §3:`hostInitial:s.mine?'我':s.host.slice(0,1)`)。
+function sessionHostInitial(session) {
+  if (String(session?.viewerRole ?? "").toLowerCase() === "host") return "我";
+  const nickname = String(session?.hostNickname ?? "").trim();
+  return nickname ? nickname.slice(0, 1) : "主";
+}
+
 function isOngoingSession(session) {
   const startAt = new Date(session?.startAt ?? "").getTime();
   return Number.isFinite(startAt) && startAt <= Date.now();
@@ -2015,22 +2038,30 @@ function chatMessagesMarkup(messages) {
       const isSelf = kind === "user" && message.isSelf === true;
       const senderProfileId = Number(message.senderProfileId);
       const canGovern = kind === "user" && !isSelf && Number.isSafeInteger(senderProfileId) && senderProfileId > 0;
+      const senderNickname = message.senderNickname || "球友";
+      const senderInitial = String(senderNickname).trim().slice(0, 1) || "球";
+      // 批 D7:他人泡泡改配 28px avatar(dc §4「他人」型),自己/系統維持無 avatar；
+      // 既有 data-chat-* 錨點、report/block 覆寫與 sender/body/meta 內容一律不動,
+      // 只是多包一層 .chat-message__bubble,讓 avatar 能當 bubble 的 flex 手足。
       return `<article class="chat-message chat-message--${esc(kind)}${isSelf ? " chat-message--self" : ""}"
         data-chat-message data-chat-message-id="${esc(message.messageId)}" data-chat-message-kind="${esc(kind)}" data-chat-message-self="${
           isSelf ? "true" : "false"
         }">
-        ${kind === "user" ? `<p class="chat-message__sender">${esc(isSelf ? "我" : message.senderNickname || "球友")}</p>` : ""}
-        <p class="chat-message__body">${esc(message.body)}</p>
-        <div class="chat-message__meta">
-          <time datetime="${esc(message.createdAt)}">${esc(taipeiDateTime(message.createdAt))}</time>
-          ${
-            canGovern
-              ? `<button type="button" class="session-tertiary" data-chat-report="${esc(message.messageId)}">檢舉</button>
-                 <button type="button" class="session-tertiary" data-chat-block="${esc(
-                   senderProfileId
-                 )}" data-testid="block-message-sender-${esc(senderProfileId)}">封鎖</button>`
-              : ""
-          }
+        ${kind === "user" && !isSelf ? `<span class="chat-message__avatar" aria-hidden="true">${esc(senderInitial)}</span>` : ""}
+        <div class="chat-message__bubble">
+          ${kind === "user" && !isSelf ? `<p class="chat-message__sender">${esc(senderNickname)}</p>` : ""}
+          <p class="chat-message__body">${esc(message.body)}</p>
+          <div class="chat-message__meta">
+            <time datetime="${esc(message.createdAt)}">${esc(taipeiDateTime(message.createdAt))}</time>
+            ${
+              canGovern
+                ? `<button type="button" class="session-tertiary" data-chat-report="${esc(message.messageId)}">檢舉</button>
+                   <button type="button" class="session-tertiary" data-chat-block="${esc(
+                     senderProfileId
+                   )}" data-testid="block-message-sender-${esc(senderProfileId)}">封鎖</button>`
+                : ""
+            }
+          </div>
         </div>
       </article>`;
     })
@@ -2052,40 +2083,52 @@ export function openSessionChatSheet(
 ) {
   let archived = ["cancelled", "expired", "played"].includes(String(session?.status).toLowerCase());
   const venue = sessionVenuePresentation(session, courts);
+  // 批 D7:header 副行沿用抽取規格 §4 chatSub 語意(今天/明天/週X + 時刻 + 主揪
+  // X/我),與既有 .chat-session-summary(下方保留,aria-label="球局資訊",供
+  // 候選局/已定案文案等既有測試斷言)分工——前者是新視覺標題,後者是既有資訊卡。
+  const headerSub = sessionScheduleLabel(session);
   const mounted = mountSheet({
     id: "session-chat-sheet",
     label: "球局群組聊天",
     className: "session-chat-sheet",
     onClose,
     html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">球局群組</p><h2>群組聊天</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉群組聊天">×</button>
+      <div class="chat-v2__head" data-screen-label="群組聊天">
+        <button type="button" class="chat-v2__back" data-surface-close aria-label="關閉群組聊天">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="chat-v2__head-copy">
+          <p class="chat-v2__court">${esc(venue.court)}</p>
+          <p class="chat-v2__sub">${esc(headerSub)}</p>
+        </div>
       </div>
-      <section class="chat-session-summary" aria-label="球局資訊">
-        <strong><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)}</strong>
-        <span>${esc(venue.time)} · ${esc(session.playType)}</span>
-      </section>
-      <section class="chat-roster" aria-labelledby="chat-roster-title">
-        <h3 id="chat-roster-title">參加者</h3>
-        <div data-chat-roster><p class="surface__copy">正在讀取參加者…</p></div>
-      </section>
-      <p class="my-sessions-message" data-chat-loading role="status" aria-live="polite">正在讀取群組訊息…</p>
-      <p class="form-error" data-chat-error role="alert" tabindex="-1" hidden></p>
-      <section class="chat-feed" data-chat-feed aria-label="群組訊息"></section>
+      <div class="chat-v2__info">
+        <section class="chat-session-summary" aria-label="球局資訊">
+          <strong><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)}</strong>
+          <span>${esc(venue.time)} · ${esc(session.playType)}</span>
+        </section>
+        <section class="chat-roster" aria-labelledby="chat-roster-title">
+          <h3 id="chat-roster-title">參加者</h3>
+          <div data-chat-roster><p class="surface__copy">正在讀取參加者…</p></div>
+        </section>
+        <p class="my-sessions-message" data-chat-loading role="status" aria-live="polite">正在讀取群組訊息…</p>
+        <p class="form-error" data-chat-error role="alert" tabindex="-1" hidden></p>
+      </div>
+      <section class="chat-feed qm-scroll" data-chat-feed aria-label="群組訊息"></section>
       <p class="visually-hidden" data-chat-announcement role="status" aria-live="polite" aria-atomic="true"></p>
       <p class="chat-archived-note" data-chat-archived-note${archived ? "" : " hidden"}>球局已封存；你仍可查看先前訊息，但不能再傳送。</p>
       <form class="chat-composer" data-chat-composer>
-        <label for="chat-message-input">傳送純文字訊息</label>
-        <textarea id="chat-message-input" data-testid="chat-message-input" maxlength="1000" rows="3"${archived ? " disabled" : ""}></textarea>
-        <div class="chat-composer__actions">
-          <span class="form-hint">最多 1000 字</span>
-          <button type="submit" class="session-primary" data-testid="chat-send"${archived ? " disabled" : ""}>傳送</button>
-        </div>
+        <label for="chat-message-input" class="visually-hidden">傳送純文字訊息</label>
+        <input id="chat-message-input" data-testid="chat-message-input" type="text" autocomplete="off" maxlength="1000" placeholder="傳訊息給球局成員…"${
+          archived ? " disabled" : ""
+        } />
+        <button type="submit" class="chat-v2__send" data-testid="chat-send"${archived ? " disabled" : ""} aria-label="傳送">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
       </form>
       ${
         canWithdraw && !archived
-          ? '<button type="button" class="session-tertiary" data-chat-withdraw>取消參加</button>'
+          ? '<button type="button" class="session-tertiary chat-v2__withdraw" data-chat-withdraw>取消參加</button>'
           : ""
       }`,
   });
@@ -2193,6 +2236,75 @@ export function openSessionChatSheet(
   });
 
   return { ...mounted, setArchived, setState };
+}
+
+// ============================================================
+// 批 D7:訊息頁(dc §3)——群聊列表+未讀點。資料源是既有 getMySessionState()
+// 的 groups(upcoming+history 攤平),不新增 dataApi 呼叫;過濾規則見
+// messagesFromGroups。點列沿用既有 controller.openSessionChat(既有清未讀流程)。
+// ============================================================
+
+/**
+ * Chat-eligible rows for the messages page: accepted participants (host or
+ * guest) whose session is not cancelled/expired. Played/archived sessions
+ * stay listed (read-only chat history remains reachable); needsAction-only
+ * entries (not-yet-accepted requests/invites) are intentionally excluded —
+ * their underlying session, once accepted, already surfaces via upcoming.
+ */
+export function messagesFromGroups(groups = {}) {
+  const upcoming = Array.isArray(groups?.upcoming) ? groups.upcoming : [];
+  const history = Array.isArray(groups?.history) ? groups.history : [];
+  return [...upcoming, ...history]
+    .filter((session) => {
+      const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
+      const status = String(session?.status ?? "").toLowerCase();
+      return participantStatus === "accepted" && status !== "cancelled" && status !== "expired";
+    })
+    .sort((left, right) => String(left?.startAt ?? "").localeCompare(String(right?.startAt ?? "")));
+}
+
+function messagesEmptyStateMarkup() {
+  return `<div class="messages-page__empty">
+    <p class="messages-page__empty-text">加入或開一場球局，<br />成局後群組聊天會出現在這裡。</p>
+  </div>`;
+}
+
+function messageRowMarkup(session, { courts = [] } = {}) {
+  const venue = sessionVenuePresentation(session, courts);
+  const courtLabel = sessionCourtLabel(session, venue);
+  const scheduleLabel = sessionScheduleLabel(session);
+  const unreadCount = Math.max(0, Number(session?.unreadMessageCount) || 0);
+  const unread = unreadCount > 0;
+  const ariaLabel = unread
+    ? ` aria-label="${esc(`${courtLabel}，${scheduleLabel}，${unreadCount} 則未讀訊息`)}"`
+    : "";
+  return `<button type="button" class="messages-row" data-message-row data-session-id="${esc(
+    session.sessionId
+  )}" data-testid="messages-row-${esc(session.sessionId)}"${ariaLabel}>
+    <span class="messages-row__avatar" aria-hidden="true">${esc(sessionHostInitial(session))}</span>
+    <span class="messages-row__body">
+      <span class="messages-row__court">${esc(courtLabel)}</span>
+      <span class="messages-row__sub">${esc(scheduleLabel)}</span>
+    </span>
+    ${unread ? '<span class="messages-row__unread" aria-hidden="true"></span>' : ""}
+  </button>`;
+}
+
+/** Render the CHATS list destination (bottom-nav "訊息" tab). */
+export function renderMessagesPage(root, options = {}) {
+  const { courts = [], groups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] }, onOpenChat = () => {} } = options;
+  const rows = messagesFromGroups(groups);
+  root.innerHTML = `
+    <div class="messages-page__head">
+      <p class="messages-page__eyebrow">CHATS</p>
+      <h1 tabindex="-1" data-messages-heading class="messages-page__title">訊息</h1>
+    </div>
+    <div class="messages-page__list">
+      ${rows.length ? rows.map((session) => messageRowMarkup(session, { courts })).join("") : messagesEmptyStateMarkup()}
+    </div>`;
+  root.querySelectorAll("[data-message-row]").forEach((button) => {
+    button.addEventListener("click", () => onOpenChat(button.dataset.sessionId));
+  });
 }
 
 const JOIN_STAGE_FOCUSABLE_SELECTOR =

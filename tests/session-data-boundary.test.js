@@ -31,6 +31,7 @@ import {
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
 import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.js";
+import { messagesFromGroups } from "../src/sessionViews.js";
 import {
   PENDING_SESSION_INTENT_KEY,
   clearPendingIntent,
@@ -359,6 +360,41 @@ test("main's bottom navigation sync reads the unread aggregate into an independe
   assert.match(syncBlock, /groups\?\.hasUnread/, "the sync reads groups.hasUnread, not just needsActionCount");
   assert.match(syncBlock, /my-sessions-unread-dot/, "the sync targets a dedicated unread dot element");
   assert.match(syncBlock, /有未讀訊息/, "the unread state is folded into the tab's aria-label announcement");
+});
+
+// 批 D7:訊息頁列表資料源——過濾規則見 sessionViews.js messagesFromGroups 的
+// JSDoc:accepted(host/guest 皆可)且非 cancelled/expired,played/封存局仍照列,
+// 未接受的 needsAction 類(requested/invited/declined/withdrawn)一律不列。
+test("messagesFromGroups keeps only accepted, non-cancelled/expired sessions and sorts by start time", () => {
+  const base = { court: "示範球場", hostNickname: "主揪", playType: "單打", viewerRole: "guest" };
+  const openAccepted = { ...base, sessionId: 1, startAt: "2099-01-02T00:00:00Z", status: "open", viewerParticipantStatus: "accepted" };
+  const fullAccepted = { ...base, sessionId: 2, startAt: "2099-01-01T00:00:00Z", status: "full", viewerParticipantStatus: "accepted" };
+  const playedAccepted = { ...base, sessionId: 3, startAt: "2099-01-03T00:00:00Z", status: "played", viewerParticipantStatus: "accepted" };
+  const cancelledAccepted = { ...base, sessionId: 4, startAt: "2099-01-04T00:00:00Z", status: "cancelled", viewerParticipantStatus: "accepted" };
+  const expiredAccepted = { ...base, sessionId: 5, startAt: "2099-01-05T00:00:00Z", status: "expired", viewerParticipantStatus: "accepted" };
+  const requested = { ...base, sessionId: 6, startAt: "2099-01-06T00:00:00Z", status: "open", viewerParticipantStatus: "requested" };
+  const invited = { ...base, sessionId: 7, startAt: "2099-01-07T00:00:00Z", status: "open", viewerParticipantStatus: "invited" };
+  const declined = { ...base, sessionId: 8, startAt: "2099-01-08T00:00:00Z", status: "open", viewerParticipantStatus: "declined" };
+  const withdrawn = { ...base, sessionId: 9, startAt: "2099-01-09T00:00:00Z", status: "open", viewerParticipantStatus: "withdrawn" };
+
+  const rows = messagesFromGroups({
+    history: [playedAccepted, cancelledAccepted, expiredAccepted, declined, withdrawn],
+    needsAction: [],
+    needsActionCount: 0,
+    upcoming: [openAccepted, fullAccepted, requested, invited],
+  });
+
+  assert.deepEqual(
+    rows.map((row) => row.sessionId),
+    [2, 1, 3],
+    "only accepted+non-cancelled/expired sessions survive, ordered by startAt ascending across upcoming+history"
+  );
+});
+
+test("messagesFromGroups tolerates missing/malformed groups instead of throwing", () => {
+  assert.deepEqual(messagesFromGroups(), []);
+  assert.deepEqual(messagesFromGroups({}), []);
+  assert.deepEqual(messagesFromGroups({ history: null, upcoming: null }), []);
 });
 
 test("main includes court catalogue status when deriving private profile eligibility", async () => {

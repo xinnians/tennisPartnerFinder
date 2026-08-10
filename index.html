@@ -104,18 +104,46 @@
         <div id="me-root"></div>
       </section>
 
+      <!-- 批 D7:訊息頁(dc §3)——群聊列表+未讀點,沿用 my-sessions-page/me-page 的
+           hidden 頁面切換慣例。 -->
+      <section id="messages-page" class="messages-page" aria-label="訊息" hidden>
+        <div id="messages-root" class="messages-shell" tabindex="-1"></div>
+      </section>
+
+      <!-- 批 D7:底部導覽改 dc 五格(抽取規格 §1-2)——找球局／我的球局／置中「開球局」
+           signal 圓鈕／訊息／我。既有四鈕 id/data-testid/aria-controls/aria-haspopup
+           全數保留;create-session-tab 改用獨立的 .bottom-navigation__create 視覺
+           (非 .bottom-navigation__item),故 .bottom-navigation__item 的元素數維持 4
+           (map/my-sessions/messages/me,不含 create——它從來不是一個「目的地」)。
+           #my-sessions-badge(數字徽章,既有 a11y 契約)留在「我的球局」;
+           #my-sessions-unread-dot(圓點,批 C4-2)語意改隸屬「訊息」格,搬進
+           messages-tab,id 不變(main.js/測試皆以 id 定位,不因搬家而變)。 -->
       <nav class="bottom-navigation" aria-label="主要導覽">
         <button type="button" id="map-tab" data-testid="map-tab" class="bottom-navigation__item" aria-controls="tab-map" aria-current="page">
-          <span aria-hidden="true">⌖</span><span>找球局</span>
-        </button>
-        <button type="button" id="create-session-tab" data-testid="create-session-tab" class="bottom-navigation__item" aria-controls="sheet-root" aria-haspopup="dialog">
-          <span aria-hidden="true">＋</span><span>開球局</span>
+          <span class="bottom-navigation__icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
+          <span>找球局</span>
         </button>
         <button type="button" id="my-sessions-tab" data-testid="my-sessions-tab" class="bottom-navigation__item" aria-controls="my-sessions-page" aria-current="false" aria-label="我的球局">
-          <span aria-hidden="true">◎</span><span>我的球局</span><span id="my-sessions-badge" class="my-sessions-badge" aria-hidden="true" hidden></span><span id="my-sessions-unread-dot" class="my-sessions-unread-dot" aria-hidden="true" hidden></span>
+          <span class="bottom-navigation__icon" aria-hidden="true">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16"/></svg>
+            <span id="my-sessions-badge" class="my-sessions-badge" aria-hidden="true" hidden></span>
+          </span>
+          <span>我的球局</span>
+        </button>
+        <button type="button" id="create-session-tab" data-testid="create-session-tab" class="bottom-navigation__create" aria-controls="sheet-root" aria-haspopup="dialog">
+          <span class="bottom-navigation__create-badge" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="bottom-navigation__create-label">開球局</span>
+        </button>
+        <button type="button" id="messages-tab" data-testid="messages-tab" class="bottom-navigation__item" aria-controls="messages-page" aria-current="false" aria-label="訊息">
+          <span class="bottom-navigation__icon" aria-hidden="true">
+            <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.6 0-3.1-.4-4.4-1.2L3 20l1.2-5.1A8.5 8.5 0 1 1 21 11.5z"/></svg>
+            <span id="my-sessions-unread-dot" class="my-sessions-unread-dot" aria-hidden="true" hidden></span>
+          </span>
+          <span>訊息</span>
         </button>
         <button type="button" id="me-tab" data-testid="me-tab" class="bottom-navigation__item" aria-controls="me-page" aria-current="false">
-          <span aria-hidden="true">●</span><span>我</span>
+          <span class="bottom-navigation__icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6.2 8-6.2s8 2.2 8 6.2"/></svg></span>
+          <span>我</span>
         </button>
       </nav>
       <span id="my-sessions-badge-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></span>
