@@ -14,6 +14,26 @@ function captureConsoleErrors(page) {
   return errors;
 }
 
+// 批 D4a:退場的 #date-filter 曾是「一鍵強制零結果」的最簡單控件(同一手法亦見
+// tests/smoke.spec.js)。文山區在 mockData.js 的 8 局中零命中(courtDistrict 只
+// 出現內湖/中山/中正/士林/萬華五區),是唯一決定性、不受「今天星期幾」影響的選擇。
+async function forceZeroMatchDistrictFilter(page) {
+  await page.locator("#filter-sheet-open").click();
+  await page.locator('#filters-sheet [data-filter="districts"][data-value="文山區"]').click();
+  await page.locator('#filters-sheet [data-surface-close]').click();
+}
+
+// 批 D4a:退場的 #date-filter 曾用一個不移動焦點的 dispatchEvent(new Event("input"))
+// 觸發重繪(setFilter 呼叫本身就會 publish())。改用地圖上「今天」日期 chip,同樣以
+// dispatchEvent(而非 Playwright 的 locator.click()——後者會模擬真實滑鼠事件並把焦點
+// 移到該 chip 上,破壞這些測試要驗證的「重繪不偷走原本焦點」前提)觸發同一顆按鈕的
+// click 監聽器。是否真的改變篩選結果不影響這些測試在意的焦點保留行為。
+async function triggerFilterRedraw(page) {
+  await page.evaluate(() => {
+    document.querySelector('[data-date-chip="today"]')?.dispatchEvent(new Event("click", { bubbles: true }));
+  });
+}
+
 async function delayMockDiscovery(page, milliseconds) {
   await page.route("**/src/dataApi.js", async (route) => {
     const response = await route.fetch();
@@ -320,19 +340,15 @@ test("drawer redraws preserve a focused collapsed toggle and empty-state action"
 
   const toggle = page.locator("#nearby-sessions-toggle");
   await toggle.focus();
-  await page.evaluate(() => {
-    document.querySelector("#date-filter")?.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  await triggerFilterRedraw(page);
   await expect(toggle).toBeFocused();
 
-  await page.locator("#date-filter").fill("2099-01-01");
+  await forceZeroMatchDistrictFilter(page);
   await toggle.click();
   const first = page.locator("#discovery-first");
   await expect(first).toBeVisible();
   await first.focus();
-  await page.evaluate(() => {
-    document.querySelector("#date-filter")?.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  await triggerFilterRedraw(page);
   await expect.poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)).toBe("discovery-first");
 
   // 對稱案例：批 B-4 fix round 1 補了 DRAWER_ACTION_IDS 收 "discovery-subscribe"，這裡鎖住
@@ -341,9 +357,7 @@ test("drawer redraws preserve a focused collapsed toggle and empty-state action"
   const subscribe = page.locator("#discovery-subscribe");
   await expect(subscribe).toBeVisible();
   await subscribe.focus();
-  await page.evaluate(() => {
-    document.querySelector("#date-filter")?.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  await triggerFilterRedraw(page);
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName))
     .toBe("discovery-subscribe");
@@ -356,7 +370,7 @@ test("an empty-state reset keeps a keyboard user in the drawer with a next card"
   await installFakeMaps(page);
   await page.goto("/");
 
-  await page.locator("#date-filter").fill("2099-01-01");
+  await forceZeroMatchDistrictFilter(page);
   await page.locator("#nearby-sessions-toggle").click();
   const reset = page.locator("#discovery-reset");
   await expect(reset).toBeVisible();
@@ -374,10 +388,14 @@ test("a stale opening focus callback cannot steal focus after an immediate drawe
   await installFakeMaps(page);
   await page.goto("/");
 
+  // 批 D4a:退場的 #date-filter 曾在同一個同步 evaluate 區塊內把「篩選出零結果」與
+  // 「開抽屜→聚焦並點擊 reset」串在一起,刻意不讓任何一步跨到下一個 tick,重現這個
+  // race。改用篩選 sheet(行政區 chip「文山區」保證零命中,理由同上方 helper)完成
+  // 同一件事,一樣全部留在同一個同步區塊內。
   await page.evaluate(() => {
-    const date = document.querySelector("#date-filter");
-    date.value = "2099-01-01";
-    date.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector("#filter-sheet-open")?.click();
+    document.querySelector('#filters-sheet [data-filter="districts"][data-value="文山區"]')?.click();
+    document.querySelector('#filters-sheet [data-surface-close]')?.click();
     document.querySelector("#nearby-sessions-toggle")?.click();
     const reset = document.querySelector("#discovery-reset");
     reset?.focus();
@@ -440,12 +458,11 @@ test("a 390×667 open drawer reveals at least 1 session card without scrolling",
   expect(runtimeErrors).toEqual([]);
 });
 
-// 批 C1-4:批 C1-3 把 .map-toolbar 收斂到 #filter-sheet-open／#date-filter／#level-chip
-// 三個控件後,現況單列高度為 82px(最高子項 .filter-control--date 64px＋上下 padding 16px＋
-// 1px×2 border)。閾值取 110px:高於現況留粗略字型/瀏覽器差異緩衝,但明顯低於任何兩列版面
-// 的下限——兩列至少要「最短列 44px ＋ 列間 gap 8px ＋ 最高列 64px ＋ padding16px ＋ border2px」
-// ≈134px。.map-toolbar 沒有設 flex-wrap(預設 nowrap),因此目前結構上不可能換列;這條斷言是
-// 防止未來有人加 flex-wrap:wrap 或塞回更多控件時的回歸守衛。
+// 批 D4a:.map-toolbar 改為 dc L100 的可橫向捲動 chip 列(overflow-x:auto,
+// 無 flex-wrap),六顆 chip(今天/明天/週末/程度/直接加入/篩選)在窄視窗下用捲動
+// 而非換行容納,單列高度理論上限是 44px(手機斷點 chip 高)＋padding-bottom 3px
+// ＋些許字型渲染誤差。閾值維持 110px(遠高於現況、但明顯低於任何換行版面的下限),
+// 用意不變:防止未來有人移除 overflow-x:auto 或加回 flex-wrap 造成換行的回歸。
 test("390px map toolbar renders as a single row", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

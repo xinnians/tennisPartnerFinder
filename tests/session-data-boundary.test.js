@@ -646,13 +646,18 @@ test("mock sessions and discovery payloads include an ongoing local-demo-only Se
   }
 });
 
-test("session filters use Taipei local date, range overlap, and preserve source order", () => {
-  const now = new Date("2026-07-17T00:00:00.000Z");
+// 批 D4a:filters.js 篩選模型改版(dateKey 列舉、districts 多選、band 開區間公式)。
+// 這裡改用新欄位重寫同樣的三個情境,並保留原本驗證的核心行為:窄篩選只留一筆、
+// band 開放上界仍會收 ntrpMax 剛過門檻的局與 NTRP 不限的局、無篩選時排除
+// cancelled 與已超過現在 2 小時窗口的過去局。日期 fixture 的 Taipei 星期別已用
+// node -e 的 Intl.DateTimeFormat 實際跑過驗證(2026-07-18 是週六),不是手算。
+test("session filters use Taipei local dateKey, open-interval band overlap, and preserve source order", () => {
+  const now = new Date("2026-07-17T00:00:00.000Z"); // Taipei 2026-07-17(五) 08:00
   const sessions = [
-    session({ sessionId: 1, ntrpMin: 3, ntrpMax: 3.5, playType: "單打" }),
+    session({ sessionId: 1, ntrpMin: 3, ntrpMax: 3.5, playType: "單打" }), // Taipei 07-18(六) 09:30
     session({
       sessionId: 2,
-      startAt: "2026-07-18T04:00:00.000Z",
+      startAt: "2026-07-18T04:00:00.000Z", // Taipei 07-18(六) 12:00
       ntrpMin: 3.8,
       ntrpMax: 4.2,
       playType: "對拉",
@@ -661,25 +666,25 @@ test("session filters use Taipei local date, range overlap, and preserve source 
       sessionId: 3,
       courtId: 4,
       courtDistrict: "松山區",
-      startAt: "2026-07-18T01:30:00.000Z",
+      startAt: "2026-07-18T01:30:00.000Z", // Taipei 07-18(六) 09:30
       ntrpMin: null,
       ntrpMax: null,
       playType: "雙打",
       status: "full",
     }),
     session({ sessionId: 4, status: "cancelled" }),
-    session({ sessionId: 5, startAt: "2026-07-16T01:30:00.000Z" }),
-    session({ sessionId: 6, startAt: "2026-07-17T14:30:00.000Z" }),
+    session({ sessionId: 5, startAt: "2026-07-16T01:30:00.000Z" }), // Taipei 07-16(四) 09:30,超過現在 2 小時窗口
+    session({ sessionId: 6, startAt: "2026-07-17T14:30:00.000Z" }), // Taipei 07-17(五) 22:30 = 與 now 同一天
   ];
 
   const narrowlyFiltered = filterSessions(
     sessions,
     {
-      district: "大安區",
-      courtId: 3,
-      date: "2026-07-18",
+      dateKey: "tomorrow",
       band: "mid",
+      instantOnly: false,
       types: new Set(["單打"]),
+      districts: new Set(["大安區"]),
     },
     now
   );
@@ -687,20 +692,25 @@ test("session filters use Taipei local date, range overlap, and preserve source 
 
   const overlapAndUnspecified = filterSessions(
     sessions,
-    { district: "all", courtId: null, date: "2026-07-18", band: "hi", types: new Set() },
+    { dateKey: "tomorrow", band: "hi", instantOnly: false, types: new Set(), districts: new Set() },
     now
   );
   assert.deepEqual(overlapAndUnspecified.map((item) => item.sessionId), [2, 3]);
 
   const allUpcoming = filterSessions(
     sessions,
-    { district: "", courtId: "", date: null, band: "all", types: new Set() },
+    { dateKey: null, band: "all", instantOnly: false, types: new Set(), districts: new Set() },
     now
   );
   assert.deepEqual(allUpcoming.map((item) => item.sessionId), [1, 2, 3, 6]);
 });
 
-test("venue filters are multi-select and an undecided candidate disappears at its range start", () => {
+// 批 D4a:「場地型 venueTypes」篩選整組退場、無替代維度,原測試裡真正屬於
+// venueTypes 的那個斷言(候選/現場等場多選)已無對應功能可測,故整條刪除
+// (見批次回報);但「未定案候選局用嚴格 startAt 窗口、其餘局用較寬的開打後
+// 2 小時窗口」是 isDiscoverableSession 本身的行為,不是 venueTypes 篩選的一部分,
+// 這個能力還在,測試改名並保留這條斷言。
+test("an undecided candidate disappears at its range start while other venue types keep the wider discoverability window", () => {
   const now = new Date("2026-07-18T02:00:00.000Z");
   const sessions = [
     session({
@@ -718,18 +728,12 @@ test("venue filters are multi-select and an undecided candidate disappears at it
     session({ sessionId: 23, startAt: "2026-07-18T01:59:00.000Z", venueType: "booked" }),
     session({ sessionId: 24, startAt: "2026-07-18T03:00:00.000Z", venueType: "walk_on" }),
   ];
-  const base = { band: "all", courtId: null, date: null, district: "", types: new Set() };
+  const base = { band: "all", dateKey: null, instantOnly: false, types: new Set(), districts: new Set() };
 
   assert.deepEqual(
-    filterSessions(sessions, { ...base, venueTypes: new Set() }, now).map((item) => item.sessionId),
+    filterSessions(sessions, base, now).map((item) => item.sessionId),
     [22, 23, 24],
     "only undecided candidates use the strict start-at window"
-  );
-  assert.deepEqual(
-    filterSessions(sessions, { ...base, venueTypes: new Set(["candidates", "walk_on"]) }, now).map(
-      (item) => item.sessionId
-    ),
-    [22, 24]
   );
 });
 

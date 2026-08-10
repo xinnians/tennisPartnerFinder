@@ -93,6 +93,16 @@ async function delayMockCourts(page, milliseconds) {
   });
 }
 
+// 批 D4a:退場的 #date-filter 曾是「一鍵強制零結果」的最簡單控件。新模型下 districts
+// 是唯一能可靠、決定性地清空結果集的維度——文山區在 mockData.js 的 8 局中零命中
+// (courtDistrict 只出現內湖/中山/中正/士林/萬華五區,見批次回報),不像 dateKey=weekend
+// 那樣會隨「今天是星期幾」而不穩定。
+async function forceZeroMatchDistrictFilter(page) {
+  await page.locator("#filter-sheet-open").click();
+  await page.locator('#filters-sheet [data-filter="districts"][data-value="文山區"]').click();
+  await page.locator('#filters-sheet [data-surface-close]').click();
+}
+
 test("mock mode never loads or requests Vercel Analytics", async ({ page }) => {
   const analyticsRequests = [];
   page.on("request", (request) => {
@@ -128,29 +138,32 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.getByTestId("player-layer-toggle")).toBeVisible();
   await expect(page.getByTestId("player-layer-toggle")).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByTestId("player-layer-toggle")).toHaveText("顯示在線");
-  await expect(page.getByTestId("player-directory-open")).toHaveText("球友名單");
+  // 批 D4a:球友名單鈕改 icon-only,可讀名稱走 aria-label,不再是可見文字。
+  await expect(page.getByTestId("player-directory-open")).toHaveAttribute("aria-label", "球友名單");
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
   await page.locator("#filter-sheet-open").click();
   const filterSheet = page.locator("#filters-sheet");
   await expect(filterSheet).toBeVisible();
   await expect(filterSheet.locator('[data-filter="types"]').first()).toHaveAttribute("aria-pressed", "false");
-  await expect(filterSheet.locator('[data-filter="venueTypes"]').first()).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="districts"]').first()).toHaveAttribute("aria-pressed", "false");
+  // 預設 band 就是 "all",開啟 sheet 時應已是選中態(不像 types/districts 預設全空)。
   await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "true");
   await filterSheet.locator('[data-filter="types"][data-value="單打"]').click();
   await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute("aria-pressed", "true");
-  await filterSheet.locator('[data-filter="venueTypes"][data-value="candidates"]').click();
-  await expect(filterSheet.locator('[data-filter="venueTypes"][data-value="candidates"]')).toHaveAttribute("aria-pressed", "true");
+  await filterSheet.locator('[data-filter="districts"][data-value="內湖區"]').click();
+  await expect(filterSheet.locator('[data-filter="districts"][data-value="內湖區"]')).toHaveAttribute("aria-pressed", "true");
   await filterSheet.locator('[data-filter="band"][data-value="mid"]').click();
   await expect(filterSheet.locator('[data-filter="band"][data-value="mid"]')).toHaveAttribute("aria-pressed", "true");
   await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "false");
-  // sheet 開著時,badge N 與地圖上仍看得到的程度控件都要同步鏡像。
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅3");
-  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選，已套用 3 組條件");
+  // sheet 開著時,badge N 與地圖上仍看得到的程度控件都要同步鏡像。批 D4a:badge
+  // 只計 types+districts 選取數(=2),不含 band,所以不是 3。
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選，已套用 2 組條件");
   await expect(page.locator("#band-options [data-band='mid']")).toHaveAttribute("aria-pressed", "true");
   await filterSheet.locator('[data-filter="reset"]').click();
   await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute("aria-pressed", "false");
-  await expect(filterSheet.locator('[data-filter="venueTypes"][data-value="candidates"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="districts"][data-value="內湖區"]')).toHaveAttribute("aria-pressed", "false");
   await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
@@ -171,7 +184,7 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   // freshly created node never has to pick up its aria-live wiring mid-mutation.
   await expect(page.locator("#nearby-sessions-count-status")).toHaveAttribute("aria-live", "polite");
   await expect(page.locator("#nearby-sessions-backdrop")).toHaveCount(0);
-  await expect(page.locator(".app-header")).toHaveJSProperty("inert", false);
+  await expect(page.locator(".map-topbar")).toHaveJSProperty("inert", false);
   await expect(page.locator("#map")).toHaveJSProperty("inert", false);
   await expect(page.locator("[data-nearby-close]")).toBeFocused();
   await page.keyboard.press("Escape");
@@ -194,49 +207,54 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("the filter badge counts active filters and mirrors date/band both ways with the sheet", async ({ page }) => {
+// 批 D4a:badge N 改為只計 types+districts 選取數(dc L913 拍板),dateKey/band 兩者
+// 即使切換也不移動 badge——這裡先證明「不移動」這件事本身,再證明真正會移動 badge
+// 的兩個維度確實逐一增減正確,而不是只測「有變化」就當通過。
+test("the filter badge counts only types+districts and mirrors dateKey/band both ways with the sheet", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
 
-  // 地圖→sheet:先在地圖上改日期與程度,再開 sheet,驗證 sheet 開啟時已帶入目前狀態。
-  await page.locator("#date-filter").fill("2099-06-01");
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅1");
+  // 地圖→sheet:先在地圖上改日期與程度,再開 sheet,驗證 sheet 開啟時已帶入目前
+  // 狀態,而 badge 全程維持「篩選」無數字。
+  await page.locator('[data-date-chip="today"]').click();
+  await expect(page.locator('[data-date-chip="today"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await page.locator("#level-chip").click();
   await page.locator("#band-options [data-band='hi']").click();
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
-  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選，已套用 2 組條件");
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
+  await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
 
   await page.locator("#filter-sheet-open").click();
   const filterSheet = page.locator("#filters-sheet");
-  await expect(filterSheet.locator('input[data-filter="date"]')).toHaveValue("2099-06-01");
+  await expect(filterSheet.locator('[data-filter="dateKey"][data-value="today"]')).toHaveAttribute("aria-pressed", "true");
   await expect(filterSheet.locator('[data-filter="band"][data-value="hi"]')).toHaveAttribute("aria-pressed", "true");
 
   // sheet→地圖:sheet 開著時改日期與程度,地圖上(雖已 inert 不可點)仍要看得到鏡像後的值。
-  await filterSheet.locator('input[data-filter="date"]').fill("2099-07-04");
+  await filterSheet.locator('[data-filter="dateKey"][data-value="tomorrow"]').click();
   await filterSheet.locator('[data-filter="band"][data-value="pro"]').click();
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
-  const mirroredDate = await page.evaluate(() => document.getElementById("date-filter").value);
-  expect(mirroredDate).toBe("2099-07-04");
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
+  await expect(page.locator('[data-date-chip="tomorrow"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-date-chip="today"]')).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator("#band-options [data-band='pro']")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#band-options [data-band='hi']")).toHaveAttribute("aria-pressed", "false");
 
-  // badge N 隨欄位一個個增加:再疊加一個打法與一個場地型。
+  // badge N 隨欄位一個個增加:疊加一個打法與一個行政區。
   await filterSheet.locator('[data-filter="types"][data-value="雙打"]').click();
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅3");
-  await filterSheet.locator('[data-filter="venueTypes"][data-value="booked"]').click();
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅4");
-
-  // 再一個個減少:回到 all/清空 date 應該讓 badge 逐步遞減。
-  await filterSheet.locator('[data-filter="venueTypes"][data-value="booked"]').click();
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅3");
-  await filterSheet.locator('[data-filter="types"][data-value="雙打"]').click();
-  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
-  await filterSheet.locator('[data-filter="band"][data-value="all"]').click();
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅1");
-  await filterSheet.locator('input[data-filter="date"]').fill("");
+  await filterSheet.locator('[data-filter="districts"][data-value="內湖區"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅2");
+
+  // 再一個個減少:回到「不限」/全部,dateKey 與 band 保留(不影響 badge),
+  // 只有 types/districts 清空才讓 badge 消失。
+  await filterSheet.locator('[data-filter="districts"][data-value="內湖區"]').click();
+  await expect(page.locator("#filter-sheet-open")).toHaveText("篩選 ⋅1");
+  await filterSheet.locator('[data-filter="types"][data-value="雙打"]').click();
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
+  // dateKey/band 兩者仍維持上面選的值,證明清空 badge 不代表這兩者被重設。
+  await expect(filterSheet.locator('[data-filter="dateKey"][data-value="tomorrow"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(filterSheet.locator('[data-filter="band"][data-value="pro"]')).toHaveAttribute("aria-pressed", "true");
 
   expect(runtimeErrors).toEqual([]);
 });
@@ -252,8 +270,7 @@ test("the persistent count live region announces the current session count and u
   await expect(countStatus).toHaveText(/8 場可加入/);
 
   await page.locator("#filter-sheet-open").click();
-  const districtSelect = page.locator('#filters-sheet select[data-filter="district"]');
-  await districtSelect.selectOption("內湖區");
+  await page.locator('#filters-sheet [data-filter="districts"][data-value="內湖區"]').click();
 
   await expect(countStatus).toHaveText(/2 場可加入/);
   expect(runtimeErrors).toEqual([]);
@@ -390,7 +407,9 @@ test("four destinations expose an anonymous Me page while the map header stays m
   await page.goto("/");
 
   await expect(page.locator(".bottom-navigation__item")).toHaveCount(4);
-  await expect(page.locator(".app-header > *")).toHaveCount(3);
+  // 批 D4a:app-header 退場,「頁首維持極簡」的守衛改看頂列 row1(品牌磚／城市
+  // chip／球友名單鈕三項,與退場前的 app-header 子項數一致)。
+  await expect(page.locator(".map-topbar__row > *")).toHaveCount(3);
   await expect(page.locator("#open-session, #open-my-sessions, .site-links")).toHaveCount(0);
   await page.getByTestId("me-tab").click();
   await expect(page.locator("#tab-map")).toBeHidden();
@@ -525,21 +544,23 @@ test("the open drawer keeps the map layer hit-testable and its base-court pin cl
   await expect(page.locator("#nearby-sessions-backdrop")).toHaveCount(0);
   await expect(page.locator("#map")).toHaveJSProperty("inert", false);
 
-  // Probe a point that is genuinely open map (below the map toolbar, above the
-  // open drawer) instead of a fixed corner — at narrow widths the toolbar sits
+  // Probe a point that is genuinely open map (below the top overlay, above the
+  // open drawer) instead of a fixed corner — at narrow widths the overlay sits
   // in normal flow at the top of .map-page, so a naive top-left probe can land
   // on that legitimate overlay control instead of proving anything about the
   // drawer.
   // 批 D2:抽屜面板改為 fixed 定位的 #nearby-sessions-list(aside 容器本身無版面),
-  // 幾何量測以面板為準。
+  // 幾何量測以面板為準。批 D4a:probe 邊界改用 .map-topbar(含 chips 列與其
+  // padding-bottom 的完整 overlay 高度),取代已改為透明可捲動列的 .map-toolbar,
+  // 避免探測點落在 overlay 的留白 padding 內。
   const geometry = await page.evaluate(() => {
     const mapRect = document.getElementById("map").getBoundingClientRect();
     const drawerRect = document.getElementById("nearby-sessions-list").getBoundingClientRect();
-    const toolbarRect = document.querySelector(".map-toolbar")?.getBoundingClientRect() ?? null;
+    const topbarRect = document.querySelector(".map-topbar")?.getBoundingClientRect() ?? null;
     return {
       mapRect: { x: mapRect.x, y: mapRect.y, width: mapRect.width, height: mapRect.height },
       drawerRect: { x: drawerRect.x, y: drawerRect.y, width: drawerRect.width, height: drawerRect.height },
-      openAreaTop: toolbarRect ? toolbarRect.bottom : mapRect.top,
+      openAreaTop: topbarRect ? topbarRect.bottom : mapRect.top,
     };
   });
   const probePoint = {
@@ -2469,7 +2490,7 @@ test("drawer, filters, session sheet, and empty reset preserve the session-only 
   await expect(firstCard).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.locator("#nearby-sessions-toggle")).toBeFocused();
-  await page.locator("#date-filter").fill("2099-01-01");
+  await forceZeroMatchDistrictFilter(page);
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#discovery-empty")).toBeVisible();
   await expect(page.locator("#discovery-empty")).toContainText("這個範圍暫時沒有可加入的球局");
@@ -2554,7 +2575,7 @@ test("location denial is non-repeating and Maps authentication fallback keeps di
   // header 不 inert)。
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
   await expect(page.locator("#nearby-sessions-backdrop")).toHaveCount(0);
-  await expect(page.locator(".app-header")).toHaveJSProperty("inert", false);
+  await expect(page.locator(".map-topbar")).toHaveJSProperty("inert", false);
   await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#nearby-sessions-toggle")).toHaveAttribute("aria-expanded", "false");
@@ -2647,7 +2668,7 @@ test("empty-state contextual buttons and the subscribe shortcut are visible and 
   await installFakeMaps(page);
   await page.goto("/");
 
-  await page.locator("#date-filter").fill("2099-01-01");
+  await forceZeroMatchDistrictFilter(page);
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
   await expect(page.locator("#nearby-sessions-backdrop")).toHaveCount(0);
@@ -2967,7 +2988,13 @@ test("390px map controls keep the player layer and status below the toolbar", as
   expect(runtimeErrors).toEqual([]);
 });
 
-test("390px toolbar contains its content and never intersects the following controls", async ({ page }) => {
+// 批 D4a:六顆 chip(今天/明天/週末/程度/直接加入/篩選)在 390px 下本就寬於視窗,
+// dc L100 的設計是靠 overflow-x:auto 橫向捲動容納,不是全部擠進單一可視寬度——
+// 「篩選 chip 一開始就完整落在 toolbar 可視框內」不再是這個版面的不變量,改驗證
+// 「捲到底可以捲到篩選 chip」這個新的、真正對應橫向捲動設計的不變量。
+test("390px toolbar contains its content, never intersects the following controls, and can scroll to reveal the filter chip", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await installFakeMaps(page);
@@ -2975,16 +3002,18 @@ test("390px toolbar contains its content and never intersects the following cont
 
   const layout = await page.evaluate(() => {
     const toolbar = document.querySelector(".map-toolbar");
-    const primaryButton = document.querySelector("#filter-sheet-open");
     const playerControl = document.querySelector(".player-layer-control");
     const toolbarRect = toolbar.getBoundingClientRect();
-    const primaryButtonRect = primaryButton.getBoundingClientRect();
     const playerRect = playerControl.getBoundingClientRect();
+    const canScrollToFilterChip = toolbar.scrollWidth > toolbar.clientWidth;
+    toolbar.scrollLeft = toolbar.scrollWidth;
+    const primaryButtonRect = document.querySelector("#filter-sheet-open").getBoundingClientRect();
     return {
       contentFits: toolbar.scrollHeight <= toolbar.clientHeight,
-      primaryButtonInside:
+      canScrollToFilterChip,
+      primaryButtonInsideAfterScroll:
         primaryButtonRect.top >= toolbarRect.top &&
-        primaryButtonRect.right <= toolbarRect.right &&
+        primaryButtonRect.right <= toolbarRect.right + 1 &&
         primaryButtonRect.bottom <= toolbarRect.bottom &&
         primaryButtonRect.left >= toolbarRect.left,
       toolbarIntersectsPlayer:
@@ -2995,18 +3024,22 @@ test("390px toolbar contains its content and never intersects the following cont
     };
   });
   expect(layout.contentFits).toBe(true);
-  expect(layout.primaryButtonInside).toBe(true);
+  expect(layout.canScrollToFilterChip, "six chips must overflow a 390px viewport for this test to prove anything").toBe(true);
+  expect(layout.primaryButtonInsideAfterScroll).toBe(true);
   expect(layout.toolbarIntersectsPlayer).toBe(false);
   expect(runtimeErrors).toEqual([]);
 });
 
-test("390px player layer actions are at least 44px", async ({ page }) => {
+// 批 D4a:.player-layer-actions 容器已隨 #player-directory-open 移入頂列 row1
+// 而清空(見 index.html 註記),原本的掃描目標改為 row1 本身(品牌磚連結＋球友
+// 名單鈕)。
+test("390px topbar row1 actions are at least 44px", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await installFakeMaps(page);
   await page.goto("/");
 
-  for (const targets of [page.locator(".player-layer-actions button"), page.locator(".app-brand, .filter-control :is(select, input)")]) {
+  for (const targets of [page.locator(".map-topbar__row a, .map-topbar__row button")]) {
     const count = await targets.count();
     expect(count, "the app-owned touch-target scan must be nonempty").toBeGreaterThan(0);
     for (let index = 0; index < count; index += 1) {
@@ -3059,7 +3092,9 @@ test("390px primary map, filter, and chat governance targets are at least 44px",
   });
 
   const targetGroups = [
-    page.locator(".app-header__actions button"),
+    // 批 D4a:.app-header__actions(僅含「使用我的位置」)退場,原鈕移入
+    // #map-zoom-controls,直欄四鈕本就恆為 44px(不分斷點),沿用同一個掃描目標。
+    page.locator("#map-zoom-controls button"),
     page.locator(".map-toolbar .filter-chip"),
     page.locator(".chat-message__meta :is([data-chat-report], [data-chat-block])"),
   ];
@@ -4386,7 +4421,10 @@ test("an unloaded court catalogue shows no subscription count", async ({ page })
   expect(runtimeErrors).toEqual([]);
 });
 
-test("openFilterSheet mounts a dialog with seven data-filter groups and closes on Escape", async ({ page }) => {
+// 批 D4a:場地型／指定球場／日期 input 三組退場,行政區改多選 chips,新增「看 N 場
+// 球局」主鈕(data-filter="apply")——六組:dateKey、band、types、districts、
+// reset、apply。
+test("openFilterSheet mounts a dialog with six data-filter groups and closes on Escape", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -4396,7 +4434,7 @@ test("openFilterSheet mounts a dialog with seven data-filter groups and closes o
     const { DEFAULT_FILTER_STATE } = await import("/src/filters.js");
     window.__filterSheetCloseCalls = 0;
     window.__filterSheet = openFilterSheet({
-      filters: { ...DEFAULT_FILTER_STATE, types: new Set(), venueTypes: new Set() },
+      filters: { ...DEFAULT_FILTER_STATE, types: new Set(), districts: new Set() },
       courts: COURTS,
       onSetFilter: () => {},
       onReset: () => {},
@@ -4415,8 +4453,7 @@ test("openFilterSheet mounts a dialog with seven data-filter groups and closes o
   const fieldGroups = await page.evaluate(() =>
     [...document.querySelectorAll("#filters-sheet [data-filter]")].map((node) => node.dataset.filter)
   );
-  // 七組：行政區、球場、日期、程度、打法、場地型、清除，全部用 data-filter 屬性辨識。
-  expect(new Set(fieldGroups)).toEqual(new Set(["district", "courtId", "date", "band", "types", "venueTypes", "reset"]));
+  expect(new Set(fieldGroups)).toEqual(new Set(["dateKey", "band", "types", "districts", "reset", "apply"]));
 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
@@ -4442,7 +4479,7 @@ test("the filter sheet applies a district change immediately to the background d
     drawerRoot.id = "filter-sheet-test-drawer";
     document.body.appendChild(drawerRoot);
 
-    let testFilters = { ...DEFAULT_FILTER_STATE, types: new Set(), venueTypes: new Set() };
+    let testFilters = { ...DEFAULT_FILTER_STATE, types: new Set(), districts: new Set() };
     window.__filterSheetSummaries = [];
     const renderDrawer = () => {
       renderNearbySessionsDrawer(drawerRoot, {
@@ -4468,13 +4505,13 @@ test("the filter sheet applies a district change immediately to the background d
   // mock 資料共 8 局全部可加入，正向前提在先，下面篩到內湖區才有意義。
   expect(firstSummary).toContain("8 場可加入");
 
-  const districtSelect = page.locator('#filters-sheet select[data-filter="district"]');
-  await districtSelect.focus();
-  await districtSelect.selectOption("內湖區");
+  const districtChip = page.locator('#filters-sheet [data-filter="districts"][data-value="內湖區"]');
+  await districtChip.focus();
+  await districtChip.press("Enter");
 
   await expect.poll(() => page.evaluate(() => window.__filterSheetSummaries.at(-1))).toContain("2 場可加入");
   expect(
-    await page.evaluate(() => document.activeElement === document.querySelector('#filters-sheet select[data-filter="district"]'))
+    await page.evaluate(() => document.activeElement === document.querySelector('#filters-sheet [data-filter="districts"][data-value="內湖區"]'))
   ).toBe(true);
 
   // 鍵盤操作打法 chip 也不可把焦點丟到 body（批 B Task 4 的教訓：async 重繪吃焦點）。
@@ -4503,7 +4540,7 @@ test("closing and reopening the filter sheet three times does not stack delegate
     window.__filterSheetSetFilterCalls = 0;
     const open = () =>
       openFilterSheet({
-        filters: { ...DEFAULT_FILTER_STATE, types: new Set(), venueTypes: new Set() },
+        filters: { ...DEFAULT_FILTER_STATE, types: new Set(), districts: new Set() },
         courts: COURTS,
         onSetFilter: () => {
           window.__filterSheetSetFilterCalls += 1;
@@ -4518,17 +4555,17 @@ test("closing and reopening the filter sheet three times does not stack delegate
     open();
   });
 
-  const districtSelect = page.locator('#filters-sheet select[data-filter="district"]');
-  await districtSelect.selectOption("內湖區");
+  await page.locator('#filters-sheet [data-filter="districts"][data-value="內湖區"]').click();
 
   // 只剩「目前這次 open()」對應的委派會收到事件：疊加的話這裡會是 3。
   expect(await page.evaluate(() => window.__filterSheetSetFilterCalls)).toBe(1);
   expect(runtimeErrors).toEqual([]);
 });
 
-// 批 C2-4:courts 目錄尚未載入完成前，篩選主鈕必須 disabled，避免開出一個
-// 「行政區/球場」下拉永遠空白的 sheet（courts 競態）。loadCourtsImmediately
-// 完成後（不論成功或失敗，兩者都代表「已經有終局資料可用」）才能啟用。
+// 批 C2-4:courts 目錄尚未載入完成前，篩選主鈕必須 disabled。批 D4a 把行政區改成
+// 固定的 12 區 chips(不再從 courts 派生)，原本「避免下拉永遠空白」的理由已不成立，
+// 但這個保守 gate 本身沒被要求移除，行為維持不變：loadCourtsImmediately 完成後
+// （不論成功或失敗，兩者都代表「已經有終局資料可用」）才能啟用。
 test("the filter sheet button stays disabled until the Taipei court catalogue finishes loading", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await delayMockCourts(page, 800);
@@ -4561,11 +4598,13 @@ test("the filter sheet traps Tab focus between its own first and last controls",
 
   const sheet = page.getByRole("dialog", { name: "篩選球局" });
   const sheetClose = sheet.getByRole("button", { name: "關閉篩選" });
-  const sheetReset = sheet.getByRole("button", { name: "清除" });
+  // 批 D4a:footer 新增「看 N 場球局」主鈕排在「重設」之後，DOM 順序上的最後一個
+  // 可聚焦控件變成它(N 是動態場次數，用 data-filter 而非文字比對更穩)。
+  const sheetApply = sheet.locator('[data-filter="apply"]');
   await expect(sheetClose).toBeFocused();
   await sheetClose.press("Shift+Tab");
-  await expect(sheetReset).toBeFocused();
-  await sheetReset.press("Tab");
+  await expect(sheetApply).toBeFocused();
+  await sheetApply.press("Tab");
   await expect(sheetClose).toBeFocused();
 
   expect(runtimeErrors).toEqual([]);

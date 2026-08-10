@@ -6,7 +6,7 @@ function cloneFilters() {
   return {
     ...DEFAULT_FILTER_STATE,
     types: new Set(DEFAULT_FILTER_STATE.types),
-    venueTypes: new Set(DEFAULT_FILTER_STATE.venueTypes),
+    districts: new Set(DEFAULT_FILTER_STATE.districts),
   };
 }
 

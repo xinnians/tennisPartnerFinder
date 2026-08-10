@@ -2039,22 +2039,22 @@ test("base-court drawers receive the same locally filtered session set as pins a
   assert.deepEqual(harness.courtDrawers.at(-1).sessions.map((item) => item.sessionId), [1]);
 });
 
-test("venue filter Sets are cloned on input and every reset starts from an unpolluted default", async () => {
+test("district filter Sets are cloned on input and every reset starts from an unpolluted default", async () => {
   const harness = createHarness();
   await harness.controller.loadDiscovery();
-  const callerOwned = new Set(["candidates"]);
+  const callerOwned = new Set(["內湖區"]);
 
-  harness.controller.setFilter("venueTypes", callerOwned);
-  callerOwned.add("booked");
-  assert.deepEqual([...harness.renders.at(-1).filters.venueTypes], ["candidates"]);
+  harness.controller.setFilter("districts", callerOwned);
+  callerOwned.add("大安區");
+  assert.deepEqual([...harness.renders.at(-1).filters.districts], ["內湖區"]);
 
   harness.controller.resetFilters();
-  const firstReset = harness.renders.at(-1).filters.venueTypes;
+  const firstReset = harness.renders.at(-1).filters.districts;
   assert.deepEqual([...firstReset], []);
-  firstReset.add("walk_on");
+  firstReset.add("中山區");
 
   harness.controller.resetFilters();
-  assert.deepEqual([...harness.renders.at(-1).filters.venueTypes], []);
+  assert.deepEqual([...harness.renders.at(-1).filters.districts], []);
 });
 
 test("an anonymous Join intent restores the same target into confirmation without sending a request", async () => {

@@ -1,5 +1,6 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
 import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters } from "./filters.js";
+import { TAIPEI_DISTRICTS } from "./districts.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { canReceiveFocus } from "./meFocus.js";
@@ -3222,21 +3223,22 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
 }
 
 const FILTER_SHEET_PLAY_TYPES = ["單打", "雙打", "練球"];
-const FILTER_SHEET_VENUE_TYPES = [
-  ["booked", "已訂場"],
-  ["walk_on", "現場等場"],
-  ["candidates", "候選局"],
+// 批 D4a:日期區塊的「不限」是 dateKey=null 的顯式選項(data-value=""),與地圖 chips
+// 列(今天/明天/週末,無「不限」但再點同顆會取消)是同一個 dateKey 狀態的兩種操作介面。
+const FILTER_SHEET_DATE_OPTIONS = [
+  ["", "不限"],
+  ["today", "今天"],
+  ["tomorrow", "明天"],
+  ["weekend", "週末"],
 ];
 
 function cloneSheetFilters(filters) {
   const source = filters && typeof filters === "object" ? filters : DEFAULT_FILTER_STATE;
   return {
-    district: source.district || "",
-    courtId: source.courtId ?? null,
-    date: source.date || null,
+    dateKey: source.dateKey || null,
     band: source.band || "all",
     types: new Set(source.types instanceof Set ? source.types : (source.types ?? [])),
-    venueTypes: new Set(source.venueTypes instanceof Set ? source.venueTypes : (source.venueTypes ?? [])),
+    districts: new Set(source.districts instanceof Set ? source.districts : (source.districts ?? [])),
   };
 }
 
@@ -3248,23 +3250,23 @@ function toggledFilterSet(existing, value) {
 }
 
 /**
- * Open a standalone filter sheet mirroring the map-toolbar filters, isolated in
- * #sheet-root with its own single change/click delegation. Controls identify
- * themselves via `data-filter` (never the map-toolbar's ids, e.g. #district-filter)
- * so this can be mounted alongside the toolbar without id/selector collisions
- * (see batch C1 task-2 ground truth §意外 4/6). No caller wires a UI entry point
- * to this yet — batch C1 task 2 only ships the sheet itself.
+ * Open a standalone filter sheet mirroring the map-topbar chips, isolated in
+ * #sheet-root with its own single click delegation. Controls identify
+ * themselves via `data-filter` (never the topbar's ids, e.g. #level-chip) so
+ * this can be mounted alongside the chips row without id/selector collisions
+ * (see batch C1 task-2 ground truth §意外 4/6). `instantOnly` has no control
+ * here by product decision (batch D4a): it only lives on the map topbar chip,
+ * so this sheet's four sections never read or write it.
  */
 export function openFilterSheet({
   filters = DEFAULT_FILTER_STATE,
   courts = [],
+  resultCount = 0,
   onSetFilter = () => {},
   onReset = () => {},
   onClose = () => {},
 } = {}) {
   let currentFilters = cloneSheetFilters(filters);
-  const courtList = Array.isArray(courts) ? courts : [];
-  const districts = [...new Set(courtList.map((court) => court.district).filter(Boolean))].sort();
 
   const mounted = mountSheet({
     id: "filters-sheet",
@@ -3272,63 +3274,67 @@ export function openFilterSheet({
     className: "filter-sheet",
     onClose,
     html: `
-      <div class="surface__head">
-        <div><h2>篩選球局</h2></div>
+      <span class="filter-sheet__grabber" aria-hidden="true"></span>
+      <div class="surface__head filter-sheet__head">
+        <div>
+          <p class="surface__eyebrow">FILTERS</p>
+          <h2>篩選球局</h2>
+        </div>
         <button type="button" class="surface__close" data-surface-close aria-label="關閉篩選">×</button>
       </div>
-      <div class="filter-sheet-form">
-        <label class="form-field">
-          <span>行政區</span>
-          <select data-filter="district">
-            <option value="">全部行政區</option>
-            ${districts.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join("")}
-          </select>
-        </label>
-        <label class="form-field">
-          <span>球場</span>
-          <select data-filter="courtId">
-            <option value="">全部球場</option>
-            ${courtList.map((court) => `<option value="${esc(court.id)}">${esc(court.name)}</option>`).join("")}
-          </select>
-        </label>
-        <label class="form-field">
-          <span>日期</span>
-          <input type="date" data-filter="date" />
-        </label>
-        <fieldset class="form-fieldset">
-          <legend>程度</legend>
-          <div class="filter-sheet-band-options" role="group" aria-label="依 NTRP 程度篩選">
-            ${BANDS.map(
-              (band) =>
-                `<button type="button" class="band-option" data-filter="band" data-value="${esc(
-                  band.key
-                )}" aria-pressed="false">${esc(band.label)}</button>`
-            ).join("")}
-          </div>
-        </fieldset>
-        <fieldset class="form-fieldset">
-          <legend>打法</legend>
-          <div class="filter-sheet-chips" role="group" aria-label="打法">
-            ${FILTER_SHEET_PLAY_TYPES.map(
-              (type) =>
-                `<button type="button" class="filter-chip" data-filter="types" data-value="${esc(
-                  type
-                )}" aria-pressed="false">${esc(type)}</button>`
-            ).join("")}
-          </div>
-        </fieldset>
-        <fieldset class="form-fieldset">
-          <legend>場地類型</legend>
-          <div class="filter-sheet-chips" role="group" aria-label="場地類型">
-            ${FILTER_SHEET_VENUE_TYPES.map(
-              ([value, label]) =>
-                `<button type="button" class="filter-chip" data-filter="venueTypes" data-value="${esc(
-                  value
-                )}" aria-pressed="false">${esc(label)}</button>`
-            ).join("")}
-          </div>
-        </fieldset>
-        <button type="button" class="filters-reset" data-filter="reset">清除</button>
+      <div class="filter-sheet__scroll">
+        <div class="filter-sheet-form">
+          <fieldset class="form-fieldset filter-sheet-section">
+            <legend>日期</legend>
+            <div class="filter-sheet-chips" role="group" aria-label="日期">
+              ${FILTER_SHEET_DATE_OPTIONS.map(
+                ([value, label]) =>
+                  `<button type="button" class="chip chip--form" data-filter="dateKey" data-value="${esc(
+                    value
+                  )}" aria-pressed="false">${esc(label)}</button>`
+              ).join("")}
+            </div>
+          </fieldset>
+          <fieldset class="form-fieldset filter-sheet-section">
+            <legend>NTRP 程度</legend>
+            <div class="filter-sheet-band-grid" role="group" aria-label="NTRP 程度">
+              ${BANDS.map(
+                (band) =>
+                  `<button type="button" class="band-option" data-filter="band" data-value="${esc(
+                    band.key
+                  )}" aria-pressed="false">${esc(band.label)}</button>`
+              ).join("")}
+            </div>
+          </fieldset>
+          <fieldset class="form-fieldset filter-sheet-section">
+            <legend>打法</legend>
+            <div class="filter-sheet-chips" role="group" aria-label="打法">
+              ${FILTER_SHEET_PLAY_TYPES.map(
+                (type) =>
+                  `<button type="button" class="chip chip--form" data-filter="types" data-value="${esc(
+                    type
+                  )}" aria-pressed="false">${esc(type)}</button>`
+              ).join("")}
+            </div>
+          </fieldset>
+          <fieldset class="form-fieldset filter-sheet-section">
+            <legend>行政區</legend>
+            <div class="filter-sheet-chips filter-sheet-chips--district" role="group" aria-label="行政區">
+              ${TAIPEI_DISTRICTS.map(
+                (name) =>
+                  `<button type="button" class="chip chip--district" data-filter="districts" data-value="${esc(
+                    name
+                  )}" aria-pressed="false">${esc(name)}</button>`
+              ).join("")}
+            </div>
+          </fieldset>
+        </div>
+      </div>
+      <div class="filter-sheet__footer">
+        <button type="button" class="filters-reset" data-filter="reset">重設</button>
+        <button type="button" class="session-primary filter-sheet__apply" data-filter="apply">看 <span data-filter-count>${esc(
+          String(resultCount)
+        )}</span> 場球局</button>
       </div>`,
   });
 
@@ -3340,12 +3346,11 @@ export function openFilterSheet({
   const surface = mounted.surface;
 
   function syncControls() {
-    const district = surface.querySelector('select[data-filter="district"]');
-    if (district) district.value = currentFilters.district || "";
-    const court = surface.querySelector('select[data-filter="courtId"]');
-    if (court) court.value = currentFilters.courtId == null ? "" : String(currentFilters.courtId);
-    const date = surface.querySelector('input[data-filter="date"]');
-    if (date) date.value = currentFilters.date || "";
+    surface.querySelectorAll('[data-filter="dateKey"]').forEach((button) => {
+      const selected = (button.dataset.value || null) === currentFilters.dateKey;
+      button.classList.toggle("is-selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
     surface.querySelectorAll('[data-filter="band"]').forEach((button) => {
       const selected = button.dataset.value === currentFilters.band;
       button.classList.toggle("is-active", selected);
@@ -3353,56 +3358,45 @@ export function openFilterSheet({
     });
     surface.querySelectorAll('[data-filter="types"]').forEach((button) => {
       const selected = currentFilters.types.has(button.dataset.value);
-      button.classList.toggle("is-active", selected);
+      button.classList.toggle("is-selected", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
-    surface.querySelectorAll('[data-filter="venueTypes"]').forEach((button) => {
-      const selected = currentFilters.venueTypes.has(button.dataset.value);
-      button.classList.toggle("is-active", selected);
+    surface.querySelectorAll('[data-filter="districts"]').forEach((button) => {
+      const selected = currentFilters.districts.has(button.dataset.value);
+      button.classList.toggle("is-selected", selected);
       button.setAttribute("aria-pressed", String(selected));
     });
   }
 
-  // 單一 change 委派：district/courtId select 與 date input 三個欄位共用。
-  surface.addEventListener("change", (event) => {
-    const target = event.target.closest("[data-filter]");
-    if (!target) return;
-    const field = target.dataset.filter;
-    if (field === "district") {
-      currentFilters.district = target.value;
-      onSetFilter("district", target.value);
-    } else if (field === "courtId") {
-      currentFilters.courtId = target.value || null;
-      onSetFilter("courtId", target.value || null);
-    } else if (field === "date") {
-      currentFilters.date = target.value || null;
-      onSetFilter("date", target.value || null);
-    } else {
-      return;
-    }
-    syncControls();
-  });
-
-  // 單一 click 委派：程度／打法／場地型 chips 與清除鈕共用。
+  // 單一 click 委派:日期／程度／打法／行政區 chips、重設鈕與「看 N 場球局」主鈕共用。
   surface.addEventListener("click", (event) => {
     const target = event.target.closest("[data-filter]");
     if (!target) return;
     const field = target.dataset.filter;
+    if (field === "apply") {
+      // dc L469:主鈕只關閉 sheet,篩選本身在每次點擊 chip 時已即時套用,沒有「套用」步驟。
+      mounted.close();
+      return;
+    }
     if (field === "reset") {
+      // dc L468:重設是文字鈕,不關閉 sheet——讓使用者留在原地繼續調整。
       currentFilters = cloneSheetFilters(DEFAULT_FILTER_STATE);
       onReset();
       syncControls();
       return;
     }
-    if (field === "band") {
+    if (field === "dateKey") {
+      currentFilters.dateKey = target.dataset.value || null;
+      onSetFilter("dateKey", currentFilters.dateKey);
+    } else if (field === "band") {
       currentFilters.band = target.dataset.value;
       onSetFilter("band", target.dataset.value);
     } else if (field === "types") {
       currentFilters.types = toggledFilterSet(currentFilters.types, target.dataset.value);
       onSetFilter("types", currentFilters.types);
-    } else if (field === "venueTypes") {
-      currentFilters.venueTypes = toggledFilterSet(currentFilters.venueTypes, target.dataset.value);
-      onSetFilter("venueTypes", currentFilters.venueTypes);
+    } else if (field === "districts") {
+      currentFilters.districts = toggledFilterSet(currentFilters.districts, target.dataset.value);
+      onSetFilter("districts", currentFilters.districts);
     } else {
       return;
     }
@@ -3415,6 +3409,10 @@ export function openFilterSheet({
     setFilters: (nextFilters) => {
       currentFilters = cloneSheetFilters(nextFilters);
       syncControls();
+    },
+    setResultCount: (count) => {
+      const label = surface.querySelector("[data-filter-count]");
+      if (label) label.textContent = String(Math.max(0, Number(count) || 0));
     },
   };
 }

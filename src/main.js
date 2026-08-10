@@ -419,26 +419,40 @@ function openCreateSession({ courts: selectableCourts, courtsReady: formCourtsRe
   });
 }
 
+// 篩選 chip「永遠白底無選中態」(dc L106):badge 只在 count>0 時出現,不切換
+// is-active——這點與舊版(反相底)刻意不同,見批 D4a 規格。badge 與文字之間留一個
+// 字面空白字元,讓 Playwright toHaveText 的正規化文字仍是「篩選 ⋅N」。
 function renderFilterSheetButton(filters) {
   const button = document.getElementById("filter-sheet-open");
   if (!button) return;
   const count = countActiveFilters(filters);
-  button.textContent = count > 0 ? `篩選 ⋅${count}` : "篩選";
-  button.classList.toggle("is-active", count > 0);
+  button.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg><span>篩選</span>${
+    count > 0 ? ` <span class="filter-chip__badge">⋅${count}</span>` : ""
+  }`;
   button.setAttribute("aria-label", count > 0 ? `篩選，已套用 ${count} 組條件` : "篩選");
 }
 
-// 同步樞紐:地圖控件(日期／程度)、主鈕徽章 N、以及 sheet 開著時的 sheet 控件,
-// 三者都只從這裡的單一 filters 寫入,不論觸發來源是地圖還是 sheet 本身。
+// 同步樞紐:地圖 chips(日期／程度／直接加入)、主鈕徽章 N、以及 sheet 開著時的
+// sheet 控件,四者都只從這裡的單一 filters 寫入,不論觸發來源是地圖還是 sheet 本身。
 function renderFilters(filters) {
-  const date = document.getElementById("date-filter");
-  if (date) date.value = filters.date || "";
+  document.querySelectorAll("[data-date-chip]").forEach((button) => {
+    const selected = button.dataset.dateChip === filters.dateKey;
+    button.classList.toggle("is-selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+  const levelChip = document.getElementById("level-chip");
+  const bandActive = filters.band !== "all";
+  levelChip?.classList.toggle("is-selected", bandActive);
   document.getElementById("band-label").textContent = BANDS.find((band) => band.key === filters.band)?.label ?? "全部";
   document.querySelectorAll("[data-band]").forEach((button) => {
     const selected = button.dataset.band === filters.band;
     button.classList.toggle("is-active", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+  const instantChip = document.getElementById("instant-only-chip");
+  const instantOn = filters.instantOnly === true;
+  instantChip?.classList.toggle("is-selected", instantOn);
+  instantChip?.setAttribute("aria-pressed", String(instantOn));
   renderFilterSheetButton(filters);
   activeFilterSheet?.setFilters(filters);
 }
@@ -449,6 +463,7 @@ function openFilters(handlers = {}) {
   return openFilterSheet({
     filters: latestFilters ?? undefined,
     courts,
+    resultCount: controller?.getVisibleSessions?.().length ?? 0,
     onSetFilter: (field, value) => controller.setFilter(field, value),
     onReset: () => controller.resetFilters(),
     onClose: (detail) => {
@@ -489,6 +504,9 @@ function renderPlayerLayer(view) {
 function renderDiscovery(view) {
   latestFilters = view.filters;
   renderFilters(view.filters);
+  // 篩選 sheet footer 主鈕「看 N 場球局」與 peek/抽屜同一份 view.sessions,
+  // 篩選一改就即時跟隨(dc L469)。
+  activeFilterSheet?.setResultCount(view.sessions.length);
   renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
     sessions: view.sessions,
     courts: view.courts,
@@ -1019,7 +1037,19 @@ function setFilterSheetButtonEnabled(enabled) {
 
 function wireFilters() {
   setFilterSheetButtonEnabled(false);
-  document.getElementById("date-filter").addEventListener("input", (event) => controller.setFilter("date", event.currentTarget.value || null));
+
+  // 日期 chips(dc L102):單選,再點同顆已選中的 chip 會取消(dateKey 回 null)。
+  document.querySelectorAll("[data-date-chip]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = button.dataset.dateChip;
+      controller.setFilter("dateKey", latestFilters?.dateKey === value ? null : value);
+    });
+  });
+
+  // 直接加入 toggle chip(dc L105):純布林開關,前置方點恆為 signal 黃(CSS 負責)。
+  document.getElementById("instant-only-chip").addEventListener("click", () => {
+    controller.setFilter("instantOnly", !(latestFilters?.instantOnly === true));
+  });
 
   const chip = document.getElementById("level-chip");
   const popover = document.getElementById("level-popover");
@@ -1027,7 +1057,9 @@ function wireFilters() {
     (band) =>
       `<button type="button" class="band-option${band.key === "all" ? " is-active" : ""}" data-band="${esc(
         band.key
-      )}" aria-pressed="${band.key === "all"}">${esc(band.label)}</button>`
+      )}" aria-pressed="${band.key === "all"}"><span>${esc(
+        band.label
+      )}</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>`
   ).join("");
   chip.addEventListener("click", () => {
     popover.hidden = !popover.hidden;

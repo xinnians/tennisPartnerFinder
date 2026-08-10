@@ -1,74 +1,64 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
 
-// Selected bands are ranges because a session advertises an acceptable NTRP
-// interval, not one host rating. Endpoints intentionally overlap.
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 批 D4a(v2 篩選改版):band 定義改抄 dc.html data.js 逐字值(min/max 含 all/pro 的
+// 有限哨兵 0/9,取代舊的 ±Infinity)。標籤空白/dash 亦照 dc 抄——"3.0–4.0"／
+// "4.0–5.0" 不留前後空格,與舊版 "3.0 – 4.0" 不同,依批次決策 3(語意不等價)全面改字。
 export const BANDS = [
-  { key: "all", label: "全部" },
-  { key: "lo", label: "≤ 3.0", min: Number.NEGATIVE_INFINITY, max: 3 },
-  { key: "mid", label: "3.0 – 4.0", min: 3, max: 4 },
-  { key: "hi", label: "4.0 – 5.0", min: 4, max: 5 },
-  { key: "pro", label: "5.0 +", min: 5, max: Number.POSITIVE_INFINITY },
+  { key: "all", label: "全部", min: 0, max: 9 },
+  { key: "lo", label: "≤ 3.0", min: 0, max: 3 },
+  { key: "mid", label: "3.0–4.0", min: 3, max: 4 },
+  { key: "hi", label: "4.0–5.0", min: 4, max: 5 },
+  { key: "pro", label: "5.0 +", min: 5, max: 9 },
 ];
 
+// 批 D4a:v2 五欄篩選模型。「場地型 venueTypes」「指定球場 courtId」「日期 date
+// input」三組退場,district 單選改 districts 多選,新增 dateKey 列舉與 instantOnly
+// 布林。DEFAULT_FILTER_STATE 仍是全站唯一預設來源(sessionController/sessionViews
+// 都從這裡衍生自己的 clone)。
 export const DEFAULT_FILTER_STATE = {
-  district: "",
-  courtId: null,
-  date: null,
+  dateKey: null,
   band: "all",
+  instantOnly: false,
   types: new Set(),
-  venueTypes: new Set(),
+  districts: new Set(),
 };
 
+function selectedTypes(types) {
+  if (types instanceof Set) return types;
+  return new Set(Array.isArray(types) ? types : []);
+}
+
 /**
- * Count the number of active filters in a filters object.
- * Each of six filter dimensions (district, courtId, date, band, types, venueTypes)
- * contributes 1 to the count if it differs from DEFAULT_FILTER_STATE.
- * Non-object filters (null/undefined/other) return 0.
- *
- * This function is the source of truth for filter state comparison.
- * isDefaultFilters is implemented as countActiveFilters(filters) === 0
- * to avoid logic duplication between the two functions.
+ * Filter badge count. Product decision (batch D4a): the badge only reflects
+ * the two multi-select dimensions (打法 types、行政區 districts), summed as
+ * "how many individual chips are selected" — not a per-dimension "is this
+ * field active" flag. Picking a dateKey, a non-"all" band, or instantOnly
+ * does NOT move this number even though it changes the visible results; see
+ * isDefaultFilters below for the "is any filter active at all" question.
  */
 export function countActiveFilters(filters) {
   if (filters == null || typeof filters !== "object") return 0;
-
-  let count = 0;
-
-  // district: active if non-empty string
-  if (filters.district !== DEFAULT_FILTER_STATE.district) count++;
-
-  // courtId: active if not null
-  if (filters.courtId !== DEFAULT_FILTER_STATE.courtId) count++;
-
-  // date: active if not null
-  if (filters.date !== DEFAULT_FILTER_STATE.date) count++;
-
-  // band: active if not "all"
-  if (filters.band !== DEFAULT_FILTER_STATE.band) count++;
-
-  // types: active if Set is non-empty
-  if (selectedTypes(filters.types).size > 0) count++;
-
-  // venueTypes: active if Set is non-empty
-  if (selectedTypes(filters.venueTypes).size > 0) count++;
-
-  return count;
+  return selectedTypes(filters.types).size + selectedTypes(filters.districts).size;
 }
 
 /**
- * Compare a filters object field-by-field against DEFAULT_FILTER_STATE.
- * A non-object `filters` (null/undefined/other) is treated as "no filters applied"
- * and returns true, matching the meaning of an absent filters state everywhere
- * else in this module.
- *
- * Implementation: returns true iff countActiveFilters(filters) === 0,
- * ensuring both functions stay synchronized.
+ * Whether filters differ from DEFAULT_FILTER_STATE along ANY dimension,
+ * including dateKey/band/instantOnly. This intentionally does NOT reduce to
+ * countActiveFilters(filters) === 0 (unlike the pre-D4a implementation):
+ * choosing "週末" or "5.0 +" alone must still surface a "reset filters"
+ * affordance in the empty-state UI even though it never moves the badge.
  */
 export function isDefaultFilters(filters) {
-  return countActiveFilters(filters) === 0;
+  if (filters == null || typeof filters !== "object") return true;
+  return (
+    (filters.dateKey ?? null) === DEFAULT_FILTER_STATE.dateKey &&
+    (filters.band || "all") === DEFAULT_FILTER_STATE.band &&
+    Boolean(filters.instantOnly) === DEFAULT_FILTER_STATE.instantOnly &&
+    countActiveFilters(filters) === 0
+  );
 }
-
-const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function asFiniteNumber(value) {
   if (value == null || value === "") return null;
@@ -101,52 +91,57 @@ function getTaipeiDateKey(value) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function selectedDateKey(value) {
-  if (value == null || value === "") return null;
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  return getTaipeiDateKey(value);
+function isTaipeiWeekend(value) {
+  const date = toDate(value);
+  if (!date) return false;
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: TAIPEI_TIME_ZONE, weekday: "short" }).format(date);
+  return weekday === "Sat" || weekday === "Sun";
 }
 
-function selectedTypes(types) {
-  if (types instanceof Set) return types;
-  return new Set(Array.isArray(types) ? types : []);
+function selectedTypesSet(types) {
+  return selectedTypes(types);
 }
 
 function matchesBand(session, bandKey) {
   if (!bandKey || bandKey === "all") return true;
   const band = BANDS.find((candidate) => candidate.key === bandKey);
-  if (!band || band.min == null || band.max == null) return true;
+  if (!band) return true;
 
   const sessionMin = asFiniteNumber(session.ntrpMin);
   const sessionMax = asFiniteNumber(session.ntrpMax);
   // A missing interval is deliberately inclusive: the server permits it and
   // the UI must not silently hide a session whose host did not constrain NTRP.
   if (sessionMin == null || sessionMax == null) return true;
-  return sessionMax >= band.min && sessionMin <= band.max;
+  // dc.html 的重疊判斷是開區間(s.nMax>b.min && s.nMin<b.max),與舊版的閉區間
+  // (>=/<=)不等價:一場 NTRP 剛好落在兩個相鄰 band 邊界上的球局，舊版兩個 band
+  // 都會命中，新版兩個都不命中。已改採 dc 逐字公式；邊界行為差異見批次回報。
+  return sessionMax > band.min && sessionMin < band.max;
 }
 
-function matchesDistrict(session, district) {
-  return !district || district === "all" || session.courtDistrict === district;
+function matchesDateKey(session, dateKey, now) {
+  if (!dateKey) return true;
+  if (dateKey === "weekend") return isTaipeiWeekend(session.startAt);
+  const reference = toDate(now) ?? new Date();
+  const referenceDate = dateKey === "tomorrow" ? new Date(reference.getTime() + DAY_MS) : reference;
+  const expectedKey = getTaipeiDateKey(referenceDate);
+  return expectedKey != null && getTaipeiDateKey(session.startAt) === expectedKey;
 }
 
-function matchesCourt(session, courtId) {
-  return courtId == null || courtId === "" || String(session.courtId) === String(courtId);
-}
-
-function matchesDate(session, date) {
-  const expected = selectedDateKey(date);
-  return !expected || getTaipeiDateKey(session.startAt) === expected;
+function matchesInstantOnly(session, instantOnly) {
+  return !instantOnly || String(session.joinMode) === "instant";
 }
 
 function matchesTypes(session, types) {
-  const chosen = selectedTypes(types);
+  const chosen = selectedTypesSet(types);
   return chosen.size === 0 || chosen.has(session.playType);
 }
 
-function matchesVenueTypes(session, venueTypes) {
-  const chosen = selectedTypes(venueTypes);
-  return chosen.size === 0 || chosen.has(String(session.venueType ?? "booked"));
+function matchesDistricts(session, districts) {
+  const chosen = selectedTypesSet(districts);
+  return chosen.size === 0 || chosen.has(session.courtDistrict);
 }
+
+const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function isDiscoverableSession(session, now) {
   const startAt = toDate(session.startAt);
@@ -163,8 +158,8 @@ function isDiscoverableSession(session, now) {
 
 /**
  * Filter public SessionSummary rows without changing their source order.
- * Dates are compared in Asia/Taipei so a date picker does not flip a session
- * around midnight in the viewer's local browser timezone.
+ * Dates are compared in Asia/Taipei so date-based chips do not flip a
+ * session around midnight in the viewer's local browser timezone.
  */
 export function filterSessions(sessions, filters = DEFAULT_FILTER_STATE, now = new Date()) {
   const source = Array.isArray(sessions) ? sessions : [];
@@ -173,12 +168,11 @@ export function filterSessions(sessions, filters = DEFAULT_FILTER_STATE, now = n
   return source.filter(
     (session) =>
       isDiscoverableSession(session, now) &&
-      matchesDistrict(session, state.district) &&
-      matchesCourt(session, state.courtId) &&
-      matchesDate(session, state.date) &&
+      matchesDateKey(session, state.dateKey, now) &&
       matchesBand(session, state.band) &&
+      matchesInstantOnly(session, state.instantOnly) &&
       matchesTypes(session, state.types) &&
-      matchesVenueTypes(session, state.venueTypes)
+      matchesDistricts(session, state.districts)
   );
 }
 
