@@ -32,6 +32,9 @@ export function createPlaywrightConfig({
         VITE_SUPPORT_EMAIL: "support@example.test",
         VITE_SUPABASE_URL: isLocal ? localConfig.apiUrl : "___",
         VITE_SUPABASE_ANON_KEY: isLocal ? localConfig.publicKey : "___",
+        // local 模式開 LINE 按鈕讓 session.spec 驗真實登入流程的雙 provider;
+        // mock 模式維持預設隱藏,smoke.spec 以顯式參數覆蓋測兩種狀態。
+        VITE_AUTH_LINE_PROVIDER_ID: isLocal ? "custom:line" : "",
       },
       url: `http://127.0.0.1:${port}`,
       reuseExistingServer: false,

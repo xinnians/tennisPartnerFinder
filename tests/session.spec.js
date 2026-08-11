@@ -227,6 +227,11 @@ test("anonymous Join resumes the same live target as a confirmation, never an au
   await openPublishedSession(page, published.sessionId);
   await page.locator("#session-sheet [data-session-action='primary']").click();
   await expect(page.locator("#login-dialog")).toBeVisible();
+  // local webServer 設了 VITE_AUTH_LINE_PROVIDER_ID,真實流程的登入視窗要同時
+  // 提供 Google 與 LINE(Supabase custom provider)兩顆按鈕。
+  await expect(page.locator("#login-dialog [data-provider]")).toHaveCount(2);
+  await expect(page.locator("#login-dialog [data-provider='google']")).toBeVisible();
+  await expect(page.locator("#login-dialog [data-provider='custom:line']")).toBeVisible();
 
   // 批 C3-2:join 確認併進同一張 #session-sheet,resume 直接以確認態重開它,
   // 不再是獨立的 #join-session-confirmation dialog。

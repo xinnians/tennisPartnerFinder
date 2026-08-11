@@ -1,5 +1,6 @@
 import { esc } from "./util.js";
 import { pushSurfaceIsolation } from "./modalIsolation.js";
+import { AUTH_LINE_PROVIDER_ID } from "./config.js";
 
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
@@ -169,7 +170,9 @@ const LOGIN_TITLES = {
   me: "登入以管理你的檔案與設定",
 };
 
-export function openLoginModal({ action = "", onProvider, onClose } = {}) {
+// lineProviderId 是 Supabase custom provider 識別符;空值時不渲染 LINE 按鈕,
+// 部署端未設好 provider 前保持既有單一 Google 入口。
+export function openLoginModal({ action = "", onProvider, onClose, lineProviderId = AUTH_LINE_PROVIDER_ID } = {}) {
   const mounted = mountDialog({
     id: "login-dialog",
     label: "登入後繼續",
@@ -185,19 +188,25 @@ export function openLoginModal({ action = "", onProvider, onClose } = {}) {
       </div>
       <p class="surface__copy">登入只用於繼續目前操作；已接受的球局成員可使用群組聊天。</p>
       <p class="surface__message" data-login-message role="status" aria-live="polite" aria-atomic="true"></p>
-      <button type="button" class="session-primary" data-provider="google">使用 Google 登入</button>`,
+      <button type="button" class="session-primary" data-provider="google">使用 Google 登入</button>${
+        lineProviderId
+          ? `
+      <button type="button" class="session-primary" data-provider="${esc(lineProviderId)}">使用 LINE 登入</button>`
+          : ""
+      }`,
   });
 
-  mounted.root.querySelector("[data-provider]")?.addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    const message = mounted.root.querySelector("[data-login-message]");
-    button.disabled = true;
-    try {
-      await onProvider("google");
-      message.textContent = "正在前往登入頁…";
-    } catch {
-      message.textContent = "登入啟動失敗，請稍後再試。";
-      button.disabled = false;
-    }
-  });
+  for (const button of mounted.root.querySelectorAll("[data-provider]")) {
+    button.addEventListener("click", async () => {
+      const message = mounted.root.querySelector("[data-login-message]");
+      button.disabled = true;
+      try {
+        await onProvider(button.dataset.provider);
+        message.textContent = "正在前往登入頁…";
+      } catch {
+        message.textContent = "登入啟動失敗，請稍後再試。";
+        button.disabled = false;
+      }
+    });
+  }
 }

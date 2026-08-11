@@ -21,6 +21,10 @@ export const LOCATION_INITIAL_RADIUS_METERS = 5000;
 export const SUPPORT_EMAIL = env.VITE_SUPPORT_EMAIL ?? "";
 // 僅含 VAPID 公鑰；私鑰只存在 Edge Function 的 secrets。
 export const WEB_PUSH_VAPID_PUBLIC_KEY = env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
+// LINE 登入的 Supabase custom provider 識別符(如 "custom:line")。留空(預設)時登入視窗
+// 不顯示 LINE 按鈕;必須等對應 Supabase 專案設好同名 provider 才可設定,避免按鈕指向
+// 不存在的 provider。LINE 登入只作身分驗證,聯絡面退役紅線不變。
+export const AUTH_LINE_PROVIDER_ID = env.VITE_AUTH_LINE_PROVIDER_ID ?? "";
 
 // 地圖初始視野:以台北市為中心,zoom 12 大約可看到整個市區
 export const MAP_CENTER = { lat: 25.03, lng: 121.55 };

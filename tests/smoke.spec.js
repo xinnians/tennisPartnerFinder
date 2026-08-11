@@ -3583,6 +3583,43 @@ test("nested login modal restores focus and announces a failed provider start", 
   expect(runtimeErrors).toEqual([]);
 });
 
+test("the login modal hides LINE by default and passes the custom provider id through when enabled", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  // 預設(mock webServer 未設 VITE_AUTH_LINE_PROVIDER_ID)只有 Google 一顆按鈕。
+  await page.evaluate(async () => {
+    const { openLoginModal } = await import("/src/sheets.js");
+    openLoginModal({});
+  });
+  await expect(page.locator("#login-dialog [data-provider]")).toHaveCount(1);
+  await expect(page.locator("#login-dialog [data-provider='google']")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#login-dialog")).toHaveCount(0);
+
+  // 顯式開啟後有兩顆;點 LINE 要把 custom provider 識別符原樣傳給 onProvider。
+  await page.evaluate(async () => {
+    const { openLoginModal } = await import("/src/sheets.js");
+    window.__providerCalls = [];
+    openLoginModal({
+      lineProviderId: "custom:line",
+      onProvider: async (provider) => {
+        window.__providerCalls.push(provider);
+      },
+    });
+  });
+  await expect(page.locator("#login-dialog [data-provider]")).toHaveCount(2);
+  const lineButton = page.locator("#login-dialog [data-provider='custom:line']");
+  await expect(lineButton).toHaveText("使用 LINE 登入");
+  await lineButton.click();
+  await expect(page.locator("[data-login-message]")).toContainText("正在前往登入頁");
+  expect(await page.evaluate(() => window.__providerCalls)).toEqual(["custom:line"]);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#login-dialog")).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("the login modal titles each gate entry point instead of always naming a join request", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

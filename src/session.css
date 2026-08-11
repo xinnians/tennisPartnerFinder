@@ -137,6 +137,10 @@
 
 .session-primary { padding: 0 var(--space-4); background: var(--color-ink); color: var(--color-signal); }
 
+/* 登入 dialog 可能有 Google+LINE 兩顆 provider 按鈕;直排時保持一致間距。 */
+.auth-dialog [data-provider] { margin-top: var(--space-2); }
+.auth-dialog [data-provider] + [data-provider] { margin-left: var(--space-2); }
+
 .map-page {
   position: relative;
   min-width: 0;

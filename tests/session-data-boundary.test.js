@@ -148,10 +148,27 @@ test("frontend source scan allows only the frozen LINE RPC parameter", async () 
   assert.equal(sourceCodeMatches(sources, /session_contacts/).length, 0, "frontend JS must not contain session_contacts");
   assert.equal(sourceCodeMatches(sources, /lineId/).length, 0, "frontend JS must not contain lineId");
   assert.equal(sourceCodeMatches(sources, /line[.]me/i).length, 0, "frontend JS must not contain a LINE deep link");
-  assert.equal(
-    sourceCodeMatches(sources, RETIRED_LINE_TOKEN_PATTERN).length,
-    0,
-    "frontend JS must not contain a standalone LINE token"
+  // LINE「登入」(Supabase custom provider)是 2026-08 核可的新用途;聯絡面仍然退役。
+  // 這裡精確到行允許登入面的四個 LINE token,任何新出現的 standalone LINE 都必須
+  // 回到這份 allowlist 有意識地審查,不可順手擴大。
+  const standaloneLineMatches = sourceCodeMatches(sources, RETIRED_LINE_TOKEN_PATTERN)
+    .map(({ path, line }) => ({ path: path.replace(/^.*\/(src|public)\//, "$1/"), line }))
+    .sort((a, b) => (a.path === b.path ? a.line.localeCompare(b.line) : a.path.localeCompare(b.path)));
+  assert.deepEqual(
+    standaloneLineMatches,
+    [
+      { path: "src/config.js", line: 'export const AUTH_LINE_PROVIDER_ID = env.VITE_AUTH_LINE_PROVIDER_ID ?? "";' },
+      {
+        path: "src/sheets.js",
+        line: '<button type="button" class="session-primary" data-provider="${esc(lineProviderId)}">使用 LINE 登入</button>`',
+      },
+      {
+        path: "src/sheets.js",
+        line: 'export function openLoginModal({ action = "", onProvider, onClose, lineProviderId = AUTH_LINE_PROVIDER_ID } = {}) {',
+      },
+      { path: "src/sheets.js", line: 'import { AUTH_LINE_PROVIDER_ID } from "./config.js";' },
+    ],
+    "standalone LINE tokens outside the approved login surface are still retired"
   );
 
   const lineIdMatches = sourceCodeMatches(sources, /line_id/);
