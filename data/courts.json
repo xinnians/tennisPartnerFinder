@@ -1,27 +1,37 @@
 {
   "meta": {
-    "updatedAt": "2026-07-08",
+    "updatedAt": "2026-08-11",
     "license": "政府資料開放授權條款-第1版",
     "sources": [
       {
         "name": "運動部 全國運動場館資訊（data.gov.tw #22849）",
         "url": "https://data.gov.tw/dataset/22849",
-        "fetchedAt": "2026-07-08"
+        "fetchedAt": "2026-08-11"
       },
       {
         "name": "臺北市體育局場館設施管理系統",
         "url": "https://vbs.sports.taipei/",
-        "fetchedAt": "2026-07-08"
+        "fetchedAt": "2026-08-11"
       },
       {
         "name": "新北市政府高灘地工程管理處",
         "url": "https://www.hrcm.ntpc.gov.tw/",
-        "fetchedAt": "2026-07-08"
+        "fetchedAt": "2026-08-11"
       },
       {
         "name": "臺北市政府工務局水利工程處河濱公園＋data.taipei 體育局場館資料",
         "url": "https://heo.gov.taipei/",
-        "fetchedAt": "2026-07-08"
+        "fetchedAt": "2026-08-11"
+      },
+      {
+        "name": "臺北市政府公有場地租用平台（校園網球場開放預約）",
+        "url": "https://service.gov.taipei/",
+        "fetchedAt": "2026-08-11"
+      },
+      {
+        "name": "臺北市北投運動中心",
+        "url": "https://www.btsport.org.tw/zh-TW/stadiums/id/15/",
+        "fetchedAt": "2026-08-11"
       }
     ],
     "slugPolicy": "英文意譯、ASCII、收錄後永不改"
@@ -99,17 +109,39 @@
       "lat": 25.026049,
       "lng": 121.561403,
       "isRiverside": false,
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
+    },
+    {
+      "name": "松山高中網球場",
+      "slug": "songshan-senior-high",
+      "city": "台北市",
+      "district": "信義區",
+      "lat": 25.043634,
+      "lng": 121.565609,
+      "isRiverside": false,
+      "sourceUrl": "https://service.gov.taipei/rental/VenueDetail/e13d57cdaf90"
+    },
+    {
+      "name": "三民國中網球場",
+      "slug": "sanmin-junior-high",
+      "city": "台北市",
+      "district": "內湖區",
+      "lat": 25.069518,
+      "lng": 121.584993,
+      "isRiverside": false,
       "sourceUrl": "https://data.gov.tw/dataset/22849"
     },
     {
-      "name": "石潭公園網球場",
-      "slug": "shitan-park",
+      "name": "台北網球中心",
+      "slug": "taipei-tennis-center",
       "city": "台北市",
       "district": "內湖區",
-      "lat": 25.063617,
-      "lng": 121.59265,
+      "lat": 25.067446,
+      "lng": 121.596648,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=766"
+      "sourceUrl": "https://www.tsc.taipei/",
+      "courtCount": 15
     },
     {
       "name": "彩虹河濱公園網球場",
@@ -130,7 +162,8 @@
       "lat": 25.087193,
       "lng": 121.56724,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 2
     },
     {
       "name": "成美右岸河濱公園網球場",
@@ -151,7 +184,8 @@
       "lat": 25.086577,
       "lng": 121.598969,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=760"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=760",
+      "courtCount": 2
     },
     {
       "name": "瑞湖公園網球場",
@@ -161,7 +195,19 @@
       "lat": 25.069373,
       "lng": 121.577002,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=767"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=767",
+      "courtCount": 1
+    },
+    {
+      "name": "石潭公園網球場",
+      "slug": "shitan-park",
+      "city": "台北市",
+      "district": "內湖區",
+      "lat": 25.063617,
+      "lng": 121.59265,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=766",
+      "courtCount": 1
     },
     {
       "name": "碧湖公園網球場",
@@ -171,18 +217,8 @@
       "lat": 25.081903,
       "lng": 121.583775,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=604"
-    },
-    {
-      "name": "台北網球中心",
-      "slug": "taipei-tennis-center",
-      "city": "台北市",
-      "district": "內湖區",
-      "lat": 25.067446,
-      "lng": 121.596648,
-      "isRiverside": false,
-      "sourceUrl": "https://www.tsc.taipei/",
-      "courtCount": 15
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=604",
+      "courtCount": 1
     },
     {
       "name": "葫蘆洲運動公園網球場",
@@ -192,7 +228,8 @@
       "lat": 25.062072,
       "lng": 121.604372,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 2
     },
     {
       "name": "西湖國中網球場",
@@ -202,39 +239,29 @@
       "lat": 25.086114,
       "lng": 121.565797,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 2
     },
     {
-      "name": "洲美運動公園網球場",
-      "slug": "zhoumei-sports-park",
+      "name": "北投運動中心網球場",
+      "slug": "beitou-sports-center",
       "city": "台北市",
       "district": "北投區",
-      "lat": 25.110127,
-      "lng": 121.499573,
+      "lat": 25.116898,
+      "lng": 121.509696,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://www.btsport.org.tw/zh-TW/stadiums/id/15/"
     },
     {
-      "name": "天溪綠地網球場",
-      "slug": "tianxi-green-space",
+      "name": "台北藝術大學網球場",
+      "slug": "tnua",
       "city": "台北市",
       "district": "北投區",
-      "lat": 25.128252,
-      "lng": 121.531301,
+      "lat": 25.136524,
+      "lng": 121.47465,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=968",
-      "courtCount": 1
-    },
-    {
-      "name": "觀海公園網球場",
-      "slug": "guanhai-park",
-      "city": "台北市",
-      "district": "北投區",
-      "lat": 25.123533,
-      "lng": 121.463012,
-      "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=984",
-      "courtCount": 1
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
     },
     {
       "name": "大豐公園網球場",
@@ -248,6 +275,17 @@
       "courtCount": 1
     },
     {
+      "name": "天溪綠地網球場",
+      "slug": "tianxi-green-space",
+      "city": "台北市",
+      "district": "北投區",
+      "lat": 25.128252,
+      "lng": 121.531301,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=968",
+      "courtCount": 1
+    },
+    {
       "name": "復興公園網球場",
       "slug": "fuxing-park",
       "city": "台北市",
@@ -257,6 +295,28 @@
       "isRiverside": false,
       "sourceUrl": "https://vbs.sports.taipei/venues/?K=998",
       "courtCount": 1
+    },
+    {
+      "name": "文林國小網球場",
+      "slug": "wenlin-elementary",
+      "city": "台北市",
+      "district": "北投區",
+      "lat": 25.105675,
+      "lng": 121.51395,
+      "isRiverside": false,
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
+    },
+    {
+      "name": "新民國中網球場",
+      "slug": "xinmin-junior-high",
+      "city": "台北市",
+      "district": "北投區",
+      "lat": 25.138175,
+      "lng": 121.506434,
+      "isRiverside": false,
+      "sourceUrl": "https://service.gov.taipei/rental/VenueDetail/431c7decfa8c",
+      "courtCount": 2
     },
     {
       "name": "明德國中網球場",
@@ -280,14 +340,26 @@
       "courtCount": 2
     },
     {
-      "name": "台北藝術大學網球場",
-      "slug": "tnua",
+      "name": "洲美運動公園網球場",
+      "slug": "zhoumei-sports-park",
       "city": "台北市",
       "district": "北投區",
-      "lat": 25.136524,
-      "lng": 121.47465,
+      "lat": 25.110127,
+      "lng": 121.499573,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 4
+    },
+    {
+      "name": "觀海公園網球場",
+      "slug": "guanhai-park",
+      "city": "台北市",
+      "district": "北投區",
+      "lat": 25.123533,
+      "lng": 121.463012,
+      "isRiverside": false,
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=984",
+      "courtCount": 1
     },
     {
       "name": "逸仙國小網球場",
@@ -317,7 +389,8 @@
       "lat": 25.124421,
       "lng": 121.513816,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
     },
     {
       "name": "中研公園網球場",
@@ -327,7 +400,8 @@
       "lat": 25.047073,
       "lng": 121.612789,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=635"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=635",
+      "courtCount": 1
     },
     {
       "name": "中華科技大學網球場",
@@ -358,18 +432,8 @@
       "lat": 25.042447,
       "lng": 121.586609,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=624"
-    },
-    {
-      "name": "百齡河濱公園網球場",
-      "slug": "bailing-riverside",
-      "city": "台北市",
-      "district": "士林區",
-      "lat": 25.08896,
-      "lng": 121.512494,
-      "isRiverside": true,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=1042",
-      "courtCount": 10
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=624",
+      "courtCount": 2
     },
     {
       "name": "天壽公園網球場",
@@ -379,7 +443,8 @@
       "lat": 25.116175,
       "lng": 121.525329,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=816"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=816",
+      "courtCount": 1
     },
     {
       "name": "天母運動公園網球場",
@@ -401,6 +466,28 @@
       "lng": 121.544307,
       "isRiverside": false,
       "sourceUrl": "https://data.gov.tw/dataset/22849"
+    },
+    {
+      "name": "百齡河濱公園網球場",
+      "slug": "bailing-riverside",
+      "city": "台北市",
+      "district": "士林區",
+      "lat": 25.08896,
+      "lng": 121.512494,
+      "isRiverside": true,
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=1042",
+      "courtCount": 10
+    },
+    {
+      "name": "至善國中網球場",
+      "slug": "zhishan-junior-high",
+      "city": "台北市",
+      "district": "士林區",
+      "lat": 25.104276,
+      "lng": 121.557222,
+      "isRiverside": false,
+      "sourceUrl": "https://service.gov.taipei/rental/VenueDetail/7609a1c8ed2f",
+      "courtCount": 2
     },
     {
       "name": "蘭興公園網球場",
@@ -442,7 +529,19 @@
       "lat": 25.073715,
       "lng": 121.510264,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
+    },
+    {
+      "name": "台北教育大學網球場",
+      "slug": "ntue",
+      "city": "台北市",
+      "district": "大安區",
+      "lat": 25.022112,
+      "lng": 121.544859,
+      "isRiverside": false,
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 1
     },
     {
       "name": "台灣科技大學網球場",
@@ -462,7 +561,8 @@
       "lat": 24.982302,
       "lng": 121.578245,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 6
     },
     {
       "name": "景美女中網球場",
@@ -472,7 +572,8 @@
       "lat": 24.98285,
       "lng": 121.555343,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 2
     },
     {
       "name": "景美河濱公園網球場",
@@ -484,6 +585,17 @@
       "isRiverside": true,
       "sourceUrl": "https://vbs.sports.taipei/venues/?K=489",
       "courtCount": 1
+    },
+    {
+      "name": "木柵國小網球場",
+      "slug": "muzha-elementary",
+      "city": "台北市",
+      "district": "文山區",
+      "lat": 24.990781,
+      "lng": 121.569541,
+      "isRiverside": false,
+      "sourceUrl": "https://service.gov.taipei/rental/VenueDetail/1ba2075d5fe7",
+      "courtCount": 2
     },
     {
       "name": "溪洲(福和)河濱公園網球場",
@@ -504,7 +616,8 @@
       "lat": 25.000876,
       "lng": 121.541707,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=849"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=849",
+      "courtCount": 1
     },
     {
       "name": "道南河濱公園網球場",
@@ -525,7 +638,8 @@
       "lat": 25.051365,
       "lng": 121.55179,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=886"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=886",
+      "courtCount": 6
     },
     {
       "name": "民權公園網球場",
@@ -535,7 +649,8 @@
       "lat": 25.061584,
       "lng": 121.55929,
       "isRiverside": false,
-      "sourceUrl": "https://vbs.sports.taipei/venues/?K=320"
+      "sourceUrl": "https://vbs.sports.taipei/venues/?K=320",
+      "courtCount": 2
     },
     {
       "name": "觀山河濱公園網球場",
@@ -589,7 +704,8 @@
       "lat": 25.076348,
       "lng": 121.486784,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 1
     },
     {
       "name": "新北高中網球場",
@@ -599,7 +715,8 @@
       "lat": 25.087455,
       "lng": 121.489794,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 2
     },
     {
       "name": "明志國中網球場",
@@ -623,22 +740,23 @@
       "courtCount": 4
     },
     {
-      "name": "錦和運動公園網球場",
-      "slug": "jinhe-sports-park",
-      "city": "新北市",
-      "district": "中和區",
-      "lat": 24.993069,
-      "lng": 121.487428,
-      "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
-    },
-    {
       "name": "秀山國小網球場",
       "slug": "xiushan-elementary",
       "city": "新北市",
       "district": "中和區",
       "lat": 24.994499,
       "lng": 121.521792,
+      "isRiverside": false,
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 4
+    },
+    {
+      "name": "錦和運動公園網球場",
+      "slug": "jinhe-sports-park",
+      "city": "新北市",
+      "district": "中和區",
+      "lat": 24.993069,
+      "lng": 121.487428,
       "isRiverside": false,
       "sourceUrl": "https://data.gov.tw/dataset/22849"
     },
@@ -661,7 +779,8 @@
       "lat": 24.979221,
       "lng": 121.454374,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 4
     },
     {
       "name": "媽祖田網球場",
@@ -713,6 +832,17 @@
       "lat": 25.04085,
       "lng": 121.450215,
       "isRiverside": false,
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 6
+    },
+    {
+      "name": "民生公園網球場",
+      "slug": "minsheng-park",
+      "city": "新北市",
+      "district": "板橋區",
+      "lat": 25.013362,
+      "lng": 121.475894,
+      "isRiverside": false,
       "sourceUrl": "https://data.gov.tw/dataset/22849"
     },
     {
@@ -727,16 +857,6 @@
       "courtCount": 1
     },
     {
-      "name": "民生公園網球場",
-      "slug": "minsheng-park",
-      "city": "新北市",
-      "district": "板橋區",
-      "lat": 25.013362,
-      "lng": 121.475894,
-      "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
-    },
-    {
       "name": "致理科技大學網球場",
       "slug": "chihlee-university",
       "city": "新北市",
@@ -744,17 +864,8 @@
       "lat": 25.020581,
       "lng": 121.463186,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
-    },
-    {
-      "name": "林口高中網球場",
-      "slug": "linkou-senior-high",
-      "city": "新北市",
-      "district": "林口區",
-      "lat": 25.072976,
-      "lng": 121.380043,
-      "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 1
     },
     {
       "name": "林口第二運動公園網球場",
@@ -767,14 +878,15 @@
       "sourceUrl": "https://data.gov.tw/dataset/22849"
     },
     {
-      "name": "台灣師範大學林口校區網球場",
-      "slug": "ntnu-linkou",
+      "name": "林口高中網球場",
+      "slug": "linkou-senior-high",
       "city": "新北市",
       "district": "林口區",
-      "lat": 25.06939,
-      "lng": 121.403024,
+      "lat": 25.072976,
+      "lng": 121.380043,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 1
     },
     {
       "name": "樹林體育園區網球場",
@@ -784,7 +896,18 @@
       "lat": 24.982203,
       "lng": 121.426806,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 8
+    },
+    {
+      "name": "福和網球場",
+      "slug": "fuhe",
+      "city": "新北市",
+      "district": "永和區",
+      "lat": 25.007319,
+      "lng": 121.527823,
+      "isRiverside": true,
+      "sourceUrl": "https://www.hrcm.ntpc.gov.tw/Facility/TypeAssets/%E5%90%84%E9%A1%9E%E7%90%83%E5%A0%B4/%E7%B6%B2%E7%90%83%E5%A0%B4/%E7%A6%8F%E5%92%8C%E7%B6%B2%E7%90%83%E5%A0%B4"
     },
     {
       "name": "綠寶石網球場",
@@ -798,16 +921,6 @@
       "courtCount": 6
     },
     {
-      "name": "福和網球場",
-      "slug": "fuhe",
-      "city": "新北市",
-      "district": "永和區",
-      "lat": 25.007319,
-      "lng": 121.527823,
-      "isRiverside": true,
-      "sourceUrl": "https://www.hrcm.ntpc.gov.tw/Facility/TypeAssets/%E5%90%84%E9%A1%9E%E7%90%83%E5%A0%B4/%E7%B6%B2%E7%90%83%E5%A0%B4/%E7%A6%8F%E5%92%8C%E7%B6%B2%E7%90%83%E5%A0%B4"
-    },
-    {
       "name": "文化國小網球場",
       "slug": "wenhua-elementary",
       "city": "新北市",
@@ -815,7 +928,8 @@
       "lat": 25.174053,
       "lng": 121.437963,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 1
     },
     {
       "name": "淡江大學網球場",
@@ -825,7 +939,8 @@
       "lat": 25.175623,
       "lng": 121.45397,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
     },
     {
       "name": "真理大學網球場",
@@ -835,7 +950,8 @@
       "lat": 25.176622,
       "lng": 121.434808,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
+      "courtCount": 3
     },
     {
       "name": "聖約翰科技大學網球場",
@@ -845,17 +961,7 @@
       "lat": 25.226727,
       "lng": 121.45088,
       "isRiverside": false,
-      "sourceUrl": "https://data.gov.tw/dataset/22849"
-    },
-    {
-      "name": "微風運河網球場",
-      "slug": "weifeng-canal",
-      "city": "新北市",
-      "district": "蘆洲區",
-      "lat": 25.094218,
-      "lng": 121.458077,
-      "isRiverside": true,
-      "sourceUrl": "https://www.hrcm.ntpc.gov.tw/Facility/TypeAssets/%E5%90%84%E9%A1%9E%E7%90%83%E5%A0%B4/%E7%B6%B2%E7%90%83%E5%A0%B4/%E8%98%86%E5%A0%A4%E7%B6%B2%E7%90%83%E5%A0%B4",
+      "sourceUrl": "https://data.gov.tw/dataset/22849",
       "courtCount": 4
     },
     {
@@ -867,6 +973,17 @@
       "lng": 121.463546,
       "isRiverside": false,
       "sourceUrl": "https://data.gov.tw/dataset/22849"
+    },
+    {
+      "name": "蘆堤網球場",
+      "slug": "weifeng-canal",
+      "city": "新北市",
+      "district": "蘆洲區",
+      "lat": 25.094218,
+      "lng": 121.458077,
+      "isRiverside": true,
+      "sourceUrl": "https://www.hrcm.ntpc.gov.tw/Facility/TypeAssets/%E5%90%84%E9%A1%9E%E7%90%83%E5%A0%B4/%E7%B6%B2%E7%90%83%E5%A0%B4/%E8%98%86%E5%A0%A4%E7%B6%B2%E7%90%83%E5%A0%B4",
+      "courtCount": 4
     },
     {
       "name": "鶯歌國小網球場",
