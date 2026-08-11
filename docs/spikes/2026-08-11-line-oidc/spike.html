@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LINE OIDC × Supabase custom provider spike</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    fieldset { margin-bottom: 1rem; }
+    label { display: block; margin: 0.5rem 0 0.25rem; }
+    input { width: 100%; box-sizing: border-box; padding: 0.4rem; }
+    button { margin: 0.25rem 0.5rem 0.25rem 0; padding: 0.5rem 0.9rem; }
+    pre { background: #f4f4f4; padding: 0.75rem; overflow-x: auto; white-space: pre-wrap; }
+    .warn { color: #b00; }
+  </style>
+</head>
+<body>
+  <h1>LINE OIDC spike</h1>
+  <p>
+    這是一次性驗證頁,只可對<strong>獨立測試 Supabase 專案</strong>使用,禁止填入正式專案的 URL/key。
+    supabase-js 版本 pin 在 <code>2.110.0</code>,auth 設定鏡射 <code>src/supabaseClient.js</code>
+    (<code>flowType: "pkce"</code> + <code>detectSessionInUrl: true</code>),spike 結論才可外推到正式前端。
+  </p>
+
+  <fieldset>
+    <legend>測試專案設定(存 localStorage,不進版控)</legend>
+    <label for="cfg-url">Supabase URL</label>
+    <input id="cfg-url" placeholder="https://xxxx.supabase.co" />
+    <label for="cfg-key">Anon (publishable) key</label>
+    <input id="cfg-key" placeholder="sb_publishable_... 或 eyJ..." />
+    <label for="cfg-provider">Custom provider 識別符</label>
+    <input id="cfg-provider" value="custom:line" />
+    <button id="btn-save">儲存設定並初始化 client</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>動作</legend>
+    <button id="btn-line">以 LINE 登入</button>
+    <button id="btn-google">以 Google 登入(linking 測試用)</button>
+    <button id="btn-whoami">whoami() — 驗 auth.uid()</button>
+    <button id="btn-write">寫入 spike_rows — 驗 RLS write</button>
+    <button id="btn-read">讀回 spike_rows — 驗 RLS read</button>
+    <button id="btn-signout">登出</button>
+  </fieldset>
+
+  <h2>目前 session</h2>
+  <pre id="session-out">(未初始化)</pre>
+  <h2>動作 log</h2>
+  <pre id="log-out"></pre>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2.110.0";
+
+    const CONFIG_KEY = "line-oidc-spike-config";
+    const sessionOut = document.getElementById("session-out");
+    const logOut = document.getElementById("log-out");
+    let supabase = null;
+
+    function log(label, value) {
+      const line = `[${new Date().toISOString()}] ${label}\n${
+        typeof value === "string" ? value : JSON.stringify(value, null, 2)
+      }\n\n`;
+      logOut.textContent = line + logOut.textContent;
+    }
+
+    function loadConfig() {
+      try { return JSON.parse(localStorage.getItem(CONFIG_KEY)) ?? {}; }
+      catch { return {}; }
+    }
+
+    // 只顯示驗證所需欄位;identity_data 僅列 key 名與 email 值,
+    // 不把 LINE userId(sub)之類的值印上畫面。
+    function describeUser(user) {
+      if (!user) return "(未登入)";
+      return JSON.stringify({
+        id: user.id,
+        email: user.email ?? null,
+        app_metadata: user.app_metadata,
+        identities: (user.identities ?? []).map((it) => ({
+          provider: it.provider,
+          identity_data_keys: Object.keys(it.identity_data ?? {}).sort(),
+          email: it.identity_data?.email ?? null,
+          created_at: it.created_at,
+        })),
+      }, null, 2);
+    }
+
+    async function refreshSession() {
+      if (!supabase) { sessionOut.textContent = "(未初始化)"; return; }
+      const { data, error } = await supabase.auth.getSession();
+      if (error) { sessionOut.textContent = `getSession error: ${error.message}`; return; }
+      sessionOut.textContent = describeUser(data.session?.user ?? null);
+    }
+
+    function initClient() {
+      const cfg = loadConfig();
+      if (!cfg.url || !cfg.anonKey) { log("init", "尚未設定 URL/key"); return; }
+      supabase = createClient(cfg.url, cfg.anonKey, {
+        auth: {
+          storageKey: "line-oidc-spike-auth",
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          flowType: "pkce",
+        },
+      });
+      supabase.auth.onAuthStateChange((event) => {
+        log("auth event", event);
+        refreshSession();
+      });
+      log("init", `client 已初始化(provider=${cfg.providerId})`);
+      refreshSession();
+    }
+
+    // 登入失敗時 GoTrue 會把 error 帶回 redirect URL,開頁先顯示出來。
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    for (const p of [params, hashParams]) {
+      if (p.get("error") || p.get("error_description")) {
+        log("redirect error", {
+          error: p.get("error"),
+          error_code: p.get("error_code"),
+          error_description: p.get("error_description"),
+        });
+      }
+    }
+
+    const cfg0 = loadConfig();
+    if (cfg0.url) document.getElementById("cfg-url").value = cfg0.url;
+    if (cfg0.anonKey) document.getElementById("cfg-key").value = cfg0.anonKey;
+    if (cfg0.providerId) document.getElementById("cfg-provider").value = cfg0.providerId;
+
+    document.getElementById("btn-save").onclick = () => {
+      const cfg = {
+        url: document.getElementById("cfg-url").value.trim(),
+        anonKey: document.getElementById("cfg-key").value.trim(),
+        providerId: document.getElementById("cfg-provider").value.trim(),
+      };
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+      initClient();
+    };
+
+    async function oauth(provider) {
+      if (!supabase) { log("oauth", "先儲存設定"); return; }
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo },
+      });
+      if (error) log(`signInWithOAuth(${provider}) error`, error.message);
+      else log(`signInWithOAuth(${provider})`, data);
+    }
+
+    document.getElementById("btn-line").onclick = () => oauth(loadConfig().providerId || "custom:line");
+    document.getElementById("btn-google").onclick = () => oauth("google");
+
+    document.getElementById("btn-whoami").onclick = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase.rpc("whoami");
+      log("whoami()", error ? `error: ${error.message}` : data);
+    };
+
+    document.getElementById("btn-write").onclick = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from("spike_rows")
+        .insert({ note: `spike ${new Date().toISOString()}` })
+        .select();
+      log("insert spike_rows", error ? `error: ${error.message}` : data);
+    };
+
+    document.getElementById("btn-read").onclick = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from("spike_rows")
+        .select("id,user_id,note,created_at")
+        .order("id", { ascending: false });
+      log("select spike_rows", error ? `error: ${error.message}` : data);
+    };
+
+    document.getElementById("btn-signout").onclick = async () => {
+      if (!supabase) return;
+      const { error } = await supabase.auth.signOut();
+      log("signOut", error ? `error: ${error.message}` : "OK");
+      refreshSession();
+    };
+
+    initClient();
+  </script>
+</body>
+</html>
