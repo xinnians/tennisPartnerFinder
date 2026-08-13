@@ -174,6 +174,15 @@ python3 -m http.server 8000 --directory docs/spikes/2026-08-11-line-oidc
 - 觀望:PR #2578 若合併,LINE 變內建 provider(含 email `Verified: true` 覆寫),
   屆時可把 custom provider 換成內建,前端只改 provider 字串。
 
+## 執行紀錄
+
+- 2026-08-13:LINE channel 已由使用者建立。測試 Supabase 專案已以 CLI 建立:
+  `tennis-line-spike`(ref `chqnctwakrequoxnvopi`,ap-southeast-1,隨機 db 密碼未保存,
+  需要時到 dashboard reset)。`site_url`/`uri_allow_list`(`http://localhost:8000/spike.html`)、
+  `custom_oauth_enabled`、spike SQL(`spike_rows`+`whoami`)均已透過 Management API 設定完成。
+  待辦:dashboard 填 custom provider 表單(含 secret,使用者親自)、LINE console 填
+  callback URL、跑 checklist。
+
 ## 紅線提醒
 
 LINE「聯絡面」已退役:本 spike 與後續實作是 LINE「登入」,不得順帶蒐集或渲染 LINE ID
