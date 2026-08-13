@@ -295,6 +295,36 @@ hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA
 6. **未做**：Edge Function 未重新部署（本 migration 不動 outbox 與 payload）；
    cron 未重新確認（不在本 migration 範圍）。
 
+## Hosted migration 執行紀錄（2026-08-13：球場目錄 82→89）
+
+`202608110001_courts_catalog_double_north.sql`（2026-08-11 官方來源全面查核，commit
+1c99e74；查核方法與來源見 `docs/tennis-ecosystem/source-surveys-2026-08-11.md`）。
+負責人授權後由 Claude 執行 `supabase db push`。
+
+1. **備份與 count preflight**：**完成**。`umask 077` dump 至
+   `~/tennisPartnerFinder-backups/20260813-courts/`；schema 160,144 bytes（SHA-256
+   `a7763073…` 與 2026-08-11 preflight 完全相同＝schema 零漂移）、data 70,162 bytes。
+   migration 前筆數 courts 85（錨點與 2026-08-04／08-07／08-11 三份紀錄交叉一致）、
+   sports 1、profiles 3、sessions 14、session_participants 23、session_candidate_courts 5、
+   session_messages 15、session_chat_read_cursors 1、reports 0、player_blocks 0、
+   player_presence 0、notification_prefs 1、notification_outbox 36、push_subscriptions 3、
+   court_subscriptions 107。
+2. **Migration list 對齊**：**完成**。套用前 24/24 對齊、`202608110001` 為唯一 pending
+   （dry-run 確認）；套用後 **25/25 全數相符、零 pending**。
+3. **套用後驗證（匿名 REST，與地圖前端同讀取路徑）**：**完成**。anon 可見 courts
+   恰 **89**（台北市 61＋新北市 28）；8 座新增（至善國中、新民國中、文林國小、
+   北投運動中心、木柵國小、松山高中、台北教育大學、三民國中）與改名後的蘆堤網球場
+   各回 1 列；5 筆停用（台師大林口、微風運河舊名、大安森林、中正網球中心、迎風河濱）
+   anon 面全部 0 列。
+4. **本機 gate（套用前）**：主線 merge commit `a62a11d` 上 seed `--check` 綠、
+   `test:db` 799 PASS（含以 89 座斷言的 courts_catalog）。
+5. **回退方式**：純資料變更（insert 9、update 80、停用 2），無 DELETE、無 schema／
+   RLS／view 變更；回退＝重放 `202607170002` 回到 82 active，或以本次 dump restore。
+   台北市 active 只增不減（53→61），`profile_courts` 與 `court_subscriptions` join key
+   零斷鏈；訂閱上限依 `202608050001` 規則自動隨 active 總數變為 61。
+6. **未做**：Edge Function 與 cron 不在本 migration 範圍；線上地圖 8 個新圖釘的
+   人工目視確認留待負責人。
+
 ## 首兩週的社群與指標
 
 ### 分發管道與文案（2026-08-04 拍板）
