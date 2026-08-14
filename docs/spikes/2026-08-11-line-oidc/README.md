@@ -172,7 +172,10 @@ Supabase 的手動連結:測試專案已開 `security_manual_linking_enabled` �
 ## 通過後:搬到正式專案(使用者操作,對應 release checklist 的 OAuth 段)
 
 1. 建**正式** LINE Login channel(不可沿用測試 channel;pairwise sub 不互通,測試帳號資料不搬)。
-2. 正式 Supabase 專案照 Part B 第 2-4 步設定 `custom:line`(用正式 channel 憑證、manual 模式)。
+2. 正式 Supabase 專案照 Part B 第 2-4 步設定 `custom:line`(用正式 channel 憑證、manual 模式),
+   並**開啟 Allow users without email(email_optional)**——不開會重現
+   「Error getting user email」500。`security_manual_linking_enabled` 先不開,
+   等「連結帳號」功能實作時一併處理。
 3. Vercel **Preview** 環境(與 `VITE_SUPABASE_*` 同位置,綁工作分支)加
    `VITE_AUTH_LINE_PROVIDER_ID=custom:line`;沒設這個變數時前端不顯示 LINE 按鈕,
    所以 Supabase 端未設好前可以安全部署。
@@ -191,6 +194,17 @@ Supabase 的手動連結:測試專案已開 `security_manual_linking_enabled` �
 
 ## 執行紀錄
 
+- **2026-08-14:SPIKE 全數通過(結案)。** 開啟 Allow users without email 後:
+  - 檢查 1-7 全過:LINE 登入成功、`auth.users` 一列(email null、provider 逐字為
+    `custom:line`)、`whoami()` uid 相符、RLS 寫讀過、登出後匿名讀被拒、重登同 id。
+  - 連結測試 L1-L4 過:email 主帳號 + `linkIdentity({provider:"custom:line"})` 成功,
+    user id 不變、identities 兩筆(`email`+`custom:line`);登出後以 LINE 單獨登入回到
+    **同一** user id(auth log 02:57:00 `/authorize`→`/token 200`→`/callback 302`,
+    `users.last_sign_in_at` 同步更新;注意 `identities.last_sign_in_at` 在後續登入
+    不會更新,勿以它判斷)。→ **manual identity linking 對 custom provider 可用**,
+    「連結帳號」可排 backlog。
+  - 結論:manual OAuth2 + `email_optional` 是可行正式路徑;正式專案設定見下節,
+    **Allow users without email 必開**,否則重現 500。
 - 2026-08-14:實測進度。callback URL 修正後 `/authorize`→LINE→`/callback` 走通,但 GoTrue 回
   `500: Error getting user email from external provider`。追查結論([已驗證]):LINE userinfo
   規格上**永遠只回 sub/name/picture、無 email**(與權限無關);gotrue 檢查是
