@@ -781,6 +781,16 @@
 .player-visibility .form-hint { margin: 0; }
 .player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
 .me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+
+.me-login-methods { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+.me-login-methods h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
+.me-login-methods .form-hint { margin: 0; }
+.me-login-methods__rows { display: grid; gap: var(--space-2); }
+.me-login-method { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* 390px 契約:「我」頁互動控件一律 ≥44×44(session-secondary 基底是 38px,這裡加高)。 */
+.me-login-method .session-secondary { min-height: 44px; min-width: 44px; }
+.me-login-method__label { color: var(--color-ink); font-weight: 700; }
+.me-login-method__status { color: var(--color-text-secondary); font-weight: 700; }
 .me-edit-profile h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
 .me-edit-profile .form-hint { margin: 0; }
 .me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }

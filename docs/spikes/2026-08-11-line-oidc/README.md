@@ -174,8 +174,9 @@ Supabase 的手動連結:測試專案已開 `security_manual_linking_enabled` �
 1. 建**正式** LINE Login channel(不可沿用測試 channel;pairwise sub 不互通,測試帳號資料不搬)。
 2. 正式 Supabase 專案照 Part B 第 2-4 步設定 `custom:line`(用正式 channel 憑證、manual 模式),
    並**開啟 Allow users without email(email_optional)**——不開會重現
-   「Error getting user email」500。`security_manual_linking_enabled` 先不開,
-   等「連結帳號」功能實作時一併處理。
+   「Error getting user email」500。前端「我」頁的登入方式連結已同批實作,
+   所以 **`security_manual_linking_enabled` 也必須開啟**(Auth 設定的
+   manual linking 開關)。
 3. Vercel **Preview** 環境(與 `VITE_SUPABASE_*` 同位置,綁工作分支)加
    `VITE_AUTH_LINE_PROVIDER_ID=custom:line`;沒設這個變數時前端不顯示 LINE 按鈕,
    所以 Supabase 端未設好前可以安全部署。

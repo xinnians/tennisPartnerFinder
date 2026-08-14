@@ -144,7 +144,9 @@ VITE_AUTH_LINE_PROVIDER_ID=...
 `VITE_AUTH_LINE_PROVIDER_ID` 是 LINE 登入的 Supabase custom provider 識別符（如
 `custom:line`）；留空時前端不顯示 LINE 登入按鈕，必須等對應 Supabase 專案設好 provider
 才可設定（spike 與設定步驟見 `docs/spikes/2026-08-11-line-oidc/`）。LINE 登入只作身分
-驗證，不蒐集 LINE 聯絡資料；上方 `profiles.line_id` 聯絡面退役紅線不變。
+驗證，不蒐集 LINE 聯絡資料；上方 `profiles.line_id` 聯絡面退役紅線不變。登入後可在
+「我」頁把 Google/LINE 連結成同一帳號（manual identity linking；Supabase 端需開啟
+custom provider 的 email_optional 與 `security_manual_linking_enabled`）。
 
 瀏覽器 Maps key 必須設定 HTTP referrer 限制；只放 localhost、穩定 preview 與正式
 domain，不要把每個 immutable deploy URL 加進 allowlist。`VITE_SUPPORT_EMAIL` 在正式

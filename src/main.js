@@ -7,7 +7,7 @@ if (import.meta.env.PROD) {
   });
 }
 
-import { GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
+import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
 import { BANDS, countActiveFilters } from "./filters.js";
 import {
   createMap,
@@ -32,6 +32,7 @@ import {
   declineSessionParticipant,
   getInitialSession,
   inviteToSession,
+  linkLoginIdentity,
   loadCourts,
   loadCourtSubscriptions,
   loadCurrentProfile,
@@ -316,6 +317,50 @@ function defaultNotificationSettings() {
 function currentAuthAvatarUrl() {
   const metadata = authSession?.user?.user_metadata ?? {};
   return metadata.avatar_url ?? metadata.picture ?? "";
+}
+
+// 連結登入方式(manual identity linking)。回跳意圖走 sessionStorage flag,
+// 不進 sessionIntent 的 action 白名單——那條管線是「登入後接續某個球局操作」,語意不同。
+const LINK_RETURN_KEY = "tennis-link-return";
+
+// linkIdentity 失敗時 GoTrue 只會把 error 參數帶回 redirect URL;supabase-js 初始化後會
+// 清理 URL,所以在模組載入當下同步抓一份,只供連結回報使用。
+const bootAuthParams = (() => {
+  const merged = new URLSearchParams(globalThis.location?.search ?? "");
+  for (const [key, value] of new URLSearchParams((globalThis.location?.hash ?? "").replace(/^#/, ""))) merged.set(key, value);
+  return merged;
+})();
+
+function currentLinkedProviders() {
+  return (authSession?.user?.identities ?? []).map((identity) => identity.provider);
+}
+
+async function handleLinkProvider(provider) {
+  try {
+    sessionStorage.setItem(LINK_RETURN_KEY, provider);
+    await linkLoginIdentity(provider);
+  } catch {
+    sessionStorage.removeItem(LINK_RETURN_KEY);
+    toast("連結啟動失敗，請稍後再試。");
+  }
+}
+
+function resumeLinkReturn() {
+  let provider = null;
+  try {
+    provider = sessionStorage.getItem(LINK_RETURN_KEY);
+    if (provider) sessionStorage.removeItem(LINK_RETURN_KEY);
+  } catch {
+    return;
+  }
+  if (!provider) return;
+  showMePage();
+  if (currentLinkedProviders().includes(provider)) {
+    toast("已連結新的登入方式。");
+  } else if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) {
+    toast("連結未完成：這個帳號可能已綁定其他使用者。");
+  }
+  // 既未成功也無錯誤參數時不回報——token 可能還在換發,以「登入方式」列表狀態為準。
 }
 
 function openSafeLogin({ action = "", onClose = () => {} } = {}) {
@@ -671,6 +716,7 @@ function captureMeFocus(root) {
   if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
   if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches(".me-service-links a")) return { href: active.getAttribute("href") ?? "", kind: "service-link" };
+  if (active.matches("[data-link-provider]")) return { kind: "link-provider", provider: active.dataset.linkProvider ?? "" };
   // 封鎖清單的解除按鈕沒有專屬 selector，與 My Sessions 側一樣靠通用 fallback 接住。
   // 排在最後只是讓上面幾個控制項保有專屬 kind：toggle-visibility 就算被這裡接走也還原得回去，
   // 因為它三個 dataset 欄位皆缺，resolve 端正規化成空字串後仍會比對到同一顆按鈕（已實測）。
@@ -712,6 +758,9 @@ function resolveMeFocus(root, focus) {
   if (focus.kind === "open-to-greeting") return root.querySelector("[data-open-to-greeting]");
   if (focus.kind === "service-link") {
     return [...root.querySelectorAll(".me-service-links a")].find((link) => link.getAttribute("href") === focus.href);
+  }
+  if (focus.kind === "link-provider") {
+    return [...root.querySelectorAll("[data-link-provider]")].find((button) => button.dataset.linkProvider === focus.provider);
   }
   if (focus.kind === "action") {
     return [...root.querySelectorAll("[data-my-action]")].find(
@@ -955,9 +1004,12 @@ function renderMeDestination() {
     blockedPlayersError: state.blockedPlayersError,
     blockedPlayersStatus: state.blockedPlayersStatus,
     courts,
+    lineProviderId: AUTH_LINE_PROVIDER_ID,
+    linkedProviders: currentLinkedProviders(),
     notificationSettings,
     onEditProfile: () => openProfileCompletion({ mode: "standalone" }),
     onEnablePush: enablePushNotifications,
+    onLinkProvider: handleLinkProvider,
     onSaveCourtSubscriptions: updateCourtSubscriptions,
     onSaveNotificationPreferences: updateNotificationPreferences,
     onSetOpenToGreeting: updateOpenToGreetingSetting,
@@ -1268,6 +1320,7 @@ function applyAuthCandidate(session) {
   }
   renderMeDestination();
   void reloadCurrentProfile().catch(() => {});
+  if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) resumeLinkReturn();
 }
 
 async function restoreAuth() {
@@ -1275,6 +1328,9 @@ async function restoreAuth() {
   onAuthStateChange((session, event) => {
     if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
     applyAuthCandidate(session);
+    // 連結成功的回跳一定帶 SIGNED_IN(code 交換後的新 session 才有新 identities);
+    // 失敗路徑沒有 SIGNED_IN,由 applyAuthCandidate 的 error 參數分支處理。
+    if (session && event === "SIGNED_IN") resumeLinkReturn();
   });
   const initialEpoch = authStateEpoch;
   let initialSession = null;

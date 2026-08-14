@@ -148,9 +148,9 @@ test("frontend source scan allows only the frozen LINE RPC parameter", async () 
   assert.equal(sourceCodeMatches(sources, /session_contacts/).length, 0, "frontend JS must not contain session_contacts");
   assert.equal(sourceCodeMatches(sources, /lineId/).length, 0, "frontend JS must not contain lineId");
   assert.equal(sourceCodeMatches(sources, /line[.]me/i).length, 0, "frontend JS must not contain a LINE deep link");
-  // LINE「登入」(Supabase custom provider)是 2026-08 核可的新用途;聯絡面仍然退役。
-  // 這裡精確到行允許登入面的四個 LINE token,任何新出現的 standalone LINE 都必須
-  // 回到這份 allowlist 有意識地審查,不可順手擴大。
+  // LINE「登入」(Supabase custom provider)與「我」頁登入方式連結是 2026-08 核可的新用途;
+  // 聯絡面仍然退役。這裡精確到行允許登入面的 LINE token,任何新出現的 standalone LINE
+  // 都必須回到這份 allowlist 有意識地審查,不可順手擴大。
   const standaloneLineMatches = sourceCodeMatches(sources, RETIRED_LINE_TOKEN_PATTERN)
     .map(({ path, line }) => ({ path: path.replace(/^.*\/(src|public)\//, "$1/"), line }))
     .sort((a, b) => (a.path === b.path ? a.line.localeCompare(b.line) : a.path.localeCompare(b.path)));
@@ -159,8 +159,21 @@ test("frontend source scan allows only the frozen LINE RPC parameter", async () 
     [
       { path: "src/config.js", line: 'export const AUTH_LINE_PROVIDER_ID = env.VITE_AUTH_LINE_PROVIDER_ID ?? "";' },
       {
+        path: "src/main.js",
+        line: 'import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";',
+      },
+      { path: "src/main.js", line: "lineProviderId: AUTH_LINE_PROVIDER_ID," },
+      {
+        path: "src/sessionViews.js",
+        line: 'if (lineProviderId) methods.push({ label: "LINE", provider: lineProviderId });',
+      },
+      {
         path: "src/sheets.js",
         line: '<button type="button" class="session-primary" data-provider="${esc(lineProviderId)}">使用 LINE 登入</button>`',
+      },
+      {
+        path: "src/sheets.js",
+        line: '<p class="surface__copy">Google 與 LINE 是各自獨立的帳號；登入後可在「我」頁把兩種登入方式連結成同一帳號。</p>`',
       },
       {
         path: "src/sheets.js",

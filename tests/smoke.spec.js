@@ -2197,7 +2197,7 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
     .poll(() =>
       page.locator("#me-root :is(h1,h2,h3,h4,h5,h6)").evaluateAll((nodes) => nodes.map((node) => node.tagName))
     )
-    .toEqual(["H1", "H2", "H2", "H2", "H2", "H2", "H2"]);
+    .toEqual(["H1", "H2", "H2", "H2", "H2", "H2", "H2", "H2"]);
   await expect(page.locator(".player-visibility")).toContainText(
     "開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。"
   );
@@ -3595,6 +3595,8 @@ test("the login modal hides LINE by default and passes the custom provider id th
   });
   await expect(page.locator("#login-dialog [data-provider]")).toHaveCount(1);
   await expect(page.locator("#login-dialog [data-provider='google']")).toBeVisible();
+  // 未啟用 LINE 時,不出現「各自獨立帳號」的說明文案。
+  await expect(page.locator("#login-dialog")).not.toContainText("各自獨立的帳號");
   await page.keyboard.press("Escape");
   await expect(page.locator("#login-dialog")).toHaveCount(0);
 
@@ -3610,6 +3612,8 @@ test("the login modal hides LINE by default and passes the custom provider id th
     });
   });
   await expect(page.locator("#login-dialog [data-provider]")).toHaveCount(2);
+  // 啟用 LINE 時,同步出現獨立帳號+可連結的說明文案。
+  await expect(page.locator("#login-dialog")).toContainText("各自獨立的帳號");
   const lineButton = page.locator("#login-dialog [data-provider='custom:line']");
   await expect(lineButton).toHaveText("使用 LINE 登入");
   await lineButton.click();
@@ -3617,6 +3621,50 @@ test("the login modal hides LINE by default and passes the custom provider id th
   expect(await page.evaluate(() => window.__providerCalls)).toEqual(["custom:line"]);
   await page.keyboard.press("Escape");
   await expect(page.locator("#login-dialog")).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("the Me page login methods list hides LINE without a provider id and wires linking", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const renderLoginMethods = async (options) => {
+    await page.evaluate(async ({ linkedProviders, lineProviderId }) => {
+      const { renderMePage } = await import("/src/sessionViews.js");
+      document.getElementById("tab-map").hidden = true;
+      document.getElementById("me-page").hidden = false;
+      window.__linkCalls = window.__linkCalls ?? [];
+      renderMePage(document.getElementById("me-root"), {
+        authSession: { user: { id: "login-methods-test" } },
+        profile: { nick: "測試球友", ntrp: 3.5 },
+        linkedProviders,
+        lineProviderId,
+        onLinkProvider: async (provider) => {
+          window.__linkCalls.push(provider);
+        },
+      });
+    }, options);
+  };
+
+  // Google 已連結、LINE 未連結:LINE 列出現連結按鈕,點擊把 provider 識別符原樣傳給 onLinkProvider。
+  await renderLoginMethods({ linkedProviders: ["google"], lineProviderId: "custom:line" });
+  await expect(page.locator("[data-login-method]")).toHaveCount(2);
+  await expect(page.locator("[data-login-method='google'] .me-login-method__status")).toHaveText("已連結");
+  const lineLinkButton = page.locator("[data-link-provider='custom:line']");
+  await expect(lineLinkButton).toBeVisible();
+  await lineLinkButton.click();
+  expect(await page.evaluate(() => window.__linkCalls)).toEqual(["custom:line"]);
+
+  // 未設定 provider 識別符:只剩 Google 一列(部署端未開 LINE 前不得出現 LINE 字樣)。
+  await renderLoginMethods({ linkedProviders: ["google"], lineProviderId: "" });
+  await expect(page.locator("[data-login-method]")).toHaveCount(1);
+  await expect(page.locator("#me-root")).not.toContainText("LINE");
+
+  // 兩者都已連結:沒有任何連結按鈕。
+  await renderLoginMethods({ linkedProviders: ["google", "custom:line"], lineProviderId: "custom:line" });
+  await expect(page.locator("[data-login-method]")).toHaveCount(2);
+  await expect(page.locator("[data-link-provider]")).toHaveCount(0);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -5175,9 +5223,14 @@ test("the filter sheet button stays enabled and its content is complete even whi
   await expect(filterButton).toBeEnabled();
   await expect(filterButton).not.toHaveAttribute("aria-disabled", "true");
 
-  await filterButton.click();
   const sheet = page.locator("#filters-sheet");
-  await expect(sheet).toBeVisible();
+  // waitUntil:"commit" 的早期視窗裡,按鈕可能先於 main.js 綁 handler 就存在;先前靠
+  // 真實字型 CDN 的 render-blocking 延遲隱性同步,fixture stub 字型後不再成立。改用
+  // 可重試的 click→visible 迴圈等 handler 就緒;仍遠在 800ms courts 視窗內,語意不變。
+  await expect(async () => {
+    await filterButton.click();
+    await expect(sheet).toBeVisible({ timeout: 250 });
+  }).toPass({ timeout: 4000 });
   await expect(sheet.locator('.filter-sheet-chips--district [data-filter="districts"]')).toHaveCount(12);
 
   // courts 目錄稍後才載入完成也不應該有任何額外副作用(如殘留錯誤或重繪把 sheet 關掉)。

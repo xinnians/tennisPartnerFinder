@@ -1144,6 +1144,12 @@ test("the authenticated Me identity card shows the profile and signing out resto
   const identityCard = page.getByTestId("me-identity-card");
   await expect(identityCard).toContainText(context.host.nickname);
   await expect(identityCard.locator("img")).toHaveAttribute("src", "https://lh3.googleusercontent.com/a/batch-2-me");
+
+  // local fixture 是 email 帳號:identities 只有 email → 登入方式兩列(Google/LINE)都是
+  // 未連結,各顯示連結按鈕。這同時驗證真實 session.user.identities 有流進 me 頁。
+  await expect(page.locator("[data-login-method]")).toHaveCount(2);
+  await expect(page.locator("[data-link-provider='google']")).toBeVisible();
+  await expect(page.locator("[data-link-provider='custom:line']")).toBeVisible();
   const signOutButton = page.getByTestId("me-sign-out");
   await expect(signOutButton).toBeVisible();
   await signOutButton.click();

@@ -1135,3 +1135,14 @@ export async function signOut() {
   const { error } = await client.auth.signOut();
   if (error) throw error;
 }
+
+// manual identity linking:把另一個登入 provider 掛到「目前已登入」的帳號(整頁 redirect,
+// 需要 Supabase 專案開啟 manual linking)。連結狀態一律讀 session user 的 identities,不另外 fetch。
+export async function linkLoginIdentity(provider) {
+  const client = requireDefaultSupabase();
+  const { error } = await client.auth.linkIdentity({
+    provider,
+    options: { redirectTo: globalThis.location?.origin },
+  });
+  if (error) throw error;
+}

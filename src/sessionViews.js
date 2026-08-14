@@ -152,6 +152,26 @@ export const NTRP_SCALE_EXPLANATION =
   "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
 
 /** Render the account and service skeleton for the Me destination. */
+// 「登入方式」列:Google 恆列;LINE 只在部署端設定 custom provider 識別符後出現。
+// 每列只顯示「已連結」布林狀態或連結按鈕,不顯示任何 provider 端個資。
+function loginMethodRowsMarkup({ linkedProviders, lineProviderId }) {
+  const methods = [{ label: "Google", provider: "google" }];
+  if (lineProviderId) methods.push({ label: "LINE", provider: lineProviderId });
+  return methods
+    .map(({ label, provider }) => {
+      const linked = linkedProviders.includes(provider);
+      return `<div class="me-login-method" data-login-method="${esc(provider)}">
+        <span class="me-login-method__label">${esc(label)}</span>
+        ${
+          linked
+            ? '<span class="me-login-method__status">已連結</span>'
+            : `<button type="button" class="session-secondary" data-link-provider="${esc(provider)}">連結</button>`
+        }
+      </div>`;
+    })
+    .join("");
+}
+
 export function renderMePage(
   root,
   {
@@ -162,9 +182,12 @@ export function renderMePage(
     blockedPlayersError = "",
     blockedPlayersStatus = "idle",
     courts = [],
+    lineProviderId = "",
+    linkedProviders = [],
     notificationSettings = {},
     onEditProfile = () => {},
     onEnablePush = () => {},
+    onLinkProvider = () => {},
     onSaveCourtSubscriptions = () => {},
     onSaveNotificationPreferences = () => {},
     onSetOpenToGreeting = () => {},
@@ -349,6 +372,17 @@ export function renderMePage(
     </section>`
         : ""
     }
+    ${
+      authenticated
+        ? `<section class="me-login-methods" aria-labelledby="me-login-methods-title">
+      <div>
+        <h2 id="me-login-methods-title">登入方式</h2>
+        <p class="form-hint">連結後,兩種方式登入的都是同一個帳號。</p>
+      </div>
+      <div class="me-login-methods__rows">${loginMethodRowsMarkup({ linkedProviders, lineProviderId })}</div>
+    </section>`
+        : ""
+    }
     <section class="me-service-links" aria-labelledby="me-service-title">
       <h2 id="me-service-title">站務</h2>
       <div>${supportHref ? `<a href="${esc(supportHref)}">聯絡支援</a>` : ""}<a href="/privacy.html">隱私權政策</a></div>
@@ -362,6 +396,15 @@ export function renderMePage(
   wireAvatarFallbacks(root);
   root.querySelector('[data-testid="me-sign-in"]')?.addEventListener("click", onSignIn);
   root.querySelector('[data-testid="me-sign-out"]')?.addEventListener("click", onSignOut);
+  for (const linkButton of root.querySelectorAll("[data-link-provider]")) {
+    linkButton.addEventListener("click", () => {
+      // 成功路徑是整頁 redirect;disabled 只擋 redirect 前的重複點擊,啟動失敗時還原。
+      linkButton.disabled = true;
+      Promise.resolve(onLinkProvider(linkButton.dataset.linkProvider)).finally(() => {
+        if (linkButton.isConnected) linkButton.disabled = false;
+      });
+    });
+  }
   root.querySelector('[data-testid="edit-profile"]')?.addEventListener("click", onEditProfile);
   // 批 D8:profile 卡整卡也是編輯入口(映射決策 2),與下方 .me-edit-profile 區塊的
   // 「編輯」鈕是同一個 onEditProfile、兩個進場點。
