@@ -43,6 +43,18 @@
     <button id="btn-signout">登出</button>
   </fieldset>
 
+  <fieldset>
+    <legend>連結測試(manual identity linking;email 帳號扮演「既有帳號」)</legend>
+    <label for="link-email">測試用 email(隨意,如 spike@example.com)</label>
+    <input id="link-email" placeholder="spike@example.com" />
+    <label for="link-password">測試用密碼(至少 6 碼,測試專案專用,勿用真實密碼)</label>
+    <input id="link-password" type="password" />
+    <button id="btn-email-login">Email 註冊/登入(建立主帳號)</button>
+    <button id="btn-link-line">連結 LINE 到目前帳號</button>
+    <button id="btn-identities">列出 identities</button>
+    <button id="btn-unlink-line">解除 LINE 連結</button>
+  </fieldset>
+
   <h2>目前 session</h2>
   <pre id="session-out">(未初始化)</pre>
   <h2>動作 log</h2>
@@ -176,6 +188,54 @@
         .select("id,user_id,note,created_at")
         .order("id", { ascending: false });
       log("select spike_rows", error ? `error: ${error.message}` : data);
+    };
+
+    // ---- 連結測試:email 帳號扮演「既有帳號」,驗 linkIdentity 對 custom provider 是否可用 ----
+
+    document.getElementById("btn-email-login").onclick = async () => {
+      if (!supabase) return;
+      const email = document.getElementById("link-email").value.trim();
+      const password = document.getElementById("link-password").value;
+      if (!email || !password) { log("email 登入", "先填 email 與密碼"); return; }
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        const r = await supabase.auth.signInWithPassword({ email, password });
+        log("signInWithPassword", r.error ? `error: ${r.error.message}` : `user ${r.data.user.id}`);
+      } else {
+        log("signUp(autoconfirm)", `user ${data.user?.id ?? "?"}`);
+      }
+      refreshSession();
+    };
+
+    document.getElementById("btn-link-line").onclick = async () => {
+      if (!supabase) return;
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { data, error } = await supabase.auth.linkIdentity({
+        provider: loadConfig().providerId || "custom:line",
+        options: { redirectTo },
+      });
+      log("linkIdentity", error ? `error: ${error.message}` : data);
+    };
+
+    document.getElementById("btn-identities").onclick = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase.auth.getUserIdentities();
+      log(
+        "getUserIdentities",
+        error ? `error: ${error.message}` : (data.identities ?? []).map((it) => ({ provider: it.provider, identity_id: it.identity_id }))
+      );
+    };
+
+    document.getElementById("btn-unlink-line").onclick = async () => {
+      if (!supabase) return;
+      const providerId = loadConfig().providerId || "custom:line";
+      const { data, error } = await supabase.auth.getUserIdentities();
+      if (error) { log("unlinkIdentity", `error: ${error.message}`); return; }
+      const target = (data.identities ?? []).find((it) => it.provider === providerId);
+      if (!target) { log("unlinkIdentity", `目前帳號沒有 ${providerId} identity`); return; }
+      const r = await supabase.auth.unlinkIdentity(target);
+      log("unlinkIdentity", r.error ? `error: ${r.error.message}` : "OK(已解除)");
+      refreshSession();
     };
 
     document.getElementById("btn-signout").onclick = async () => {

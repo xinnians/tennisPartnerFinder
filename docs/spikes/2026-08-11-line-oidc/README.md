@@ -142,6 +142,21 @@ python3 -m http.server 8000 --directory docs/spikes/2026-08-11-line-oidc
 預期:LINE 授權後回跳時失敗(id_token 是 HS256、驗證器只收 discovery 宣告的 ES256)。
 把 GoTrue 回傳的逐字錯誤記錄在此:＿＿＿＿。測完刪掉這個 provider。
 
+## 連結測試(manual identity linking)
+
+同 email 自動合併在此路徑**不可能**(userinfo 規格上永遠無 email,見執行紀錄),取而代之驗
+Supabase 的手動連結:測試專案已開 `security_manual_linking_enabled` 與 `mailer_autoconfirm`。
+
+| # | 動作 | 預期 | 實際 |
+|---|---|---|---|
+| L1 | 登出 → spike 頁「Email 註冊/登入」建主帳號 | session 出現 email user id(記下) | |
+| L2 | 點「連結 LINE 到目前帳號」→ LINE 授權 → 回跳 | user id **不變**,identities 多出 `custom:line`(用「列出 identities」看) | |
+| L3 | 登出 → 「以 LINE 登入」 | user id **等於 L1 的 id** → 兩種登入進同一帳號 | |
+| L4 | (選)「解除 LINE 連結」 | identities 移除,可重測 | |
+
+注意:某個 LINE 帳號若已單獨建過號(檢查 1 的產物),連結會失敗(identity 已綁定);
+先請協助方刪除該測試使用者再跑 L2。
+
 ## 同 email linking 矩陣(需 Part B 第 6 步 + email 權限)
 
 | 順序 | 步驟 | 預期([推論],以實測為準) | 實際 |
@@ -175,6 +190,16 @@ python3 -m http.server 8000 --directory docs/spikes/2026-08-11-line-oidc
   屆時可把 custom provider 換成內建,前端只改 provider 字串。
 
 ## 執行紀錄
+
+- 2026-08-14:實測進度。callback URL 修正後 `/authorize`→LINE→`/callback` 走通,但 GoTrue 回
+  `500: Error getting user email from external provider`。追查結論([已驗證]):LINE userinfo
+  規格上**永遠只回 sub/name/picture、無 email**(與權限無關);gotrue 檢查是
+  `if len(userData.Emails) == 0 && !emailOptional`,官方解法是 provider 設定
+  `email_optional: true`(dashboard「Allow users without email」),Zenn 實測同解。
+  app 端 grep 確認 `src/` 零 email 依賴、`profiles` 無 email 欄,開啟無產品影響。
+  產品結論:LINE 帳號永遠無 email → 與 Google 帳號**不可能自動合併**,上線文案須引導
+  老用戶沿用 Google;手動合併走 manual identity linking(見連結測試段)。測試專案已另開
+  `security_manual_linking_enabled=true`、`mailer_autoconfirm=true`。
 
 - 2026-08-13:LINE channel 已由使用者建立。測試 Supabase 專案已以 CLI 建立:
   `tennis-line-spike`(ref `chqnctwakrequoxnvopi`,ap-southeast-1,隨機 db 密碼未保存,
