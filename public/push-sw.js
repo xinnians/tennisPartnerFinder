@@ -1,6 +1,6 @@
 self.addEventListener("push", (event) => {
   const payload = event.data?.json?.() ?? {};
-  const title = typeof payload.title === "string" && payload.title ? payload.title : "球局通知";
+  const title = typeof payload.title === "string" && payload.title ? payload.title : "球咖通知";
   const body = [payload.message, payload.court].filter((value) => typeof value === "string" && value).join("\n");
   event.waitUntil(
     self.registration.showNotification(title, {

@@ -3,10 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%8E%BE%3C/text%3E%3C/svg%3E"
-    />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#12291c" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -15,7 +13,13 @@
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+TC:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
-    <title>球局｜台北市網球</title>
+    <title>球咖｜台北網球</title>
+    <meta property="og:title" content="球咖｜台北網球" />
+    <meta property="og:description" content="找你的球咖，開你的球局。台北網球公開球局地圖。" />
+    <meta property="og:image" content="https://qiuka.tw/og.png" />
+    <meta property="og:url" content="https://qiuka.tw/" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="app">
@@ -29,9 +33,9 @@
              讓地圖手勢仍能穿透 overlay 的留白處。 -->
         <div class="map-topbar">
           <div class="map-topbar__row">
-            <a class="app-brand" href="#tab-map" aria-label="球局首頁">
+            <a class="app-brand" href="#tab-map" aria-label="球咖首頁">
               <span class="app-brand__dot" aria-hidden="true"></span>
-              <span class="app-brand__name">球局地圖</span>
+              <span class="app-brand__name">球咖</span>
               <span class="app-brand__code" aria-hidden="true">TPE</span>
             </a>
             <div class="city-chip" aria-label="目前城市：台北市">

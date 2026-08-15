@@ -31,6 +31,18 @@ test("public/ 三檔不再殘留舊品牌色", () => {
   }
 });
 
+// 球咖改名工程:品牌自稱不得再以「球局」形式殘留在 public/ 三檔。名詞「球局」
+// (開球局、球局資料……)在 privacy.html 合法存在,掃描模式必須帶分隔符,不可裸掃「球局」。
+const BRAND_RESIDUE = ["球局｜", "球局地圖"];
+
+test("public/ 三檔不再殘留舊品牌自稱「球局」", () => {
+  for (const [name, content] of FILES) {
+    for (const residue of BRAND_RESIDUE) {
+      assert.ok(!content.includes(residue), `public/${name} 仍含舊品牌自稱「${residue}」`);
+    }
+  }
+});
+
 test("manifest theme_color 與 index.html theme-color meta 一致", () => {
   const manifest = JSON.parse(readFileSync(new URL(`../public/manifest.webmanifest`, import.meta.url), "utf8"));
   const indexHtml = readFileSync(fileURLToPath(new URL("../index.html", import.meta.url)), "utf8");

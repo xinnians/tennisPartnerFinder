@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "球局｜台北市網球",
-  "short_name": "球局",
+  "name": "球咖｜台北網球",
+  "short_name": "球咖",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#faf9f3",
@@ -11,6 +11,22 @@
       "src": "/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

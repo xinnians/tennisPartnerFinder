@@ -126,6 +126,8 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await installGeolocation(page, [{ coords: { latitude: 25.03, longitude: 121.55 } }]);
   await page.goto("/");
 
+  // 球咖改名工程:品牌 title 此前零覆蓋,順手補行為層斷言。
+  await expect(page).toHaveTitle(/球咖/);
   await expect(page.getByRole("region", { name: "台北市球局地圖" })).toBeVisible();
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
   await expect(page.locator("#use-my-location")).toBeVisible();

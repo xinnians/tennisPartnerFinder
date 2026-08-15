@@ -53,6 +53,6 @@ export function notificationTitle(eventType) {
       session_decided: "球局場地時間定案",
       session_reminder: "球局即將開始",
       session_updated: "球局資訊更新",
-    }[eventType] ?? "球局通知"
+    }[eventType] ?? "球咖通知"
   );
 }
