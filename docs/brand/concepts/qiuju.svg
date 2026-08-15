@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">球局現況基準 Logo 鎖定稿</title>
+  <desc id="desc">保留既有訊號黃網球 icon，搭配球局中文字標。</desc>
+  <rect width="960" height="360" fill="#faf9f3"/>
+  <g transform="translate(70 64)">
+    <rect width="232" height="232" rx="52" fill="#12291c"/>
+    <circle cx="116" cy="116" r="70" fill="#ddf53c"/>
+    <path d="M74 66c38 15 61 52 59 94M158 66c-38 15-61 52-59 94" fill="none" stroke="#12291c" stroke-width="11" stroke-linecap="round"/>
+  </g>
+  <text x="392" y="174" fill="#12291c" font-family="Noto Sans TC, sans-serif" font-size="98" font-weight="700" letter-spacing="8">球局</text>
+  <text x="400" y="232" fill="#46554b" font-family="Barlow Condensed, sans-serif" font-size="24" font-weight="600" letter-spacing="6">TAIPEI · TENNIS</text>
+</svg>

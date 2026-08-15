@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">成局第一輪 Logo 草圖</title>
+  <desc id="desc">完整球場由中央球點連結，搭配成局中文字標。</desc>
+  <rect width="960" height="360" fill="#faf9f3"/>
+  <g transform="translate(58 52)">
+    <rect x="18" y="18" width="244" height="244" rx="36" fill="#12291c"/>
+    <path d="M140 18v244M18 140h244M66 18v244M214 18v244" fill="none" stroke="#faf9f3" stroke-width="10"/>
+    <circle cx="140" cy="140" r="28" fill="#ddf53c" stroke="#faf9f3" stroke-width="10"/>
+    <circle cx="140" cy="140" r="9" fill="#12291c"/>
+  </g>
+  <text x="392" y="174" fill="#12291c" font-family="Noto Sans TC, sans-serif" font-size="98" font-weight="700" letter-spacing="8">成局</text>
+  <text x="400" y="232" fill="#46554b" font-family="Barlow Condensed, sans-serif" font-size="24" font-weight="600" letter-spacing="6">MAKE THE MATCH</text>
+</svg>

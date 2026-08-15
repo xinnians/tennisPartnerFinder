@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" role="img" aria-labelledby="title desc">
+  <title id="title">揪拍第一輪 Logo 草圖</title>
+  <desc id="desc">兩個相向的球場括號在中央訊號點連結，搭配揪拍中文字標。</desc>
+  <rect width="960" height="360" fill="#faf9f3"/>
+  <g transform="translate(46 40)">
+    <path d="M112 72H76c-28 0-48 20-48 48v72c0 28 20 48 48 48h36" fill="none" stroke="#12291c" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M188 72h36c28 0 48 20 48 48v72c0 28-20 48-48 48h-36" fill="none" stroke="#12291c" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M106 156h25M169 156h25" fill="none" stroke="#1c5c3c" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="150" cy="156" r="22" fill="#ddf53c" stroke="#12291c" stroke-width="10"/>
+  </g>
+  <text x="378" y="174" fill="#12291c" font-family="Noto Sans TC, sans-serif" font-size="98" font-weight="700" letter-spacing="8">揪拍</text>
+  <text x="386" y="232" fill="#46554b" font-family="Barlow Condensed, sans-serif" font-size="24" font-weight="600" letter-spacing="6">TAIPEI TENNIS</text>
+</svg>
