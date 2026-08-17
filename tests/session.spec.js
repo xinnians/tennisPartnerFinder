@@ -1527,6 +1527,40 @@ test("an open chat shows the other member's message via quiet polling without an
   expect(runtimeErrors).toEqual([]);
 });
 
+// 2026-08-17 拍板「自動重開」:冷啟動深連結(推播點擊)與 auth 還原是純競速,sheet 先開
+// 之後會被 setAuthState 的保護路徑收掉(帳號變更關全部面板/CTA 權威已變即關)。
+// 用 route 攔住 my_profile 製造確定性的「sheet 先開、profile-ready 後到」順序。
+test("a session deep link survives the auth restore that lands after the sheet opened", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `deeplink-${context.runId}` })
+  );
+
+  // 推播點擊的真實形狀:過期 token 冷啟動,不攔任何請求。探針實測(2026-08-17)
+  // 事件序:sheet 於 ~190ms 開啟,~6ms 後被 stale-authority(CTA 權威在 profile
+  // 落地時改變)收掉且永不重開。修法「自動重開」落地後,最終必須以真實資格的
+  // CTA(guest NTRP 已填→「申請加入」)穩定存在。
+  await installFakeMaps(page);
+  await setBrowserSession(page, { ...guest.session, expires_at: Math.floor(Date.now() / 1000) - 60 });
+  await page.goto(`/#/session/${sessionId}`);
+
+  const detail = page.locator("#session-sheet");
+  // sheet 先開(此時 CTA 可能還帶「尚未填寫程度」註記)。
+  await expect(detail.locator("[data-session-action='primary']")).toHaveText("申請加入", { timeout: 15000 });
+  // 等 profile-ready 的 reconcile 跑完(探針實測關閉發生在開啟後 300ms 內;1.5s 為
+  // 5 倍餘裕)——不能立刻斷言,否則會在關閉發生前假綠(本測試第一版的教訓)。
+  await page.waitForTimeout(1500);
+  await expect(detail).toBeVisible();
+  await expect(detail.locator("[data-session-action='primary']")).toHaveText("申請加入");
+  await expect(page.getByTestId("session-unavailable-sheet")).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("accepted members exchange escaped chat, manage blocks, and retain archived read-only history", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });

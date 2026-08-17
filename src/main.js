@@ -206,6 +206,15 @@ async function openSessionHashRoute() {
   if (result?.status !== "opened") openSessionUnavailableSheet();
 }
 
+// 冷啟動深連結(推播點擊)與 auth 還原是純競速:sheet 常在 profile 落地前先開,
+// CTA 註記(如「尚未填寫程度」)被記進 actionKey;profile-ready 的 setAuthState 觸發
+// reconcile 時 actionKey 已變,sheet 被 stale-authority 保護收掉且不重開(2026-08-17
+// 探針 4/4 重現,關閉發生在開啟後 300ms 內)。拍板修法「自動重開」:boot 帶深連結時,
+// 首次 profile-ready 的 setAuthState 鏈(含 reloadParticipation 與 resumePendingIntent)
+// 落地後重跑一次 hash route——被收掉就重開、倖存則就地升級(openSessionFromLink 對
+// 已開的同 session 不重開)。一次性,不與使用者之後的手動關閉搶 sheet。
+let bootDeepLinkReopenPending = Boolean(sessionIdFromHash(globalThis.location?.hash));
+
 function supportContactHref() {
   const address = SUPPORT_EMAIL.trim();
   return address ? `mailto:${address}` : "";
@@ -1335,6 +1344,10 @@ async function reloadCurrentProfile() {
   await controller.setAuthState(authSession, currentProfileEligibility());
   reconcilePresenceTracking();
   renderMeDestination();
+  if (bootDeepLinkReopenPending) {
+    bootDeepLinkReopenPending = false;
+    void openSessionHashRoute();
+  }
   return true;
 }
 
