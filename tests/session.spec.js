@@ -2069,7 +2069,7 @@ async function saveProfileFromMePage(page, { nickname, courtId }) {
   const sheet = page.locator("#profile-completion-sheet");
   await expect(sheet).toBeVisible();
   await sheet.locator("#profile-nickname").fill(nickname);
-  if (courtId) await sheet.getByLabel("常打球場").selectOption(String(courtId));
+  if (courtId) await sheet.getByTestId(`profile-court-${courtId}`).check();
   await page.getByTestId("profile-save").click();
   await expect(sheet).toHaveCount(0);
 }
