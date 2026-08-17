@@ -137,11 +137,16 @@ export function renderSessionPins(google, map, groups, { onSession = () => {}, o
     const single = sessions[0];
     const startTime = new Date(single?.startAt ?? "").getTime();
     const ongoing = !undecided && Number.isFinite(startTime) && startTime <= Date.now();
+    // full 判準與詳情 CTA(sessionController actionFor)同語意:status=full 或缺額歸零。
+    // slotsRemaining 缺值時不可判滿(Number(null)=0 陷阱)。
+    const full =
+      String(single?.status).toLowerCase() === "full" ||
+      (single?.slotsRemaining != null && Number(single.slotsRemaining) <= 0);
     const pin = multiple
       ? sessionClusterPin(google, sessions.length)
       : undecided
         ? candidateSessionPin(google, { range: taipeiPinHourRange(single?.startAt, single?.rangeEnd) })
-        : sessionPin(google, { time: taipeiPinClock(single?.startAt), instant: single?.joinMode === "instant", ongoing });
+        : sessionPin(google, { time: taipeiPinClock(single?.startAt), instant: single?.joinMode === "instant", ongoing, full });
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },

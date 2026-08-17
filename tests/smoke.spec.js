@@ -269,7 +269,8 @@ test("the persistent count live region announces the current session count and u
   const countStatus = page.locator("#nearby-sessions-count-status");
   await expect(countStatus).toHaveAttribute("aria-live", "polite");
   await expect(countStatus).toHaveAttribute("aria-atomic", "true");
-  await expect(countStatus).toHaveText(/8 場可加入/);
+  // mock 共 8 局,9003 額滿:計數只算真可加入的 7 局(2026-08-17 拍板)。
+  await expect(countStatus).toHaveText(/7 場可加入/);
 
   await page.locator("#filter-sheet-open").click();
   await page.locator('#filters-sheet [data-filter="districts"][data-value="內湖區"]').click();
@@ -296,6 +297,13 @@ test("an undecided candidate session renders two dashed map pins from the court 
   ]);
   // 批 D3:v2 候選釘 dashed 磚的 dasharray 為 4 3(dc L65)。
   expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="4 3"'))).toBe(true);
+  // 2026-08-17 降級顯示:滿員局(mock 9003 古亭)圖釘轉灰磚,不得與可加入局同色。
+  const fullPin = markerOptions.find(({ title }) => title?.includes("球局 · 古亭河濱公園網球場"));
+  expect(fullPin, "the full session pin exists on the map (nonempty scan)").toBeTruthy();
+  expect(decodeURIComponent(fullPin.iconUrl)).toContain('stroke="#8b978d"');
+  const openPins = markerOptions.filter(({ title }) => title?.includes("球局") && !title.includes("古亭") && !title.includes("未定"));
+  expect(openPins.length).toBeGreaterThan(0);
+  expect(openPins.every(({ iconUrl }) => !decodeURIComponent(iconUrl).includes('stroke="#8b978d"'))).toBe(true);
   const mockCandidateOverlap = await page.evaluate(async () => {
     const { MOCK_SESSIONS } = await import("/src/mockData.js");
     const undecidedSession = MOCK_SESSIONS.find(({ sessionId }) => sessionId === 9005);
@@ -5210,8 +5218,8 @@ test("the filter sheet applies a district change immediately to the background d
     });
     return window.__filterSheetSummaries[0];
   });
-  // mock 資料共 8 局全部可加入，正向前提在先，下面篩到內湖區才有意義。
-  expect(firstSummary).toContain("8 場可加入");
+  // mock 資料共 8 局、其中 9003 額滿不計:可加入 7 局。正向前提在先，下面篩到內湖區才有意義。
+  expect(firstSummary).toContain("7 場可加入");
 
   const districtChip = page.locator('#filters-sheet [data-filter="districts"][data-value="內湖區"]');
   await districtChip.focus();

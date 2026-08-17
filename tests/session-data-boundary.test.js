@@ -803,7 +803,7 @@ test("an undecided candidate disappears at its range start while other venue typ
   );
 });
 
-test("drawer sorting places ongoing sessions with vacancies ahead of distance and start time", () => {
+test("drawer sorting places ongoing sessions with vacancies first and sinks full sessions last", () => {
   const now = new Date("2026-07-17T00:00:00.000Z");
   const sessions = [
     session({ sessionId: 1, courtLat: 25.08, courtLng: 121.58, startAt: "2026-07-19T03:00:00.000Z" }),
@@ -814,10 +814,12 @@ test("drawer sorting places ongoing sessions with vacancies ahead of distance an
   ];
   const original = structuredClone(sessions);
 
-  assert.deepEqual(sortSessionsForDrawer(sessions, null, now).map((item) => item.sessionId), [4, 5, 3, 1, 2]);
+  // 2026-08-17 拍板「降級顯示」:session 5 進行中但零缺額=不可加入,即使最早開打
+  // 也必須沉底;可加入的局中,進行中有缺額的 4 仍最優先。
+  assert.deepEqual(sortSessionsForDrawer(sessions, null, now).map((item) => item.sessionId), [4, 3, 1, 2, 5]);
   assert.deepEqual(
     sortSessionsForDrawer(sessions, { lat: 25.03, lng: 121.54 }, now).map((item) => item.sessionId),
-    [4, 5, 3, 2, 1]
+    [4, 3, 2, 1, 5]
   );
   assert.deepEqual(sessions, original);
   assert.equal("distance" in sessions[0], false);

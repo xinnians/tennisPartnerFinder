@@ -8,7 +8,7 @@ if (import.meta.env.PROD) {
 }
 
 import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
-import { BANDS, countActiveFilters } from "./filters.js";
+import { BANDS, countActiveFilters, joinableSessionCount } from "./filters.js";
 import {
   createMap,
   fitTaipeiBounds,
@@ -606,7 +606,7 @@ function renderDiscovery(view) {
   // textContent,螢幕閱讀器才能可靠收到這顆 live region 的計數變動播報;掛在會被
   // 摧毀重建的節點上,新節點帶著 aria-live 屬性一起被建立時,AT 不保證會註冊到它。
   const countStatus = document.getElementById("nearby-sessions-count-status");
-  if (countStatus) countStatus.textContent = nearbySessionsSummaryText(view.sessions.length, view.hasUserLocation);
+  if (countStatus) countStatus.textContent = nearbySessionsSummaryText(joinableSessionCount(view.sessions), view.hasUserLocation);
 }
 
 function syncBottomNavigation() {

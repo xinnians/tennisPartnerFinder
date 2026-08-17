@@ -1484,6 +1484,49 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
   }
 });
 
+// 2026-08-17 聊天輪詢:MVP 無 realtime,開著的聊天室靠安靜輪詢(CHAT_POLL_INTERVAL_MS=10s)
+// 看到對方新訊息。這條驗端對端:瀏覽器端零動作,對方經 RPC 發訊後訊息自行出現。
+test("an open chat shows the other member's message via quiet polling without any user action", async ({ page }) => {
+  const runtimeErrors = captureRuntimeErrors(page);
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `chat-poll-${context.runId}` })
+  );
+  await requestToJoinSessionViaRpc(guest.client, sessionId);
+  const { data: roster, error: rosterError } = await host.client
+    .from("session_participant_roster")
+    .select("participant_id,profile_id,status")
+    .eq("session_id", sessionId);
+  if (rosterError) throw rosterError;
+  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  expect(guestRequest).toBeTruthy();
+  await reviewJoinRequestViaRpc(host.client, { decision: "accepted", participantId: guestRequest.participant_id, sessionId });
+
+  await gotoWithSession(page, host.session);
+  await page.getByTestId("my-sessions-tab").click();
+  await page.getByTestId("my-sessions-seg-hosted").click();
+  await page.getByTestId(`open-chat-${sessionId}`).click();
+  const chat = page.getByTestId("session-chat-sheet");
+  await expect(chat).toBeVisible();
+  await expect(chat.locator("[data-chat-roster]")).toContainText(context.host.nickname);
+
+  // 對方在瀏覽器之外發訊;本端從此不做任何操作。
+  const pollProbeBody = `輪詢探針訊息 ${context.runId}`;
+  const { error: postError } = await guest.client.rpc("post_session_message", {
+    p_body: pollProbeBody,
+    p_session_id: sessionId,
+  });
+  if (postError) throw postError;
+
+  // 輪詢間隔 10 秒:20 秒上限內必須自行出現,無需退出重進或發送訊息。
+  await expect(chat.locator("[data-chat-feed]")).toContainText(pollProbeBody, { timeout: 20000 });
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("accepted members exchange escaped chat, manage blocks, and retain archived read-only history", async ({ page }) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });

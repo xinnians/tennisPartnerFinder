@@ -347,6 +347,8 @@ function createHarness(overrides = {}) {
     showCreatedSession: (sessionId) => createdSessionCalls.push(sessionId),
     toast: (message) => toasts.push(message),
     visibilityTarget: overrides.visibilityTarget,
+    chatPollIntervalMs: overrides.chatPollIntervalMs,
+    discoveryPollIntervalMs: overrides.discoveryPollIntervalMs,
   });
   const controller = rawController;
   return {
@@ -3461,6 +3463,102 @@ test("chat refreshes on foreground visibility and after posting", async () => {
   await harness.chatSheets.at(-1).handlers.onPost("回前景後送訊");
   assert.deepEqual(posts, [[711, "回前景後送訊"]]);
   assert.deepEqual(messageLoads, [711, 711, 711]);
+});
+
+test("chat polls quietly for the other member's messages while open and stops after close", async () => {
+  const visibilityTarget = new EventTarget();
+  Object.defineProperty(visibilityTarget, "visibilityState", { configurable: true, value: "visible", writable: true });
+  const session = futureSession({
+    canWithdraw: true,
+    sessionId: 715,
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  });
+  const messageLoads = [];
+  const harness = createHarness({
+    chatPollIntervalMs: 5,
+    session,
+    visibilityTarget,
+    api: {
+      loadMySessions: async () => [session],
+      loadSessionMessages: async (sessionId) => {
+        messageLoads.push(sessionId);
+        return [{ body: "球場見", createdAt: "2026-08-03T01:00:00Z", isSelf: false, kind: "user", messageId: 1, senderNickname: "球友", senderProfileId: 92, sessionId }];
+      },
+      loadSessionRoster: async () => [{ nickname: "球友", profileId: 92, role: "guest", status: "accepted" }],
+    },
+  });
+
+  await harness.controller.setAuthState({ user: { id: "chat-poll-member" } }, { directory: false, nickname: true, ntrp: true });
+  const sheet = harness.controller.openSessionChat(session.sessionId);
+  await flush();
+  const initialLoads = messageLoads.length;
+  assert.ok(initialLoads >= 1, "the initial chat load ran (nonempty scan)");
+
+  // 輪詢:不需要任何使用者動作,訊息會被週期重讀。
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.ok(messageLoads.length > initialLoads, `poll ticks reload messages without user action (${messageLoads.length} > ${initialLoads})`);
+
+  // 安靜:輪詢 tick 不得進 loading 態(只有初始載入那一次 loading)。
+  const loadingUpdates = sheet.stateUpdates.filter((update) => update.status === "loading").length;
+  assert.equal(loadingUpdates, 1, "poll ticks never flash the loading state");
+
+  // 背景分頁時暫停輪詢。
+  visibilityTarget.visibilityState = "hidden";
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const hiddenLoads = messageLoads.length;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(messageLoads.length, hiddenLoads, "no reloads while the tab is hidden");
+  visibilityTarget.visibilityState = "visible";
+
+  // 關閉聊天後 timer 停止,不再重讀。
+  harness.chatSheets.at(-1).handlers.onClose();
+  const closedLoads = messageLoads.length;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(messageLoads.length, closedLoads, "polling stops after the chat closes");
+});
+
+test("discovery polls quietly in the foreground without flashing loading or clearing sessions", async () => {
+  const visibilityTarget = new EventTarget();
+  Object.defineProperty(visibilityTarget, "visibilityState", { configurable: true, value: "visible", writable: true });
+  const session = futureSession({ sessionId: 815 });
+  let discoveryCalls = 0;
+  const harness = createHarness({
+    discoveryPollIntervalMs: 5,
+    visibilityTarget,
+    api: {
+      loadSessionDiscovery: async () => {
+        discoveryCalls += 1;
+        return [session];
+      },
+    },
+  });
+
+  await harness.controller.loadDiscovery();
+  const initialCalls = discoveryCalls;
+  const rendersAfterInitial = harness.renders.length;
+
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.ok(discoveryCalls > initialCalls, `poll refetches discovery without user action (${discoveryCalls} > ${initialCalls})`);
+
+  // 安靜:輪詢 tick 不得閃 loading、清單持續保留(掃描集非空)。
+  const laterViews = harness.renders.slice(rendersAfterInitial);
+  assert.ok(laterViews.length > 0, "quiet refresh published views (nonempty scan)");
+  assert.ok(
+    laterViews.every((view) => view.mapStatus?.kind !== "loading"),
+    "no loading flash during quiet ticks"
+  );
+  assert.ok(
+    laterViews.every((view) => view.sessions.length === 1),
+    "sessions stay rendered through quiet ticks"
+  );
+
+  // 背景分頁暫停輪詢。
+  visibilityTarget.visibilityState = "hidden";
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const hiddenCalls = discoveryCalls;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(discoveryCalls, hiddenCalls, "no refetch while the tab is hidden");
 });
 
 test("opening chat marks it read, optimistically zeroes the unread count, and throttles duplicate RPC calls until a newer message arrives", async () => {

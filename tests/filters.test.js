@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DEFAULT_FILTER_STATE, isDefaultFilters, countActiveFilters } from "../src/filters.js";
+import {
+  DEFAULT_FILTER_STATE,
+  countActiveFilters,
+  isDefaultFilters,
+  isJoinableSession,
+  joinableSessionCount,
+  sortSessionsForDrawer,
+} from "../src/filters.js";
 
 test("isDefaultFilters treats the untouched default state as default", () => {
   assert.equal(isDefaultFilters(DEFAULT_FILTER_STATE), true);
@@ -63,4 +70,40 @@ test("countActiveFilters sums selections across types and districts", () => {
 test("countActiveFilters returns 0 for non-object filters", () => {
   assert.equal(countActiveFilters(null), 0);
   assert.equal(countActiveFilters(undefined), 0);
+});
+
+// 2026-08-17 拍板「降級顯示」:滿員局留在探索面但不得算進「可加入」,排序沉底。
+test("isJoinableSession mirrors the detail CTA full semantics", () => {
+  assert.equal(isJoinableSession({ status: "open", slotsRemaining: 2 }), true);
+  assert.equal(isJoinableSession({ status: "full", slotsRemaining: 0 }), false);
+  assert.equal(isJoinableSession({ status: "open", slotsRemaining: 0 }), false);
+  // 缺值不可誤判為滿(Number(null)=0 陷阱)。
+  assert.equal(isJoinableSession({ status: "open" }), true);
+  assert.equal(isJoinableSession({ status: "open", slotsRemaining: null }), true);
+});
+
+test("joinableSessionCount excludes full sessions from the joinable count", () => {
+  const sessions = [
+    { sessionId: 1, status: "open", slotsRemaining: 2 },
+    { sessionId: 2, status: "full", slotsRemaining: 0 },
+    { sessionId: 3, status: "open", slotsRemaining: 1 },
+  ];
+  // 掃描集非空且與總數不同,證明計數真的排除了滿員局。
+  assert.equal(sessions.length, 3);
+  assert.equal(joinableSessionCount(sessions), 2);
+  assert.equal(joinableSessionCount([]), 0);
+  assert.equal(joinableSessionCount(null), 0);
+});
+
+test("sortSessionsForDrawer sinks full sessions below joinable ones regardless of start time", () => {
+  const now = new Date("2026-08-17T02:00:00Z");
+  const fullEarly = { sessionId: 11, startAt: "2026-08-17T03:00:00Z", status: "full", slotsRemaining: 0 };
+  const openLate = { sessionId: 12, startAt: "2026-08-17T09:00:00Z", status: "open", slotsRemaining: 2 };
+  const openEarly = { sessionId: 13, startAt: "2026-08-17T05:00:00Z", status: "open", slotsRemaining: 1 };
+  const sorted = sortSessionsForDrawer([fullEarly, openLate, openEarly], null, now);
+  assert.deepEqual(
+    sorted.map((session) => session.sessionId),
+    [13, 12, 11],
+    "the earliest session is full yet must sort last"
+  );
 });

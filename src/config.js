@@ -17,6 +17,10 @@ export const TAIPEI_CITY_BOUNDS = { south: 24.95, west: 121.43, north: 25.18, ea
 export const DISCOVERY_WINDOW_DAYS = 14;
 export const MAP_IDLE_DEBOUNCE_MS = 250;
 export const LOCATION_INITIAL_RADIUS_METERS = 5000;
+// 聊天室開啟期間的安靜輪詢間隔;探索資料在地圖前景時的背景重抓間隔。
+// 皆為 best-effort 更新:MVP 無 realtime 通道,靠輪詢+visibilitychange 補即時性。
+export const CHAT_POLL_INTERVAL_MS = 10000;
+export const DISCOVERY_POLL_INTERVAL_MS = 60000;
 // 生產環境必須設定;不可提交虛構公開聯絡信箱。
 export const SUPPORT_EMAIL = env.VITE_SUPPORT_EMAIL ?? "";
 // 僅含 VAPID 公鑰；私鑰只存在 Edge Function 的 secrets。

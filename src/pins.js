@@ -21,6 +21,14 @@ const INSTANT_SESSION_PIN_URL = svgToDataUri(`
     <path d="M26 30.5h12l-6 8z" fill="${NAVY}"/>
     <rect x="50.5" y="0.75" width="11" height="11" rx="3" fill="${LIME}" stroke="${NAVY}" stroke-width="1.5"/>
   </svg>`);
+// 滿員磚(2026-08-17 拍板「降級顯示」):磚體與 label 全面轉灰、不亮 instant 角標,
+// 滿員蓋過 ongoing/instant 視覺——滿了就不再帶任何「可加入」訊號。灰階取 muted
+// 語彙(#eef0ec/#8b978d/#5a675e),不與候選(dashed)或進行中(ink 底)混淆。
+const FULL_SESSION_PIN_URL = svgToDataUri(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40">
+    <rect x="1.5" y="5.5" width="61" height="25" rx="8" fill="#eef0ec" stroke="#8b978d" stroke-width="1.5"/>
+    <path d="M26 30.5h12l-6 8z" fill="#8b978d"/>
+  </svg>`);
 const ONGOING_SESSION_PIN_URL = svgToDataUri(`
   <svg xmlns="http://www.w3.org/2000/svg" width="64" height="40" viewBox="0 0 64 40">
     <rect x="1.5" y="5.5" width="61" height="25" rx="8" fill="${NAVY}" stroke="${LIME}" stroke-width="1.5"/>
@@ -92,7 +100,13 @@ function playerPresencePinUrl(presenceCount) {
 /** A public session pin never derives a label from a person or profile.
  *  批 D3:label 改為開始時間(dc L39 mono 14px);進行中=ink 底 signal 字(L47-49)、
  *  直接加入=右上 signal 方點(L40)。時間值由呼叫端提供,pins.js 不碰 session 物件。 */
-export function sessionPin(google, { time = "", instant = false, ongoing = false } = {}) {
+export function sessionPin(google, { time = "", instant = false, ongoing = false, full = false } = {}) {
+  if (full) {
+    return {
+      icon: markerIcon(google, FULL_SESSION_PIN_URL, 64, 40, 32, 39, 32, 18),
+      label: { text: time || "已滿", color: "#5a675e", fontFamily: monoFont, fontSize: "14px", fontWeight: "600" },
+    };
+  }
   if (ongoing) {
     return {
       icon: markerIcon(google, ONGOING_SESSION_PIN_URL, 64, 40, 32, 39, 35, 18),

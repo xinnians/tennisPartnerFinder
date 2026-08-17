@@ -182,6 +182,18 @@ function compareStartAt(left, right) {
   return leftTime - rightTime;
 }
 
+/** 可加入=open 且缺額>0。滿員局刻意留在探索面(社群活力),但計數與排序都
+ *  必須用這個判準,不可把滿員局說成「可加入」;語意與詳情 CTA 的 full 判斷互為鏡像。 */
+export function isJoinableSession(session) {
+  if (String(session?.status).toLowerCase() !== "open") return false;
+  const slotsRemaining = asFiniteNumber(session?.slotsRemaining);
+  return !(slotsRemaining != null && slotsRemaining <= 0);
+}
+
+export function joinableSessionCount(sessions) {
+  return (Array.isArray(sessions) ? sessions : []).filter((session) => isJoinableSession(session)).length;
+}
+
 function isOngoingSessionWithVacancy(session, now) {
   const startAt = toDate(session?.startAt);
   const current = toDate(now) ?? new Date();
@@ -233,7 +245,9 @@ function validLocation(location) {
 export function sortSessionsForDrawer(sessions, userLocation = null, now = new Date(), courts = []) {
   const source = Array.isArray(sessions) ? sessions : [];
   const location = validLocation(userLocation);
+  // 滿員局沉底(2026-08-17 拍板「降級顯示」),可加入的局中「進行中且有缺額」優先。
   const comparePriority = (left, right) =>
+    Number(isJoinableSession(right)) - Number(isJoinableSession(left)) ||
     Number(isOngoingSessionWithVacancy(right, now)) - Number(isOngoingSessionWithVacancy(left, now));
 
   if (!location) return [...source].sort((left, right) => comparePriority(left, right) || compareStartAt(left, right));

@@ -1,5 +1,5 @@
 import { TAIPEI_TIME_ZONE } from "./config.js";
-import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters } from "./filters.js";
+import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters, joinableSessionCount } from "./filters.js";
 import { TAIPEI_DISTRICTS } from "./districts.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { mountDialog, mountSheet } from "./sheets.js";
@@ -1152,7 +1152,7 @@ function inviteCard({ session }, courts = []) {
   return `<article class="my-action-card" data-testid="invite-row" data-session-id="${esc(session.sessionId)}">
     <p class="my-action-card__eyebrow">邀請你加入</p>
     ${mySessionBriefMarkup(session, { courts, kind: "invite", segment: "joined" })}
-    <p>缺 ${esc(session.slotsRemaining)} 位${session.notes ? ` · ${esc(session.notes)}` : ""}</p>
+    <p>${esc(vacancyLabel(session))}${session.notes ? ` · ${esc(session.notes)}` : ""}</p>
     <div class="my-session-card__actions">
       <button type="button" class="session-primary" data-my-action="accept-invite" data-session-id="${esc(session.sessionId)}" data-testid="accept-invite-${esc(session.sessionId)}">接受邀請</button>
       <button type="button" class="session-secondary" data-my-action="decline-invite" data-session-id="${esc(session.sessionId)}" data-testid="decline-invite-${esc(session.sessionId)}">婉拒</button>
@@ -2005,7 +2005,8 @@ export function renderNearbySessionsDrawer(
 ) {
   rememberFocusedSessionCard(root);
   const isOpen = drawerState === "open";
-  const count = sessions.length;
+  // 「N 場可加入」只計真可加入的局;滿員局仍列在清單(沉底+已額滿磚),不進計數。
+  const count = joinableSessionCount(sessions);
   const summary = nearbySessionsSummaryText(count, hasUserLocation);
   const filtersActive = !isDefaultFilters(filters);
   const loading = mapStatus?.kind === "loading";
@@ -2278,9 +2279,14 @@ export function openSessionChatSheet(
     if (status === "loading") loading.textContent = "正在讀取群組訊息…";
     error.textContent = errorMessage;
     error.hidden = !errorMessage;
+    // 背景輪詢會週期重繪 feed:只有在使用者本來就貼近底部時才跟捲到底,回看歷史時
+    // 保留原捲動位置(innerHTML 重繪會歸零 scrollTop,必須先量後還原)。
+    const nearBottom = !feedInitialized || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 48;
+    const previousScrollTop = feed.scrollTop;
     roster.innerHTML = chatRosterMarkup(participants);
     feed.innerHTML = chatMessagesMarkup(safeMessages);
-    scrollFeedToLatest();
+    if (nearBottom) scrollFeedToLatest();
+    else feed.scrollTop = previousScrollTop;
     if (status === "ready") {
       const nextMessageIds = new Set(
         safeMessages.map((message) => String(message?.messageId ?? "")).filter(Boolean)

@@ -1,4 +1,10 @@
-import { LOCATION_INITIAL_RADIUS_METERS, MAP_IDLE_DEBOUNCE_MS, TAIPEI_CITY_BOUNDS } from "./config.js";
+import {
+  CHAT_POLL_INTERVAL_MS,
+  DISCOVERY_POLL_INTERVAL_MS,
+  LOCATION_INITIAL_RADIUS_METERS,
+  MAP_IDLE_DEBOUNCE_MS,
+  TAIPEI_CITY_BOUNDS,
+} from "./config.js";
 import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "./filters.js";
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
 
@@ -334,6 +340,8 @@ export function createSessionController({
   intentStore = browserIntentStore(),
   toast = () => {},
   visibilityTarget = globalThis.document,
+  chatPollIntervalMs = CHAT_POLL_INTERVAL_MS,
+  discoveryPollIntervalMs = DISCOVERY_POLL_INTERVAL_MS,
 } = {}) {
   const state = {
     bounds: cloneBounds(TAIPEI_CITY_BOUNDS),
@@ -947,6 +955,30 @@ export function createSessionController({
     return true;
   }
 
+  /** 安靜背景重抓探索資料(60 秒輪詢與回前景時):不清列表、不進 loading、不關
+   *  drawer。任何 surface 開啟時跳過——背景替換資料會把使用者正在看的快照抽走
+   *  (與深連結 sheet 被收掉是同一類 rug-pull),等 surface 關閉後下一 tick 再補。
+   *  失敗靜默:保留現有畫面,由下一次正常載入訂正。 */
+  async function quietRefreshDiscovery() {
+    if (state.discoveryStatus === "loading") return false;
+    if (activeDetail || activeCourtDrawer || activeChat || activeCreateSession || activeDecisionSession || activeEditSession) {
+      return false;
+    }
+    if (typeof api?.loadSessionDiscovery !== "function") return false;
+    const requestId = ++latestRequest;
+    try {
+      const sessions = await api.loadSessionDiscovery({ bounds: state.bounds });
+      if (requestId !== latestRequest) return false;
+      state.sessions = Array.isArray(sessions) ? sessions : [];
+      state.discoveryStatus = "ready";
+      state.discoveryMessage = "";
+      publish();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function setCourts(courts, { ready = true } = {}) {
     state.courts = Array.isArray(courts) ? courts : [];
     state.courtsReady = Boolean(ready);
@@ -1145,6 +1177,10 @@ export function createSessionController({
     activeChat = null;
     context.requestId += 1;
     visibilityTarget?.removeEventListener?.("visibilitychange", context.onVisibilityChange);
+    if (context.pollTimer != null) {
+      clearInterval(context.pollTimer);
+      context.pollTimer = null;
+    }
   }
 
   function closeActiveChat(options = {}) {
@@ -1176,11 +1212,12 @@ export function createSessionController({
     }
   }
 
-  async function refreshActiveChat(context = activeChat) {
+  async function refreshActiveChat(context = activeChat, { quiet = false } = {}) {
     if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
     if (typeof api?.loadSessionMessages !== "function" || typeof api?.loadSessionRoster !== "function") return false;
     const requestId = ++context.requestId;
-    context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "loading" });
+    // quiet=背景輪詢:不進 loading 態,避免「正在讀取群組訊息…」每 tick 閃現。
+    if (!quiet) context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "loading" });
     try {
       const [messages, roster] = await Promise.all([
         api.loadSessionMessages(context.session.sessionId),
@@ -1303,6 +1340,16 @@ export function createSessionController({
     };
     activeChat = context;
     visibilityTarget?.addEventListener?.("visibilitychange", context.onVisibilityChange);
+    // 安靜輪詢:MVP 無 realtime 通道,對方訊息靠週期重讀;背景分頁跳過,關閉時
+    // 由 releaseActiveChat 清除。unref 讓 node 測試環境不被 timer 扣住事件圈。
+    if (chatPollIntervalMs > 0) {
+      context.pollTimer = setInterval(() => {
+        if (activeChat === context && visibilityTarget?.visibilityState !== "hidden") {
+          void refreshActiveChat(context, { quiet: true });
+        }
+      }, chatPollIntervalMs);
+      context.pollTimer?.unref?.();
+    }
     void refreshActiveChat(context);
     return sheet;
   }
@@ -2359,6 +2406,18 @@ export function createSessionController({
   function expandBounds() {
     return refreshExplicitViewport(() => mapTools.fitTaipei?.(), TAIPEI_CITY_BOUNDS);
   }
+
+  // 探索資料的 best-effort 更新(2026-08-17 拍板):前景輪詢+回前景即刷。controller
+  // 與 app 同壽命,不需 teardown;unref 讓 node 測試不被 timer 扣住事件圈。
+  if (discoveryPollIntervalMs > 0) {
+    const discoveryPollTimer = setInterval(() => {
+      if (visibilityTarget?.visibilityState !== "hidden") void quietRefreshDiscovery();
+    }, discoveryPollIntervalMs);
+    discoveryPollTimer?.unref?.();
+  }
+  visibilityTarget?.addEventListener?.("visibilitychange", () => {
+    if (visibilityTarget?.visibilityState === "visible") void quietRefreshDiscovery();
+  });
 
   return {
     attachMap,
