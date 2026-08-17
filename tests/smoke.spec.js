@@ -3779,6 +3779,64 @@ test("profile and create sheets disclose public nickname use and retain a local-
   expect(runtimeErrors).toEqual([]);
 });
 
+// 迴歸(2026-08-17 實機回報,iPhone Safari 與 S23 Chrome 皆中):手機可視高度約 664px
+// (瀏覽器工具列吃掉之後)且球場目錄滿載 61 座時,球場格內捲吃滿首屏,日期卡整張被推進
+// sticky footer 遮蔽區;內捲又攔走外層捲動手勢,日期完全選不到。守住兩件事:
+// (1)首屏第一顆日期 chip 整顆落在 footer 上緣之上,不捲動就點得到;
+// (2)點「自訂」展開的日期輸入框整顆在遮蔽區之外(scroll-padding 讓 scrollIntoView 認得 footer)。
+test("the create form keeps date controls reachable above the sticky footer at phone height with a full catalogue", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    openCreateSessionSheet({
+      courts: Array.from({ length: 61 }, (_, index) => ({ city: "台北市", id: index + 1, name: `示範球場 ${index + 1}` })),
+      onSubmit: async () => {
+        throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
+      },
+    });
+  });
+
+  const sheet = page.locator("#session-create-modal");
+  await expect(sheet).toBeVisible();
+  const footerTop = async () => (await sheet.locator(".create-v2__footer").boundingBox()).y;
+
+  // (1) 進場動畫結束後,第一顆日期 chip(今天)要整顆在 footer 上緣之上。
+  const firstDateChip = sheet.locator('[data-role="date"]').first();
+  await expect
+    .poll(async () => {
+      const chip = await firstDateChip.boundingBox();
+      return chip ? chip.y + chip.height - (await footerTop()) : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(0);
+
+  // chip 真的收得到點擊(被 footer 的 disclosure 蓋住時,actionability 檢查會逾時)。
+  await firstDateChip.click();
+
+  // (2) 展開自訂日期後,輸入框整顆要在遮蔽區之外。
+  await sheet.getByTestId("create-date-custom").click();
+  const customInput = sheet.getByTestId("create-date-custom-input");
+  await expect(customInput).toBeVisible();
+  await expect
+    .poll(async () => {
+      const input = await customInput.boundingBox();
+      return input ? input.y + input.height - (await footerTop()) : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(0);
+
+  // (3) footer 必須錨定視窗底:捲動表單時不得跟著內容漂移(本次實機回報的主因——
+  // scroller 曾是定位祖先,footer 捲動後浮到畫面中段蓋住日期卡)。
+  const anchoredFooterTop = await footerTop();
+  await sheet.locator(".create-v2__scroll").evaluate((element) => {
+    element.scrollTop = 200;
+  });
+  await expect.poll(async () => Math.round(await footerTop())).toBe(Math.round(anchoredFooterTop));
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("My Sessions gives accepted members chat access without rendering retired contact controls", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

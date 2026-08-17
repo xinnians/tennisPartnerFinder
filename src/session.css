@@ -1143,7 +1143,12 @@
 .create-v2__back { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); cursor: pointer; transition: transform 0.1s; }
 .create-v2__back:active { transform: scale(0.92); }
 .create-v2__head h2 { font-size: var(--text-xl); }
-.create-v2__scroll { position: relative; flex: 1; overflow-y: auto; padding: 4px 16px 130px; }
+/* 底部預留必須 ≥ footer 疊層實高(390px 寬、disclosure 兩行時約 155px)加安全邊,
+   否則捲到底仍有永久遮蔽帶;scroll-padding 讓 scrollIntoView 認得 footer 的覆蓋範圍。
+   此處不可設 position:relative——footer 在 DOM 上是 form 的子節點,scroller 一旦成為
+   定位祖先,footer 的 bottom:0 會錨到捲動層、跟著內容一起捲走(2026-08-17 實機主因:
+   捲動後 footer 浮到畫面中段蓋住日期卡);拿掉後 footer 錨定外層 fixed surface 才真正 sticky。 */
+.create-v2__scroll { flex: 1; overflow-y: auto; padding: 4px 16px calc(180px + env(safe-area-inset-bottom)); scroll-padding-bottom: 190px; }
 
 /* 卡片式區塊共用殼(dc §8):首張無 margin-top,其餘 12px。 */
 .create-v2__card { margin-top: 12px; padding: 14px; border: var(--border-thin); border-radius: var(--radius-lg); background: var(--color-surface-card); }
@@ -1166,7 +1171,10 @@
 
 /* 球場卡格(dc L494-497 已定/候選逐字共用):台北市數十座球場,dc 原型只有數座,
    加內捲上限(批次核可延伸),不做搜尋框。 */
-.create-v2__court-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 320px; overflow-y: auto; }
+/* 限高吃 dvh:滿載 61 座時固定 320px 會在手機可視高度(約 664px)把日期卡整張推進
+   sticky footer 遮蔽區,而內捲又攔走外層捲動手勢,日期選不到(2026-08-17 實機,
+   iPhone Safari 與 Android Chrome 皆中);30dvh 讓日期 chip 列保持首屏可點。 */
+.create-v2__court-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: min(320px, 30dvh); overflow-y: auto; }
 .create-v2__court-cell { min-height: 44px; padding: 10px 11px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; cursor: pointer; transition: transform 0.1s; }
 .create-v2__court-cell:active { transform: scale(0.97); }
 .create-v2__court-cell.is-selected { border: var(--border-strong); background: var(--color-ink); }
@@ -1211,7 +1219,7 @@
    點擊——蓋住底下捲動內容(候選程度 chip、缺幾位 stepper 等)點不到。比照
    .map-topbar 的既有解法:容器本身 pointer-events:none,只有實際子元素(文案/
    錯誤/按鈕)恢復 auto。 */
-.create-v2__footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 26px; background: linear-gradient(rgba(250, 249, 243, 0), var(--color-surface-page) 30%); pointer-events: none; }
+.create-v2__footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px calc(26px + env(safe-area-inset-bottom)); background: linear-gradient(rgba(250, 249, 243, 0), var(--color-surface-page) 30%); pointer-events: none; }
 /* fix round 2(實測):前一版把 pointer-events:auto 還給「所有直接子元素」,
    disclosure/error 這兩段純文字 <p> 沒有可互動內容,卻仍以整段文字寬度攔截
    點擊——只有真正可互動的發布鈕需要 auto,文字段落維持 none 讓點擊穿透到

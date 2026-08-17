@@ -3887,6 +3887,11 @@ export function openCreateSessionSheet({
       if (form.dateKey === "custom" && !form.customDate) form.customDate = taipeiDateValue(now(), now());
       form.nowStart = false;
       sync();
+      // 展開的輸入框可能落在 sticky footer 遮蔽區,捲出來(.create-v2__scroll 的
+      // scroll-padding-bottom 已把 footer 覆蓋範圍算進去);guard 對 DOM stub 環境讓步。
+      if (form.dateKey === "custom" && typeof customDateField?.scrollIntoView === "function") {
+        customDateField.scrollIntoView({ block: "nearest" });
+      }
     } else if (role === "slot") {
       form.slot = target.dataset.value;
       sync();
