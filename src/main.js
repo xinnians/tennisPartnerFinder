@@ -96,6 +96,7 @@ import { canReceiveFocus, shouldReleasePendingMeFocus } from "./meFocus.js";
 import { enableBrowserPush } from "./notificationPush.js";
 import { createPresenceTracker } from "./playerPresence.js";
 import { eligibilityFromPrivateProfile } from "./profile.js";
+import { createRequestGate } from "./requestGate.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
 
@@ -114,7 +115,7 @@ let courtMarkers = [];
 let playerMarkers = [];
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
-let authStateEpoch = 0;
+const authRequestGate = createRequestGate();
 let currentAuthIdentity = null;
 let authSession = null;
 let currentProfile = null;
@@ -264,10 +265,9 @@ function reconcilePresenceTracking() {
     presenceTracker = createPresenceTracker({
       onError: updatePresenceLocationStatus,
       onPosition: async ({ lat, lng }) => {
-        const epoch = authStateEpoch;
-        const identity = currentAuthIdentity;
+        const request = captureAuthRequest();
         await updateMyPresence({ lat, lng });
-        if (!notificationRequestIsCurrent({ epoch, identity })) return;
+        if (request.isStale()) return;
         updatePresenceLocationStatus("active");
       },
     });
@@ -278,15 +278,14 @@ function reconcilePresenceTracking() {
 }
 
 async function updatePresenceSharing(shared) {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
-  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
+  const request = captureAuthRequest();
+  if (!request.identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
   if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
     return false;
   }
   await setPresenceSharing(shared === true);
-  if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
+  if (request.isStale()) throw new Error("登入狀態已變更，請重新整理後再試。");
   currentProfile = { ...(currentProfile ?? defaultProfile()), sharePresence: shared === true };
   if (shared) reconcilePresenceTracking();
   else {
@@ -298,15 +297,14 @@ async function updatePresenceSharing(shared) {
 }
 
 async function updateOpenToGreetingSetting(open) {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
-  if (!identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
+  const request = captureAuthRequest();
+  if (!request.identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
   if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
     return false;
   }
   await setOpenToGreeting(open === true);
-  if (!notificationRequestIsCurrent({ epoch, identity })) throw new Error("登入狀態已變更，請重新整理後再試。");
+  if (request.isStale()) throw new Error("登入狀態已變更，請重新整理後再試。");
   currentProfile = { ...(currentProfile ?? defaultProfile()), openToGreeting: open === true };
   rerenderVisibleNotificationSettings();
   toast(open ? "已開啟接受現場問候。" : "已關閉接受現場問候。");
@@ -823,8 +821,12 @@ function restoreMeFocus(root, focus, generation) {
   });
 }
 
-function notificationRequestIsCurrent({ epoch, identity }) {
-  return Boolean(authSession) && epoch === authStateEpoch && identity === currentAuthIdentity;
+function captureAuthRequest(isCurrent = () => true) {
+  const identity = currentAuthIdentity;
+  const token = authRequestGate.capture(
+    () => Boolean(authSession) && identity === currentAuthIdentity && isCurrent()
+  );
+  return { identity, isStale: token.isStale };
 }
 
 function rerenderVisibleNotificationSettings() {
@@ -833,15 +835,14 @@ function rerenderVisibleNotificationSettings() {
 }
 
 async function refreshNotificationSettings() {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
-  if (!identity || !authSession || !isSupabaseConfigured) return false;
+  const request = captureAuthRequest();
+  if (!request.identity || !authSession || !isSupabaseConfigured) return false;
   try {
     const [prefs, courtIds] = await Promise.all([
       loadNotificationPreferences(),
       loadCourtSubscriptions(),
     ]);
-    if (!notificationRequestIsCurrent({ epoch, identity })) return false;
+    if (request.isStale()) return false;
     notificationSettings = {
       ...notificationSettings,
       courtIds,
@@ -850,7 +851,7 @@ async function refreshNotificationSettings() {
       webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
     };
   } catch {
-    if (!notificationRequestIsCurrent({ epoch, identity })) return false;
+    if (request.isStale()) return false;
     notificationSettings = {
       ...notificationSettings,
       errorMessage: "通知設定暫時無法載入，請稍後再試。",
@@ -861,9 +862,8 @@ async function refreshNotificationSettings() {
 }
 
 async function updateNotificationPreferences(preferences) {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
-  if (!identity || !authSession) throw new Error("請先登入後再調整通知設定。");
+  const request = captureAuthRequest();
+  if (!request.identity || !authSession) throw new Error("請先登入後再調整通知設定。");
   const nextPreferences = {
     chatMessageEnabled: preferences?.chatMessageEnabled === true,
     guestInvitedEnabled: preferences?.guestInvitedEnabled === true,
@@ -873,16 +873,15 @@ async function updateNotificationPreferences(preferences) {
     sessionUpdatedEnabled: preferences?.sessionUpdatedEnabled === true,
   };
   await saveNotificationPreferences(nextPreferences);
-  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  if (request.isStale()) return;
   notificationSettings = { ...notificationSettings, errorMessage: "", prefs: nextPreferences };
   rerenderVisibleNotificationSettings();
   toast("通知偏好已儲存。");
 }
 
 async function updateCourtSubscriptions(courtIds) {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
-  if (!identity || !authSession) throw new Error("請先登入後再調整通知設定。");
+  const request = captureAuthRequest();
+  if (!request.identity || !authSession) throw new Error("請先登入後再調整通知設定。");
   const nextCourtIds = [
     ...new Set(
       (Array.isArray(courtIds) ? courtIds : [])
@@ -895,7 +894,7 @@ async function updateCourtSubscriptions(courtIds) {
     throw new Error("訂閱球場數量超過目前可選的台北市球場。");
   }
   await saveCourtSubscriptions(nextCourtIds);
-  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  if (request.isStale()) return;
   notificationSettings = { ...notificationSettings, courtIds: nextCourtIds, errorMessage: "" };
   rerenderVisibleNotificationSettings();
   toast("球場訂閱已儲存。");
@@ -912,8 +911,7 @@ async function updateCourtSubscriptions(courtIds) {
  * 任何失敗都吞掉:個人檔案是主要動作,訂閱種入是附帶的,不可讓使用者看到存檔失敗。
  */
 async function seedAllTaipeiCourtSubscriptions() {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
+  const request = captureAuthRequest();
   const courtIds = courts
     .filter((court) => court?.city === "台北市")
     .map((court) => Number(court?.id))
@@ -925,22 +923,21 @@ async function seedAllTaipeiCourtSubscriptions() {
   } catch {
     return;
   }
-  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  if (request.isStale()) return;
   notificationSettings = { ...notificationSettings, courtIds, errorMessage: "" };
   rerenderVisibleNotificationSettings();
 }
 
 async function enablePushNotifications() {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
-  if (!identity || !authSession) throw new Error("請先登入後再開啟推播。");
+  const request = captureAuthRequest();
+  if (!request.identity || !authSession) throw new Error("請先登入後再開啟推播。");
   if (!WEB_PUSH_VAPID_PUBLIC_KEY.trim()) {
     notificationSettings = { ...notificationSettings, pushStatus: "unsupported" };
     rerenderVisibleNotificationSettings();
     return "unsupported";
   }
   const result = await enableBrowserPush({ vapidPublicKey: WEB_PUSH_VAPID_PUBLIC_KEY });
-  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  if (request.isStale()) return;
   if (result.status !== "granted" || !result.subscription) {
     const pushStatus = result.status === "denied" ? "denied" : result.status === "unsupported" ? "unsupported" : "idle";
     notificationSettings = {
@@ -952,7 +949,7 @@ async function enablePushNotifications() {
     return pushStatus;
   }
   await savePushSubscription(result.subscription);
-  if (!notificationRequestIsCurrent({ epoch, identity })) return;
+  if (request.isStale()) return;
   notificationSettings = { ...notificationSettings, errorMessage: "", pushStatus: "enabled" };
   rerenderVisibleNotificationSettings();
   toast("已開啟推播通知。");
@@ -1315,9 +1312,8 @@ function authIdentity(session) {
 }
 
 async function reloadCurrentProfile() {
-  const epoch = authStateEpoch;
-  const identity = currentAuthIdentity;
   const profileLoadRevision = profileRevision;
+  const request = captureAuthRequest(() => profileLoadRevision === profileRevision);
   let profile = null;
   let loadFailed = false;
   try {
@@ -1325,7 +1321,7 @@ async function reloadCurrentProfile() {
   } catch {
     loadFailed = true;
   }
-  if (epoch !== authStateEpoch || identity !== currentAuthIdentity || profileLoadRevision !== profileRevision) return false;
+  if (request.isStale()) return false;
   if (loadFailed) {
     // A refresh failure must never turn a previously known profile into an
     // editable blank replacement form. Initial failures remain blocked
@@ -1352,7 +1348,7 @@ async function reloadCurrentProfile() {
 }
 
 function applyAuthCandidate(session) {
-  ++authStateEpoch;
+  authRequestGate.invalidate();
   const identity = authIdentity(session);
   const previousIdentity = currentAuthIdentity;
   const identityChanged = previousIdentity !== identity;
@@ -1396,7 +1392,7 @@ async function restoreAuth() {
     // 失敗路徑沒有 SIGNED_IN,由 applyAuthCandidate 的 error 參數分支處理。
     if (session && event === "SIGNED_IN") resumeLinkReturn();
   });
-  const initialEpoch = authStateEpoch;
+  const initialRequest = authRequestGate.capture();
   let initialSession = null;
   let initialSessionResolved = false;
   try {
@@ -1413,7 +1409,7 @@ async function restoreAuth() {
   if (initialSessionResolved && !initialSession && !authSession) {
     controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion);
   }
-  if (!initialSessionResolved || initialEpoch !== authStateEpoch) return;
+  if (!initialSessionResolved || initialRequest.isStale()) return;
   applyAuthCandidate(initialSession);
 }
 
