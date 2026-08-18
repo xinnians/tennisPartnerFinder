@@ -63,6 +63,12 @@
   (3) `legacy-style-scan.test.js`——readdir 自動掃描設計良好，但副檔名 filter 只收 .css/.js，
   TS 進場後新檔自動漏掃，需擴 .ts/.tsx。
   目標：語意不弱化（新 LINE token 仍紅、literal 複製仍紅）、拆檔搬檔不誤報、掃描集非空自證。
+- 0b（**完成，2026-08-18**）：LINE allowlist 改四類核可語意 pattern（span 覆蓋防同行搭便車＋
+  殭屍 pattern 守門）、NTRP 改「全樹唯一定義＋消費端必 import/re-export」契約、legacy 掃描擴
+  .ts/.tsx 且下限收緊到 23。驗收方獨立雙向 canary（三重違規全紅、拆檔消費端不誤報）＋全 gate
+  重跑通過。回報 `docs/migration-reports/batch-0b.md`。
+  **殘項（rider，併入批 1a）**：`line_id` 掃描收窄成只掃 src/——需補「public/ 樹 line_id 為零」
+  斷言，恢復原本 src+public 全覆蓋。
 - 驗收：韌性模擬（搬檔不紅）＋有牙 canary（違規必紅）雙向證明；全 gate 綠。
 
 ### 批 1：框架無關 vanilla 收斂（拆 4 小批，遷移後全數存活）
@@ -112,3 +118,6 @@
 - 2026-08-18：批 B（含 B-fix）驗收通過並 commit；批 0 盤點完成、0a 派工單已發。
 - 2026-08-18：批 0a（含 0a-fix）驗收通過並 commit；0b 盤點完成（含 legacy-style-scan 副檔名
   漏掃 .ts/.tsx 的新發現）、派工單已發。
+- 2026-08-18：批 0b 驗收通過並 commit（line_id public 覆蓋殘項轉 rider）；批 1a 派工單已發。
+  流程備忘：Codex 於 local gate 前自行執行 guarded DB reset（testing 規則標準入口，屬合規），
+  後續派工單改為明列此授權，避免默契依賴。
