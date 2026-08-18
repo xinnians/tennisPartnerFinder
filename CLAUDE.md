@@ -2,7 +2,8 @@
 
 ## 專案定位
 
-這是以 Vite 6 與原生 ES modules 製作的台北市網球公開球局 MVP。首頁是地圖，
+這是以 Vite 6 與原生 ES modules 製作的台北市網球公開球局 MVP；React 19 與 TypeScript 6
+基建已安裝，既有頁面仍維持原生 DOM，後續才逐頁遷移。首頁是地圖，
 使用者可瀏覽未來與開打後兩小時內的球局，依球局加入方式申請或直接加入；已接受成員可使用球局群組聊天，
 前端不再提供 LINE 聯絡面。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
 新北市球場開放為公開球局。
@@ -58,12 +59,14 @@
 - `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions 與群聊。
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
 - `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
+- `src/domainTypes.ts`：從 data API mapper 反推的共用 domain／surface 型別。
 - `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
 - `src/mockData.js`：安全的本機 demo `SessionSummary`。
 - `data/courts.json`：球場目錄單一來源；產生 migration／pgTAP fixture 的來源。
 
-以 `innerHTML` 產生 DOM 時，所有動態內容都必須使用 `esc()`；沒有框架、TypeScript、
-linter 或 formatter，勿虛構 `lint`／`tsc` 指令。UI 與註解使用繁體中文。
+既有頁面以 `innerHTML` 產生 DOM 時，所有動態內容都必須使用 `esc()`。新 `.ts/.tsx` 走
+strict TypeScript、ESLint flat config 與 Prettier；存量 `.js` 採 `allowJs`、不開 `checkJs`，
+不因工具鏈導入強制改寫。UI 與註解使用繁體中文。
 
 ## Session 資料流程
 
@@ -120,6 +123,9 @@ npm run test:mock
 npm run test:local
 TENNIS_TEST_HARNESS_MODE=local npx playwright test --project=supabase-mobile-chromium
 node scripts/generate-courts-seed.mjs --check
+npm run typecheck
+npm run lint
+npm run prettier:check
 npm run build
 git diff --check
 ```

@@ -27,9 +27,15 @@ npm run test:mock
 npm run test:local
 TENNIS_TEST_HARNESS_MODE=local npx playwright test --project=supabase-mobile-chromium
 node scripts/generate-courts-seed.mjs --check
+npm run typecheck
+npm run lint
+npm run prettier:check
 npm run build
 git diff --check
 ```
+
+`npm run test:mock` 與 `npm run test:local` 的 pre-script 都會先跑 `npm run typecheck`；
+`lint` 與 `prettier:check` 只掃 `.ts/.tsx`，不把存量 `.js` 納入本批改寫範圍。
 
 ## Playwright projects
 

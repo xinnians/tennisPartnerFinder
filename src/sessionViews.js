@@ -1,5 +1,5 @@
 import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters, joinableSessionCount } from "./filters.js";
-import { TAIPEI_DISTRICTS } from "./districts.js";
+import { TAIPEI_DISTRICTS } from "./districts.ts";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { mountDialog, mountSheet } from "./sheets.js";

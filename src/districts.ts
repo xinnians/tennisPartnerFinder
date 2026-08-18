@@ -1,7 +1,7 @@
 // 雙北行政區對照：資料檔驗證與 profile 選單分組共用（避免雙 SoT）。
 // 純常數、零 import；雙北行政區名無重複，district→city 唯一推導。
 
-export const TAIPEI_DISTRICTS = [
+export const TAIPEI_DISTRICTS: readonly string[] = [
   "中正區",
   "大同區",
   "中山區",
@@ -16,7 +16,7 @@ export const TAIPEI_DISTRICTS = [
   "文山區",
 ];
 
-export const NEW_TAIPEI_DISTRICTS = [
+export const NEW_TAIPEI_DISTRICTS: readonly string[] = [
   "板橋區",
   "三重區",
   "中和區",
@@ -48,12 +48,8 @@ export const NEW_TAIPEI_DISTRICTS = [
   "烏來區",
 ];
 
-/**
- * 根據行政區名稱推導城市。
- * @param {string} district - 行政區名稱
- * @returns {"台北市"|"新北市"|null} 城市名稱或 null
- */
-export function cityOf(district) {
+/** 根據行政區名稱推導城市。 */
+export function cityOf(district: string): "台北市" | "新北市" | null {
   if (TAIPEI_DISTRICTS.includes(district)) return "台北市";
   if (NEW_TAIPEI_DISTRICTS.includes(district)) return "新北市";
   return null;

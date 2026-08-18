@@ -1,9 +1,13 @@
 const APP_MODULE_BASE_URL = "/src/";
+const APP_MODULE_EXTENSIONS = Object.freeze({ districts: ".ts" });
 
 export function installAppModuleImporter(page) {
-  return page.addInitScript((baseUrl) => {
-    globalThis.__importAppModule = (name) => import(`${baseUrl}${name}.js`);
-  }, APP_MODULE_BASE_URL);
+  return page.addInitScript(
+    ({ baseUrl, extensions }) => {
+      globalThis.__importAppModule = (name) => import(`${baseUrl}${name}${extensions[name] ?? ".js"}`);
+    },
+    { baseUrl: APP_MODULE_BASE_URL, extensions: APP_MODULE_EXTENSIONS }
+  );
 }
 
 export function installAppTestHooks(page, hooks) {
