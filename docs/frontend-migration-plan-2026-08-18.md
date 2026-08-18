@@ -95,7 +95,13 @@
   獨立驗證為不可達差異、屬防禦性改良，裁定接受）。回報 `docs/migration-reports/batch-1c.md`。
   **殘項（rider，併入批 1d）**：transition() 的 release 分支會把 options 落到 expected 參數位
   （現行不可達的 latent API 陷阱），需加防呆＋最小測試。
-- 1d：重複判準收斂（undecidedCandidate ×3、full/joinable ×3、haversine ×2、時區處理 ×3）；dataApi 讀寫錯誤形狀統一。
+- 1d（**完成，2026-08-18**）：新增 `src/sessionCriteria.js`（候選/滿員/可加入/haversine 唯一定義）
+  與 `src/taipeiTime.js`（台北時間唯一實作）；重複鏡像全歸一（候選 10→1、full/joinable 4→1、
+  haversine 2→1、時區 3 套→1）；dataApi 18 處裸拋統一為 DataApiError（name/message/code/cause
+  全保留，read-back 逐 caller 消費點核實零可見差異）；1c rider 防呆完成。tests/ 零改動全綠。
+  驗收：雙 canary＋四 gate＋read-back（六筆差異全證不可達；controller Number(null)=0 滿員誤判
+  順勢修正）。回報 `docs/migration-reports/batch-1d.md`（含驗收方 tally 修正註記）。
+- **批 1 全部完成（B、0a、0b、1a-1d，2026-08-18）**——vanilla 收斂階段結束，下一站批 2。
 - 每小批獨立驗收 commit；contract 變動批跑完整 gate。
 
 ### 批 2：TS ＋ React 基建
@@ -143,3 +149,4 @@
 - 2026-08-18：批 1a（含 rider）驗收通過並 commit；批 1b 派工單已發。
 - 2026-08-18：批 1b 驗收通過並 commit（差異 A 裁定為 latent race 修復並接受）；批 1c 派工單已發。
 - 2026-08-18：批 1c 驗收通過並 commit（transition release 參數位陷阱轉 rider）；批 1d 派工單已發。
+- 2026-08-18：批 1d 驗收通過並 commit——**批 1 收官**；批 2（TS＋React 基建）派工單已發。
