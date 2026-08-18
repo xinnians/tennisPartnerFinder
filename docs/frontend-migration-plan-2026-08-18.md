@@ -88,7 +88,13 @@
   read-back 逐站點審查（issue/capture 配對 40+ 站點零配錯；唯一真實差異：participation 重疊競態
   的第二 guard 補上了舊版漏掉的 counter 檢查——裁定接受，屬本批目標內的 latent race 修復）。
   回報 `docs/migration-reports/batch-1b.md`。
-- 1c：surface registry（11 個 active-surface 把手＋11 支 closeActiveX 收斂為單一表＋宣告式關閉順序；setAuthState 關面邏輯改查表）。
+- 1c（**完成，2026-08-18**）：createSurfaceRegistry＋SURFACE_TRANSITIONS 宣告式轉場表；
+  11 支 closeActiveX、16 個 active 變數、36 條直接 null 清理全歸零；setAuthState 關面改查表。
+  tests/ 零改動全綠。驗收：轉場表 canary（移除一面→帳號切換測試紅）＋四 gate＋read-back
+  （39 個 close/release 呼叫點 1:1 對照零漏；decision/edit hand-off 多清 confirmingAuth 經
+  獨立驗證為不可達差異、屬防禦性改良，裁定接受）。回報 `docs/migration-reports/batch-1c.md`。
+  **殘項（rider，併入批 1d）**：transition() 的 release 分支會把 options 落到 expected 參數位
+  （現行不可達的 latent API 陷阱），需加防呆＋最小測試。
 - 1d：重複判準收斂（undecidedCandidate ×3、full/joinable ×3、haversine ×2、時區處理 ×3）；dataApi 讀寫錯誤形狀統一。
 - 每小批獨立驗收 commit；contract 變動批跑完整 gate。
 
@@ -136,3 +142,4 @@
   後續派工單改為明列此授權，避免默契依賴。
 - 2026-08-18：批 1a（含 rider）驗收通過並 commit；批 1b 派工單已發。
 - 2026-08-18：批 1b 驗收通過並 commit（差異 A 裁定為 latent race 修復並接受）；批 1c 派工單已發。
+- 2026-08-18：批 1c 驗收通過並 commit（transition release 參數位陷阱轉 rider）；批 1d 派工單已發。
