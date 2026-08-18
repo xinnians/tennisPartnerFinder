@@ -21,6 +21,9 @@ const messagesPageModules =
 const mountMessagesPage = messagesPageModules["./pages/MessagesPage.tsx"]?.mountMessagesPage;
 const mePageModules = typeof document === "undefined" ? {} : import.meta.glob("./pages/MePage.tsx", { eager: true });
 const mountMePage = mePageModules["./pages/MePage.tsx"]?.mountMePage;
+const mySessionsPageModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./pages/MySessionsPage.tsx", { eager: true });
+const mountMySessionsPage = mySessionsPageModules["./pages/MySessionsPage.tsx"]?.mountMySessionsPage;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -538,16 +541,25 @@ function isOngoingSession(session) {
 }
 
 // 時間磚:一般=HH:MM;未定案候選=小時範圍「18–22」(dc L845-846)
-function sessionTimeTileMarkup(session, venue, { detail = false, compact = false } = {}) {
+function sessionTimeTilePresentation(session, venue, { detail = false, compact = false } = {}) {
   const parts = taipeiParts(session?.startAt);
   const undecided = venue?.undecidedCandidates === true;
   const endParts = undecided && session?.rangeEnd ? taipeiParts(session.rangeEnd) : null;
   const start = undecided && endParts && parts ? `${parts.hour}–${endParts.hour}` : taipeiClock(session?.startAt);
   const ongoing = !undecided && isOngoingSession(session);
   const modifiers = `${detail ? " time-tile--detail" : ""}${compact ? " time-tile--compact" : ""}${ongoing ? " time-tile--ongoing" : ""}`;
-  return `<span class="time-tile${modifiers}"><span class="time-tile__start">${esc(start || "--:--")}</span><span class="time-tile__date">${esc(
-    taipeiTileDate(session?.startAt) || "待確認"
-  )}</span></span>`;
+  return {
+    className: `time-tile${modifiers}`,
+    date: taipeiTileDate(session?.startAt) || "待確認",
+    start: start || "--:--",
+  };
+}
+
+function sessionTimeTileMarkup(session, venue, options = {}) {
+  const presentation = sessionTimeTilePresentation(session, venue, options);
+  return `<span class="${presentation.className}"><span class="time-tile__start">${esc(
+    presentation.start
+  )}</span><span class="time-tile__date">${esc(presentation.date)}</span></span>`;
 }
 
 const VENUE_TYPE_LABELS = {
@@ -601,8 +613,8 @@ function nowStartSessionMarkup(session) {
 
 // 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄(標題列/meta/底列)。
 // 候選場次以標題後綴「等 N 館候選」+時段範圍表達(dc L845-846),不另掛 badge。
-// courtLabel/hostLabel 兩個 helper 批 D6 抽出——My Sessions 薄卡列
-// (mySessionBriefMarkup)沿用同一套候選局縮寫與主揪標籤慣例,避免兩處各自定義
+// courtLabel/hostLabel 兩個 helper 批 D6 抽出——My Sessions React 薄卡列
+// 沿用同一套候選局縮寫與主揪標籤慣例,避免兩處各自定義
 // 同一格式。
 function sessionCourtLabel(session, venue) {
   const candidateNames = venue.candidateNames ?? [];
@@ -653,135 +665,6 @@ function mySessionReason(session) {
   if (status === "cancelled") return "主揪已取消這一局";
   if (status === "expired") return "這一局已逾期結束";
   return "這一局已無可進行的動作";
-}
-
-function mySessionActionButton(session, { action, label, testId }) {
-  return `<button type="button" class="session-secondary" data-my-action="${esc(action)}" data-session-id="${esc(
-    session.sessionId
-  )}"${testId ? ` data-testid="${esc(testId)}"` : ""}>${esc(label)}</button>`;
-}
-
-// 批 C4-2:未讀數只改按鈕文案／aria-label,不動 canChat 這個既有結構化判斷點。
-// 0（或缺欄位）維持原本純文字「群組聊天」,不額外掛 aria-label——accessible name
-// 沿用文字內容,跟改動前完全一致。
-function mySessionChatButtonMarkup(session) {
-  const unreadCount = Math.max(0, Number(session.unreadMessageCount) || 0);
-  const label = unreadCount > 0 ? `群組聊天（${unreadCount}）` : "群組聊天";
-  const ariaLabel = unreadCount > 0 ? ` aria-label="${esc(`群組聊天，${unreadCount} 則未讀訊息`)}"` : "";
-  return `<button type="button" class="session-primary" data-open-chat data-session-id="${esc(
-    session.sessionId
-  )}" data-testid="open-chat-${esc(session.sessionId)}"${ariaLabel}>${esc(label)}</button>`;
-}
-
-// 批 D6:狀態章四型(dc §4 逐字)+本站延伸「受邀中」(dc 沒有邀請概念)。segment
-// 先判——「我主揪的」分頁全部卡片恆為「主揪」章(dc:「hosted tab 全部卡片恆為此
-// 章」),不論 kind。history 卡若不是 declined、也不是仍開放中的 accepted(即
-// cancelled/expired/played/withdrawn 落史),回傳空字串,不強套四型,交給既有
-// .my-history-reason 說明——見抽取規格 §5/§6 決策。
-function mySessionsCardChip(session, { segment, kind } = {}) {
-  if (segment === "hosted") return `<span class="my-status-chip my-status-chip--host">主揪</span>`;
-  if (kind === "invite") return `<span class="my-status-chip my-status-chip--info">受邀中</span>`;
-  if (kind === "guest-request") return `<span class="my-status-chip my-status-chip--info">待確認</span>`;
-  const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-  if (participantStatus === "declined") return `<span class="my-status-chip my-status-chip--danger">已婉拒</span>`;
-  if (participantStatus === "accepted" && ["open", "full"].includes(String(session?.status ?? "").toLowerCase())) {
-    return `<span class="my-status-chip my-status-chip--success">已確認</span>`;
-  }
-  return "";
-}
-
-// 薄卡列(dc §3 逐字):58px 時間磚+球場名(ellipsis)+meta「打法 · NTRP x–y ·
-// 主揪 nick n.n」+右側狀態章。四種卡片(host-request/invite/guest-request/
-// mySessionCard)共用此列當卡首,管理列各自保留在其下——對 dc「點卡開詳情」的
-// 刻意架構偏離(D6 派工單決策 4)。
-function mySessionBriefMarkup(session, { courts = [], segment = "joined", kind = null } = {}) {
-  const venue = sessionVenuePresentation(session, courts);
-  const courtLabel = sessionCourtLabel(session, venue);
-  const meta = `${session.playType} · ${ntrpRange(session)} · ${sessionHostLabel(session)}`;
-  return `<div class="my-session-brief">
-    ${sessionTimeTileMarkup(session, venue, { compact: true })}
-    <div class="my-session-brief__body">
-      <p class="my-session-brief__court">${esc(courtLabel)}</p>
-      <p class="my-session-brief__meta">${esc(meta)}</p>
-    </div>
-    ${mySessionsCardChip(session, { segment, kind })}
-  </div>`;
-}
-
-function mySessionCard(session, { courts = [], highlightSessionId = null, segment = "joined" } = {}) {
-  const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
-  const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
-  const actions = [
-    `<button type="button" class="session-secondary" data-open-my-session data-session-id="${esc(session.sessionId)}">查看球局</button>`,
-    canChat ? mySessionChatButtonMarkup(session) : "",
-    hostCanManage && isUndecidedCandidate(session)
-      ? mySessionActionButton(session, { action: "decide", label: "定案場地與時間" })
-      : "",
-    hostCanManage && ["booked", "walk_on"].includes(session.venueType)
-      ? mySessionActionButton(session, { action: "edit", label: "編輯球局" })
-      : "",
-    session.canCancel ? mySessionActionButton(session, { action: "cancel", label: "取消球局" }) : "",
-    session.canWithdraw ? mySessionActionButton(session, { action: "withdraw", label: "取消參加" }) : "",
-    session.canConfirmPlayed ? mySessionActionButton(session, { action: "played", label: "回報打成" }) : "",
-    session.canConfirmAttendance && !session.viewerPlayedConfirmed
-      ? mySessionActionButton(session, { action: "attendance", label: "確認到場" })
-      : "",
-    `<button type="button" class="session-tertiary" data-my-action="report-session" data-session-id="${esc(
-      session.sessionId
-    )}" data-testid="report-session-${esc(session.sessionId)}">檢舉此球局</button>`,
-  ]
-    .filter(Boolean)
-    .join("");
-  return `<article class="my-session-card"${String(session.sessionId) === String(highlightSessionId) ? ' data-created-session="true"' : ""}>
-    ${mySessionBriefMarkup(session, { courts, segment })}
-    <div class="my-session-card__actions">${actions}</div>
-  </article>`;
-}
-
-function hostRequestCard({ participant, session }, courts = []) {
-  return `<article class="my-action-card" data-testid="participant-row" data-participant-id="${esc(participant.participantId)}">
-    <p class="my-action-card__eyebrow">新申請</p>
-    ${mySessionBriefMarkup(session, { courts, kind: "host-request", segment: "hosted" })}
-    <h3>${esc(participant.nickname)} · ${esc(formatNtrp(participant.ntrp))}</h3>
-    <p>${esc((participant.playTypes ?? []).join("、") || "尚未填寫打法")} · ${esc((participant.homeCourts ?? []).join("、") || "尚未填寫常打球場")}</p>
-    <div class="my-session-card__actions">
-      <button type="button" class="session-primary" data-my-action="accept" data-session-id="${esc(session.sessionId)}" data-participant-id="${esc(
-        participant.participantId
-      )}" data-testid="accept-participant-${esc(participant.participantId)}">接受</button>
-      <button type="button" class="session-secondary" data-my-action="decline" data-session-id="${esc(session.sessionId)}" data-participant-id="${esc(
-        participant.participantId
-      )}" data-testid="decline-participant-${esc(participant.participantId)}">婉拒</button>
-      <button type="button" class="session-tertiary" data-my-action="report-participant" data-session-id="${esc(session.sessionId)}" data-profile-id="${esc(
-        participant.profileId
-      )}" data-testid="report-participant-${esc(participant.profileId)}">檢舉這位申請者</button>
-    </div>
-  </article>`;
-}
-
-function inviteCard({ session }, courts = []) {
-  return `<article class="my-action-card" data-testid="invite-row" data-session-id="${esc(session.sessionId)}">
-    <p class="my-action-card__eyebrow">邀請你加入</p>
-    ${mySessionBriefMarkup(session, { courts, kind: "invite", segment: "joined" })}
-    <p>${esc(vacancyLabel(session))}${session.notes ? ` · ${esc(session.notes)}` : ""}</p>
-    <div class="my-session-card__actions">
-      <button type="button" class="session-primary" data-my-action="accept-invite" data-session-id="${esc(session.sessionId)}" data-testid="accept-invite-${esc(session.sessionId)}">接受邀請</button>
-      <button type="button" class="session-secondary" data-my-action="decline-invite" data-session-id="${esc(session.sessionId)}" data-testid="decline-invite-${esc(session.sessionId)}">婉拒</button>
-      <button type="button" class="session-tertiary" data-my-action="report-session" data-session-id="${esc(session.sessionId)}">檢舉此球局</button>
-    </div>
-  </article>`;
-}
-
-function guestRequestCard({ session }, courts = [], { highlightSessionId = null } = {}) {
-  // 批 C3-3:一個剛加入的 session 若還在等主揪審核(approval/NTRP 缺/範圍外三種
-  // outcome),不會落在 upcoming,而是落在這裡——聚焦骨架必須也覆蓋這張卡,否則
-  // CTA「查看我的球局」對這三種 outcome 會讓焦點掉回 body(mySessionCard 的
-  // 聚焦骨架只查 upcoming,見 renderMySessionsPage 尾端)。
-  return `<article class="my-action-card" data-guest-request-session="${esc(session.sessionId)}"${String(session.sessionId) === String(highlightSessionId) ? ' data-created-session="true"' : ""}>
-    <p class="my-action-card__eyebrow">等待主揪回覆</p>
-    ${mySessionBriefMarkup(session, { courts, kind: "guest-request", segment: "joined" })}
-    <p>你的申請已送出，主揪回覆前可自行撤回。</p>
-    <div class="my-session-card__actions">${mySessionActionButton(session, { action: "withdraw", label: "撤回申請" })}</div>
-  </article>`;
 }
 
 function actionDescriptor(button) {
@@ -1032,13 +915,21 @@ function notificationPushHint({ pushStatus, webPushConfigured }) {
 
 const IOS_PUSH_INSTALL_HINT = "若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。";
 
-function successPushPromptMarkup(settings, { message, testId }) {
+function successPushPromptPresentation(settings, { message, testId }) {
   const notification = normalizedNotificationSettings(settings);
-  if (!notification.webPushConfigured || ["enabled", "unsupported"].includes(notification.pushStatus)) return "";
+  if (!notification.webPushConfigured || ["enabled", "unsupported"].includes(notification.pushStatus)) return null;
+  return { iosHint: IOS_PUSH_INSTALL_HINT, message, testId };
+}
+
+function successPushPromptMarkup(settings, options) {
+  const presentation = successPushPromptPresentation(settings, options);
+  if (!presentation) return "";
   return `<section class="success-push-prompt" data-success-push-prompt>
-    <p>${esc(message)}</p>
-    <button type="button" class="session-secondary" data-success-enable-push data-testid="${esc(testId)}">開啟推播</button>
-    <p class="form-hint">${esc(IOS_PUSH_INSTALL_HINT)}</p>
+    <p>${esc(presentation.message)}</p>
+    <button type="button" class="session-secondary" data-success-enable-push data-testid="${esc(
+      presentation.testId
+    )}">開啟推播</button>
+    <p class="form-hint">${esc(presentation.iosHint)}</p>
     <p class="form-error" data-success-push-error role="alert" tabindex="-1" hidden></p>
   </section>`;
 }
@@ -1293,109 +1184,29 @@ function resolveMySessionsSegment(root, groups, focusSessionId) {
   return state.segment;
 }
 
-// segmented 控件(dc §2 逐字):我報名的／我主揪的+mono 計數。計數只算該分頁
-// 非歷史卡(needsAction+upcoming)——dc 原型沒有歷史概念,這是抽取規格 §2 的映射
-// 延伸。
-function mySessionsSegmentedMarkup({ activeSegment, hostedCount, joinedCount }) {
-  const joinedActive = activeSegment !== "hosted";
-  return `<div class="my-sessions-v2__segmented" role="group" aria-label="我的球局分頁">
-    <button type="button" class="my-sessions-v2__seg-btn${joinedActive ? " is-active" : ""}" data-my-sessions-seg="joined" data-testid="my-sessions-seg-joined" aria-pressed="${joinedActive}">我報名的 <span class="my-sessions-v2__seg-count">${esc(joinedCount)}</span></button>
-    <button type="button" class="my-sessions-v2__seg-btn${joinedActive ? "" : " is-active"}" data-my-sessions-seg="hosted" data-testid="my-sessions-seg-hosted" aria-pressed="${!joinedActive}">我主揪的 <span class="my-sessions-v2__seg-count">${esc(hostedCount)}</span></button>
-  </div>`;
-}
+/** Single-source presentation/state helpers consumed by the React My Sessions page. */
+export const mySessionsPageRuntime = Object.freeze({
+  mySessionReason,
+  mySessionsSplitBySegment,
+  normalizedNotificationSettings,
+  ntrpRange,
+  resolveMySessionsSegment,
+  runMySessionAction,
+  sessionCourtLabel,
+  sessionHostLabel,
+  sessionTimeTilePresentation,
+  sessionVenuePresentation,
+  successPushPromptPresentation,
+  vacancyLabel,
+});
 
-// 空狀態(dc §5 逐字):只在呼叫端判定該分頁非歷史卡為 0 時插入,不取代既有
-// #my-needs-action/#my-upcoming-sessions 各自的「目前沒有…」提示——那兩個容器
-// id 是既有測試依賴的錨點,任何分頁都必須存在,見 D6 派工單決策 3。
-function mySessionsEmptyStateMarkup(segment) {
-  const hosted = segment === "hosted";
-  const text = hosted ? "還沒主揪過球局。開一場，讓球友來找你。" : "還沒報名任何球局。到地圖上找一場程度相近的吧。";
-  const actionLabel = hosted ? "開球局" : "去逛地圖";
-  const actionAttr = hosted ? "data-my-sessions-empty-create" : "data-my-sessions-empty-map";
-  return `<div class="my-sessions-v2__empty" data-my-sessions-empty>
-    <p class="my-sessions-v2__empty-text">${esc(text)}</p>
-    <button type="button" class="session-primary my-sessions-v2__empty-btn" ${actionAttr}>${esc(actionLabel)}</button>
-  </div>`;
-}
-
-// fix round 1(驗收退回):showChrome=false 時(該分頁非歷史卡=0、v2 空狀態框
-// 即將顯示)不渲染標題列與「目前沒有…」佔位段落,只留空的 #my-needs-action 容器
-// ——否則空狀態框上方會疊出「目前沒有需要立即處理的事項。」等三段舊佔位文字,
-// 跟 dc 空分頁只見一個 dashed 框的意圖衝突。容器 id 保留是既有測試與 focus 邏輯
-// 的錨點,不可省略。showChrome=true(分頁至少有一張非歷史卡,即「部分空」)時
-// 語意完全不變。
-function mySessionsNeedsActionSection(entries, { courts, focusSessionId, showChrome = true }) {
-  if (!showChrome) return `<div id="my-needs-action" class="my-sessions-list"></div>`;
-  return `<section class="my-sessions-section" aria-labelledby="my-needs-action-title">
-      <div class="my-sessions-section__head"><h2 id="my-needs-action-title">需要你處理</h2><span>${esc(entries.length)} 項</span></div>
-      <div id="my-needs-action" class="my-sessions-list">${
-        entries.length
-          ? entries
-              .map((entry) =>
-                entry.kind === "host-request"
-                  ? hostRequestCard(entry, courts)
-                  : entry.kind === "invite"
-                    ? inviteCard(entry, courts)
-                    : guestRequestCard(entry, courts, { highlightSessionId: focusSessionId })
-              )
-              .join("")
-          : '<p class="surface__copy">目前沒有需要立即處理的事項。</p>'
-      }</div>
-    </section>`;
-}
-
-function mySessionsUpcomingSection(sessions, { courts, focusSessionId, segment, showChrome = true }) {
-  if (!showChrome) return `<div id="my-upcoming-sessions" class="my-sessions-list"></div>`;
-  return `<section class="my-sessions-section" aria-labelledby="my-upcoming-sessions-title">
-      <div class="my-sessions-section__head"><h2 id="my-upcoming-sessions-title">即將打球</h2><span>${esc(sessions.length)} 場</span></div>
-      <div id="my-upcoming-sessions" class="my-sessions-list">${
-        sessions.length
-          ? sessions.map((session) => mySessionCard(session, { courts, highlightSessionId: focusSessionId, segment })).join("")
-          : '<p class="surface__copy">目前沒有即將打球的球局。</p>'
-      }</div>
-    </section>`;
-}
-
-// 歷史區塊獨立判斷:該分頁 history 一有卡就「照常顯示」(即使 needsAction/
-// upcoming 都空、上方正掛著空狀態框),只有 history 本身也是空的且 showChrome
-// 為 false 時才收成空容器——這是跟另外兩段刻意不同的地方,不能套同一條件。
-function mySessionsHistorySection(sessions, { courts, focusSessionId, segment, showChrome = true }) {
-  if (!sessions.length && !showChrome) return `<div id="my-history" class="my-sessions-list"></div>`;
-  return `<section class="my-sessions-section" aria-labelledby="my-history-title">
-      <div class="my-sessions-section__head"><h2 id="my-history-title">過去紀錄</h2><span>${esc(sessions.length)} 場</span></div>
-      <div id="my-history" class="my-sessions-list">${
-        sessions.length
-          ? sessions
-              .map(
-                (session) =>
-                  `${mySessionCard(session, { courts, highlightSessionId: focusSessionId, segment })}<p class="my-history-reason">${esc(
-                    mySessionReason(session)
-                  )}</p>`
-              )
-              .join("")
-          : '<p class="surface__copy">尚無過去紀錄。</p>'
-      }</div>
-    </section>`;
-}
-
-/** Render the private, action-first My Sessions destination. */
-export function renderMySessionsPage(root, options = {}) {
-  mySessionsRenderOptions.set(root, options);
+function wireMySessionsPage(root, options = {}) {
   const {
-    courts = [],
-    createdSessionId = null,
-    // 批 C3-3:createdSessionId 泛化拆參。createdSessionId 只驅動 create 專屬的
-    // 「球局已建立」文案與推播 prompt(reason==="created" 時才傳);highlightSessionId
-    // 純做卡片聚焦比對,create/join 兩種 reason 都可以傳,語意中性。未傳
-    // highlightSessionId 時 fallback 回 createdSessionId,向後相容既有呼叫端。
-    highlightSessionId = null,
-    groups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     onAccept = () => {},
     onAcceptInvite = () => {},
     onBack = () => {},
     onCancel = () => {},
     onConfirmAttendance = () => {},
-    onCreatedSessionFocus = () => true,
     onCreateSession = () => {},
     onDecline = () => {},
     onDeclineInvite = () => {},
@@ -1410,58 +1221,7 @@ export function renderMySessionsPage(root, options = {}) {
     onReportSession = () => {},
     onSignIn = () => {},
     onWithdraw = () => {},
-    authenticated = false,
-    actionScopeKey = null,
-    status = "idle",
-    errorMessage = "",
-    notificationSettings = {},
   } = options;
-  const needsAction = Array.isArray(groups.needsAction) ? groups.needsAction : [];
-  const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
-  const notification = normalizedNotificationSettings(notificationSettings);
-  const focusSessionId = highlightSessionId ?? createdSessionId;
-  const activeSegment = resolveMySessionsSegment(root, groups, focusSessionId);
-  const split = mySessionsSplitBySegment(groups);
-  const joinedCount = split.joined.needsAction.length + split.joined.upcoming.length;
-  const hostedCount = split.hosted.needsAction.length + split.hosted.upcoming.length;
-  const active = activeSegment === "hosted" ? split.hosted : split.joined;
-  const activeNonHistoryCount = active.needsAction.length + active.upcoming.length;
-  // fix round 1(驗收退回):v2 空狀態框跟三段舊佔位文字疊在一起——showEmptyState
-  // 同時控制「要不要畫空狀態框」與「要不要抑制 needsAction/upcoming/history 的
-  // 標題列+佔位段落」,兩者是同一個判斷,不能分開算。
-  const showEmptyState = authenticated && activeNonHistoryCount === 0;
-  setMySessionActionScope(root, actionScopeKey);
-  root.innerHTML = `
-    <div class="my-sessions-v2__head">
-      <p class="my-sessions-v2__eyebrow">MY MATCHES</p>
-      <div class="my-sessions-v2__head-row">
-        <h1 tabindex="-1" data-my-sessions-heading class="my-sessions-v2__title">我的球局</h1>
-        <div class="my-sessions-v2__tools"><button type="button" id="my-sessions-refresh" class="session-secondary my-sessions-v2__tool-btn">重新整理</button><button type="button" class="session-secondary my-sessions-v2__tool-btn" data-my-sessions-back>回到地圖</button></div>
-      </div>
-      ${mySessionsSegmentedMarkup({ activeSegment, hostedCount, joinedCount })}
-    </div>
-    <p class="surface__copy">${
-      createdSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"
-    }</p>
-    ${
-      createdSessionId
-        ? successPushPromptMarkup(notification, {
-            message: "開啟推播，才不會錯過球友的新申請與球局變更。",
-            testId: "created-session-enable-push",
-          })
-        : ""
-    }
-    <p class="my-sessions-message" data-my-sessions-status role="status" aria-live="polite"${status === "loading" ? "" : " hidden"}>正在更新我的球局…</p>
-    <p class="form-error" data-my-sessions-error role="alert" tabindex="-1"${errorMessage ? "" : " hidden"}>${esc(errorMessage)}</p>
-    ${
-      authenticated
-        ? ""
-        : '<section class="my-sessions-empty" aria-label="登入後查看我的球局"><h2>登入後查看與管理你的球局</h2><p class="surface__copy">你可以在這裡處理申請、進入球局群組聊天，以及保留過去紀錄。</p><button type="button" class="session-primary" data-my-sessions-sign-in>登入</button></section>'
-    }
-    ${mySessionsNeedsActionSection(active.needsAction, { courts, focusSessionId, showChrome: !showEmptyState })}
-    ${mySessionsUpcomingSection(active.upcoming, { courts, focusSessionId, segment: activeSegment, showChrome: !showEmptyState })}
-    ${showEmptyState ? mySessionsEmptyStateMarkup(activeSegment) : ""}
-    ${mySessionsHistorySection(active.history, { courts, focusSessionId, segment: activeSegment, showChrome: !showEmptyState })}`;
 
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
@@ -1507,11 +1267,22 @@ export function renderMySessionsPage(root, options = {}) {
       runMySessionAction(button, callbacks[button.dataset.myAction], root);
     });
   });
-  syncPendingMySessionActions(root);
+}
+
+function scheduleMySessionsCreatedFocus(root, options = {}) {
+  const {
+    createdSessionId = null,
+    groups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
+    highlightSessionId = null,
+    onCreatedSessionFocus = () => true,
+  } = options;
+  const needsAction = Array.isArray(groups.needsAction) ? groups.needsAction : [];
+  const upcoming = Array.isArray(groups.upcoming) ? groups.upcoming : [];
+  const focusSessionId = highlightSessionId ?? createdSessionId;
   // 批 C3-3:聚焦目標可能落在兩個互斥的清單之一——accepted(instant 加入／host
-  // 自己)在 upcoming,走 mySessionCard 的「查看球局」鈕;仍在等主揪審核的三種
+  // 自己)在 upcoming,走 SessionCard 的「查看球局」鈕;仍在等主揪審核的三種
   // outcome(approval／NTRP 缺／範圍外)在 needsAction 的 guest-request,走
-  // guestRequestCard 的「撤回申請」鈕(卡片內唯一可聚焦元素)。同一個 sessionId
+  // GuestRequestCard 的「撤回申請」鈕(卡片內唯一可聚焦元素)。同一個 sessionId
   // 只會出現在其中一個群組,兩個 selector 用逗號並列,只有比對得上的那張卡會真的
   // 帶有 data-created-session。批 D6:這裡查的 needsAction/upcoming 是未過濾的
   // 完整 groups(不是 active.*)——resolveMySessionsSegment 已保證聚焦目標所在的
@@ -1529,6 +1300,17 @@ export function renderMySessionsPage(root, options = {}) {
       target.focus({ preventScroll: true });
     });
   }
+}
+
+/** Mount or update the private, action-first My Sessions destination. */
+export function renderMySessionsPage(root, options = {}) {
+  if (!mountMySessionsPage) throw new Error("MySessionsPage browser mount is unavailable.");
+  mySessionsRenderOptions.set(root, options);
+  setMySessionActionScope(root, options.actionScopeKey ?? null);
+  mountMySessionsPage(root, options);
+  wireMySessionsPage(root, options);
+  syncPendingMySessionActions(root);
+  scheduleMySessionsCreatedFocus(root, options);
 }
 
 function wireSessionCards(root, onOpenSession) {

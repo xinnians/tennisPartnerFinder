@@ -29,8 +29,15 @@ export interface SessionSummary {
 
 /** Authenticated session row used by My Sessions and the messages destination. */
 export interface MySessionSummary extends Omit<SessionSummary, "candidateCourtIds"> {
+  canCancel: boolean;
+  canConfirmAttendance: boolean;
+  canConfirmPlayed: boolean;
+  canRespondInvite: boolean;
+  canWithdraw: boolean;
+  updatedAt: string;
   viewerRole: string;
   viewerParticipantStatus: string;
+  viewerPlayedConfirmed: boolean;
   unreadMessageCount: number;
 }
 
