@@ -142,6 +142,14 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   **rider（併入批 4）**：(a) MySessionSummary 繼承的 candidateCourtIds 對 mapMySession 過度
   承諾——改 Omit 或補欄位；(b) messagesFromGroups 在 sessionViews 的 exported 版已是死副本
   （UI 用 TSX private 版、unit test 測死副本）——收斂為單一來源並把測試指向活版。
+- 批 7（**完成，2026-08-18**）：建局／編輯表單 → `src/sheets/CreateSessionSheet.tsx`＋
+  `EditSessionSheet.tsx`。sync() 手寫 reconciliation 退役（19 條對映表，read-back 抽驗 14 條
+  無漏）；自由文字欄位 uncontrolled（defaultValue＋ref、submit 讀值），IME 安全經結構驗證＋
+  驗收方實測（composition 事件＋實際打字，節點/焦點/值/selection 全保留）；五個凍結純函式
+  byte-identical；keyed detach 落實（form/done 常駐 sibling 切 hidden、語意鈕不重用）。
+  視覺比對升級為幾何指紋數值比對（六元素逐 pixel 相同）。sessionViews 淨 -424 行。
+  rider（併批 8）：updateCourtSelect/selectedCourtValues 已零 caller 的 dead code 清除。
+  回報 `docs/migration-reports/batch-7.md`（含驗收方八欄誤數修正）。
 - 批 6（**完成，2026-08-18**）：詳情 sheet → `src/sheets/SessionDetailSheet.tsx`（第一個 sheet 批，
   模式入規則檔）。殼/內容分界：mountSheet 保有 surface 殼全責，React 只掛 .session-detail 內容槽，
   [data-surface-close] 由 adapter 補線（等價性 read-back 逐位驗證）。五態 actions 用
@@ -213,3 +221,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
 - 2026-08-18：批 6 驗收通過並 commit（sheet 批模式入規則檔；keyed detach 防 stale listener
   教訓入檔）；批 7（建局／編輯表單）派工單已發。備忘：批 8 之後仍有 chat／filter／decide／
   profile／report／player 系列 sheet 未遷，屆時以批 8.x 逐一列批。
+- 2026-08-18：批 7 驗收通過並 commit（IME 實測＋幾何指紋比對入流程；dead code rider 轉批 8）；
+  批 8（探索與附近球局抽屜）派工單已發。
