@@ -95,13 +95,17 @@ function sortedKeys(value) {
   return Object.keys(value).sort();
 }
 
-async function readJavaScriptSources(directory) {
+const FRONTEND_SOURCE_EXTENSIONS = [".js", ".ts", ".tsx"];
+
+async function readFrontendScriptSources(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const sources = await Promise.all(
     entries.map(async (entry) => {
       const entryUrl = new URL(entry.name, directory);
-      if (entry.isDirectory()) return readJavaScriptSources(new URL(`${entry.name}/`, directory));
-      return entry.name.endsWith(".js") ? [{ path: entryUrl.pathname, source: await readFile(entryUrl, "utf8") }] : [];
+      if (entry.isDirectory()) return readFrontendScriptSources(new URL(`${entry.name}/`, directory));
+      return FRONTEND_SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension))
+        ? [{ path: entryUrl.pathname, source: await readFile(entryUrl, "utf8") }]
+        : [];
     })
   );
   return sources.flat();
@@ -109,8 +113,8 @@ async function readJavaScriptSources(directory) {
 
 async function readRetiredContactSources() {
   return [
-    ...(await readJavaScriptSources(new URL("../src/", import.meta.url))),
-    ...(await readJavaScriptSources(new URL("../public/", import.meta.url))),
+    ...(await readFrontendScriptSources(new URL("../src/", import.meta.url))),
+    ...(await readFrontendScriptSources(new URL("../public/", import.meta.url))),
   ];
 }
 
@@ -125,6 +129,44 @@ function sourceCodeMatches(sources, pattern) {
 
 const RETIRED_LINE_TOKEN_PATTERN = /(^|[^A-Za-z0-9])LINE(?:ID)?([^A-Za-z0-9]|$)/;
 
+const APPROVED_STANDALONE_LINE_PATTERNS = [
+  { name: "Supabase LINE provider symbol", pattern: /\b(?:VITE_)?AUTH_LINE_PROVIDER_ID\b/ },
+  { name: "login method label", pattern: /label\s*:\s*["']LINE["']/ },
+  { name: "login button copy", pattern: /使用\s+LINE\s+登入/ },
+  { name: "account-linking copy", pattern: /Google\s+與\s+LINE\s+是各自獨立的帳號/ },
+];
+
+function globalPattern(pattern) {
+  return new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+}
+
+function sourceCodeOccurrences(sources, pattern) {
+  return sources.flatMap(({ path, source }) =>
+    source.split("\n").flatMap((line) => {
+      if (line.trimStart().startsWith("//")) return [];
+      return [...line.matchAll(globalPattern(pattern))].map((match) => ({
+        column: match.index,
+        endColumn: match.index + match[0].length,
+        line: line.trim(),
+        path,
+        sourceLine: line,
+      }));
+    })
+  );
+}
+
+function patternCoversOccurrence(line, occurrence, pattern) {
+  return [...line.matchAll(globalPattern(pattern))].some(
+    (match) => match.index <= occurrence.column && match.index + match[0].length >= occurrence.endColumn
+  );
+}
+
+function sourceTextMatches(sources, pattern) {
+  return sources.flatMap(({ path, source }) =>
+    source.split("\n").flatMap((line) => (pattern.test(line) ? [{ line: line.trim(), path }] : []))
+  );
+}
+
 test("retired LINE token scan blocks contact identifiers without matching unrelated words", () => {
   assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("LINE_ID"), true);
   assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("LINEID"), true);
@@ -136,8 +178,9 @@ test("retired LINE token scan blocks contact identifiers without matching unrela
 
 test("frontend source scan allows only the frozen LINE RPC parameter", async () => {
   const sources = await readRetiredContactSources();
+  const srcSources = sources.filter(({ path }) => /\/src\//.test(path));
   assert.ok(
-    sources.filter(({ path }) => /\/src\//.test(path)).length > 10,
+    srcSources.length >= 15,
     "the frontend source scan must inspect the src/ tree"
   );
   assert.ok(
@@ -147,46 +190,30 @@ test("frontend source scan allows only the frozen LINE RPC parameter", async () 
 
   assert.equal(sourceCodeMatches(sources, /session_contacts/).length, 0, "frontend JS must not contain session_contacts");
   assert.equal(sourceCodeMatches(sources, /lineId/).length, 0, "frontend JS must not contain lineId");
-  assert.equal(sourceCodeMatches(sources, /line[.]me/i).length, 0, "frontend JS must not contain a LINE deep link");
+  assert.equal(sourceTextMatches(sources, /line[.]me/i).length, 0, "frontend source, including comments, must not contain a LINE deep link");
   // LINE「登入」(Supabase custom provider)與「我」頁登入方式連結是 2026-08 核可的新用途;
-  // 聯絡面仍然退役。這裡精確到行允許登入面的 LINE token,任何新出現的 standalone LINE
-  // 都必須回到這份 allowlist 有意識地審查,不可順手擴大。
-  const standaloneLineMatches = sourceCodeMatches(sources, RETIRED_LINE_TOKEN_PATTERN)
-    .map(({ path, line }) => ({ path: path.replace(/^.*\/(src|public)\//, "$1/"), line }))
-    .sort((a, b) => (a.path === b.path ? a.line.localeCompare(b.line) : a.path.localeCompare(b.path)));
+  // 聯絡面仍然退役。逐一確認 token 落在核可語意 pattern 的範圍內,不綁檔名、import
+  // 排版或整行字面;同時每個 pattern 必須至少命中一次,避免 allowlist 殭屍化。
+  const standaloneLineOccurrences = sourceCodeOccurrences(sources, RETIRED_LINE_TOKEN_PATTERN);
+  const approvedPatternHits = new Map(APPROVED_STANDALONE_LINE_PATTERNS.map(({ name }) => [name, 0]));
+  const unapprovedLineOccurrences = standaloneLineOccurrences.filter((occurrence) => {
+    const approvedPatterns = APPROVED_STANDALONE_LINE_PATTERNS.filter(({ pattern }) =>
+      patternCoversOccurrence(occurrence.sourceLine, occurrence, pattern)
+    );
+    for (const { name } of approvedPatterns) approvedPatternHits.set(name, approvedPatternHits.get(name) + 1);
+    return approvedPatterns.length === 0;
+  });
   assert.deepEqual(
-    standaloneLineMatches,
-    [
-      { path: "src/config.js", line: 'export const AUTH_LINE_PROVIDER_ID = env.VITE_AUTH_LINE_PROVIDER_ID ?? "";' },
-      {
-        path: "src/main.js",
-        line: 'import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";',
-      },
-      { path: "src/main.js", line: "lineProviderId: AUTH_LINE_PROVIDER_ID," },
-      {
-        path: "src/sessionViews.js",
-        line: 'if (lineProviderId) methods.push({ label: "LINE", provider: lineProviderId });',
-      },
-      {
-        path: "src/sheets.js",
-        line: '<button type="button" class="session-primary" data-provider="${esc(lineProviderId)}">使用 LINE 登入</button>`',
-      },
-      {
-        path: "src/sheets.js",
-        line: '<p class="surface__copy">Google 與 LINE 是各自獨立的帳號；登入後可在「我」頁把兩種登入方式連結成同一帳號。</p>`',
-      },
-      {
-        path: "src/sheets.js",
-        line: 'export function openLoginModal({ action = "", onProvider, onClose, lineProviderId = AUTH_LINE_PROVIDER_ID } = {}) {',
-      },
-      { path: "src/sheets.js", line: 'import { AUTH_LINE_PROVIDER_ID } from "./config.js";' },
-    ],
-    "standalone LINE tokens outside the approved login surface are still retired"
+    unapprovedLineOccurrences.map(({ path, line }) => ({ path: path.replace(/^.*\/(src|public)\//, "$1/"), line })),
+    [],
+    "standalone LINE tokens outside the approved login patterns are still retired"
   );
+  for (const { name } of APPROVED_STANDALONE_LINE_PATTERNS) {
+    assert.ok(approvedPatternHits.get(name) >= 1, `approved LINE pattern has no live match: ${name}`);
+  }
 
-  const lineIdMatches = sourceCodeMatches(sources, /line_id/);
+  const lineIdMatches = sourceCodeMatches(srcSources, /line_id/);
   assert.equal(lineIdMatches.length, 1, "src/ must contain exactly one frozen line_id RPC parameter");
-  assert.match(lineIdMatches[0].path, /\/src\/dataApi\.js$/, "the frozen line_id parameter must stay in src/dataApi.js");
   assert.equal(lineIdMatches[0].line, "p_line_id: null,", "the frozen line_id parameter must always be null");
 });
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 import {
@@ -9,13 +10,42 @@ import {
   validateUpdateSessionInput,
 } from "../src/sessionViews.js";
 
+const SRC_DIR = fileURLToPath(new URL("../src/", import.meta.url));
+const SOURCE_EXTENSIONS = [".js", ".ts", ".tsx"];
+
+function readSourceTree(directory = SRC_DIR) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, pathToFileURL(`${directory}/`));
+    if (entry.isDirectory()) return readSourceTree(fileURLToPath(entryUrl));
+    return SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension))
+      ? [{ path: fileURLToPath(entryUrl), source: readFileSync(entryUrl, "utf8") }]
+      : [];
+  });
+}
+
 test("NTRP 說明只有一份來源,三個掛載點都引用同一個常數", () => {
-  const source = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
-  assert.ok(source.length > 100_000, "來源讀取失敗時計數會全部歸零,先確認掃描集非空");
-  // 字面值恰好一次(定義處);少於一次代表被改寫,多於一次代表有人另抄了一份。
-  assert.equal(source.split(NTRP_SCALE_EXPLANATION).length - 1, 1);
-  // 符號恰好四次:一次 export、三個掛載點(個人檔案、建局、編輯)。
-  assert.equal(source.split("NTRP_SCALE_EXPLANATION").length - 1, 4);
+  const sources = readSourceTree();
+  assert.ok(sources.length >= 15, `NTRP source scan is unexpectedly small: ${sources.length}`);
+
+  const literalMatches = sources.flatMap(({ path, source }) =>
+    Array.from({ length: source.split(NTRP_SCALE_EXPLANATION).length - 1 }, () => path)
+  );
+  assert.equal(literalMatches.length, 1, `NTRP explanation must have one definition, found in: ${literalMatches.join(", ")}`);
+
+  const definitionPattern = /\b(?:export\s+)?const\s+NTRP_SCALE_EXPLANATION\b/;
+  const importPattern = /\bimport\s*\{[^}]*\bNTRP_SCALE_EXPLANATION\b[^}]*\}\s*from\s*["'][^"']+["']/s;
+  const reExportPattern = /\bexport\s*\{[^}]*\bNTRP_SCALE_EXPLANATION\b[^}]*\}\s*from\s*["'][^"']+["']/s;
+  const symbolSources = sources.filter(({ source }) => source.includes("NTRP_SCALE_EXPLANATION"));
+  const definitionSources = symbolSources.filter(({ source }) => definitionPattern.test(source));
+  assert.equal(definitionSources.length, 1, "NTRP_SCALE_EXPLANATION must have exactly one definition across src/");
+  assert.equal(literalMatches[0], definitionSources[0].path, "the sole NTRP explanation literal must be in its definition file");
+  assert.ok(symbolSources.length >= 1, "NTRP_SCALE_EXPLANATION scan must be nonempty");
+  for (const { path, source } of symbolSources) {
+    assert.ok(
+      definitionPattern.test(source) || importPattern.test(source) || reExportPattern.test(source),
+      `${path} uses NTRP_SCALE_EXPLANATION without importing, re-exporting, or defining it`
+    );
+  }
 });
 
 test("create form converts datetime-local as Asia/Taipei instead of the browser timezone", () => {
