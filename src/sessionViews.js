@@ -1273,34 +1273,122 @@ function focusMySessionActionResult(root, descriptor, { failed = false } = {}) {
   root.querySelector("#my-sessions-refresh")?.focus({ preventScroll: true });
 }
 
+/**
+ * Run one DOM-backed async action without letting a stale pre-render control
+ * overwrite the authoritative disabled state produced by a callback render.
+ * Callers keep only their action-specific success, error, and focus policy.
+ */
+async function runAsyncAction({
+  root,
+  callback,
+  controls = [],
+  watchNodes = [],
+  error = null,
+  clearError = true,
+  clearErrorText = false,
+  errorMessage = "操作暫時無法完成，請稍後再試。",
+  errorFocus = false,
+  errorResult,
+  current = () => true,
+  onSuccess,
+  onSuccessAfterRerender = false,
+  onError,
+  onErrorAfterRerender = false,
+  onFinally,
+  onFinallyAfterRerender = false,
+  canRestoreControls = () => true,
+  resolveControls,
+  restoreAfterRerender = false,
+  focus,
+}) {
+  const unlockedControls = controls.filter((control) => control && !control.disabled);
+  const watchedNodes = [...new Set([...unlockedControls, ...watchNodes.filter(Boolean)])];
+  const active = document.activeElement;
+  const belongsToRoot = (node) => root.contains(node);
+  const focusIntent =
+    focus?.capture && active instanceof HTMLElement && belongsToRoot(active) ? focus.capture(active) : null;
+  const rerendered = () => watchedNodes.some((node) => !belongsToRoot(node));
+
+  unlockedControls.forEach((control) => {
+    control.disabled = true;
+  });
+  if (clearError && error) {
+    error.hidden = true;
+    if (clearErrorText) error.textContent = "";
+  }
+
+  let result;
+  let cause;
+  let completed = false;
+  try {
+    result = await callback();
+    const context = { cause, completed, error, result, rerendered: rerendered(), controlsRestored: false };
+    if (current() && (!context.rerendered || onSuccessAfterRerender)) await onSuccess?.(result, context);
+    completed = true;
+    return result;
+  } catch (actionError) {
+    cause = actionError;
+    const context = { cause, completed, error, result, rerendered: rerendered(), controlsRestored: false };
+    if (current() && (!context.rerendered || onErrorAfterRerender)) {
+      if (onError) {
+        await onError(actionError, context);
+      } else if (error) {
+        error.textContent = actionError?.message || errorMessage;
+        error.hidden = false;
+        if (errorFocus) error.focus({ preventScroll: true });
+      }
+    }
+    return typeof errorResult === "function" ? errorResult(actionError) : errorResult;
+  } finally {
+    const isCurrent = current();
+    const context = { cause, completed, error, result, rerendered: rerendered(), controlsRestored: false };
+    if (isCurrent && (!context.rerendered || restoreAfterRerender) && canRestoreControls(context)) {
+      const controlsToRestore = resolveControls?.(context) ?? unlockedControls;
+      controlsToRestore.filter(Boolean).forEach((control) => {
+        control.disabled = false;
+      });
+      context.controlsRestored = true;
+    }
+    if (isCurrent && (!context.rerendered || onFinallyAfterRerender)) await onFinally?.(context);
+    if (isCurrent && focusIntent != null && (focus.shouldRestore?.(context) ?? true)) {
+      focus.restore?.(focusIntent, context);
+    }
+  }
+}
+
 function runMySessionAction(button, callback, root) {
   if (!callback || button.disabled) return;
   const descriptor = actionDescriptor(button);
   const descriptorKey = actionDescriptorKey(descriptor);
   const pending = pendingMySessionActions(root);
-  pending.set(descriptorKey, descriptor);
-  button.disabled = true;
-  root.querySelector("[data-my-sessions-error]")?.setAttribute("hidden", "");
+  const opensConfirmation = descriptor.action === "withdraw";
+  if (!opensConfirmation) pending.set(descriptorKey, descriptor);
   let restoreActionFocus = false;
-  Promise.resolve()
-    .then(callback)
-    .catch((actionError) => {
-      if (pendingMySessionActions(root) !== pending) return;
+  void runAsyncAction({
+    root,
+    callback,
+    controls: opensConfirmation ? [] : [button],
+    error: root.querySelector("[data-my-sessions-error]"),
+    clearError: !opensConfirmation,
+    current: () => pendingMySessionActions(root) === pending,
+    onError: (actionError) => {
       showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
       // reloadParticipation can replace the original button before an error
       // arrives. Resolve the semantic action again in the current DOM so the
       // keyboard user stays in the same operational context.
-      restoreActionFocus = true;
-    })
-    .finally(() => {
-      if (pendingMySessionActions(root) !== pending) return;
-      pending.delete(descriptorKey);
-      const currentButton = currentMySessionActionButton(root, descriptor);
-      if (currentButton) currentButton.disabled = false;
-      if (MY_SESSION_LIFECYCLE_ACTIONS.has(descriptor.action)) {
+      restoreActionFocus = !opensConfirmation;
+    },
+    onErrorAfterRerender: true,
+    resolveControls: () => (opensConfirmation ? [] : [currentMySessionActionButton(root, descriptor)]),
+    restoreAfterRerender: true,
+    onFinally: () => {
+      if (!opensConfirmation) pending.delete(descriptorKey);
+      if (!opensConfirmation && MY_SESSION_LIFECYCLE_ACTIONS.has(descriptor.action)) {
         focusMySessionActionResult(root, descriptor, { failed: restoreActionFocus });
       }
-    });
+    },
+    onFinallyAfterRerender: true,
+  });
 }
 
 function normalizedNotificationSettings(settings = {}) {
@@ -1350,37 +1438,36 @@ function wireSuccessPushPrompt(root, onEnablePush) {
   const prompt = root.querySelector("[data-success-push-prompt]");
   const button = prompt?.querySelector("[data-success-enable-push]");
   const error = prompt?.querySelector("[data-success-push-error]");
-  button?.addEventListener("click", async () => {
+  button?.addEventListener("click", () => {
     let terminalStatus = false;
-    button.disabled = true;
-    error.hidden = true;
-    try {
-      const status = await onEnablePush();
-      if (!root.contains(prompt)) return;
-      if (status === "enabled") {
-        prompt.hidden = true;
-        return;
-      }
-      if (status === "unsupported") {
-        terminalStatus = true;
-        button.textContent = "此瀏覽器不支援推播";
-        error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-        error.hidden = false;
-        return;
-      }
-      if (status === "denied") {
-        error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-        error.hidden = false;
-        error.focus({ preventScroll: true });
-      }
-    } catch (pushError) {
-      if (!root.contains(prompt)) return;
-      error.textContent = pushError?.message || "推播暫時無法開啟，請稍後再試。";
-      error.hidden = false;
-      error.focus({ preventScroll: true });
-    } finally {
-      if (root.contains(button) && !prompt.hidden && !terminalStatus) button.disabled = false;
-    }
+    void runAsyncAction({
+      root,
+      callback: onEnablePush,
+      controls: [button],
+      watchNodes: [prompt],
+      error,
+      errorMessage: "推播暫時無法開啟，請稍後再試。",
+      errorFocus: true,
+      onSuccess: (status) => {
+        if (status === "enabled") {
+          prompt.hidden = true;
+          return;
+        }
+        if (status === "unsupported") {
+          terminalStatus = true;
+          button.textContent = "此瀏覽器不支援推播";
+          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+          error.hidden = false;
+          return;
+        }
+        if (status === "denied") {
+          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+          error.hidden = false;
+          error.focus({ preventScroll: true });
+        }
+      },
+      canRestoreControls: () => !prompt.hidden && !terminalStatus,
+    });
   });
 }
 
@@ -1439,54 +1526,38 @@ function findNotificationControl(root, descriptor) {
 
 async function runNotificationSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-notification-control]")];
-  const unlockedControls = controls.filter((control) => !control.disabled);
-  // 動作前記下焦點所在控制項的語意，動作後主動還原；與在線設定同一套托管方式，
-  // 免得同一頁相鄰兩個區塊一個留得住焦點、一個留不住。
-  const active = document.activeElement;
-  const focusedDescriptor = root.contains(active) ? notificationControlDescriptor(active) : null;
+  const unlockedDescriptors = controls.filter((control) => !control.disabled).map(notificationControlDescriptor);
   const error = root.querySelector("[data-notification-error]");
-  unlockedControls.forEach((control) => {
-    control.disabled = true;
+  return runAsyncAction({
+    root,
+    callback: async () => {
+      await callback();
+      return true;
+    },
+    controls,
+    error,
+    clearErrorText: true,
+    errorMessage: "通知設定暫時無法更新，請稍後再試。",
+    errorFocus: true,
+    errorResult: false,
+    resolveControls: () => unlockedDescriptors.map((descriptor) => findNotificationControl(root, descriptor)),
+    focus: {
+      capture: notificationControlDescriptor,
+      shouldRestore: ({ completed }) => completed,
+      restore: (focusedDescriptor) => {
+        const current = document.activeElement;
+        // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
+        const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
+        const target = focusIsLoose ? findNotificationControl(root, focusedDescriptor) : null;
+        if (canReceiveFocus(target)) target.focus({ preventScroll: true });
+        else if (focusIsLoose) {
+          // 勾到最後一座球場會讓清單自動收合，原目標隨即隱形；退回展開鈕才不會掉到 body。
+          const toggle = root.querySelector("[data-court-picker-toggle]");
+          if (canReceiveFocus(toggle)) toggle.focus({ preventScroll: true });
+        }
+      },
+    },
   });
-  if (error) {
-    error.hidden = true;
-    error.textContent = "";
-  }
-  let restoreFocus = false;
-  try {
-    await callback();
-    restoreFocus = true;
-    return true;
-  } catch (cause) {
-    if (error) {
-      error.textContent = cause?.message || "通知設定暫時無法更新，請稍後再試。";
-      error.hidden = false;
-      error.focus({ preventScroll: true });
-    }
-    return false;
-  } finally {
-    // 回呼期間可能已重繪（enablePushNotifications 就會在自己的 await 之內同步重繪）。
-    // 重繪後的 markup 才是 disabled 的權威——它依目前狀態重新算出，把它判定為停用的
-    // 控制項強制解鎖，會讓「此裝置已開啟」的推播按鈕變回可以再按。
-    const rerendered = unlockedControls.some((control) => !root.contains(control));
-    if (!rerendered) {
-      unlockedControls.forEach((control) => {
-        control.disabled = false;
-      });
-    }
-    if (restoreFocus && focusedDescriptor) {
-      const current = document.activeElement;
-      // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
-      const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
-      const target = focusIsLoose ? findNotificationControl(root, focusedDescriptor) : null;
-      if (canReceiveFocus(target)) target.focus({ preventScroll: true });
-      else if (focusIsLoose) {
-        // 勾到最後一座球場會讓清單自動收合，原目標隨即隱形；退回展開鈕才不會掉到 body。
-        const toggle = root.querySelector("[data-court-picker-toggle]");
-        if (canReceiveFocus(toggle)) toggle.focus({ preventScroll: true });
-      }
-    }
-  }
 }
 
 /**
@@ -1502,56 +1573,35 @@ function presenceControlSelector(control) {
 
 async function runPresenceSettingAction(root, callback) {
   const controls = [...root.querySelectorAll("[data-presence-control]")];
-  const unlockedControls = controls.filter((control) => !control.disabled);
-  // 動作前記下焦點所在控制項的語意，動作後主動還原，不再依賴重繪路徑撿回焦點。
-  const active = document.activeElement;
-  const focusedSelector = root.contains(active) ? presenceControlSelector(active) : null;
+  const unlockedSelectors = controls.filter((control) => !control.disabled).map(presenceControlSelector);
   const error = root.querySelector("[data-presence-error]");
-  unlockedControls.forEach((control) => {
-    control.disabled = true;
+  return runAsyncAction({
+    root,
+    callback: async () => (await callback()) !== false,
+    controls,
+    error,
+    clearErrorText: true,
+    errorMessage: "在線設定暫時無法更新，請稍後再試。",
+    errorResult: false,
+    resolveControls: () => unlockedSelectors.map((selector) => root.querySelector(selector)),
+    focus: {
+      capture: presenceControlSelector,
+      // 回呼回 false 代表被 gate 攔截並開了補件 sheet，焦點歸該 sheet 管；
+      // 失敗則留在原控制項，接不住時才退到 role=alert。
+      shouldRestore: ({ completed, result }) => !completed || result,
+      restore: (focusedSelector) => {
+        const current = document.activeElement;
+        // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
+        const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
+        const target = focusIsLoose ? root.querySelector(focusedSelector) : null;
+        if (canReceiveFocus(target)) target.focus({ preventScroll: true });
+        else if (focusIsLoose && error && !error.hidden && canReceiveFocus(error)) {
+          // 控制項接不住(被收合、被移除)時才退到錯誤訊息,不讓焦點留在 body。
+          error.focus({ preventScroll: true });
+        }
+      },
+    },
   });
-  if (error) {
-    error.hidden = true;
-    error.textContent = "";
-  }
-  let restoreFocus = false;
-  try {
-    const outcome = await callback();
-    // 回呼回 false 代表被 gate 攔截並開了補件 sheet，焦點歸該 sheet 管，這裡不接手。
-    restoreFocus = outcome !== false;
-    return outcome !== false;
-  } catch (cause) {
-    if (error) {
-      error.textContent = cause?.message || "在線設定暫時無法更新，請稍後再試。";
-      error.hidden = false;
-    }
-    // 失敗後的落點與「我」頁其他設定一致:留在剛操作的控制項。role="alert" 本來就會
-    // 自動朗讀,再把焦點搬過去會讓使用者得先走回來才能重試;控制項接不住時才退到
-    // 錯誤訊息(見 finally)。原本這裡直接 error.focus(),同一頁兩種落點。
-    restoreFocus = true;
-    return false;
-  } finally {
-    // 同 runNotificationSettingAction：重繪後的 markup 是 disabled 的權威。在線設定的
-    // 兩個控制項目前沒有條件 disabled，但 updatePresenceSharing 一樣會在 await 之內同步
-    // 重繪，規則統一才不會在往後加上條件 disabled 時無聲踩雷。
-    const rerendered = unlockedControls.some((control) => !root.contains(control));
-    if (!rerendered) {
-      unlockedControls.forEach((control) => {
-        control.disabled = false;
-      });
-    }
-    if (restoreFocus && focusedSelector) {
-      const current = document.activeElement;
-      // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
-      const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
-      const target = focusIsLoose ? root.querySelector(focusedSelector) : null;
-      if (canReceiveFocus(target)) target.focus({ preventScroll: true });
-      else if (focusIsLoose && error && !error.hidden && canReceiveFocus(error)) {
-        // 控制項接不住(被收合、被移除)時才退到錯誤訊息,不讓焦點留在 body。
-        error.focus({ preventScroll: true });
-      }
-    }
-  }
 }
 
 // 批 D6:kind 就決定我主揪的/我報名的(host-request 恆為 hosted,其餘 needsAction
@@ -1827,19 +1877,6 @@ export function renderMySessionsPage(root, options = {}) {
         "report-session": () => onReportSession(sessionId),
         withdraw: () => onWithdraw(sessionId),
       };
-      if (button.dataset.myAction === "withdraw") {
-        const actionScope = pendingMySessionActions(root);
-        try {
-          const confirmation = callbacks.withdraw();
-          Promise.resolve(confirmation).catch((actionError) => {
-            if (pendingMySessionActions(root) !== actionScope) return;
-            showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
-          });
-        } catch (actionError) {
-          showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
-        }
-        return;
-      }
       runMySessionAction(button, callbacks[button.dataset.myAction], root);
     });
   });
@@ -2312,21 +2349,19 @@ export function openSessionChatSheet(
       error.hidden = false;
       return;
     }
-    send.disabled = true;
-    input.disabled = true;
-    try {
-      await onPost(body);
-      input.value = "";
-    } catch (postError) {
-      error.textContent = postError?.message || "訊息暫時無法傳送，請稍後再試。";
-      error.hidden = false;
-      error.focus({ preventScroll: true });
-    } finally {
-      if (mounted.root.contains(send) && !archived) {
-        send.disabled = false;
-        input.disabled = false;
-      }
-    }
+    await runAsyncAction({
+      root: mounted.root,
+      callback: () => onPost(body),
+      controls: [send, input],
+      error,
+      clearError: false,
+      errorMessage: "訊息暫時無法傳送，請稍後再試。",
+      errorFocus: true,
+      onSuccess: () => {
+        input.value = "";
+      },
+      canRestoreControls: () => !archived,
+    });
   });
   feed?.addEventListener("click", (event) => {
     const reportButton = event.target.closest("[data-chat-report]");
@@ -2847,30 +2882,25 @@ export function openSessionSheet(
     mounted.root.querySelector('[data-session-action="chat"]')?.addEventListener("click", onChat);
     const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
     copyLinkButton?.addEventListener("click", async () => {
-      copyLinkButton.disabled = true;
-      try {
-        await onCopyLink();
-      } catch (copyError) {
-        const error = mounted.root.querySelector("[data-session-report-error]");
-        error.textContent = copyError?.message || "目前無法複製連結，請手動複製網址。";
-        error.hidden = false;
-      } finally {
-        if (mounted.root.contains(copyLinkButton)) copyLinkButton.disabled = false;
-      }
+      await runAsyncAction({
+        root: mounted.root,
+        callback: onCopyLink,
+        controls: [copyLinkButton],
+        error: mounted.root.querySelector("[data-session-report-error]"),
+        clearError: false,
+        errorMessage: "目前無法複製連結，請手動複製網址。",
+      });
     });
     const reportButton = mounted.root.querySelector('[data-session-action="report"]');
     reportButton?.addEventListener("click", async () => {
       const error = mounted.root.querySelector("[data-session-report-error]");
-      reportButton.disabled = true;
-      error.hidden = true;
-      try {
-        await onReport();
-      } catch (reportError) {
-        error.textContent = reportError?.message || "目前無法開啟檢舉。";
-        error.hidden = false;
-      } finally {
-        if (mounted.root.contains(reportButton)) reportButton.disabled = false;
-      }
+      await runAsyncAction({
+        root: mounted.root,
+        callback: onReport,
+        controls: [reportButton],
+        error,
+        errorMessage: "目前無法開啟檢舉。",
+      });
     });
     const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
     secondaryButton?.addEventListener("click", () => {
@@ -3006,22 +3036,19 @@ export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm 
   confirmButton?.addEventListener("click", async () => {
     if (submitting) return;
     submitting = true;
-    confirmButton.disabled = true;
-    error.hidden = true;
-    try {
-      await onConfirm();
-      mounted.close({ reason: "complete" });
-    } catch (withdrawError) {
-      if (mounted.root.contains(error)) {
-        error.textContent = withdrawError?.message || "退出球局暫時無法完成，請稍後再試。";
-        error.hidden = false;
-      }
-    } finally {
-      if (mounted.root.contains(confirmButton)) {
-        submitting = false;
-        confirmButton.disabled = false;
-      }
-    }
+    await runAsyncAction({
+      root: mounted.root,
+      callback: async () => {
+        await onConfirm();
+        mounted.close({ reason: "complete" });
+      },
+      controls: [confirmButton],
+      error,
+      errorMessage: "退出球局暫時無法完成，請稍後再試。",
+      onFinally: ({ controlsRestored }) => {
+        if (controlsRestored) submitting = false;
+      },
+    });
   });
   return mounted;
 }
@@ -3067,26 +3094,22 @@ export function openReportDialog({ targetLabel = "這個項目", onClose = () =>
       return;
     }
     submitting = true;
-    submit.disabled = true;
-    error.hidden = true;
-    try {
-      await onSubmit(reason);
-      if (mounted.root.contains(form)) {
+    await runAsyncAction({
+      root: mounted.root,
+      callback: () => onSubmit(reason),
+      controls: [submit],
+      error,
+      errorMessage: "檢舉暫時無法送出，請稍後再試。",
+      onSuccess: () => {
         form.hidden = true;
         success.hidden = false;
         success.focus({ preventScroll: true });
-      }
-    } catch (submitError) {
-      if (mounted.root.contains(error)) {
-        error.textContent = submitError?.message || "檢舉暫時無法送出，請稍後再試。";
-        error.hidden = false;
-      }
-    } finally {
-      if (mounted.root.contains(submit) && !form.hidden) {
-        submitting = false;
-        submit.disabled = false;
-      }
-    }
+      },
+      canRestoreControls: () => !form.hidden,
+      onFinally: ({ controlsRestored }) => {
+        if (controlsRestored) submitting = false;
+      },
+    });
   });
   return mounted;
 }
@@ -3340,22 +3363,21 @@ export function openProfileCompletionSheet({
       return;
     }
     saving = true;
-    submit.disabled = true;
-    error.hidden = true;
-    try {
-      const savedProfile = await onSave(nextProfile);
-      saved = true;
-      mounted.close({ reason: "complete" });
-      await onSaved(savedProfile ?? nextProfile);
-    } catch (saveError) {
-      error.hidden = false;
-      error.textContent = saveError?.message || "個人檔案暫時無法儲存。";
-    } finally {
-      if (mounted.root.contains(submit)) {
-        saving = false;
-        submit.disabled = false;
-      }
-    }
+    await runAsyncAction({
+      root: mounted.root,
+      callback: async () => {
+        const savedProfile = await onSave(nextProfile);
+        saved = true;
+        mounted.close({ reason: "complete" });
+        await onSaved(savedProfile ?? nextProfile);
+      },
+      controls: [submit],
+      error,
+      errorMessage: "個人檔案暫時無法儲存。",
+      onFinally: ({ controlsRestored }) => {
+        if (controlsRestored) saving = false;
+      },
+    });
   });
   return { ...mounted, setCourts };
 }
@@ -3841,12 +3863,6 @@ export function openCreateSessionSheet({
     errorNode.textContent = message;
   }
 
-  function hideError() {
-    if (!errorNode) return;
-    errorNode.hidden = true;
-    errorNode.textContent = "";
-  }
-
   function showDone(value, result) {
     stage = "done";
     doneSessionId = result?.sessionId ?? null;
@@ -3988,17 +4004,18 @@ export function openCreateSessionSheet({
       return;
     }
     submitting = true;
-    if (publishButton) publishButton.disabled = true;
-    hideError();
-    try {
-      const result = await onSubmit(validation.value);
-      showDone(validation.value, result);
-    } catch (submitError) {
-      showError(submitError?.message || "建立球局失敗，請稍後再試。");
-    } finally {
-      submitting = false;
-      if (mounted.root.contains(publishButton)) publishButton.disabled = false;
-    }
+    await runAsyncAction({
+      root: mounted.root,
+      callback: () => onSubmit(validation.value),
+      controls: [publishButton],
+      error: errorNode,
+      clearErrorText: true,
+      errorMessage: "建立球局失敗，請稍後再試。",
+      onSuccess: (result) => showDone(validation.value, result),
+      onFinally: () => {
+        submitting = false;
+      },
+    });
   });
 
   const setCourts = (nextCourts, { ready = true } = {}) => {
@@ -4071,25 +4088,22 @@ export function openDecideSessionSheet(
       return;
     }
     deciding = true;
-    buttons().forEach((candidate) => {
-      candidate.disabled = true;
-    });
-    error.hidden = true;
-    try {
-      await onDecide(Number(button.dataset.decideCourt), startAt);
-    } catch (decisionError) {
-      if (!terminalState) {
+    await runAsyncAction({
+      root: mounted.root,
+      callback: () => onDecide(Number(button.dataset.decideCourt), startAt),
+      controls: buttons(),
+      error,
+      onError: (decisionError) => {
+        if (terminalState) return;
         error.textContent = decisionError?.message || "定案失敗，請稍後再試。";
         error.hidden = false;
-      }
-    } finally {
-      if (!terminalState && mounted.root.contains(button)) {
-        deciding = false;
-        buttons().forEach((candidate) => {
-          candidate.disabled = false;
-        });
-      }
-    }
+      },
+      canRestoreControls: () => !terminalState,
+      resolveControls: buttons,
+      onFinally: ({ controlsRestored }) => {
+        if (controlsRestored) deciding = false;
+      },
+    });
   };
   const renderCourtButtons = () => {
     if (terminalState) return;
@@ -4214,19 +4228,16 @@ export function openEditSessionSheet(
       return;
     }
     saving = true;
-    submit.disabled = true;
-    error.hidden = true;
-    try {
-      await onSubmit(validation.value);
-    } catch (submitError) {
-      error.textContent = submitError?.message || "更新球局失敗，請稍後再試。";
-      error.hidden = false;
-    } finally {
-      if (mounted.root.contains(submit)) {
-        saving = false;
-        submit.disabled = false;
-      }
-    }
+    await runAsyncAction({
+      root: mounted.root,
+      callback: () => onSubmit(validation.value),
+      controls: [submit],
+      error,
+      errorMessage: "更新球局失敗，請稍後再試。",
+      onFinally: ({ controlsRestored }) => {
+        if (controlsRestored) saving = false;
+      },
+    });
   });
   return { ...mounted, setCourts };
 }
@@ -4679,19 +4690,18 @@ export function openPlayerCardSheet(
       error.hidden = false;
       return;
     }
-    submit.disabled = true;
-    try {
-      await onInvite(selected.value);
-      if (!mounted.root.contains(submit)) return;
-      success.textContent = "邀請已送出";
-      success.hidden = false;
-    } catch (inviteError) {
-      if (!mounted.root.contains(submit)) return;
-      error.textContent = inviteError?.message || "邀請失敗，請稍後再試。";
-      error.hidden = false;
-    } finally {
-      if (mounted.root.contains(submit)) submit.disabled = false;
-    }
+    await runAsyncAction({
+      root: mounted.root,
+      callback: () => onInvite(selected.value),
+      controls: [submit],
+      error,
+      clearError: false,
+      errorMessage: "邀請失敗，請稍後再試。",
+      onSuccess: () => {
+        success.textContent = "邀請已送出";
+        success.hidden = false;
+      },
+    });
   });
   return { ...mounted, setInvitableSessions };
 }

@@ -179,6 +179,7 @@ test("retired LINE token scan blocks contact identifiers without matching unrela
 test("frontend source scan allows only the frozen LINE RPC parameter", async () => {
   const sources = await readRetiredContactSources();
   const srcSources = sources.filter(({ path }) => /\/src\//.test(path));
+  const publicSources = sources.filter(({ path }) => /\/public\//.test(path));
   assert.ok(
     srcSources.length >= 15,
     "the frontend source scan must inspect the src/ tree"
@@ -215,6 +216,7 @@ test("frontend source scan allows only the frozen LINE RPC parameter", async () 
   const lineIdMatches = sourceCodeMatches(srcSources, /line_id/);
   assert.equal(lineIdMatches.length, 1, "src/ must contain exactly one frozen line_id RPC parameter");
   assert.equal(lineIdMatches[0].line, "p_line_id: null,", "the frozen line_id parameter must always be null");
+  assert.equal(sourceCodeMatches(publicSources, /line_id/).length, 0, "public/ must not contain line_id");
 });
 
 test("initial auth restoration distinguishes a definitive anonymous result from a recoverable error", async () => {
