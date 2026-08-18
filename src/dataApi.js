@@ -2,6 +2,18 @@ import { DISCOVERY_WINDOW_DAYS, LAUNCH_CITY, TAIPEI_CITY_BOUNDS } from "./config
 import { COURTS, MOCK_PLAYER_PRESENCE, MOCK_PLAYERS, MOCK_SESSION_JOIN_PREVIEWS, MOCK_SESSIONS } from "./mockData.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
 
+async function runMockDataTestHook(name) {
+  const hook = globalThis.__tennisE2ETestHooks?.dataApi?.[name];
+  if (!hook) return;
+  hook.consumedCount = (hook.consumedCount ?? 0) + 1;
+  const delayMs = Number(hook.delayMs);
+  if (Number.isFinite(delayMs) && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  if (Number(hook.failuresRemaining) > 0) {
+    hook.failuresRemaining -= 1;
+    throw new Error(hook.errorMessage || "forced mock data failure");
+  }
+}
+
 const SESSION_SUMMARY_COLUMNS = [
   "session_id",
   "sport_code",
@@ -599,7 +611,10 @@ export function createDataApi({
   }
 
   async function loadCourts(city = LAUNCH_CITY) {
-    if (!configured) return mockCourts.filter((court) => court.city === city).map(mapCourt);
+    if (!configured) {
+      await runMockDataTestHook("loadCourts");
+      return mockCourts.filter((court) => court.city === city).map(mapCourt);
+    }
 
     const activeClient = requireClient();
     const { data, error } = await activeClient
@@ -615,6 +630,7 @@ export function createDataApi({
   async function loadSessionDiscovery(input = {}) {
     const query = discoveryQuery(input, currentTime());
     if (!configured) {
+      await runMockDataTestHook("loadSessionDiscovery");
       return asArray(mockSessions).filter((session) => withinDiscoveryQuery(session, query)).map(mapMockSessionSummary);
     }
 

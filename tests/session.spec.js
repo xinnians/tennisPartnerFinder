@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
+import { installAppModuleImporter } from "./fixtures/appRuntime.js";
 import { installFakeMaps, setFakeMapBounds } from "./fixtures/fakeMaps.js";
 import { courtIdByName, createProfile, makeClient, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
 import {
@@ -18,6 +19,7 @@ import {
 } from "./fixtures/sessionFactory.js";
 
 test.describe.configure({ mode: "serial", timeout: 90_000 });
+test.beforeEach(async ({ page }) => installAppModuleImporter(page));
 
 function captureRuntimeErrors(page) {
   const errors = [];
@@ -344,8 +346,8 @@ test("saving a profile before court options are ready preserves its existing cou
 
   await page.evaluate(
     async ({ nickname, savedCourt }) => {
-      const { saveCurrentProfile } = await import("/src/dataApi.js");
-      const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+      const { saveCurrentProfile } = await window.__importAppModule("dataApi");
+      const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
       openProfileCompletionSheet({
         courts: [],
         courtsReady: false,
@@ -451,7 +453,7 @@ test("a stale same-account profile read cannot overwrite a saved profile or its 
   const profile = page.locator("#profile-completion-sheet");
   await expect(profile).toBeVisible();
   await page.evaluate(async () => {
-    const { supabase } = await import("/src/supabaseClient.js");
+    const { supabase } = await window.__importAppModule("supabaseClient");
     const { data } = await supabase.auth.getSession();
     await supabase.auth.setSession({
       access_token: data.session.access_token,

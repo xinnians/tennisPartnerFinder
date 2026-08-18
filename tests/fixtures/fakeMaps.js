@@ -2,7 +2,7 @@ import { expect } from "@playwright/test";
 
 const fakeMapsScript = `
 (() => {
-  const markers = [];
+  const testMarkers = [];
   const maps = [];
   const fitBoundsCalls = [];
   const setCenterCalls = [];
@@ -129,7 +129,7 @@ const fakeMapsScript = `
       this.el.setAttribute("aria-label", "地圖圖釘 " + (options.title || label || "marker"));
       this.el.setAttribute("title", options.title || "");
       this.el.style.position = "absolute";
-      const i = markers.length;
+      const i = testMarkers.length;
       this.el.style.left = 8 + (i % 24) * 15 + "px";
       this.el.style.top = "calc(55% + " + Math.floor(i / 24) * 24 + "px)";
       this.el.style.width = "12px";
@@ -138,7 +138,7 @@ const fakeMapsScript = `
       this.el.style.padding = "0";
       this.el.style.zIndex = String(options.zIndex || 1);
       if (options.title === "你") userMarkerCreates += 1;
-      markers.push(this);
+      testMarkers.push(this);
       this.map?.el?.appendChild(this.el);
     }
 
@@ -184,10 +184,10 @@ const fakeMapsScript = `
   window.__fakeMapsSnapshot = () => ({
     fitBoundsCalls: fitBoundsCalls.map(boundsSummary),
     setCenterCalls: setCenterCalls.map(() => ({})),
-    userMarkers: markers.filter((marker) => marker.options.title === "你").map(() => ({ title: "你" })),
+    userMarkers: testMarkers.filter((marker) => marker.options.title === "你").map(() => ({ title: "你" })),
     userMarkerCreates,
     userMarkerUpdates,
-    visibleMarkerOptions: markers
+    visibleMarkerOptions: testMarkers
       .filter((marker) => marker.map)
       .map((marker) => ({ iconUrl: marker.options.icon?.url ?? "", optimized: marker.options.optimized, title: marker.options.title })),
   });

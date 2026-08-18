@@ -137,7 +137,7 @@ test("retired LINE token scan blocks contact identifiers without matching unrela
 test("frontend source scan allows only the frozen LINE RPC parameter", async () => {
   const sources = await readRetiredContactSources();
   assert.ok(
-    sources.filter(({ path }) => path.includes("/src/")).length > 10,
+    sources.filter(({ path }) => /\/src\//.test(path)).length > 10,
     "the frontend source scan must inspect the src/ tree"
   );
   assert.ok(

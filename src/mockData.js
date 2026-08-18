@@ -300,3 +300,9 @@ export const MOCK_SESSIONS = [
     decidedAt: "",
   },
 ];
+
+const sessionTaint = globalThis.__tennisE2ETestHooks?.mockData?.sessionTaint;
+if (sessionTaint && typeof sessionTaint === "object") {
+  MOCK_SESSIONS.forEach((session) => Object.assign(session, sessionTaint));
+  sessionTaint.appliedCount = MOCK_SESSIONS.length;
+}

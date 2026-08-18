@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 import { DISCOVERY_WINDOW_DAYS, MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
+import { installAppModuleImporter, installAppTestHooks, readAppTestHook } from "./fixtures/appRuntime.js";
 import { installFakeMaps, setFakeMapBounds, setFakeMapBoundsBurst } from "./fixtures/fakeMaps.js";
 
 const isLocalHarness = process.env.TENNIS_TEST_HARNESS_MODE === "local";
+
+test.beforeEach(async ({ page }) => installAppModuleImporter(page));
 
 function captureConsoleErrors(page) {
   const errors = [];
@@ -35,31 +38,16 @@ async function triggerFilterRedraw(page) {
 }
 
 async function delayMockDiscovery(page, milliseconds) {
-  await page.route("**/src/dataApi.js", async (route) => {
-    const response = await route.fetch();
-    const source = await response.text();
-    const marker = "  async function loadSessionDiscovery(input = {}) {";
-    if (!source.includes(marker)) throw new Error("Could not install delayed discovery fixture");
-    await route.fulfill({
-      response,
-      body: source.replace(marker, `${marker}\n    await new Promise((resolve) => setTimeout(resolve, ${milliseconds}));`),
-    });
+  await installAppTestHooks(page, {
+    dataApi: { loadSessionDiscovery: { delayMs: milliseconds } },
   });
 }
 
 async function failFirstMockDiscovery(page) {
-  await page.route("**/src/dataApi.js", async (route) => {
-    const response = await route.fetch();
-    const source = await response.text();
-    const marker = "  async function loadSessionDiscovery(input = {}) {";
-    if (!source.includes(marker)) throw new Error("Could not install failed discovery fixture");
-    await route.fulfill({
-      response,
-      body: source.replace(
-        marker,
-        `${marker}\n    if (!globalThis.__mockDiscoveryFailedOnce) {\n      globalThis.__mockDiscoveryFailedOnce = true;\n      throw new Error("forced discovery failure");\n    }`
-      ),
-    });
+  await installAppTestHooks(page, {
+    dataApi: {
+      loadSessionDiscovery: { errorMessage: "forced discovery failure", failuresRemaining: 1 },
+    },
   });
 }
 
@@ -104,6 +92,7 @@ test("slow discovery keeps the map shell, base courts, and status usable before 
 
   await drawerToggle.click();
   await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
+  await expect.poll(() => readAppTestHook(page, ["dataApi", "loadSessionDiscovery", "consumedCount"])).toBeGreaterThanOrEqual(1);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -174,6 +163,7 @@ test("an in-context drawer retry replaces the semantic error state with results"
   await expect(drawer).toBeVisible();
   await expect(drawer.locator("[data-testid='session-card']").first()).toBeVisible();
   await expect(mapStatus).toBeHidden();
+  await expect.poll(() => readAppTestHook(page, ["dataApi", "loadSessionDiscovery", "consumedCount"])).toBeGreaterThanOrEqual(1);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -225,7 +215,7 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   // openSessionSheet 的 initialStage:"confirming" 直接開一張已在確認態的 sheet,
   // 驗證 Tab trap 涵蓋「×」關閉鈕與 confirming 態的取消/確認送出兩鈕。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     openSessionSheet(
       {
         court: "示範球場",
@@ -266,7 +256,7 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   await expect(createTrigger).toBeFocused();
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     openCreateSessionSheet({ courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }] });
   });
   // 批 D5:開球局改全螢幕殼,「×」變成左上 40px→44px 返回鈕,aria-label 沿用

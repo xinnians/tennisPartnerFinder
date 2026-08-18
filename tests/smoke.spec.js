@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { installAppModuleImporter, installAppTestHooks, readAppTestHook } from "./fixtures/appRuntime.js";
 import { expectWithinViewport, installFakeMaps, setFakeMapBounds } from "./fixtures/fakeMaps.js";
+
+test.beforeEach(async ({ page }) => installAppModuleImporter(page));
 
 const publicSurface = (page) => page.locator("#app");
 
@@ -14,21 +17,18 @@ const TAINTED_PUBLIC_VALUES = [
 ];
 
 async function installTaintedMockSessions(page) {
-  await page.route("**/src/mockData.js", async (route) => {
-    const response = await route.fetch();
-    const source = await response.text();
-    await route.fulfill({
-      response,
-      body: `${source}\nMOCK_SESSIONS.forEach((session) => Object.assign(session, {
+  await installAppTestHooks(page, {
+    mockData: {
+      sessionTaint: {
         lineId: "TAINT_LINE_ID",
         profileId: "TAINT_PROFILE_ID",
         hostProfileId: "TAINT_HOST_PROFILE_ID",
         realName: "TAINT_REAL_NAME",
         profileUrl: "TAINT_PROFILE_URL",
         sourceUrl: "TAINT_SOURCE_URL",
-        usualCourts: "TAINT_USUAL_COURTS"
-      }));`,
-    });
+        usualCourts: "TAINT_USUAL_COURTS",
+      },
+    },
   });
 }
 
@@ -78,18 +78,9 @@ function captureConsoleErrors(page) {
   return errors;
 }
 
-// 批 C2-4:比照 performance.spec.js 的 delayMockDiscovery route 延遲手法，
-// 在 dataApi.js 的 loadCourts 開頭注入 setTimeout，重現「courts 尚未載入完成」的視窗。
 async function delayMockCourts(page, milliseconds) {
-  await page.route("**/src/dataApi.js", async (route) => {
-    const response = await route.fetch();
-    const source = await response.text();
-    const marker = "  async function loadCourts(city = LAUNCH_CITY) {";
-    if (!source.includes(marker)) throw new Error("Could not install delayed courts fixture");
-    await route.fulfill({
-      response,
-      body: source.replace(marker, `${marker}\n    await new Promise((resolve) => setTimeout(resolve, ${milliseconds}));`),
-    });
+  await installAppTestHooks(page, {
+    dataApi: { loadCourts: { delayMs: milliseconds } },
   });
 }
 
@@ -124,7 +115,7 @@ test("My Sessions segment switching redraws from the latest rendered snapshot", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -248,10 +239,10 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   const exposed = await publicSurface(page).innerText();
   expect(exposed).not.toMatch(/amber\.tw|hsu_tennis|facebook\.com|ptt\.cc|LINE ID/i);
   expect(exposed).not.toMatch(/profile[_ -]?id|真名|常打球場/i);
-  const markerAttributes = await page.locator(".test-marker").evaluateAll((markers) =>
+  const renderedMarkerAttributes = await page.locator(".test-marker").evaluateAll((markers) =>
     markers.map((marker) => ({ title: marker.getAttribute("title"), aria: marker.getAttribute("aria-label") }))
   );
-  expect(JSON.stringify(markerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
+  expect(JSON.stringify(renderedMarkerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -335,8 +326,8 @@ test("an undecided candidate session renders two dashed map pins from the court 
       return options.filter(({ title }) => title?.includes("未定"));
     })
     .toHaveLength(2);
-  const markerOptions = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
-  const undecided = markerOptions.filter(({ title }) => title?.includes("未定"));
+  const visibleMarkerOptions = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
+  const undecided = visibleMarkerOptions.filter(({ title }) => title?.includes("未定"));
   expect(undecided.map(({ title }) => title).sort()).toEqual([
     "球局 · 百齡河濱公園網球場 · 未定",
     "球局 · 美堤河濱公園網球場 · 未定",
@@ -344,14 +335,14 @@ test("an undecided candidate session renders two dashed map pins from the court 
   // 批 D3:v2 候選釘 dashed 磚的 dasharray 為 4 3(dc L65)。
   expect(undecided.every(({ iconUrl }) => decodeURIComponent(iconUrl).includes('stroke-dasharray="4 3"'))).toBe(true);
   // 2026-08-17 降級顯示:滿員局(mock 9003 古亭)圖釘轉灰磚,不得與可加入局同色。
-  const fullPin = markerOptions.find(({ title }) => title?.includes("球局 · 古亭河濱公園網球場"));
+  const fullPin = visibleMarkerOptions.find(({ title }) => title?.includes("球局 · 古亭河濱公園網球場"));
   expect(fullPin, "the full session pin exists on the map (nonempty scan)").toBeTruthy();
   expect(decodeURIComponent(fullPin.iconUrl)).toContain('stroke="#8b978d"');
-  const openPins = markerOptions.filter(({ title }) => title?.includes("球局") && !title.includes("古亭") && !title.includes("未定"));
+  const openPins = visibleMarkerOptions.filter(({ title }) => title?.includes("球局") && !title.includes("古亭") && !title.includes("未定"));
   expect(openPins.length).toBeGreaterThan(0);
   expect(openPins.every(({ iconUrl }) => !decodeURIComponent(iconUrl).includes('stroke="#8b978d"'))).toBe(true);
   const mockCandidateOverlap = await page.evaluate(async () => {
-    const { MOCK_SESSIONS } = await import("/src/mockData.js");
+    const { MOCK_SESSIONS } = await window.__importAppModule("mockData");
     const undecidedSession = MOCK_SESSIONS.find(({ sessionId }) => sessionId === 9005);
     const decidedSession = MOCK_SESSIONS.find(({ sessionId }) => sessionId === 9006);
     return undecidedSession.candidateCourtIds.includes(decidedSession.courtId);
@@ -363,7 +354,7 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openDecideSessionSheet } = await import("/src/sessionViews.js");
+    const { openDecideSessionSheet } = await window.__importAppModule("sessionViews");
     window.__stage4cDecisionSheet = openDecideSessionSheet(
       {
         sessionId: 9005,
@@ -383,7 +374,7 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
   await expect(sheet.locator("[data-decide-court]")).toHaveCount(0);
 
   await page.evaluate(async () => {
-    const { COURTS } = await import("/src/mockData.js");
+    const { COURTS } = await window.__importAppModule("mockData");
     window.__stage4cDecisionSheet.setCourts(COURTS, { ready: true });
   });
   await expect(sheet.locator("[data-decide-court]")).toHaveCount(2);
@@ -555,7 +546,7 @@ test("messages page marks only the unread row, wires row clicks to onOpenChat, a
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { renderMessagesPage } = await import("/src/sessionViews.js");
+    const { renderMessagesPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("messages-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("messages-page").hidden = false;
@@ -608,7 +599,7 @@ test("messages page marks only the unread row, wires row clicks to onOpenChat, a
   await expect.poll(() => page.evaluate(() => window.__messagesOpened)).toEqual(["601"]);
 
   await page.evaluate(async () => {
-    const { renderMessagesPage } = await import("/src/sessionViews.js");
+    const { renderMessagesPage } = await window.__importAppModule("sessionViews");
     renderMessagesPage(document.getElementById("messages-root"), {
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     });
@@ -630,7 +621,7 @@ test("My Sessions empty state shows one dc box instead of stacking three placeho
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     window.__renderEmptyCase = (groups) =>
@@ -737,7 +728,7 @@ test("anonymous session artifacts strip tainted source fields from HTML, data at
         .filter((attribute) => attribute.name.startsWith("data-"))
         .map((attribute) => [attribute.name, attribute.value]),
     }));
-    const markerAttributes = [...document.querySelectorAll(".test-marker")].map((marker) => ({
+    const renderedMarkerAttributes = [...document.querySelectorAll(".test-marker")].map((marker) => ({
       ariaLabel: marker.getAttribute("aria-label"),
       dataAttributes: [...marker.attributes]
         .filter((attribute) => attribute.name.startsWith("data-"))
@@ -748,12 +739,15 @@ test("anonymous session artifacts strip tainted source fields from HTML, data at
       dataAttributes: attributeSnapshots,
       html: document.getElementById("app")?.innerHTML ?? "",
       mapSnapshot: window.__fakeMapsSnapshot(),
-      markerAttributes,
+      markerAttributes: renderedMarkerAttributes,
     };
   });
 
   const capturedJson = JSON.stringify(captured);
   for (const value of TAINTED_PUBLIC_VALUES) expect(capturedJson).not.toContain(value);
+  const mockSessionCount = await page.evaluate(async () => (await window.__importAppModule("mockData")).MOCK_SESSIONS.length);
+  expect(mockSessionCount).toBeGreaterThan(0);
+  await expect.poll(() => readAppTestHook(page, ["mockData", "sessionTaint", "appliedCount"])).toBe(mockSessionCount);
   expect(captured.html).toContain("示範松果");
   expect(runtimeErrors).toEqual([]);
 });
@@ -1008,7 +1002,7 @@ test("a pending join confirmation accepts only one intentional submission", asyn
   // 批 C3-2:join 確認併進同一張 detail sheet,不再開獨立 dialog——直接以
   // initialStage:"confirming" 開 sheet 驗證雙擊只送出一次。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     let releaseConfirmation;
     window.__joinConfirmationCalls = 0;
     window.__releaseJoinConfirmation = () => releaseConfirmation?.();
@@ -1053,7 +1047,7 @@ test("withdrawal requires an in-project confirmation that warns the member canno
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openWithdrawSessionConfirmation } = await import("/src/sessionViews.js");
+    const { openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
     let releaseWithdrawal;
     window.__withdrawConfirmationCalls = 0;
     window.__releaseWithdrawal = () => releaseWithdrawal?.();
@@ -1088,7 +1082,7 @@ test("cancelling chat withdrawal keeps the action enabled and allows reopening c
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionChatSheet, openWithdrawSessionConfirmation } = await import("/src/sessionViews.js");
+    const { openSessionChatSheet, openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
     window.__chatWithdrawConfirmationCount = 0;
     openSessionChatSheet(
       {
@@ -1129,7 +1123,7 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openWithdrawSessionConfirmation, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { openWithdrawSessionConfirmation, renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -1183,7 +1177,7 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
   // 批 C3-2:join 確認併進同一張 detail sheet,不再重複渲染球局摘要——detail 上方
   // 欄位只出現一次,confirming 態只加差異提示(join 型式)。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     openSessionSheet(
       {
         court: "青年公園網球場",
@@ -1277,7 +1271,7 @@ test("an accepted joined session focuses its own upcoming card without the creat
   };
 
   await page.evaluate(async (session) => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     renderMySessionsPage(document.getElementById("my-sessions-root"), {
@@ -1318,7 +1312,7 @@ test("a pending guest request focuses its own withdraw button, not the page head
   };
 
   await page.evaluate(async (session) => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     renderMySessionsPage(document.getElementById("my-sessions-root"), {
@@ -1367,7 +1361,7 @@ test("join and create success moments offer push only when the device can enable
   // 批 C3-2:join 成功卡併進同一張 detail sheet,不再開獨立 dialog——直接以
   // initialStage:"confirming" 開 sheet,點 join-confirm 進成功態。
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { openSessionSheet, renderMySessionsPage } = await window.__importAppModule("sessionViews");
     window.__successPushCalls = [];
     openSessionSheet(sessionInput, {
       action: { label: "申請加入", kind: "join", expectedAccepted: false },
@@ -1424,7 +1418,7 @@ test("join and create success moments offer push only when the device can enable
   ]) {
     await page.evaluate(
       async ({ sessionInput, settings: nextSettings }) => {
-        const { openSessionSheet } = await import("/src/sessionViews.js");
+        const { openSessionSheet } = await window.__importAppModule("sessionViews");
         openSessionSheet(sessionInput, {
           action: { label: "申請加入", kind: "join", expectedAccepted: false },
           initialStage: "confirming",
@@ -1441,7 +1435,7 @@ test("join and create success moments offer push only when the device can enable
   }
 
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     openSessionSheet(sessionInput, {
       action: { label: "申請加入", kind: "join", expectedAccepted: false },
       initialStage: "confirming",
@@ -1466,7 +1460,7 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
   // 批 C3-2:join preview 只在 detail sheet 出現一次(idle 態就已 hydrate,
   // confirming 沿用同一份),不再有獨立 confirmation surface 各自渲染一次。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     const session = {
       court: "青年公園網球場",
       courtDistrict: "萬華區",
@@ -1520,7 +1514,7 @@ test("profile completion previews the current Google avatar and explains that it
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({
       avatarUrl: "https://lh5.googleusercontent.com/a/stage-t45-self",
       profile: { courts: new Set(), nick: "本人", ntrp: null, slots: new Set(), types: new Set() },
@@ -1543,7 +1537,7 @@ test("an expected instant outcome explains group chat and shows accepted success
   // 批 C3-2:instant join 也走兩段確認(spec 假設 4),同一張 detail sheet 內嵌
   // confirming/success,不再開獨立的「直接加入這場球局？」dialog。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     openSessionSheet(
       {
         court: "大佳河濱公園網球場",
@@ -1612,7 +1606,7 @@ test("a host viewing their own accepted session sees no withdraw affordance, unl
   };
 
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     openSessionSheet(sessionInput, { action: { label: "群組聊天", kind: "chat" }, isMine: true });
   }, session);
   const hostSheet = page.locator("#session-sheet");
@@ -1622,7 +1616,7 @@ test("a host viewing their own accepted session sees no withdraw affordance, unl
   await page.keyboard.press("Escape");
 
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await import("/src/sessionViews.js");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
     openSessionSheet(sessionInput, { action: { label: "群組聊天", kind: "chat" }, isMine: false });
   }, session);
   const guestSheet = page.locator("#session-sheet");
@@ -1643,7 +1637,7 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
     ["OK_NTRP_OUT_OF_RANGE", "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"],
   ]) {
     await page.evaluate(async (nextOutcome) => {
-      const { openSessionSheet } = await import("/src/sessionViews.js");
+      const { openSessionSheet } = await window.__importAppModule("sessionViews");
       openSessionSheet(
         {
           court: "示範球場",
@@ -1711,7 +1705,7 @@ test("candidate session cards and details resolve every court until Boolean deci
   ];
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet, renderNearbySessionsDrawer } = await import("/src/sessionViews.js");
+      const { openSessionSheet, renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
       renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
         courts: catalogue,
         drawerState: "open",
@@ -1736,7 +1730,7 @@ test("candidate session cards and details resolve every court until Boolean deci
 
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet } = await import("/src/sessionViews.js");
+      const { openSessionSheet } = await window.__importAppModule("sessionViews");
       openSessionSheet(
         {
           ...session,
@@ -1792,7 +1786,7 @@ test("undecided candidate sessions keep their court list and time range across p
   ];
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionChatSheet, renderMySessionsPage } = await import("/src/sessionViews.js");
+      const { openSessionChatSheet, renderMySessionsPage } = await window.__importAppModule("sessionViews");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
       document.getElementById("my-sessions-page").hidden = false;
@@ -1856,7 +1850,7 @@ test("undecided candidate sessions keep their court list and time range across p
   // 不再有獨立 confirmation surface 各自渲染一份。
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet } = await import("/src/sessionViews.js");
+      const { openSessionSheet } = await window.__importAppModule("sessionViews");
       openSessionSheet(session, { action: { label: "申請加入" }, courts: catalogue });
     },
     { candidateSession, courts }
@@ -1872,7 +1866,7 @@ test("undecided candidate sessions keep their court list and time range across p
   await page.keyboard.press("Escape");
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openPlayerCardSheet } = await import("/src/sessionViews.js");
+      const { openPlayerCardSheet } = await window.__importAppModule("sessionViews");
       openPlayerCardSheet(
         { courtDistrict: "中山區", courtName: "第二球場", isSelf: false, nickname: "可邀請球友", ntrp: 3.5, profileId: 991 },
         { courts: catalogue, myInvitableSessions: [session] }
@@ -1916,7 +1910,7 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
   ];
   await page.evaluate(
     async ({ decidedSession: session, courts: catalogue }) => {
-      const { openSessionChatSheet, renderMySessionsPage } = await import("/src/sessionViews.js");
+      const { openSessionChatSheet, renderMySessionsPage } = await window.__importAppModule("sessionViews");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
       document.getElementById("my-sessions-page").hidden = false;
@@ -1963,7 +1957,7 @@ test("My Sessions preserves the initiating action and its error across a private
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -2022,7 +2016,7 @@ test("My Sessions renders an escaped invite card with stable response testids", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -2067,7 +2061,7 @@ test("invite response buttons dispatch, stay pending across replacement, and foc
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -2129,7 +2123,7 @@ test("declined My Sessions history uses neutral participation wording", async ({
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -2170,7 +2164,7 @@ test("a failed presence setting keeps focus on the control instead of jumping to
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
     renderMePage(document.getElementById("me-root"), {
@@ -2202,7 +2196,7 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMePage, renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -2311,7 +2305,7 @@ test("Me presence settings explain reciprocal visibility, request sharing, and o
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -2345,7 +2339,7 @@ test("Me notification settings save six preferences and Taipei court subscriptio
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -2434,7 +2428,7 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -2474,7 +2468,7 @@ test("the profile sheet keeps its gate framing but drops it in standalone mode",
   // 同一組輸入，只換 mode，差異才歸因得到 mode 本身。
   const openWith = (mode) =>
     page.evaluate(async (sheetMode) => {
-      const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+      const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
       openProfileCompletionSheet({
         courts: [{ city: "台北市", id: 8, name: "示範球場" }],
         intent: { action: "join" },
@@ -2511,7 +2505,7 @@ test("a rerender inside a notification action stays authoritative over the disab
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -2546,7 +2540,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -2590,7 +2584,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await expect(page.locator("[data-open-my-session][data-session-id='732']")).toBeFocused();
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     const session = {
       canWithdraw: true,
@@ -2631,7 +2625,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await page.getByTestId("my-sessions-seg-joined").click();
   await page.locator("[data-my-action='withdraw'][data-session-id='733']").click();
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     const session = {
       canWithdraw: true,
@@ -2680,7 +2674,7 @@ test("report dialog requires a reason, preserves failures, and acknowledges a su
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openReportDialog } = await import("/src/sessionViews.js");
+    const { openReportDialog } = await window.__importAppModule("sessionViews");
     window.__reportReasons = [];
     openReportDialog({
       targetLabel: "青年公園網球場 · 週六上午",
@@ -2720,7 +2714,7 @@ test("closing a non-drawer report dialog after its trigger card disappears does 
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     renderMySessionsPage(document.getElementById("my-sessions-root"), {
@@ -2755,14 +2749,14 @@ test("closing a non-drawer report dialog after its trigger card disappears does 
   await expect(reportButton).toBeFocused();
 
   await page.evaluate(async () => {
-    const { openReportDialog } = await import("/src/sessionViews.js");
+    const { openReportDialog } = await window.__importAppModule("sessionViews");
     openReportDialog({ targetLabel: "青年公園網球場 · 週六上午" });
   });
   await expect(page.locator("#report-dialog")).toBeVisible();
 
   // 模擬背景重繪把這張卡從清單移除(球局已被取消/使用者離開等)——觸發它的按鈕連帶消失。
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     renderMySessionsPage(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
@@ -2786,7 +2780,7 @@ test("a pending withdrawal accepts only one intentional submission", async ({ pa
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionSheet, openWithdrawSessionConfirmation } = await import("/src/sessionViews.js");
+    const { openSessionSheet, openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
     let releaseWithdrawal;
     window.__withdrawalCalls = 0;
     window.__releaseWithdrawal = () => releaseWithdrawal?.();
@@ -3005,8 +2999,8 @@ test("map idle refreshes the current bounds and session pins remain keyboard-com
     const snapshot = await page.evaluate(() => window.__fakeMapsSnapshot());
     return snapshot.visibleMarkerOptions.length;
   }).toBeGreaterThan(0);
-  const markerOptions = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
-  expect(markerOptions.every((marker) => marker.optimized === false)).toBe(true);
+  const visibleMarkerOptions = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
+  expect(visibleMarkerOptions.every((marker) => marker.optimized === false)).toBe(true);
 
   const sessionPin = page.getByRole("button", { name: /地圖圖釘 球局 · 台北網球中心/ });
   await sessionPin.focus();
@@ -3098,7 +3092,7 @@ test("the empty-state subscribe shortcut opens Me and can focus the notification
   // （比照本檔 "Me notification settings save six preferences" 測試）驗證
   // sessionViews.js 承諾的掛點契約：標題確實可以是 document.activeElement。
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     renderMePage(root, {
       authSession: { user: { id: "discovery-subscribe-focus-test" } },
@@ -3162,7 +3156,7 @@ test("player drawer and card escape every public value and render self and empty
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     const player = {
       profileId: '\"><img id="profile-injection" src=x onerror=alert(1)>',
       nickname: '<img id="nickname-injection" src=x onerror=alert(1)>',
@@ -3185,7 +3179,7 @@ test("player drawer and card escape every public value and render self and empty
   expect(await page.evaluate(() => window.__selectedEscapedPlayer)).toContain("profile-injection");
 
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     views.openPlayerCardSheet?.({
       profileId: 88,
       nickname: '<img id="card-nickname-injection">',
@@ -3203,7 +3197,7 @@ test("player drawer and card escape every public value and render self and empty
   await expect(page.locator("#player-card-sheet [data-player-invite]")).toHaveCount(0);
 
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     window.__createFromPlayer = 0;
     views.openPlayerCardSheet?.(
       { profileId: 89, nickname: "無球局球友", ntrp: 3, playTypes: [], slotCodes: [], courtName: "河濱", courtDistrict: "中山區", isSelf: false },
@@ -3228,7 +3222,7 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 我頁 profile 卡:NTRP 已填正例 ───────────────────────────────
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -3252,7 +3246,7 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 我頁 profile 卡:NTRP 未填反例 → 磚顯示「—」 ───────────────────
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     renderMePage(root, {
       authSession: { user: { id: "d8-me-brick" } },
@@ -3263,7 +3257,7 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 球友名單列:結構對應資料,含一筆 NTRP null 反例 ──────────────────
   await page.evaluate(async () => {
-    const { openPlayerDirectoryList } = await import("/src/sessionViews.js");
+    const { openPlayerDirectoryList } = await window.__importAppModule("sessionViews");
     const sheet = openPlayerDirectoryList({});
     sheet.setDirectory({
       players: [
@@ -3281,7 +3275,7 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 球友卡:頭部結構+NTRP 磚(null 反例)+逐字註腳+看球友名單觸發 onSeeDirectory ──
   await page.evaluate(async () => {
-    const { openPlayerCardSheet } = await import("/src/sessionViews.js");
+    const { openPlayerCardSheet } = await window.__importAppModule("sessionViews");
     window.__d8SeeDirectoryCalls = 0;
     openPlayerCardSheet(
       { courtName: "第三球場", isSelf: false, nickname: "球友卡球友", ntrp: null, profileId: 703, slotCodes: ["wd-m"] },
@@ -3307,7 +3301,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     window.__inviteControls = {};
     window.__inviteCalls = [];
     const promise = new Promise((resolve, reject) => Object.assign(window.__inviteControls, { reject, resolve }));
@@ -3335,7 +3329,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   expect((await page.evaluate(() => window.__inviteCalls))[0]).toContain("session-id-injection");
 
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     views.openPlayerCardSheet?.(
       { profileId: 92, nickname: "錯誤球友", ntrp: 4, playTypes: [], slotCodes: [], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
       { myInvitableSessions: [{ sessionId: 72, startAt: "2030-01-01T01:00:00.000Z", court: "大佳", courtDistrict: "中山區", playType: "雙打", notes: "" }], onInvite: async () => { throw new Error("邀請遭拒"); } }
@@ -3347,7 +3341,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   await expect(page.getByTestId("player-invite-submit")).toBeEnabled();
 
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     window.__staleInvite = {};
     const promise = new Promise((resolve) => { window.__staleInvite.resolve = resolve; });
     views.openPlayerCardSheet?.(
@@ -3358,7 +3352,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   await page.getByTestId("player-invite-session").check();
   await page.getByTestId("player-invite-submit").click();
   await page.evaluate(async () => {
-    const views = await import("/src/sessionViews.js");
+    const views = await window.__importAppModule("sessionViews");
     views.openCourtPlayersDrawer?.({ id: 8, name: "替代球場", district: "大安區" }, []);
     window.__staleInvite.resolve({ outcome: "OK" });
   });
@@ -3372,8 +3366,8 @@ test("SESSION_EXPIRED player invitation refreshes choices and renders an inline 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { createSessionController } = await import("/src/sessionController.js");
-    const views = await import("/src/sessionViews.js");
+    const { createSessionController } = await window.__importAppModule("sessionController");
+    const views = await window.__importAppModule("sessionViews");
     const hostSession = {
       sessionId: 71,
       viewerRole: "host",
@@ -3435,7 +3429,7 @@ test("390px map controls keep the player layer and status below the toolbar", as
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
   await expect(page.locator("#nearby-sessions-toggle")).toBeVisible();
   await page.evaluate(async () => {
-    const { renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    const { renderPlayerLayerToggle } = await window.__importAppModule("sessionViews");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
       message: "球友資料暫時無法載入。",
       on: true,
@@ -3535,7 +3529,7 @@ test("390px primary map, filter, and chat governance targets are at least 44px",
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionChatSheet } = await import("/src/sessionViews.js");
+    const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
     const chat = openSessionChatSheet({
       court: "青年公園網球場",
       courtDistrict: "萬華區",
@@ -3590,7 +3584,7 @@ test("medium-width map status stays below the complete player layer control", as
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
   await expect(page.locator("#nearby-sessions-toggle")).toBeVisible();
   await page.evaluate(async () => {
-    const { renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    const { renderPlayerLayerToggle } = await window.__importAppModule("sessionViews");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
       message: "球友資料暫時無法載入。",
       on: true,
@@ -3622,7 +3616,7 @@ test("nested login modal restores focus and announces a failed provider start", 
   // reusable nested modal primitive directly so its focus/failed-provider
   // behavior remains covered without contradicting that product rule.
   await page.evaluate(async () => {
-    const { openLoginModal } = await import("/src/sheets.js");
+    const { openLoginModal } = await window.__importAppModule("sheets");
     openLoginModal({ onProvider: async () => Promise.reject(new Error("forced provider failure")) });
   });
   await expect(page.locator("#login-dialog")).toBeVisible();
@@ -3646,7 +3640,7 @@ test("the login modal hides LINE by default and passes the custom provider id th
 
   // 預設(mock webServer 未設 VITE_AUTH_LINE_PROVIDER_ID)只有 Google 一顆按鈕。
   await page.evaluate(async () => {
-    const { openLoginModal } = await import("/src/sheets.js");
+    const { openLoginModal } = await window.__importAppModule("sheets");
     openLoginModal({});
   });
   await expect(page.locator("#login-dialog [data-provider]")).toHaveCount(1);
@@ -3658,7 +3652,7 @@ test("the login modal hides LINE by default and passes the custom provider id th
 
   // 顯式開啟後有兩顆;點 LINE 要把 custom provider 識別符原樣傳給 onProvider。
   await page.evaluate(async () => {
-    const { openLoginModal } = await import("/src/sheets.js");
+    const { openLoginModal } = await window.__importAppModule("sheets");
     window.__providerCalls = [];
     openLoginModal({
       lineProviderId: "custom:line",
@@ -3687,7 +3681,7 @@ test("the Me page login methods list hides LINE without a provider id and wires 
 
   const renderLoginMethods = async (options) => {
     await page.evaluate(async ({ linkedProviders, lineProviderId }) => {
-      const { renderMePage } = await import("/src/sessionViews.js");
+      const { renderMePage } = await window.__importAppModule("sessionViews");
       document.getElementById("tab-map").hidden = true;
       document.getElementById("me-page").hidden = false;
       window.__linkCalls = window.__linkCalls ?? [];
@@ -3731,7 +3725,7 @@ test("the login modal titles each gate entry point instead of always naming a jo
 
   const openLoginFor = async (action) => {
     await page.evaluate(async (nextAction) => {
-      const { openLoginModal } = await import("/src/sheets.js");
+      const { openLoginModal } = await window.__importAppModule("sheets");
       openLoginModal(nextAction === null ? {} : { action: nextAction });
     }, action);
   };
@@ -3772,7 +3766,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       profile: { courts: new Set(), nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
@@ -3784,7 +3778,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
     "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
   // 兩個掛載點都比對「模組匯出的那一份」,任何一處寫死成不同文字都會紅。
   const ntrpExplanation = await page.evaluate(
-    async () => (await import("/src/sessionViews.js")).NTRP_SCALE_EXPLANATION
+    async () => (await window.__importAppModule("sessionViews")).NTRP_SCALE_EXPLANATION
   );
   expect(ntrpExplanation).toContain("NTRP 是網球程度自評分級");
   const profile = page.locator("#profile-completion-sheet");
@@ -3796,7 +3790,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     openCreateSessionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       onSubmit: async () => {
@@ -3845,7 +3839,7 @@ test("the create form keeps date controls reachable above the sticky footer at p
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     openCreateSessionSheet({
       courts: Array.from({ length: 61 }, (_, index) => ({ city: "台北市", id: index + 1, name: `示範球場 ${index + 1}` })),
       onSubmit: async () => {
@@ -3896,7 +3890,7 @@ test("My Sessions gives accepted members chat access without rendering retired c
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -3934,7 +3928,7 @@ test("My Sessions chat button surfaces an unread count without disturbing the ze
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -3983,7 +3977,7 @@ test("a host request card names an absent NTRP instead of displaying NTRP 0.0", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -4036,7 +4030,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({ intent: { action: "create" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
   });
   const createProfile = page.locator("#profile-completion-sheet");
@@ -4047,7 +4041,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({
       intent: { action: "create" },
       profile: { courts: new Set(), nick: "已有暱稱", ntrp: null, slots: new Set(), types: new Set() },
@@ -4059,7 +4053,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({ intent: { action: "players" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
   });
   await expect(page.locator("#profile-completion-sheet")).toContainText(
@@ -4068,7 +4062,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({ intent: { action: "directory" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
   });
   await expect(page.locator("#profile-completion-sheet")).toContainText(
@@ -4084,7 +4078,7 @@ test("create sheet submits a walk-on session with one authoritative court", asyn
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__walkOnCreatePayload = null;
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -4127,7 +4121,7 @@ test("create sheet submits sensible defaults when only a court and start time ar
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__collapsedCreatePayload = null;
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -4166,7 +4160,7 @@ test("create sheet switches to candidate mode and submits up to three candidate 
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__stage4bCreatePayload = null;
     window.__stage4bToasts = [];
     openCreateSessionSheet({
@@ -4231,7 +4225,7 @@ test("create sheet blocks publish with guidance toast until the venue requiremen
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__blockedToasts = [];
     window.__blockedSubmitCount = 0;
     openCreateSessionSheet({
@@ -4266,7 +4260,7 @@ test("create sheet switches to its own success page after publish and routes 查
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__viewMySessionsCalls = [];
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -4305,7 +4299,7 @@ test("create sheet success page's 回到地圖 closes without triggering My Sess
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__viewMySessionsCalls = [];
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -4335,7 +4329,7 @@ test("an existing one-decimal NTRP can save a nickname-only edit unchanged", asy
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     window.__savedOneDecimalProfile = null;
     openProfileCompletionSheet({
       onSave: async (draft) => {
@@ -4371,7 +4365,7 @@ test("profile NTRP accepts 1.0 and 7.0 but rejects excess precision and out-of-r
 
   const submitNtrp = async (value) => {
     await page.evaluate(async (nextValue) => {
-      const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+      const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
       window.__profileNtrpResults = window.__profileNtrpResults ?? [];
       openProfileCompletionSheet({
         onSave: async (draft) => {
@@ -4414,7 +4408,7 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({
       onSave: async (draft) => {
         window.__nicknameOnlyProfile = {
@@ -4455,7 +4449,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     window.__delayedProfileSheet = openProfileCompletionSheet({
       courts: [],
       courtsReady: false,
@@ -4500,7 +4494,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   // DOM——courts 延遲抵達時只重繪 grid 選項,不會動到其他欄位已寫入的 state,
   // 所以這裡改成驗證「courts 就緒前填的其他欄位在 setCourts 之後還在」。
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     window.__delayedCreateSheet = openCreateSessionSheet({ courts: [], courtsReady: false });
   });
   const create = page.locator("#session-create-modal");
@@ -4549,7 +4543,7 @@ test("a mock profile save preserves existing courts while the catalogue has no o
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     window.__mockSavedProfileCourts = null;
     openProfileCompletionSheet({
       courts: [],
@@ -4582,7 +4576,7 @@ test("profile sheet saves selected home courts via checkboxes", async ({ page })
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     window.__savedProfileCourts = null;
     openProfileCompletionSheet({
       courts: [
@@ -4632,10 +4626,10 @@ test("mock online layer uses presence pins while the full directory list opens c
   await expect(page.locator("#toast-root")).toContainText("本機示範資料僅供瀏覽");
 
   await page.evaluate(async () => {
-    const { renderPlayerPins } = await import("/src/map.js");
-    const { createDataApi } = await import("/src/dataApi.js");
-    const { createSessionController } = await import("/src/sessionController.js");
-    const { openCourtPlayersDrawer, openPlayerCardSheet, openPlayerDirectoryList, renderPlayerLayerToggle } = await import("/src/sessionViews.js");
+    const { renderPlayerPins } = await window.__importAppModule("map");
+    const { createDataApi } = await window.__importAppModule("dataApi");
+    const { createSessionController } = await window.__importAppModule("sessionController");
+    const { openCourtPlayersDrawer, openPlayerCardSheet, openPlayerDirectoryList, renderPlayerLayerToggle } = await window.__importAppModule("sessionViews");
     const map = new window.google.maps.Map(document.getElementById("map"), {
       center: { lat: 25.05, lng: 121.53 },
       zoom: 12,
@@ -4712,7 +4706,7 @@ test("player directory escapes every dynamic field before opening the selected p
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openPlayerDirectoryList } = await import("/src/sessionViews.js");
+    const { openPlayerDirectoryList } = await window.__importAppModule("sessionViews");
     const sheet = openPlayerDirectoryList({
       onOpenPlayer: (player) => {
         window.__escapedDirectoryPlayer = player.profileId;
@@ -4748,7 +4742,7 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openSessionChatSheet } = await import("/src/sessionViews.js");
+    const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
     window.__chatActions = [];
     const sheet = openSessionChatSheet(
       {
@@ -4877,7 +4871,7 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage, renderMySessionsPage } = await import("/src/sessionViews.js");
+    const { renderMePage, renderMySessionsPage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("my-sessions-page").hidden = false;
     document.getElementById("me-page").hidden = false;
@@ -4952,7 +4946,7 @@ test("the create form asks about the venue situation and offers three play types
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await import("/src/sessionViews.js");
+    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     openCreateSessionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       onSubmit: async (input) => {
@@ -5006,7 +5000,7 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openEditSessionSheet } = await import("/src/sessionViews.js");
+    const { openEditSessionSheet } = await window.__importAppModule("sessionViews");
     openEditSessionSheet(
       {
         courtId: 8,
@@ -5032,7 +5026,7 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   const editForm = page.getByTestId("session-edit-form");
   // 同一個「適合程度」欄位在建局有說明、編輯沒有是不一致;三處共用同一個匯出常數。
   const ntrpExplanation = await page.evaluate(
-    async () => (await import("/src/sessionViews.js")).NTRP_SCALE_EXPLANATION
+    async () => (await window.__importAppModule("sessionViews")).NTRP_SCALE_EXPLANATION
   );
   await expect(editForm.locator("[data-ntrp-explanation]")).toHaveText(ntrpExplanation);
   const options = editForm.getByTestId("session-edit-play-type").locator("option");
@@ -5055,7 +5049,7 @@ test("edit sheet expands advanced settings by default when the session already h
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openEditSessionSheet } = await import("/src/sessionViews.js");
+    const { openEditSessionSheet } = await window.__importAppModule("sessionViews");
     openEditSessionSheet(
       {
         courtId: 8,
@@ -5090,7 +5084,7 @@ test("the profile sheet still offers all four practice types", async ({ page }) 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await import("/src/sessionViews.js");
+    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
     openProfileCompletionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       profile: { courts: new Set(), nick: "測試球友", ntrp: 3.5, slots: new Set(), types: new Set(["對拉"]) },
@@ -5123,7 +5117,7 @@ test("subscribing to every Taipei court collapses the picker and reopens on dema
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -5168,7 +5162,7 @@ test("an unloaded court catalogue shows no subscription count", async ({ page })
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await import("/src/sessionViews.js");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -5191,9 +5185,9 @@ test("openFilterSheet mounts a dialog with six data-filter groups and closes on 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openFilterSheet } = await import("/src/sessionViews.js");
-    const { COURTS } = await import("/src/mockData.js");
-    const { DEFAULT_FILTER_STATE } = await import("/src/filters.js");
+    const { openFilterSheet } = await window.__importAppModule("sessionViews");
+    const { COURTS } = await window.__importAppModule("mockData");
+    const { DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
     window.__filterSheetCloseCalls = 0;
     window.__filterSheet = openFilterSheet({
       filters: { ...DEFAULT_FILTER_STATE, types: new Set(), districts: new Set() },
@@ -5231,9 +5225,9 @@ test("the filter sheet applies a district change immediately to the background d
   await page.goto("/");
 
   const firstSummary = await page.evaluate(async () => {
-    const { openFilterSheet, renderNearbySessionsDrawer } = await import("/src/sessionViews.js");
-    const { MOCK_SESSIONS, COURTS } = await import("/src/mockData.js");
-    const { filterSessions, DEFAULT_FILTER_STATE } = await import("/src/filters.js");
+    const { openFilterSheet, renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
+    const { MOCK_SESSIONS, COURTS } = await window.__importAppModule("mockData");
+    const { filterSessions, DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
 
     // 獨立、脫離真實 controller publish 週期的抽屜節點：避免 mock 2.5 秒 discovery
     // delay 之後真實 controller 重繪蓋掉這裡的斷言，見 task-2-report concerns。
@@ -5296,9 +5290,9 @@ test("closing and reopening the filter sheet three times does not stack delegate
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openFilterSheet } = await import("/src/sessionViews.js");
-    const { COURTS } = await import("/src/mockData.js");
-    const { DEFAULT_FILTER_STATE } = await import("/src/filters.js");
+    const { openFilterSheet } = await window.__importAppModule("sessionViews");
+    const { COURTS } = await window.__importAppModule("mockData");
+    const { DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
     window.__filterSheetSetFilterCalls = 0;
     const open = () =>
       openFilterSheet({
@@ -5355,6 +5349,7 @@ test("the filter sheet button stays enabled and its content is complete even whi
   // courts 目錄稍後才載入完成也不應該有任何額外副作用(如殘留錯誤或重繪把 sheet 關掉)。
   await page.waitForTimeout(900);
   await expect(sheet).toBeVisible();
+  await expect.poll(() => readAppTestHook(page, ["dataApi", "loadCourts", "consumedCount"])).toBeGreaterThanOrEqual(1);
   expect(runtimeErrors).toEqual([]);
 });
 
