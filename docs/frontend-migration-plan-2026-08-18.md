@@ -128,7 +128,20 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
 
 順序：訊息頁 → 我頁 → 我的球局 → 詳情 sheet → 建立/編輯表單 → 探索與附近球局抽屜（地圖 adapter 保持命令式，React 只透過 adapter 操作）。
 
-每批固定要求：該頁樣式一併搬 CSS Module；testid／文案／容器 id 凍結；對應 e2e 段落全綠；390px 視覺比對；混用期跨制契約（焦點、Escape、inert）規則寫進 `.claude/rules/`。
+每批固定要求：testid／文案／容器 id／class／DOM 結構凍結；既有 e2e 斷言零修改全綠；
+390px 視覺比對（驗收方以 stash 基準對照）；混用期規則見 `.claude/rules/react-migration.md`。
+**修正（2026-08-18）**：原「每批樣式搬 CSS Module」與 class 凍結矛盾——頁面批一律沿用既有
+全域 class，CSS 收整統一延到批 10。
+
+- 批 3（**完成，2026-08-18**）：訊息頁 → `src/pages/MessagesPage.tsx`。頁面批固定模式確立：
+  adapter 簽名凍結（renderMessagesPage 內部改 React mount）、WeakMap per-root createRoot＋
+  flushSync 同步 commit、eager glob 讓 Node unit tests 免改。main.js 與 tests 零改動。
+  驗收：390px 視覺比對（stash 基準，逐元素一致）＋React 接管 canary＋完整 gate＋read-back
+  （markup 逐屬性保真 PASS，唯一差異為無 consumer 的 whitespace text node）。
+  bundle 首含 React（+62.7KB gzip）。回報 `docs/migration-reports/batch-3.md`。
+  **rider（併入批 4）**：(a) MySessionSummary 繼承的 candidateCourtIds 對 mapMySession 過度
+  承諾——改 Omit 或補欄位；(b) messagesFromGroups 在 sessionViews 的 exported 版已是死副本
+  （UI 用 TSX private 版、unit test 測死副本）——收斂為單一來源並把測試指向活版。
 
 ### 批 9：controller 狀態 store 化＋測試 harness 改接
 
@@ -165,3 +178,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
 - 2026-08-18：批 1d 驗收通過並 commit——**批 1 收官**；批 2（TS＋React 基建）派工單已發。
 - 2026-08-18：批 2 首輪 REJECT（read-back 抓到 scripts/ consumer 斷鏈）→ 2-fix 通過並 commit；
   驗收 gate 清單升級（必含 `npm test`）；批 3（訊息頁 React 遷移）派工單已發。
+- 2026-08-18：批 3 驗收通過並 commit——第一個 React 頁面上線，頁面批模式與視覺比對流程定型；
+  兩條 rider 併批 4；批 4（我頁）派工單已發。
