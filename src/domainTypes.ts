@@ -27,6 +27,19 @@ export interface SessionSummary {
   decidedAt: string;
 }
 
+/** Authenticated session row used by My Sessions and the messages destination. */
+export interface MySessionSummary extends SessionSummary {
+  viewerRole: string;
+  viewerParticipantStatus: string;
+  unreadMessageCount: number;
+}
+
+/** Minimum court catalogue surface consumed by page-level presentation helpers. */
+export interface CourtSummary {
+  id: number | string | null;
+  name: string;
+}
+
 export interface Profile {
   nick: string;
   ntrp: number | null;

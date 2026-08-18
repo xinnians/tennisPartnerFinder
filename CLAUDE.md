@@ -60,6 +60,7 @@
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
 - `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
 - `src/domainTypes.ts`：從 data API mapper 反推的共用 domain／surface 型別。
+- React 頁面批的 mount、import、DOM 凍結與焦點／Escape 混用規則見 `.claude/rules/react-migration.md`。
 - `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
 - `src/mockData.js`：安全的本機 demo `SessionSummary`。
 - `data/courts.json`：球場目錄單一來源；產生 migration／pgTAP fixture 的來源。

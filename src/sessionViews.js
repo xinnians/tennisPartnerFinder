@@ -14,6 +14,12 @@ import {
 } from "./taipeiTime.js";
 import { esc } from "./util.js";
 
+// Vite 將單檔 eager glob 轉為 browser 的同步 import；Node 22 unit tests 沒有
+// document，會短路而不解析其不支援的 .tsx 副檔名。
+const messagesPageModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./pages/MessagesPage.tsx", { eager: true });
+const mountMessagesPage = messagesPageModules["./pages/MessagesPage.tsx"]?.mountMessagesPage;
+
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
 const GOOGLE_AVATAR_URL = /^https:\/\/lh[0-9]+[.]googleusercontent[.]com\//;
@@ -2343,48 +2349,10 @@ export function messagesFromGroups(groups = {}) {
     .sort((left, right) => String(left?.startAt ?? "").localeCompare(String(right?.startAt ?? "")));
 }
 
-function messagesEmptyStateMarkup() {
-  return `<div class="messages-page__empty">
-    <p class="messages-page__empty-text">加入或開一場球局，<br />成局後群組聊天會出現在這裡。</p>
-  </div>`;
-}
-
-function messageRowMarkup(session, { courts = [] } = {}) {
-  const venue = sessionVenuePresentation(session, courts);
-  const courtLabel = sessionCourtLabel(session, venue);
-  const scheduleLabel = sessionScheduleLabel(session);
-  const unreadCount = Math.max(0, Number(session?.unreadMessageCount) || 0);
-  const unread = unreadCount > 0;
-  const ariaLabel = unread
-    ? ` aria-label="${esc(`${courtLabel}，${scheduleLabel}，${unreadCount} 則未讀訊息`)}"`
-    : "";
-  return `<button type="button" class="messages-row" data-message-row data-session-id="${esc(
-    session.sessionId
-  )}" data-testid="messages-row-${esc(session.sessionId)}"${ariaLabel}>
-    <span class="messages-row__avatar" aria-hidden="true">${esc(sessionHostInitial(session))}</span>
-    <span class="messages-row__body">
-      <span class="messages-row__court">${esc(courtLabel)}</span>
-      <span class="messages-row__sub">${esc(scheduleLabel)}</span>
-    </span>
-    ${unread ? '<span class="messages-row__unread" aria-hidden="true"></span>' : ""}
-  </button>`;
-}
-
-/** Render the CHATS list destination (bottom-nav "訊息" tab). */
+/** Mount or update the React CHATS destination without changing its public adapter. */
 export function renderMessagesPage(root, options = {}) {
-  const { courts = [], groups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] }, onOpenChat = () => {} } = options;
-  const rows = messagesFromGroups(groups);
-  root.innerHTML = `
-    <div class="messages-page__head">
-      <p class="messages-page__eyebrow">CHATS</p>
-      <h1 tabindex="-1" data-messages-heading class="messages-page__title">訊息</h1>
-    </div>
-    <div class="messages-page__list">
-      ${rows.length ? rows.map((session) => messageRowMarkup(session, { courts })).join("") : messagesEmptyStateMarkup()}
-    </div>`;
-  root.querySelectorAll("[data-message-row]").forEach((button) => {
-    button.addEventListener("click", () => onOpenChat(button.dataset.sessionId));
-  });
+  if (!mountMessagesPage) throw new Error("MessagesPage browser mount is unavailable.");
+  mountMessagesPage(root, options);
 }
 
 const JOIN_STAGE_FOCUSABLE_SELECTOR =
