@@ -18,3 +18,10 @@
 - 頁面 root 由 React 獨占；sheet/dialog 等既有 innerHTML surface 只寫自己的 root，不可跨邊界改 React 子樹。
 - 重繪前若既有流程已 capture 焦點，React commit 後仍依 generation、active page 與 overlay 狀態還原；同 key reconciliation 不能取代「列已消失時的 fallback」或「overlay 開啟時不搶焦」規則。
 - Escape 由當下最上層 sheet/dialog 的 capture listener 優先處理；頁面級 handler 看到已開 surface 或已取消事件時不得再執行。關閉 surface 的焦點回復仍回到開啟它的 React 控制項。
+
+## Sheet 批固定模式
+
+1. factory 的公開簽名、預設值與 imperative handle 方法集合／payload／同步語意凍結；handle 推 React state 時以 `flushSync` commit，呼叫返回前 DOM 必須已更新。
+2. `mountSheet` 專有 surface 殼：backdrop、focus trap、Escape、surface stack、關閉與焦點回復都不搬進 React；React 只掛進殼內既有的內容槽，且不得跨界改寫 sheet root。
+3. sheet 元件放在 `src/sheets/<SheetName>.tsx`。adapter 留在原 factory 模組，負責把 legacy callbacks 接到 React 內容與既有 surface handle；格式化／presentation helper 保持單一來源。
+4. 局部狀態切換只更新有關子樹；其餘內容以穩定 props、memo 或等價方式維持 DOM identity，避免抹掉非目標區域的焦點與選字。DOM、全域 class、文案及 aria 契約仍依頁面批規則凍結。

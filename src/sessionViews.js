@@ -24,6 +24,10 @@ const mountMePage = mePageModules["./pages/MePage.tsx"]?.mountMePage;
 const mySessionsPageModules =
   typeof document === "undefined" ? {} : import.meta.glob("./pages/MySessionsPage.tsx", { eager: true });
 const mountMySessionsPage = mySessionsPageModules["./pages/MySessionsPage.tsx"]?.mountMySessionsPage;
+const sessionDetailSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
+const mountSessionDetailSheetContent =
+  sessionDetailSheetModules["./sheets/SessionDetailSheet.tsx"]?.mountSessionDetailSheetContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -85,10 +89,15 @@ function showAvatarFallback(image) {
  * 三個呼叫點(加入前名單主揪列、球友名單列、球友卡)的容器都是 grid,所以這個 span
  * 會自成一列,不需要各自加 display。
  */
-function trustCountMarkup(count, label) {
+function trustCountText(count, label) {
   const value = Number(count ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return "";
-  return `<span class="trust-count">${esc(label.replace("{n}", String(value)))}</span>`;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return label.replace("{n}", String(value));
+}
+
+function trustCountMarkup(count, label) {
+  const text = trustCountText(count, label);
+  return text ? `<span class="trust-count">${esc(text)}</span>` : "";
 }
 
 // 批 D8:我頁 profile 卡副行「常打 X」——profile.courts 可能存 court.id 或(舊資料)
@@ -100,38 +109,6 @@ function profileCourtNames(profile, courts) {
   return (Array.isArray(courts) ? courts : [])
     .filter((court) => selected.has(String(court?.id)) || selected.has(court?.name))
     .map((court) => court.name);
-}
-
-function joinPreviewMarkup({ participants = [], status = "loading" } = {}) {
-  if (status === "loading") return '<p class="form-hint" role="status">正在載入已確認參加者…</p>';
-  if (status === "error") return '<p class="form-hint" role="status">參加者名單暫時無法載入。</p>';
-  const ordered = [...participants].sort((left, right) => Number(right?.role === "host") - Number(left?.role === "host"));
-  if (!ordered.length) return '<p class="form-hint" role="status">目前沒有可顯示的已確認參加者。</p>';
-  return `<div class="join-preview__people">${ordered
-    .map(
-      (participant) => `<article class="join-preview__person" data-join-preview-person>
-        ${avatarMarkup(participant)}
-        <div><strong>${esc(participant.nickname)}</strong><span>${participant.role === "host" ? "主揪" : "已確認"} · ${esc(
-          formatNtrp(participant.ntrp)
-        )}</span>${participant.role === "host" ? trustCountMarkup(participant.hostedPlayedCount, "已成局 {n} 次") : ""}</div>
-      </article>`
-    )
-    .join("")}</div>`;
-}
-
-function joinPreviewSection(show) {
-  return show
-    ? `<section class="join-preview" data-session-join-preview><h3>已確認參加者</h3><div data-session-join-preview-content>${joinPreviewMarkup()}</div></section>`
-    : "";
-}
-
-function createJoinPreviewSetter(root) {
-  return (state) => {
-    const content = root.querySelector("[data-session-join-preview-content]");
-    if (!content) return;
-    content.innerHTML = joinPreviewMarkup(state);
-    wireAvatarFallbacks(content);
-  };
 }
 
 const dialogFocusable =
@@ -602,13 +579,10 @@ function completionLabel(session) {
   return session.hostProfileComplete ? "資料完整" : "資料未完成";
 }
 
-function nowStartSessionMarkup(session) {
+function ongoingSessionMinutes(session) {
   const startAt = new Date(session?.startAt ?? "").getTime();
-  if (!Number.isFinite(startAt) || startAt > Date.now()) return "";
-  const minutes = Math.max(0, Math.floor((Date.now() - startAt) / 60_000));
-  return `<span class="session-badge session-badge--ongoing">進行中</span><span class="session-ongoing-time">${esc(
-    `已開打 ${minutes} 分鐘`
-  )}</span>`;
+  if (!Number.isFinite(startAt) || startAt > Date.now()) return null;
+  return Math.max(0, Math.floor((Date.now() - startAt) / 60_000));
 }
 
 // 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄(標題列/meta/底列)。
@@ -1839,218 +1813,15 @@ function joinSuccessMessage(result) {
   return "已送出申請，等待主揪回覆。";
 }
 
-// ==== 批 D4b:v2 動作列(dc L414-426)。canDecide 的「定案」動作已搬到獨立的
-// candidateDecidePanelMarkup(見下方,渲染在 actions 容器之外、不隨五態切換重繪),
-// 這裡不再處理 canDecide——保留簽名不收 canDecide 是刻意的。 ====
-const CTA_CLOCK_ICON =
-  '<svg class="cta-status__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2" stroke-linecap="round"></path></svg>';
-const CTA_CHECK_ICON =
-  '<svg class="cta-status__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>';
-
-function ctaCopyLinkButton() {
-  return '<button type="button" class="session-secondary cta-copy-link" data-session-action="copy-link">複製連結</button>';
-}
-
-function ctaEditButton(canEdit) {
-  return canEdit ? '<button type="button" class="session-secondary" data-session-action="edit">編輯球局</button>' : "";
-}
-
-// 批 D9 backlog #5 稽核:grep sessionController.js 的 actionFor()/openSessionDetail()
-// 證實 canChat 與 kind==="chat" 並非恆同源,故保留此分支——action.kind 由
-// terminalAction(session)(cancelled/expired/started)優先決定,canChat 只看
-// participation.viewerParticipantStatus==="accepted",兩者計算路徑互不相依。
-// 一場已被主揪取消／過期／開打後成為 terminal 的球局,先前被接受的參加者
-// canChat 仍是 true 但 action.kind 會是 "terminal"(非 "chat"),此時就需要這顆
-// 額外的「群組聊天」CTA(封存局群聊唯讀但仍可讀)。My Sessions 的「查看球局」
-// (data-open-my-session,見 main.js)可對 history 分頁的舊局重新開出這張 detail
-// sheet,是這個分支的真實可達路徑,非防禦性死碼。
-function ctaExtraChatButton(canChat, kind) {
-  return canChat && kind !== "chat"
-    ? '<button type="button" class="session-primary" data-session-action="chat">群組聊天</button>'
-    : "";
-}
-
-function ctaReportButton(canReport) {
-  return canReport ? '<button type="button" class="session-tertiary" data-session-action="report">檢舉此球局</button>' : "";
-}
-
-function ctaTextAction(action, label) {
-  return `<button type="button" class="cta-text-action" data-session-action="${esc(action)}">${esc(label)}</button>`;
-}
-
-function idleActionsMarkup({ action, canEdit, canChat, canReport, isMine }) {
-  const kind = action?.kind;
-  const editButton = ctaEditButton(canEdit);
-  const extraChatButton = ctaExtraChatButton(canChat, kind);
-  const reportButton = ctaReportButton(canReport);
-
-  if (kind === "join") {
-    const instant = Boolean(action?.expectedAccepted);
-    const primaryDisabled = action?.disabled ? " disabled" : "";
-    return `
-      <div class="cta-row">
-        ${ctaCopyLinkButton()}
-        ${editButton}
-        ${extraChatButton}
-        <button type="button" class="session-primary${
-          instant ? " session-primary--instant" : ""
-        }" data-session-action="primary"${primaryDisabled}>${esc(action?.label ?? "申請加入")}</button>
-      </div>
-      ${action?.secondaryLabel ? ctaTextAction("secondary", action.secondaryLabel) : ""}
-      ${reportButton}
-      <p class="cta-footnote">成局後可在球局群組聊天協調細節。</p>
-    `;
-  }
-
-  if (kind === "waiting") {
-    return `
-      <div class="cta-row">
-        ${ctaCopyLinkButton()}
-        ${editButton}
-        <div class="cta-status cta-status--pending" data-session-action="primary" aria-disabled="true">${CTA_CLOCK_ICON}已送出申請 · 等主揪確認</div>
-      </div>
-      ${ctaTextAction("secondary", "取消申請")}
-      ${reportButton}
-    `;
-  }
-
-  if (kind === "chat") {
-    // fix round 1(驗收回歸):主揪的 viewerParticipantStatus 也是 accepted,一樣落在
-    // kind:"chat"——但 can_withdraw 是 guest-only(202607210002_session_join_mode.sql),
-    // 主揪按「取消報名」會被 withdraw_from_session RPC 拒絕。改版前主揪在這裡本來就
-    // 沒有 withdraw 入口(舊版 chat kind 無 secondaryLabel),isMine 時不渲染綠面板與
-    // 「取消報名」,只留 cta-row(複製連結/編輯/群組聊天)+檢舉,避免新引入這個
-    // 對主揪無效的 affordance。dc 的「取消這場球局」紅鈕歸 D6,本批不做。
-    if (isMine) {
-      return `
-        <div class="cta-row">
-          ${ctaCopyLinkButton()}
-          ${editButton}
-          <button type="button" class="session-primary" data-session-action="primary">${esc(action?.label ?? "群組聊天")}</button>
-        </div>
-        ${reportButton}
-      `;
-    }
-    return `
-      <div class="cta-status cta-status--joined">${CTA_CHECK_ICON}已加入這場球局</div>
-      <div class="cta-row">
-        ${ctaCopyLinkButton()}
-        ${editButton}
-        <button type="button" class="session-primary" data-session-action="primary">${esc(action?.label ?? "群組聊天")}</button>
-      </div>
-      ${ctaTextAction("secondary", "取消報名")}
-      ${reportButton}
-    `;
-  }
-
-  if (kind === "full" || kind === "terminal") {
-    return `
-      <div class="cta-row">
-        ${ctaCopyLinkButton()}
-        ${editButton}
-        ${extraChatButton}
-        <button type="button" class="cta-status cta-status--disabled" data-session-action="primary" disabled>${esc(
-          action?.label ?? ""
-        )}</button>
-      </div>
-      ${reportButton}
-    `;
-  }
-
-  // Fallback:action 沒有可辨識的 kind(例如既有測試手寫的 action 物件,先於
-  // D4b 這批 CTA 改版)——保留改版前的通用渲染(按鈕集合不變),只補上 .cta-row
-  // 包裝維持與其他分支一致的水平排列。
-  const primaryDisabled = action?.disabled ? " disabled" : "";
-  return `
-    <div class="cta-row">
-      ${ctaCopyLinkButton()}
-      ${editButton}
-      ${extraChatButton}
-      <button type="button" class="session-primary" data-session-action="primary"${primaryDisabled}>${esc(
-        action?.label ?? "申請加入"
-      )}</button>
-    </div>
-    ${action?.secondaryLabel ? ctaTextAction("secondary", action.secondaryLabel) : ""}
-    ${reportButton}
-  `;
-}
-
-function confirmingActionsMarkup(expectedAccepted) {
-  return `
-    <p class="form-hint" data-testid="join-confirm-hint">${esc(joinConfirmHintText(expectedAccepted))}</p>
-    <button type="button" class="session-secondary" data-testid="join-cancel">取消</button>
-    <button type="button" class="session-primary" data-testid="join-confirm">確認送出</button>
-  `;
-}
-
-function submittingActionsMarkup(expectedAccepted) {
-  return `
-    <p class="form-hint" data-testid="join-confirm-hint">${esc(joinConfirmHintText(expectedAccepted))}</p>
-    <button type="button" class="session-secondary" data-testid="join-cancel" disabled>取消</button>
-    <button type="button" class="session-primary" data-testid="join-confirm" disabled>送出中…</button>
-  `;
-}
-
-function successActionsMarkup(message, notificationSettings) {
-  return `
-    <h3 class="surface__message" data-testid="join-success-title" tabindex="-1">${esc(
-      message
-    )}</h3>
-    ${successPushPromptMarkup(notificationSettings, {
-      message: "開啟推播，才不會錯過主揪的審核結果與球局變更。",
-      testId: "join-success-enable-push",
-    })}
-    <button type="button" class="session-primary" data-testid="join-open-my-sessions">查看我的球局</button>
-  `;
-}
-
-function errorActionsMarkup(message) {
-  return `
-    <p class="form-error" data-testid="join-error" role="alert">${esc(message)}</p>
-    <button type="button" class="session-primary" data-testid="join-retry">重試</button>
-  `;
-}
-
-// ==== 批 D4b:詳情 sheet 頭部/記分板/主揪列/候選面板 helper(dc L333-410)。
-// 這些都是純函式,不含 wiring,只組 markup 字串。 ====
-
 /** 球場名(19px)那一行:未定案候選改用 sessionCourtLabel() 同一套 D2 卡片
  * 「X 等 N 館候選」縮寫公式(批 D9 backlog #2)——完整候選清單只留在下方
- * candidateInfoRowMarkup() 的候選資訊列,不再頭部/資訊列各重複一份;
+ * React candidate info 的完整候選資訊列,不再頭部/資訊列各重複一份;
  * 其餘沿用 session.court 原始球場名——不再像舊版把行政區併進同一行。 */
 function sessionDetailCourtName(session, venue) {
   return venue.undecidedCandidates ? sessionCourtLabel(session, venue) : session?.court || venue.court;
 }
 
 /** 行政區・時間那一行:只有時間片段套 mono(dc L349 inline span)。 */
-function sessionDetailTimeLineMarkup(session, venue) {
-  const districtPrefix = !venue.undecidedCandidates && session?.courtDistrict ? `${esc(session.courtDistrict)} · ` : "";
-  return `${districtPrefix}<span class="session-detail__mono">${esc(venue.time)}</span>`;
-}
-
-/** 頭部 badge 列(dc L342-347):venue 欄位 badge 是既有 My Sessions 共用值
- * (已訂場/候選局/現場等場),與 dc 的「候選中」「我主揪的」是兩套並存的 badge——
- * 刻意都保留,不用後者取代前者(取代會牽動 My Sessions/roster 等本批範圍外的呼叫點)。 */
-function sessionDetailBadgesMarkup(session, venue, { isMine = false } = {}) {
-  return [
-    `<span class="session-badge" data-session-field="venue">${esc(venue.badge)}</span>`,
-    session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : "",
-    venue.undecidedCandidates ? "" : nowStartSessionMarkup(session),
-    venue.undecidedCandidates ? '<span class="session-badge session-badge--candidate">候選中</span>' : "",
-    isMine ? '<span class="session-badge session-badge--host">我主揪的</span>' : "",
-  ]
-    .filter(Boolean)
-    .join("");
-}
-
-/** 候選資訊列(guest 視角,dc L367-368):取代退役的 candidateDecisionExplanation()。 */
-function candidateInfoRowMarkup(venue) {
-  const names = (venue.candidateNames ?? []).join("、");
-  return `<p class="candidate-info-panel" data-session-candidate-explanation>候選球場:<strong>${esc(
-    names
-  )}</strong> · 主揪定案後群組通知</p>`;
-}
-
 /** 訂場狀態三態(dc L983):候選未定案一律顯示「定案後補訂場」,壓過 booked 值;
  * 已定案的候選局(venue.decided)視同已訂場——dc 的簡化資料模型沒有 walk_on
  * 對應態,這裡另外把「尚未訂場」留給 walk_on(現場等場),屬本批推論延伸。 */
@@ -2068,19 +1839,6 @@ function hostRowBookedStatus(session, venue) {
  * formatNtrp() 保留「尚未填寫 NTRP」的空值語意,並在同一行後綴既有的
  * completionLabel()(資料完整/資料未完成)——dc 原型沒有這個欄位,但它是
  * CLAUDE.md 明列的匿名公開欄位之一,拿掉等於砍資訊,故意保留,回報標注。 */
-function hostRowMarkup(session, venue) {
-  return `<div class="host-row" data-session-field="host">
-    <span class="host-row__avatar" aria-hidden="true">${esc(avatarInitial(session.hostNickname))}</span>
-    <div class="host-row__copy">
-      <p class="host-row__nameline"><strong>${esc(session.hostNickname)}</strong><span class="host-row__chip">主揪</span></p>
-      <p class="host-row__ntrp"><span class="session-detail__mono">${esc(
-        formatNtrp(session.hostNtrp)
-      )}</span> · ${esc(completionLabel(session))}</p>
-    </div>
-    <p class="host-row__status">${esc(hostRowBookedStatus(session, venue))}</p>
-  </div>`;
-}
-
 /** 記分板缺額格(dc L980 dSpots:ds.need+' 位')——刻意不用既有 vacancyLabel()
  * 的「缺 N 位/已額滿」格式,因為那個格式是為 CTA 主鈕文案設計的,dc 這一格只要
  * 裸數字+「位」,額滿時就是「0 位」。 */
@@ -2097,30 +1855,25 @@ function candidateCourtRows(session, courts = []) {
     .filter(Boolean);
 }
 
-/**
- * 候選定案面板(host 視角,dc L381-393):每顆「定案」鈕都呼叫既有 onDecide()
- * 開完整定案表單,不做逐球場一鍵定案——decide_session_court 還需要使用者在表單
- * 內收斂場地與時間,原型的單鍵 finalizeCourt 不滿足這個 RPC 契約,此為有意偏離。
- * 這個面板渲染在 `.session-detail__actions` 之外、不隨五態切換重繪,故其
- * data-session-action="decide" 鈕在掛載時只需要 wire 一次。
- */
-function candidateDecidePanelMarkup(session, courts) {
-  const rows = candidateCourtRows(session, courts)
-    .map(
-      (court) => `<div class="candidate-decide-panel__row">
-        <div class="candidate-decide-panel__copy">
-          <p class="candidate-decide-panel__name">${esc(court.name)}</p>
-          <p class="candidate-decide-panel__district">${esc(court.district ?? "")}</p>
-        </div>
-        <button type="button" class="candidate-decide-panel__cta" data-session-action="decide">定案</button>
-      </div>`
-    )
-    .join("");
-  return `<div class="candidate-decide-panel">
-    <p class="candidate-decide-panel__title">候選球場 · 點定案</p>
-    ${rows}
-  </div>`;
-}
+/** React detail content imports the existing presentation rules from one source. */
+export const sessionDetailSheetRuntime = Object.freeze({
+  avatarInitial,
+  candidateCourtRows,
+  completionLabel,
+  hostRowBookedStatus,
+  joinConfirmHintText,
+  ongoingSessionMinutes,
+  safeGoogleAvatarUrl,
+  scoreboardNtrpValue,
+  scoreboardVacancyText,
+  sessionCourtLabel,
+  sessionDetailCourtName,
+  sessionTimeTilePresentation,
+  sessionVenuePresentation,
+  showAvatarFallback,
+  successPushPromptPresentation,
+  trustCountText,
+});
 
 /**
  * Open a public session detail sheet with the privacy-reviewed field order.
@@ -2160,6 +1913,7 @@ export function openSessionSheet(
     onClose = () => {},
   } = {}
 ) {
+  if (!mountSessionDetailSheetContent) throw new Error("SessionDetailSheet browser mount is unavailable.");
   const venue = sessionVenuePresentation(session, courts);
   let stage = initialStage;
   let confirmingExpectedAccepted = Boolean(action?.expectedAccepted);
@@ -2179,50 +1933,37 @@ export function openSessionSheet(
     },
     html: `
       <span class="session-detail-sheet__grabber"></span>
-      <div class="session-detail">
-        <div class="session-detail__head">
-          ${sessionTimeTileMarkup(session, venue, { detail: true })}
-          <div class="session-detail__headcopy">
-            <div class="session-detail__badges">${sessionDetailBadgesMarkup(session, venue, { isMine })}</div>
-            <p class="session-detail__court" data-session-field="court">${esc(sessionDetailCourtName(session, venue))}</p>
-            <p class="session-detail__meta" data-session-field="time">${sessionDetailTimeLineMarkup(session, venue)}</p>
-          </div>
-          <button type="button" class="session-detail__close" data-surface-close aria-label="關閉球局詳情">×</button>
-        </div>
-        <div class="scoreboard-strip session-detail__scoreboard" data-session-field="details">
-          <div class="scoreboard-strip__cell">
-            <p class="scoreboard-strip__eyebrow">TYPE</p>
-            <p class="scoreboard-strip__value">${esc(session.playType)}</p>
-          </div>
-          <div class="scoreboard-strip__cell">
-            <p class="scoreboard-strip__eyebrow">NTRP</p>
-            <p class="scoreboard-strip__value scoreboard-strip__value--mono">${esc(scoreboardNtrpValue(session))}</p>
-          </div>
-          <div class="scoreboard-strip__cell scoreboard-strip__cell--inverse">
-            <p class="scoreboard-strip__eyebrow">缺額</p>
-            <p class="scoreboard-strip__value scoreboard-strip__value--mono">${esc(scoreboardVacancyText(session))}</p>
-          </div>
-        </div>
-        ${venue.undecidedCandidates && !isMine ? candidateInfoRowMarkup(venue) : ""}
-        ${hostRowMarkup(session, venue)}
-        <p class="session-detail__notes" data-session-field="notes">${esc(
-          session.notes ? `「${session.notes}」` : "沒有補充說明。"
-        )}</p>
-        ${
-          session.feeNote
-            ? `<p class="form-hint" data-session-field="fee-note">${esc(`費用：${session.feeNote}`)}</p>`
-            : ""
-        }
-        ${canDecide ? candidateDecidePanelMarkup(session, courts) : ""}
-        ${joinPreviewSection(showJoinPreview)}
-        ${action?.note ? `<p class="form-hint" data-session-action-note>${esc(action.note)}</p>` : ""}
-        <p class="form-error" data-session-report-error role="alert" hidden></p>
-        <div class="session-detail__actions" tabindex="-1"></div>
-      </div>`,
+      <div class="session-detail"></div>`,
   });
 
+  const contentRoot = mounted.root.querySelector(".session-detail");
+  const content = mountSessionDetailSheetContent(
+    contentRoot,
+    {
+      action,
+      canChat,
+      canDecide,
+      canEdit,
+      canReport,
+      courts,
+      isMine,
+      notificationSettings,
+      session,
+      showJoinPreview,
+      venue,
+    },
+    {
+      expectedAccepted: confirmingExpectedAccepted,
+      joinPreview: { participants: [], status: "loading" },
+      message: "",
+      stage: initialStage,
+    }
+  );
   const container = mounted.root.querySelector(".session-detail__actions");
-  const setJoinPreview = createJoinPreviewSetter(mounted.root);
+  const setJoinPreview = (state) => content.setJoinPreview(state);
+  // mountSheet 掛 listener 時 React close button 尚未存在；補線只委派回既有 close，
+  // surface teardown、focus restore 與 onClose 仍完全由 mountSheet 負責。
+  mounted.root.querySelector("[data-surface-close]")?.addEventListener("click", mounted.close);
   // 候選定案面板不在 actions 容器內,不隨五態切換重繪,掛載時 wire 一次即可。
   mounted.root.querySelectorAll('[data-session-action="decide"]').forEach((button) => {
     button.addEventListener("click", onDecide);
@@ -2305,18 +2046,12 @@ export function openSessionSheet(
   }
 
   function renderStage(nextStage, message = "") {
-    if (nextStage === "idle") container.innerHTML = idleActionsMarkup({ action, canEdit, canChat, canReport, isMine });
-    else if (nextStage === "confirming") container.innerHTML = confirmingActionsMarkup(confirmingExpectedAccepted);
-    else if (nextStage === "submitting") container.innerHTML = submittingActionsMarkup(confirmingExpectedAccepted);
-    else if (nextStage === "success") container.innerHTML = successActionsMarkup(message, notificationSettings);
-    else if (nextStage === "error") container.innerHTML = errorActionsMarkup(message);
-    container.dataset.joinStage = nextStage;
+    content.renderStage(nextStage, message, confirmingExpectedAccepted);
     stage = nextStage;
   }
 
-  // 四態切換一律只替換 `.session-detail__actions` 這顆容器的內容,不重灌整張
-  // sheet(批 B Task 4 教訓);每次切換後明確把焦點移到新態的第一個可操作元素
-  // (或成功卡標題),絕不放任它落回 body。
+  // React state 只改變 `.session-detail__actions` 子樹；memo 化的其餘內容維持同一批
+  // DOM nodes。每次切換後明確把焦點移到新態的第一個可操作元素(或成功卡標題)。
   function setStage(nextStage, message = "") {
     renderStage(nextStage, message);
     if (nextStage === "idle") wireIdle();
@@ -2349,14 +2084,13 @@ export function openSessionSheet(
     setStage("confirming");
   }
 
-  // Initial render never goes through setStage(): a freshly mounted idle
+  // Initial React commit never goes through setStage(): a freshly mounted idle
   // sheet must NOT steal focus here — mountSurface's own generic fallback
   // (requestAnimationFrame, only if nothing already has focus) puts it on
   // the × close button, matching every other sheet in this app. Any other
   // initial stage (only "confirming", from a resumed Join intent) has no
   // such fallback to lean on and must claim its own focus synchronously,
   // before that fallback's requestAnimationFrame runs.
-  renderStage(initialStage);
   if (initialStage === "idle") {
     wireIdle();
   } else {
