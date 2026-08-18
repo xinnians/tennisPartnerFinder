@@ -120,6 +120,52 @@ test("mock mode never loads or requests Vercel Analytics", async ({ page }) => {
   expect(analyticsRequests).toEqual([]);
 });
 
+test("My Sessions segment switching redraws from the latest rendered snapshot", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await import("/src/sessionViews.js");
+    const root = document.getElementById("my-sessions-root");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    const session = (sessionId, court, viewerRole) => ({
+      court,
+      courtDistrict: "萬華區",
+      hostNickname: "主揪",
+      hostNtrp: 3.5,
+      ntrpMax: 4,
+      ntrpMin: 3,
+      playType: "雙打",
+      sessionId,
+      slotsRemaining: 1,
+      startAt: "2099-08-18T10:00:00+08:00",
+      status: "open",
+      viewerParticipantStatus: "accepted",
+      viewerRole,
+    });
+    const groups = (hostedSession) => ({
+      history: [],
+      needsAction: [],
+      needsActionCount: 0,
+      upcoming: [session(8800, "目前報名場", "guest"), hostedSession],
+    });
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: groups(session(8801, "過期主揪場", "host")),
+    });
+    const queuedHostedSegmentClick = root.querySelector("[data-my-sessions-seg='hosted']");
+    renderMySessionsPage(root, {
+      authenticated: true,
+      groups: groups(session(8802, "最新主揪場", "host")),
+    });
+    window.__runQueuedHostedSegmentClick = () => queuedHostedSegmentClick.click();
+  });
+
+  await page.evaluate(() => window.__runQueuedHostedSegmentClick());
+  await expect(page.locator("#my-sessions-root")).toContainText("最新主揪場");
+  await expect(page.locator("#my-sessions-root")).not.toContainText("過期主揪場");
+});
+
 test("anonymous map discovery renders only safe SessionSummary fields", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

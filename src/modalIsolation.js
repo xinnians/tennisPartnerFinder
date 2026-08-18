@@ -69,21 +69,3 @@ export function pushSurfaceIsolation(root) {
     { priority: 2 }
   );
 }
-
-/** Isolate map discovery background without making the active drawer panel inert. */
-export function pushDrawerIsolation(toggle) {
-  return pushModalIsolation(
-    () => [
-      document.querySelector(".app-header"),
-      document.getElementById("map"),
-      document.querySelector(".map-toolbar"),
-      document.getElementById("level-popover"),
-      document.getElementById("map-data-status"),
-      document.querySelector(".bottom-navigation"),
-      document.getElementById("sheet-root"),
-      document.getElementById("modal-root"),
-      toggle,
-    ],
-    { priority: 1 }
-  );
-}

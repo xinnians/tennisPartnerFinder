@@ -117,6 +117,7 @@ const drawerBindings = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
 const mySessionActionStates = new WeakMap();
+const mySessionsRenderOptions = new WeakMap();
 // 批 D6:segmented tab(我報名的／我主揪的)狀態掛在 root 上,同一顆 DOM 節點在
 // show/hide 之間沿用(main.js 只切 hidden,不拆 innerHTML),語意與
 // mySessionActionStates 相同——view-only 狀態,不進 sessionController。
@@ -1702,6 +1703,7 @@ function mySessionsHistorySection(sessions, { courts, focusSessionId, segment, s
 
 /** Render the private, action-first My Sessions destination. */
 export function renderMySessionsPage(root, options = {}) {
+  mySessionsRenderOptions.set(root, options);
   const {
     courts = [],
     createdSessionId = null,
@@ -1796,7 +1798,7 @@ export function renderMySessionsPage(root, options = {}) {
       const state = mySessionsSegmentState(root);
       if (state.segment === nextSegment) return;
       state.segment = nextSegment;
-      renderMySessionsPage(root, options);
+      renderMySessionsPage(root, mySessionsRenderOptions.get(root));
       root.querySelector(`[data-my-sessions-seg="${nextSegment}"]`)?.focus({ preventScroll: true });
     });
   });
