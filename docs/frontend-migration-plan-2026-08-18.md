@@ -142,6 +142,16 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   **rider（併入批 4）**：(a) MySessionSummary 繼承的 candidateCourtIds 對 mapMySession 過度
   承諾——改 Omit 或補欄位；(b) messagesFromGroups 在 sessionViews 的 exported 版已是死副本
   （UI 用 TSX private 版、unit test 測死副本）——收斂為單一來源並把測試指向活版。
+- 批 6（**完成，2026-08-18**）：詳情 sheet → `src/sheets/SessionDetailSheet.tsx`（第一個 sheet 批，
+  模式入規則檔）。殼/內容分界：mountSheet 保有 surface 殼全責，React 只掛 .session-detail 內容槽，
+  [data-surface-close] 由 adapter 補線（等價性 read-back 逐位驗證）。五態 actions 用
+  actionGeneration keyed detach（同態重入也遞增）——**Codex 自抓一個 reconciliation bug**：
+  submitting 確認鈕被 index 比對重用成 success CTA、舊 native listener 誤發第二個 join RPC，
+  keyed detach 根治並留 submitting guard 當第二道防線。memo 穩定性（stage 切換不動
+  DetailMain/JoinPreview、setJoinPreview 不動 actions）經 read-back 引用鏈論證成立。
+  驗收：390px 視覺比對（sheet 開啟態）＋canary＋完整 gate＋read-back 七項全 PASS。
+  微 rider（併批 7）：NTRP 格多餘 {" "} 空白節點；initialSnapshot 的 actionGeneration 型別
+  應標 optional。回報 `docs/migration-reports/batch-6.md`。
 - 批 5（**完成，2026-08-18**）：我的球局頁 → `src/pages/MySessionsPage.tsx`（e2e 最重頁，
   smoke 45 處直呼）。generation remount＋wireMySessionsPage native 接線兼容層：segment 按鈕
   刻意用 native listener（非 React onClick）保住批 B「detached 按鈕佇列 click 讀最新 options」
@@ -200,3 +210,6 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   並行的流程教訓入檔）；批 5（我的球局頁）派工單已發。
 - 2026-08-18：批 5 驗收通過並 commit——頁面三連戰完成（訊息/我/我的球局）；批 6（詳情 sheet，
   第一個 sheet 批）派工單已發。
+- 2026-08-18：批 6 驗收通過並 commit（sheet 批模式入規則檔；keyed detach 防 stale listener
+  教訓入檔）；批 7（建局／編輯表單）派工單已發。備忘：批 8 之後仍有 chat／filter／decide／
+  profile／report／player 系列 sheet 未遷，屆時以批 8.x 逐一列批。
