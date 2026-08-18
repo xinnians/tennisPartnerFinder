@@ -104,7 +104,20 @@
 - **批 1 全部完成（B、0a、0b、1a-1d，2026-08-18）**——vanilla 收斂階段結束，下一站批 2。
 - 每小批獨立驗收 commit；contract 變動批跑完整 gate。
 
-### 批 2：TS ＋ React 基建
+### 批 2：TS ＋ React 基建（**完成，2026-08-18，經一次 REJECT→fix**）
+
+實績：districts.js→ts spike（importer 慣例＝明寫 `.ts`）、批 0 fixture 編譯輸出下 15/15 存活、
+tsconfig（strict/allowJs/Bundler）、ESLint flat＋Prettier（只掃 .ts/.tsx）、typecheck 掛
+pretest:mock/local、react+react-dom＋vite plugin（production bundle 與批 1d **byte-identical**，
+隔離 worktree cmp 驗證）、`src/domainTypes.ts`（read-back 欄位級不符＝零）、CLAUDE.md/testing.md
+同步。**REJECT 事故**：轉檔漏掃 scripts/ consumer，`npm test` 的 pretest seed check 斷鏈——
+Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2-fix 單行修復＋全 repo sweep
+補課。流程修正：驗收 gate 清單自此必含 `npm test`。
+批 3+ 備忘（read-back 留）：(a) tsconfig types 只鎖 vite/client，用到 node API 要補
+@types/node；(b) tests/ 不在 typecheck include；(c) 缺 eslint-plugin-react-hooks，批 3 必補；
+(d) no-explicit-any 在遷移未型別化碼時會擋路，屆時逐案處理不裸關。
+
+原始規劃（留檔）：
 
 - tsc --noEmit 進 gate（allowJs，存量 .js 不強制轉）；ESLint＋Prettier 只掃 .ts/.tsx；vite react plugin。
 - domain 型別：SessionSummary、Profile、API response、surface 合約。
@@ -150,3 +163,5 @@
 - 2026-08-18：批 1b 驗收通過並 commit（差異 A 裁定為 latent race 修復並接受）；批 1c 派工單已發。
 - 2026-08-18：批 1c 驗收通過並 commit（transition release 參數位陷阱轉 rider）；批 1d 派工單已發。
 - 2026-08-18：批 1d 驗收通過並 commit——**批 1 收官**；批 2（TS＋React 基建）派工單已發。
+- 2026-08-18：批 2 首輪 REJECT（read-back 抓到 scripts/ consumer 斷鏈）→ 2-fix 通過並 commit；
+  驗收 gate 清單升級（必含 `npm test`）；批 3（訊息頁 React 遷移）派工單已發。
