@@ -28,7 +28,7 @@ export interface SessionSummary {
 }
 
 /** Authenticated session row used by My Sessions and the messages destination. */
-export interface MySessionSummary extends SessionSummary {
+export interface MySessionSummary extends Omit<SessionSummary, "candidateCourtIds"> {
   viewerRole: string;
   viewerParticipantStatus: string;
   unreadMessageCount: number;

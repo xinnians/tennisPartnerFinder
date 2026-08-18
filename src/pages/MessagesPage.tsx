@@ -1,15 +1,18 @@
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
-import type { CourtSummary, MySessionSummary } from "../domainTypes.ts";
+import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
+import { messagesFromGroups } from "../sessionViews.js";
 import { taipeiClock, taipeiDateKey, taipeiParts } from "../taipeiTime.js";
 
+type MessagesSession = MySessionSummary & Partial<Pick<SessionSummary, "candidateCourtIds">>;
+
 interface MessagesGroups {
-  history?: MySessionSummary[];
+  history?: MessagesSession[];
   needsAction?: unknown[];
   needsActionCount?: number;
-  upcoming?: MySessionSummary[];
+  upcoming?: MessagesSession[];
 }
 
 export interface MessagesPageOptions {
@@ -54,7 +57,7 @@ function taipeiDayWord(value: string, now = new Date()): string {
   return `週${TAIPEI_WEEKDAY_WORD[parts.weekday]}`;
 }
 
-function sessionScheduleLabel(session: MySessionSummary): string {
+function sessionScheduleLabel(session: MessagesSession): string {
   const dayWord = taipeiDayWord(session.startAt) || "時間待確認";
   const startClock = taipeiClock(session.startAt);
   const undecided = isUndecidedCandidate(session);
@@ -63,13 +66,13 @@ function sessionScheduleLabel(session: MySessionSummary): string {
   return `${dayWord} ${timeLabel} · 主揪 ${hostLabel}`;
 }
 
-function sessionHostInitial(session: MySessionSummary): string {
+function sessionHostInitial(session: MessagesSession): string {
   if (String(session.viewerRole ?? "").toLowerCase() === "host") return "我";
   const nickname = String(session.hostNickname ?? "").trim();
   return nickname ? nickname.slice(0, 1) : "主";
 }
 
-function sessionVenuePresentation(session: MySessionSummary, courts: CourtSummary[] | null): VenuePresentation {
+function sessionVenuePresentation(session: MessagesSession, courts: CourtSummary[] | null): VenuePresentation {
   const undecided = isUndecidedCandidate(session);
   if (!undecided) {
     return {
@@ -89,23 +92,11 @@ function sessionVenuePresentation(session: MySessionSummary, courts: CourtSummar
   };
 }
 
-function sessionCourtLabel(session: MySessionSummary, venue: VenuePresentation): string {
+function sessionCourtLabel(session: MessagesSession, venue: VenuePresentation): string {
   const candidateNames = venue.candidateNames ?? [];
   return venue.undecidedCandidates
     ? `${candidateNames[0] ?? "候選球場待確認"}${candidateNames.length > 1 ? ` 等 ${candidateNames.length} 館候選` : ""}`
     : session.court || venue.court;
-}
-
-function messagesFromGroups(groups: MessagesGroups | null): MySessionSummary[] {
-  const upcoming = Array.isArray(groups?.upcoming) ? groups.upcoming : [];
-  const history = Array.isArray(groups?.history) ? groups.history : [];
-  return [...upcoming, ...history]
-    .filter((session) => {
-      const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-      const status = String(session?.status ?? "").toLowerCase();
-      return participantStatus === "accepted" && status !== "cancelled" && status !== "expired";
-    })
-    .sort((left, right) => String(left?.startAt ?? "").localeCompare(String(right?.startAt ?? "")));
 }
 
 function MessagesEmptyState() {
@@ -127,7 +118,7 @@ function MessageRow({
 }: {
   courts: CourtSummary[] | null;
   onOpenChat: (sessionId: string) => void;
-  session: MySessionSummary;
+  session: MessagesSession;
 }) {
   const venue = sessionVenuePresentation(session, courts);
   const courtLabel = sessionCourtLabel(session, venue);
@@ -159,7 +150,7 @@ function MessageRow({
 }
 
 export function MessagesPage({ courts, groups, onOpenChat }: MessagesPageProps) {
-  const rows = messagesFromGroups(groups);
+  const rows = messagesFromGroups(groups ?? {}) as MessagesSession[];
   return (
     <>
       <div className="messages-page__head">

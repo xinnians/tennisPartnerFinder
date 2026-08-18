@@ -19,6 +19,8 @@ import { esc } from "./util.js";
 const messagesPageModules =
   typeof document === "undefined" ? {} : import.meta.glob("./pages/MessagesPage.tsx", { eager: true });
 const mountMessagesPage = messagesPageModules["./pages/MessagesPage.tsx"]?.mountMessagesPage;
+const mePageModules = typeof document === "undefined" ? {} : import.meta.glob("./pages/MePage.tsx", { eager: true });
+const mountMePage = mePageModules["./pages/MePage.tsx"]?.mountMePage;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -64,12 +66,14 @@ function ntrpBrickSmMarkup(ntrp) {
 
 function wireAvatarFallbacks(root) {
   root?.querySelectorAll?.("[data-player-avatar] img").forEach((image) => {
-    image.addEventListener("error", () => {
-      image.hidden = true;
-      const fallback = image.closest("[data-player-avatar]")?.querySelector("[data-avatar-fallback]");
-      if (fallback) fallback.hidden = false;
-    });
+    image.addEventListener("error", () => showAvatarFallback(image));
   });
+}
+
+function showAvatarFallback(image) {
+  image.hidden = true;
+  const fallback = image.closest("[data-player-avatar]")?.querySelector("[data-avatar-fallback]");
+  if (fallback) fallback.hidden = false;
 }
 
 /**
@@ -168,349 +172,12 @@ export const PROFILE_PUBLIC_DISCLOSURE =
 export const NTRP_SCALE_EXPLANATION =
   "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
 
-/** Render the account and service skeleton for the Me destination. */
-// 「登入方式」列:Google 恆列;LINE 只在部署端設定 custom provider 識別符後出現。
-// 每列只顯示「已連結」布林狀態或連結按鈕,不顯示任何 provider 端個資。
-function loginMethodRowsMarkup({ linkedProviders, lineProviderId }) {
-  const methods = [{ label: "Google", provider: "google" }];
-  if (lineProviderId) methods.push({ label: "LINE", provider: lineProviderId });
-  return methods
-    .map(({ label, provider }) => {
-      const linked = linkedProviders.includes(provider);
-      return `<div class="me-login-method" data-login-method="${esc(provider)}">
-        <span class="me-login-method__label">${esc(label)}</span>
-        ${
-          linked
-            ? '<span class="me-login-method__status">已連結</span>'
-            : `<button type="button" class="session-secondary" data-link-provider="${esc(provider)}">連結</button>`
-        }
-      </div>`;
-    })
-    .join("");
-}
-
-export function renderMePage(
-  root,
-  {
-    authSession = null,
-    profile = {},
-    avatarUrl = "",
-    blockedPlayers = [],
-    blockedPlayersError = "",
-    blockedPlayersStatus = "idle",
-    courts = [],
-    lineProviderId = "",
-    linkedProviders = [],
-    notificationSettings = {},
-    onEditProfile = () => {},
-    onEnablePush = () => {},
-    onLinkProvider = () => {},
-    onSaveCourtSubscriptions = () => {},
-    onSaveNotificationPreferences = () => {},
-    onSetOpenToGreeting = () => {},
-    onSetPresenceSharing = () => {},
-    onSignIn = () => {},
-    onSignOut = () => {},
-    onTogglePlayerVisibility = () => {},
-    onUnblockPlayer = () => {},
-    playerVisibility = false,
-    presence = {},
-    supportHref = "",
-  } = {}
-) {
-  const authenticated = Boolean(authSession);
-  const nickname = String(profile?.nick ?? "").trim() || "球友";
-  // 批 D8:profile 卡副行——沿用球友名單／球友卡同款「常打 X · 時段 Y」fallback 文案
-  // (playerDirectoryRowsMarkup 既有慣例),不是新造詞。
-  const profileCourtsText = profileCourtNames(profile, courts).join("、") || "未填球場";
-  const profileSlotsText =
-    playerSlotLabels([...(profile?.slots instanceof Set ? profile.slots : (profile?.slots ?? []))]).join("、") || "未填時段";
-  const presenceSettings = normalizedPresenceSettings(presence);
-  const notification = normalizedNotificationSettings(notificationSettings);
-  const safeBlockedPlayers = Array.isArray(blockedPlayers) ? blockedPlayers : [];
-  const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
-    (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
-  );
-  const subscribedCourtCount = notificationCourts.filter((court) => notification.courtIds.has(Number(court.id))).length;
-  // 訂閱數等於當下全部台北市 active 球場時視為「全選」：主控勾起、細選清單收合。
-  const subscribedToEveryCourt = notificationCourts.length > 0 && subscribedCourtCount === notificationCourts.length;
-  // 只有「訂了一部分」才預設展開。全選不必再看清單；零訂閱是每個新使用者的狀態，
-  // 展開會把 53 座球場推到頁面上，把封鎖清單與站務連結擠到捲不到的地方。
-  const courtPickerExpanded = subscribedCourtCount > 0 && !subscribedToEveryCourt;
-  // 球場目錄還沒載入時交集必然是 0，這時報「已訂閱 0 座」是假的，不要輸出。
-  const courtSubscriptionSummary = notificationCourts.length ? `已訂閱 ${subscribedCourtCount} 座` : "";
+/** Mount or update the React account and service skeleton for the Me destination. */
+export function renderMePage(root, options = {}) {
+  if (!mountMePage) throw new Error("MePage browser mount is unavailable.");
+  const authSession = options.authSession ?? null;
   setMySessionActionScope(root, authSession?.user?.id ?? null);
-  root.innerHTML = `<div class="me-shell">
-    <div class="me-page-v2__head"><p class="me-page-v2__eyebrow">MY PROFILE</p><h1 tabindex="-1" data-me-heading class="me-page-v2__title">我</h1></div>
-    ${
-      authenticated
-        ? `<section class="me-identity-card" data-testid="me-identity-card" aria-label="目前登入身分">
-          <button type="button" class="profile-brick-row" data-testid="me-profile-edit-trigger" aria-label="${esc(
-            `編輯個人檔案：${nickname}`
-          )}">
-            ${avatarMarkup({ avatarUrl, nickname, size: "lg" })}
-            <span class="profile-brick-row__copy"><strong>${esc(nickname)}</strong><span>常打 ${esc(profileCourtsText)} · ${esc(
-              profileSlotsText
-            )}</span></span>
-            ${ntrpBrickMarkup(profile?.ntrp)}
-          </button>
-        </section>
-        <section class="me-edit-profile" aria-label="個人檔案">
-          <div>
-            <h2>個人檔案</h2>
-            <p class="form-hint">暱稱、NTRP 與常打球場；暱稱與 NTRP 會出現在你建立或加入的球局。</p>
-          </div>
-          <button type="button" class="session-secondary" data-testid="edit-profile">編輯</button>
-        </section>`
-        : `<section class="me-sign-in-card" aria-label="登入">
-          <h2>登入後查看你的身分</h2>
-          <p class="surface__copy">登入後可管理球局與個人資料。</p>
-          <button type="button" class="session-primary" data-testid="me-sign-in">登入</button>
-        </section>`
-    }
-    ${
-      authenticated
-        ? `<section class="player-visibility" aria-label="球友卡">
-      <div>
-        <h2>球友卡</h2>
-        <p class="form-hint" id="player-visibility-hint">開啟後，你會出現在球友名單，主揪可以邀你加入球局；關閉後立即從名單移除。個人聯絡資訊不會顯示。</p>
-      </div>
-      <button type="button" class="session-secondary" data-my-action="toggle-visibility"
-        role="switch" aria-checked="${playerVisibility ? "true" : "false"}"
-        aria-label="球友卡：${playerVisibility ? "已開啟" : "已關閉"}" aria-describedby="player-visibility-hint"
-        data-testid="player-visibility-toggle">${playerVisibility ? "已開啟" : "已關閉"}</button>
-    </section>
-    <section class="presence-settings" aria-labelledby="presence-settings-title">
-      <div>
-        <h2 id="presence-settings-title">在線狀態</h2>
-        <p class="form-hint" id="presence-sharing-hint">開啟期間你的所在球場只對其他也有開啟在線分享、且已填暱稱與 NTRP 的球友可見。只會記錄球場，不會儲存 GPS 座標。</p>
-      </div>
-      <button type="button" class="session-secondary" data-set-presence-sharing data-presence-control
-        role="switch" aria-checked="${presenceSettings.sharePresence ? "true" : "false"}"
-        aria-label="在線分享：${presenceSettings.sharePresence ? "已開啟" : "已關閉"}" aria-describedby="presence-sharing-hint"
-        data-testid="presence-sharing-toggle">${presenceSettings.sharePresence ? "已開啟" : "已關閉"}</button>
-      <p class="form-hint" data-testid="presence-location-status">${esc(presenceLocationHint(presenceSettings))}</p>
-      <label class="presence-settings__greeting"><input type="checkbox" data-open-to-greeting data-presence-control data-testid="open-to-greeting-toggle"${
-        presenceSettings.openToGreeting ? " checked" : ""
-      }> 接受現場問候</label>
-      <p class="form-error" data-presence-error role="alert" tabindex="-1" hidden></p>
-    </section>
-    <p class="form-error" data-my-sessions-error role="alert" tabindex="-1" hidden></p>
-    <section class="notification-settings" aria-labelledby="notification-settings-title">
-      <div class="notification-settings__head">
-        <div>
-          <h2 id="notification-settings-title" tabindex="-1" data-notification-settings-heading>通知設定</h2>
-          <p class="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
-        </div>
-        <button type="button" class="session-secondary" data-enable-push data-notification-control
-          data-testid="enable-push"${!notification.webPushConfigured || notification.pushStatus === "enabled" || notification.pushStatus === "unsupported" ? " disabled" : ""}>${
-            notification.pushStatus === "enabled" ? "此裝置已開啟" : "開啟推播"
-          }</button>
-      </div>
-      <p class="form-hint notification-settings__hint">${esc(notificationPushHint(notification))}</p>
-      <p class="form-hint">推播開關只影響這台裝置；下方的事件偏好套用到你的帳號。</p>
-      <p class="form-hint notification-settings__ios-hint">若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。</p>
-      <p class="form-error" data-notification-error role="alert" tabindex="-1"${notification.errorMessage ? "" : " hidden"}>${esc(
-        notification.errorMessage
-      )}</p>
-      <fieldset class="notification-settings__fieldset">
-        <legend>事件通知</legend>
-        <label><input type="checkbox" data-notification-pref="hostNewRequestEnabled" data-notification-control data-testid="notification-host-new-request"${
-          notification.prefs.hostNewRequestEnabled ? " checked" : ""
-        }> 有人申請我的球局</label>
-        <label><input type="checkbox" data-notification-pref="guestRequestReviewedEnabled" data-notification-control data-testid="notification-guest-request-reviewed"${
-          notification.prefs.guestRequestReviewedEnabled ? " checked" : ""
-        }> 加入申請被處理</label>
-        <label><input type="checkbox" data-notification-pref="guestInvitedEnabled" data-notification-control data-testid="notification-guest-invited"${
-          notification.prefs.guestInvitedEnabled ? " checked" : ""
-        }> 收到球局邀請</label>
-        <label><input type="checkbox" data-notification-pref="sessionUpdatedEnabled" data-notification-control data-testid="notification-session-updated"${
-          notification.prefs.sessionUpdatedEnabled ? " checked" : ""
-        }> 球局資訊變更</label>
-        <label><input type="checkbox" data-notification-pref="chatMessageEnabled" data-notification-control data-testid="notification-chat-message"${
-          notification.prefs.chatMessageEnabled ? " checked" : ""
-        }> 群組有新訊息</label>
-        <label><input type="checkbox" data-notification-pref="sessionReminderEnabled" data-notification-control data-testid="notification-session-reminder"${
-          notification.prefs.sessionReminderEnabled ? " checked" : ""
-        }> 開打前提醒</label>
-        <p class="form-hint">場地時間定案與球局取消一定會通知，無法關閉。</p>
-      </fieldset>
-      <fieldset class="notification-settings__fieldset">
-        <legend>訂閱球場的新球局</legend>
-        <p class="form-hint">只有所選球場的新球局會通知你。</p>
-        <label class="court-subscribe-all"><input type="checkbox" data-subscribe-all-courts data-notification-control
-          data-testid="subscribe-all-courts"${subscribedToEveryCourt ? " checked" : ""}${
-            notificationCourts.length ? "" : " disabled"
-          }> <span>全台北市球場</span></label>
-        <button type="button" class="session-secondary" data-court-picker-toggle data-notification-control
-          data-testid="toggle-court-picker" aria-expanded="${courtPickerExpanded ? "true" : "false"}"
-          aria-controls="notification-court-picker"${notificationCourts.length ? "" : " disabled"}>只訂閱特定球場</button>
-        <div class="option-grid" id="notification-court-picker" data-notification-courts${
-          courtPickerExpanded ? "" : " hidden"
-        }>${notificationCourts
-          .map(
-            (court) =>
-              `<label><input type="checkbox" data-notification-court data-notification-control value="${esc(court.id)}" data-testid="notification-court-${esc(
-                court.id
-              )}"${notification.courtIds.has(Number(court.id)) ? " checked" : ""}> <span>${esc(court.name)} · ${esc(
-                court.district || "台北市"
-              )}</span></label>`
-          )
-          .join("")}</div>
-        ${courtSubscriptionSummary ? `<p class="form-hint" role="status" data-court-subscription-count>${esc(courtSubscriptionSummary)}</p>` : ""}
-        ${notificationCourts.length ? "" : '<p class="form-hint" role="status">球場資料尚未就緒，請稍候。</p>'}
-      </fieldset>
-    </section>
-    <section class="blocked-player-settings" aria-labelledby="blocked-player-settings-title">
-      <div>
-        <h2 id="blocked-player-settings-title">我的封鎖清單</h2>
-        <p class="form-hint">解除封鎖後，系統會重新讀取目前的權威清單。</p>
-      </div>
-      <p class="my-sessions-message" data-blocked-players-status role="status" aria-live="polite"${
-        blockedPlayersStatus === "loading" ? "" : " hidden"
-      }>正在讀取封鎖清單…</p>
-      <p class="form-error" data-blocked-players-error role="alert" tabindex="-1"${blockedPlayersError ? "" : " hidden"}>${esc(
-        blockedPlayersError
-      )}</p>
-      <div class="blocked-player-list" data-testid="blocked-player-list">${
-        safeBlockedPlayers.length
-          ? safeBlockedPlayers
-              .map(
-                (player) => `<div class="blocked-player-row" data-testid="blocked-player-${esc(player.blockedProfileId)}">
-          <span>${esc(player.blockedNickname || "已封鎖的使用者")}</span>
-          <button type="button" class="session-secondary" data-my-action="unblock" data-profile-id="${esc(
-            player.blockedProfileId
-          )}" data-testid="unblock-player-${esc(player.blockedProfileId)}">解除封鎖</button>
-        </div>`
-              )
-              .join("")
-          : '<p class="surface__copy">目前沒有封鎖任何人。</p>'
-      }</div>
-    </section>`
-        : ""
-    }
-    ${
-      authenticated
-        ? `<section class="me-login-methods" aria-labelledby="me-login-methods-title">
-      <div>
-        <h2 id="me-login-methods-title">登入方式</h2>
-        <p class="form-hint">連結後,兩種方式登入的都是同一個帳號。</p>
-      </div>
-      <div class="me-login-methods__rows">${loginMethodRowsMarkup({ linkedProviders, lineProviderId })}</div>
-    </section>`
-        : ""
-    }
-    <section class="me-service-links" aria-labelledby="me-service-title">
-      <h2 id="me-service-title">站務</h2>
-      <div>${supportHref ? `<a href="${esc(supportHref)}">聯絡支援</a>` : ""}<a href="/privacy.html">隱私權政策</a></div>
-    </section>
-    ${
-      authenticated
-        ? `<button type="button" class="me-sign-out-action" data-testid="me-sign-out">登出</button>`
-        : ""
-    }
-  </div>`;
-  wireAvatarFallbacks(root);
-  root.querySelector('[data-testid="me-sign-in"]')?.addEventListener("click", onSignIn);
-  root.querySelector('[data-testid="me-sign-out"]')?.addEventListener("click", onSignOut);
-  for (const linkButton of root.querySelectorAll("[data-link-provider]")) {
-    linkButton.addEventListener("click", () => {
-      // 成功路徑是整頁 redirect;disabled 只擋 redirect 前的重複點擊,啟動失敗時還原。
-      linkButton.disabled = true;
-      Promise.resolve(onLinkProvider(linkButton.dataset.linkProvider)).finally(() => {
-        if (linkButton.isConnected) linkButton.disabled = false;
-      });
-    });
-  }
-  root.querySelector('[data-testid="edit-profile"]')?.addEventListener("click", onEditProfile);
-  // 批 D8:profile 卡整卡也是編輯入口(映射決策 2),與下方 .me-edit-profile 區塊的
-  // 「編輯」鈕是同一個 onEditProfile、兩個進場點。
-  root.querySelector('[data-testid="me-profile-edit-trigger"]')?.addEventListener("click", onEditProfile);
-  root.querySelector('[data-my-action="toggle-visibility"]')?.addEventListener("click", (event) => {
-    runMySessionAction(event.currentTarget, onTogglePlayerVisibility, root);
-  });
-  root.querySelector("[data-set-presence-sharing]")?.addEventListener("click", () => {
-    void runPresenceSettingAction(root, () => onSetPresenceSharing(!presenceSettings.sharePresence));
-  });
-  root.querySelector("[data-open-to-greeting]")?.addEventListener("change", (event) => {
-    const input = event.currentTarget;
-    const previousChecked = !input.checked;
-    void runPresenceSettingAction(root, () => onSetOpenToGreeting(input.checked)).then((saved) => {
-      if (!saved) input.checked = previousChecked;
-    });
-  });
-  root.querySelector("[data-enable-push]")?.addEventListener("click", () => {
-    void runNotificationSettingAction(root, onEnablePush);
-  });
-  root.querySelectorAll("[data-notification-pref]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const previousChecked = !input.checked;
-      const preferences = {
-        chatMessageEnabled: root.querySelector('[data-notification-pref="chatMessageEnabled"]')?.checked === true,
-        hostNewRequestEnabled: root.querySelector('[data-notification-pref="hostNewRequestEnabled"]')?.checked === true,
-        guestRequestReviewedEnabled: root.querySelector('[data-notification-pref="guestRequestReviewedEnabled"]')?.checked === true,
-        guestInvitedEnabled: root.querySelector('[data-notification-pref="guestInvitedEnabled"]')?.checked === true,
-        sessionReminderEnabled: root.querySelector('[data-notification-pref="sessionReminderEnabled"]')?.checked === true,
-        sessionUpdatedEnabled: root.querySelector('[data-notification-pref="sessionUpdatedEnabled"]')?.checked === true,
-      };
-      void runNotificationSettingAction(root, () => onSaveNotificationPreferences(preferences)).then((saved) => {
-        if (!saved) input.checked = previousChecked;
-      });
-    });
-  });
-  const courtPicker = root.querySelector("[data-notification-courts]");
-  const courtBoxes = () => [...root.querySelectorAll("[data-notification-court]")];
-  const subscribeAll = root.querySelector("[data-subscribe-all-courts]");
-  const courtPickerToggle = root.querySelector("[data-court-picker-toggle]");
-  const courtCountLabel = root.querySelector("[data-court-subscription-count]");
-  const selectedCourtIds = () => courtBoxes().filter((box) => box.checked).map((box) => Number(box.value));
-  const paintCourtSelection = (ids) => {
-    const chosen = new Set(ids.map(Number));
-    courtBoxes().forEach((box) => {
-      box.checked = chosen.has(Number(box.value));
-    });
-    if (subscribeAll) subscribeAll.checked = notificationCourts.length > 0 && chosen.size === notificationCourts.length;
-    if (courtCountLabel) courtCountLabel.textContent = `已訂閱 ${chosen.size} 座`;
-  };
-  const restoreCourtSelection = () => paintCourtSelection([...notification.courtIds]);
-  const saveCourtSelection = (courtIds) => {
-    if (courtIds.length > notificationCourts.length) {
-      restoreCourtSelection();
-      const error = root.querySelector("[data-notification-error]");
-      if (error) {
-        error.textContent = "訂閱球場數量超過目前可選的台北市球場。";
-        error.hidden = false;
-        // 這條是不經 runNotificationSettingAction 的早退分支,焦點沒有任何人托管;
-        // 勾選框已被 restoreCourtSelection 復原,所以退到錯誤訊息而不是留在 body。
-        if (canReceiveFocus(error)) error.focus({ preventScroll: true });
-      }
-      return;
-    }
-    paintCourtSelection(courtIds);
-    void runNotificationSettingAction(root, () => onSaveCourtSubscriptions(courtIds)).then((saved) => {
-      if (!saved) restoreCourtSelection();
-    });
-  };
-  subscribeAll?.addEventListener("change", () => {
-    saveCourtSelection(subscribeAll.checked ? notificationCourts.map((court) => Number(court.id)) : []);
-  });
-  courtPickerToggle?.addEventListener("click", () => {
-    if (!courtPicker) return;
-    const expanded = courtPicker.hidden;
-    courtPicker.hidden = !expanded;
-    courtPickerToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-  });
-  courtPicker?.addEventListener("change", (event) => {
-    if (!(event.target instanceof HTMLElement) || !event.target.matches("[data-notification-court]")) return;
-    saveCourtSelection(selectedCourtIds());
-  });
-  // 解除封鎖獨立綁定，不沿用 My Sessions 的 [data-my-action] 委派迴圈——那個迴圈同時處理
-  // 球局卡片動作，整段複製過來會把不屬於本頁的動作一併帶進來。
-  root.querySelectorAll('[data-my-action="unblock"]').forEach((button) => {
-    button.addEventListener("click", () => {
-      runMySessionAction(button, () => onUnblockPlayer(button.dataset.profileId), root);
-    });
-  });
+  mountMePage(root, options);
   syncPendingMySessionActions(root);
 }
 
@@ -1545,6 +1212,24 @@ async function runPresenceSettingAction(root, callback) {
     },
   });
 }
+
+/** Single-source presentation and DOM action helpers consumed by the React Me page. */
+export const mePageRuntime = Object.freeze({
+  avatarInitial,
+  canReceiveFocus,
+  normalizedNotificationSettings,
+  normalizedPresenceSettings,
+  notificationPushHint,
+  ntrpBrickValue,
+  playerSlotLabels,
+  presenceLocationHint,
+  profileCourtNames,
+  runMySessionAction,
+  runNotificationSettingAction,
+  runPresenceSettingAction,
+  safeGoogleAvatarUrl,
+  showAvatarFallback,
+});
 
 // 批 D6:kind 就決定我主揪的/我報名的(host-request 恆為 hosted,其餘 needsAction
 // 都是 joined,理由見抽取規格 §6:hostedItems 只來自 st.hosted,joinedItems 只來自
