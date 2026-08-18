@@ -73,7 +73,14 @@
 
 ### 批 1：框架無關 vanilla 收斂（拆 4 小批，遷移後全數存活）
 
-- 1a：統一 async 動作 helper（收斂 runMySessionAction 三胞胎與各 sheet 手寫 disabled/error/finally 樣板、withdraw 特例併回主路徑、24 處 root.contains guard 收斂進 helper）。
+- 1a（**完成，2026-08-18**）：單一 runAsyncAction helper 收斂三胞胎＋10 個手寫 call site；
+  withdraw 併回主路徑（保留同 turn dialog／不鎖背景鈕語意）；root.contains 24→3（餘 3 處逐一
+  論證合法）、submit.disabled 手寫 4→0；rider（line_id public/ 零斷言）一併完成。
+  驗收：雙 canary（重繪偵測拔除→紅、public line_id→紅）＋四 gate＋fresh-agent diff read-back
+  逐 call site 比對（ACCEPT-WITH-NOTES：三筆窄邊界差異裁定接受——microtask→同步求值、
+  錯誤渲染加重繪 gate（與新 markup 權威原則一致，舊行為是寫入 detach 節點的隱形 no-op）、
+  create submitting gate 理論不可達；另修掉 chat 潛在強制解鎖 bug）。
+  回報 `docs/migration-reports/batch-1a.md`。
 - 1b：統一 request guard（controller 7 個 counter＋32 處 requestId 樣板、main.js 9 處 epoch 樣板）與前景輪詢 poller（chat／discovery 兩套收斂為一）。
 - 1c：surface registry（11 個 active-surface 把手＋11 支 closeActiveX 收斂為單一表＋宣告式關閉順序；setAuthState 關面邏輯改查表）。
 - 1d：重複判準收斂（undecidedCandidate ×3、full/joinable ×3、haversine ×2、時區處理 ×3）；dataApi 讀寫錯誤形狀統一。
@@ -121,3 +128,4 @@
 - 2026-08-18：批 0b 驗收通過並 commit（line_id public 覆蓋殘項轉 rider）；批 1a 派工單已發。
   流程備忘：Codex 於 local gate 前自行執行 guarded DB reset（testing 規則標準入口，屬合規），
   後續派工單改為明列此授權，避免默契依賴。
+- 2026-08-18：批 1a（含 rider）驗收通過並 commit；批 1b 派工單已發。
