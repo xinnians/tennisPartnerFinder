@@ -142,6 +142,15 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   **rider（併入批 4）**：(a) MySessionSummary 繼承的 candidateCourtIds 對 mapMySession 過度
   承諾——改 Omit 或補欄位；(b) messagesFromGroups 在 sessionViews 的 exported 版已是死副本
   （UI 用 TSX private 版、unit test 測死副本）——收斂為單一來源並把測試指向活版。
+- 批 4（**完成，2026-08-18**）：我頁 → `src/pages/MePage.tsx`（控制項密度最高頁）。與批 3 的
+  關鍵差異：**generation remount**（每次 adapter 呼叫以新 key 整樹重建），精確重現 innerHTML
+  detach 語意——main.js 焦點機制、syncPendingMySessionActions、defaultChecked 權威覆蓋三者
+  都依賴它；read-back 判定此設計是必要而非偏差。helper 走 sessionViews 的 mePageRuntime
+  單一來源（14 個，零複本）；兩 rider 完成；main.js/index.html/CSS/tests 零 diff。
+  驗收：390px 視覺比對＋canary＋完整 gate＋read-back（markup 逐屬性 PASS）。
+  **流程教訓**：驗收方 canary 與 read-back agent 並行改到同一檔，agent 中途看到 canary 殘影
+  ——自此 canary 一律在派 read-back 之前或之後執行，agent 進行中凍結工作樹。
+  回報 `docs/migration-reports/batch-4.md`。
 
 ### 批 9：controller 狀態 store 化＋測試 harness 改接
 
@@ -180,3 +189,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   驗收 gate 清單升級（必含 `npm test`）；批 3（訊息頁 React 遷移）派工單已發。
 - 2026-08-18：批 3 驗收通過並 commit——第一個 React 頁面上線，頁面批模式與視覺比對流程定型；
   兩條 rider 併批 4；批 4（我頁）派工單已發。
+- 2026-08-18：批 4 驗收通過並 commit（generation remount 模式入庫；canary 與 read-back
+  並行的流程教訓入檔）；批 5（我的球局頁）派工單已發。
