@@ -55,7 +55,7 @@ interface SessionDetailVenue {
 }
 
 interface SessionDetailSnapshot {
-  actionGeneration: number;
+  actionGeneration?: number;
   expectedAccepted: boolean;
   joinPreview: SessionJoinPreviewState;
   message: string;
@@ -382,7 +382,7 @@ const DetailMain = memo(function DetailMain({ detail }: { detail: SessionDetailC
           <p className="scoreboard-strip__value">{session.playType}</p>
         </div>
         <div className="scoreboard-strip__cell">
-          <p className="scoreboard-strip__eyebrow">NTRP</p>{" "}
+          <p className="scoreboard-strip__eyebrow">{`NTRP `}</p>
           <p className="scoreboard-strip__value scoreboard-strip__value--mono">
             {sessionDetailSheetRuntime.scoreboardNtrpValue(session)}
           </p>
@@ -565,7 +565,7 @@ export function mountSessionDetailSheetContent(
     renderStage(stage, message = "", expectedAccepted = snapshot.expectedAccepted) {
       snapshot = {
         ...snapshot,
-        actionGeneration: snapshot.actionGeneration + 1,
+        actionGeneration: (snapshot.actionGeneration ?? 0) + 1,
         expectedAccepted,
         message,
         stage,
