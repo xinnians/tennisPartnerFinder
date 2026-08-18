@@ -1,10 +1,20 @@
-import { TAIPEI_TIME_ZONE } from "./config.js";
 import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters, joinableSessionCount } from "./filters.js";
 import { TAIPEI_DISTRICTS } from "./districts.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
+import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { mountDialog, mountSheet } from "./sheets.js";
 import { canReceiveFocus } from "./meFocus.js";
+import {
+  taipeiClock,
+  taipeiDateKey,
+  taipeiDateTime,
+  taipeiDateTimeLocalValue,
+  taipeiLocalDateTimeToIso,
+  taipeiParts,
+} from "./taipeiTime.js";
 import { esc } from "./util.js";
+
+export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
 const GOOGLE_AVATAR_URL = /^https:\/\/lh[0-9]+[.]googleusercontent[.]com\//;
 
@@ -502,48 +512,7 @@ export function renderMePage(
 // 既有的對拉球局若在這裡被擋下，主揪連改時間都存不回去。
 const CREATE_PLAY_TYPES = new Set(["單打", "雙打", "練球"]);
 const EDIT_PLAY_TYPES = new Set(["單打", "雙打", "對拉", "練球"]);
-const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
 const NOW_START_CREATE_GRACE_MS = 5 * 60 * 1000;
-
-/** Convert a datetime-local value by the product's fixed Taipei wall time. */
-export function taipeiLocalDateTimeToIso(value) {
-  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
-  if (!match) return null;
-  const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0", millisecondText = "0"] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  const second = Number(secondText);
-  const millisecond = Number(millisecondText.padEnd(3, "0"));
-  const localUtcMs = Date.UTC(year, month - 1, day, hour, minute, second, millisecond);
-  const local = new Date(localUtcMs);
-  if (
-    local.getUTCFullYear() !== year ||
-    local.getUTCMonth() !== month - 1 ||
-    local.getUTCDate() !== day ||
-    local.getUTCHours() !== hour ||
-    local.getUTCMinutes() !== minute ||
-    local.getUTCSeconds() !== second ||
-    local.getUTCMilliseconds() !== millisecond
-  ) {
-    return null;
-  }
-  return new Date(localUtcMs - TAIPEI_UTC_OFFSET_MS).toISOString();
-}
-
-function taipeiDateTimeLocalValue(value = new Date(), { includeMilliseconds = false, includeSeconds = false } = {}) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const taipei = new Date(date.getTime() + TAIPEI_UTC_OFFSET_MS);
-  const padded = (value) => String(value).padStart(2, "0");
-  const minuteValue = `${taipei.getUTCFullYear()}-${padded(taipei.getUTCMonth() + 1)}-${padded(taipei.getUTCDate())}T${padded(
-    taipei.getUTCHours()
-  )}:${padded(taipei.getUTCMinutes())}`;
-  const secondValue = `${minuteValue}:${padded(taipei.getUTCSeconds())}`;
-  return includeMilliseconds ? `${secondValue}.${String(taipei.getUTCMilliseconds()).padStart(3, "0")}` : includeSeconds ? secondValue : minuteValue;
-}
 
 function ntrpEndpoint(value) {
   const number = Number(value);
@@ -813,20 +782,6 @@ function restoreFocusedSessionCard(root) {
   });
 }
 
-function taipeiDateTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "時間待確認";
-  return new Intl.DateTimeFormat("zh-TW", {
-    timeZone: TAIPEI_TIME_ZONE,
-    month: "long",
-    day: "numeric",
-    weekday: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
 function ntrpRange(session) {
   // Number(null) is 0 and passes isFinite, so the empty range must be rejected first.
   if (session?.ntrpMin == null || session?.ntrpMax == null) return "NTRP 不限";
@@ -854,25 +809,6 @@ function vacancyLabel(session) {
 const TAIPEI_WEEKDAY_WORD = ["日", "一", "二", "三", "四", "五", "六"];
 const padTwo = (value) => String(value).padStart(2, "0");
 
-function taipeiParts(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const taipei = new Date(date.getTime() + TAIPEI_UTC_OFFSET_MS);
-  return {
-    year: taipei.getUTCFullYear(),
-    month: taipei.getUTCMonth() + 1,
-    day: taipei.getUTCDate(),
-    hour: taipei.getUTCHours(),
-    minute: taipei.getUTCMinutes(),
-    weekday: taipei.getUTCDay(),
-  };
-}
-
-function taipeiClock(value) {
-  const parts = taipeiParts(value);
-  return parts ? `${padTwo(parts.hour)}:${padTwo(parts.minute)}` : "";
-}
-
 // 時間磚下行「08/10 一」(dc L825:DAY_OF 去括號版)
 function taipeiTileDate(value) {
   const parts = taipeiParts(value);
@@ -880,8 +816,7 @@ function taipeiTileDate(value) {
 }
 
 function taipeiDayKey(value) {
-  const parts = taipeiParts(value);
-  return parts ? `${parts.year}-${padTwo(parts.month)}-${padTwo(parts.day)}` : "";
+  return taipeiDateKey(value) ?? "";
 }
 
 // 「今天」「明天」或「週X」——組標與 peek「最近」共用(dc DAY_WORD 的動態日期版)
@@ -910,7 +845,7 @@ function drawerGroupLabel(value, now = new Date()) {
 function sessionScheduleLabel(session) {
   const dayWord = taipeiDayWord(session?.startAt) || "時間待確認";
   const startClock = taipeiClock(session?.startAt);
-  const undecided = String(session?.venueType) === "candidates" && !session?.decidedAt;
+  const undecided = isUndecidedCandidate(session);
   const timeLabel = undecided && session?.rangeEnd ? `${startClock}–${taipeiClock(session.rangeEnd)}` : startClock;
   const hostLabel = String(session?.viewerRole ?? "").toLowerCase() === "host" ? "我" : session?.hostNickname || "主揪";
   return `${dayWord} ${timeLabel} · 主揪 ${hostLabel}`;
@@ -950,8 +885,9 @@ const VENUE_TYPE_LABELS = {
 
 function sessionVenuePresentation(session, courts = []) {
   const venueType = String(session?.venueType ?? "booked");
-  const decided = venueType === "candidates" && Boolean(session?.decidedAt);
-  if (venueType !== "candidates" || decided) {
+  const undecided = isUndecidedCandidate(session);
+  const decided = venueType === "candidates" && !undecided;
+  if (!undecided) {
     return {
       badge: decided ? "候選局 · 已定案" : (VENUE_TYPE_LABELS[venueType] ?? VENUE_TYPE_LABELS.booked),
       court: [session?.court, session?.courtDistrict].filter(Boolean).join(" · "),
@@ -1105,7 +1041,7 @@ function mySessionCard(session, { courts = [], highlightSessionId = null, segmen
   const actions = [
     `<button type="button" class="session-secondary" data-open-my-session data-session-id="${esc(session.sessionId)}">查看球局</button>`,
     canChat ? mySessionChatButtonMarkup(session) : "",
-    hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt)
+    hostCanManage && isUndecidedCandidate(session)
       ? mySessionActionButton(session, { action: "decide", label: "定案場地與時間" })
       : "",
     hostCanManage && ["booked", "walk_on"].includes(session.venueType)
@@ -4034,7 +3970,7 @@ export function openDecideSessionSheet(
   { courts = [], courtsReady = true, onClose = () => {}, onDecide = async () => {} } = {}
 ) {
   const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
-  const unavailable = !session || session.venueType !== "candidates" || Boolean(session.decidedAt);
+  const unavailable = !isUndecidedCandidate(session);
   const mounted = mountSheet({
     id: "session-decision-sheet",
     label: "定案場地與時間",

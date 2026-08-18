@@ -1,5 +1,7 @@
 import { MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
 import { candidateSessionPin, courtPin, playerPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
+import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
+import { taipeiClock, taipeiHourRange } from "./taipeiTime.js";
 
 let loadPromise = null;
 let runtimeGoogle = null;
@@ -86,7 +88,7 @@ export function groupSessionsByCourt(courts = [], sessions = []) {
   const byCourtId = new Map();
   const undecidedByCourtId = new Map();
   for (const session of sessions) {
-    const undecidedCandidate = session?.venueType === "candidates" && !Boolean(session?.decidedAt);
+    const undecidedCandidate = isUndecidedCandidate(session);
     const placementIds = undecidedCandidate ? [...new Set((session?.candidateCourtIds ?? []).map(String))] : [session?.courtId];
     for (const courtId of placementIds) {
       const key = String(courtId);
@@ -110,24 +112,6 @@ export function groupSessionsByCourt(courts = [], sessions = []) {
     }));
 }
 
-// 批 D3:釘面時間文字的極簡台北時區 helper(避免 map 層反向依賴 view 層;
-// 值語意與 sessionViews 的 taipeiClock/時段範圍一致)。
-const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
-function taipeiPinClock(value) {
-  const date = new Date(value ?? "");
-  if (Number.isNaN(date.getTime())) return "";
-  const taipei = new Date(date.getTime() + TAIPEI_OFFSET_MS);
-  return `${String(taipei.getUTCHours()).padStart(2, "0")}:${String(taipei.getUTCMinutes()).padStart(2, "0")}`;
-}
-function taipeiPinHourRange(startAt, rangeEnd) {
-  const start = new Date(startAt ?? "");
-  const end = new Date(rangeEnd ?? "");
-  if (Number.isNaN(start.getTime())) return "";
-  if (Number.isNaN(end.getTime())) return taipeiPinClock(startAt);
-  const hourOf = (date) => new Date(date.getTime() + TAIPEI_OFFSET_MS).getUTCHours();
-  return `${hourOf(start)}–${hourOf(end)}`;
-}
-
 /** Replace visible session markers while preserving the lower-priority court base layer. */
 export function renderSessionPins(google, map, groups, { onSession = () => {}, onCluster = () => {} } = {}, oldMarkers = []) {
   oldMarkers.forEach((marker) => marker.setMap(null));
@@ -137,16 +121,12 @@ export function renderSessionPins(google, map, groups, { onSession = () => {}, o
     const single = sessions[0];
     const startTime = new Date(single?.startAt ?? "").getTime();
     const ongoing = !undecided && Number.isFinite(startTime) && startTime <= Date.now();
-    // full 判準與詳情 CTA(sessionController actionFor)同語意:status=full 或缺額歸零。
-    // slotsRemaining 缺值時不可判滿(Number(null)=0 陷阱)。
-    const full =
-      String(single?.status).toLowerCase() === "full" ||
-      (single?.slotsRemaining != null && Number(single.slotsRemaining) <= 0);
+    const full = isSessionFull(single);
     const pin = multiple
       ? sessionClusterPin(google, sessions.length)
       : undecided
-        ? candidateSessionPin(google, { range: taipeiPinHourRange(single?.startAt, single?.rangeEnd) })
-        : sessionPin(google, { time: taipeiPinClock(single?.startAt), instant: single?.joinMode === "instant", ongoing, full });
+        ? candidateSessionPin(google, { range: taipeiHourRange(single?.startAt, single?.rangeEnd) })
+        : sessionPin(google, { time: taipeiClock(single?.startAt), instant: single?.joinMode === "instant", ongoing, full });
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },

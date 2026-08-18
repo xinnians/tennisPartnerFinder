@@ -1,4 +1,7 @@
-import { TAIPEI_TIME_ZONE } from "./config.js";
+import { distanceMeters, isJoinableSession, isUndecidedCandidate } from "./sessionCriteria.js";
+import { isTaipeiWeekend, taipeiDateKey, validDate } from "./taipeiTime.js";
+
+export { isJoinableSession } from "./sessionCriteria.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -66,38 +69,6 @@ function asFiniteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function toDate(value) {
-  if (value == null || value === "") return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getTaipeiDateKey(value) {
-  const date = toDate(value);
-  if (!date) return null;
-
-  const values = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: TAIPEI_TIME_ZONE,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    })
-      .formatToParts(date)
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, part.value])
-  );
-
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function isTaipeiWeekend(value) {
-  const date = toDate(value);
-  if (!date) return false;
-  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: TAIPEI_TIME_ZONE, weekday: "short" }).format(date);
-  return weekday === "Sat" || weekday === "Sun";
-}
-
 function selectedTypesSet(types) {
   return selectedTypes(types);
 }
@@ -121,10 +92,10 @@ function matchesBand(session, bandKey) {
 function matchesDateKey(session, dateKey, now) {
   if (!dateKey) return true;
   if (dateKey === "weekend") return isTaipeiWeekend(session.startAt);
-  const reference = toDate(now) ?? new Date();
+  const reference = validDate(now) ?? new Date();
   const referenceDate = dateKey === "tomorrow" ? new Date(reference.getTime() + DAY_MS) : reference;
-  const expectedKey = getTaipeiDateKey(referenceDate);
-  return expectedKey != null && getTaipeiDateKey(session.startAt) === expectedKey;
+  const expectedKey = taipeiDateKey(referenceDate);
+  return expectedKey != null && taipeiDateKey(session.startAt) === expectedKey;
 }
 
 function matchesInstantOnly(session, instantOnly) {
@@ -144,9 +115,9 @@ function matchesDistricts(session, districts) {
 const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 function isDiscoverableSession(session, now) {
-  const startAt = toDate(session.startAt);
-  const current = toDate(now) ?? new Date();
-  const undecidedCandidate = String(session?.venueType) === "candidates" && !Boolean(session?.decidedAt);
+  const startAt = validDate(session.startAt);
+  const current = validDate(now) ?? new Date();
+  const undecidedCandidate = isUndecidedCandidate(session);
   return (
     Boolean(startAt) &&
     (undecidedCandidate
@@ -177,17 +148,9 @@ export function filterSessions(sessions, filters = DEFAULT_FILTER_STATE, now = n
 }
 
 function compareStartAt(left, right) {
-  const leftTime = toDate(left.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
-  const rightTime = toDate(right.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
+  const leftTime = validDate(left.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
+  const rightTime = validDate(right.startAt)?.getTime() ?? Number.POSITIVE_INFINITY;
   return leftTime - rightTime;
-}
-
-/** 可加入=open 且缺額>0。滿員局刻意留在探索面(社群活力),但計數與排序都
- *  必須用這個判準,不可把滿員局說成「可加入」;語意與詳情 CTA 的 full 判斷互為鏡像。 */
-export function isJoinableSession(session) {
-  if (String(session?.status).toLowerCase() !== "open") return false;
-  const slotsRemaining = asFiniteNumber(session?.slotsRemaining);
-  return !(slotsRemaining != null && slotsRemaining <= 0);
 }
 
 export function joinableSessionCount(sessions) {
@@ -195,8 +158,8 @@ export function joinableSessionCount(sessions) {
 }
 
 function isOngoingSessionWithVacancy(session, now) {
-  const startAt = toDate(session?.startAt);
-  const current = toDate(now) ?? new Date();
+  const startAt = validDate(session?.startAt);
+  const current = validDate(now) ?? new Date();
   const slotsRemaining = asFiniteNumber(session?.slotsRemaining);
   return (
     Boolean(startAt) &&
@@ -207,23 +170,8 @@ function isOngoingSessionWithVacancy(session, now) {
   );
 }
 
-function distanceMeters(origin, destination) {
-  const latitude = asFiniteNumber(destination.courtLat ?? destination.lat);
-  const longitude = asFiniteNumber(destination.courtLng ?? destination.lng);
-  if (latitude == null || longitude == null) return Number.POSITIVE_INFINITY;
-
-  const toRadians = (degrees) => (degrees * Math.PI) / 180;
-  const earthRadiusMeters = 6_371_000;
-  const deltaLatitude = toRadians(latitude - origin.lat);
-  const deltaLongitude = toRadians(longitude - origin.lng);
-  const a =
-    Math.sin(deltaLatitude / 2) ** 2 +
-    Math.cos(toRadians(origin.lat)) * Math.cos(toRadians(latitude)) * Math.sin(deltaLongitude / 2) ** 2;
-  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function sessionDistanceMeters(origin, session, courts) {
-  if (session?.venueType !== "candidates" || Boolean(session?.decidedAt)) return distanceMeters(origin, session);
+  if (!isUndecidedCandidate(session)) return distanceMeters(origin, session);
   const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
   const candidateDistances = courts
     .filter((court) => candidateIds.has(String(court.id)))

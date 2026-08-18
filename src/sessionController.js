@@ -7,6 +7,7 @@ import {
 } from "./config.js";
 import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "./filters.js";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
+import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
 
 function cloneFilters() {
@@ -259,7 +260,7 @@ function samePendingIntent(left, right) {
 function staleIntentMessage(session) {
   if (!session) return "球局已取消、結束或不再開放，已回到附近球局。";
   const status = String(session.status || "").toLowerCase();
-  if (status === "full" || Number(session.slotsRemaining) <= 0) return "球局已額滿，已回到附近球局。";
+  if (isSessionFull(session)) return "球局已額滿，已回到附近球局。";
   if (status === "cancelled") return "球局已取消，已回到附近球局。";
   if (status === "expired") return "球局已結束，已回到附近球局。";
   if (status === "started") return "球局已開始，已回到附近球局。";
@@ -371,8 +372,10 @@ function createSurfaceRegistry(definitions) {
       for (const item of operations ?? []) {
         const operation = typeof item === "string" ? { name: item } : item;
         if (operation.when && !operation.when(registry)) continue;
-        const nextOptions = Object.hasOwn(operation, "options") ? operation.options : options;
-        registry[operation.action ?? "close"](operation.name, nextOptions);
+        const action = operation.action ?? "close";
+        const expected = Object.hasOwn(operation, "expected") ? operation.expected : registry.get(operation.name);
+        if (action === "release") registry.release(operation.name, expected);
+        else registry.close(operation.name, Object.hasOwn(operation, "options") ? operation.options : options, expected);
       }
     },
     update(name, metadata) {
@@ -756,7 +759,7 @@ export function createSessionController({
     if (participation?.viewerParticipantStatus === "requested") {
       return { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請", kind: "waiting" };
     }
-    if (String(session.status).toLowerCase() === "full" || Number(session.slotsRemaining) <= 0) {
+    if (isSessionFull(session)) {
       return { label: "已額滿", disabled: true, kind: "full" };
     }
     const viewerNtrp = Number(state.profile?.ntrpValue);
@@ -1169,7 +1172,7 @@ export function createSessionController({
     const action = actionFor(session);
     const participation = currentParticipation(session.sessionId);
     const hostCanManage = String(participation?.viewerRole) === "host" && Boolean(participation?.canCancel);
-    const canDecide = hostCanManage && session.venueType === "candidates" && !Boolean(session.decidedAt);
+    const canDecide = hostCanManage && isUndecidedCandidate(session);
     const canEdit = hostCanManage && ["booked", "walk_on"].includes(session.venueType);
     const canChat = String(participation?.viewerParticipantStatus).toLowerCase() === "accepted";
     // 批 D4b:detail sheet 頭部的「我主揪的」badge 與候選資訊列的 guest-only
@@ -1905,8 +1908,7 @@ export function createSessionController({
     return (
       String(session?.viewerRole) === "host" &&
       Boolean(session?.canCancel) &&
-      session?.venueType === "candidates" &&
-      !Boolean(session?.decidedAt)
+      isUndecidedCandidate(session)
     );
   }
 
@@ -1932,7 +1934,7 @@ export function createSessionController({
     if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
     transitionSurfaces("openDecision");
     let sheet = null;
-    const decisionSummary = summary?.venueType === "candidates" && !Boolean(summary?.decidedAt) ? summary : null;
+    const decisionSummary = isUndecidedCandidate(summary) ? summary : null;
     sheet = openDecideSession(decisionSummary, {
       courts: state.courts,
       courtsReady: state.courtsReady,

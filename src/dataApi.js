@@ -190,19 +190,24 @@ const ACTION_MESSAGES = {
   UNKNOWN_ACTION_ERROR: "球局操作失敗，請重新載入後再試。",
 };
 
-export class SessionActionError extends Error {
-  constructor(code, cause = null) {
-    super(ACTION_MESSAGES[code] ?? ACTION_MESSAGES.UNKNOWN_ACTION_ERROR);
-    this.name = "SessionActionError";
+export class DataApiError extends Error {
+  constructor(message = "", { cause = null, code = undefined, name = "DataApiError" } = {}) {
+    super(message);
+    this.name = name;
     this.code = code;
     this.cause = cause;
   }
 }
 
-export class DataApiUnavailableError extends Error {
+export class SessionActionError extends DataApiError {
+  constructor(code, cause = null) {
+    super(ACTION_MESSAGES[code] ?? ACTION_MESSAGES.UNKNOWN_ACTION_ERROR, { cause, code, name: "SessionActionError" });
+  }
+}
+
+export class DataApiUnavailableError extends DataApiError {
   constructor(message = "此操作需要已設定的 Supabase 環境。") {
-    super(message);
-    this.name = "DataApiUnavailableError";
+    super(message, { name: "DataApiUnavailableError" });
   }
 }
 
@@ -559,6 +564,15 @@ function asSessionActionError(error) {
   return error instanceof SessionActionError ? error : new SessionActionError(codeFromSupabaseError(error), error);
 }
 
+function asDataApiError(error) {
+  if (error instanceof DataApiError) return error;
+  return new DataApiError(typeof error?.message === "string" ? error.message : "", {
+    cause: error,
+    code: error?.code,
+    name: typeof error?.name === "string" ? error.name : "DataApiError",
+  });
+}
+
 function profileValues(value) {
   if (value instanceof Set) return [...value];
   return Array.isArray(value) ? value : [];
@@ -623,7 +637,7 @@ export function createDataApi({
       .eq("is_active", true)
       .eq("city", city)
       .order("id");
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapCourt);
   }
 
@@ -645,7 +659,7 @@ export function createDataApi({
       .gt("start_at", query.startAfter)
       .lt("start_at", query.startBefore)
       .order("start_at", { ascending: true });
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     // An empty configured database is a real empty state, never a demo fallback.
     return asArray(data).map(mapSessionSummary);
   }
@@ -665,7 +679,7 @@ export function createDataApi({
         .lte("court_lng", bounds.east);
     }
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapPlayerDirectoryRow);
   }
 
@@ -684,7 +698,7 @@ export function createDataApi({
         .lte("court_lng", bounds.east);
     }
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapPlayerPresenceDirectoryRow);
   }
 
@@ -700,7 +714,7 @@ export function createDataApi({
       .select(SESSION_DISCOVERY_SELECT)
       .eq("session_id", sessionId)
       .maybeSingle();
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return data ? mapSessionSummary(data) : null;
   }
 
@@ -711,7 +725,7 @@ export function createDataApi({
       .from("my_session_participations")
       .select(MY_SESSIONS_SELECT)
       .order("updated_at", { ascending: false });
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapMySession);
   }
 
@@ -723,7 +737,7 @@ export function createDataApi({
       .select(SESSION_ROSTER_SELECT)
       .eq("session_id", sessionId)
       .order("participant_id");
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapSessionRosterRow);
   }
 
@@ -739,7 +753,7 @@ export function createDataApi({
       .from("session_join_preview")
       .select(SESSION_JOIN_PREVIEW_SELECT)
       .eq("session_id", normalizedSessionId);
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapSessionJoinPreviewRow);
   }
 
@@ -752,7 +766,7 @@ export function createDataApi({
       .eq("session_id", asNumber(sessionId))
       .order("created_at", { ascending: true })
       .order("message_id", { ascending: true });
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapSessionMessageRow);
   }
 
@@ -763,7 +777,7 @@ export function createDataApi({
       .from("my_player_blocks")
       .select(MY_PLAYER_BLOCKS_SELECT)
       .order("created_at", { ascending: false });
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map(mapMyPlayerBlockRow);
   }
 
@@ -771,7 +785,7 @@ export function createDataApi({
     if (!configured) return null;
     const activeClient = requireClient();
     const { data, error } = await activeClient.from("my_profile").select(MY_PROFILE_SELECT).maybeSingle();
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     if (!data) return null;
     const courts = await loadCourts();
     return mapCurrentProfile(data, courts);
@@ -784,7 +798,7 @@ export function createDataApi({
       .from("notification_prefs")
       .select(NOTIFICATION_PREFS_SELECT)
       .maybeSingle();
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return mapNotificationPreferences(data ?? {});
   }
 
@@ -795,7 +809,7 @@ export function createDataApi({
       .from("court_subscriptions")
       .select(COURT_SUBSCRIPTIONS_SELECT)
       .order("court_id");
-    if (error) throw error;
+    if (error) throw asDataApiError(error);
     return asArray(data).map((row) => asNumber(row?.court_id)).filter((courtId) => courtId != null);
   }
 
@@ -1103,7 +1117,7 @@ function requireDefaultSupabase() {
  */
 export async function resolveInitialSession(client, storedSession = null) {
   const { data, error } = await client.auth.getSession();
-  if (error) throw error;
+  if (error) throw asDataApiError(error);
   if (data?.session) return data.session;
   if (!storedSession) return null;
 
@@ -1119,7 +1133,7 @@ export async function resolveInitialSession(client, storedSession = null) {
     access_token: session.access_token,
     refresh_token: session.refresh_token,
   });
-  if (restoreError) throw restoreError;
+  if (restoreError) throw asDataApiError(restoreError);
   return restored?.session ?? null;
 }
 
@@ -1143,13 +1157,13 @@ export async function signInWithOAuthProvider(provider) {
     provider,
     options: { redirectTo: globalThis.location?.origin },
   });
-  if (error) throw error;
+  if (error) throw asDataApiError(error);
 }
 
 export async function signOut() {
   const client = requireDefaultSupabase();
   const { error } = await client.auth.signOut();
-  if (error) throw error;
+  if (error) throw asDataApiError(error);
 }
 
 // manual identity linking:把另一個登入 provider 掛到「目前已登入」的帳號(整頁 redirect,
@@ -1160,5 +1174,5 @@ export async function linkLoginIdentity(provider) {
     provider,
     options: { redirectTo: globalThis.location?.origin },
   });
-  if (error) throw error;
+  if (error) throw asDataApiError(error);
 }

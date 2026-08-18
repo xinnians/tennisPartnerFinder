@@ -1,24 +1,11 @@
+import { distanceMeters } from "./sessionCriteria.js";
+
 const MINIMUM_INTERVAL_MS = 60 * 1000;
 const MINIMUM_DISTANCE_METERS = 50;
 
 function coordinate(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
-}
-
-function distanceMeters(left, right) {
-  const lat1 = coordinate(left?.lat);
-  const lng1 = coordinate(left?.lng);
-  const lat2 = coordinate(right?.lat);
-  const lng2 = coordinate(right?.lng);
-  if ([lat1, lng1, lat2, lng2].some((value) => value == null)) return Number.POSITIVE_INFINITY;
-  const radians = Math.PI / 180;
-  const latitudeDelta = (lat2 - lat1) * radians;
-  const longitudeDelta = (lng2 - lng1) * radians;
-  const a =
-    Math.sin(latitudeDelta / 2) ** 2 +
-    Math.cos(lat1 * radians) * Math.cos(lat2 * radians) * Math.sin(longitudeDelta / 2) ** 2;
-  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function locationErrorKind(error) {
