@@ -311,6 +311,81 @@ function actionKey(action) {
   return JSON.stringify([action?.label ?? "", Boolean(action?.disabled), action?.secondaryLabel ?? "", action?.note ?? ""]);
 }
 
+function createSurfaceRegistry(definitions) {
+  const entries = Object.fromEntries(
+    Object.entries(definitions).map(([name, definition]) => [
+      name,
+      Object.fromEntries([["handle", null], ...(definition.metadata ?? []).map((key) => [key, null])]),
+    ])
+  );
+
+  function definitionFor(name) {
+    const definition = definitions[name];
+    if (!definition) throw new Error(`Unknown surface: ${name}`);
+    return definition;
+  }
+
+  function entryFor(name) {
+    definitionFor(name);
+    return entries[name];
+  }
+
+  const registry = {
+    close(name, options, expected = registry.get(name)) {
+      const definition = definitionFor(name);
+      const handle = registry.release(name, expected);
+      if (!handle) return false;
+      const closeOptions = options === undefined && definition.emptyOptionsByDefault !== false ? {} : options;
+      (definition.close ?? ((surface, nextOptions) => surface?.close?.(nextOptions)))(handle, closeOptions);
+      return true;
+    },
+    get(name) {
+      return entryFor(name).handle;
+    },
+    is(name, expected) {
+      return Boolean(expected) && registry.get(name) === expected;
+    },
+    meta(name, key) {
+      return entryFor(name)[key];
+    },
+    release(name, expected = registry.get(name)) {
+      const definition = definitionFor(name);
+      const entry = entryFor(name);
+      if (!expected || entry.handle !== expected) return null;
+      const handle = entry.handle;
+      entry.handle = null;
+      for (const key of definition.metadata ?? []) entry[key] = null;
+      definition.onRelease?.(handle);
+      return handle;
+    },
+    set(name, handle, metadata = {}) {
+      const definition = definitionFor(name);
+      const entry = entryFor(name);
+      entry.handle = handle ?? null;
+      for (const key of definition.metadata ?? []) {
+        if (Object.hasOwn(metadata, key)) entry[key] = metadata[key] ?? null;
+      }
+      return entry.handle;
+    },
+    transition(operations, options) {
+      for (const item of operations ?? []) {
+        const operation = typeof item === "string" ? { name: item } : item;
+        if (operation.when && !operation.when(registry)) continue;
+        const nextOptions = Object.hasOwn(operation, "options") ? operation.options : options;
+        registry[operation.action ?? "close"](operation.name, nextOptions);
+      }
+    },
+    update(name, metadata) {
+      const definition = definitionFor(name);
+      const entry = entryFor(name);
+      for (const key of definition.metadata ?? []) {
+        if (Object.hasOwn(metadata, key)) entry[key] = metadata[key] ?? null;
+      }
+    },
+  };
+  return registry;
+}
+
 /**
  * State and lifecycle boundary for the public discovery experience. It only
  * publishes `SessionSummary` rows to its renderer; private profile and
@@ -386,29 +461,82 @@ export function createSessionController({
   let mySessionsVersion = 0;
   let explicitViewportGeneration = 0;
   let expectedExplicitViewports = [];
-  let activeDetail = null;
-  let activeDetailSession = null;
-  let activeDetailActionKey = null;
-  let activeDetailConfirmingAuth = null;
+  const surfaceRegistry = createSurfaceRegistry({
+    chat: {
+      close: (context, options) => context.sheet?.close?.(options),
+      onRelease: (context) => {
+        context.requestGate.invalidate();
+        context.poller?.stop();
+        context.poller = null;
+      },
+    },
+    courtDrawer: { emptyOptionsByDefault: false },
+    createSession: {},
+    decisionSession: {},
+    detail: { metadata: ["session", "actionKey", "confirmingAuth"] },
+    editSession: {},
+    playerCard: { metadata: ["gate"] },
+    playerDirectory: {},
+    playerDrawer: {},
+    profilePrompt: { metadata: ["intent"] },
+    reportDialog: {},
+  });
+  const SURFACE_TRANSITIONS = Object.freeze({
+    authIdentityChanged: ["createSession", "decisionSession", "editSession", "profilePrompt", "reportDialog", "chat", "detail"],
+    authNicknameLost: ["detail"],
+    authNtrpLost: ["createSession"],
+    authProfileResolved: ["profilePrompt"],
+    clearPlayerDirectory: [
+      "playerDirectory",
+      { name: "playerCard", when: (registry) => registry.meta("playerCard", "gate") === "directory" },
+    ],
+    clearPlayerLayer: [
+      "playerDrawer",
+      { name: "playerCard", when: (registry) => registry.meta("playerCard", "gate") === "ntrp" },
+    ],
+    openChat: [
+      { name: "chat", options: { reason: "chat-replaced", restoreFocus: false } },
+      { name: "decisionSession", options: { reason: "open-chat", restoreFocus: false } },
+      { name: "editSession", options: { reason: "open-chat", restoreFocus: false } },
+      { name: "detail", options: { reason: "open-chat", restoreFocus: false } },
+    ],
+    openCourt: [
+      { action: "release", name: "playerDrawer" },
+      { action: "release", name: "playerCard" },
+      { name: "courtDrawer", options: { restoreFocus: false } },
+    ],
+    openCreate: [{ action: "release", name: "playerCard" }],
+    openDecision: [
+      { name: "decisionSession", options: { restoreFocus: false } },
+      { name: "editSession", options: { restoreFocus: false } },
+      { action: "release", name: "detail" },
+    ],
+    openDetail: [{ action: "release", name: "courtDrawer" }],
+    openEdit: [
+      { name: "editSession", options: { restoreFocus: false } },
+      { name: "decisionSession", options: { restoreFocus: false } },
+      { action: "release", name: "detail" },
+    ],
+    openPlayer: [{ action: "release", name: "playerDrawer" }],
+    openPlayerCourt: ["playerDrawer", "playerCard"],
+    openPlayerDirectory: [
+      { name: "playerDrawer", options: { reason: "player-directory-open", restoreFocus: false } },
+      { name: "playerCard", options: { reason: "player-directory-open", restoreFocus: false } },
+      { name: "playerDirectory", options: { reason: "player-directory-replace", restoreFocus: false } },
+    ],
+  });
+
+  function transitionSurfaces(name, options) {
+    surfaceRegistry.transition(SURFACE_TRANSITIONS[name], options);
+  }
+
   // 批 C3-2:join 單層化——確認/送出中/成功都內嵌同一張 detail sheet,不再是獨立
   // confirmation surface。join 成功後 refreshAuthoritativeState 會讓 discovery/
   // participation 都反映剛加入的結果,若不暫停 reconcile,detail 會被自己剛做的
-  // join 判成「資料已變」而被 closeActiveDetail 關掉,蓋掉正要顯示的成功卡。
+  // join 判成「資料已變」而被 registry 關掉,蓋掉正要顯示的成功卡。
   // 用 sessionId 範圍限制暫停,只在「這個 refresh 是為了顯示這個 session 剛完成的
   // join」這個精確窗口內生效,不影響其他 session 的 reconcile。
   let suppressReconcileSessionId = null;
-  let activeCourtDrawer = null;
-  let activeCreateSession = null;
-  let activeDecisionSession = null;
-  let activeEditSession = null;
-  let activeProfilePrompt = null;
-  let activeProfileIntent = null;
-  let activeReportDialog = null;
-  let activePlayerDrawer = null;
-  let activePlayerDirectory = null;
-  let activePlayerCard = null;
-  let activePlayerCardGate = null;
-  let activeChat = null;
   let lifecycleMutationGeneration = 0;
   let intentVersion = 0;
   const resumeInFlight = new Map();
@@ -728,37 +856,16 @@ export function createSessionController({
     }
   }
 
-  function closeActivePlayerDrawer(options = {}) {
-    const drawer = activePlayerDrawer;
-    activePlayerDrawer = null;
-    drawer?.close?.(options);
-  }
-
-  function closeActivePlayerCard(options = {}) {
-    const card = activePlayerCard;
-    activePlayerCard = null;
-    activePlayerCardGate = null;
-    card?.close?.(options);
-  }
-
-  function closeActivePlayerDirectory(options = {}) {
-    const directory = activePlayerDirectory;
-    activePlayerDirectory = null;
-    directory?.close?.(options);
-  }
-
   function clearPlayerDirectory({ closeReason = "player-directory-clear" } = {}) {
     playerDirectoryGate.invalidate();
     const options = { reason: closeReason, restoreFocus: false };
-    closeActivePlayerDirectory(options);
-    if (activePlayerCardGate === "directory") closeActivePlayerCard(options);
+    transitionSurfaces("clearPlayerDirectory", options);
   }
 
   function clearPlayerLayer({ turnOff = true, closeReason = "player-layer-clear" } = {}) {
     playerGate.invalidate();
     const options = { reason: closeReason, restoreFocus: false };
-    closeActivePlayerDrawer(options);
-    if (activePlayerCardGate === "ntrp") closeActivePlayerCard(options);
+    transitionSurfaces("clearPlayerLayer", options);
     if (turnOff) state.playerLayerOn = false;
     state.players = [];
     state.playerLayerStatus = "idle";
@@ -772,8 +879,7 @@ export function createSessionController({
     const request = playerGate.issue(
       () => state.playerLayerOn && profileMeetsGate(state.profile, "ntrp") && isCurrentAuthSnapshot(authSnapshot)
     );
-    closeActivePlayerDrawer({ reason: "player-refresh", restoreFocus: false });
-    if (activePlayerCardGate === "ntrp") closeActivePlayerCard({ reason: "player-refresh", restoreFocus: false });
+    transitionSurfaces("clearPlayerLayer", { reason: "player-refresh", restoreFocus: false });
     state.players = [];
     state.playerLayerStatus = "loading";
     state.playerLayerMessage = "正在載入在線球友…";
@@ -847,21 +953,19 @@ export function createSessionController({
   async function loadPlayerDirectoryList() {
     if (!state.authSession || !profileMeetsGate(state.profile, "directory")) return false;
     const authSnapshot = captureAuthSnapshot();
-    closeActivePlayerDrawer({ reason: "player-directory-open", restoreFocus: false });
-    closeActivePlayerCard({ reason: "player-directory-open", restoreFocus: false });
-    closeActivePlayerDirectory({ reason: "player-directory-replace", restoreFocus: false });
+    transitionSurfaces("openPlayerDirectory");
     let directory = null;
     directory = openPlayerDirectoryList({
       onClose: () => {
-        if (activePlayerDirectory === directory) activePlayerDirectory = null;
+        surfaceRegistry.release("playerDirectory", directory);
       },
       onOpenPlayer: (player) => openPlayer(player, { gateLevel: "directory", requiresLayer: false }),
       onRetry: () => loadPlayerDirectoryList(),
     });
-    activePlayerDirectory = directory?.close ? directory : null;
+    surfaceRegistry.set("playerDirectory", directory?.close ? directory : null);
     const request = playerDirectoryGate.issue(
       () =>
-        activePlayerDirectory === directory &&
+        surfaceRegistry.is("playerDirectory", directory) &&
         profileMeetsGate(state.profile, "directory") &&
         isCurrentAuthSnapshot(authSnapshot)
     );
@@ -893,7 +997,7 @@ export function createSessionController({
     const request = discoveryGate.issue();
     // A court drawer is a snapshot of the prior viewport. Remove it before
     // clearing that snapshot so its cards cannot target now-unresolvable rows.
-    closeActiveCourtDrawer();
+    surfaceRegistry.close("courtDrawer");
     state.bounds = nextBounds;
     // A viewport has changed, so rows from the previous one must not remain
     // visible while its authoritative response is still in flight.
@@ -915,7 +1019,7 @@ export function createSessionController({
       state.discoveryMessage = "球局資料暫時無法載入。";
       // Keeping a stale action open after authority could not be refreshed is
       // less safe than asking the user to reopen it after a successful retry.
-      closeActiveDetail();
+      surfaceRegistry.close("detail");
       publish();
       return false;
     }
@@ -930,7 +1034,14 @@ export function createSessionController({
    *  失敗靜默:保留現有畫面,由下一次正常載入訂正。 */
   function discoveryPollIsActive() {
     if (state.discoveryStatus === "loading") return false;
-    if (activeDetail || activeCourtDrawer || activeChat || activeCreateSession || activeDecisionSession || activeEditSession) {
+    if (
+      surfaceRegistry.get("detail") ||
+      surfaceRegistry.get("courtDrawer") ||
+      surfaceRegistry.get("chat") ||
+      surfaceRegistry.get("createSession") ||
+      surfaceRegistry.get("decisionSession") ||
+      surfaceRegistry.get("editSession")
+    ) {
       return false;
     }
     if (typeof api?.loadSessionDiscovery !== "function") return false;
@@ -955,10 +1066,10 @@ export function createSessionController({
   function setCourts(courts, { ready = true } = {}) {
     state.courts = Array.isArray(courts) ? courts : [];
     state.courtsReady = Boolean(ready);
-    activeCreateSession?.setCourts?.(state.courts, { ready: state.courtsReady });
-    activeDecisionSession?.setCourts?.(state.courts, { ready: state.courtsReady });
-    activeEditSession?.setCourts?.(state.courts, { ready: state.courtsReady });
-    activeProfilePrompt?.setCourts?.(state.courts, { ready: state.courtsReady });
+    surfaceRegistry.get("createSession")?.setCourts?.(state.courts, { ready: state.courtsReady });
+    surfaceRegistry.get("decisionSession")?.setCourts?.(state.courts, { ready: state.courtsReady });
+    surfaceRegistry.get("editSession")?.setCourts?.(state.courts, { ready: state.courtsReady });
+    surfaceRegistry.get("profilePrompt")?.setCourts?.(state.courts, { ready: state.courtsReady });
     publish();
   }
 
@@ -1053,7 +1164,7 @@ export function createSessionController({
     // mountSheet replaces a court drawer in the same root and preserves that
     // drawer's original opener for focus restoration. Forget the controller
     // reference without closing the surface ahead of that hand-off.
-    activeCourtDrawer = null;
+    transitionSurfaces("openDetail");
     if (!session) return;
     const action = actionFor(session);
     const participation = currentParticipation(session.sessionId);
@@ -1081,17 +1192,12 @@ export function createSessionController({
       onEdit: () => openSessionEdit(session.sessionId),
       onChat: () => openSessionChat(session.sessionId),
       onPrimary: () => startPrimaryAction(session, detail),
-      onConfirmJoin: () => requestJoin(session, detail, activeDetailConfirmingAuth),
+      onConfirmJoin: () => requestJoin(session, detail, surfaceRegistry.meta("detail", "confirmingAuth")),
       canReport: Boolean(state.authSession && profileIsReady(state.profile)),
       onReport: () => openSessionReport(session.sessionId),
       onWithdraw: () => withdraw(session, detail),
       onClose: ({ reason = "dismiss" } = {}) => {
-        if (activeDetail === detail) {
-          activeDetail = null;
-          activeDetailSession = null;
-          activeDetailActionKey = null;
-          activeDetailConfirmingAuth = null;
-        }
+        surfaceRegistry.release("detail", detail);
         // requireSessionAction always saves a "join" intent before this sheet
         // ever reaches confirming (see its first line). A plain idle browse
         // never matches that intent, so this clear is a harmless no-op then;
@@ -1101,13 +1207,14 @@ export function createSessionController({
         if (reason === "dismiss") clearIntent({ action: "join", sessionId: session.sessionId });
       },
     });
-    activeDetail = detail?.close ? detail : null;
-    activeDetailSession = activeDetail ? session : null;
-    activeDetailActionKey = activeDetail ? actionKey(action) : null;
-    if (activeDetail && previewAuthSnapshot) {
-      void hydrateSessionJoinPreview(session.sessionId, activeDetail, detailJoinPreviewGate, previewAuthSnapshot);
+    const registeredDetail = surfaceRegistry.set("detail", detail?.close ? detail : null, {
+      actionKey: detail?.close ? actionKey(action) : null,
+      session: detail?.close ? session : null,
+    });
+    if (registeredDetail && previewAuthSnapshot) {
+      void hydrateSessionJoinPreview(session.sessionId, registeredDetail, detailJoinPreviewGate, previewAuthSnapshot);
     }
-    return activeDetail;
+    return registeredDetail;
   }
 
   function openSessionById(sessionId) {
@@ -1131,6 +1238,8 @@ export function createSessionController({
       // sheetRoot,晚到的一方若無條件 openSessionDetail 會把先到的一方蓋回 idle。
       // 這裡先查:若已經有這個 session 的 detail 開著(不論被誰、用哪個 stage 開的),
       // 就不要再蓋一次,保留它目前的狀態。
+      const activeDetail = surfaceRegistry.get("detail");
+      const activeDetailSession = surfaceRegistry.meta("detail", "session");
       if (activeDetail && activeDetailSession && String(activeDetailSession.sessionId) === String(session.sessionId)) {
         return { session, status: "opened" };
       }
@@ -1143,21 +1252,6 @@ export function createSessionController({
 
   function chatMemberSession(session) {
     return String(session?.viewerParticipantStatus).toLowerCase() === "accepted";
-  }
-
-  function releaseActiveChat(context = activeChat) {
-    if (!context || activeChat !== context) return;
-    activeChat = null;
-    context.requestGate.invalidate();
-    context.poller?.stop();
-    context.poller = null;
-  }
-
-  function closeActiveChat(options = {}) {
-    const context = activeChat;
-    if (!context) return;
-    releaseActiveChat(context);
-    context.sheet?.close?.(options);
   }
 
   // 批 C4-2:已讀游標只掛在這次開聊天期間存活的 context 上,不是跨 session 的全域
@@ -1182,11 +1276,11 @@ export function createSessionController({
     }
   }
 
-  async function refreshActiveChat(context = activeChat, { quiet = false } = {}) {
-    if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
+  async function refreshActiveChat(context = surfaceRegistry.get("chat"), { quiet = false } = {}) {
+    if (!context || !surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
     if (typeof api?.loadSessionMessages !== "function" || typeof api?.loadSessionRoster !== "function") return false;
     const request = context.requestGate.issue(
-      () => activeChat === context && isCurrentAuthSnapshot(context.authSnapshot)
+      () => surfaceRegistry.is("chat", context) && isCurrentAuthSnapshot(context.authSnapshot)
     );
     // quiet=背景輪詢:不進 loading 態,避免「正在讀取群組訊息…」每 tick 閃現。
     if (!quiet) context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "loading" });
@@ -1224,7 +1318,7 @@ export function createSessionController({
   }
 
   function openChatMessageReport(context, messageId) {
-    if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+    if (!context || !surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
       throw new Error("群組狀態已更新，請重新開啟後再試。");
     }
     const message = visibleChatMessage(context, messageId);
@@ -1241,7 +1335,7 @@ export function createSessionController({
     const normalizedProfileId = Number(profileId);
     if (
       !context ||
-      activeChat !== context ||
+      !surfaceRegistry.is("chat", context) ||
       !isCurrentAuthSnapshot(context.authSnapshot) ||
       !context.messages.some((message) => Number(message.senderProfileId) === normalizedProfileId && visibleChatMessage(context, message.messageId))
     ) {
@@ -1249,7 +1343,7 @@ export function createSessionController({
     }
     if (typeof api?.setPlayerBlock !== "function") throw new Error("目前無法更新封鎖設定。");
     await api.setPlayerBlock(normalizedProfileId, true);
-    if (activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+    if (!surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
       throw new Error("登入狀態已變更，請重新整理後再試。");
     }
     const [blocksReady] = await Promise.all([refreshMyPlayerBlocks(context.authSnapshot), refreshActiveChat(context)]);
@@ -1259,19 +1353,19 @@ export function createSessionController({
   }
 
   async function postActiveChatMessage(context, body) {
-    if (!context || activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+    if (!context || !surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
       throw new Error("群組狀態已更新，請重新開啟後再試。");
     }
     if (typeof api?.postSessionMessage !== "function") throw new Error("目前無法傳送群組訊息。");
     try {
       const result = await api.postSessionMessage(context.session.sessionId, body);
-      if (activeChat !== context || !isCurrentAuthSnapshot(context.authSnapshot)) {
+      if (!surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
         throw new Error("登入狀態已變更，請重新整理後再試。");
       }
       await refreshActiveChat(context);
       return result;
     } catch (error) {
-      if (activeChat === context && isCurrentAuthSnapshot(context.authSnapshot) && error?.code === "SESSION_ARCHIVED") {
+      if (surfaceRegistry.is("chat", context) && isCurrentAuthSnapshot(context.authSnapshot) && error?.code === "SESSION_ARCHIVED") {
         context.sheet?.setArchived?.(error.message);
         await refreshMySessions();
       }
@@ -1284,16 +1378,13 @@ export function createSessionController({
     if (typeof api?.loadSessionMessages !== "function" || typeof api?.loadSessionRoster !== "function") {
       throw new Error("目前無法開啟群組聊天。");
     }
-    closeActiveChat({ reason: "chat-replaced", restoreFocus: false });
-    closeActiveDecisionSession({ reason: "open-chat", restoreFocus: false });
-    closeActiveEditSession({ reason: "open-chat", restoreFocus: false });
-    closeActiveDetail(undefined, { reason: "open-chat", restoreFocus: false });
+    transitionSurfaces("openChat");
     let context = null;
     const sheet = openChat(session, {
       canWithdraw: Boolean(session.canWithdraw),
       courts: state.courts,
       onBlock: (profileId) => blockChatSender(context, profileId),
-      onClose: () => releaseActiveChat(context),
+      onClose: () => surfaceRegistry.release("chat", context),
       onPost: (body) => postActiveChatMessage(context, body),
       onReport: (messageId) => openChatMessageReport(context, messageId),
       onWithdraw: () => withdrawMySession(session.sessionId),
@@ -1308,12 +1399,12 @@ export function createSessionController({
       session,
       sheet,
     };
-    activeChat = context;
+    surfaceRegistry.set("chat", context);
     // 安靜輪詢:MVP 無 realtime 通道,對方訊息靠週期重讀;背景分頁跳過,關閉時
-    // 由 releaseActiveChat 清除。unref 讓 node 測試環境不被 timer 扣住事件圈。
+    // 由 registry release 清除。unref 讓 node 測試環境不被 timer 扣住事件圈。
     context.poller = createForegroundPoller({
       intervalMs: chatPollIntervalMs,
-      isActive: () => activeChat === context,
+      isActive: () => surfaceRegistry.is("chat", context),
       onInterval: () => void refreshActiveChat(context, { quiet: true }),
       onVisible: () => void refreshActiveChat(context),
       visibilityTarget,
@@ -1323,12 +1414,10 @@ export function createSessionController({
   }
 
   function openCourt(court, onlySessions = null) {
-    activePlayerDrawer = null;
-    activePlayerCard = null;
+    transitionSurfaces("openCourt");
     const sessions = onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
-    closeActiveCourtDrawer({ restoreFocus: false });
     const drawer = openCourtDrawer(court, sessions, { courts: state.courts, onOpenSession: openSessionById });
-    activeCourtDrawer = drawer?.close ? drawer : null;
+    surfaceRegistry.set("courtDrawer", drawer?.close ? drawer : null);
   }
 
   function invitableSessions(now = Date.now()) {
@@ -1350,12 +1439,12 @@ export function createSessionController({
     ) {
       return null;
     }
-    activePlayerDrawer = null;
+    transitionSurfaces("openPlayer");
     const openedAuth = captureAuthSnapshot();
     let card = null;
     const request = playerCardGate.capture(
       () =>
-        activePlayerCard === card &&
+        surfaceRegistry.is("playerCard", card) &&
         (!requiresLayer || state.playerLayerOn) &&
         profileMeetsGate(state.profile, gateLevel) &&
         profileMeetsGate(state.profile, "ntrp") &&
@@ -1365,22 +1454,16 @@ export function createSessionController({
       courts: state.courts,
       myInvitableSessions: invitableSessions(),
       onClose: () => {
-        if (activePlayerCard === card) {
-          activePlayerCard = null;
-          activePlayerCardGate = null;
-        }
+        surfaceRegistry.release("playerCard", card);
       },
       // 批 D8 映射決策 6:「看球友名單」重用既有 openPlayerDirectory 入口(與地圖
       // #player-directory-open 同一顆),不是新的 controller surface。它內部的
-      // loadPlayerDirectoryList() 一開頭就會 closeActivePlayerCard(...),所以這張卡
+      // loadPlayerDirectoryList() 一開頭就會關閉 playerCard,所以這張卡
       // 會被自動關掉、名單接著開啟,不需要在這裡重複 card?.close()。未通過 directory
       // gate 時 openPlayerDirectory() 會走 requireSessionAction 導去補檔案,不是 no-op。
       onSeeDirectory: () => openPlayerDirectory(),
       onCreate: () => {
-        if (activePlayerCard === card) {
-          activePlayerCard = null;
-          activePlayerCardGate = null;
-        }
+        if (surfaceRegistry.is("playerCard", card)) transitionSurfaces("openCreate");
         openCreateIntent();
       },
       onInvite: async (sessionId) => {
@@ -1405,34 +1488,23 @@ export function createSessionController({
         return result;
       },
     });
-    activePlayerCard = card?.close ? card : null;
-    activePlayerCardGate = activePlayerCard ? gateLevel : null;
+    surfaceRegistry.set("playerCard", card?.close ? card : null, { gate: card?.close ? gateLevel : null });
     return card;
   }
 
   function openPlayerCourt(court, onlyPlayers = null) {
     if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "ntrp")) return null;
     const players = onlyPlayers ?? state.players.filter((player) => String(player.courtId) === String(court.id));
-    closeActivePlayerDrawer({ restoreFocus: false });
-    closeActivePlayerCard({ restoreFocus: false });
+    transitionSurfaces("openPlayerCourt", { restoreFocus: false });
     let drawer = null;
     drawer = openCourtPlayersDrawer(court, players, {
       onClose: () => {
-        if (activePlayerDrawer === drawer) activePlayerDrawer = null;
+        surfaceRegistry.release("playerDrawer", drawer);
       },
       onOpenPlayer: (player) => openPlayer(player, { gateLevel: "ntrp", requiresLayer: true }),
     });
-    activePlayerDrawer = drawer?.close ? drawer : null;
+    surfaceRegistry.set("playerDrawer", drawer?.close ? drawer : null);
     return drawer;
-  }
-
-  function closeActiveDetail(detail = activeDetail, options = {}) {
-    if (!detail || activeDetail !== detail) return;
-    activeDetail = null;
-    activeDetailSession = null;
-    activeDetailActionKey = null;
-    activeDetailConfirmingAuth = null;
-    detail.close?.(options);
   }
 
   function reconcileSuppressed(session) {
@@ -1442,71 +1514,39 @@ export function createSessionController({
   }
 
   function reconcileActiveDetail(bounds = state.bounds) {
+    const activeDetail = surfaceRegistry.get("detail");
+    const activeDetailSession = surfaceRegistry.meta("detail", "session");
     if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
     const freshSession = state.sessions.find((entry) => String(entry.sessionId) === String(activeDetailSession.sessionId));
     // A viewport result may omit a still-valid session simply because it is
     // now off-screen. Only close when this authoritative response actually
     // includes the detail session and its rendered fields have changed.
     if (freshSession && !sameSessionDetail(activeDetailSession, freshSession)) {
-      closeActiveDetail(undefined, { reason: "stale-authority" });
+      surfaceRegistry.close("detail", { reason: "stale-authority" });
     } else if (!freshSession && boundsContainSession(bounds, activeDetailSession)) {
-      closeActiveDetail(undefined, { reason: "stale-authority" });
+      surfaceRegistry.close("detail", { reason: "stale-authority" });
     }
   }
 
   function reconcileActiveDetailParticipation() {
+    const activeDetail = surfaceRegistry.get("detail");
+    const activeDetailSession = surfaceRegistry.meta("detail", "session");
     if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
-    if (actionKey(actionFor(activeDetailSession)) !== activeDetailActionKey) {
-      closeActiveDetail(undefined, { reason: "stale-authority" });
+    if (actionKey(actionFor(activeDetailSession)) !== surfaceRegistry.meta("detail", "actionKey")) {
+      surfaceRegistry.close("detail", { reason: "stale-authority" });
     }
   }
 
   function reconcileActiveChatParticipation() {
+    const activeChat = surfaceRegistry.get("chat");
     if (!activeChat) return;
     const session = currentParticipation(activeChat.session.sessionId);
     if (!chatMemberSession(session)) {
-      closeActiveChat({ reason: "chat-authority-changed", restoreFocus: false });
+      surfaceRegistry.close("chat", { reason: "chat-authority-changed", restoreFocus: false });
       return;
     }
     activeChat.session = session;
     if (MY_SESSION_FINAL_STATUSES.has(String(session.status).toLowerCase())) activeChat.sheet?.setArchived?.();
-  }
-
-  function closeActiveCourtDrawer(options) {
-    const drawer = activeCourtDrawer;
-    activeCourtDrawer = null;
-    drawer?.close?.(options);
-  }
-
-  function closeActiveCreateSession(options = {}) {
-    const sheet = activeCreateSession;
-    activeCreateSession = null;
-    sheet?.close?.(options);
-  }
-
-  function closeActiveDecisionSession(options = {}) {
-    const sheet = activeDecisionSession;
-    activeDecisionSession = null;
-    sheet?.close?.(options);
-  }
-
-  function closeActiveEditSession(options = {}) {
-    const sheet = activeEditSession;
-    activeEditSession = null;
-    sheet?.close?.(options);
-  }
-
-  function closeActiveProfilePrompt(options = {}) {
-    const sheet = activeProfilePrompt;
-    activeProfilePrompt = null;
-    activeProfileIntent = null;
-    sheet?.close?.(options);
-  }
-
-  function closeActiveReportDialog(options = {}) {
-    const dialog = activeReportDialog;
-    activeReportDialog = null;
-    dialog?.close?.(options);
   }
 
   function readIntent() {
@@ -1543,7 +1583,7 @@ export function createSessionController({
 
   function closeForStaleIntent(message) {
     const options = { reason: "stale-intent", restoreFocus: false };
-    closeActiveDetail(undefined, options);
+    surfaceRegistry.close("detail", options);
     // auto-expand 映射 v2 的 open(非 modal)。
     state.drawerState = "open";
     publish();
@@ -1551,7 +1591,7 @@ export function createSessionController({
   }
 
   // 批 C3-2:join 單層化——「進入確認態」不再開第二層 dialog,而是讓 detail sheet
-  // 就地切態。手動點擊路徑已經有開著的 detail(activeDetail === detail),直接呼叫
+  // 就地切態。手動點擊路徑已經有開著的 detail,直接呼叫
   // 它的 enterConfirming;resume 路徑(見 resumePendingIntent)還沒有任何 sheet,
   // 走 else 分支以 initialStage:"confirming" 開一張新的。兩條路徑共用同一組
   // lifecycle in-flight 防呆與 confirmingAuth 快照時機。
@@ -1561,8 +1601,8 @@ export function createSessionController({
       return;
     }
     const expectedAccepted = Boolean(actionFor(session).expectedAccepted);
-    activeDetailConfirmingAuth = captureAuthSnapshot();
-    if (detail && activeDetail === detail) {
+    surfaceRegistry.update("detail", { confirmingAuth: captureAuthSnapshot() });
+    if (detail && surfaceRegistry.is("detail", detail)) {
       detail.enterConfirming?.({ expectedAccepted });
       return;
     }
@@ -1570,24 +1610,21 @@ export function createSessionController({
   }
 
   function openProfileForIntent(intent, { returnSession = null } = {}) {
-    if (activeProfilePrompt) return activeProfilePrompt;
+    if (surfaceRegistry.get("profilePrompt")) return surfaceRegistry.get("profilePrompt");
     let sheet = null;
     sheet = promptProfile({
       courts: state.courts,
       courtsReady: state.courtsReady,
       intent,
       onClose: ({ reason = "dismiss", saved = false } = {}) => {
-        if (activeProfilePrompt === sheet) {
-          activeProfilePrompt = null;
-          activeProfileIntent = null;
-        }
+        surfaceRegistry.release("profilePrompt", sheet);
         if (!saved && reason === "dismiss") clearIntent(intent);
       },
       returnSession,
     });
-    activeProfilePrompt = sheet?.close ? sheet : null;
-    activeProfileIntent = activeProfilePrompt ? intent : null;
-    return activeProfilePrompt;
+    return surfaceRegistry.set("profilePrompt", sheet?.close ? sheet : null, {
+      intent: sheet?.close ? intent : null,
+    });
   }
 
   function requireReadyProfile(level = null, { silentLoading = false } = {}) {
@@ -1652,12 +1689,12 @@ export function createSessionController({
 
   async function requestJoin(session, detail, confirmingAuth) {
     if (!isCurrentAuthSnapshot(confirmingAuth)) {
-      closeActiveDetail(detail);
+      surfaceRegistry.close("detail", undefined, detail);
       toast("登入狀態已變更，請重新開啟球局。");
       return { joinError: "登入狀態已變更，請重新開啟球局。" };
     }
     if (!profileMeetsGate(state.profile, "nickname")) {
-      closeActiveDetail(detail);
+      surfaceRegistry.close("detail", undefined, detail);
       requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
       return { joinError: "請先填寫公開暱稱。" };
     }
@@ -1671,7 +1708,7 @@ export function createSessionController({
       if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
       clearIntent({ action: "join", sessionId: session.sessionId });
       if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-        closeActiveDetail(detail);
+        surfaceRegistry.close("detail", undefined, detail);
         await refreshAuthoritativeState(confirmingAuth);
         toast("球局狀態已更新，請重新載入。");
         return { joinError: "球局狀態已更新，請重新載入。" };
@@ -1689,11 +1726,13 @@ export function createSessionController({
       } finally {
         if (suppressReconcileSessionId === session.sessionId) suppressReconcileSessionId = null;
       }
-      if (activeDetail === detail) {
+      if (surfaceRegistry.is("detail", detail)) {
         const freshSession =
           state.sessions.find((entry) => String(entry.sessionId) === String(session.sessionId)) ?? session;
-        activeDetailSession = freshSession;
-        activeDetailActionKey = actionKey(actionFor(freshSession));
+        surfaceRegistry.update("detail", {
+          actionKey: actionKey(actionFor(freshSession)),
+          session: freshSession,
+        });
       }
       return { ...result, joinSubmitted: true };
     } catch (error) {
@@ -1703,7 +1742,7 @@ export function createSessionController({
       // A stale discovery response can legitimately close the underlying
       // detail before its inline error is rendered. Announce that result
       // instead of silently discarding it.
-      if (activeDetail !== detail) toast(message);
+      if (!surfaceRegistry.is("detail", detail)) toast(message);
       return { joinError: message };
     } finally {
       finishLifecycleAction(mutation);
@@ -1726,15 +1765,15 @@ export function createSessionController({
       const result = await api.withdrawFromSession(session.sessionId);
       if (!isCurrentAuthSnapshot(authSnapshot)) return;
       if (!(await refreshAuthoritativeState(authSnapshot))) {
-        if (activeDetail === detail) toast("球局狀態暫時無法重新載入，請重新整理後再試。");
+        if (surfaceRegistry.is("detail", detail)) toast("球局狀態暫時無法重新載入，請重新整理後再試。");
         return;
       }
       if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-        closeActiveDetail(detail);
+        surfaceRegistry.close("detail", undefined, detail);
         toast("球局狀態已更新，請重新載入。");
         return;
       }
-      closeActiveDetail(detail);
+      surfaceRegistry.close("detail", undefined, detail);
       toast("已撤回申請。");
     } catch (error) {
       if (!isCurrentAuthSnapshot(authSnapshot)) return;
@@ -1891,18 +1930,14 @@ export function createSessionController({
       throw new Error("候選球局暫時無法載入，請稍後再試。");
     }
     if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-    closeActiveDecisionSession({ restoreFocus: false });
-    closeActiveEditSession({ restoreFocus: false });
-    activeDetail = null;
-    activeDetailSession = null;
-    activeDetailActionKey = null;
+    transitionSurfaces("openDecision");
     let sheet = null;
     const decisionSummary = summary?.venueType === "candidates" && !Boolean(summary?.decidedAt) ? summary : null;
     sheet = openDecideSession(decisionSummary, {
       courts: state.courts,
       courtsReady: state.courtsReady,
       onClose: () => {
-        if (activeDecisionSession === sheet) activeDecisionSession = null;
+        surfaceRegistry.release("decisionSession", sheet);
       },
       onDecide: async (courtId, startAt) => {
         if (!decisionSummary) return { outcome: "SESSION_EXPIRED", reloadRequired: true };
@@ -1919,7 +1954,7 @@ export function createSessionController({
             return result;
           }
           if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
-          closeActiveDecisionSession({ reason: "complete" });
+          surfaceRegistry.close("decisionSession", { reason: "complete" });
           toast("候選球局已定案。");
           return result;
         } catch (error) {
@@ -1930,24 +1965,19 @@ export function createSessionController({
         }
       },
     });
-    activeDecisionSession = sheet?.close ? sheet : null;
-    return activeDecisionSession;
+    return surfaceRegistry.set("decisionSession", sheet?.close ? sheet : null);
   }
 
   function openSessionEdit(sessionId) {
     const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanEditSession);
     if (typeof api?.updateSession !== "function") throw new Error("目前無法編輯這個球局。");
-    closeActiveEditSession({ restoreFocus: false });
-    closeActiveDecisionSession({ restoreFocus: false });
-    activeDetail = null;
-    activeDetailSession = null;
-    activeDetailActionKey = null;
+    transitionSurfaces("openEdit");
     let sheet = null;
     sheet = openEditSession(session, {
       courts: state.courts,
       courtsReady: state.courtsReady,
       onClose: () => {
-        if (activeEditSession === sheet) activeEditSession = null;
+        surfaceRegistry.release("editSession", sheet);
       },
       onSubmit: async (input) => {
         const result = await runMySessionMutation(
@@ -1957,12 +1987,11 @@ export function createSessionController({
           () => api.updateSession({ sessionId: session.sessionId, ...input }),
           "已更新球局資訊。"
         );
-        closeActiveEditSession({ reason: "complete" });
+        surfaceRegistry.close("editSession", { reason: "complete" });
         return result;
       },
     });
-    activeEditSession = sheet?.close ? sheet : null;
-    return activeEditSession;
+    return surfaceRegistry.set("editSession", sheet?.close ? sheet : null);
   }
 
   async function commitPlayerVisibility() {
@@ -2023,7 +2052,7 @@ export function createSessionController({
     dialog = openReport({
       targetLabel,
       onClose: () => {
-        if (activeReportDialog === dialog) activeReportDialog = null;
+        surfaceRegistry.release("reportDialog", dialog);
       },
       onSubmit: async (reason) => {
         const normalizedReason = String(reason ?? "").trim();
@@ -2039,7 +2068,7 @@ export function createSessionController({
         return result;
       },
     });
-    activeReportDialog = dialog?.close ? dialog : null;
+    surfaceRegistry.set("reportDialog", dialog?.close ? dialog : null);
     return dialog;
   }
 
@@ -2103,21 +2132,20 @@ export function createSessionController({
   }
 
   function openCreateSessionForIntent(intent = { action: "create" }) {
-    if (activeCreateSession) return activeCreateSession;
+    if (surfaceRegistry.get("createSession")) return surfaceRegistry.get("createSession");
     const openedAuthSnapshot = captureAuthSnapshot();
     let sheet = null;
     sheet = openCreateSession({
       courts: state.courts,
       courtsReady: state.courtsReady,
       onClose: ({ reason = "dismiss" } = {}) => {
-        if (activeCreateSession === sheet) activeCreateSession = null;
+        surfaceRegistry.release("createSession", sheet);
         if (reason === "dismiss") clearIntent(intent);
       },
       onSubmit: (input) => submitCreateSession(input, openedAuthSnapshot),
       onViewMySessions: (sessionId) => showCreatedSession(sessionId),
     });
-    activeCreateSession = sheet?.close ? sheet : null;
-    return activeCreateSession;
+    return surfaceRegistry.set("createSession", sheet?.close ? sheet : null);
   }
 
   function resumePendingIntent() {
@@ -2210,6 +2238,8 @@ export function createSessionController({
       // 同一個 session 的 idle detail(見 openSessionFromLink 的對稱防呆)——這裡
       // 若發現 activeDetail 剛好就是同一個 session,直接升級那張既有的,不要另開
       // 一張新的蓋掉它。
+      const activeDetail = surfaceRegistry.get("detail");
+      const activeDetailSession = surfaceRegistry.meta("detail", "session");
       const existingDetail =
         activeDetail && activeDetailSession && String(activeDetailSession.sessionId) === String(target.sessionId)
           ? activeDetail
@@ -2316,22 +2346,20 @@ export function createSessionController({
     }
     if (identityChanged) {
       const options = { reason: "account-change", restoreFocus: false };
-      closeActiveCreateSession(options);
-      closeActiveDecisionSession(options);
-      closeActiveEditSession(options);
-      closeActiveProfilePrompt(options);
-      closeActiveReportDialog(options);
-      closeActiveChat(options);
-      closeActiveDetail(undefined, options);
+      transitionSurfaces("authIdentityChanged", options);
     } else {
-      if (ntrpWasLost) closeActiveCreateSession({ reason: "ntrp-gate-lost", restoreFocus: false });
+      if (ntrpWasLost) {
+        transitionSurfaces("authNtrpLost", { reason: "ntrp-gate-lost", restoreFocus: false });
+      }
       // 批 C3-2:join confirmation 已併入 detail sheet,不再是獨立 surface;失去
       // nickname gate 時改直接關掉 detail(若那張 detail 正代表一次 join 嘗試,
-      // closeActiveDetail 的 onClose 會一併清掉對應的 pending intent)。
-      if (nicknameWasLost) closeActiveDetail(undefined, { reason: "nickname-gate-lost", restoreFocus: false });
-      const promptGate = profileGateForIntent(activeProfileIntent);
-      if (activeProfilePrompt && promptGate && !previousGates[promptGate] && nextGates[promptGate]) {
-        closeActiveProfilePrompt({ reason: "profile-gate-resolved", restoreFocus: false });
+      // detail close 的 onClose 會一併清掉對應的 pending intent)。
+      if (nicknameWasLost) {
+        transitionSurfaces("authNicknameLost", { reason: "nickname-gate-lost", restoreFocus: false });
+      }
+      const promptGate = profileGateForIntent(surfaceRegistry.meta("profilePrompt", "intent"));
+      if (surfaceRegistry.get("profilePrompt") && promptGate && !previousGates[promptGate] && nextGates[promptGate]) {
+        transitionSurfaces("authProfileResolved", { reason: "profile-gate-resolved", restoreFocus: false });
       }
     }
 
