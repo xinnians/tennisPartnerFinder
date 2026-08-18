@@ -49,12 +49,21 @@
   `performance.spec.js:51` failFirstMockDiscovery。
 - 「路徑耦合」×120+——tests 內 page.evaluate 直接 `import("/src/*.js")`，遍布
   smoke／performance／session 三個 spec，是 mock 套件的基本測試模式。
-- 0a：四處文字改寫 fixture 改為顯式 test hook（未設 hook 時 prod 行為零差異）；
-  `/src/` 動態 import 收斂到單一 helper 定義點，讓未來換副檔名只改一處。
-- 0b：逐字掃描單元測試改行為式。現況：LINE allowlist 斷言 8 行原始碼字面（含 import 行）、
-  NTRP_SCALE_EXPLANATION 恰好出現 4 次的計數。目標：拆檔改名不破；掃描集非空自證；
-  gate 有牙三拍（存量綠→canary 驗紅→移除 canary 綠）。
-- 驗收：反向 grep 證明 tests/ 對 src/ 的原始碼文字依賴歸零、`"/src/` 字面只剩 helper 一處；全 gate 綠。
+- 0a（**完成，2026-08-18**）：四處文字改寫 fixture 改顯式 test hook（未設 hook 時 prod 零差異；
+  含消費自證 consumedCount/appliedCount 防「接縫被搬走→靜默假綠」）；122 處 `/src/` 動態 import
+  收斂到 `tests/fixtures/appRuntime.js` 單一定義點。驗收紀錄 `docs/migration-reports/batch-0a.md`
+  （含 0a-fix：消費自證補課＋撤回 route["fetch"] 的 grep 閃避寫法）。驗收方獨立脫鉤 canary 紅→綠
+  ＋全 gate 重跑通過。教訓：驗收 grep 條件過寬會誘發「改寫語法閃避字面」，條件要對準機制而非字面。
+- 0b：逐字掃描單元測試改行為式。實測盤點（2026-08-18）：
+  (1) `session-data-boundary.test.js` LINE allowlist——deepEqual 斷言 8 組 {path, 原始碼整行}
+  字面（含 import 行），拆檔／改 import 語法／formatter 換行即破；`line_id` 恰一次且路徑鎖死
+  `src/dataApi.js`（批 2 拆檔即破）。
+  (2) `session-create-form.test.js`——NTRP_SCALE_EXPLANATION 字面恰 1 次＋符號恰 4 次，
+  鎖單檔 `sessionViews.js`。
+  (3) `legacy-style-scan.test.js`——readdir 自動掃描設計良好，但副檔名 filter 只收 .css/.js，
+  TS 進場後新檔自動漏掃，需擴 .ts/.tsx。
+  目標：語意不弱化（新 LINE token 仍紅、literal 複製仍紅）、拆檔搬檔不誤報、掃描集非空自證。
+- 驗收：韌性模擬（搬檔不紅）＋有牙 canary（違規必紅）雙向證明；全 gate 綠。
 
 ### 批 1：框架無關 vanilla 收斂（拆 4 小批，遷移後全數存活）
 
@@ -101,3 +110,5 @@
 
 - 2026-08-18：計劃建立；三項決策拍板；批 B 派工單已發。
 - 2026-08-18：批 B（含 B-fix）驗收通過並 commit；批 0 盤點完成、0a 派工單已發。
+- 2026-08-18：批 0a（含 0a-fix）驗收通過並 commit；0b 盤點完成（含 legacy-style-scan 副檔名
+  漏掃 .ts/.tsx 的新發現）、派工單已發。
