@@ -81,7 +81,13 @@
   錯誤渲染加重繪 gate（與新 markup 權威原則一致，舊行為是寫入 detach 節點的隱形 no-op）、
   create submitting gate 理論不可達；另修掉 chat 潛在強制解鎖 bug）。
   回報 `docs/migration-reports/batch-1a.md`。
-- 1b：統一 request guard（controller 7 個 counter＋32 處 requestId 樣板、main.js 9 處 epoch 樣板）與前景輪詢 poller（chat／discovery 兩套收斂為一）。
+- 1b（**完成，2026-08-18**）：新增 `src/requestGate.js`（createRequestGate 的 issue/capture/
+  invalidate 三語意＋createForegroundPoller）；controller 7 counter＋requestId 32 處→0、
+  main.js 9 處 epoch 樣板→0、openPlayer 三連抄→單一 predicate、兩套輪詢→共用 poller。
+  tests/ 零改動全綠。驗收：雙 canary（永不過期→競態測試紅、拔前景條件→輪詢測試紅）＋四 gate＋
+  read-back 逐站點審查（issue/capture 配對 40+ 站點零配錯；唯一真實差異：participation 重疊競態
+  的第二 guard 補上了舊版漏掉的 counter 檢查——裁定接受，屬本批目標內的 latent race 修復）。
+  回報 `docs/migration-reports/batch-1b.md`。
 - 1c：surface registry（11 個 active-surface 把手＋11 支 closeActiveX 收斂為單一表＋宣告式關閉順序；setAuthState 關面邏輯改查表）。
 - 1d：重複判準收斂（undecidedCandidate ×3、full/joinable ×3、haversine ×2、時區處理 ×3）；dataApi 讀寫錯誤形狀統一。
 - 每小批獨立驗收 commit；contract 變動批跑完整 gate。
@@ -129,3 +135,4 @@
   流程備忘：Codex 於 local gate 前自行執行 guarded DB reset（testing 規則標準入口，屬合規），
   後續派工單改為明列此授權，避免默契依賴。
 - 2026-08-18：批 1a（含 rider）驗收通過並 commit；批 1b 派工單已發。
+- 2026-08-18：批 1b 驗收通過並 commit（差異 A 裁定為 latent race 修復並接受）；批 1c 派工單已發。
