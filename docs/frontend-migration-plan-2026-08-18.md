@@ -207,7 +207,15 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   read-back 僅一 CONCERN、七站 gate 綠。回報 `docs/migration-reports/batch-8.1.md`。
   **rider（併批 8.2）**：CourtPlayersSheet.tsx:74 key fallback 用裸 index，與純數字 profileId
   命名空間相交（實際不可達，僅 dev 警告面）——改複合 key 比照 CourtSessionSheet.tsx:44。
-- 批 8.2：openFilterSheet（:3038）——六 data-filter groups，e2e 覆蓋最密的 sheet。
+- 批 8.2（**完成，2026-08-19**）：openFilterSheet → `src/sheets/FilterSheet.tsx`（286 行）。
+  syncControls() 手寫同步與 surface click 委派退役；filters／result count 分離 state＋
+  FilterControls memo＋穩定 callback（`filtersRef` 防 stale closure），setResultCount 不觸發
+  chips 重繪、setFilters 保留聚焦 chip DOM identity（imperative probe `sameChipNode=true`）。
+  handle `{ ...mounted, setFilters, setResultCount }` 以 content ref＋flushSync 包裝凍結；
+  「不疊加 listener」由委派綁 surface 改為 React root 隨 surface 拋棄，e2e 三次開關專測不變綠。
+  rider 完成：CourtPlayersSheet key 命名空間分離。驗收：幾何指紋三態逐值全同、雙 canary、
+  五 lens read-back 32 項全 PASS（含 reset 時序批次語意與 memo 鏈論證）、七站 gate 綠。
+  回報 `docs/migration-reports/batch-8.2.md`。
 - 批 8.3：openPlayerDirectoryList（:2949）＋openPlayerCardSheet（:3218）——球友系相依
   （目錄開球友卡）。
 - 批 8.4：openProfileCompletionSheet（:2314）——三級 gate 表單，沿批 7 uncontrolled 模式。
@@ -268,3 +276,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   剩餘 11＋1 個 sheet/dialog 盤點入批 8.x（8.1–8.7 建議切批），批 8.1 待拍板後發派工單。
 - 2026-08-19：批 8.1 驗收通過並 commit（7653324）——sessionCard 單一來源收官；players key
   fallback 疵點轉 rider 併批 8.2；批 8.2（filter sheet）派工單已發。
+- 2026-08-19：批 8.2 驗收通過並 commit（47a42f6）——syncControls 模式退役，rider 收口；
+  批 8.3（球友目錄＋球友卡）派工單已發。
