@@ -168,9 +168,9 @@ pg_cron、pg_net 與 Vault secret 呼叫，不能改成 browser 直接派送。
 別名：`...-git-<branch>-...`（只有 Git integration 建置會更新，這個才是加進 Maps
 allowlist 與 Supabase Site URL 的 QA 入口）與 `...-xinnians-...`（CLI 部署才更新）。
 用 CLI 部署會讓 QA 入口停在舊版；2026-07-20 就因此讓線上站在套用 migration 後仍是
-舊前端，讀取路徑全失效。Supabase 的兩個 `VITE_SUPABASE_*` 只設在 Preview 且綁定
-工作分支，Production 環境沒有（2026-07-20 以 `vercel env ls` 查證），推 production
-會退回 mock 模式。
+舊前端，讀取路徑全失效。Supabase 的兩個 `VITE_SUPABASE_*` 在 Preview（綁定工作分支）
+與 Production 都已設定（2026-08-14 由維護者補齊 Production，2026-08-19 以
+`vercel env ls` 與 qiuka.tw 實測查證），production 與 preview 都跑真實模式。
 
 任何 hosted migration、環境變數、部署或社群發布前，先完成
 `docs/mvp-plan.md` 的 release checklist：備份／count preflight、migration list 對齊、
