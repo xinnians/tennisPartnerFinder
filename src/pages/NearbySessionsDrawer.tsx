@@ -1,0 +1,332 @@
+import { Fragment } from "react";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
+
+import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
+import { isDefaultFilters, joinableSessionCount } from "../filters.js";
+import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionViews.js";
+import { taipeiClock } from "../taipeiTime.js";
+
+type NearbySession = Partial<SessionSummary>;
+
+interface NearbyCourt extends CourtSummary {
+  district?: string;
+}
+
+interface DrawerFilters {
+  band?: string;
+  dateKey?: string | null;
+  districts?: Set<string> | string[];
+  instantOnly?: boolean;
+  types?: Set<string> | string[];
+}
+
+interface DrawerMapStatus {
+  kind?: string;
+  message?: string;
+}
+
+export interface NearbySessionsDrawerOptions {
+  courts?: NearbyCourt[];
+  drawerState?: string;
+  filters?: DrawerFilters | null;
+  hasUserLocation?: boolean;
+  mapStatus?: DrawerMapStatus | null;
+  sessions?: NearbySession[];
+}
+
+interface SessionCardPresentation {
+  booked: boolean;
+  className: string;
+  courtLabel: string;
+  feeLabel: string | null;
+  instant: boolean;
+  metaLabel: string;
+  ongoing: boolean;
+  timeTile: {
+    className: string;
+    date: string;
+    start: string;
+  };
+  vacancy: string;
+}
+
+interface DrawerSessionGroup {
+  key: string;
+  label: string;
+  sessions: NearbySession[];
+}
+
+interface EmptyAction {
+  className: string;
+  id: string;
+  label: string;
+}
+
+interface NearbyDrawerRuntime {
+  discoveryEmptyActions(filtersActive: boolean): EmptyAction[];
+  drawerSessionGroups(sessions: NearbySession[]): DrawerSessionGroup[];
+  sessionCardPresentation(session: NearbySession, options: { courts: NearbyCourt[] }): SessionCardPresentation;
+  taipeiDayWord(value?: string): string;
+}
+
+const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: Root }>();
+
+// Resolve lazily: sessionViews owns the browser glob that loads this module, so
+// reading the runtime during module initialization would cross the circular
+// import before sessionViews has finished defining its exports.
+function runtime(): NearbyDrawerRuntime {
+  return nearbySessionsDrawerRuntime as unknown as NearbyDrawerRuntime;
+}
+
+function PeekArrow() {
+  return (
+    <svg
+      className="nearby-peek__arrow"
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--color-signal)"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M18 15l-6-6-6 6" />
+    </svg>
+  );
+}
+
+function SessionCard({ courts, session }: { courts: NearbyCourt[]; session: NearbySession }) {
+  const presentation = runtime().sessionCardPresentation(session, {
+    courts,
+  });
+  return (
+    <button
+      type="button"
+      className={presentation.className}
+      data-testid="session-card"
+      data-session-id={String(session.sessionId)}
+    >
+      <span className={presentation.timeTile.className}>
+        <span className="time-tile__start">{presentation.timeTile.start}</span>
+        <span className="time-tile__date">{presentation.timeTile.date}</span>
+      </span>
+      <span className="session-card__body">
+        <span className="session-card__title">
+          <span className="session-card__court">{presentation.courtLabel}</span>
+          {presentation.instant ? <span className="session-badge session-badge--instant">直接加入</span> : null}
+          {presentation.ongoing ? <span className="session-badge session-badge--ongoing">進行中</span> : null}
+        </span>
+        <span className="session-card__meta">{presentation.metaLabel}</span>
+        {presentation.feeLabel ? <span className="session-card__meta">{presentation.feeLabel}</span> : null}
+        <span className="session-card__foot">
+          <span className="slots-brick">{presentation.vacancy}</span>
+          {presentation.booked ? <span className="booked-note">✓ 已訂場</span> : null}
+          <span className="session-card__chevron" aria-hidden="true">
+            ›
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function SessionGroups({ courts, sessions }: { courts: NearbyCourt[]; sessions: NearbySession[] }) {
+  const groups = runtime().drawerSessionGroups(sessions);
+  return groups.map((group) => (
+    <Fragment key={group.key}>
+      <div className="session-group">
+        <span className="session-group__label">{group.label}</span>
+        <span className="session-group__line" aria-hidden="true" />
+        <span className="session-group__count">{group.sessions.length} 場</span>
+      </div>
+      {group.sessions.map((session, index) => (
+        <SessionCard
+          key={session.sessionId == null ? `${group.key}:${session.startAt}:${index}` : String(session.sessionId)}
+          session={session}
+          courts={courts}
+        />
+      ))}
+    </Fragment>
+  ));
+}
+
+function DiscoveryEmpty({ filtersActive }: { filtersActive: boolean }) {
+  const actions = runtime().discoveryEmptyActions(filtersActive);
+  return (
+    <div id="discovery-empty" className="discovery-empty">
+      <p>這個範圍暫時沒有可加入的球局</p>
+      <div className="discovery-empty__actions">
+        {actions.map((action) => (
+          <button type="button" id={action.id} className={action.className} key={action.id}>
+            {action.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DrawerContent({
+  count,
+  courts,
+  error,
+  filtersActive,
+  loading,
+  mapStatus,
+  sessions,
+}: {
+  count: number;
+  courts: NearbyCourt[];
+  error: boolean;
+  filtersActive: boolean;
+  loading: boolean;
+  mapStatus: DrawerMapStatus;
+  sessions: NearbySession[];
+}) {
+  if (loading) {
+    return (
+      <div className="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true">
+        <p>{mapStatus.message || "正在載入球局資料…"}</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="nearby-sessions__status" role="alert">
+        <p>{mapStatus.message || "球局資料暫時無法載入。"}</p>
+        <button type="button" id="drawer-map-retry" className="session-secondary">
+          重新載入
+        </button>
+      </div>
+    );
+  }
+  if (count) return <SessionGroups sessions={sessions} courts={courts} />;
+  return <DiscoveryEmpty filtersActive={filtersActive} />;
+}
+
+export function NearbySessionsDrawer({
+  courts = [],
+  drawerState = "collapsed",
+  filters = null,
+  hasUserLocation = false,
+  mapStatus = { kind: "idle", message: "" },
+  sessions = [],
+}: NearbySessionsDrawerOptions) {
+  const resolvedMapStatus = mapStatus ?? { kind: "idle", message: "" };
+  const isOpen = drawerState === "open";
+  const count = joinableSessionCount(sessions);
+  const summary = nearbySessionsSummaryText(count, hasUserLocation);
+  const filtersActive = !isDefaultFilters(filters);
+  const loading = resolvedMapStatus.kind === "loading";
+  const error = resolvedMapStatus.kind === "error";
+  const first = sessions[0];
+  const nextLabel = first ? `最近 ${runtime().taipeiDayWord(first.startAt)} ${taipeiClock(first.startAt)}` : "";
+
+  return (
+    <>
+      {count || loading || error ? (
+        <button
+          type="button"
+          id="nearby-sessions-toggle"
+          className="nearby-peek"
+          hidden={isOpen}
+          aria-expanded={isOpen}
+          aria-controls="nearby-sessions-list"
+        >
+          <span id="nearby-sessions-summary" className="visually-hidden">
+            {summary}
+          </span>
+          <span className="nearby-peek__count" aria-hidden="true">
+            {loading || error ? "…" : count}
+          </span>
+          <span className="nearby-peek__label" aria-hidden="true">
+            {loading ? "載入中" : error ? "載入失敗" : "場可加入"}
+          </span>
+          {!loading && !error && nextLabel ? <span className="nearby-peek__next">{nextLabel}</span> : null}
+          <PeekArrow />
+        </button>
+      ) : (
+        <div className="nearby-peek nearby-peek--empty" hidden={isOpen}>
+          <button
+            type="button"
+            id="nearby-sessions-toggle"
+            className="nearby-peek__empty-toggle"
+            aria-expanded={isOpen}
+            aria-controls="nearby-sessions-list"
+          >
+            <span id="nearby-sessions-summary" className="visually-hidden">
+              {summary}
+            </span>
+            <span aria-hidden="true">沒有符合的球局</span>
+          </button>
+          {filtersActive ? (
+            <button type="button" id="peek-reset" className="nearby-peek__reset">
+              重設篩選
+            </button>
+          ) : null}
+          <button type="button" id="peek-create" className="nearby-peek__create">
+            開一場
+          </button>
+        </div>
+      )}
+      <section
+        id="nearby-sessions-list"
+        className="nearby-drawer"
+        hidden={!isOpen}
+        data-drawer-state={drawerState}
+        role="region"
+        aria-label="附近球局"
+      >
+        <button type="button" className="nearby-drawer__handle" data-testid="drawer-collapse" aria-label="收合附近球局">
+          <span className="nearby-drawer__bar" aria-hidden="true" />
+        </button>
+        <div className="nearby-drawer__head">
+          <div>
+            <p className="nearby-drawer__eyebrow">NEARBY MATCHES</p>
+            <div className="nearby-drawer__countrow">
+              <span className="nearby-drawer__count">{loading || error ? "…" : count}</span>
+              <span className="nearby-drawer__unit">場可加入</span>
+            </div>
+          </div>
+          <button type="button" className="nearby-drawer__close" data-nearby-close="" aria-label="關閉附近球局">
+            ✕
+          </button>
+        </div>
+        {isOpen && resolvedMapStatus.kind === "warning" && resolvedMapStatus.message ? (
+          <div className="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true">
+            <p>{resolvedMapStatus.message}</p>
+          </div>
+        ) : null}
+        <div className="nearby-drawer__scroll">
+          <div className="nearby-sessions__cards">
+            <DrawerContent
+              count={count}
+              courts={courts}
+              error={error}
+              filtersActive={filtersActive}
+              loading={loading}
+              mapStatus={resolvedMapStatus}
+              sessions={sessions}
+            />
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+
+/** One React root per drawer; keyed generations retain the legacy full-detach redraw contract. */
+export function mountNearbySessionsDrawer(rootElement: HTMLElement, options: NearbySessionsDrawerOptions = {}): void {
+  let mounted = mountedRoots.get(rootElement);
+  if (!mounted) {
+    mounted = { generation: 0, reactRoot: createRoot(rootElement) };
+    mountedRoots.set(rootElement, mounted);
+  }
+  mounted.generation += 1;
+  flushSync(() => {
+    mounted.reactRoot.render(<NearbySessionsDrawer {...options} key={mounted.generation} />);
+  });
+}

@@ -1,4 +1,4 @@
-import { BANDS, DEFAULT_FILTER_STATE, isDefaultFilters, joinableSessionCount } from "./filters.js";
+import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js";
 import { TAIPEI_DISTRICTS } from "./districts.ts";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
@@ -24,6 +24,10 @@ const mountMePage = mePageModules["./pages/MePage.tsx"]?.mountMePage;
 const mySessionsPageModules =
   typeof document === "undefined" ? {} : import.meta.glob("./pages/MySessionsPage.tsx", { eager: true });
 const mountMySessionsPage = mySessionsPageModules["./pages/MySessionsPage.tsx"]?.mountMySessionsPage;
+const nearbySessionsDrawerModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./pages/NearbySessionsDrawer.tsx", { eager: true });
+const mountNearbySessionsDrawer =
+  nearbySessionsDrawerModules["./pages/NearbySessionsDrawer.tsx"]?.mountNearbySessionsDrawer;
 const sessionDetailSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
 const mountSessionDetailSheetContent =
@@ -611,29 +615,44 @@ function sessionHostLabel(session) {
 }
 
 function sessionCard(session, { compact = false, courts = [] } = {}) {
-  const venue = sessionVenuePresentation(session, courts);
-  const courtLabel = sessionCourtLabel(session, venue);
-  const hostLabel = sessionHostLabel(session);
-  const ongoing = !venue.undecidedCandidates && isOngoingSession(session);
-  return `<button type="button" class="session-card${compact ? " session-card--compact" : ""}" data-testid="session-card" data-session-id="${esc(
+  const presentation = sessionCardPresentation(session, { compact, courts });
+  return `<button type="button" class="${presentation.className}" data-testid="session-card" data-session-id="${esc(
     session.sessionId
   )}">
-    ${sessionTimeTileMarkup(session, venue, { compact })}
+    ${sessionTimeTileMarkup(session, presentation.venue, { compact })}
     <span class="session-card__body">
       <span class="session-card__title">
-        <span class="session-card__court">${esc(courtLabel)}</span>
-        ${session.joinMode === "instant" ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
-        ${ongoing ? '<span class="session-badge session-badge--ongoing">進行中</span>' : ""}
+        <span class="session-card__court">${esc(presentation.courtLabel)}</span>
+        ${presentation.instant ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
+        ${presentation.ongoing ? '<span class="session-badge session-badge--ongoing">進行中</span>' : ""}
       </span>
-      <span class="session-card__meta">${esc(session.playType)} · ${esc(ntrpRange(session))} · ${esc(hostLabel)}</span>
-      ${session.feeNote ? `<span class="session-card__meta">${esc(`費用：${session.feeNote}`)}</span>` : ""}
+      <span class="session-card__meta">${esc(presentation.metaLabel)}</span>
+      ${presentation.feeLabel ? `<span class="session-card__meta">${esc(presentation.feeLabel)}</span>` : ""}
       <span class="session-card__foot">
-        <span class="slots-brick">${esc(vacancyLabel(session))}</span>
-        ${String(session?.venueType ?? "booked") === "booked" ? '<span class="booked-note">✓ 已訂場</span>' : ""}
+        <span class="slots-brick">${esc(presentation.vacancy)}</span>
+        ${presentation.booked ? '<span class="booked-note">✓ 已訂場</span>' : ""}
         <span class="session-card__chevron" aria-hidden="true">›</span>
       </span>
     </span>
   </button>`;
+}
+
+function sessionCardPresentation(session, { compact = false, courts = [] } = {}) {
+  const venue = sessionVenuePresentation(session, courts);
+  const courtLabel = sessionCourtLabel(session, venue);
+  const hostLabel = sessionHostLabel(session);
+  return {
+    booked: String(session?.venueType ?? "booked") === "booked",
+    className: `session-card${compact ? " session-card--compact" : ""}`,
+    courtLabel,
+    feeLabel: session.feeNote ? `費用：${session.feeNote}` : null,
+    instant: session.joinMode === "instant",
+    metaLabel: `${session.playType} · ${ntrpRange(session)} · ${hostLabel}`,
+    ongoing: !venue.undecidedCandidates && isOngoingSession(session),
+    timeTile: sessionTimeTilePresentation(session, venue, { compact }),
+    vacancy: vacancyLabel(session),
+    venue,
+  };
 }
 
 function mySessionReason(session) {
@@ -1392,7 +1411,7 @@ export function nearbySessionsSummaryText(count, hasUserLocation) {
 
 // 批 D2:抽屜清單按日期分組(dc L915-916):組標=詞+日期、延伸線、右側 mono 數量;
 // 空組直接不出現。組間依日期升冪、組內依開始時間升冪。
-function drawerGroupsMarkup(sessions, courts) {
+function drawerSessionGroups(sessions) {
   const groups = new Map();
   for (const session of sessions) {
     const key = taipeiDayKey(session.startAt) || "unknown";
@@ -1401,17 +1420,19 @@ function drawerGroupsMarkup(sessions, courts) {
   }
   return [...groups.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([, items]) => {
+    .map(([key, items]) => {
       const sorted = [...items].sort((a, b) => String(a.startAt).localeCompare(String(b.startAt)));
-      return `<div class="session-group">
-        <span class="session-group__label">${esc(drawerGroupLabel(sorted[0].startAt))}</span>
-        <span class="session-group__line" aria-hidden="true"></span>
-        <span class="session-group__count">${sorted.length} 場</span>
-      </div>
-      ${sorted.map((session) => sessionCard(session, { courts })).join("")}`;
-    })
-    .join("");
+      return { key, label: drawerGroupLabel(sorted[0].startAt), sessions: sorted };
+    });
 }
+
+/** Single-source presentation helpers consumed by the React nearby drawer. */
+export const nearbySessionsDrawerRuntime = Object.freeze({
+  discoveryEmptyActions,
+  drawerSessionGroups,
+  sessionCardPresentation,
+  taipeiDayWord,
+});
 
 /** Render the map-bound peek strip and its two-state (collapsed/open) drawer. */
 export function renderNearbySessionsDrawer(
@@ -1434,73 +1455,10 @@ export function renderNearbySessionsDrawer(
   } = {}
 ) {
   rememberFocusedSessionCard(root);
+  if (!mountNearbySessionsDrawer) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
+  mountNearbySessionsDrawer(root, { courts, drawerState, filters, hasUserLocation, mapStatus, sessions });
+
   const isOpen = drawerState === "open";
-  // 「N 場可加入」只計真可加入的局;滿員局仍列在清單(沉底+已額滿磚),不進計數。
-  const count = joinableSessionCount(sessions);
-  const summary = nearbySessionsSummaryText(count, hasUserLocation);
-  const filtersActive = !isDefaultFilters(filters);
-  const loading = mapStatus?.kind === "loading";
-  const error = mapStatus?.kind === "error";
-  const first = sessions[0];
-  const nextLabel = first ? `最近 ${taipeiDayWord(first.startAt)} ${taipeiClock(first.startAt)}` : "";
-  const activeDrawerStatus =
-    isOpen && mapStatus?.kind === "warning" && mapStatus?.message
-      ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(mapStatus.message)}</p></div>`
-      : "";
-  const drawerContent = loading
-    ? `<div class="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true"><p>${esc(
-        mapStatus.message || "正在載入球局資料…"
-      )}</p></div>`
-    : error
-      ? `<div class="nearby-sessions__status" role="alert"><p>${esc(
-          mapStatus.message || "球局資料暫時無法載入。"
-        )}</p><button type="button" id="drawer-map-retry" class="session-secondary">重新載入</button></div>`
-      : count
-        ? drawerGroupsMarkup(sessions, courts)
-        : renderDiscoveryEmpty({ onReset, onExpandBounds, onOpenCreate, onSubscribe, filtersActive });
-
-  // peek 列(dc L118-131):有結果=ink 底 count 條;0 結果=白底出路卡。兩者都保留
-  // #nearby-sessions-toggle 開抽屜入口(0 結果時文字本身是入口,dc 原型無此入口,
-  // 工程補上以保住抽屜內既有的「擴大範圍/訂閱通知」出路與鍵盤動線)。
-  const arrow =
-    '<svg class="nearby-peek__arrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>';
-  const peek =
-    count || loading || error
-      ? `<button type="button" id="nearby-sessions-toggle" class="nearby-peek"${isOpen ? " hidden" : ""} aria-expanded="${isOpen}" aria-controls="nearby-sessions-list">
-          <span id="nearby-sessions-summary" class="visually-hidden">${esc(summary)}</span>
-          <span class="nearby-peek__count" aria-hidden="true">${loading || error ? "…" : count}</span>
-          <span class="nearby-peek__label" aria-hidden="true">${loading ? "載入中" : error ? "載入失敗" : "場可加入"}</span>
-          ${!loading && !error && nextLabel ? `<span class="nearby-peek__next">${esc(nextLabel)}</span>` : ""}
-          ${arrow}
-        </button>`
-      : `<div class="nearby-peek nearby-peek--empty"${isOpen ? " hidden" : ""}>
-          <button type="button" id="nearby-sessions-toggle" class="nearby-peek__empty-toggle" aria-expanded="${isOpen}" aria-controls="nearby-sessions-list">
-            <span id="nearby-sessions-summary" class="visually-hidden">${esc(summary)}</span>
-            <span aria-hidden="true">沒有符合的球局</span>
-          </button>
-          ${filtersActive ? '<button type="button" id="peek-reset" class="nearby-peek__reset">重設篩選</button>' : ""}
-          <button type="button" id="peek-create" class="nearby-peek__create">開一場</button>
-        </div>`;
-
-  root.innerHTML = `
-    ${peek}
-    <section id="nearby-sessions-list" class="nearby-drawer"${isOpen ? "" : " hidden"} data-drawer-state="${drawerState}" role="region" aria-label="附近球局">
-      <button type="button" class="nearby-drawer__handle" data-testid="drawer-collapse" aria-label="收合附近球局"><span class="nearby-drawer__bar" aria-hidden="true"></span></button>
-      <div class="nearby-drawer__head">
-        <div>
-          <p class="nearby-drawer__eyebrow">NEARBY MATCHES</p>
-          <div class="nearby-drawer__countrow"><span class="nearby-drawer__count">${loading || error ? "…" : count}</span><span class="nearby-drawer__unit">場可加入</span></div>
-        </div>
-        <button type="button" class="nearby-drawer__close" data-nearby-close aria-label="關閉附近球局">✕</button>
-      </div>
-      ${activeDrawerStatus}
-      <div class="nearby-drawer__scroll">
-        <div class="nearby-sessions__cards">
-          ${drawerContent}
-        </div>
-      </div>
-    </section>`;
-
   root.querySelector("#nearby-sessions-toggle")?.addEventListener("click", () => onToggle(isOpen ? "collapsed" : "open"));
   wireSessionCards(root, onOpenSession);
   root.querySelector("#peek-reset")?.addEventListener("click", onReset);
@@ -1532,17 +1490,24 @@ export function renderDiscoveryEmpty({
   onSubscribe = () => {},
   filtersActive = false,
 } = {}) {
-  const buttons = [];
-  if (filtersActive) buttons.push('<button type="button" id="discovery-reset" class="session-secondary">清除篩選</button>');
-  buttons.push('<button type="button" id="discovery-expand" class="session-secondary">擴大地圖範圍</button>');
-  buttons.push('<button type="button" id="discovery-subscribe" class="session-secondary">有新球局時通知我</button>');
-  buttons.push('<button type="button" id="discovery-first" class="session-primary">開第一局</button>');
+  const buttons = discoveryEmptyActions(filtersActive).map(
+    ({ className, id, label }) => `<button type="button" id="${id}" class="${className}">${label}</button>`
+  );
   return `<div id="discovery-empty" class="discovery-empty">
     <p>這個範圍暫時沒有可加入的球局</p>
     <div class="discovery-empty__actions">
       ${buttons.join("\n      ")}
     </div>
   </div>`;
+}
+
+function discoveryEmptyActions(filtersActive) {
+  const buttons = [];
+  if (filtersActive) buttons.push({ className: "session-secondary", id: "discovery-reset", label: "清除篩選" });
+  buttons.push({ className: "session-secondary", id: "discovery-expand", label: "擴大地圖範圍" });
+  buttons.push({ className: "session-secondary", id: "discovery-subscribe", label: "有新球局時通知我" });
+  buttons.push({ className: "session-primary", id: "discovery-first", label: "開第一局" });
+  return buttons;
 }
 
 function acceptedChatRoster(roster) {
@@ -2264,12 +2229,7 @@ function taipeiCourts(courts) {
   return (Array.isArray(courts) ? courts : []).filter((court) => court?.city === "台北市");
 }
 
-function selectedCourtValues(select, fallback = new Set()) {
-  const selected = new Set([...(select?.selectedOptions ?? [])].map((option) => option.value));
-  return selected.size ? selected : new Set(fallback);
-}
-
-/** Checkbox counterpart of selectedCourtValues: reads any live user selection before a re-render replaces it. */
+/** Reads any live profile-court checkbox selection before a re-render replaces it. */
 function selectedCourtCheckboxValues(container, fallback = new Set()) {
   const selected = new Set(
     [...(container?.querySelectorAll("input[name='profile-courts']:checked") ?? [])].map((input) => input.value)
@@ -2277,7 +2237,7 @@ function selectedCourtCheckboxValues(container, fallback = new Set()) {
   return selected.size ? selected : new Set(fallback);
 }
 
-/** Checkbox counterpart of updateCourtSelect for the profile「常打球場」picker (cf. #notification-court-picker template). */
+/** Updates the profile「常打球場」picker (cf. #notification-court-picker template). */
 function updateCourtCheckboxes(container, status, courts, { ready = true, selected = new Set() } = {}) {
   if (!container) return;
   const nextCourts = taipeiCourts(courts);
@@ -2293,26 +2253,6 @@ function updateCourtCheckboxes(container, status, courts, { ready = true, select
           })
           .join("")
       : "";
-  if (!status) return;
-  status.hidden = ready && nextCourts.length > 0;
-  status.textContent = !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。";
-}
-
-/** Replace only court options so delayed data never discards the user's draft. */
-function updateCourtSelect(select, status, courts, { ready = true, selected = new Set(), multiple = false } = {}) {
-  if (!select) return;
-  const nextCourts = taipeiCourts(courts);
-  const selectedValues = selected instanceof Set ? selected : new Set(selected ?? []);
-  const options = nextCourts
-    .map((court) => {
-      const isSelected = selectedValues.has(String(court.id)) || selectedValues.has(court.name);
-      return `<option value="${esc(court.id)}"${isSelected ? " selected" : ""}>${esc(court.name)}${
-        multiple ? "" : ` · ${esc(court.district ?? "台北市")}`
-      }</option>`;
-    })
-    .join("");
-  select.innerHTML = multiple ? options : `<option value="">請選擇球場</option>${options}`;
-  select.disabled = !ready || nextCourts.length === 0;
   if (!status) return;
   status.hidden = ready && nextCourts.length > 0;
   status.textContent = !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。";
