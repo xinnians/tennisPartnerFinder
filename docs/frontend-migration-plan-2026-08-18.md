@@ -297,12 +297,20 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
 **自製 minimal store**（`src/sessionStore.ts`，subscribe／getState／set 約 50 行，
 strict TS 零依賴——批 9 目標是收斂寫入通道不是引框架，React context 接法批 10 後再議）。
 
-- 9a：25 欄 state ＋ closure 變數收斂為 store；三通道更新（publish／notifyMySessions／
-  surface 把手直呼）收斂為訂閱。對外 API（createSessionController 簽名、回傳把手、renderer
-  callback 契約）凍結；**113 條 controller 單元測試原樣全綠是硬驗收**——若盤點發現 harness
-  接線不可避免要動，該部分停下留給 9b，不得在 9a 內動 `tests/**`。
-- 9b：113 條 controller 單元測試只改 harness 接線，不改斷言語意；爆了整批退回不影響
-  已遷頁面（pre-mortem 3 的對策）。9a 若證明測試原樣可綠，9b 相應縮薄或取消。
+- ✅ 9a（2026-08-19，92152d6）：25 欄 state＋authEpoch 收斂 `src/sessionStore.ts`
+  （54 行零依賴；**setState 只寫不派發、emit 顯式派發保序**——盤點證明 HEAD 四型態行為
+  〔值未變仍派發／多欄批次寫／派發被中間呼叫切開／單面通知〕使「寫入即通知」定義上不可
+  等價）；publish 24／notify 11 呼叫點逐行對位改薄轉發；setCourts 四行把手直呼收斂為
+  courts 通道；其餘 13 個把手直呼判定為 command 原樣保留。**113 條原樣全綠達成**，9b
+  的 harness 改接需求消失。核心證據＝行為序列 probe（17 步 124 筆 HEAD 對照逐次零差異）；
+  四發 canary 中兩發（合併派發／繞過 store）僅 probe 可偵測——實證既有 113 條只有 3 處
+  釘呼叫次數的覆蓋缺口。read-back 四 lens 全 PASS（跨 await 快取縫隙攻擊零命中）。
+  回報 `docs/migration-reports/batch-9a.md`（含盤點附錄四項與驗收方註記）。
+  觀察項（PM）：位置錯誤訊息字面重複 5 次可抽常數（dev 提出後主動回退，待拍板）。
+- 9b：**原定「harness 改接」經 9a 證明不需要**；9b 改為承接 9a 留下的五項
+  （setInvitableSessions 通道化＝行為變更、intentVersion 進 store、selector 訂閱、
+  chat context 狀態化、序列 probe 常駐化＝需新增 tests/**），**每項皆需 user 拍板
+  取捨後才發單**；批 10（CSS）不依賴 9b。
 
 ### 批 10：CSS 收尾
 
@@ -363,5 +371,9 @@ strict TS 零依賴——批 9 目標是收斂寫入通道不是引框架，Reac
   雙 writer 鏡像案例（composer 必須不重建）與焦點語意有牙實證；幾何指紋動畫／rAF settle
   兩教訓入流程。批 8.7（mountDialog 系兩 surface）派工單已發。
 - 2026-08-19：批 8.7 驗收通過並 commit（e43f0b7）——**sessionViews surface 遷移全數收官**，
-  零 state 純靜態模式確立。剩餘：openLoginModal 觀察項裁決（批 9 前議）→ 批 9
-  （controller store 化）→ 批 10（CSS 收整）。
+  零 state 純靜態模式確立。
+- 2026-08-19：批 9 三題拍板（9a／9b 拆批、自製 minimal store、openLoginModal 不遷）；
+  批 9a 派工單已發。
+- 2026-08-19：批 9a 驗收通過並 commit（92152d6）——store 化完成、113 條原樣全綠、
+  行為序列 probe 成為 controller 批的核心證據面。**9b 縮為五項留置項（每項需 user
+  拍板）；批 10（CSS 收整）不依賴 9b,可先行**。
