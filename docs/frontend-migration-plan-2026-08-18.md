@@ -142,6 +142,19 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   **rider（併入批 4）**：(a) MySessionSummary 繼承的 candidateCourtIds 對 mapMySession 過度
   承諾——改 Omit 或補欄位；(b) messagesFromGroups 在 sessionViews 的 exported 版已是死副本
   （UI 用 TSX private 版、unit test 測死副本）——收斂為單一來源並把測試指向活版。
+- 批 8（**完成，2026-08-19**）：探索與附近球局抽屜 → `src/pages/NearbySessionsDrawer.tsx`
+  （掛 index 持久 map-page 節點的 page-bound static mount，無 sheet 殼，故入 pages/ 非 sheets/）。
+  generation remount 沿批 4 模式，逐項對照表論證與 innerHTML full-detach 契約等價（焦點
+  intent、stale card、native listener 生命週期、`.nearby-drawer__scroll` scrollTop 歸零）；
+  焦點／Escape 兩層讓位／AbortController 全留 legacy adapter，TSX 零 effect 零事件 props；
+  sessionCardPresentation／drawerSessionGroups／discoveryEmptyActions 抽為 frozen
+  `nearbySessionsDrawerRuntime` 單一來源，legacy sessionCard() 字串版共用同一 presentation。
+  rider 完成：updateCourtSelect／selectedCourtValues 死碼刪除（反向 grep 零 match）。
+  驗收：390px 幾何指紋兩態（open 21 組／collapsed 5 組 rect＋樣式）HEAD 對照逐值全同、
+  雙 canary（Codex render(null)＋驗收方 session-card testid 注入，各自紅→綠）、五 lens
+  read-back（markup／adapter 契約／焦點-Escape／回報覆核／TSX 品質）34 項全 PASS、完整
+  gate 七站綠；Codex 另附八態 DOM 逐屬性 probe 8/8。回報 `docs/migration-reports/batch-8.md`。
+  **批 3–8 主線收官**；剩餘 sheet/dialog 見批 8.x 盤點。
 - 批 7（**完成，2026-08-18**）：建局／編輯表單 → `src/sheets/CreateSessionSheet.tsx`＋
   `EditSessionSheet.tsx`。sync() 手寫 reconciliation 退役（19 條對映表，read-back 抽驗 14 條
   無漏）；自由文字欄位 uncontrolled（defaultValue＋ref、submit 讀值），IME 安全經結構驗證＋
@@ -176,6 +189,26 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   **流程教訓**：驗收方 canary 與 read-back agent 並行改到同一檔，agent 中途看到 canary 殘影
   ——自此 canary 一律在派 read-back 之前或之後執行，agent 進行中凍結工作樹。
   回報 `docs/migration-reports/batch-4.md`。
+
+### 批 8.x：剩餘 sheet／dialog 遷移（盤點 2026-08-19，批 9 前收齊）
+
+盤點基準：`rg "mountSheet\(|mountDialog\(" src/`。已遷 3 個 sheet（詳情／建局／編輯）；
+剩餘 11＋1 個 innerHTML surface，全數沿 sheet 批固定模式（mountSheet 殼不動、React 只掛內容槽）。
+建議切批（小→大、相依同批；順序可由 user 調整）：
+
+- 批 8.1：openCourtSessionDrawer（:2867）＋openCourtPlayersDrawer（:2889）＋
+  openSessionUnavailableSheet（:2080）——三個小 surface；courtSessionDrawer 消費
+  sessionCardPresentation 後，legacy sessionCard() 字串版即可退役（單一來源收官）。
+- 批 8.2：openFilterSheet（:3038）——六 data-filter groups，e2e 覆蓋最密的 sheet。
+- 批 8.3：openPlayerDirectoryList（:2949）＋openPlayerCardSheet（:3218）——球友系相依
+  （目錄開球友卡）。
+- 批 8.4：openProfileCompletionSheet（:2314）——三級 gate 表單，沿批 7 uncontrolled 模式。
+- 批 8.5：openDecideSessionSheet（:2698)——候選定案表單。
+- 批 8.6：openSessionChatSheet（:1569）——最大（feed＋輸入＋輪詢），壓軸。
+- 批 8.7（或併入 8.1 當 rider）：mountDialog 系 openWithdrawSessionConfirmation（:2094）＋
+  openReportDialog（:2137）。
+- 觀察項：sheets.js 內 openLoginModal（:175）屬 surface 殼模組自身內容，是否遷移待批 8.x
+  收尾時再議，不擋批 9。
 
 ### 批 9：controller 狀態 store 化＋測試 harness 改接
 
@@ -223,3 +256,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   profile／report／player 系列 sheet 未遷，屆時以批 8.x 逐一列批。
 - 2026-08-18：批 7 驗收通過並 commit（IME 實測＋幾何指紋比對入流程；dead code rider 轉批 8）；
   批 8（探索與附近球局抽屜）派工單已發。
+- 2026-08-19：批 8 驗收通過並 commit（4f60ad8）——**批 3–8 主線收官**，rider 死碼清除完成；
+  剩餘 11＋1 個 sheet/dialog 盤點入批 8.x（8.1–8.7 建議切批），批 8.1 待拍板後發派工單。
