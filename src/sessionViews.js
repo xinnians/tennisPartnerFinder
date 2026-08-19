@@ -70,6 +70,10 @@ const decideSessionSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/DecideSessionSheet.tsx", { eager: true });
 const mountDecideSessionSheetContent =
   decideSessionSheetModules["./sheets/DecideSessionSheet.tsx"]?.mountDecideSessionSheetContent;
+const sessionChatSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionChatSheet.tsx", { eager: true });
+const mountSessionChatSheetContent =
+  sessionChatSheetModules["./sheets/SessionChatSheet.tsx"]?.mountSessionChatSheetContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -1480,56 +1484,60 @@ function acceptedChatRoster(roster) {
   return (Array.isArray(roster) ? roster : []).filter((participant) => String(participant?.status).toLowerCase() === "accepted");
 }
 
-function chatRosterMarkup(roster) {
-  const accepted = acceptedChatRoster(roster);
-  if (!accepted.length) return '<p class="surface__copy">參加者名單暫時沒有可顯示的資料。</p>';
-  return accepted
-    .map((participant) => {
-      const role = String(participant.role).toLowerCase() === "host" ? "主揪" : "球友";
-      const ntrp = participant.ntrp == null ? "" : ` · ${formatNtrp(participant.ntrp)}`;
-      return `<span class="chat-roster__member">${esc(participant.nickname || "球友")} · ${esc(role)}${esc(ntrp)}</span>`;
-    })
-    .join("");
+/**
+ * Accepted-member chips for the chat roster. The role label, the optional NTRP
+ * suffix and the nickname fallback are exactly what the imperative
+ * `chatRosterMarkup()` encoded inside its HTML string; the row text stays raw
+ * because React escapes it on render (an `esc()` here would double-escape).
+ */
+function chatRosterPresentation(roster) {
+  return acceptedChatRoster(roster).map((participant) => {
+    const role = String(participant.role).toLowerCase() === "host" ? "主揪" : "球友";
+    const ntrp = participant.ntrp == null ? "" : ` · ${formatNtrp(participant.ntrp)}`;
+    return { text: `${participant.nickname || "球友"} · ${role}${ntrp}` };
+  });
 }
 
-function chatMessagesMarkup(messages) {
+/**
+ * One row per chat message. Kind normalisation, the self/author split and the
+ * governance eligibility rule (a real, positive sender profile on somebody
+ * else's user message) are the same rules the imperative `chatMessagesMarkup()`
+ * used; the React feed only renders what this returned.
+ *
+ * 批 D7:他人泡泡改配 28px avatar(dc §4「他人」型),自己/系統維持無 avatar；
+ * 既有 data-chat-* 錨點、report/block 覆寫與 sender/body/meta 內容一律不動,
+ * 只是多包一層 .chat-message__bubble,讓 avatar 能當 bubble 的 flex 手足。
+ */
+function chatMessagesPresentation(messages) {
   const safeMessages = Array.isArray(messages) ? messages : [];
-  if (!safeMessages.length) return '<p class="surface__copy chat-feed__empty">目前還沒有訊息，從一句招呼開始吧。</p>';
-  return safeMessages
-    .map((message) => {
-      const kind = message.kind === "system" ? "system" : "user";
-      const isSelf = kind === "user" && message.isSelf === true;
-      const senderProfileId = Number(message.senderProfileId);
-      const canGovern = kind === "user" && !isSelf && Number.isSafeInteger(senderProfileId) && senderProfileId > 0;
-      const senderNickname = message.senderNickname || "球友";
-      const senderInitial = String(senderNickname).trim().slice(0, 1) || "球";
-      // 批 D7:他人泡泡改配 28px avatar(dc §4「他人」型),自己/系統維持無 avatar；
-      // 既有 data-chat-* 錨點、report/block 覆寫與 sender/body/meta 內容一律不動,
-      // 只是多包一層 .chat-message__bubble,讓 avatar 能當 bubble 的 flex 手足。
-      return `<article class="chat-message chat-message--${esc(kind)}${isSelf ? " chat-message--self" : ""}"
-        data-chat-message data-chat-message-id="${esc(message.messageId)}" data-chat-message-kind="${esc(kind)}" data-chat-message-self="${
-          isSelf ? "true" : "false"
-        }">
-        ${kind === "user" && !isSelf ? `<span class="chat-message__avatar" aria-hidden="true">${esc(senderInitial)}</span>` : ""}
-        <div class="chat-message__bubble">
-          ${kind === "user" && !isSelf ? `<p class="chat-message__sender">${esc(senderNickname)}</p>` : ""}
-          <p class="chat-message__body">${esc(message.body)}</p>
-          <div class="chat-message__meta">
-            <time datetime="${esc(message.createdAt)}">${esc(taipeiDateTime(message.createdAt))}</time>
-            ${
-              canGovern
-                ? `<button type="button" class="session-tertiary" data-chat-report="${esc(message.messageId)}">檢舉</button>
-                   <button type="button" class="session-tertiary" data-chat-block="${esc(
-                     senderProfileId
-                   )}" data-testid="block-message-sender-${esc(senderProfileId)}">封鎖</button>`
-                : ""
-            }
-          </div>
-        </div>
-      </article>`;
-    })
-    .join("");
+  return safeMessages.map((message) => {
+    const kind = message.kind === "system" ? "system" : "user";
+    const isSelf = kind === "user" && message.isSelf === true;
+    const senderProfileId = Number(message.senderProfileId);
+    const canGovern = kind === "user" && !isSelf && Number.isSafeInteger(senderProfileId) && senderProfileId > 0;
+    const senderNickname = message.senderNickname || "球友";
+    const senderInitial = String(senderNickname).trim().slice(0, 1) || "球";
+    return {
+      body: String(message.body),
+      canGovern,
+      createdAt: String(message.createdAt),
+      createdAtLabel: String(taipeiDateTime(message.createdAt)),
+      isSelf,
+      kind,
+      messageId: String(message.messageId),
+      senderInitial,
+      senderNickname: String(senderNickname),
+      senderProfileId: String(senderProfileId),
+      showAuthor: kind === "user" && !isSelf,
+    };
+  });
 }
+
+/** Roster chip and message row rules shared with the React chat sheet. */
+export const sessionChatSheetRuntime = Object.freeze({
+  chatMessagesPresentation,
+  chatRosterPresentation,
+});
 
 /** Open the accepted-member chat with an event-driven, authority-refreshed feed. */
 export function openSessionChatSheet(
@@ -1544,6 +1552,7 @@ export function openSessionChatSheet(
     onWithdraw = () => {},
   } = {}
 ) {
+  if (!mountSessionChatSheetContent) throw new Error("SessionChatSheet browser mount is unavailable.");
   let archived = ["cancelled", "expired", "played"].includes(String(session?.status).toLowerCase());
   const venue = sessionVenuePresentation(session, courts);
   // 批 D7:header 副行沿用抽取規格 §4 chatSub 語意(今天/明天/週X + 時刻 + 主揪
@@ -1555,48 +1564,20 @@ export function openSessionChatSheet(
     label: "球局群組聊天",
     className: "session-chat-sheet",
     onClose,
-    html: `
-      <div class="chat-v2__head" data-screen-label="群組聊天">
-        <button type="button" class="chat-v2__back" data-surface-close aria-label="關閉群組聊天">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-        <div class="chat-v2__head-copy">
-          <p class="chat-v2__court">${esc(venue.court)}</p>
-          <p class="chat-v2__sub">${esc(headerSub)}</p>
-        </div>
-      </div>
-      <div class="chat-v2__info">
-        <section class="chat-session-summary" aria-label="球局資訊">
-          <strong><span class="session-badge">${esc(venue.badge)}</span> ${esc(venue.court)}</strong>
-          <span>${esc(venue.time)} · ${esc(session.playType)}</span>
-        </section>
-        <section class="chat-roster" aria-labelledby="chat-roster-title">
-          <h3 id="chat-roster-title">參加者</h3>
-          <div data-chat-roster><p class="surface__copy">正在讀取參加者…</p></div>
-        </section>
-        <p class="my-sessions-message" data-chat-loading role="status" aria-live="polite">正在讀取群組訊息…</p>
-        <p class="form-error" data-chat-error role="alert" tabindex="-1" hidden></p>
-      </div>
-      <section class="chat-feed qm-scroll" data-chat-feed aria-label="群組訊息"></section>
-      <p class="visually-hidden" data-chat-announcement role="status" aria-live="polite" aria-atomic="true"></p>
-      <p class="chat-archived-note" data-chat-archived-note${archived ? "" : " hidden"}>球局已封存；你仍可查看先前訊息，但不能再傳送。</p>
-      <form class="chat-composer" data-chat-composer>
-        <label for="chat-message-input" class="visually-hidden">傳送純文字訊息</label>
-        <input id="chat-message-input" data-testid="chat-message-input" type="text" autocomplete="off" maxlength="1000" placeholder="傳訊息給球局成員…"${
-          archived ? " disabled" : ""
-        } />
-        <button type="submit" class="chat-v2__send" data-testid="chat-send"${archived ? " disabled" : ""} aria-label="傳送">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-        </button>
-      </form>
-      ${
-        canWithdraw && !archived
-          ? '<button type="button" class="session-tertiary chat-v2__withdraw" data-chat-withdraw>取消參加</button>'
-          : ""
-      }`,
+    html: "",
+  });
+  const content = mountSessionChatSheetContent(mounted.surface, {
+    archived,
+    canWithdraw,
+    headerSub,
+    onClose: () => mounted.close(),
+    onFeedClick: (event) => handleFeedClick(event),
+    playType: String(session.playType),
+    venueBadge: venue.badge,
+    venueCourt: venue.court,
+    venueTime: venue.time,
   });
   const feed = mounted.root.querySelector("[data-chat-feed]");
-  const roster = mounted.root.querySelector("[data-chat-roster]");
   const loading = mounted.root.querySelector("[data-chat-loading]");
   const error = mounted.root.querySelector("[data-chat-error]");
   const input = mounted.root.querySelector("[data-testid='chat-message-input']");
@@ -1641,11 +1622,11 @@ export function openSessionChatSheet(
     error.textContent = errorMessage;
     error.hidden = !errorMessage;
     // 背景輪詢會週期重繪 feed:只有在使用者本來就貼近底部時才跟捲到底,回看歷史時
-    // 保留原捲動位置(innerHTML 重繪會歸零 scrollTop,必須先量後還原)。
+    // 保留原捲動位置(React 以 generation key 重建全部訊息節點,與舊 innerHTML 置換
+    // 一樣會歸零 scrollTop,必須先量後還原)。
     const nearBottom = !feedInitialized || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 48;
     const previousScrollTop = feed.scrollTop;
-    roster.innerHTML = chatRosterMarkup(participants);
-    feed.innerHTML = chatMessagesMarkup(safeMessages);
+    content.setContent(participants, safeMessages);
     if (nearBottom) scrollFeedToLatest();
     else feed.scrollTop = previousScrollTop;
     if (status === "ready") {
@@ -1685,7 +1666,11 @@ export function openSessionChatSheet(
       canRestoreControls: () => !archived,
     });
   });
-  feed?.addEventListener("click", (event) => {
+  // 委派語意不變:onClick 宣告在 [data-chat-feed] 上(React 18 的原生 listener 掛在
+  // createRoot 容器,feed 與容器之間無 stopPropagation),訊息節點被 generation key
+  // 重建也不需要重新綁定,`event.target.closest()` 的判準與舊 addEventListener 版
+  // 逐字相同。
+  const handleFeedClick = (event) => {
     const reportButton = event.target.closest("[data-chat-report]");
     const blockButton = event.target.closest("[data-chat-block]");
     if (reportButton) void Promise.resolve().then(() => onReport(reportButton.dataset.chatReport)).catch((reportError) => {
@@ -1696,7 +1681,7 @@ export function openSessionChatSheet(
       error.textContent = blockError?.message || "封鎖設定暫時無法更新，請稍後再試。";
       error.hidden = false;
     });
-  });
+  };
   mounted.root.querySelector("[data-chat-withdraw]")?.addEventListener("click", () => {
     onWithdraw();
   });

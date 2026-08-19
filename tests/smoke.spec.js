@@ -383,6 +383,77 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
   await expect(sheet.locator("[data-decision-terminal]")).toBeHidden();
 });
 
+// 批 8.5 rider(併入批 8.6):鎖住定案 sheet 的 generation key 語意。送出中刷新候選
+// 球場目錄會重建全部按鈕節點(等同舊 innerHTML 整段置換),runAsyncAction 的
+// rerendered() 因此為真,decide resolve 之後不還原控制項;若改用穩定 key,倖存的
+// 舊節點會讓 rerendered() 變 false,送出中刷新目錄後按鈕會被不該地重新可按。
+test("refreshing the court catalogue during an in-flight decide detaches the buttons and leaves them locked after it resolves", async ({
+  page,
+}) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openDecideSessionSheet } = await window.__importAppModule("sessionViews");
+    const { COURTS } = await window.__importAppModule("mockData");
+    window.__decideGenerationCourts = COURTS;
+    window.__decideGenerationCalls = [];
+    window.__releaseDecideGeneration = () => {};
+    window.__decideGenerationSheet = openDecideSessionSheet(
+      {
+        sessionId: 9005,
+        startAt: "2099-08-08T01:00:00.000Z",
+        rangeEnd: "2099-08-08T04:00:00.000Z",
+        venueType: "candidates",
+        candidateCourtIds: [105, 109],
+        decidedAt: "",
+      },
+      {
+        courts: COURTS,
+        courtsReady: true,
+        onDecide: (courtId, startAt) => {
+          window.__decideGenerationCalls.push([courtId, startAt]);
+          return new Promise((resolve) => {
+            window.__releaseDecideGeneration = resolve;
+          });
+        },
+      }
+    );
+  });
+
+  const sheet = page.locator("#session-decision-sheet");
+  await expect(sheet.locator("[data-decide-court]")).toHaveCount(2);
+
+  await sheet.getByTestId("decide-court-105").click();
+  await expect.poll(() => page.evaluate(() => window.__decideGenerationCalls.length)).toBe(1);
+  await expect(sheet.getByTestId("decide-court-105")).toBeDisabled();
+  await expect(sheet.getByTestId("decide-court-109")).toBeDisabled();
+
+  // 送出中刷新目錄:舊按鈕必須離開 DOM——這正是 runAsyncAction 判定 rerendered 的依據。
+  await page.evaluate(() => {
+    window.__decideButtonBeforeRefresh = document.querySelector('[data-decide-court="105"]');
+    window.__decideGenerationSheet.setCourts(window.__decideGenerationCourts, { ready: true });
+  });
+  await expect(sheet.locator("[data-decide-court]")).toHaveCount(2);
+  expect(
+    await page.evaluate(() => window.__decideButtonBeforeRefresh.isConnected),
+    "the in-flight refresh must detach the pre-refresh candidate button"
+  ).toBe(false);
+  await expect(sheet.getByTestId("decide-court-105")).toBeDisabled();
+
+  // 定案 resolve 之後控制項不還原。先用兩輪 macrotask 排空 microtask,若「還原」真的
+  // 會發生就一定已經發生,最後的斷言才不會在還原前假綠。
+  await page.evaluate(async () => {
+    window.__releaseDecideGeneration("OK");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  const disabledAfterResolve = await page.evaluate(() =>
+    [...document.querySelectorAll("[data-decide-court]")].map((button) => button.disabled)
+  );
+  expect(disabledAfterResolve.length, "the candidate button scan must be nonempty").toBeGreaterThan(0);
+  expect(disabledAfterResolve).toEqual([true, true]);
+});
+
 test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ baseURL, page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.addInitScript(() => {
