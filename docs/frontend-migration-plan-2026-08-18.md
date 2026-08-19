@@ -307,10 +307,42 @@ strict TS 零依賴——批 9 目標是收斂寫入通道不是引框架，Reac
   釘呼叫次數的覆蓋缺口。read-back 四 lens 全 PASS（跨 await 快取縫隙攻擊零命中）。
   回報 `docs/migration-reports/batch-9a.md`（含盤點附錄四項與驗收方註記）。
   觀察項（PM）：位置錯誤訊息字面重複 5 次可抽常數（dev 提出後主動回退，待拍板）。
-- 9b：**原定「harness 改接」經 9a 證明不需要**；9b 改為承接 9a 留下的五項
-  （setInvitableSessions 通道化＝行為變更、intentVersion 進 store、selector 訂閱、
-  chat context 狀態化、序列 probe 常駐化＝需新增 tests/**），**每項皆需 user 拍板
-  取捨後才發單**；批 10（CSS）不依賴 9b。
+- 9b：**原定「harness 改接」經 9a 證明不需要**；9b 改為承接 9a 留下的五項。
+- ✅ 9b 五項裁決（2026-08-19，user 授權驗收方按建議執行）：
+  1. setInvitableSessions 通道化＝**不做**（唯一失敗分支上的瞬時把手，收斂會新增
+     HEAD 不存在的呼叫＝行為變更，收益趨零）。
+  2. intentVersion 進 store＝**不做**（拉模式公開把手，無 payload 出現，依 9a
+     「payload 欄位才進 store」判準本就該留 closure）。
+  3. selector 訂閱＝**不做**（目前零 React 端訂閱需求，頁面全走 adapter props；
+     YAGNI，真有 useSyncExternalStore 需求時再開批）。
+  4. chat context／surfaceRegistry 狀態化＝**不做**（surface 私有 command 通道，
+     強行狀態化是為收斂而收斂）。
+  5. 行為序列 probe 常駐化＝**做**（五項中唯一有實證價值支撐——9a 四發 canary
+     兩發僅 probe 可抓，113 條測試覆蓋缺口已被證明）→ 併入批 11 收尾批。
+
+### 批 11：收尾清理批（2026-08-19 裁決成批）
+
+user 授權「9b 五項留置和 PM 觀察項照驗收方建議做」後的裁決：**做 4 項**（成本低、
+零視覺／行為變更或純測試強化）、**不修 4 項**（需產品決策或無可觀察影響，列案存查）。
+
+做（批 11 交付）：
+- A. 行為序列 probe 常駐化：9a 的 17 步序列腳本固化為 node --test 持久測試
+  （`tests/**` 純新增），golden 序列斷言呼叫次序與次數。
+- B. 三條死宣告刪除（`.time-tile--done` 的 60px/2px、`.level-chip{font-weight:600}`、
+  `.chip--district` 整條）：刪除＝維持現狀視覺零變更＋消除誤導；「讓它生效」是視覺
+  變更需設計判斷,若日後要再有意識加回。
+- C. 位置錯誤訊息字面 ×5 抽模組常數（純機械去重，零行為變更）。
+- D. smoke.spec.js:2780 補 report dialog 內容層斷言（`tests/**` 純新增測試強化——
+  批 8.7 canary A 已實證該測試抓不到內容消失）。
+
+不修（列案存查，理由）：
+- chat body/createdAt undefined 顯字面 "undefined"：DB view 欄位非空約束下屬理論
+  邊緣，顯示什麼是文案決策。
+- runAsyncAction clearError 不清 textContent：hidden 殘留文字不可見不可及，
+  無可觀察影響；修改需重驗全部呼叫點。
+- session===null 時 decide 時間欄位顯當下時間：decide sheet 僅在有 session 時開啟，
+  理論邊緣。
+- 死宣告「讓它生效」路線：視覺變更，需設計拍板（本批走刪除路線）。
 
 ### 批 10：CSS 收尾
 
