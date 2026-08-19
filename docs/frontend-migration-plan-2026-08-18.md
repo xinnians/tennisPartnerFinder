@@ -287,13 +287,22 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   非本批退化）、七站 gate 全綠。回報 `docs/migration-reports/batch-8.7.md`（含驗收方註記）。
   觀察項（PM）：smoke.spec.js:2780 只斷 dialog 殼不碰內容（既有覆蓋事實）；
   runAsyncAction clearError 不清 textContent（失敗文字 hidden 留存，既有行為）。
-- 觀察項：sheets.js 內 openLoginModal（:175）屬 surface 殼模組自身內容，是否遷移待批 8.x
-  收尾時再議，不擋批 9。
+- ✅ 觀察項裁決（2026-08-19，user 拍板）：sheets.js 內 openLoginModal **不遷**——殼模組
+  自身內容、單一靜態 dialog、零輪詢零 state，遷移收益趨零且要動殼模組凍結區；留 innerHTML，
+  批 10 CSS 收整時一併檢視。
 
 ### 批 9：controller 狀態 store 化＋測試 harness 改接
 
-- 25 欄 state ＋ 35 個 closure 變數收斂為 store；三通道更新（publish／notifyMySessions／surface 把手直呼）收斂為訂閱。
-- 113 條 controller 單元測試：只改 harness 接線，不改斷言語意；爆了整批退回不影響已遷頁面（pre-mortem 3 的對策）。
+2026-08-19 user 拍板：拆 **9a（store 化）→ 9b（harness 改接）** 兩子批依序；store 用
+**自製 minimal store**（`src/sessionStore.ts`，subscribe／getState／set 約 50 行，
+strict TS 零依賴——批 9 目標是收斂寫入通道不是引框架，React context 接法批 10 後再議）。
+
+- 9a：25 欄 state ＋ closure 變數收斂為 store；三通道更新（publish／notifyMySessions／
+  surface 把手直呼）收斂為訂閱。對外 API（createSessionController 簽名、回傳把手、renderer
+  callback 契約）凍結；**113 條 controller 單元測試原樣全綠是硬驗收**——若盤點發現 harness
+  接線不可避免要動，該部分停下留給 9b，不得在 9a 內動 `tests/**`。
+- 9b：113 條 controller 單元測試只改 harness 接線，不改斷言語意；爆了整批退回不影響
+  已遷頁面（pre-mortem 3 的對策）。9a 若證明測試原樣可綠，9b 相應縮薄或取消。
 
 ### 批 10：CSS 收尾
 
