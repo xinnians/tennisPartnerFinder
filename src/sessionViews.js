@@ -54,6 +54,14 @@ const mountCourtPlayersSheetContent =
 const filterSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/FilterSheet.tsx", { eager: true });
 const mountFilterSheetContent = filterSheetModules["./sheets/FilterSheet.tsx"]?.mountFilterSheetContent;
+const playerDirectorySheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/PlayerDirectorySheet.tsx", { eager: true });
+const mountPlayerDirectorySheetContent =
+  playerDirectorySheetModules["./sheets/PlayerDirectorySheet.tsx"]?.mountPlayerDirectorySheetContent;
+const playerCardSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/PlayerCardSheet.tsx", { eager: true });
+const mountPlayerCardSheetContent =
+  playerCardSheetModules["./sheets/PlayerCardSheet.tsx"]?.mountPlayerCardSheetContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -87,16 +95,6 @@ function ntrpBrickValue(ntrp) {
   return validProfileNtrp(ntrp) ? Number(ntrp).toFixed(1) : "—";
 }
 
-function ntrpBrickMarkup(ntrp) {
-  return `<div class="ntrp-brick"><p class="ntrp-brick__eyebrow">NTRP</p><p class="ntrp-brick__value">${esc(
-    ntrpBrickValue(ntrp)
-  )}</p></div>`;
-}
-
-function ntrpBrickSmMarkup(ntrp) {
-  return `<span class="ntrp-brick--sm">${esc(ntrpBrickValue(ntrp))}</span>`;
-}
-
 function wireAvatarFallbacks(root) {
   root?.querySelectorAll?.("[data-player-avatar] img").forEach((image) => {
     image.addEventListener("error", () => showAvatarFallback(image));
@@ -121,10 +119,8 @@ function trustCountText(count, label) {
   return label.replace("{n}", String(value));
 }
 
-function trustCountMarkup(count, label) {
-  const text = trustCountText(count, label);
-  return text ? `<span class="trust-count">${esc(text)}</span>` : "";
-}
+/** Single React source for the `.player-avatar` block shared by every avatar surface. */
+export const avatarRuntime = Object.freeze({ avatarInitial, safeGoogleAvatarUrl, showAvatarFallback });
 
 // 批 D8:我頁 profile 卡副行「常打 X」——profile.courts 可能存 court.id 或(舊資料)
 // court.name,雙重比對沿用 updateCourtCheckboxes(既有個人檔案表單邏輯)同一寫法,
@@ -2902,84 +2898,39 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
 // 刻意保留融入新版列(不是照抄 dc,是既有功能優先——.trust-count 由
 // session.spec.js:1865/1890/1893 的 hosted 測試鎖定,不可移除)。打法整行 dc 沒有,
 // 這裡收斂進副行,不獨立佔一行(dc §2 沒有對應欄位,且沒有測試依賴這行文字)。
-function playerDirectoryRowsMarkup(players) {
-  return players.length
-    ? players
-        .map((player) => {
-          const courtsText = (player.courtNames ?? []).join("、") || player.courtName || "未填球場";
-          const slotsText = playerSlotLabels(player.slotCodes).join("、") || "未填時段";
-          return `<button type="button" class="player-directory-row" data-player-directory-row
-            data-testid="player-directory-row-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
-            ${avatarMarkup({ nickname: player.nickname, size: "md" })}
-            <span class="player-directory-row__body">
-              <span class="player-directory-row__head">
-                <strong>${esc(player.nickname || "未命名球友")}</strong>
-                ${ntrpBrickSmMarkup(player.ntrp)}
-                ${player.isPresent ? '<span class="player-directory-row__online">在線</span>' : ""}
-                ${player.isSelf ? '<span class="player-directory-row__self">這是你</span>' : ""}
-              </span>
-              <span class="player-directory-row__sub">常打 ${esc(courtsText)} · ${esc(slotsText)}</span>
-              ${trustCountMarkup(player.playedCount, "已打 {n} 場")}
-            </span>
-            <span class="player-directory-row__chevron" aria-hidden="true">›</span>
-          </button>`;
-        })
-        .join("")
-    : '<p class="surface__copy">目前沒有公開的球友卡。</p>';
+function playerDirectoryRowPresentation(player) {
+  return {
+    courtsText: String((player.courtNames ?? []).join("、") || player.courtName || "未填球場"),
+    id: String(player.profileId),
+    nickname: String(player.nickname || "未命名球友"),
+    ntrpValue: ntrpBrickValue(player.ntrp),
+    showOnline: Boolean(player.isPresent),
+    showSelf: Boolean(player.isSelf),
+    slotsText: playerSlotLabels(player.slotCodes).join("、") || "未填時段",
+    trustText: trustCountText(player.playedCount, "已打 {n} 場"),
+  };
 }
+
+/** React directory rows import the existing presentation rules from one source. */
+export const playerDirectorySheetRuntime = Object.freeze({ playerDirectoryRowPresentation });
 
 /** Open the all-Taipei opt-in directory without coupling it to map bounds. */
 export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () => {}, onRetry = () => {} } = {}) {
-  let currentPlayers = [];
+  if (!mountPlayerDirectorySheetContent) throw new Error("PlayerDirectorySheet browser mount is unavailable.");
   const mounted = mountSheet({
     id: "player-directory-sheet",
     label: "球友名單",
     className: "player-directory-sheet",
     onClose,
-    html: `
-      <span class="player-directory-sheet__grabber" aria-hidden="true"></span>
-      <div class="surface__head player-directory-sheet__head">
-        <div>
-          <p class="surface__eyebrow">PLAYERS</p>
-          <h2>球友名單</h2>
-          <p class="player-directory-sheet__sub">開放名單的球友 · <span class="player-directory-sheet__count" data-player-directory-count>0</span> 位</p>
-        </div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉球友名單">×</button>
-      </div>
-      <div class="player-directory-sheet__scroll qm-scroll">
-        <p class="surface__copy">在線球友排在前面；點選球友卡可查看邀請入口。</p>
-        <div class="player-directory-list" data-player-directory-list role="list"></div>
-      </div>`,
+    html: "",
   });
-  const list = mounted.root.querySelector("[data-player-directory-list]");
-  const countLabel = mounted.root.querySelector("[data-player-directory-count]");
-  const wireRows = () => {
-    list?.querySelectorAll("[data-player-directory-row]").forEach((row) => {
-      row.addEventListener("click", () => {
-        const player = currentPlayers.find((candidate) => String(candidate.profileId) === row.dataset.playerId);
-        if (player) onOpenPlayer(player);
-      });
-    });
-    list?.querySelector("[data-player-directory-retry]")?.addEventListener("click", onRetry);
-  };
-  const setDirectory = ({ players = [], status = "ready" } = {}) => {
-    currentPlayers = Array.isArray(players) ? players : [];
-    // dc §2 副行「開放名單的球友 · N 位」只在成功載入後才是真數字;loading/error
-    // 態沿用原有殼但不亂報一個假的 0(容器初值 0 是 mountSheet 首次同步渲染前的
-    // 佔位,並非「已確認 0 位」的宣稱)。
-    if (countLabel && status === "ready") countLabel.textContent = String(currentPlayers.length);
-    if (!list) return;
-    if (status === "loading") {
-      list.innerHTML = '<p class="surface__copy" role="status">正在載入球友名單…</p>';
-    } else if (status === "error") {
-      list.innerHTML = '<div class="form-error" role="alert">球友名單暫時無法載入。<button type="button" class="session-secondary" data-player-directory-retry>重新載入</button></div>';
-    } else {
-      list.innerHTML = playerDirectoryRowsMarkup(currentPlayers);
-    }
-    wireRows();
-  };
-  setDirectory({ status: "loading" });
-  return { ...mounted, setDirectory };
+  const content = mountPlayerDirectorySheetContent(mounted.surface, {
+    onClose: () => mounted.close(),
+    onOpenPlayer,
+    onRetry,
+  });
+  content.setDirectory({ status: "loading" });
+  return { ...mounted, setDirectory: content.setDirectory };
 }
 
 /**
@@ -3021,25 +2972,42 @@ export function openFilterSheet({
   };
 }
 
-function playerInviteOption(session, courts = []) {
+function playerInviteOptionPresentation(session, courts = []) {
   const venue = sessionVenuePresentation(session, courts);
-  return `<label class="player-invite-option">
-    <input type="radio" name="player-invite-session" value="${esc(session.sessionId)}" data-testid="player-invite-session" />
-    <strong>${esc(venue.time)}</strong>
-    <span>${esc(venue.badge)} · ${esc(venue.court)}</span>
-    <span>${esc(session.playType)} · ${esc(ntrpRange(session))}</span>
-    ${session.notes ? `<span>${esc(session.notes)}</span>` : ""}
-  </label>`;
+  return {
+    badge: String(venue.badge),
+    court: String(venue.court),
+    notes: session.notes ? String(session.notes) : "",
+    ntrpRange: ntrpRange(session),
+    playType: String(session.playType),
+    sessionId: String(session.sessionId),
+    time: String(venue.time),
+  };
 }
 
-function playerInviteChoices(sessions, courts = []) {
-  return sessions.length
-    ? sessions.map((session) => playerInviteOption(session, courts)).join("")
-    : `<div class="player-invite-empty">
-        <p class="surface__copy">你目前沒有可邀請的球局</p>
-        <button type="button" class="session-primary" data-player-create data-testid="player-create-session">去開球局</button>
-      </div>`;
+// 批 D8:常打／時段抽成變數,同時餵新版頭部副行與既有 .player-profile 段落——
+// 後者逐字文案是 smoke.spec.js「player drawer and card escape every public
+// value」測試鎖定的字串(時段：週末下午、mystery<img...>),不可改動計算方式。
+function playerCardPresentation(player) {
+  return {
+    courtNameText: String(player.courtName || "未填球場"),
+    courtsText: String((player.courtNames ?? []).join("、") || player.courtName || "未填球場"),
+    districtLabel: String(player.courtDistrict || "台北市"),
+    greetingLabel: playerGreetingLabel(player),
+    nickname: String(player.nickname),
+    ntrpValue: ntrpBrickValue(player.ntrp),
+    playTypesText: String((player.playTypes ?? []).join("、") || "未填打法"),
+    presenceLabel: playerPresenceLabel(player),
+    profileId: String(player.profileId),
+    showGreeting: Boolean(player.openToGreeting),
+    showPresence: Boolean(player.isPresent),
+    slotsText: playerSlotLabels(player.slotCodes).join("、") || "未填時段",
+    trustText: trustCountText(player.playedCount, "已打 {n} 場"),
+  };
 }
+
+/** React player card imports the existing presentation rules from one source. */
+export const playerCardSheetRuntime = Object.freeze({ playerCardPresentation, playerInviteOptionPresentation });
 
 /** Open one public player card and, for non-self rows, its host invitation entry point. */
 export function openPlayerCardSheet(
@@ -3053,105 +3021,28 @@ export function openPlayerCardSheet(
     onSeeDirectory = () => {},
   } = {}
 ) {
-  const inviteSection = player.isSelf
-    ? ""
-    : myInvitableSessions.length
-      ? `<form class="player-invite-form" data-player-invite>
-          <fieldset class="form-fieldset">
-            <legend>邀請加入我的球局</legend>
-            <div class="player-invite-options" data-player-invite-options>${playerInviteChoices(myInvitableSessions, courts)}</div>
-          </fieldset>
-          <p class="form-error" role="alert" data-player-invite-error hidden></p>
-          <p class="player-invite-success" role="status" data-player-invite-success hidden></p>
-          <button type="submit" class="session-primary" data-testid="player-invite-submit">送出邀請</button>
-        </form>`
-      : `<div class="player-invite-empty" data-player-invite>
-          <p class="surface__copy">你目前沒有可邀請的球局</p>
-          <button type="button" class="session-primary" data-player-create data-testid="player-create-session">去開球局</button>
-        </div>`;
-  // 批 D8:常打／時段抽成變數,同時餵新版頭部副行與既有 .player-profile 段落——
-  // 後者逐字文案是 smoke.spec.js「player drawer and card escape every public
-  // value」測試鎖定的字串(時段：週末下午、mystery<img...>),不可改動計算方式。
-  const courtsText = (player.courtNames ?? []).join("、") || player.courtName || "未填球場";
-  const slotsText = playerSlotLabels(player.slotCodes).join("、") || "未填時段";
+  if (!mountPlayerCardSheetContent) throw new Error("PlayerCardSheet browser mount is unavailable.");
   const mounted = mountSheet({
     id: "player-card-sheet",
     label: "球友卡",
     className: "player-card-sheet",
     onClose,
-    html: `
-      <span class="player-card-sheet__grabber" aria-hidden="true"></span>
-      <div class="surface__head">
-        <p class="surface__eyebrow">${esc(player.courtDistrict || "台北市")}</p>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉球友卡">×</button>
-      </div>
-      <div class="profile-brick-row profile-brick-row--player">
-        ${avatarMarkup({ nickname: player.nickname, size: "lg" })}
-        <span class="profile-brick-row__copy"><strong>${esc(player.nickname)}</strong><span>常打 ${esc(
-          courtsText
-        )} · ${esc(slotsText)}</span></span>
-        ${ntrpBrickMarkup(player.ntrp)}
-      </div>
-      <div class="player-profile" data-player-profile-id="${esc(player.profileId)}">
-        ${trustCountMarkup(player.playedCount, "已打 {n} 場")}
-        ${player.isPresent ? `<p>在線狀態：${esc(playerPresenceLabel(player))}</p>` : ""}
-        ${player.openToGreeting ? `<p class="player-greeting">${esc(playerGreetingLabel(player))}</p>` : ""}
-        <p>打法：${esc((player.playTypes ?? []).join("、") || "未填打法")}</p>
-        <p>時段：${esc(slotsText)}</p>
-        <p>常打球場：${esc(player.courtName || "未填球場")}</p>
-      </div>
-      ${inviteSection}
-      <div class="player-card-sheet__actions">
-        <button type="button" class="session-secondary" data-player-see-directory>看球友名單</button>
-        <button type="button" class="session-primary" data-surface-close>關閉</button>
-      </div>
-      <p class="player-card-sheet__footnote">在線球友為開放名單者;邀約請透過球局。</p>`,
+    html: "",
   });
-  const wirePlayerCreate = () => mounted.root.querySelector("[data-player-create]")?.addEventListener("click", onCreate);
-  wirePlayerCreate();
   // 映射決策 6:「看球友名單」不直呼 controller,只透過 onSeeDirectory 這條既有
   // callback 慣例;controller 端接的是既有 openPlayerDirectory 入口(sessionController.js
   // openPlayer() 已接線),它本身就會關掉這張卡再開名單,這裡不重複 close()。
-  mounted.root.querySelector("[data-player-see-directory]")?.addEventListener("click", onSeeDirectory);
-  const form = mounted.root.querySelector(".player-invite-form");
-  const setInvitableSessions = (sessions = []) => {
-    const options = form?.querySelector("[data-player-invite-options]");
-    const submit = form?.querySelector("[type='submit']");
-    if (!options || !submit) return;
-    const nextSessions = Array.isArray(sessions) ? sessions : [];
-    options.innerHTML = playerInviteChoices(nextSessions, courts);
-    submit.hidden = nextSessions.length === 0;
-    wirePlayerCreate();
-  };
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const submit = form.querySelector("[type='submit']");
-    const error = form.querySelector("[data-player-invite-error]");
-    const success = form.querySelector("[data-player-invite-success]");
-    const selected = form.querySelector("input[name='player-invite-session']:checked");
-    error.hidden = true;
-    error.textContent = "";
-    success.hidden = true;
-    success.textContent = "";
-    if (!selected) {
-      error.textContent = "請選擇一個球局。";
-      error.hidden = false;
-      return;
-    }
-    await runAsyncAction({
-      root: mounted.root,
-      callback: () => onInvite(selected.value),
-      controls: [submit],
-      error,
-      clearError: false,
-      errorMessage: "邀請失敗，請稍後再試。",
-      onSuccess: () => {
-        success.textContent = "邀請已送出";
-        success.hidden = false;
-      },
-    });
+  const content = mountPlayerCardSheetContent(mounted.surface, {
+    courts,
+    myInvitableSessions,
+    onClose: () => mounted.close(),
+    onCreate,
+    onInvite,
+    onSeeDirectory,
+    player,
+    sheetRoot: mounted.root,
   });
-  return { ...mounted, setInvitableSessions };
+  return { ...mounted, setInvitableSessions: content.setInvitableSessions };
 }
 
 /** Keep the persistent map chip synchronized with controller-owned layer state. */
