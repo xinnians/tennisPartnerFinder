@@ -98,8 +98,14 @@
 .filter-sheet-band-grid .band-option:active { transform: scale(0.97); }
 .filter-sheet-band-grid .band-option.is-active { border: 1.5px solid var(--color-ink); background: var(--color-ink); color: var(--color-surface-card); font-weight: 700; }
 .filter-sheet-chips { display: flex; flex-wrap: wrap; gap: 7px; }
-/* 行政區 chip 比日期／打法矮一階(dc:h38 而非 h40),獨立尺寸,不進 .chip--form。 */
-.chip--district { height: 38px; padding: 0 13px; font-size: 13px; }
+/* 批 11-B:原本這裡有 `.chip--district { height: 38px; padding: 0 13px; font-size: 13px }`,
+   註解寫「行政區 chip 比日期／打法矮一階(dc:h38 而非 h40)」——那是設計意圖,不是現況。
+   三個宣告都輸給 vocabulary.css 較後的 `.chip`(同特異性 0,1,0),實測篩選 sheet 的 12 個
+   行政區 chip 一直是 36px(≤700px 為 44px)/padding 12px/13.5px。宣告已刪,class 名不動。
+   下面的 `:active` 本批**不動**,但也不是生效的:CSSOM 文件序實測 `.chip--district:active`
+   在 sheet 4(本檔)、`.chip:active` 在 sheet 11(vocabulary.css),兩者同為 (0,2,0),
+   後者較後故 scale(0.94) 勝出。批 10 報告觀察項說它「較後、仍生效」與實測不符,已回報 PM,
+   是否一併刪除留待裁決。 */
 .chip--district:active { transform: scale(0.95); }
 .filter-sheet__footer { flex: none; display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--color-line); }
 .filter-sheet__footer .filters-reset { flex: none; text-decoration: underline; text-underline-offset: 3px; }

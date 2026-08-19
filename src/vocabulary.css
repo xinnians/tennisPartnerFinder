@@ -4,7 +4,12 @@
    **層疊位置 11 / 13**——本專案未使用 @layer(理由見
    docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
    的 import 次序決定,調動 import 次序會改變層疊結果。
-   刻意排在各頁面檔之後:.chip 基底(0,1,0)靠來源順序勝過 map-page.css 的 .level-chip 與 surfaces.css 的 .chip--district 同階宣告,搬前面會改變 chip 尺寸與字重。
+   刻意排在各頁面檔之後:.chip 基底(0,1,0)與 .chip:active (0,2,0) 靠來源順序勝過較早檔案的
+   同階宣告,搬前面會改變 chip 尺寸與字重。批 11-B 已把其中三組「輸掉、且值不同」的死宣告刪除
+   (map-page.css 的 .level-chip{font-weight:600}、surfaces.css 的 .chip--district 尺寸三宣告、
+   create-session.css 的 .time-tile--done),但依賴關係沒消失:surfaces.css 的
+   .chip--district:active 仍輸給本檔的 .chip:active,本檔內的 @media 44px 升級也仍必須寫在
+   .chip 基底之後。
    ============================================================ */
 
 /* ============================================================

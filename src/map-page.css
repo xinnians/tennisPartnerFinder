@@ -178,7 +178,10 @@
    overflow-x:auto 只有在子項「不縮」時才有意義,兩者要成對出現。 */
 .map-toolbar > * { flex: none; white-space: nowrap; }
 
-.level-chip { gap: 6px; font-weight: 600; }
+/* 批 11-B:原本這條還有 `font-weight: 600`,從未生效——vocabulary.css 的
+   `.chip { font-weight: 500 }`(同特異性 0,1,0)在 import 次序上排在本檔之後,實測
+   `#level-chip` 一直是 500。宣告已刪;`gap: 6px` 與 `.chip` 的 gap 同值,留著不影響。 */
+.level-chip { gap: 6px; }
 .level-chip__value { font-family: var(--font-mono); font-weight: 600; }
 .level-chip__caret { flex: none; }
 

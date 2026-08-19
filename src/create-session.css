@@ -115,14 +115,17 @@
 .create-v2__publish:active { transform: scale(0.98); }
 .create-v2__publish.is-ready { background: var(--color-ink); color: var(--color-signal); box-shadow: 0 10px 22px rgba(18, 41, 28, 0.32); }
 
-/* 成功頁(dc §6):qmPop 進場,新球局卡預覽複用 .time-tile(--done 覆寫 60px 版)
-   與 .slots-brick(逐字相符,不再另定義)。 */
+/* 成功頁(dc §6):qmPop 進場,新球局卡預覽複用 .time-tile 與 .slots-brick
+   (逐字相符,不再另定義)。
+   批 11-B:原本這裡還有 `.time-tile--done { width: 60px; gap: 2px; }`,想把時間磚縮成
+   60px 版。它從未生效——vocabulary.css 的 `.time-tile`(同特異性 0,1,0)在 import 次序上
+   排在本檔之後,實測成功頁時間磚一直是 64px/3px。宣告已刪,`time-tile--done` class 名
+   保留在 CreateSessionSheet.tsx 不動。要真的做 60px 版是視覺變更,需設計拍板。 */
 .create-v2__done { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 0 28px 40px; text-align: center; animation: qmPop 0.3s var(--ease-brand); }
 .create-v2__done-badge { display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; border: 2.5px solid var(--color-ink); background: var(--color-signal); color: var(--color-ink); box-shadow: 0 12px 26px rgba(221, 245, 60, 0.5); }
 .create-v2__done-title { margin: 18px 0 0; color: var(--color-ink); font-size: 21px; font-weight: 700; }
 .create-v2__done-copy { margin: 6px 0 0; color: var(--color-text-secondary); font-size: 13.5px; line-height: 1.6; }
 .create-v2__done-card { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 20px; padding: 12px; border: var(--border-strong); border-radius: var(--radius-lg); background: var(--color-surface-card); text-align: left; }
-.time-tile--done { width: 60px; gap: 2px; }
 .create-v2__done-card-copy { flex: 1; min-width: 0; }
 .create-v2__done-court { margin: 0; overflow-wrap: anywhere; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
 .create-v2__done-meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); }

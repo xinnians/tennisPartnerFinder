@@ -151,6 +151,9 @@ const MY_SESSION_OPEN_STATUSES = new Set(["open", "full"]);
 const KIND_ORDER = { "host-request": 0, invite: 1, "guest-request": 2 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW_START_JOIN_WINDOW_MS = 2 * 60 * 60 * 1000;
+// 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
+// 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
+const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
 
 function timeValue(value, fallback = 0) {
   const time = new Date(value ?? "").getTime();
@@ -2272,14 +2275,14 @@ export function createSessionController({
 
   function requestCurrentLocation() {
     if (read().locationBlocked) {
-      store.setState({ locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
+      store.setState({ locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
       publish();
       return;
     }
     const request = locationGate.issue();
     const geolocation = globalThis.navigator?.geolocation;
     if (!geolocation?.getCurrentPosition) {
-      store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
+      store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
       publish();
       return;
     }
@@ -2290,7 +2293,7 @@ export function createSessionController({
           const lat = Number(coords?.latitude);
           const lng = Number(coords?.longitude);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
+            store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
             publish();
             return;
           }
@@ -2299,14 +2302,14 @@ export function createSessionController({
         },
         () => {
           if (request.isStale()) return;
-          store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
+          store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
           publish();
         },
         { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }
       );
     } catch {
       if (request.isStale()) return;
-      store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
+      store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
       publish();
     }
   }

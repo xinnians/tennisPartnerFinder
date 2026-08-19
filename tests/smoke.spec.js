@@ -2846,6 +2846,90 @@ test("closing a non-drawer report dialog after its trigger card disappears does 
   expect(runtimeErrors).toEqual([]);
 });
 
+// 批 11-D:上面那條測試只斷 `#report-dialog` 這層殼(visible/hidden)。批 8.7 的
+// canary A 實證過:把 ReportDialog 的 React render 換成 null,殼仍然 visible,那條
+// 測試照樣綠——內容整個不見也抓不到。這一條補上內容層,涵蓋範圍與上面那條相同的
+// 非抽屜語境(My Sessions 卡片開的檢舉 dialog),並且刻意在「觸發卡片已消失」之後
+// 再驗一次,確認背景重繪不會連帶抹掉 dialog 內容。
+test("the non-drawer report dialog renders its full content and keeps it after the trigger card disappears", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("my-sessions-page").hidden = false;
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: {
+        history: [],
+        needsAction: [],
+        needsActionCount: 0,
+        upcoming: [
+          {
+            court: "青年公園網球場",
+            courtDistrict: "萬華區",
+            hostNickname: "示範主揪",
+            hostNtrp: 3.5,
+            ntrpMax: 4,
+            ntrpMin: 3,
+            playType: "雙打",
+            sessionId: 424242,
+            slotsRemaining: 1,
+            startAt: "2099-07-19T01:00:00.000Z",
+            status: "open",
+            viewerParticipantStatus: "accepted",
+            viewerRole: "guest",
+          },
+        ],
+      },
+    });
+  });
+
+  await page.getByTestId("report-session-424242").focus();
+  await page.evaluate(async () => {
+    const { openReportDialog } = await window.__importAppModule("sessionViews");
+    openReportDialog({ targetLabel: "青年公園網球場 · 週六上午" });
+  });
+
+  const dialog = page.locator("#report-dialog");
+  await expect(dialog).toBeVisible();
+  // 內容層:標題、目標敘述、四個檢舉原因 radio、送出鈕——殼在但內容空會全紅。
+  await expect(dialog.getByRole("heading", { name: "回報問題" })).toBeVisible();
+  await expect(dialog).toContainText("青年公園網球場 · 週六上午");
+  const form = dialog.getByTestId("report-form");
+  await expect(form).toBeVisible();
+  await expect(form.getByRole("group", { name: "檢舉原因" })).toBeVisible();
+  const reasons = form.locator("input[name='report-reason']");
+  await expect(reasons).toHaveCount(4);
+  expect(await reasons.evaluateAll((inputs) => inputs.map((input) => `${input.type}:${input.value}`))).toEqual([
+    "radio:與實際球局不符",
+    "radio:不當行為",
+    "radio:疑似詐騙",
+    "radio:其他",
+  ]);
+  const submit = dialog.getByTestId("report-submit");
+  await expect(submit).toBeVisible();
+  await expect(submit).toHaveText("送出檢舉");
+
+  // 背景重繪把觸發卡片抽走(與上面那條同一個情境),dialog 內容必須原封不動。
+  await page.evaluate(async () => {
+    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      authenticated: true,
+      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
+    });
+  });
+  await expect(page.getByTestId("report-session-424242")).toHaveCount(0);
+  await expect(form).toBeVisible();
+  await expect(reasons).toHaveCount(4);
+  await expect(submit).toBeVisible();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("a pending withdrawal accepts only one intentional submission", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
