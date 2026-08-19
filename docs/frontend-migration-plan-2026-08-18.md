@@ -314,7 +314,19 @@ strict TS 零依賴——批 9 目標是收斂寫入通道不是引框架，Reac
 
 ### 批 10：CSS 收尾
 
-- token/global 分檔、`@layer` 取代來源順序依賴、清除批次時序組織遺留的重複樣板（sheet grabber ×5、頁頭 ×3 等）。
+- ✅ 批 10（2026-08-19，2fa00ed）：session.css 1429 行依層疊次序切 13 檔
+  （main.js import 次序＝層疊次序，檔頭與各檔皆註明）；12 組結構性重複去重、
+  38 組巧合同值刻意不併（點名的拉把 ×5／頁頭 ×3 皆非逐字副本，差異保留）。
+  **@layer 縮 scope 不做**（三個實證反例：跨群組特異性決勝，任何 layer 邊界都會
+  翻轉勝負）；**token 不搬出 session.css**（tests/contrast-tokens 正則直讀約束，
+  驗收方 canary 實證有牙）；CSS Module 不上（class 名凍結）。
+  視覺零變更四重獨立證據：幾何指紋 48 案例 234,864 值／dist 層宣告多重集合
+  2643=2643／驗收方 source 層攤平 2642=2642／逐鍵勝出值 2616 鍵，全零差異。
+  流程事故（canary 還原誤用 git checkout 回退 main.js）已重建並經 read-back
+  跨檔順序全數重驗——「canary 還原禁 git checkout」教訓第二次實證。
+  回報 `docs/migration-reports/batch-10.md`（含驗收方註記）。
+  觀察項（PM）：三條既有死宣告（`.time-tile--done`／`.level-chip` 600／
+  `.chip--district`）忠實保持死狀態，要不要讓它們生效是產品決策。
 
 ## 明確不在 scope（另開 track）
 
@@ -375,5 +387,8 @@ strict TS 零依賴——批 9 目標是收斂寫入通道不是引框架，Reac
 - 2026-08-19：批 9 三題拍板（9a／9b 拆批、自製 minimal store、openLoginModal 不遷）；
   批 9a 派工單已發。
 - 2026-08-19：批 9a 驗收通過並 commit（92152d6）——store 化完成、113 條原樣全綠、
-  行為序列 probe 成為 controller 批的核心證據面。**9b 縮為五項留置項（每項需 user
-  拍板）；批 10（CSS 收整）不依賴 9b,可先行**。
+  行為序列 probe 成為 controller 批的核心證據面。9b 縮為五項留置項（每項需 user
+  拍板）；批 10（CSS 收整）不依賴 9b，派工單已發。
+- 2026-08-19：批 10 驗收通過並 commit（2fa00ed）——**遷移管線主線（批 B～批 10）
+  全數收官**。剩餘待 user 拍板：9b 五項留置、PM 觀察項清單（死宣告 ×3、
+  位置錯誤訊息抽常數、chat undefined 字面等）。
