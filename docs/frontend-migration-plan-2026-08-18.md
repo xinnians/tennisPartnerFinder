@@ -254,7 +254,26 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   **rider（併批 8.6）**：generation key「in-flight 刷新不還原 controls」語意補持久測試
   （序列：click → setCourts → resolveDecide → 驗 disabled）。
   觀察項（PM）：session===null 時 decide 時間欄位顯示當下時間（既有行為，未修）。
-- 批 8.6：openSessionChatSheet（:1569）——最大（feed＋輸入＋輪詢），壓軸。
+- ✅ 批 8.6（2026-08-19，d4b8cd3）：openSessionChatSheet 群聊 sheet 遷 React
+  （`src/sheets/SessionChatSheet.tsx`），sheet 批壓軸完成。feed／roster 以 generation key
+  全重建重現 innerHTML 置換——捲動兩分支在兩案下皆等價（還原是顯式賦值），**唯一可觀察
+  差異是焦點**，由 probe `focus-in-feed-lost-on-refresh` 咬住（穩定 key 下 mismatch 2 的
+  反例實證，未重蹈批 8.5 空覆蓋宣稱）。composer 節點維持 DOM identity——批 8.5 雙 writer
+  的鏡像案例（decide 要「必須重建」，chat 要「必須不重建」，同一條 rerendered() 規則的
+  兩面）。archived 三 writer 與 announcement 計數留閉包；`.chat-roster` 外部注入屬性因
+  React 不 diff 未宣告屬性而存活。composer submit／withdraw click 保留 native
+  addEventListener（節點穩定下比改 React 事件更保守）。chatRosterMarkup／
+  chatMessagesMarkup 退役（presentation 資料化留 sessionViews）。
+  流程升級×2（後續批標配）：幾何指紋取樣前等 CSS 動畫 settle（qmSlide 噪音 1392 條
+  假紅教訓）；被觀測面有 rAF 排程時 probe 要加兩幀 settle 再量（否則捲動還原分支假綠）。
+  rider 收口：generation key 持久測試入 tests/smoke.spec.js（純新增 71 行），穩定 key 下
+  detach＋行為兩斷言皆紅的證偽實證入報告。
+  驗收：probe 18 案例×2 viewport 零差異、五發 canary 紅→綠（dev 四發＋驗收方
+  data-chat-message-kind 一發）、read-back 五 lens 全 PASS 零 concern、兩輪七站 gate 綠
+  （第二輪對驗收方修正 handleFeedClick 註解後的最終版）。
+  回報 `docs/migration-reports/batch-8.6.md`（含驗收方註記）。
+  觀察項（PM）：message.body／createdAt 為 undefined 時顯示字面 "undefined"（既有行為，
+  未修）。
 - 批 8.7（或併入 8.1 當 rider）：mountDialog 系 openWithdrawSessionConfirmation（:2094）＋
   openReportDialog（:2137）。
 - 觀察項：sheets.js 內 openLoginModal（:175）屬 surface 殼模組自身內容，是否遷移待批 8.x
@@ -319,4 +338,7 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
 - 2026-08-19：批 8.4 驗收通過並 commit（b054148）——avatar 單一來源收官；test-local flaky
   定因 DB 累積並 reset 收口；批 8.5（decide sheet）派工單已發。
 - 2026-08-19：批 8.5 驗收通過並 commit（0dc2cfc）——雙 writer 分界模式確立；generation key
-  有牙紅綠實證；**依 user 指示暫停派發，批 8.6（chat 壓軸）待 compact 後發單**。
+  有牙紅綠實證；依 user 指示暫停派發，批 8.6（chat 壓軸）待 compact 後發單。
+- 2026-08-19：批 8.6 驗收通過並 commit（d4b8cd3）——sheet 批壓軸收官，批 8.5 rider 收口；
+  雙 writer 鏡像案例（composer 必須不重建）與焦點語意有牙實證；幾何指紋動畫／rAF settle
+  兩教訓入流程。**下一批：批 8.7（mountDialog 系兩 surface）**。
