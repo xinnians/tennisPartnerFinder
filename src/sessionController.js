@@ -9,6 +9,7 @@ import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "./f
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
+import { createStore } from "./sessionStore.ts";
 
 function cloneFilters() {
   return {
@@ -422,7 +423,13 @@ export function createSessionController({
   chatPollIntervalMs = CHAT_POLL_INTERVAL_MS,
   discoveryPollIntervalMs = DISCOVERY_POLL_INTERVAL_MS,
 } = {}) {
-  const state = {
+  // 渲染狀態的唯一容器。收進來的判準是「會出現在某條通道的 payload,或決定該
+  // payload 的內容」;authEpoch 以 viewGeneration 之名進 My Sessions payload,所以
+  // 一併收進來。其餘 let/Map(地圖實例、idle timer、請求 gate、併發與版本守衛)
+  // 都不進任何 payload,是純機械資源,留在 closure——收進 store 只會製造沒有訂閱者
+  // 關心的假更新。
+  const store = createStore({
+    authEpoch: 0,
     bounds: cloneBounds(TAIPEI_CITY_BOUNDS),
     courts: [],
     courtsReady: false,
@@ -448,7 +455,9 @@ export function createSessionController({
     playerLayerMessage: "",
     playerLayerStatus: "idle",
     players: [],
-  };
+  });
+  /** 目前狀態快照。每次寫入都會換新的頂層物件,所以一律現讀,不跨 await 快取。 */
+  const read = store.getState;
   let map = null;
   let idleTimer = null;
   const discoveryGate = createRequestGate();
@@ -460,7 +469,6 @@ export function createSessionController({
   const playerDirectoryGate = createRequestGate();
   const blockedPlayerGate = createRequestGate();
   const playerCardGate = createRequestGate();
-  let authEpoch = 0;
   let mySessionsVersion = 0;
   let explicitViewportGeneration = 0;
   let expectedExplicitViewports = [];
@@ -546,12 +554,12 @@ export function createSessionController({
   const inFlightLifecycleActions = new Map();
 
   function visibleSessions() {
-    return sortSessionsForDrawer(filterSessions(state.sessions, state.filters), state.userLocation, new Date(), state.courts);
+    return sortSessionsForDrawer(filterSessions(read().sessions, read().filters), read().userLocation, new Date(), read().courts);
   }
 
   function playerGroups() {
     const groups = new Map();
-    for (const player of state.players) {
+    for (const player of read().players) {
       const key = String(player?.courtId ?? "");
       if (!key) continue;
       const group = groups.get(key) ?? {
@@ -573,35 +581,42 @@ export function createSessionController({
   }
 
   function mapStatus() {
-    if (state.mapUnavailable) return { kind: "warning", message: "地圖目前無法使用；你仍可瀏覽附近球局。" };
-    if (state.discoveryStatus === "loading") return { kind: "loading", message: "正在載入球局資料…" };
-    if (state.discoveryStatus === "error") return { kind: "error", message: "球局資料暫時無法載入。" };
+    if (read().mapUnavailable) return { kind: "warning", message: "地圖目前無法使用；你仍可瀏覽附近球局。" };
+    if (read().discoveryStatus === "loading") return { kind: "loading", message: "正在載入球局資料…" };
+    if (read().discoveryStatus === "error") return { kind: "error", message: "球局資料暫時無法載入。" };
     return { kind: "idle", message: "" };
   }
 
-  function publish() {
+  // 通道 1「map」:球局列表、圖釘與球友圖層。派發一律由 publish() 顯式觸發,不做
+  // 變更偵測——既有行為包含「值沒變仍要重畫」(例如 refreshAuthoritativeState 收尾
+  // 的那次),偵測式派發會把它吃掉。
+  store.subscribe("map", (current) => {
     const sessions = visibleSessions();
     render({
       sessions,
-      drawerState: state.drawerState,
-      hasUserLocation: Boolean(state.userLocation),
-      filters: state.filters,
-      courts: state.courts,
+      drawerState: current.drawerState,
+      hasUserLocation: Boolean(current.userLocation),
+      filters: current.filters,
+      courts: current.courts,
       mapStatus: mapStatus(),
-      locationMessage: state.locationMessage,
+      locationMessage: current.locationMessage,
     });
     renderPins(sessions);
     renderPlayers({
-      groups: state.playerLayerOn ? playerGroups() : [],
-      message: state.playerLayerMessage,
-      on: state.playerLayerOn,
-      status: state.playerLayerStatus,
+      groups: current.playerLayerOn ? playerGroups() : [],
+      message: current.playerLayerMessage,
+      on: current.playerLayerOn,
+      status: current.playerLayerStatus,
     });
+  });
+
+  function publish() {
+    store.emit("map");
   }
 
   function currentParticipation(sessionId) {
-    if (!state.authSession) return null;
-    return state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
+    if (!read().authSession) return null;
+    return read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
   }
 
   async function hydrateSessionJoinPreview(sessionId, surface, gate, authSnapshot = captureAuthSnapshot()) {
@@ -628,9 +643,9 @@ export function createSessionController({
   }
 
   function mySessionItems() {
-    return state.mySessions.map((session) => ({
+    return read().mySessions.map((session) => ({
       ...session,
-      pendingRequests: [...(state.mySessionRosters.get(sessionKey(session.sessionId)) ?? [])],
+      pendingRequests: [...(read().mySessionRosters.get(sessionKey(session.sessionId)) ?? [])],
     }));
   }
 
@@ -638,23 +653,27 @@ export function createSessionController({
     return groupMySessions(mySessionItems());
   }
 
-  function notifyMySessions() {
+  // 通道 2「mySessions」:我的球局頁(含封鎖清單與球友卡公開設定)。
+  store.subscribe("mySessions", (current) => {
     onMySessionsChange({
-      authenticated: Boolean(state.authSession),
-      blockedPlayers: [...state.blockedPlayers],
-      blockedPlayersError: state.blockedPlayersError,
-      blockedPlayersStatus: state.blockedPlayersStatus,
-      error: state.mySessionsError,
+      authenticated: Boolean(current.authSession),
+      blockedPlayers: [...current.blockedPlayers],
+      blockedPlayersError: current.blockedPlayersError,
+      blockedPlayersStatus: current.blockedPlayersStatus,
+      error: current.mySessionsError,
       groups: mySessionGroups(),
-      isPublic: profileIsPublic(state.profile),
-      status: state.mySessionsStatus,
-      viewGeneration: authEpoch,
+      isPublic: profileIsPublic(current.profile),
+      status: current.mySessionsStatus,
+      viewGeneration: current.authEpoch,
     });
+  });
+
+  function notifyMySessions() {
+    store.emit("mySessions");
   }
 
   function replaceMySessions(sessions) {
-    state.mySessions = Array.isArray(sessions) ? sessions : [];
-    state.mySessionRosters = new Map();
+    store.setState({ mySessions: Array.isArray(sessions) ? sessions : [], mySessionRosters: new Map() });
     mySessionsVersion += 1;
   }
 
@@ -663,7 +682,7 @@ export function createSessionController({
   }
 
   function hostSessionsNeedingRoster() {
-    return state.mySessions.filter(
+    return read().mySessions.filter(
       (session) =>
         String(session?.viewerRole) === "host" &&
         Boolean(session?.canCancel) &&
@@ -694,10 +713,12 @@ export function createSessionController({
       if (result.roster) rosters.set(sessionKey(result.sessionId), result.roster);
       else failed = true;
     }
-    state.mySessionRosters = rosters;
+    store.setState({ mySessionRosters: rosters });
     if (failed) {
-      state.mySessionsError = "待審核申請暫時無法載入，請重新整理後再試。";
-      state.mySessionsStatus = "error";
+      store.setState({
+        mySessionsError: "待審核申請暫時無法載入，請重新整理後再試。",
+        mySessionsStatus: "error",
+      });
     }
     notifyMySessions();
     return !failed;
@@ -713,20 +734,17 @@ export function createSessionController({
     if (!isCurrentAuthSnapshot(authSnapshot)) return false;
     if (typeof api?.loadMyPlayerBlocks !== "function") return true;
     const request = blockedPlayerGate.issue(() => isCurrentAuthSnapshot(authSnapshot));
-    state.blockedPlayersStatus = "loading";
-    state.blockedPlayersError = "";
+    store.setState({ blockedPlayersStatus: "loading", blockedPlayersError: "" });
     notifyMySessions();
     try {
       const rows = await api.loadMyPlayerBlocks();
       if (request.isStale()) return false;
-      state.blockedPlayers = Array.isArray(rows) ? rows : [];
-      state.blockedPlayersStatus = "ready";
+      store.setState({ blockedPlayers: Array.isArray(rows) ? rows : [], blockedPlayersStatus: "ready" });
       notifyMySessions();
       return true;
     } catch {
       if (request.isStale()) return false;
-      state.blockedPlayersError = "封鎖清單暫時無法載入。";
-      state.blockedPlayersStatus = "error";
+      store.setState({ blockedPlayersError: "封鎖清單暫時無法載入。", blockedPlayersStatus: "error" });
       notifyMySessions();
       return false;
     }
@@ -738,7 +756,7 @@ export function createSessionController({
     if (!isCurrentAuthSnapshot(authSnapshot) || !Number.isSafeInteger(normalizedProfileId) || normalizedProfileId <= 0) {
       throw new Error("封鎖清單已更新，請重新整理後再試。");
     }
-    if (!state.blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)) {
+    if (!read().blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)) {
       throw new Error("封鎖清單已更新，請重新整理後再試。");
     }
     if (typeof api?.setPlayerBlock !== "function") throw new Error("目前無法更新封鎖清單。");
@@ -762,9 +780,9 @@ export function createSessionController({
     if (isSessionFull(session)) {
       return { label: "已額滿", disabled: true, kind: "full" };
     }
-    const viewerNtrp = Number(state.profile?.ntrpValue);
-    const hasViewerNtrp = state.profile?.ntrpValue != null && Number.isFinite(viewerNtrp);
-    if (state.authSession && !hasViewerNtrp && state.profile?.ntrp === false) {
+    const viewerNtrp = Number(read().profile?.ntrpValue);
+    const hasViewerNtrp = read().profile?.ntrpValue != null && Number.isFinite(viewerNtrp);
+    if (read().authSession && !hasViewerNtrp && read().profile?.ntrp === false) {
       return {
         label: "申請加入",
         note: "尚未填寫程度；補填 NTRP 可先確認是否符合球局範圍，仍可直接送出申請。",
@@ -792,18 +810,18 @@ export function createSessionController({
   }
 
   function captureAuthSnapshot() {
-    return { epoch: authEpoch, identity: sessionIdentity(state.authSession) };
+    return { epoch: read().authEpoch, identity: sessionIdentity(read().authSession) };
   }
 
   function isCurrentAuthSnapshot(snapshot) {
     return (
       Boolean(snapshot?.identity) &&
-      snapshot.epoch === authEpoch &&
-      sessionIdentity(state.authSession) === snapshot.identity
+      snapshot.epoch === read().authEpoch &&
+      sessionIdentity(read().authSession) === snapshot.identity
     );
   }
 
-  function lifecycleActionKey(sessionId, identity = sessionIdentity(state.authSession)) {
+  function lifecycleActionKey(sessionId, identity = sessionIdentity(read().authSession)) {
     if (!identity) return null;
     return JSON.stringify([String(identity), String(sessionId)]);
   }
@@ -825,24 +843,24 @@ export function createSessionController({
     return Boolean(key && inFlightLifecycleActions.has(key));
   }
 
-  async function reloadParticipation(epoch = authEpoch, identity = sessionIdentity(state.authSession)) {
-    if (!state.authSession || !identity || typeof api?.loadMySessions !== "function") return false;
+  async function reloadParticipation(epoch = read().authEpoch, identity = sessionIdentity(read().authSession)) {
+    if (!read().authSession || !identity || typeof api?.loadMySessions !== "function") return false;
     const request = participationGate.issue(
-      () => epoch === authEpoch && Boolean(state.authSession) && sessionIdentity(state.authSession) === identity
+      () => epoch === read().authEpoch && Boolean(read().authSession) && sessionIdentity(read().authSession) === identity
     );
-    state.mySessionsStatus = "loading";
+    store.setState({ mySessionsStatus: "loading" });
     notifyMySessions();
     try {
       const sessions = await api.loadMySessions();
       if (request.isStale()) return false;
       replaceMySessions(sessions);
-      state.mySessionsError = "";
+      store.setState({ mySessionsError: "" });
       // Publish the cleared private cache before awaiting the roster read so
       // an old roster never survives in the rendered destination.
       notifyMySessions();
       const rosterReady = await hydrateMySessionRosters({ epoch, identity });
       if (!rosterReady || request.isStale()) return false;
-      state.mySessionsStatus = "ready";
+      store.setState({ mySessionsStatus: "ready" });
       reconcileActiveDetailParticipation();
       reconcileActiveChatParticipation();
       notifyMySessions();
@@ -852,8 +870,7 @@ export function createSessionController({
       // A retryable read failure must not turn a known private list into an
       // empty state. Keep the last authoritative rows and surface an error to
       // the My Sessions page instead.
-      state.mySessionsError = "我的球局暫時無法載入。";
-      state.mySessionsStatus = "error";
+      store.setState({ mySessionsError: "我的球局暫時無法載入。", mySessionsStatus: "error" });
       notifyMySessions();
       return false;
     }
@@ -869,23 +886,19 @@ export function createSessionController({
     playerGate.invalidate();
     const options = { reason: closeReason, restoreFocus: false };
     transitionSurfaces("clearPlayerLayer", options);
-    if (turnOff) state.playerLayerOn = false;
-    state.players = [];
-    state.playerLayerStatus = "idle";
-    state.playerLayerMessage = "";
+    if (turnOff) store.setState({ playerLayerOn: false });
+    store.setState({ players: [], playerLayerStatus: "idle", playerLayerMessage: "" });
   }
 
-  async function loadPlayers(bounds = state.bounds) {
-    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "ntrp")) return false;
+  async function loadPlayers(bounds = read().bounds) {
+    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profile, "ntrp")) return false;
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const authSnapshot = captureAuthSnapshot();
     const request = playerGate.issue(
-      () => state.playerLayerOn && profileMeetsGate(state.profile, "ntrp") && isCurrentAuthSnapshot(authSnapshot)
+      () => read().playerLayerOn && profileMeetsGate(read().profile, "ntrp") && isCurrentAuthSnapshot(authSnapshot)
     );
     transitionSurfaces("clearPlayerLayer", { reason: "player-refresh", restoreFocus: false });
-    state.players = [];
-    state.playerLayerStatus = "loading";
-    state.playerLayerMessage = "正在載入在線球友…";
+    store.setState({ players: [], playerLayerStatus: "loading", playerLayerMessage: "正在載入在線球友…" });
     publish();
     try {
       const presence =
@@ -893,16 +906,16 @@ export function createSessionController({
           ? await api.loadPlayerPresenceDirectory({ bounds: nextBounds })
           : [];
       if (request.isStale()) return false;
-      state.players = (Array.isArray(presence) ? presence : []).map((player) => ({ ...player, isPresent: true }));
-      state.playerLayerStatus = "ready";
-      state.playerLayerMessage = "";
+      store.setState({
+        players: (Array.isArray(presence) ? presence : []).map((player) => ({ ...player, isPresent: true })),
+        playerLayerStatus: "ready",
+        playerLayerMessage: "",
+      });
       publish();
       return true;
     } catch {
       if (request.isStale()) return false;
-      state.players = [];
-      state.playerLayerStatus = "error";
-      state.playerLayerMessage = "在線資料暫時無法載入。";
+      store.setState({ players: [], playerLayerStatus: "error", playerLayerMessage: "在線資料暫時無法載入。" });
       publish();
       return false;
     }
@@ -954,7 +967,7 @@ export function createSessionController({
   }
 
   async function loadPlayerDirectoryList() {
-    if (!state.authSession || !profileMeetsGate(state.profile, "directory")) return false;
+    if (!read().authSession || !profileMeetsGate(read().profile, "directory")) return false;
     const authSnapshot = captureAuthSnapshot();
     transitionSurfaces("openPlayerDirectory");
     let directory = null;
@@ -969,7 +982,7 @@ export function createSessionController({
     const request = playerDirectoryGate.issue(
       () =>
         surfaceRegistry.is("playerDirectory", directory) &&
-        profileMeetsGate(state.profile, "directory") &&
+        profileMeetsGate(read().profile, "directory") &&
         isCurrentAuthSnapshot(authSnapshot)
     );
     directory?.setDirectory?.({ players: [], status: "loading" });
@@ -989,37 +1002,31 @@ export function createSessionController({
   }
 
   function openPlayerDirectory() {
-    if (!state.authSession || !profileIsReady(state.profile, "directory") || !profileMeetsGate(state.profile, "directory")) {
+    if (!read().authSession || !profileIsReady(read().profile, "directory") || !profileMeetsGate(read().profile, "directory")) {
       return requireSessionAction({ action: "directory" });
     }
     return loadPlayerDirectoryList();
   }
 
-  async function loadDiscovery(bounds = state.bounds) {
+  async function loadDiscovery(bounds = read().bounds) {
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const request = discoveryGate.issue();
     // A court drawer is a snapshot of the prior viewport. Remove it before
     // clearing that snapshot so its cards cannot target now-unresolvable rows.
     surfaceRegistry.close("courtDrawer");
-    state.bounds = nextBounds;
     // A viewport has changed, so rows from the previous one must not remain
     // visible while its authoritative response is still in flight.
-    state.sessions = [];
-    state.discoveryStatus = "loading";
-    state.discoveryMessage = "";
-    const playerRefresh = state.playerLayerOn ? loadPlayers(nextBounds) : null;
+    store.setState({ bounds: nextBounds, sessions: [], discoveryStatus: "loading", discoveryMessage: "" });
+    const playerRefresh = read().playerLayerOn ? loadPlayers(nextBounds) : null;
     publish();
     try {
       const sessions = await api.loadSessionDiscovery({ bounds: nextBounds });
       if (request.isStale()) return false;
-      state.sessions = Array.isArray(sessions) ? sessions : [];
-      state.discoveryStatus = "ready";
+      store.setState({ sessions: Array.isArray(sessions) ? sessions : [], discoveryStatus: "ready" });
       reconcileActiveDetail(nextBounds);
     } catch {
       if (request.isStale()) return;
-      state.sessions = [];
-      state.discoveryStatus = "error";
-      state.discoveryMessage = "球局資料暫時無法載入。";
+      store.setState({ sessions: [], discoveryStatus: "error", discoveryMessage: "球局資料暫時無法載入。" });
       // Keeping a stale action open after authority could not be refreshed is
       // less safe than asking the user to reopen it after a successful retry.
       surfaceRegistry.close("detail");
@@ -1036,7 +1043,7 @@ export function createSessionController({
    *  (與深連結 sheet 被收掉是同一類 rug-pull),等 surface 關閉後下一 tick 再補。
    *  失敗靜默:保留現有畫面,由下一次正常載入訂正。 */
   function discoveryPollIsActive() {
-    if (state.discoveryStatus === "loading") return false;
+    if (read().discoveryStatus === "loading") return false;
     if (
       surfaceRegistry.get("detail") ||
       surfaceRegistry.get("courtDrawer") ||
@@ -1054,11 +1061,9 @@ export function createSessionController({
   async function quietRefreshDiscovery() {
     const request = discoveryGate.issue();
     try {
-      const sessions = await api.loadSessionDiscovery({ bounds: state.bounds });
+      const sessions = await api.loadSessionDiscovery({ bounds: read().bounds });
       if (request.isStale()) return false;
-      state.sessions = Array.isArray(sessions) ? sessions : [];
-      state.discoveryStatus = "ready";
-      state.discoveryMessage = "";
+      store.setState({ sessions: Array.isArray(sessions) ? sessions : [], discoveryStatus: "ready", discoveryMessage: "" });
       publish();
       return true;
     } catch {
@@ -1066,39 +1071,49 @@ export function createSessionController({
     }
   }
 
+  // 通道 3「courts」:球場目錄鏡射給正開著的表單 surface。這是唯一一個語意上是
+  // 「狀態鏡射」而非「surface 專屬命令」的把手直呼群組,所以收斂成通道;其餘直呼
+  // (setJoinPreview/setDirectory/setState/setArchived/setTerminal/
+  // setInvitableSessions)都是命令或 surface 私有資料,收斂會改變派送時機,維持原樣。
+  store.subscribe("courts", (current) => {
+    surfaceRegistry.get("createSession")?.setCourts?.(current.courts, { ready: current.courtsReady });
+    surfaceRegistry.get("decisionSession")?.setCourts?.(current.courts, { ready: current.courtsReady });
+    surfaceRegistry.get("editSession")?.setCourts?.(current.courts, { ready: current.courtsReady });
+    surfaceRegistry.get("profilePrompt")?.setCourts?.(current.courts, { ready: current.courtsReady });
+  });
+
   function setCourts(courts, { ready = true } = {}) {
-    state.courts = Array.isArray(courts) ? courts : [];
-    state.courtsReady = Boolean(ready);
-    surfaceRegistry.get("createSession")?.setCourts?.(state.courts, { ready: state.courtsReady });
-    surfaceRegistry.get("decisionSession")?.setCourts?.(state.courts, { ready: state.courtsReady });
-    surfaceRegistry.get("editSession")?.setCourts?.(state.courts, { ready: state.courtsReady });
-    surfaceRegistry.get("profilePrompt")?.setCourts?.(state.courts, { ready: state.courtsReady });
+    store.setState({ courts: Array.isArray(courts) ? courts : [], courtsReady: Boolean(ready) });
+    store.emit("courts");
     publish();
   }
 
   function setDrawerState(value) {
     if (value !== "collapsed" && value !== "open") return;
-    state.drawerState = value;
+    store.setState({ drawerState: value });
     publish();
   }
 
   function setFilter(key, value) {
+    // filters 物件維持同一個引用(HEAD 就是就地改欄位),換掉會改變 render payload
+    // 的 filters identity;改完仍走 setState 讓寫入留在 store 通道上。
+    const filters = read().filters;
     if (DEFAULT_FILTER_STATE[key] instanceof Set) {
-      state.filters[key] = value instanceof Set ? new Set(value) : new Set(value ?? []);
+      filters[key] = value instanceof Set ? new Set(value) : new Set(value ?? []);
     }
-    else state.filters[key] = value;
+    else filters[key] = value;
+    store.setState({ filters });
     publish();
   }
 
   function resetFilters() {
-    state.filters = cloneFilters();
+    store.setState({ filters: cloneFilters() });
     publish();
   }
 
   function setMapUnavailable() {
-    state.mapUnavailable = true;
     // 地圖不可用時自動展開抽屜(v2 兩態:open 即非 modal,頁面殼維持可互動)。
-    state.drawerState = "open";
+    store.setState({ mapUnavailable: true, drawerState: "open" });
     publish();
   }
 
@@ -1147,7 +1162,7 @@ export function createSessionController({
 
   function attachMap(nextMap) {
     map = nextMap;
-    state.mapUnavailable = false;
+    store.setState({ mapUnavailable: false });
     mapTools.subscribeToMapIdle?.(map, () => {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
@@ -1159,7 +1174,7 @@ export function createSessionController({
     // A location chosen before Maps was ready remains controller-only state.
     // Subscribe first so both synchronous fakes and Google's later idle event
     // consume the same explicit-refresh suppression.
-    if (state.userLocation) refreshLocationViewport(state.userLocation);
+    if (read().userLocation) refreshLocationViewport(read().userLocation);
     else publish();
   }
 
@@ -1179,12 +1194,12 @@ export function createSessionController({
     // 條件用。刻意只看 viewerRole,不像 hostCanManage 那樣還要求 canCancel——
     // 一場自己主揪但目前不可管理的球局仍然「是我主揪的」。
     const isMine = String(participation?.viewerRole).toLowerCase() === "host";
-    const showJoinPreview = Boolean(state.authSession);
+    const showJoinPreview = Boolean(read().authSession);
     const previewAuthSnapshot = showJoinPreview ? captureAuthSnapshot() : null;
     let detail = null;
     detail = openSession(session, {
       action,
-      courts: state.courts,
+      courts: read().courts,
       canChat,
       canDecide,
       canEdit,
@@ -1196,7 +1211,7 @@ export function createSessionController({
       onChat: () => openSessionChat(session.sessionId),
       onPrimary: () => startPrimaryAction(session, detail),
       onConfirmJoin: () => requestJoin(session, detail, surfaceRegistry.meta("detail", "confirmingAuth")),
-      canReport: Boolean(state.authSession && profileIsReady(state.profile)),
+      canReport: Boolean(read().authSession && profileIsReady(read().profile)),
       onReport: () => openSessionReport(session.sessionId),
       onWithdraw: () => withdraw(session, detail),
       onClose: ({ reason = "dismiss" } = {}) => {
@@ -1222,8 +1237,8 @@ export function createSessionController({
 
   function openSessionById(sessionId) {
     const session =
-      state.sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
-      state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
+      read().sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
+      read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
     return openSessionDetail(session);
   }
 
@@ -1385,7 +1400,7 @@ export function createSessionController({
     let context = null;
     const sheet = openChat(session, {
       canWithdraw: Boolean(session.canWithdraw),
-      courts: state.courts,
+      courts: read().courts,
       onBlock: (profileId) => blockChatSender(context, profileId),
       onClose: () => surfaceRegistry.release("chat", context),
       onPost: (body) => postActiveChatMessage(context, body),
@@ -1419,12 +1434,12 @@ export function createSessionController({
   function openCourt(court, onlySessions = null) {
     transitionSurfaces("openCourt");
     const sessions = onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
-    const drawer = openCourtDrawer(court, sessions, { courts: state.courts, onOpenSession: openSessionById });
+    const drawer = openCourtDrawer(court, sessions, { courts: read().courts, onOpenSession: openSessionById });
     surfaceRegistry.set("courtDrawer", drawer?.close ? drawer : null);
   }
 
   function invitableSessions(now = Date.now()) {
-    return state.mySessions
+    return read().mySessions
       .filter(
         (session) =>
           String(session?.viewerRole).toLowerCase() === "host" &&
@@ -1436,9 +1451,9 @@ export function createSessionController({
 
   function openPlayer(player, { gateLevel = "ntrp", requiresLayer = true } = {}) {
     if (
-      (requiresLayer && !state.playerLayerOn) ||
-      !state.authSession ||
-      !profileMeetsGate(state.profile, gateLevel)
+      (requiresLayer && !read().playerLayerOn) ||
+      !read().authSession ||
+      !profileMeetsGate(read().profile, gateLevel)
     ) {
       return null;
     }
@@ -1448,13 +1463,13 @@ export function createSessionController({
     const request = playerCardGate.capture(
       () =>
         surfaceRegistry.is("playerCard", card) &&
-        (!requiresLayer || state.playerLayerOn) &&
-        profileMeetsGate(state.profile, gateLevel) &&
-        profileMeetsGate(state.profile, "ntrp") &&
+        (!requiresLayer || read().playerLayerOn) &&
+        profileMeetsGate(read().profile, gateLevel) &&
+        profileMeetsGate(read().profile, "ntrp") &&
         isCurrentAuthSnapshot(openedAuth)
     );
     card = openPlayerCard(player, {
-      courts: state.courts,
+      courts: read().courts,
       myInvitableSessions: invitableSessions(),
       onClose: () => {
         surfaceRegistry.release("playerCard", card);
@@ -1496,8 +1511,8 @@ export function createSessionController({
   }
 
   function openPlayerCourt(court, onlyPlayers = null) {
-    if (!state.playerLayerOn || !state.authSession || !profileMeetsGate(state.profile, "ntrp")) return null;
-    const players = onlyPlayers ?? state.players.filter((player) => String(player.courtId) === String(court.id));
+    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profile, "ntrp")) return null;
+    const players = onlyPlayers ?? read().players.filter((player) => String(player.courtId) === String(court.id));
     transitionSurfaces("openPlayerCourt", { restoreFocus: false });
     let drawer = null;
     drawer = openCourtPlayersDrawer(court, players, {
@@ -1516,11 +1531,11 @@ export function createSessionController({
     );
   }
 
-  function reconcileActiveDetail(bounds = state.bounds) {
+  function reconcileActiveDetail(bounds = read().bounds) {
     const activeDetail = surfaceRegistry.get("detail");
     const activeDetailSession = surfaceRegistry.meta("detail", "session");
     if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
-    const freshSession = state.sessions.find((entry) => String(entry.sessionId) === String(activeDetailSession.sessionId));
+    const freshSession = read().sessions.find((entry) => String(entry.sessionId) === String(activeDetailSession.sessionId));
     // A viewport result may omit a still-valid session simply because it is
     // now off-screen. Only close when this authoritative response actually
     // includes the detail session and its rendered fields have changed.
@@ -1588,7 +1603,7 @@ export function createSessionController({
     const options = { reason: "stale-intent", restoreFocus: false };
     surfaceRegistry.close("detail", options);
     // auto-expand 映射 v2 的 open(非 modal)。
-    state.drawerState = "open";
+    store.setState({ drawerState: "open" });
     publish();
     toast(message);
   }
@@ -1616,8 +1631,8 @@ export function createSessionController({
     if (surfaceRegistry.get("profilePrompt")) return surfaceRegistry.get("profilePrompt");
     let sheet = null;
     sheet = promptProfile({
-      courts: state.courts,
-      courtsReady: state.courtsReady,
+      courts: read().courts,
+      courtsReady: read().courtsReady,
       intent,
       onClose: ({ reason = "dismiss", saved = false } = {}) => {
         surfaceRegistry.release("profilePrompt", sheet);
@@ -1631,7 +1646,7 @@ export function createSessionController({
   }
 
   function requireReadyProfile(level = null, { silentLoading = false } = {}) {
-    const readiness = profileReadiness(state.profile, level);
+    const readiness = profileReadiness(read().profile, level);
     if (readiness.state === "ready") return true;
     if (!(silentLoading && readiness.state === "loading")) toast(profileUnavailableMessage(readiness));
     return false;
@@ -1639,7 +1654,7 @@ export function createSessionController({
 
   function requireSessionAction(intent, { detail = null, session = null } = {}) {
     const savedIntent = saveIntent(intent);
-    if (!state.authSession) {
+    if (!read().authSession) {
       openLogin({
         action: intent?.action ?? "",
         onClose: ({ reason = "dismiss" } = {}) => {
@@ -1650,14 +1665,14 @@ export function createSessionController({
     }
     const requiredGate = profileGateForIntent(savedIntent);
     if (!requireReadyProfile(requiredGate)) return;
-    if (requiredGate && !profileMeetsGate(state.profile, requiredGate)) {
+    if (requiredGate && !profileMeetsGate(read().profile, requiredGate)) {
       openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
       return;
     }
     if (savedIntent.action === "players") {
       clearIntent(savedIntent);
-      state.playerLayerOn = true;
-      return loadPlayers(state.bounds);
+      store.setState({ playerLayerOn: true });
+      return loadPlayers(read().bounds);
     }
     if (savedIntent.action === "directory") {
       clearIntent(savedIntent);
@@ -1683,7 +1698,7 @@ export function createSessionController({
   async function refreshAuthoritativeState(authSnapshot) {
     const [participationReady, discoveryReady] = await Promise.all([
       reloadParticipation(authSnapshot?.epoch, authSnapshot?.identity),
-      loadDiscovery(state.bounds),
+      loadDiscovery(read().bounds),
     ]);
     if (authSnapshot && !isCurrentAuthSnapshot(authSnapshot)) return false;
     publish();
@@ -1696,7 +1711,7 @@ export function createSessionController({
       toast("登入狀態已變更，請重新開啟球局。");
       return { joinError: "登入狀態已變更，請重新開啟球局。" };
     }
-    if (!profileMeetsGate(state.profile, "nickname")) {
+    if (!profileMeetsGate(read().profile, "nickname")) {
       surfaceRegistry.close("detail", undefined, detail);
       requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
       return { joinError: "請先填寫公開暱稱。" };
@@ -1731,7 +1746,7 @@ export function createSessionController({
       }
       if (surfaceRegistry.is("detail", detail)) {
         const freshSession =
-          state.sessions.find((entry) => String(entry.sessionId) === String(session.sessionId)) ?? session;
+          read().sessions.find((entry) => String(entry.sessionId) === String(session.sessionId)) ?? session;
         surfaceRegistry.update("detail", {
           actionKey: actionKey(actionFor(freshSession)),
           session: freshSession,
@@ -1788,14 +1803,14 @@ export function createSessionController({
   }
 
   function mySessionForAction(sessionId) {
-    const session = state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
+    const session = read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
     if (!session) throw new Error("這個球局已更新，請重新整理後再試。");
     return session;
   }
 
   function requireMySessionAction(sessionId, predicate) {
     const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profile)) {
       throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
     }
     const session = mySessionForAction(sessionId);
@@ -1834,7 +1849,7 @@ export function createSessionController({
       sessionId,
       (candidate) => String(candidate.viewerRole) === "host" && Boolean(candidate.canCancel)
     );
-    const participant = (state.mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
+    const participant = (read().mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
       (candidate) =>
         String(candidate.participantId) === String(participantId) && candidate.role === "guest" && candidate.status === "requested"
     );
@@ -1936,8 +1951,8 @@ export function createSessionController({
     let sheet = null;
     const decisionSummary = isUndecidedCandidate(summary) ? summary : null;
     sheet = openDecideSession(decisionSummary, {
-      courts: state.courts,
-      courtsReady: state.courtsReady,
+      courts: read().courts,
+      courtsReady: read().courtsReady,
       onClose: () => {
         surfaceRegistry.release("decisionSession", sheet);
       },
@@ -1976,8 +1991,8 @@ export function createSessionController({
     transitionSurfaces("openEdit");
     let sheet = null;
     sheet = openEditSession(session, {
-      courts: state.courts,
-      courtsReady: state.courtsReady,
+      courts: read().courts,
+      courtsReady: read().courtsReady,
       onClose: () => {
         surfaceRegistry.release("editSession", sheet);
       },
@@ -2000,21 +2015,21 @@ export function createSessionController({
     const authSnapshot = captureAuthSnapshot();
     if (
       !isCurrentAuthSnapshot(authSnapshot) ||
-      !profileIsReady(state.profile) ||
-      !profileMeetsGate(state.profile, "directory")
+      !profileIsReady(read().profile) ||
+      !profileMeetsGate(read().profile, "directory")
     ) {
       throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
     }
     if (typeof api?.setPlayerVisibility !== "function") throw new Error("目前無法更新球友卡設定。");
 
-    const nextVisibility = !profileIsPublic(state.profile);
+    const nextVisibility = !profileIsPublic(read().profile);
     await api.setPlayerVisibility(nextVisibility);
     if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
 
     // The RPC is the authoritative write. Publish its committed value before
     // the secondary profile read so My Sessions does not revert to the old
     // consent setting when reconciliation is slow or unavailable.
-    state.profile = { ...state.profile, isPublic: nextVisibility };
+    store.setState({ profile: { ...read().profile, isPublic: nextVisibility } });
     notifyMySessions();
 
     let reloaded = false;
@@ -2030,9 +2045,9 @@ export function createSessionController({
 
   function togglePlayerVisibility() {
     if (
-      !state.authSession ||
-      !profileIsReady(state.profile) ||
-      !profileMeetsGate(state.profile, "directory")
+      !read().authSession ||
+      !profileIsReady(read().profile) ||
+      !profileMeetsGate(read().profile, "directory")
     ) {
       return requireSessionAction({ action: "visibility" });
     }
@@ -2041,7 +2056,7 @@ export function createSessionController({
 
   function requireReportAccess() {
     const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profile)) {
       throw new Error("請先登入後再檢舉。");
     }
     if (typeof api?.createReport !== "function") throw new Error("目前無法送出檢舉。");
@@ -2059,7 +2074,7 @@ export function createSessionController({
       onSubmit: async (reason) => {
         const normalizedReason = String(reason ?? "").trim();
         if (!normalizedReason) throw new Error("請選擇檢舉原因。");
-        if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(state.profile)) {
+        if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profile)) {
           throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
         }
         const reportInput = { reportedProfileId, reason: normalizedReason, sessionId };
@@ -2076,8 +2091,8 @@ export function createSessionController({
 
   function openSessionReport(sessionId) {
     const session =
-      state.sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
-      state.mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
+      read().sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
+      read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
     if (!session) throw new Error("這個球局已更新，請重新整理後再試。");
     return openReportForTarget({
       sessionId: session.sessionId,
@@ -2087,7 +2102,7 @@ export function createSessionController({
 
   function openRosterParticipantReport(sessionId, profileId) {
     const session = mySessionForAction(sessionId);
-    const participant = (state.mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
+    const participant = (read().mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
       (candidate) => String(candidate.profileId) === String(profileId)
     );
     if (!participant) throw new Error("申請者資料已更新，請重新整理後再試。");
@@ -2107,7 +2122,7 @@ export function createSessionController({
   // 收斂,回報標注。
   async function submitCreateSession(input, openedAuthSnapshot = captureAuthSnapshot()) {
     const authSnapshot = openedAuthSnapshot;
-    if (!isCurrentAuthSnapshot(authSnapshot) || !profileMeetsGate(state.profile, "ntrp")) {
+    if (!isCurrentAuthSnapshot(authSnapshot) || !profileMeetsGate(read().profile, "ntrp")) {
       throw new Error("登入或個人檔案狀態已變更，請重新開啟表單。");
     }
     try {
@@ -2117,7 +2132,7 @@ export function createSessionController({
       }
       clearIntent({ action: "create" });
       await Promise.all([
-        loadDiscovery(state.bounds),
+        loadDiscovery(read().bounds),
         reloadParticipation(authSnapshot.epoch, authSnapshot.identity),
       ]);
       if (!isCurrentAuthSnapshot(authSnapshot)) {
@@ -2138,8 +2153,8 @@ export function createSessionController({
     const openedAuthSnapshot = captureAuthSnapshot();
     let sheet = null;
     sheet = openCreateSession({
-      courts: state.courts,
-      courtsReady: state.courtsReady,
+      courts: read().courts,
+      courtsReady: read().courtsReady,
       onClose: ({ reason = "dismiss" } = {}) => {
         surfaceRegistry.release("createSession", sheet);
         if (reason === "dismiss") clearIntent(intent);
@@ -2169,7 +2184,7 @@ export function createSessionController({
 
       if (intent.action === "create") {
         if (!requireReadyProfile("ntrp", { silentLoading: true })) return false;
-        if (!profileMeetsGate(state.profile, "ntrp")) {
+        if (!profileMeetsGate(read().profile, "ntrp")) {
           openProfileForIntent(intent);
           return true;
         }
@@ -2179,18 +2194,18 @@ export function createSessionController({
 
       if (intent.action === "players") {
         if (!requireReadyProfile("ntrp")) return false;
-        if (!profileMeetsGate(state.profile, "ntrp")) {
+        if (!profileMeetsGate(read().profile, "ntrp")) {
           openProfileForIntent(intent);
           return true;
         }
         clearIntent(intent);
-        state.playerLayerOn = true;
-        return loadPlayers(state.bounds);
+        store.setState({ playerLayerOn: true });
+        return loadPlayers(read().bounds);
       }
 
       if (intent.action === "directory") {
         if (!requireReadyProfile("directory")) return false;
-        if (!profileMeetsGate(state.profile, "directory")) {
+        if (!profileMeetsGate(read().profile, "directory")) {
           openProfileForIntent(intent);
           return true;
         }
@@ -2200,7 +2215,7 @@ export function createSessionController({
 
       if (intent.action === "visibility") {
         if (!requireReadyProfile("directory")) return false;
-        if (!profileMeetsGate(state.profile, "directory")) {
+        if (!profileMeetsGate(read().profile, "directory")) {
           openProfileForIntent(intent);
           return true;
         }
@@ -2228,7 +2243,7 @@ export function createSessionController({
         return false;
       }
       if (!requireReadyProfile("nickname", { silentLoading: true })) return false;
-      if (!profileMeetsGate(state.profile, "nickname")) {
+      if (!profileMeetsGate(read().profile, "nickname")) {
         openProfileForIntent(intent, { returnSession: target });
         return true;
       }
@@ -2256,16 +2271,15 @@ export function createSessionController({
   }
 
   function requestCurrentLocation() {
-    if (state.locationBlocked) {
-      state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+    if (read().locationBlocked) {
+      store.setState({ locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
       publish();
       return;
     }
     const request = locationGate.issue();
     const geolocation = globalThis.navigator?.geolocation;
     if (!geolocation?.getCurrentPosition) {
-      state.locationBlocked = true;
-      state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+      store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
       publish();
       return;
     }
@@ -2276,28 +2290,23 @@ export function createSessionController({
           const lat = Number(coords?.latitude);
           const lng = Number(coords?.longitude);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            state.locationBlocked = true;
-            state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+            store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
             publish();
             return;
           }
-          state.userLocation = { lat, lng };
-          state.locationBlocked = false;
-          state.locationMessage = "";
+          store.setState({ userLocation: { lat, lng }, locationBlocked: false, locationMessage: "" });
           refreshLocationViewport({ lat, lng });
         },
         () => {
           if (request.isStale()) return;
-          state.locationBlocked = true;
-          state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+          store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
           publish();
         },
         { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }
       );
     } catch {
       if (request.isStale()) return;
-      state.locationBlocked = true;
-      state.locationMessage = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+      store.setState({ locationBlocked: true, locationMessage: "無法取得位置；你仍可移動地圖或依球場尋找球局。" });
       publish();
     }
   }
@@ -2307,12 +2316,12 @@ export function createSessionController({
   }
 
   function togglePlayerLayer() {
-    if (!state.playerLayerOn) {
-      if (!state.authSession || !profileIsReady(state.profile, "ntrp") || !profileMeetsGate(state.profile, "ntrp")) {
+    if (!read().playerLayerOn) {
+      if (!read().authSession || !profileIsReady(read().profile, "ntrp") || !profileMeetsGate(read().profile, "ntrp")) {
         return requireSessionAction({ action: "players" });
       }
-      state.playerLayerOn = true;
-      return loadPlayers(state.bounds);
+      store.setState({ playerLayerOn: true });
+      return loadPlayers(read().bounds);
     }
     clearPlayerLayer({ closeReason: "player-layer-off" });
     publish();
@@ -2321,14 +2330,14 @@ export function createSessionController({
 
   async function setAuthState(session, profile = null) {
     const identity = sessionIdentity(session);
-    const previousIdentity = sessionIdentity(state.authSession);
+    const previousIdentity = sessionIdentity(read().authSession);
     const identityChanged = previousIdentity !== identity;
     const signedOut = Boolean(previousIdentity) && !identity;
     const accountChanged = Boolean(previousIdentity) && Boolean(identity) && previousIdentity !== identity;
     const gateLevels = ["nickname", "ntrp", "directory"];
-    const previousGates = Object.fromEntries(gateLevels.map((level) => [level, profileMeetsGate(state.profile, level)]));
+    const previousGates = Object.fromEntries(gateLevels.map((level) => [level, profileMeetsGate(read().profile, level)]));
     const nextGates = Object.fromEntries(gateLevels.map((level) => [level, profileMeetsGate(profile, level)]));
-    const previousReadiness = profileReadiness(state.profile);
+    const previousReadiness = profileReadiness(read().profile);
     const nextReadiness = profileReadiness(profile);
     const gatesChanged = gateLevels.some((level) => previousGates[level] !== nextGates[level]);
     const nicknameWasLost = previousGates.nickname && !nextGates.nickname;
@@ -2336,8 +2345,8 @@ export function createSessionController({
     const directoryWasLost = previousGates.directory && !nextGates.directory;
     const readinessChanged =
       previousReadiness.state !== nextReadiness.state || previousReadiness.source !== nextReadiness.source;
-    if (identityChanged || gatesChanged || readinessChanged) authEpoch += 1;
-    const epoch = authEpoch;
+    if (identityChanged || gatesChanged || readinessChanged) store.setState({ authEpoch: read().authEpoch + 1 });
+    const epoch = read().authEpoch;
 
     if (signedOut || accountChanged) clearIntent();
     if (signedOut || accountChanged || ntrpWasLost) {
@@ -2365,16 +2374,17 @@ export function createSessionController({
       }
     }
 
-    state.authSession = session ?? null;
-    state.profile = profile ?? null;
+    store.setState({ authSession: session ?? null, profile: profile ?? null });
     if (identityChanged) {
       replaceMySessions([]);
       blockedPlayerGate.invalidate();
-      state.blockedPlayers = [];
-      state.blockedPlayersError = "";
-      state.blockedPlayersStatus = "idle";
-      state.mySessionsError = "";
-      state.mySessionsStatus = identity ? "loading" : "idle";
+      store.setState({
+        blockedPlayers: [],
+        blockedPlayersError: "",
+        blockedPlayersStatus: "idle",
+        mySessionsError: "",
+        mySessionsStatus: identity ? "loading" : "idle",
+      });
       // The private DOM may currently contain a roster. Push the
       // empty snapshot synchronously, including on plain sign-out, before any
       // optional authenticated reload can run.
@@ -2384,11 +2394,11 @@ export function createSessionController({
     reconcileActiveChatParticipation();
     publish();
     if (await reloadParticipation(epoch, identity)) publish();
-    if (epoch === authEpoch && isCurrentAuthSnapshot({ epoch, identity })) await resumePendingIntent();
+    if (epoch === read().authEpoch && isCurrentAuthSnapshot({ epoch, identity })) await resumePendingIntent();
   }
 
   function retryDiscovery() {
-    return loadDiscovery(state.bounds);
+    return loadDiscovery(read().bounds);
   }
 
   function expandBounds() {
@@ -2413,24 +2423,24 @@ export function createSessionController({
     clearPendingIntentIfUnchanged: (version) => (version === intentVersion ? clearIntent() : false),
     confirmMySessionAttendance,
     expandBounds,
-    getMySessions: () => [...state.mySessions],
+    getMySessions: () => [...read().mySessions],
     getMySessionGroups: () => mySessionGroups(),
     getMySessionState: () => ({
-      authenticated: Boolean(state.authSession),
-      blockedPlayers: [...state.blockedPlayers],
-      blockedPlayersError: state.blockedPlayersError,
-      blockedPlayersStatus: state.blockedPlayersStatus,
-      error: state.mySessionsError,
+      authenticated: Boolean(read().authSession),
+      blockedPlayers: [...read().blockedPlayers],
+      blockedPlayersError: read().blockedPlayersError,
+      blockedPlayersStatus: read().blockedPlayersStatus,
+      error: read().mySessionsError,
       groups: mySessionGroups(),
-      isPublic: profileIsPublic(state.profile),
-      status: state.mySessionsStatus,
-      viewGeneration: authEpoch,
+      isPublic: profileIsPublic(read().profile),
+      status: read().mySessionsStatus,
+      viewGeneration: read().authEpoch,
     }),
     getPlayerLayerState: () => ({
-      groups: state.playerLayerOn ? playerGroups() : [],
-      message: state.playerLayerMessage,
-      on: state.playerLayerOn,
-      status: state.playerLayerStatus,
+      groups: read().playerLayerOn ? playerGroups() : [],
+      message: read().playerLayerMessage,
+      on: read().playerLayerOn,
+      status: read().playerLayerStatus,
     }),
     getVisibleSessions: visibleSessions,
     loadDiscovery,
