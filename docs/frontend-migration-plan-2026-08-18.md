@@ -242,7 +242,18 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   DB 資料累積**，guarded reset 後 6/6 綠。流程教訓入 memory：對照組實驗必控 DB 狀態變因；
   二分前先落 diff 備份（本次 checkout 失誤靠回報 SHA 重放恢復，byte 級一致）。
   回報 `docs/migration-reports/batch-8.4.md`（含驗收方註記 §17）。
-- 批 8.5：openDecideSessionSheet（:2698)——候選定案表單。
+- 批 8.5（**完成，2026-08-19**）：openDecideSessionSheet → `src/sheets/DecideSessionSheet.tsx`。
+  **雙 writer 分界模式確立**：React 只擁有球場按鈕區＋status；controls／error／terminal／
+  時間 input 以常數 prop 交付後由 legacy adapter＋runAsyncAction 維持 imperative 寫入
+  （read-back 逐 patch 路徑攻擊無可達覆蓋）。decide／setCourts／setTerminal 本體 token 級
+  零改；generation key 保 rerendered() 語意——實作 agent 的 probe 涵蓋宣稱經 read-back 證偽
+  （in-flight 快照咬不住），驗收方臨時探針紅綠實證有牙（穩定 key 行為反轉）。
+  流程升級：agent 自帶幾何指紋（19 案例×2 viewport）進 probe、probe 凍結 Date 防
+  「未提供時間→用現在」假紅。驗收：三發 canary、四 lens read-back、七站 gate 綠。
+  回報 `docs/migration-reports/batch-8.5.md`（含驗收方註記——由驗收方追加）。
+  **rider（併批 8.6）**：generation key「in-flight 刷新不還原 controls」語意補持久測試
+  （序列：click → setCourts → resolveDecide → 驗 disabled）。
+  觀察項（PM）：session===null 時 decide 時間欄位顯示當下時間（既有行為，未修）。
 - 批 8.6：openSessionChatSheet（:1569）——最大（feed＋輸入＋輪詢），壓軸。
 - 批 8.7（或併入 8.1 當 rider）：mountDialog 系 openWithdrawSessionConfirmation（:2094）＋
   openReportDialog（:2137）。
@@ -307,3 +318,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   PlayerAvatar 統一 rider 併批 8.4；批 8.4（profile completion sheet）派工單已發。
 - 2026-08-19：批 8.4 驗收通過並 commit（b054148）——avatar 單一來源收官；test-local flaky
   定因 DB 累積並 reset 收口；批 8.5（decide sheet）派工單已發。
+- 2026-08-19：批 8.5 驗收通過並 commit（0dc2cfc）——雙 writer 分界模式確立；generation key
+  有牙紅綠實證；**依 user 指示暫停派發，批 8.6（chat 壓軸）待 compact 後發單**。
