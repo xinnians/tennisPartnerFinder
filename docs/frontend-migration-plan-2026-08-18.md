@@ -196,9 +196,17 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
 剩餘 11＋1 個 innerHTML surface，全數沿 sheet 批固定模式（mountSheet 殼不動、React 只掛內容槽）。
 建議切批（小→大、相依同批；順序可由 user 調整）：
 
-- 批 8.1：openCourtSessionDrawer（:2867）＋openCourtPlayersDrawer（:2889）＋
-  openSessionUnavailableSheet（:2080）——三個小 surface；courtSessionDrawer 消費
-  sessionCardPresentation 後，legacy sessionCard() 字串版即可退役（單一來源收官）。
+- 批 8.1（**完成，2026-08-19**）：openCourtSessionDrawer＋openCourtPlayersDrawer＋
+  openSessionUnavailableSheet → `src/sheets/{CourtSessionSheet,CourtPlayersSheet,
+  SessionUnavailableSheet}.tsx`；共用 `src/components/SessionCard.tsx`（compact prop，
+  modifier class 只由 presentation 輸出），NearbySessionsDrawer 改用共用版 DOM 零變更；
+  sessionCard()／sessionTimeTileMarkup() 字串版退役。殼分界确立：`html: ""` 空殼＋factory 內
+  flushSync 掛內容，rAF 初焦時內容已在；close 鈕 onClick→mounted.close() 與 HEAD 的
+  [data-surface-close] listener 同 reason 預設（click event 解構取預設，等價論證入 read-back）。
+  驗收：幾何指紋（nearby 對批 8 存檔＋三 surface HEAD 對照）逐值全同、雙 canary、五 lens
+  read-back 僅一 CONCERN、七站 gate 綠。回報 `docs/migration-reports/batch-8.1.md`。
+  **rider（併批 8.2）**：CourtPlayersSheet.tsx:74 key fallback 用裸 index，與純數字 profileId
+  命名空間相交（實際不可達，僅 dev 警告面）——改複合 key 比照 CourtSessionSheet.tsx:44。
 - 批 8.2：openFilterSheet（:3038）——六 data-filter groups，e2e 覆蓋最密的 sheet。
 - 批 8.3：openPlayerDirectoryList（:2949）＋openPlayerCardSheet（:3218）——球友系相依
   （目錄開球友卡）。
@@ -258,3 +266,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   批 8（探索與附近球局抽屜）派工單已發。
 - 2026-08-19：批 8 驗收通過並 commit（4f60ad8）——**批 3–8 主線收官**，rider 死碼清除完成；
   剩餘 11＋1 個 sheet/dialog 盤點入批 8.x（8.1–8.7 建議切批），批 8.1 待拍板後發派工單。
+- 2026-08-19：批 8.1 驗收通過並 commit（7653324）——sessionCard 單一來源收官；players key
+  fallback 疵點轉 rider 併批 8.2；批 8.2（filter sheet）派工單已發。
