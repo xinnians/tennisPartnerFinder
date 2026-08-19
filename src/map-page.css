@@ -1,0 +1,232 @@
+/* ============================================================
+   地圖頁殼與頂部 overlay(topbar / 品牌 / 城市 chip / 地圖控制 / 球友名單列 / 工具列 chips / 程度 popover)
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 2 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   含 .session-primary/.session-secondary/.band-option 的全站按鈕基底(歷史位置在此,搬動會改變與後方覆寫的層疊關係)。
+   ============================================================ */
+
+/* 批 D4a:v2 頂部 overlay(dc L88-106)取代退場的 app-header——container 本身
+   pointer-events:none,子列(row1 品牌/城市/球友名單、row2 chips)各自
+   pointer-events:auto,讓地圖手勢仍可穿透 overlay 空白處。top padding 依 dc 註記
+   改 14px(本 repo 無瀏海安全區需求,不套用原稿 50px)。 */
+.map-topbar {
+  position: absolute;
+  z-index: var(--z-header);
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 14px 20px;
+  background: linear-gradient(var(--color-surface-page) 30%, rgba(250, 249, 243, 0.88) 62%, rgba(250, 249, 243, 0));
+  pointer-events: none;
+}
+
+.map-topbar__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 11px;
+  pointer-events: auto;
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-ink);
+  color: var(--color-surface-page);
+  box-shadow: 0 6px 16px rgba(18, 41, 28, 0.28);
+  text-decoration: none;
+}
+
+.app-brand__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  box-shadow: inset -3px -3px 0 rgba(18, 41, 28, 0.3);
+}
+
+.app-brand__name { font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 1.5px; }
+.app-brand__code { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; letter-spacing: 2.5px; color: #9db3a4; /* dc 深底非活躍慣例色,非 token 階 */ }
+
+.city-chip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.topbar-icon-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-ink);
+  transition: transform 0.1s;
+}
+.topbar-icon-button:active { transform: scale(0.92); }
+
+.session-primary,
+.session-secondary {
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+}
+
+/* 批 A-4 已將 .session-primary/.session-secondary 套用計分板按鈕契約(見下方與 279 行);
+   #map-data-status/.form-field__label-row 等處的 .session-secondary 覆寫仍留舊值,
+   非本任務 Files 範圍,見 task-4-report concerns。
+   fix round 1(驗收退回,實測抓到):.filters-reset 的 38px 在這裡被下方 216 行的
+   同選擇器覆寫(cascade 後者勝),真正生效的數字改在那裡處理;這裡只留
+   .band-option 用的 38px,不重複兩個互相打架的來源。 */
+.band-option {
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+}
+
+.session-primary { padding: 0 var(--space-4); background: var(--color-ink); color: var(--color-signal); }
+
+/* 登入 dialog 可能有 Google+LINE 兩顆 provider 按鈕;直排時保持一致間距。 */
+.auth-dialog [data-provider] { margin-top: var(--space-2); }
+.auth-dialog [data-provider] + [data-provider] { margin-left: var(--space-2); }
+
+.map-page {
+  position: relative;
+  min-width: 0;
+  height: 100dvh;
+  min-height: 560px;
+  overflow: hidden;
+  background: linear-gradient(140deg, var(--color-surface-page), var(--color-info-bg) 58%, var(--color-success-bg));
+}
+
+#map { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; min-width: 0; background: linear-gradient(140deg, var(--color-surface-page), var(--color-info-bg) 58%, var(--color-success-bg)); }
+
+.map-controls { display: contents; }
+/* 批 D4a:球友名單鈕(#player-directory-open)已移入頂列 row1;此容器只剩狀態文字,
+   位置從 chips 列下方重新起算(topbar 總高≈132px,見 .map-topbar 註記)。 */
+.player-layer-control { position: absolute; z-index: 6; top: 132px; left: clamp(12px, 3vw, 30px); display: grid; justify-items: start; gap: 5px; }
+
+/* 批 D3:右下控制直欄(dc L81-86):44px 白鈕 1.5px ink 框;
+   「顯示在線」開啟態 ink 反相 signal icon(dc L958)。定位在 peek 列上方。 */
+.map-zoom-controls { position: absolute; z-index: var(--z-map-controls); right: 14px; bottom: calc(88px + var(--bottom-navigation-offset)); display: flex; flex-direction: column; gap: 8px; }
+.map-zoom-controls button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1.5px solid var(--color-ink); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); color: var(--color-ink); font-family: var(--font-mono); font-weight: 600; font-size: 20px; line-height: 1; box-shadow: 0 4px 12px rgba(18, 41, 28, 0.16); transition: transform 0.1s; }
+.map-zoom-controls button:active { transform: scale(0.92); }
+#player-layer-toggle.is-active { background: var(--color-ink); color: var(--color-signal); }
+.player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: var(--color-ink); color: var(--color-surface-card); font-size: var(--text-sm); font-weight: 700; }
+
+.presence-settings { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-success-bg); }
+.presence-settings h2 { margin: 0; color: var(--color-ink); }
+.presence-settings .form-hint { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+.presence-settings__greeting { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-weight: 700; }
+.player-presence, .player-greeting { color: var(--color-success); font-weight: 700; }
+.player-directory-list { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+/* 批 D8:列改 dc §2 逐字結構——44px avatar+名/磚/在線·這是你徽章一行+副行+chevron
+  (原本是縱向堆疊四行純段落,汰換不是疊加,理由同 D4b 檔頭同款註記)。 */
+.player-directory-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: var(--space-3); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); color: var(--color-ink); text-align: left; transition: transform 0.12s; }
+.player-directory-row:hover,
+.player-directory-row:focus-visible { border-color: var(--color-court); background: var(--color-info-bg); }
+.player-directory-row:active { transform: scale(0.98); }
+.player-directory-row__body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.player-directory-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.player-directory-row__head strong { overflow-wrap: anywhere; font-size: 14.5px; font-weight: 700; }
+.player-directory-row__sub { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12px; }
+.player-directory-row__online,
+.player-directory-row__self { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 700; }
+.player-directory-row__online { background: var(--color-success-bg); color: var(--color-success); }
+.player-directory-row__self { background: var(--color-info-bg); color: var(--color-court); }
+.player-directory-row__chevron { flex: none; color: #9aa79b; /* dc 裝飾箭頭專用色(非文字,AA 豁免),同 .session-card__chevron */ font-size: 18px; line-height: 1; }
+
+/* 批 D4a:第二列 chips 容器(dc L100)——沿用既有 .map-toolbar class 名與行動斷點
+   order 慣例,但視覺改為透明、可橫向捲動的 chip 列(overflow-x:auto,隱藏捲軸),
+   不再是白色卡片容器。個別 chip 的通用視覺見下方 .chip 語彙(D1 既有);這裡只補
+   四種 chip 各自的形狀差異。 */
+.map-toolbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  pointer-events: auto;
+  scrollbar-width: none;
+}
+.map-toolbar::-webkit-scrollbar { display: none; }
+/* fix round 1(視覺實測):.chip 沒有 flex-shrink:0,窄視窗下 flex 容器會先讓
+   chip 文字換行、把「程度 4.0-5.0」擠成兩行,而不是觸發 overflow-x 捲動——
+   overflow-x:auto 只有在子項「不縮」時才有意義,兩者要成對出現。 */
+.map-toolbar > * { flex: none; white-space: nowrap; }
+
+.level-chip { gap: 6px; font-weight: 600; }
+.level-chip__value { font-family: var(--font-mono); font-weight: 600; }
+.level-chip__caret { flex: none; }
+
+.instant-chip { gap: 6px; }
+.instant-chip__dot { flex: none; width: 9px; height: 9px; border-radius: 3px; background: var(--color-signal); border: 1.5px solid var(--color-ink); }
+
+/* 篩選 chip(dc L106):永遠白底,不切換選中態;badge 才是「有 N 組條件」的唯一指示。 */
+.filter-chip { gap: 6px; }
+.filter-chip__badge { font-family: var(--font-mono); font-weight: 600; font-size: 11px; background: var(--color-ink); color: var(--color-signal); border-radius: var(--radius-sm); padding: 1px 5px; }
+
+/* fix round 1(驗收退回,實測抓到 390px 掃描 44×38,低於互動目標下限):38px 升 44px。 */
+.filters-reset { min-height: 44px; border: 0; background: transparent; color: var(--color-court); font-weight: 700; }
+
+/* 程度 popover(dc L109-117):錨在程度 chip 下方,qmPop 進場動畫。 */
+.level-popover {
+  position: absolute;
+  z-index: 7;
+  top: 132px;
+  left: clamp(12px, 3vw, 30px);
+  width: 200px;
+  padding: 7px;
+  border: 1.5px solid var(--color-ink);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  box-shadow: 0 14px 32px rgba(18, 41, 28, 0.22);
+  animation: qmPop 0.18s ease;
+}
+.level-popover p { margin: 0; padding: 6px 9px 7px; font-family: var(--font-display); font-weight: 600; font-size: 11.5px; letter-spacing: 2px; color: var(--color-text-secondary); }
+#band-options { display: grid; gap: var(--space-1); }
+/* .band-option 基底刻意輕量:popover 列(#band-options 作用域)與篩選 sheet 的
+   NTRP 程度 2 欄 grid(.filter-sheet-band-grid 作用域)視覺差異大,各自在下方
+   （sheet 版見 filter-sheet 區塊)用更高特異性覆寫。 */
+.band-option { display: block; width: 100%; border: 0; text-align: left; background: transparent; color: var(--color-ink); font-family: inherit; cursor: pointer; }
+#band-options .band-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 11px;
+  margin-bottom: 2px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: transform 0.1s;
+}
+#band-options .band-option:last-child { margin-bottom: 0; }
+#band-options .band-option:hover { background: var(--color-info-bg); }
+#band-options .band-option:active { transform: scale(0.97); }
+#band-options .band-option.is-active { background: var(--color-ink); color: var(--color-surface-card); font-weight: 600; }
+.band-option__check { flex: none; visibility: hidden; }
+#band-options .band-option.is-active .band-option__check { visibility: visible; }

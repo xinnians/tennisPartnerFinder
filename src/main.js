@@ -1,5 +1,22 @@
-import "./style.css";
-import "./session.css";
+/* 批 10 CSS 收整:src/session.css(1429 行)依既有實體邊界切成下列各檔,宣告順序逐行保存。
+   **這串 import 的次序就是層疊次序**(本專案未用 @layer,理由見
+   docs/migration-reports/batch-10.md §3):同特異性時後 import 的檔勝出,
+   調換次序會靜默改變視覺。新增樣式檔請先確認它該落在哪一段,再插進對應位置。
+   session.css 只剩「設計 token + 球局詳情 + 群組聊天」三塊,且必須留在該檔——
+   tests/contrast-tokens.test.js 以正則直讀該檔字面內容(見該檔檔頭)。 */
+import "./style.css"; /* 1 全域 reset/base */
+import "./map-page.css"; /* 2 地圖頁殼、topbar、工具列 chips、程度 popover */
+import "./discovery.css"; /* 3 附近球局 peek/抽屜、球局卡、badge、地圖狀態列 */
+import "./surfaces.css"; /* 4 .surface 基底、表單語彙、篩選 sheet */
+import "./sheet-shells.css"; /* 5 跨 sheet 共用殼(貼邊殼、全螢幕殼、拉把、註腳) */
+import "./navigation.css"; /* 6 底部導覽、徽章、visually-hidden */
+import "./pages.css"; /* 7 我的球局／訊息／我 三頁 */
+import "./session.css"; /* 8 設計 token + 球局詳情 sheet + 群組聊天(組合原因見該檔檔頭) */
+import "./create-session.css"; /* 9 開球局全螢幕流程與 toast */
+import "./responsive.css"; /* 10 700px／390px 斷點覆寫 */
+import "./vocabulary.css"; /* 11 D1 基礎語彙(time-tile／chip／toggle…) */
+import "./player-sheets.css"; /* 12 球友名單與球友卡 sheet */
+import "./motion.css"; /* 13 keyframes、按壓回饋、reduced-motion */
 
 if (import.meta.env.PROD) {
   void import("@vercel/analytics").then(({ inject }) => {

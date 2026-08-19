@@ -1,0 +1,31 @@
+/* ============================================================
+   動效原語:keyframes、按壓回饋 transition/:active、prefers-reduced-motion 全域降級
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 13 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   按壓回饋為 (0,1,0)/(0,2,0);#band-options .band-option:active (1,2,0) 與 .filter-sheet-band-grid .band-option:active (0,3,0) 靠特異性勝過本檔,順序無關。
+   ============================================================ */
+
+/* ---- 動效原語(dc L15-19 keyframes;時長與 easing 於使用處標注):
+        sheetUp .32/.34s ease-brand、fade .2s、pop .18s(popover)/.3s(成功頁)、
+        slide .28/.3s ease-brand、toast .22s。 ---- */
+@keyframes qmSheetUp { from { transform: translateY(103%); } to { transform: translateY(0); } }
+@keyframes qmFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qmPop { from { opacity: 0; transform: scale(0.92) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes qmSlide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes qmToast { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- 按壓回饋(dc style-active 對照表):鈕類 transform .1s、卡片類 .12s。
+        既有元件先接上;新畫面元件各自帶 :active(見上方各語彙)。 ---- */
+.session-primary, .session-secondary, .session-tertiary, .filter-chip, .band-option, .filters-reset { transition: transform 0.1s; }
+.session-primary:active, .session-secondary:active, .filter-chip:active, .band-option:active, .session-tertiary:active, .filters-reset:active { transform: scale(0.95); }
+.surface__close { transition: transform 0.1s; }
+.surface__close:active { transform: scale(0.92); }
+.session-card, .player-card { transition: transform 0.12s; }
+.session-card:active, .player-card:active { transform: scale(0.98); }
+
+/* ---- reduced-motion 全域降級(dc L23;涵蓋上方所有動畫與 transition) ---- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

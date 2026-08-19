@@ -1,0 +1,36 @@
+/* ============================================================
+   斷點覆寫:max-width 700px 與 390px
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 10 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   本檔規則多為 (0,1,0);同一元素若有 (0,2,0) 的 sheet 殼覆寫(如 .surface.filter-sheet),仍由特異性決勝,不因本檔位置較後而反轉。
+   ============================================================ */
+
+@media (max-width: 700px) {
+  .map-topbar { padding: 12px 12px 16px; }
+  .map-topbar__row { gap: 6px; }
+  .app-brand { min-height: 44px; }
+  #player-directory-open { min-width: 44px; min-height: 44px; }
+  /* chip 手機斷點的 44px 升級規則在下方「chips 語彙」段落之後(fix round 1:同
+     specificity 的 .chip 選取器,寫在 vocab 定義之前會被之後宣告的 .chip{height:36px}
+     依來源順序蓋掉,即使身在 @media 區塊內也一樣——media 只決定條件是否成立,
+     不影響同特異性時的層疊順序)。 */
+  /* topbar row2(chips)與 row1(品牌/城市/球友名單)高度都因 44px 升級而增加,
+     player-layer-control／level-popover 的錨點需要略微下移。 */
+  .player-layer-control { top: 144px; }
+  .level-popover { top: 144px; left: 10px; }
+  .surface { width: calc(100vw - 20px); max-height: 80dvh; padding: var(--space-4); }
+  .surface--sheet { right: 10px; bottom: 10px; }
+  .surface--dialog { top: 50%; }
+  .my-sessions-page,
+  .me-page { min-height: 100dvh; padding: var(--space-5) var(--space-3) calc(18px + var(--bottom-navigation-offset)); }
+  .my-sessions-shell__head h1 { font-size: var(--text-2xl); }
+}
+
+@media (max-width: 390px) {
+  /* fix round 1:dc 原稿 390px 就顯示台北市 chip;舊 .city-label 的隱藏規則不承襲。 */
+  .player-layer-status { max-width: 180px; }
+  .discovery-empty__actions > * { flex: 1 1 120px; }
+  .option-grid { grid-template-columns: 1fr; }
+}

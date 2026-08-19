@@ -1,0 +1,38 @@
+/* ============================================================
+   球友名單 sheet 與球友卡 sheet 的殼與內容
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 12 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   
+   ============================================================ */
+
+/* ============================================================
+   批 D8(v2 改版):球友名單 sheet(抽取規格 §2)+球友卡 sheet(§3)+在線球友釘(§4)。
+   兩個 sheet 都改真正貼邊 bottom sheet(取代舊版 .surface--sheet 右下浮卡),語彙
+   複用 D4a filter-sheet 的殼寫法(對稱 inset、qmSheetUp);名單 sheet 額外加
+   max-height 74%+內層捲動(dc §2 逐字),球友卡沿用 D4b session-detail-sheet 同款
+   「overflow-y:auto + 88dvh」可及性偏離(dc 原型無上限,小螢幕會裁切,理由同 D4b
+   檔頭註記,不重複)。
+   ============================================================ */
+/* 批 10 去重:兩個 sheet 的對稱 inset、貼邊圓角、陰影、拉把、名單 sheet 的 __head
+   與球友卡的 __footnote,都已與其他 sheet 併入 src/sheet-shells.css;球友卡 sheet
+   的殼與詳情 sheet 逐字相同,整條在該檔。以下只留各自的差異宣告與內容。 */
+.surface.player-directory-sheet {
+  top: auto;
+  max-height: 74dvh;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 26px;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.player-directory-sheet__sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12.5px; }
+.player-directory-sheet__count { font-family: var(--font-mono); font-weight: 500; }
+.player-directory-sheet__scroll { flex: 1; overflow-y: auto; padding: 2px 2px 4px; }
+
+.player-card-sheet__actions { display: flex; gap: 10px; margin-top: 16px; }
+.player-card-sheet__actions .session-secondary { flex: none; padding: 0 16px; min-height: 48px; }
+.player-card-sheet__actions .session-primary { flex: 1; min-height: 48px; }

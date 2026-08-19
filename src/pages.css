@@ -1,0 +1,239 @@
+/* ============================================================
+   一般可捲動頁面:我的球局 / 訊息 / 我(含通知設定、封鎖清單、登入方式)與 v2 頁殼、segmented、狀態章
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 7 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   
+   ============================================================ */
+
+/* app-header 退場後這幾頁不再有固定頁首吃掉版面高度,min-height 改回整個 100dvh。
+   批 D7:訊息頁(.messages-page)沿用 my-sessions-page/me-page 同一套「一般可捲動
+   頁面」慣例,不是 dc §3 的 position:absolute;inset:0 覆蓋殼——跟 D6 把 dc 的
+   my-sessions 全螢幕殼改成一般頁面是同一個既有架構決策,這裡只是延續,不重新引入
+   絕對定位覆蓋層。 */
+.my-sessions-page,
+.messages-page,
+.me-page { min-height: 100dvh; padding: clamp(18px, 4vw, 42px) clamp(18px, 4vw, 42px) calc(42px + var(--bottom-navigation-offset)); background: linear-gradient(140deg, var(--color-surface-page), #f7fbf1); }
+.my-sessions-shell,
+.messages-shell { width: min(680px, 100%); margin: 0 auto; }
+
+/* ---- 批 10 去重:三頁頁頭(訊息 D7／我 D8／我的球局 D6)是逐批長出來的三份同款
+   eyebrow+22px 標題。三份 eyebrow 逐字相同,合成一條;標題只有訊息與「我」逐字相同
+  (`margin: 2px 0 0`),我的球局那份是 `margin: 0`(頭部改成 head-row 兩欄後才不需要
+   上緣間距),差異保留、不併;head 的下緣間距同理二併一、訊息那份 space-3 保留。
+   各頁 __head/__eyebrow/__title 都是唯一 class,合併後仍無其他規則競爭同屬性。 ---- */
+.messages-page__head { margin-bottom: var(--space-3); }
+.me-page-v2__head,
+.my-sessions-v2__head { margin-bottom: var(--space-2); }
+.messages-page__eyebrow,
+.me-page-v2__eyebrow,
+.my-sessions-v2__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 2.5px; color: var(--color-court); }
+.messages-page__title,
+.me-page-v2__title { margin: 2px 0 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+.messages-page__list { display: grid; gap: 9px; }
+.messages-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: var(--border-thin);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  padding: var(--space-3);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s;
+  font-family: var(--font-body);
+}
+.messages-row:active { transform: scale(0.98); }
+.messages-row__avatar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-signal);
+  font-weight: 700;
+  font-size: 17px;
+}
+.messages-row__body { flex: 1; min-width: 0; }
+.messages-row__court { display: block; overflow: hidden; color: var(--color-ink); font-size: 14.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.messages-row__sub { display: block; margin-top: 3px; color: var(--color-text-secondary); font-family: var(--font-mono); font-weight: 500; font-size: 12px; }
+.messages-row__unread { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--color-signal); border: 1.5px solid var(--color-ink); }
+.messages-page__empty { margin-top: 16px; padding: 28px 20px; border: 1.5px dashed var(--color-line); border-radius: var(--radius-lg); text-align: center; }
+/* 批 10 去重:訊息頁與我的球局頁 v2 的空狀態說明文字逐字相同。 */
+.messages-page__empty-text,
+.my-sessions-v2__empty-text { margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); font-weight: 600; line-height: 1.6; }
+.my-sessions-shell__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.my-sessions-shell__head h1 { margin: 0; color: var(--color-ink); font-size: var(--text-2xl); }
+/* 批 10 去重:舊頁殼工具列與 v2 工具列逐字相同。 */
+.my-sessions-shell__tools,
+.my-sessions-v2__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.me-shell { display: grid; width: min(680px, 100%); margin: 0 auto; gap: 18px; }
+/* ============================================================
+   批 D8(v2 改版):「我」頁改 dc 計分板殼(抽取規格 §1)。頁頭沿用 D6/D7 頁殼模式
+   (.messages-page__head 同款 eyebrow+22px 標題,非 dc §0 的 position:absolute;inset:0
+   覆蓋殼——理由同 D7 檔頭 680 行註記,這裡不重複)。既有六個功能區(個人檔案/球友卡/
+   在線狀態/通知設定/封鎖清單 五個 section + profile 卡)一個都不砍、順序不動,只把
+   卡殼升級成 dc §1 的「白卡 1px line radius 12」語彙(dc L219 逐字 border:1px solid
+   #cfd8cd;border-radius:12px,已映射回 var(--border-thin)/字面 12px;12px 不在
+   --radius 階,同 .nearby-peek__create 一類寫法);.presence-settings 的
+   --color-success-bg 底色是批 A-7 既有語意(分享中狀態),不因這裡「白卡」而洗掉。
+   批 10:本區的 __head/__eyebrow/__title 已與訊息頁、我的球局頁的同款三份合併,
+   移到本檔頁首的頁頭區塊。 */
+/* ---- profile 卡+球友卡共用的「avatar+名/副行+NTRP 磚」一列(dc §1 L219-227、
+   §3 L313-321 同一視覺單位,只有名字 17px/18px 一階之差——見呼叫端 --player 修飾)。 ---- */
+.profile-brick-row { display: flex; align-items: center; gap: 13px; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+.profile-brick-row__copy { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.profile-brick-row__copy strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 700; color: var(--color-ink); }
+.profile-brick-row__copy span { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12.5px; }
+.profile-brick-row--player .profile-brick-row__copy strong { font-size: 18px; }
+/* ---- 批 10 去重:「我」頁八張白卡的殼(dc §1「1px line / radius 12」語彙)原本
+   逐張各寫一次同樣四個宣告。合成一條共用殼,各張只留自己的 display/gap/margin-top
+   差異。八個 class 都是唯一 class,全庫沒有其他規則宣告這四個屬性到同一元素,
+   故合併後位置提前不改變任何計算值。--color-success-bg 的 .presence-settings
+  (分享中狀態語意)底色不同,刻意不併進來。 ---- */
+.me-identity-card,
+.me-sign-in-card,
+.me-service-links,
+.player-visibility,
+.me-edit-profile,
+.me-login-methods,
+.notification-settings,
+.blocked-player-settings { padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+/* 五張設定卡的 h2 逐字相同(帶 space-1 下緣);登入卡與服務連結卡那兩顆沒有下緣,
+   維持另一條。 */
+.player-visibility h2,
+.me-edit-profile h2,
+.me-login-methods h2,
+.notification-settings h2,
+.blocked-player-settings h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
+/* 卡內說明文字一律去掉外距,原本散在七處。 */
+.me-sign-in-card .surface__copy,
+.player-visibility .form-hint,
+.me-edit-profile .form-hint,
+.me-login-methods .form-hint,
+.notification-settings .form-hint,
+.blocked-player-settings .form-hint,
+.blocked-player-settings .surface__copy { margin: 0; }
+.me-sign-in-card { display: grid; justify-items: start; gap: var(--space-2); color: var(--color-ink); }
+.me-sign-in-card h2,
+.me-service-links h2 { margin: 0; color: var(--color-ink); font-size: var(--text-lg); }
+.me-service-links { display: grid; gap: var(--space-2); }
+.me-service-links div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.me-service-links a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); color: var(--color-court); font-size: var(--text-base); font-weight: 700; text-decoration: none; }
+.me-service-links a:focus-visible { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+.me-sign-in-card .session-primary { min-width: 44px; min-height: 44px; }
+/* 登出(dc L238):紅字文字鈕,無按壓態,但保留 44px 熱區(a11y 升級,dc 沒有這條)。 */
+.me-sign-out-action { display: block; width: 100%; min-height: 44px; margin-top: 4px; padding: 10px; border: 0; background: none; color: var(--color-danger); font-family: var(--font-body); font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; }
+.player-visibility { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-5); }
+.player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
+.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); }
+
+.me-login-methods { display: grid; gap: var(--space-3); }
+.me-login-methods__rows { display: grid; gap: var(--space-2); }
+.me-login-method { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+/* 390px 契約:「我」頁互動控件一律 ≥44×44(session-secondary 基底是 38px,這裡加高)。 */
+.me-login-method .session-secondary { min-height: 44px; min-width: 44px; }
+.me-login-method__label { color: var(--color-ink); font-weight: 700; }
+.me-login-method__status { color: var(--color-text-secondary); font-weight: 700; }
+.me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }
+.me-page .me-edit-profile .session-secondary,
+.me-page .player-visibility [role="switch"],
+.me-page .presence-settings [role="switch"],
+.me-page .presence-settings__greeting,
+.me-page .notification-settings [data-enable-push],
+.me-page .notification-settings__fieldset label,
+.me-page [data-court-picker-toggle],
+.me-page .blocked-player-settings .session-secondary { min-height: 44px; }
+.notification-settings { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
+.notification-settings__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.notification-settings__hint { color: var(--color-court); font-weight: 700; }
+.notification-settings__ios-hint { padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.notification-settings__fieldset { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); }
+.notification-settings__fieldset legend { padding: 0 var(--space-1); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+.notification-settings__fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+/* 訂閱球場改兩段式：主控 checkbox + 可展開的球場清單。 */
+.court-subscribe-all { align-items: center; gap: var(--space-2); padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-info-bg); font-weight: 700; }
+#notification-court-picker { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin-top: var(--space-1); }
+#notification-court-picker label { align-items: center; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+#notification-court-picker label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); }
+#notification-court-picker label:has(input:focus-visible),
+.court-subscribe-all:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+.success-push-prompt { display: grid; flex: 1 1 100%; justify-items: start; gap: var(--space-2); margin: var(--space-2) 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-ink); }
+.success-push-prompt p { margin: 0; }
+@media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } }
+.blocked-player-settings { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.blocked-player-list { display: grid; gap: var(--space-2); }
+.blocked-player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+.blocked-player-row span { min-width: 0; overflow-wrap: anywhere; }
+.my-sessions-section { display: grid; gap: var(--space-2); margin-top: var(--space-6); }
+.my-sessions-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.my-sessions-section__head h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); }
+.my-sessions-section__head span { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+.my-sessions-list { display: grid; gap: var(--space-2); }
+.my-sessions-empty { display: grid; gap: var(--space-2); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
+.my-sessions-empty h2 { margin: 0; font-size: var(--text-lg); }
+.my-session-card,
+.my-action-card { display: grid; gap: var(--space-2); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
+.my-action-card__eyebrow { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
+.my-action-card h3 { margin: 0; overflow-wrap: anywhere; font-size: var(--text-md); }
+.my-action-card p { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.my-session-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
+/* 文字鈕契約(Task 4):.session-tertiary 比照 secondary 語意,無框;字色比照既有 .filters-reset
+   的文字鈕前例採 court(可互動強調色),而非 text-secondary(純資訊態),因底線本身已標示可點擊。 */
+.session-tertiary { min-height: 34px; padding: 0 var(--space-1); border: 0; background: transparent; color: var(--color-court); font-size: var(--text-sm); font-weight: 700; text-decoration: underline; }
+.my-history-reason { margin-top: -4px; padding: 0 var(--space-1); }
+.my-sessions-message { margin: var(--space-2) 0; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+
+/* ============================================================
+   批 D6(v2 改版):「我的球局」改 dc 計分板列表殼(抽取規格 §1-6)。segmented
+   分「我報名的／我主揪的」,清單卡改薄卡列(58px 時間磚)當卡首+右側狀態章;
+   管理列(接受/婉拒/邀請回覆/群聊/生命週期/檢舉)刻意保留在卡首下方同一張卡
+   內——對 dc「點卡才開詳情」的刻意架構偏離(本站申請者管理需一頁可及,見 D6
+   派工單決策 4),故 .my-session-card/.my-action-card 外殼、.my-action-card__eyebrow
+   與 .my-session-card__actions(上方 D1/D4b 既有)原樣沿用,這裡只補頁殼、
+   segmented、薄卡列與狀態章四型。
+   ============================================================ */
+/* __head 與 __eyebrow 已併入本檔頁首的頁頭區塊(批 10 去重)。 */
+.my-sessions-v2__head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); margin-top: 2px; }
+/* 這頁的標題外距與另外兩頁不同(head-row 兩欄版不需要上緣),故未併入頁首區塊。 */
+.my-sessions-v2__title { margin: 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+.my-sessions-v2__tool-btn { min-height: 44px; padding: 0 var(--space-3); font-size: var(--text-sm); }
+
+/* segmented(dc §2 逐字):1.5px ink 框、h44、radius-lg(=10px)、中線只在右格
+  (`+` 相鄰選擇器只加左格),選中態 ink 反相底+signal 字。 */
+.my-sessions-v2__segmented { display: flex; height: 44px; margin-top: 10px; border: var(--border-strong); border-radius: var(--radius-lg); overflow: hidden; }
+.my-sessions-v2__seg-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; }
+.my-sessions-v2__seg-btn + .my-sessions-v2__seg-btn { border-left: var(--border-strong); }
+.my-sessions-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
+.my-sessions-v2__seg-count { font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; }
+
+/* 薄卡列(dc §3 逐字):58px 時間磚(.time-tile--compact,D1 既有)+球場名 ellipsis+
+   meta「打法 · NTRP x–y · 主揪 nick n.n」+右側狀態章。管理列在其下、同一張卡
+   內,沿用上方 .my-session-card__actions(D1)。 */
+.my-session-brief { display: flex; align-items: center; gap: 12px; }
+.my-session-brief__body { flex: 1; min-width: 0; }
+.my-session-brief__court { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.my-session-brief__meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12px; }
+
+/* 狀態章四型(dc §4 逐字)+ 本站延伸「受邀中」(dc 沒有邀請概念,見抽取規格 §4
+   決策)。歷史卡(cancelled/expired/played/withdrawn)不強套四型,呼叫端回傳
+   空字串,交給既有 .my-history-reason 說明。 */
+.my-status-chip { flex: none; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 6px; /* dc §4 字面值,不在 radius 階(慣例同 .nearby-peek__create) */ }
+.my-status-chip--info { background: var(--color-info-bg); color: var(--color-text-secondary); }
+.my-status-chip--success { background: var(--color-success-bg); color: var(--color-success); }
+.my-status-chip--danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.my-status-chip--host { background: var(--color-ink); color: var(--color-signal); }
+
+/* 空狀態(dc §5 逐字):dashed 框,只在該分頁非歷史卡為 0 時由呼叫端插入,與既有
+   #my-needs-action/#my-upcoming-sessions 各自的「目前沒有…」提示並存——那兩個
+   容器 id 是既有測試依賴的錨點,任何分頁都必須存在,見 D6 派工單決策 3。 */
+.my-sessions-v2__empty { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding: 28px 20px; border: 1.5px dashed var(--color-line); border-radius: var(--radius-lg); text-align: center; }
+/* __empty-text 已與訊息頁的同款合併(批 10 去重),見本檔頁首附近。 */
+.my-sessions-v2__empty-btn { justify-self: center; min-height: 44px; padding: 0 20px; }

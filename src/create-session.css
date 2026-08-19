@@ -1,0 +1,137 @@
+/* ============================================================
+   開球局/編輯的全螢幕流程(殼、卡片、stepper、固定底鈕、成功頁)與 toast
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 9 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   
+   ============================================================ */
+
+/* ============================================================
+   批 D5(v2 改版):開球局改全螢幕計分板流程(dc §1-6)。大量複用 D1 語彙
+  (.chip/.chip--form/.chip--time/.toggle-switch/.time-tile/.slots-brick/
+   qmSlide/qmPop/--ease-brand/--color-disabled-*),這裡只補全螢幕殼、卡片、
+   segmented、stepper、固定底鈕與成功頁——D1 沒有的部分。
+   ============================================================ */
+
+/* .qm-scroll 是抽取規格 §0 的基礎規則,D1-D4 都還沒有實際呼叫點;這裡是第一個
+   消費者(捲動區與時間 chips 橫捲列都要用),故在此補上定義而非疊加到 D1 段。 */
+.qm-scroll { scrollbar-width: none; }
+.qm-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 殼(dc L474-475):dc 用 position:absolute+z-index:66 疊在自家單頁 app 殼上;
+   本站 #sheet-root 掛在 body 層級,改用既有 .surface 的 fixed 定位語意(z-sheet
+   而非新開一個 66 的一次性數值)才能真正貼滿視窗,不隨 #sheet-root 的父層位置
+   偏移。header 上緣 padding dc 是 52px(assumes 原生 App 瀏海安全區),比照
+   D4a 對 .map-topbar 的既有偏離(14px)改用本站慣用值,不套用原稿 50px+。
+   互動目標:dc 的返回鈕/segmented 都是 40px,依本站既有升級慣例
+  (.session-detail__close 36→44 的同一手法)一律升到 44px,不只在手機斷點才升。 */
+/* 批 10 去重:全螢幕殼、__head 共同部分與返回鈕已併入 src/sheet-shells.css。 */
+.create-v2__head h2 { font-size: var(--text-xl); }
+/* 底部預留必須 ≥ footer 疊層實高(390px 寬、disclosure 兩行時約 155px)加安全邊,
+   否則捲到底仍有永久遮蔽帶;scroll-padding 讓 scrollIntoView 認得 footer 的覆蓋範圍。
+   此處不可設 position:relative——footer 在 DOM 上是 form 的子節點,scroller 一旦成為
+   定位祖先,footer 的 bottom:0 會錨到捲動層、跟著內容一起捲走(2026-08-17 實機主因:
+   捲動後 footer 浮到畫面中段蓋住日期卡);拿掉後 footer 錨定外層 fixed surface 才真正 sticky。 */
+.create-v2__scroll { flex: 1; overflow-y: auto; padding: 4px 16px calc(180px + env(safe-area-inset-bottom)); scroll-padding-bottom: 190px; }
+
+/* 卡片式區塊共用殼(dc §8):首張無 margin-top,其餘 12px。 */
+.create-v2__card { margin-top: 12px; padding: 14px; border: var(--border-thin); border-radius: var(--radius-lg); background: var(--color-surface-card); }
+.create-v2__card:first-child { margin-top: 0; }
+.create-v2__label { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; letter-spacing: 1px; }
+.create-v2__label--mt { margin: 14px 0 10px; }
+.create-v2__hint { margin: 0 0 8px; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.create-v2__mono { font-family: var(--font-mono); font-weight: 600; }
+
+/* segmented(dc L487-489):40px 升 44px,見殼註解。
+   fix round 1(驗收退回,實測抓到):44px 原本設在容器(.create-v2__segmented)的
+   border-box 高度上,但容器自己的 1px 上下框各吃掉 1px,實際可點的 <button> 子元素
+   (伸展填滿容器 content box)量出來只有 42px——不是把 44px 標在容器,而是要標在
+   真正互動的元素本身。改成容器高度隨內容(不再寫死 44px),min-height 標在
+   .create-v2__seg-btn 上,子元素本身保證 ≥44px,容器的框線與圓角視覺不變。 */
+.create-v2__segmented { display: flex; margin-bottom: 10px; border: var(--border-strong); border-radius: var(--radius-md); overflow: hidden; }
+.create-v2__seg-btn { flex: 1; min-height: 44px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; }
+.create-v2__seg-btn + .create-v2__seg-btn { border-left: var(--border-strong); }
+.create-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
+
+/* 球場卡格(dc L494-497 已定/候選逐字共用):台北市數十座球場,dc 原型只有數座,
+   加內捲上限(批次核可延伸),不做搜尋框。 */
+/* 限高吃 dvh:滿載 61 座時固定 320px 會在手機可視高度(約 664px)把日期卡整張推進
+   sticky footer 遮蔽區,而內捲又攔走外層捲動手勢,日期選不到(2026-08-17 實機,
+   iPhone Safari 與 Android Chrome 皆中);30dvh 讓日期 chip 列保持首屏可點。 */
+.create-v2__court-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: min(320px, 30dvh); overflow-y: auto; }
+.create-v2__court-cell { min-height: 44px; padding: 10px 11px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; cursor: pointer; transition: transform 0.1s; }
+.create-v2__court-cell:active { transform: scale(0.97); }
+.create-v2__court-cell.is-selected { border: var(--border-strong); background: var(--color-ink); }
+.create-v2__court-cell.is-selected .create-v2__court-name { color: var(--color-surface-card); }
+.create-v2__court-cell.is-selected .create-v2__court-sub { color: #9db3a4; }
+.create-v2__court-name { display: block; font-size: 13px; font-weight: 700; line-height: 1.35; }
+.create-v2__court-sub { display: block; margin-top: 2px; color: var(--color-text-secondary); font-size: 11px; }
+
+/* 時間卡:日期 chip 用 .chip.chip--form,時段/開始時間用 .chip.chip--time(D1
+   既有)。這裡只補列容器與橫捲時間列、自訂日期輸入、自訂時間 stepper。 */
+.create-v2__chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.create-v2__chip-row--scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+.create-v2__chip-row--scroll > * { flex: none; }
+.create-v2__custom-date { margin: 8px 0 0; }
+.create-v2__custom-date input { min-height: 44px; width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-sm); background: var(--color-surface-card); color: var(--color-ink); padding: var(--space-2); font: inherit; }
+
+/* 自訂時間 / 缺幾位共用的 ± stepper 列(dc L536-542 與 L568/L570 逐字同款 44px 鈕)。 */
+.create-v2__stepper { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.create-v2__stepper-label { flex: 1; margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); }
+.create-v2__stepper-btn { flex: none; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-family: var(--font-mono); font-weight: 600; font-size: 18px; line-height: 1; cursor: pointer; transition: transform 0.1s; }
+.create-v2__stepper-btn:active { transform: scale(0.9); }
+.create-v2__stepper-value { display: inline-block; width: 64px; text-align: center; font-family: var(--font-mono); font-weight: 600; font-size: 20px; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.create-v2__stepper-value--lg { width: 34px; font-size: var(--text-2xl); }
+.create-v2__stepper-row { display: flex; align-items: center; gap: 12px; }
+.create-v2__stepper-title { flex: 1; margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+
+/* 人數卡的加入方式／已訂場 toggle 列(dc L573 分隔線款式套用到兩列)。 */
+.create-v2__toggle-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-info-bg); }
+.create-v2__toggle-copy { flex: 1; min-width: 0; }
+.create-v2__toggle-title { margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.create-v2__toggle-sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+
+/* 批 D9 backlog #3:拿掉原本的 outline: none——這顆 textarea 沒有其他替代
+   focus 樣式(不像 .chat-composer input[type="text"] 有 :focus 專屬 border-color
+   當替代視覺提示),留著會讓同specificity 的全域 :focus-visible 外框規則因後定義
+   而被蓋掉,鍵盤 tab 進來時完全沒有 focus 指示。 */
+.create-v2__textarea { width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-page); color: var(--color-ink); padding: 11px 13px; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.55; resize: none; }
+
+/* 固定底鈕(dc L590-592):漸層座 + 雙態視覺鈕,無 native disabled——未完成點擊
+   由 toast 引導,不擋 submit 事件本身。 */
+/* fix round 1(實測):漸層座視覺上頂端透明,但整個 padded box 預設仍會吃掉
+   點擊——蓋住底下捲動內容(候選程度 chip、缺幾位 stepper 等)點不到。比照
+   .map-topbar 的既有解法:容器本身 pointer-events:none,只有實際子元素(文案/
+   錯誤/按鈕)恢復 auto。 */
+.create-v2__footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px calc(26px + env(safe-area-inset-bottom)); background: linear-gradient(rgba(250, 249, 243, 0), var(--color-surface-page) 30%); pointer-events: none; }
+/* fix round 2(實測):前一版把 pointer-events:auto 還給「所有直接子元素」,
+   disclosure/error 這兩段純文字 <p> 沒有可互動內容,卻仍以整段文字寬度攔截
+   點擊——只有真正可互動的發布鈕需要 auto,文字段落維持 none 讓點擊穿透到
+   捲動內容。 */
+.create-v2__footer .form-disclosure,
+.create-v2__footer .form-error { margin-bottom: var(--space-2); }
+.create-v2__publish { pointer-events: auto; width: 100%; min-height: 54px; border: 0; border-radius: var(--radius-md); background: var(--color-disabled-bg); color: var(--color-disabled-text); font-family: var(--font-body); font-weight: 700; font-size: 16px; cursor: pointer; transition: transform 0.1s; }
+.create-v2__publish:active { transform: scale(0.98); }
+.create-v2__publish.is-ready { background: var(--color-ink); color: var(--color-signal); box-shadow: 0 10px 22px rgba(18, 41, 28, 0.32); }
+
+/* 成功頁(dc §6):qmPop 進場,新球局卡預覽複用 .time-tile(--done 覆寫 60px 版)
+   與 .slots-brick(逐字相符,不再另定義)。 */
+.create-v2__done { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 0 28px 40px; text-align: center; animation: qmPop 0.3s var(--ease-brand); }
+.create-v2__done-badge { display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; border: 2.5px solid var(--color-ink); background: var(--color-signal); color: var(--color-ink); box-shadow: 0 12px 26px rgba(221, 245, 60, 0.5); }
+.create-v2__done-title { margin: 18px 0 0; color: var(--color-ink); font-size: 21px; font-weight: 700; }
+.create-v2__done-copy { margin: 6px 0 0; color: var(--color-text-secondary); font-size: 13.5px; line-height: 1.6; }
+.create-v2__done-card { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 20px; padding: 12px; border: var(--border-strong); border-radius: var(--radius-lg); background: var(--color-surface-card); text-align: left; }
+.time-tile--done { width: 60px; gap: 2px; }
+.create-v2__done-card-copy { flex: 1; min-width: 0; }
+.create-v2__done-court { margin: 0; overflow-wrap: anywhere; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.create-v2__done-meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.create-v2__done-primary { width: 100%; min-height: 52px; margin-top: 22px; }
+.create-v2__done-secondary { width: 100%; min-height: 46px; margin-top: 4px; border: 0; background: none; color: var(--color-text-secondary); font-family: var(--font-body); font-size: var(--text-base); font-weight: 600; cursor: pointer; }
+
+/* 批 D1:toast 改 v2 規格——中置於導覽列上方、signal ✓、qmToast 進場(dc L671-674)。
+   偏離稿面兩點:keyframes 的 -50% 位移移到 #toast-root(結構不同),nowrap 改
+   overflow-wrap(中文長句在 390px 會爆版,a11y 取捨)。 */
+#toast-root { position: fixed; z-index: var(--z-toast); left: 50%; bottom: calc(34px + var(--bottom-navigation-offset)); transform: translateX(-50%); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: var(--radius-lg); background: var(--color-ink); color: var(--color-surface-page); box-shadow: var(--elevation-2); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; animation: qmToast 0.22s ease; }
+.toast__check { flex: none; }

@@ -1,0 +1,121 @@
+/* ============================================================
+   底部五格導覽、未讀徽章與圓點、.visually-hidden
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 6 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   
+   ============================================================ */
+
+/* 批 D7:五格導覽改 dc §1 flex 殼(取代舊 4 欄 grid)——四個一般格 flex:1,
+   置中「開球局」改用獨立 .bottom-navigation__create(flex:none 64px、負
+   margin-top 上浮),align-items:flex-start 讓浮起的圓鈕不被裁切。 */
+.bottom-navigation {
+  position: fixed;
+  z-index: calc(var(--z-drawer) - 1); /* 導覽列在抽屜遮罩之下(對應原 18 < backdrop 20),避免同層時 DOM 較晚的導覽列蓋過遮罩 */
+  right: 50%;
+  bottom: 0;
+  display: flex;
+  align-items: flex-start;
+  width: min(520px, 100%);
+  min-height: var(--bottom-navigation-height);
+  padding: 10px 8px calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(50%);
+  border: 1px solid var(--color-line);
+  border-top: var(--border-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-ink); /* 深底導覽契約,批 A-2 起固定深色底,非套用淺底 mist/paper 映射 */
+  box-shadow: var(--elevation-2);
+}
+.bottom-navigation__item {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  border: 0;
+  background: transparent;
+  color: #9db3a4; /* 深底導覽專用非活躍文字色,不循淺底 ink-muted 映射表 */
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 0.1s;
+}
+.bottom-navigation__item:active { transform: scale(0.92); }
+.bottom-navigation__item[aria-current="page"] { color: var(--color-signal); /* 深底導覽專用 active 態色 */ }
+.bottom-navigation__icon { position: relative; display: flex; }
+.bottom-navigation__icon svg { display: block; }
+/* 置中「開球局」signal 圓鈕(dc §1 L697-700 逐字尺寸/上浮量),常態顯示於訊號色,
+   不參與 aria-current 的活躍/非活躍配色(它從不是一個「頁面」)。 */
+.bottom-navigation__create {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: -24px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.bottom-navigation__create:active { transform: scale(0.93); }
+.bottom-navigation__create-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-xl);
+  background: var(--color-signal);
+  border: 2.5px solid var(--color-ink);
+  box-shadow: 0 8px 20px rgba(221, 245, 60, 0.4);
+  color: var(--color-ink);
+}
+.bottom-navigation__create-label { font-size: 11px; font-weight: 700; color: var(--color-signal); }
+.my-sessions-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-signal);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+/* 批 C4-2 起:未讀圓點是獨立於 needsActionCount 數字徽章的裝飾用信號(aria-hidden,
+   播報交給 messages-tab 的 aria-label);批 D7 起圓點語意隸屬「訊息」格
+  (dc chatsBadge),故錨點只需在自己 icon 右上、不必再跟數字徽章的位置錯開
+  (兩者已分屬不同 tab,不會同框重疊)。尺寸/位置沿用 dc §1 導覽列圓點原文
+  (9px、2px 框);pointer-events:none 確保不吃掉按鈕本身 44px 觸控範圍的任何點擊。 */
+.my-sessions-unread-dot {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  border: 2px solid var(--color-ink);
+  pointer-events: none;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

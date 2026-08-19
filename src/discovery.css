@@ -1,0 +1,173 @@
+/* ============================================================
+   探索面:附近球局 peek/抽屜、球局卡與球友卡、badge 語彙、地圖資料狀態列
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 3 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   尾端 .location-feedback 帶 !important,與 style.css 的 [hidden] 同屬全檔僅四處的 !important。
+   ============================================================ */
+
+/* ==== 批 D2:附近球局改 v2 兩態——peek 列(dc L118-131)+展開抽屜(dc L135-176)。
+   root aside 本身不再是視覺容器,兩個子面板各自 fixed 定位;無 scrim、地圖恆可互動。
+   置中規則:以對稱 inset 取代 translateX,避免與 qmSheetUp 的 transform 打架。 ==== */
+.nearby-sessions { position: static; }
+
+.nearby-peek {
+  position: fixed;
+  z-index: var(--z-drawer);
+  left: max(14px, calc(50% - 246px));
+  right: max(14px, calc(50% - 246px));
+  bottom: calc(16px + var(--bottom-navigation-offset));
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-ink);
+  box-shadow: 0 12px 28px rgba(18, 41, 28, 0.38);
+  color: var(--color-surface-card);
+  text-align: left;
+  transition: transform 0.12s;
+}
+.nearby-peek:active { transform: scale(0.97); }
+.nearby-peek__count { font-family: var(--font-mono); font-weight: 600; font-size: 21px; color: var(--color-signal); font-variant-numeric: tabular-nums; }
+.nearby-peek__label { font-size: 13.5px; font-weight: 600; color: var(--color-surface-card); }
+.nearby-peek__next { margin-left: auto; font-size: 12px; color: #9db3a4; font-variant-numeric: tabular-nums; }
+.nearby-peek__arrow { flex: none; }
+.nearby-peek--empty {
+  height: auto;
+  min-height: 56px;
+  gap: var(--space-2);
+  padding: var(--space-3) 16px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-surface-card);
+  box-shadow: 0 12px 28px rgba(18, 41, 28, 0.2);
+  color: var(--color-ink);
+  transition: none;
+}
+.nearby-peek--empty:active { transform: none; }
+.nearby-peek__empty-toggle { min-height: 44px; padding: 0; border: 0; background: none; color: var(--color-ink); font-size: 13.5px; font-weight: 600; text-align: left; }
+.nearby-peek__reset { margin-left: auto; min-height: 44px; padding: 6px 2px; border: 0; background: none; color: var(--color-court); font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.nearby-peek__create { min-height: 44px; padding: 8px 12px; border: 0; border-radius: 6px; /* dc L130 字面值,不在 radius 階 */ background: var(--color-signal); color: var(--color-ink); font-size: 13px; font-weight: 700; transition: transform 0.1s; }
+.nearby-peek__create:active { transform: scale(0.95); }
+.nearby-peek--empty .nearby-peek__empty-toggle { flex: 1 1 auto; }
+.nearby-peek--empty .nearby-peek__reset { margin-left: 0; }
+
+.nearby-drawer {
+  position: fixed;
+  z-index: var(--z-drawer);
+  left: max(0px, calc(50% - 260px));
+  right: max(0px, calc(50% - 260px));
+  top: 31%;
+  bottom: var(--bottom-navigation-offset);
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-surface-card);
+  box-shadow: 0 -14px 40px rgba(18, 41, 28, 0.22);
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.nearby-drawer__handle { flex: none; min-height: 44px; padding: 10px 0 4px; border: 0; background: none; cursor: pointer; }
+/* __bar(拉把橫桿)已與四個 sheet 的 grabber 併入 src/sheet-shells.css(批 10 去重)。 */
+.nearby-drawer__head { flex: none; display: flex; align-items: center; gap: 9px; padding: 2px 18px 12px; }
+.nearby-drawer__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 11.5px; letter-spacing: 2.5px; color: var(--color-court); }
+.nearby-drawer__countrow { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; color: var(--color-ink); }
+.nearby-drawer__count { font-family: var(--font-mono); font-weight: 600; font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+.nearby-drawer__unit { font-size: 15px; font-weight: 700; }
+/* dc 是 36px,依 handoff 自身的 a11y 規範(觸控 ≥44px)升為 44。 */
+.nearby-drawer__close { flex: none; margin-left: auto; width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--color-line); background: var(--color-surface-card); color: var(--color-text-secondary); font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+.nearby-drawer__close:active { transform: scale(0.92); }
+.nearby-drawer__scroll { flex: 1; overflow-y: auto; padding: 0 14px 14px; }
+
+.session-group { display: flex; align-items: center; gap: 8px; margin: 12px 2px 8px; }
+.session-group__label { font-size: 12px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 1px; }
+.session-group__line { flex: 1; height: 1px; background: var(--color-line); }
+.session-group__count { font-family: var(--font-mono); font-weight: 500; font-size: 11.5px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+
+.surface__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
+.surface__eyebrow { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
+.surface h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); line-height: 1.25; }
+
+.surface__close { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-2xl); line-height: 1; }
+.nearby-sessions__cards { display: block; }
+.nearby-sessions__status { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.nearby-sessions__status p { margin: 0; overflow-wrap: anywhere; }
+.nearby-sessions__status .session-secondary { margin-top: var(--space-2); }
+
+/* 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄三行。 */
+.session-card { display: flex; gap: 12px; width: 100%; margin-bottom: 9px; padding: 12px; border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.session-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
+.session-card__body { flex: 1; min-width: 0; }
+.session-card__title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.session-card__court { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; }
+.session-card__meta { display: block; margin-top: 4px; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12.5px; line-height: 1.45; }
+.session-card__foot { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.session-card__chevron { margin-left: auto; color: #9aa79b; /* dc L168 裝飾箭頭專用色(非文字,AA 豁免) */ font-size: 18px; line-height: 1; }
+.session-card--compact { padding: var(--space-3); }
+.player-card { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.player-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
+.player-card span { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 700; line-height: 1.4; }
+/* 批 D1:badge 縮為 v2 緊湊規格(dc.html L161/L162/L345/L346 逐字值)。 */
+.session-badge--instant {
+  background: var(--color-signal);
+  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.session-badge--ongoing {
+  background: var(--color-ink);
+  color: var(--color-signal);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.session-badge--candidate {
+  border: 1.5px dashed var(--color-ink);
+  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+.session-badge--host {
+  background: var(--color-info-bg);
+  color: var(--color-court);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+/* 「✓ 已訂場」在參考稿是純文字不是 badge(dc L167),照稿。 */
+.booked-note { font-size: 11.5px; font-weight: 600; color: var(--color-court); }
+.session-ongoing-time { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; }
+
+.discovery-empty { display: grid; gap: var(--space-3); padding: var(--space-5) var(--space-2) var(--space-2); color: var(--color-ink); text-align: center; }
+.discovery-empty p { margin: 0; font-weight: 700; }
+.discovery-empty__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.session-secondary { padding: 0 var(--space-3); border: var(--border-strong); background: transparent; color: var(--color-ink); }
+
+#map-data-status {
+  /* 深底浮動 chip 契約比照 .bottom-navigation:固定用 --color-ink 不透明底,
+     不循原本 navy/blue rgba 半透明映射(fix wave 2026-08-07,批 A final review F1)。 */
+  position: absolute;
+  z-index: 6;
+  left: clamp(12px, 3vw, 30px);
+  bottom: calc(22px + var(--bottom-navigation-offset));
+  max-width: min(420px, calc(100% - 24px));
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--color-ink);
+  color: var(--color-surface-card);
+  box-shadow: var(--elevation-2);
+  font-size: var(--text-sm);
+}
+#map-data-status p { margin: 0; overflow-wrap: anywhere; }
+#map-data-status .session-secondary { margin-top: var(--space-2); min-height: 32px; background: var(--color-surface-card); color: var(--color-ink); }
+/* .map-data-status--loading/--warning 修飾規則已刪除:兩者 background 皆為 var(--color-ink),
+   與基礎 #map-data-status 規則完全相同,是無效果的 no-op;sessionViews.js renderMapDataStatus
+   仍會掛上這兩個 class(kind 語意仍在),只是本檔不再為它們重複宣告視覺。 */
+.location-feedback { margin-top: 6px !important; color: #fff; font-weight: 700; }

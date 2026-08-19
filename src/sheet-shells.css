@@ -1,0 +1,92 @@
+/* ============================================================
+   跨 sheet 共用殼語彙(批 10 去重新增)
+   **層疊位置 5 / 13**——緊接在 surfaces.css(.surface 基底)之後;本專案未使用
+   @layer(理由見 docs/migration-reports/batch-10.md §3),檔間勝負由 src/main.js
+   的 import 次序決定。
+
+   本檔收的是「同一個視覺元件被逐批各寫一次」的樣板重複,不是「值剛好相同」的巧合:
+   批 D2→D4a→D4b→D7→D8 五批各自長出自己的貼邊 sheet 殼與拉把,宣告幾乎逐字相同。
+   併進來的每個 class 都是唯一 class,全庫沒有第二條規則宣告同屬性到同一元素
+  (反向 grep 見報告 §4),故合併後位置提前不改變任何計算值;真正有差異的宣告
+   一律留在各 sheet 自己的檔案,不在這裡抹平。
+   ============================================================ */
+
+/* ---- 貼邊 bottom sheet 四款(篩選 / 詳情 / 球友名單 / 球友卡)的共同定位與外框。
+        各自不同的 top / max-height / overflow / padding / border / 動畫時長留在原檔。 ---- */
+.surface.filter-sheet,
+.surface.session-detail-sheet,
+.surface.player-directory-sheet,
+.surface.player-card-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+}
+
+/* 詳情 sheet 與球友卡 sheet 的殼原本逐字相同(D4b 立的規格,D8 照抄一份):
+   內容撐開、慷慨 max-height + 自身捲動,無邊框只靠陰影分隔。 */
+.surface.session-detail-sheet,
+.surface.player-card-sheet {
+  top: auto;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 10px 20px 26px;
+  /* dc L334 詳情 sheet 沒有邊框,只靠 box-shadow 分隔——附近球局抽屜(D2)才是
+     ink 邊框,兩者在 dc 裡刻意不同;明確 border:0 蓋掉 .surface 基底的
+     border-top: var(--border-strong)。 */
+  border: 0;
+  animation: qmSheetUp 0.34s var(--ease-brand);
+}
+
+/* ---- 全螢幕殼兩款(群聊 D7 / 開球局 D5):原本逐字相同的兩份。
+        「fixed inset:0 覆蓋 .surface--sheet 右下浮卡預設」,靠 (0,2,0) 特異性
+        勝過 surfaces.css 的 .surface 基底與 responsive.css 的同名斷點覆寫。 ---- */
+.surface.session-chat-sheet,
+.surface.create-v2 {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-page);
+  animation: qmSlide 0.3s var(--ease-brand);
+}
+
+/* 全螢幕殼的頁首列與返回鈕:返回鈕兩份逐字相同;頁首列只差群聊多一條下緣分隔線。 */
+.chat-v2__head,
+.create-v2__head { flex: none; display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
+.chat-v2__head { border-bottom: var(--border-thin); }
+.chat-v2__back,
+.create-v2__back { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); cursor: pointer; transition: transform 0.1s; }
+.chat-v2__back:active,
+.create-v2__back:active { transform: scale(0.92); }
+
+/* ---- 拉把 ×5:附近球局抽屜的橫桿與四個 sheet 的 grabber 是同一個視覺元件,
+        原本各寫一份。共同尺寸合成一條;下緣間距三種、flex:none 只有兩個
+       (另外三個的父層不是 flex 容器,原本就沒有這條,不補上以免動到
+        flex-grow/shrink/basis 的計算值)。 ---- */
+.nearby-drawer__bar,
+.filter-sheet__grabber,
+.session-detail-sheet__grabber,
+.player-directory-sheet__grabber,
+.player-card-sheet__grabber { display: block; width: 44px; height: 5px; border-radius: 3px; background: var(--color-line); }
+.nearby-drawer__bar { margin: 0 auto; }
+.filter-sheet__grabber,
+.player-directory-sheet__grabber { flex: none; margin: 2px auto 12px; }
+.session-detail-sheet__grabber,
+.player-card-sheet__grabber { margin: 2px auto 14px; }
+
+/* ---- sheet 頁首與註腳的兩組同款。 ---- */
+.filter-sheet__head,
+.player-directory-sheet__head { flex: none; margin: 0; padding: 0 0 var(--space-2); }
+.cta-footnote,
+.player-card-sheet__footnote { margin: 11px 0 0; text-align: center; color: var(--color-text-secondary); font-size: 11.5px; }

@@ -1,0 +1,155 @@
+/* ============================================================
+   sheet/dialog 通用殼與表單語彙:.surface 基底、建局/檔案表單、篩選 sheet、option-grid、缺額 radio、表單提示與錯誤
+   批 10 CSS 收整:本檔自 src/session.css 原樣切出,宣告順序未變。
+   **層疊位置 4 / 13**——本專案未使用 @layer(理由見
+   docs/migration-reports/batch-10.md §3),檔間勝負仍由 src/main.js
+   的 import 次序決定,調動 import 次序會改變層疊結果。
+   .surface 基底在此;六個 .surface.<sheet> 具體殼分散於 surfaces/session-detail/session/create-session/player-sheets 五檔,靠 (0,2,0) 特異性勝過本檔的 (0,1,0) 基底與 responsive.css 的同名覆寫。
+   ============================================================ */
+
+.surface-backdrop { position: fixed; z-index: calc(var(--z-sheet) - 1); inset: 0; background: rgba(18, 41, 28, 0.38); } /* ink 基底,同上換掉舊 navy rgba(11,28,50) */
+.surface {
+  position: fixed;
+  z-index: var(--z-sheet);
+  width: min(530px, calc(100vw - 24px));
+  max-height: min(82dvh, 720px);
+  overflow-y: auto;
+  padding: var(--space-4); /* 17px 不在間距映射表(14-16→space-4/18,20→space-5)的相鄰一階,取較近的 16px */
+  border-radius: var(--radius-md);
+  border-top: var(--border-strong);
+  background: var(--color-surface-card);
+  box-shadow: var(--elevation-2);
+}
+.surface--sheet { right: 20px; bottom: 20px; }
+.surface--dialog { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.surface__copy { margin: var(--space-1) 0 var(--space-4); color: var(--color-text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
+.profile-return-context { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.profile-form,
+.create-session-form { display: grid; gap: 13px; }
+/* 批 C1-4:批 6(ea4a41b)只覆蓋 .create-session-sheet 的 .session-primary/.session-secondary,
+   個人檔案 sheet 的儲存鈕(.profile-form [data-testid=profile-save])當時不在範圍內,實測仍是
+   基底 38px。比照同一批的 scoped 覆寫慣例,掛在 .profile-sheet 上。 */
+.profile-sheet .session-primary { min-height: 44px; }
+.candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.candidate-decision-buttons .session-primary { flex: 1 1 132px; }
+.form-field { display: grid; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.form-field__label-row .session-secondary { min-height: 44px; font-size: var(--text-sm); }
+.form-field input,
+.form-field select,
+.form-field textarea,
+.form-fieldset select { width: 100%; min-width: 0; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-sm); background: var(--color-surface-card); color: var(--color-ink); padding: var(--space-2); font: inherit; font-weight: 500; }
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.form-fieldset select:focus { border-color: var(--color-court); }
+.form-field textarea { resize: vertical; }
+.form-fieldset { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); }
+.form-fieldset legend { padding: 0 var(--space-1); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.form-fieldset select { min-height: 108px; }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+/* 390px 觸控目標:建局與編輯表單共用 .create-session-sheet,一次覆蓋兩張表單。
+   不列舉 id——之後這兩張表單新增欄位會自動納入(對稱式而非列舉式)。 */
+.create-session-sheet .form-field input,
+.create-session-sheet .form-field select,
+.create-session-sheet .form-field textarea { min-height: 44px; }
+.create-session-sheet .session-primary,
+.create-session-sheet .session-secondary { min-height: 44px; }
+.create-session-sheet .form-fieldset > label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+
+/* 批 D4a:篩選 sheet 改 v2 版面(dc L431-469)——真正的貼邊 bottom sheet(top:20%,
+   只在上緣圓角),取代泛用 .surface--sheet 的右下浮卡定位;.surface 基底的
+   overflow-y:auto 也要關掉,改由內層 .filter-sheet__scroll 承擔捲動,讓頭/尾固定。
+   置中規則沿用 .nearby-drawer 的對稱 inset 寫法。
+   批 10 去重:對稱 inset、貼邊圓角與陰影已與其他三款貼邊 sheet 併入
+   src/sheet-shells.css;拉把與 __head 同理。以下只留本 sheet 的差異宣告。 */
+.surface.filter-sheet {
+  top: 20%;
+  max-height: none;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px 24px;
+  border-top: 0;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.filter-sheet__scroll { flex: 1; overflow-y: auto; }
+.filter-sheet-form { display: grid; gap: 4px; }
+.filter-sheet-section:first-child { margin: 12px 0 9px; }
+.filter-sheet-section { margin: 18px 0 9px; border: 0; padding: 0; }
+.filter-sheet-section legend { padding: 0 0 9px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); }
+.filter-sheet-band-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.filter-sheet-band-grid .band-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-card);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  transition: transform 0.1s;
+}
+.filter-sheet-band-grid .band-option:active { transform: scale(0.97); }
+.filter-sheet-band-grid .band-option.is-active { border: 1.5px solid var(--color-ink); background: var(--color-ink); color: var(--color-surface-card); font-weight: 700; }
+.filter-sheet-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+/* 行政區 chip 比日期／打法矮一階(dc:h38 而非 h40),獨立尺寸,不進 .chip--form。 */
+.chip--district { height: 38px; padding: 0 13px; font-size: 13px; }
+.chip--district:active { transform: scale(0.95); }
+.filter-sheet__footer { flex: none; display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--color-line); }
+.filter-sheet__footer .filters-reset { flex: none; text-decoration: underline; text-underline-offset: 3px; }
+.filter-sheet__apply {
+  flex: 1;
+  height: 50px;
+  border-radius: var(--radius-md);
+  background: var(--color-ink);
+  color: var(--color-signal);
+  font-weight: 700;
+  font-size: 15.5px;
+  box-shadow: 0 8px 18px rgba(18, 41, 28, 0.3);
+}
+.filter-sheet__apply [data-filter-count] { font-family: var(--font-mono); }
+
+/* 建局／編輯表單的「進階設定（選填）」摺疊區:預設收合，展開箭頭沿用瀏覽器預設 marker。 */
+.form-optional { display: grid; gap: 13px; border: var(--border-thin); border-radius: var(--radius-md); padding: var(--space-3); }
+.form-optional > summary { box-sizing: border-box; min-height: 44px; padding: 11px var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
+.form-optional > summary:focus-visible { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+
+.option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); }
+/* 批 C1-4 實測:未加 min-height 時量到 19px。這顆同時管到個人檔案 sheet 的常打類型／可打
+   時段 checkbox 與「我」頁 #notification-court-picker 展開時的球場 checkbox(同一 class),
+   兩邊都需要 44px,不另外拆 selector。 */
+.option-grid label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: 44px; overflow-wrap: anywhere; }
+/* 場地題改問處境後每個選項多一句說明，單欄堆疊才讀得完。 */
+.option-grid--stacked { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.option-grid--stacked label { align-items: flex-start; min-height: 44px; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.option-grid--stacked label span { display: grid; gap: var(--space-1); font-weight: 700; }
+.option-grid--stacked label small { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 600; line-height: 1.45; }
+.option-grid--stacked label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); }
+/* 選中態底改為 --color-info-bg 後，--color-text-secondary 對它的對比約 6.9:1，通過 AA，
+   與未選中態同一 token，故移除原本的 `:has(input:checked) small` 覆寫(no-op，值相同，fix round 1 刪除)。 */
+.option-grid--stacked label:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+/* 缺額用 radio 做成並排按鈕：取值路徑仍是表單的 name，鍵盤方向鍵也還能切換。 */
+.slots-options { display: flex; gap: var(--space-2); }
+.slots-options label { position: relative; display: flex; flex: 1 1 0; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+.slots-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+/* fix round 1：選中態改回 brief 字面指示(info-bg 淺底＋border-strong 框)，
+   文字色改用 ink(而非原本的 surface-card 白字)以避免淺底崩潰；ink on info-bg 對比約 13.5:1，AA 遠超。 */
+.slots-options label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); color: var(--color-ink); }
+.slots-options label:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+.form-hint,
+.form-disclosure,
+.form-error { margin: 0; overflow-wrap: anywhere; }
+.form-hint { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.form-disclosure { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--color-court); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.55; }
+.form-error { padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-danger-bg); color: var(--color-danger); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; }
+.surface__message { margin: var(--space-3) 0 0; color: var(--color-ink); font-size: var(--text-base); font-weight: 700; line-height: 1.55; overflow-wrap: anywhere; }
+.join-session-form,
+.report-form { display: grid; gap: 12px; }
+.join-session-summary { margin-top: 2px; }
+.report-form .form-fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
