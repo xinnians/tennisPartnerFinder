@@ -74,6 +74,16 @@ const sessionChatSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionChatSheet.tsx", { eager: true });
 const mountSessionChatSheetContent =
   sessionChatSheetModules["./sheets/SessionChatSheet.tsx"]?.mountSessionChatSheetContent;
+const withdrawSessionConfirmationDialogModules =
+  typeof document === "undefined"
+    ? {}
+    : import.meta.glob("./sheets/WithdrawSessionConfirmationDialog.tsx", { eager: true });
+const mountWithdrawSessionConfirmationDialogContent =
+  withdrawSessionConfirmationDialogModules["./sheets/WithdrawSessionConfirmationDialog.tsx"]
+    ?.mountWithdrawSessionConfirmationDialogContent;
+const reportDialogModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/ReportDialog.tsx", { eager: true });
+const mountReportDialogContent = reportDialogModules["./sheets/ReportDialog.tsx"]?.mountReportDialogContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -2039,22 +2049,19 @@ export function openSessionUnavailableSheet() {
 
 /** Require an explicit in-project warning before a member exits a session. */
 export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm = async () => {} } = {}) {
+  if (!mountWithdrawSessionConfirmationDialogContent) {
+    throw new Error("WithdrawSessionConfirmationDialog browser mount is unavailable.");
+  }
   const mounted = mountDialog({
     id: "withdraw-session-confirmation",
     label: "確認退出這一局？",
     onClose,
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">確認退出</p><h2>確認退出這一局？</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉確認">×</button>
-      </div>
-      <p class="surface__message">退出後將無法再次申請這一局。</p>
-      <p class="form-error" data-withdraw-error role="alert" hidden></p>
-      <div class="session-detail__actions">
-        <button type="button" class="session-secondary" data-surface-close>先不要</button>
-        <button type="button" class="session-primary" data-confirm-withdraw>確認退出</button>
-      </div>`,
+    html: "",
   });
+  // mountDialog 建殼時內容還空著,綁不到 [data-surface-close];× 與「先不要」改由 React
+  // onClick 呼叫同一個 mounted.close()。等價性見批 8.1:HEAD 的 listener 收到 MouseEvent,
+  // close({ reason = "dismiss", restoreFocus = true } = {}) 解構它拿到的就是兩個預設值。
+  mountWithdrawSessionConfirmationDialogContent(mounted.surface, { onClose: () => mounted.close() });
   const confirmButton = mounted.root.querySelector("[data-confirm-withdraw]");
   const error = mounted.root.querySelector("[data-withdraw-error]");
   let submitting = false;
@@ -2080,29 +2087,22 @@ export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm 
 
 const REPORT_REASONS = ["與實際球局不符", "不當行為", "疑似詐騙", "其他"];
 
+export const reportDialogRuntime = Object.freeze({ REPORT_REASONS });
+
 /** Collect a minimal, reviewable report without exposing any new profile data. */
 export function openReportDialog({ targetLabel = "這個項目", onClose = () => {}, onSubmit = () => {} } = {}) {
+  if (!mountReportDialogContent) throw new Error("ReportDialog browser mount is unavailable.");
   const mounted = mountDialog({
     id: "report-dialog",
     label: "檢舉",
     onClose,
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">檢舉</p><h2>回報問題</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉檢舉">×</button>
-      </div>
-      <p class="surface__copy">${esc(targetLabel)}</p>
-      <form data-testid="report-form" class="report-form" novalidate>
-        <fieldset class="form-fieldset"><legend>檢舉原因</legend>
-          ${REPORT_REASONS.map(
-            (reason) =>
-              `<label><input type="radio" name="report-reason" value="${esc(reason)}" />${esc(reason)}</label>`
-          ).join("")}
-        </fieldset>
-        <p class="form-error" data-report-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-testid="report-submit">送出檢舉</button>
-      </form>
-      <p class="surface__message" data-report-success role="status" aria-live="polite" tabindex="-1" hidden>已送出檢舉，謝謝你的回報。</p>`,
+    html: "",
+  });
+  // targetLabel 沿用 esc() 的 String() 語意(React 自己負責 escape);× 的 close 走
+  // React onClick,理由同 openWithdrawSessionConfirmation。
+  mountReportDialogContent(mounted.surface, {
+    onClose: () => mounted.close(),
+    targetLabel: String(targetLabel),
   });
   const form = mounted.root.querySelector("[data-testid='report-form']");
   const submit = mounted.root.querySelector("[data-testid='report-submit']");
