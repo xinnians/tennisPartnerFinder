@@ -40,6 +40,18 @@ const editSessionSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/EditSessionSheet.tsx", { eager: true });
 const mountEditSessionSheetContent =
   editSessionSheetModules["./sheets/EditSessionSheet.tsx"]?.mountEditSessionSheetContent;
+const sessionUnavailableSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionUnavailableSheet.tsx", { eager: true });
+const mountSessionUnavailableSheetContent =
+  sessionUnavailableSheetModules["./sheets/SessionUnavailableSheet.tsx"]?.mountSessionUnavailableSheetContent;
+const courtSessionSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/CourtSessionSheet.tsx", { eager: true });
+const mountCourtSessionSheetContent =
+  courtSessionSheetModules["./sheets/CourtSessionSheet.tsx"]?.mountCourtSessionSheetContent;
+const courtPlayersSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/CourtPlayersSheet.tsx", { eager: true });
+const mountCourtPlayersSheetContent =
+  courtPlayersSheetModules["./sheets/CourtPlayersSheet.tsx"]?.mountCourtPlayersSheetContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -504,7 +516,7 @@ function drawerGroupLabel(value, now = new Date()) {
 // 批 D7:訊息列表列與聊天室 header 副行共用(抽取規格 §3 r.sub / §4 chatSub 同一
 // 語意,但只有 §4 給出完整算式:`${DAY_WORD} ${range} · 主揪 ${host}`)。dc 假設
 // 每局都有明確的 start/end,本站資料模型只有候選局才有時段範圍(rangeEnd)、一般
-// 已定案局只有單一 startAt——比照既有 sessionTimeTileMarkup 的 undecided 分支
+// 已定案局只有單一 startAt——比照既有 sessionTimeTilePresentation 的 undecided 分支
 // 判準,不虛構不存在的結束時間;日期詞前綴改用 D2 taipeiDayWord(今天/明天/週X)
 // 而非時間磚上的月/日。
 function sessionScheduleLabel(session) {
@@ -542,13 +554,6 @@ function sessionTimeTilePresentation(session, venue, { detail = false, compact =
     date: taipeiTileDate(session?.startAt) || "待確認",
     start: start || "--:--",
   };
-}
-
-function sessionTimeTileMarkup(session, venue, options = {}) {
-  const presentation = sessionTimeTilePresentation(session, venue, options);
-  return `<span class="${presentation.className}"><span class="time-tile__start">${esc(
-    presentation.start
-  )}</span><span class="time-tile__date">${esc(presentation.date)}</span></span>`;
 }
 
 const VENUE_TYPE_LABELS = {
@@ -614,29 +619,6 @@ function sessionHostLabel(session) {
   return `主揪 ${session.hostNickname}${Number.isFinite(hostNtrpValue) ? ` ${hostNtrpValue.toFixed(1)}` : ""}`;
 }
 
-function sessionCard(session, { compact = false, courts = [] } = {}) {
-  const presentation = sessionCardPresentation(session, { compact, courts });
-  return `<button type="button" class="${presentation.className}" data-testid="session-card" data-session-id="${esc(
-    session.sessionId
-  )}">
-    ${sessionTimeTileMarkup(session, presentation.venue, { compact })}
-    <span class="session-card__body">
-      <span class="session-card__title">
-        <span class="session-card__court">${esc(presentation.courtLabel)}</span>
-        ${presentation.instant ? '<span class="session-badge session-badge--instant">直接加入</span>' : ""}
-        ${presentation.ongoing ? '<span class="session-badge session-badge--ongoing">進行中</span>' : ""}
-      </span>
-      <span class="session-card__meta">${esc(presentation.metaLabel)}</span>
-      ${presentation.feeLabel ? `<span class="session-card__meta">${esc(presentation.feeLabel)}</span>` : ""}
-      <span class="session-card__foot">
-        <span class="slots-brick">${esc(presentation.vacancy)}</span>
-        ${presentation.booked ? '<span class="booked-note">✓ 已訂場</span>' : ""}
-        <span class="session-card__chevron" aria-hidden="true">›</span>
-      </span>
-    </span>
-  </button>`;
-}
-
 function sessionCardPresentation(session, { compact = false, courts = [] } = {}) {
   const venue = sessionVenuePresentation(session, courts);
   const courtLabel = sessionCourtLabel(session, venue);
@@ -651,7 +633,6 @@ function sessionCardPresentation(session, { compact = false, courts = [] } = {})
     ongoing: !venue.undecidedCandidates && isOngoingSession(session),
     timeTile: sessionTimeTilePresentation(session, venue, { compact }),
     vacancy: vacancyLabel(session),
-    venue,
   };
 }
 
@@ -1427,10 +1408,11 @@ function drawerSessionGroups(sessions) {
 }
 
 /** Single-source presentation helpers consumed by the React nearby drawer. */
+export const sessionCardRuntime = Object.freeze({ sessionCardPresentation });
+
 export const nearbySessionsDrawerRuntime = Object.freeze({
   discoveryEmptyActions,
   drawerSessionGroups,
-  sessionCardPresentation,
   taipeiDayWord,
 });
 
@@ -2078,16 +2060,14 @@ export function openSessionSheet(
 
 /** Explain a public deep link that no longer resolves to an available session. */
 export function openSessionUnavailableSheet() {
-  return mountSheet({
+  if (!mountSessionUnavailableSheetContent) throw new Error("SessionUnavailableSheet browser mount is unavailable.");
+  const mounted = mountSheet({
     id: "session-unavailable-sheet",
     label: "找不到球局",
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">球局連結</p><h2>找不到這個球局</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉找不到球局訊息">×</button>
-      </div>
-      <p class="surface__message">這個球局可能已下架、不再開放，或連結有誤。</p>`,
+    html: "",
   });
+  mountSessionUnavailableSheetContent(mounted.surface, () => mounted.close());
+  return mounted;
 }
 
 /** Require an explicit in-project warning before a member exits a session. */
@@ -2865,46 +2845,47 @@ export function openEditSessionSheet(
 
 /** Open a session-only list for the selected base court or aggregate marker. */
 export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSession = () => {} } = {}) {
+  if (!mountCourtSessionSheetContent) throw new Error("CourtSessionSheet browser mount is unavailable.");
   const mounted = mountSheet({
     id: "court-session-sheet",
     label: "球場球局",
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">${esc(court.district || court.city || "台北市")}</p><h2>${esc(court.name)}</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉球場球局">×</button>
-      </div>
-      <div class="nearby-sessions__cards">
-        ${
-          sessions.length
-            ? sessions.map((session) => sessionCard(session, { compact: true, courts })).join("")
-            : '<p class="surface__copy">這座球場目前沒有可加入的球局。</p>'
-        }
-      </div>`,
+    html: "",
+  });
+  mountCourtSessionSheetContent(mounted.surface, {
+    court,
+    courts,
+    onClose: () => mounted.close(),
+    sessions,
   });
   wireSessionCards(mounted.root, onOpenSession);
   return mounted;
 }
 
+function courtPlayerCardPresentation(player) {
+  return {
+    greetingLabel: playerGreetingLabel(player),
+    id: String(player.profileId),
+    nickname: String(player.nickname),
+    ntrpLabel: formatNtrp(player.ntrp),
+    playTypesLabel: (player.playTypes ?? []).join("、") || "未填打法",
+    presenceLabel: playerPresenceLabel(player),
+    showGreeting: Boolean(player.openToGreeting),
+    showPresence: Boolean(player.isPresent),
+  };
+}
+
+export const courtPlayersSheetRuntime = Object.freeze({ courtPlayerCardPresentation });
+
 /** Open the public player-directory rows for one court. */
 export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onOpenPlayer = () => {} } = {}) {
+  if (!mountCourtPlayersSheetContent) throw new Error("CourtPlayersSheet browser mount is unavailable.");
   const mounted = mountSheet({
     id: "court-players-sheet",
     label: "球場球友",
     onClose,
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">${esc(court.district || court.city || "台北市")}</p><h2>${esc(court.name)}・球友</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉球場球友">×</button>
-      </div>
-      <div class="nearby-sessions__cards">
-        ${players.length ? players.map((player) => `
-          <button type="button" class="player-card" data-testid="court-player-card-${esc(player.profileId)}" data-player-id="${esc(player.profileId)}">
-            <strong>${esc(player.nickname)}</strong> · ${esc(formatNtrp(player.ntrp))}
-            ${player.isPresent ? `<span class="player-presence">${esc(playerPresenceLabel(player))}${player.openToGreeting ? ` · ${esc(playerGreetingLabel(player))}` : ""}</span>` : ""}
-            <span>${esc((player.playTypes ?? []).join("、") || "未填打法")}</span>
-          </button>`).join("") : '<p class="surface__copy">這座球場目前沒有在線球友。</p>'}
-      </div>`,
+    html: "",
   });
+  mountCourtPlayersSheetContent(mounted.surface, { court, onClose: () => mounted.close(), players });
   mounted.root.querySelectorAll("[data-player-id]").forEach((node) => {
     node.addEventListener("click", () => {
       const target = players.find((player) => String(player.profileId) === node.dataset.playerId);

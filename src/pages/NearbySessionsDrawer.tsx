@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
 import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionViews.js";
@@ -35,22 +36,6 @@ export interface NearbySessionsDrawerOptions {
   sessions?: NearbySession[];
 }
 
-interface SessionCardPresentation {
-  booked: boolean;
-  className: string;
-  courtLabel: string;
-  feeLabel: string | null;
-  instant: boolean;
-  metaLabel: string;
-  ongoing: boolean;
-  timeTile: {
-    className: string;
-    date: string;
-    start: string;
-  };
-  vacancy: string;
-}
-
 interface DrawerSessionGroup {
   key: string;
   label: string;
@@ -66,7 +51,6 @@ interface EmptyAction {
 interface NearbyDrawerRuntime {
   discoveryEmptyActions(filtersActive: boolean): EmptyAction[];
   drawerSessionGroups(sessions: NearbySession[]): DrawerSessionGroup[];
-  sessionCardPresentation(session: NearbySession, options: { courts: NearbyCourt[] }): SessionCardPresentation;
   taipeiDayWord(value?: string): string;
 }
 
@@ -95,41 +79,6 @@ function PeekArrow() {
     >
       <path d="M18 15l-6-6-6 6" />
     </svg>
-  );
-}
-
-function SessionCard({ courts, session }: { courts: NearbyCourt[]; session: NearbySession }) {
-  const presentation = runtime().sessionCardPresentation(session, {
-    courts,
-  });
-  return (
-    <button
-      type="button"
-      className={presentation.className}
-      data-testid="session-card"
-      data-session-id={String(session.sessionId)}
-    >
-      <span className={presentation.timeTile.className}>
-        <span className="time-tile__start">{presentation.timeTile.start}</span>
-        <span className="time-tile__date">{presentation.timeTile.date}</span>
-      </span>
-      <span className="session-card__body">
-        <span className="session-card__title">
-          <span className="session-card__court">{presentation.courtLabel}</span>
-          {presentation.instant ? <span className="session-badge session-badge--instant">直接加入</span> : null}
-          {presentation.ongoing ? <span className="session-badge session-badge--ongoing">進行中</span> : null}
-        </span>
-        <span className="session-card__meta">{presentation.metaLabel}</span>
-        {presentation.feeLabel ? <span className="session-card__meta">{presentation.feeLabel}</span> : null}
-        <span className="session-card__foot">
-          <span className="slots-brick">{presentation.vacancy}</span>
-          {presentation.booked ? <span className="booked-note">✓ 已訂場</span> : null}
-          <span className="session-card__chevron" aria-hidden="true">
-            ›
-          </span>
-        </span>
-      </span>
-    </button>
   );
 }
 
