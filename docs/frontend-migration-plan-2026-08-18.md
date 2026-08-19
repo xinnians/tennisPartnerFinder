@@ -227,9 +227,21 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   modifier class）、五 lens read-back 僅一 CONCERN（setDirectory(null) 整參數 null 由 HEAD
   crash 變容錯——裁決接受，latent hardening）、七站 gate 綠。
   回報 `docs/migration-reports/batch-8.3.md`（含驗收方註記 §16）。
-  **rider（併批 8.4）**：MePage.tsx:126 與 SessionDetailSheet.tsx:446 各有私有 PlayerAvatar，
-  DOM 與共用 Avatar 一致——批 8.4 退役 avatarMarkup 字串版時一併改用共用版。
-- 批 8.4：openProfileCompletionSheet（:2314）——三級 gate 表單，沿批 7 uncontrolled 模式。
+  **rider（併批 8.4，已完成）**：MePage.tsx 與 SessionDetailSheet.tsx 各有私有 PlayerAvatar，
+  DOM 與共用 Avatar 一致——已於批 8.4 退役 avatarMarkup 字串版時一併改用共用版。
+- 批 8.4（**完成，2026-08-19**）：openProfileCompletionSheet → `src/sheets/ProfileCompletionSheet.tsx`。
+  gate 判準零搬移（紅線 lens 全 PASS：profileGateForIntent／validateProfileForm／runAsyncAction
+  全留 legacy，onSubmit 走批 7 {error,form,submit} 回呼）；setCourts 三條草稿語意凍結
+  （live 勾選 capture／fallback 恆為開局 profile.courts／generation key 重現 innerHTML 置換）；
+  avatar 收官（avatarMarkup／wireAvatarFallbacks／updateCourtCheckboxes 退役、兩檔私有
+  PlayerAvatar 改共用版 DOM 零變更、Avatar 註解假陳述由驗收方修正）。
+  驗收：幾何指紋六案例逐 byte 相同、雙 canary、五 lens read-back 僅 2 CONCERN（canary 後
+  取證順序斷點＋註解假陳述，皆裁決接受並修正）、乾淨 DB 完整 gate 七站綠。
+  **flaky 事故（root cause 與本批無關）**：test-local 的 notification court subscription 測試
+  紅率隨驗收輪次攀升；二分實驗（HEAD 全檔同髒 DB 5/6 紅）定因**反覆 test:local 未 reset 的
+  DB 資料累積**，guarded reset 後 6/6 綠。流程教訓入 memory：對照組實驗必控 DB 狀態變因；
+  二分前先落 diff 備份（本次 checkout 失誤靠回報 SHA 重放恢復，byte 級一致）。
+  回報 `docs/migration-reports/batch-8.4.md`（含驗收方註記 §17）。
 - 批 8.5：openDecideSessionSheet（:2698)——候選定案表單。
 - 批 8.6：openSessionChatSheet（:1569）——最大（feed＋輸入＋輪詢），壓軸。
 - 批 8.7（或併入 8.1 當 rider）：mountDialog 系 openWithdrawSessionConfirmation（:2094）＋
@@ -293,3 +305,5 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   subagent（同 session 內派單→實作→驗收，「做事的 agent 不驗收」不變）。
 - 2026-08-19：批 8.3 驗收通過並 commit（a4645c0）——probe serializer 升級入流程；
   PlayerAvatar 統一 rider 併批 8.4；批 8.4（profile completion sheet）派工單已發。
+- 2026-08-19：批 8.4 驗收通過並 commit（b054148）——avatar 單一來源收官；test-local flaky
+  定因 DB 累積並 reset 收口；批 8.5（decide sheet）派工單已發。
