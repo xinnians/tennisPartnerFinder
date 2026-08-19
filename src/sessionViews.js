@@ -66,6 +66,10 @@ const profileCompletionSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/ProfileCompletionSheet.tsx", { eager: true });
 const mountProfileCompletionSheetContent =
   profileCompletionSheetModules["./sheets/ProfileCompletionSheet.tsx"]?.mountProfileCompletionSheetContent;
+const decideSessionSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/DecideSessionSheet.tsx", { eager: true });
+const mountDecideSessionSheetContent =
+  decideSessionSheetModules["./sheets/DecideSessionSheet.tsx"]?.mountDecideSessionSheetContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -2628,41 +2632,61 @@ export function openCreateSessionSheet({
   return { ...mounted, setCourts };
 }
 
+/**
+ * Candidate decision buttons and their status line. Only the session's own
+ * candidate court ids are選-able (the catalogue can legitimately be wider), and
+ * the status is the same three-state line the imperative `renderCourtButtons()`
+ * used to encode around its innerHTML string: still loading, loaded but nothing
+ * resolvable, or resolved and therefore silent.
+ */
+function decideCourtOptionsPresentation(courts, candidateIds, { ready = true } = {}) {
+  const available = Array.isArray(courts) ? courts : [];
+  const ids = candidateIds instanceof Set ? candidateIds : new Set([...(candidateIds ?? [])].map(String));
+  const candidateCourts = available.filter((court) => ids.has(String(court.id)));
+  return {
+    // Raw strings on purpose: the imperative version needed esc() because it built
+    // an HTML string, whereas React escapes on render — esc() here would produce a
+    // visible double-escape of the exact same court names.
+    options: candidateCourts.map((court) => ({ id: String(court.id), name: String(court.name) })),
+    statusText: !ready
+      ? "正在載入候選球場…"
+      : candidateCourts.length === 0
+        ? "候選球場資料暫時無法載入，請稍後再試。"
+        : "",
+  };
+}
+
+/** Candidate court filtering and status rules shared with the React decision sheet. */
+export const decideSessionSheetRuntime = Object.freeze({
+  decideCourtOptionsPresentation,
+});
+
 /** Open the one-tap candidate decision sheet backed by a fresh SessionSummary. */
 export function openDecideSessionSheet(
   session,
   { courts = [], courtsReady = true, onClose = () => {}, onDecide = async () => {} } = {}
 ) {
+  if (!mountDecideSessionSheetContent) throw new Error("DecideSessionSheet browser mount is unavailable.");
   const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
   const unavailable = !isUndecidedCandidate(session);
   const mounted = mountSheet({
     id: "session-decision-sheet",
     label: "定案場地與時間",
     onClose,
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">候選局定案</p><h2>選一座球場完成定案</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉定案">×</button>
-      </div>
-      <p class="surface__copy">時間預設為範圍起點；調整後，點選球場即可完成。</p>
-      <div data-decision-controls${unavailable ? " hidden" : ""}>
-        <label class="form-field" for="session-decision-time"><span>台北時間</span><input id="session-decision-time" data-testid="session-decision-time" type="datetime-local" value="${esc(
-          taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true })
-        )}" min="${esc(taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true }))}" max="${esc(
-          taipeiDateTimeLocalValue(session?.rangeEnd, { includeMilliseconds: true })
-        )}" step="0.001" /></label>
-        <div class="candidate-decision-buttons" aria-label="候選球場" data-decision-courts></div>
-        <p class="form-hint" data-decision-courts-status role="status" aria-live="polite"></p>
-        <p class="form-error" data-decision-error role="alert" hidden></p>
-      </div>
-      <p class="surface__message" data-decision-terminal role="status" tabindex="-1"${unavailable ? "" : " hidden"}>候選球局已逾期或下架，無法再定案。</p>`,
+    html: "",
+  });
+  const content = mountDecideSessionSheetContent(mounted.surface, {
+    candidateIds,
+    onClose: () => mounted.close(),
+    onDecide: (event) => decide(event),
+    rangeEndLocal: taipeiDateTimeLocalValue(session?.rangeEnd, { includeMilliseconds: true }),
+    startAtLocal: taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true }),
+    unavailable,
   });
   const controls = mounted.root.querySelector("[data-decision-controls]");
   const terminal = mounted.root.querySelector("[data-decision-terminal]");
   const error = mounted.root.querySelector("[data-decision-error]");
   const timeInput = mounted.root.querySelector("[data-testid='session-decision-time']");
-  const courtButtons = mounted.root.querySelector("[data-decision-courts]");
-  const courtsStatus = mounted.root.querySelector("[data-decision-courts-status]");
   let availableCourts = Array.isArray(courts) ? courts : [];
   let courtOptionsReady = Boolean(courtsReady);
   let terminalState = unavailable;
@@ -2707,24 +2731,13 @@ export function openDecideSessionSheet(
   };
   const renderCourtButtons = () => {
     if (terminalState) return;
-    const candidateCourts = availableCourts.filter((court) => candidateIds.has(String(court.id)));
-    courtButtons.innerHTML = candidateCourts
-      .map(
-        (court) =>
-          `<button type="button" class="session-primary" data-decide-court="${esc(court.id)}" data-testid="decide-court-${esc(court.id)}">${esc(
-            court.name
-          )}</button>`
-      )
-      .join("");
+    // React owns the button/status markup now; `disabled` stays imperative so a
+    // refresh during an in-flight decide reproduces the legacy authoritative
+    // state, and runAsyncAction keeps being the only other writer.
+    content.setCourts(availableCourts, { ready: courtOptionsReady });
     buttons().forEach((button) => {
       button.disabled = deciding;
-      button.addEventListener("click", decide);
     });
-    courtsStatus.textContent = !courtOptionsReady
-      ? "正在載入候選球場…"
-      : candidateCourts.length === 0
-        ? "候選球場資料暫時無法載入，請稍後再試。"
-        : "";
   };
   const setCourts = (nextCourts, { ready = true } = {}) => {
     availableCourts = Array.isArray(nextCourts) ? nextCourts : [];
