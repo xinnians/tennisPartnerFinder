@@ -2,6 +2,7 @@ import type { ChangeEvent, MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
 import { mePageRuntime } from "../sessionViews.js";
 
@@ -123,25 +124,6 @@ const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: R
 
 function noop() {}
 
-function PlayerAvatar({ avatarUrl, nickname }: { avatarUrl: string; nickname: string }) {
-  const safeUrl = mePageRuntime.safeGoogleAvatarUrl(avatarUrl);
-  return (
-    <span className="player-avatar player-avatar--lg" data-player-avatar="">
-      {safeUrl ? (
-        <img
-          src={safeUrl}
-          alt=""
-          referrerPolicy="no-referrer"
-          onError={(event) => mePageRuntime.showAvatarFallback(event.currentTarget)}
-        />
-      ) : null}
-      <span data-avatar-fallback="" className="player-avatar__fallback" aria-hidden="true" hidden={Boolean(safeUrl)}>
-        {mePageRuntime.avatarInitial(nickname)}
-      </span>
-    </span>
-  );
-}
-
 function NtrpBrick({ ntrp }: { ntrp: number | null | undefined }) {
   return (
     <div className="ntrp-brick">
@@ -177,7 +159,7 @@ function AuthenticatedIdentity({
           aria-label={`編輯個人檔案：${nickname}`}
           onClick={onEditProfile}
         >
-          <PlayerAvatar avatarUrl={avatarUrl} nickname={nickname} />
+          <Avatar avatarUrl={avatarUrl} nickname={nickname} size="lg" />
           <span className="profile-brick-row__copy">
             <strong>{nickname}</strong>
             <span>

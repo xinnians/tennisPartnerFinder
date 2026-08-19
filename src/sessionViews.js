@@ -62,6 +62,10 @@ const playerCardSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/PlayerCardSheet.tsx", { eager: true });
 const mountPlayerCardSheetContent =
   playerCardSheetModules["./sheets/PlayerCardSheet.tsx"]?.mountPlayerCardSheetContent;
+const profileCompletionSheetModules =
+  typeof document === "undefined" ? {} : import.meta.glob("./sheets/ProfileCompletionSheet.tsx", { eager: true });
+const mountProfileCompletionSheetContent =
+  profileCompletionSheetModules["./sheets/ProfileCompletionSheet.tsx"]?.mountProfileCompletionSheetContent;
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -76,29 +80,10 @@ function avatarInitial(nickname) {
   return [...String(nickname ?? "").trim()][0] || "球";
 }
 
-// 批 D8:size modifier(""=既有 40px、"md"=44px 名單列、"lg"=52px 我頁/球友卡)——
-// 球友（非本人）在資料庫層從不帶 avatarUrl(player_directory/player_presence_directory
-// allowlist 皆無 avatar 欄位,見 .claude/rules/supabase.md),所以 md/lg 呼叫點永遠只會
-// 落回字首 fallback,不會意外冒出 <img>。
-function avatarMarkup({ avatarUrl = "", nickname = "", size = "" } = {}) {
-  const safeUrl = safeGoogleAvatarUrl(avatarUrl);
-  const sizeClass = size ? ` player-avatar--${size}` : "";
-  return `<span class="player-avatar${sizeClass}" data-player-avatar>
-    ${safeUrl ? `<img src="${esc(safeUrl)}" alt="" referrerpolicy="no-referrer" />` : ""}
-    <span class="player-avatar__fallback" data-avatar-fallback aria-hidden="true"${safeUrl ? " hidden" : ""}>${esc(avatarInitial(nickname))}</span>
-  </span>`;
-}
-
 // 批 D8:NTRP 磚(dc §1/§3 大版、§2 小版)——null/未填一律顯示「—」,不落回
 // Number(null)=0 的舊陷阱(hosted QA 已記過一次教訓,見 memory hosted-qa-minor-copy-bugs)。
 function ntrpBrickValue(ntrp) {
   return validProfileNtrp(ntrp) ? Number(ntrp).toFixed(1) : "—";
-}
-
-function wireAvatarFallbacks(root) {
-  root?.querySelectorAll?.("[data-player-avatar] img").forEach((image) => {
-    image.addEventListener("error", () => showAvatarFallback(image));
-  });
 }
 
 function showAvatarFallback(image) {
@@ -123,8 +108,8 @@ function trustCountText(count, label) {
 export const avatarRuntime = Object.freeze({ avatarInitial, safeGoogleAvatarUrl, showAvatarFallback });
 
 // 批 D8:我頁 profile 卡副行「常打 X」——profile.courts 可能存 court.id 或(舊資料)
-// court.name,雙重比對沿用 updateCourtCheckboxes(既有個人檔案表單邏輯)同一寫法,
-// 不是新發明的判準。
+// court.name,雙重比對沿用 profileCourtOptionsPresentation(既有個人檔案表單邏輯)同一
+// 寫法,不是新發明的判準。
 function profileCourtNames(profile, courts) {
   const selected = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
   if (!selected.size) return [];
@@ -1086,7 +1071,6 @@ async function runPresenceSettingAction(root, callback) {
 
 /** Single-source presentation and DOM action helpers consumed by the React Me page. */
 export const mePageRuntime = Object.freeze({
-  avatarInitial,
   canReceiveFocus,
   normalizedNotificationSettings,
   normalizedPresenceSettings,
@@ -1098,8 +1082,6 @@ export const mePageRuntime = Object.freeze({
   runMySessionAction,
   runNotificationSettingAction,
   runPresenceSettingAction,
-  safeGoogleAvatarUrl,
-  showAvatarFallback,
 });
 
 // 批 D6:kind 就決定我主揪的/我報名的(host-request 恆為 hosted,其餘 needsAction
@@ -1816,14 +1798,12 @@ export const sessionDetailSheetRuntime = Object.freeze({
   hostRowBookedStatus,
   joinConfirmHintText,
   ongoingSessionMinutes,
-  safeGoogleAvatarUrl,
   scoreboardNtrpValue,
   scoreboardVacancyText,
   sessionCourtLabel,
   sessionDetailCourtName,
   sessionTimeTilePresentation,
   sessionVenuePresentation,
-  showAvatarFallback,
   successPushPromptPresentation,
   trustCountText,
 });
@@ -2215,25 +2195,28 @@ function selectedCourtCheckboxValues(container, fallback = new Set()) {
   return selected.size ? selected : new Set(fallback);
 }
 
-/** Updates the profile「常打球場」picker (cf. #notification-court-picker template). */
-function updateCourtCheckboxes(container, status, courts, { ready = true, selected = new Set() } = {}) {
-  if (!container) return;
+/**
+ * Profile「常打球場」picker options and status (cf. #notification-court-picker
+ * template). Only Taipei courts are選-able, a court counts as selected by either
+ * id or (legacy rows) name, and the picker renders nothing at all until the
+ * catalogue is both ready and non-empty — the same three rules the imperative
+ * `updateCourtCheckboxes()` used to encode inside its innerHTML string.
+ */
+function profileCourtOptionsPresentation(courts, { ready = true, selected = new Set() } = {}) {
   const nextCourts = taipeiCourts(courts);
   const selectedValues = selected instanceof Set ? selected : new Set(selected ?? []);
-  container.innerHTML =
-    ready && nextCourts.length
-      ? nextCourts
-          .map((court) => {
-            const isChecked = selectedValues.has(String(court.id)) || selectedValues.has(court.name);
-            return `<label><input type="checkbox" name="profile-courts" value="${esc(court.id)}" data-testid="profile-court-${esc(
-              court.id
-            )}"${isChecked ? " checked" : ""}> <span>${esc(court.name)} · ${esc(court.district || "台北市")}</span></label>`;
-          })
-          .join("")
-      : "";
-  if (!status) return;
-  status.hidden = ready && nextCourts.length > 0;
-  status.textContent = !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。";
+  return {
+    options:
+      ready && nextCourts.length
+        ? nextCourts.map((court) => ({
+            checked: selectedValues.has(String(court.id)) || selectedValues.has(court.name),
+            id: String(court.id),
+            label: `${court.name} · ${court.district || "台北市"}`,
+          }))
+        : [],
+    statusHidden: Boolean(ready && nextCourts.length > 0),
+    statusText: !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。",
+  };
 }
 
 function selectedValues(form, name) {
@@ -2288,6 +2271,12 @@ function validateProfileForm(profile, requiredGate, intent = null) {
   return "";
 }
 
+/** Court picker rules and live-draft capture shared with the React profile sheet. */
+export const profileCompletionSheetRuntime = Object.freeze({
+  profileCourtOptionsPresentation,
+  selectedCourtCheckboxValues,
+});
+
 /** Open the private profile-completion sheet without leaking profile fields to public renderers. */
 export function openProfileCompletionSheet({
   avatarUrl = "",
@@ -2301,6 +2290,7 @@ export function openProfileCompletionSheet({
   profile = {},
   returnSession = null,
 } = {}) {
+  if (!mountProfileCompletionSheetContent) throw new Error("ProfileCompletionSheet browser mount is unavailable.");
   // standalone 是「我」頁的常駐編輯入口：同一份表單與驗證，只是不帶 gate 的催促語氣。
   const standalone = mode === "standalone";
   const selectedCourts = profile.courts instanceof Set ? profile.courts : new Set(profile.courts ?? []);
@@ -2312,104 +2302,70 @@ export function openProfileCompletionSheet({
   const needsNickname = !String(profile.nick ?? "").trim();
   const needsNtrp = !validProfileNtrp(profile.ntrp);
   let saved = false;
+  let saving = false;
   const mounted = mountSheet({
     id: "profile-completion-sheet",
     label: standalone ? "編輯個人檔案" : "完成個人檔案",
     className: "profile-sheet",
     onClose: (detail = {}) => onClose({ ...detail, saved }),
-    html: `
-      <div class="surface__head">
-        <div><p class="surface__eyebrow">${standalone ? "個人檔案" : "完成後即可繼續"}</p><h2>${
-          standalone ? "編輯個人檔案" : "完成個人檔案"
-        }</h2></div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉個人檔案">×</button>
-      </div>
-      ${
-        returnSession && !standalone
-          ? `<p class="profile-return-context">完成後將回到：${esc(returnSession.court)}・${esc(taipeiDateTime(returnSession.startAt))}</p>`
-          : ""
+    html: "",
+  });
+
+  const content = mountProfileCompletionSheetContent(mounted.surface, {
+    avatarUrl,
+    compactCreateGate,
+    courts,
+    courtsReady: Boolean(courtsReady),
+    disclosure: PROFILE_PUBLIC_DISCLOSURE,
+    gateHintText: gateHint && !standalone ? gateHint : "",
+    initialSelectedCourts: selectedCourts,
+    nickname: String(profile.nick ?? ""),
+    ntrpDefaultValue: String(profile.ntrp ?? ""),
+    ntrpExplanation: NTRP_SCALE_EXPLANATION,
+    onClose: () => mounted.close(),
+    onSubmit: async ({ error, form, submit }) => {
+      if (saving) return;
+      const nextProfile = profileFormValue(form, profile, selectedCourts);
+      const message = validateProfileForm(nextProfile, requiredGate, intent);
+      if (message) {
+        error.hidden = false;
+        error.textContent = message;
+        return;
       }
-      ${gateHint && !standalone ? `<p class="form-hint">${esc(gateHint)}</p>` : ""}
-      <div class="profile-avatar-preview" data-profile-avatar>${avatarMarkup({ avatarUrl, nickname: profile.nick })}<p>使用 Google 頭像，無法自訂</p></div>
-      <form class="profile-form" data-testid="profile-form" novalidate>
-        ${
-          !compactCreateGate || needsNickname
-            ? `<label class="form-field" for="profile-nickname"><span>公開暱稱</span><input id="profile-nickname" name="profile-nickname" required value="${esc(
-                profile.nick ?? ""
-              )}" autocomplete="nickname" /></label>`
-            : ""
-        }
-        <p class="form-disclosure">${esc(PROFILE_PUBLIC_DISCLOSURE)}</p>
-        ${
-          !compactCreateGate || needsNtrp
-            ? `<label class="form-field" for="profile-ntrp"><span>${compactCreateGate ? "NTRP 程度" : "NTRP 程度（選填）"}</span><input id="profile-ntrp" name="profile-ntrp" type="number" min="1" max="7" step="0.1" value="${esc(
-                profile.ntrp ?? ""
-              )}" inputmode="decimal" placeholder="尚未填寫" /></label>
-              <p class="form-hint" data-ntrp-explanation>${esc(NTRP_SCALE_EXPLANATION)}</p>`
-            : ""
-        }
-        ${
-          compactCreateGate
-            ? ""
-            : `<fieldset class="form-fieldset"><legend>常打球場</legend><div class="option-grid option-grid--stacked" data-profile-courts data-testid="profile-courts-picker"></div><p class="form-hint" data-profile-courts-status role="status" aria-live="polite"></p></fieldset>
-        <fieldset class="form-fieldset"><legend>常打類型</legend><div class="option-grid">${PROFILE_PLAY_TYPES.map(
-          (type) =>
-            `<label><input type="checkbox" name="profile-types" value="${esc(type)}"${selectedTypes.has(type) ? " checked" : ""} /> ${esc(
-              type
-            )}</label>`
-        ).join("")}</div></fieldset>
-        <fieldset class="form-fieldset"><legend>可打時段</legend><div class="option-grid">${PROFILE_SLOTS.map(
-          ([value, label]) =>
-            `<label><input type="checkbox" name="profile-slots" value="${esc(value)}"${selectedSlots.has(value) ? " checked" : ""} /> ${esc(
-              label
-            )}</label>`
-        ).join("")}</div></fieldset>`
-        }
-        <p class="form-error" data-profile-error role="alert" hidden></p>
-        <button type="submit" class="session-primary" data-testid="profile-save">${standalone ? "儲存" : "儲存並繼續"}</button>
-      </form>`,
+      saving = true;
+      await runAsyncAction({
+        root: mounted.root,
+        callback: async () => {
+          const savedProfile = await onSave(nextProfile);
+          saved = true;
+          mounted.close({ reason: "complete" });
+          await onSaved(savedProfile ?? nextProfile);
+        },
+        controls: [submit],
+        error,
+        errorMessage: "個人檔案暫時無法儲存。",
+        onFinally: ({ controlsRestored }) => {
+          if (controlsRestored) saving = false;
+        },
+      });
+    },
+    playTypes: PROFILE_PLAY_TYPES,
+    returnContextText:
+      returnSession && !standalone
+        ? `完成後將回到：${returnSession.court}・${taipeiDateTime(returnSession.startAt)}`
+        : "",
+    selectedSlots,
+    selectedTypes,
+    showNicknameField: !compactCreateGate || needsNickname,
+    showNtrpField: !compactCreateGate || needsNtrp,
+    slotOptions: PROFILE_SLOTS,
+    standalone,
   });
-  const form = mounted.root.querySelector("[data-testid='profile-form']");
-  wireAvatarFallbacks(mounted.root);
-  const error = mounted.root.querySelector("[data-profile-error]");
-  const submit = mounted.root.querySelector("[data-testid='profile-save']");
-  const courtsContainer = mounted.root.querySelector("[data-profile-courts]");
-  const courtsStatus = mounted.root.querySelector("[data-profile-courts-status]");
+
   const setCourts = (nextCourts, { ready = true } = {}) => {
-    updateCourtCheckboxes(courtsContainer, courtsStatus, nextCourts, {
-      ready,
-      selected: selectedCourtCheckboxValues(courtsContainer, selectedCourts),
-    });
+    content.setCourts(nextCourts, { ready });
   };
-  setCourts(courts, { ready: courtsReady });
-  let saving = false;
-  form?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (saving) return;
-    const nextProfile = profileFormValue(form, profile, selectedCourts);
-    const message = validateProfileForm(nextProfile, requiredGate, intent);
-    if (message) {
-      error.hidden = false;
-      error.textContent = message;
-      return;
-    }
-    saving = true;
-    await runAsyncAction({
-      root: mounted.root,
-      callback: async () => {
-        const savedProfile = await onSave(nextProfile);
-        saved = true;
-        mounted.close({ reason: "complete" });
-        await onSaved(savedProfile ?? nextProfile);
-      },
-      controls: [submit],
-      error,
-      errorMessage: "個人檔案暫時無法儲存。",
-      onFinally: ({ controlsRestored }) => {
-        if (controlsRestored) saving = false;
-      },
-    });
-  });
+
   return { ...mounted, setCourts };
 }
 

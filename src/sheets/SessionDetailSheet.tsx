@@ -2,7 +2,8 @@ import { Fragment, memo } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
-import type { CourtSummary, SessionJoinPreview, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
+import { Avatar } from "../components/Avatar.tsx";
+import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
 import { sessionDetailSheetRuntime } from "../sessionViews.js";
 
@@ -443,25 +444,6 @@ const DetailMain = memo(function DetailMain({ detail }: { detail: SessionDetailC
   );
 });
 
-function PlayerAvatar({ participant }: { participant: SessionJoinPreview }) {
-  const safeUrl = sessionDetailSheetRuntime.safeGoogleAvatarUrl(participant.avatarUrl);
-  return (
-    <span className="player-avatar" data-player-avatar="">
-      {safeUrl ? (
-        <img
-          src={safeUrl}
-          alt=""
-          referrerPolicy="no-referrer"
-          onError={(event) => sessionDetailSheetRuntime.showAvatarFallback(event.currentTarget)}
-        />
-      ) : null}
-      <span className="player-avatar__fallback" data-avatar-fallback="" aria-hidden="true" hidden={Boolean(safeUrl)}>
-        {sessionDetailSheetRuntime.avatarInitial(participant.nickname)}
-      </span>
-    </span>
-  );
-}
-
 const JoinPreview = memo(function JoinPreview({ state }: { state: SessionJoinPreviewState }) {
   let content;
   if (state.status === "loading") {
@@ -493,7 +475,7 @@ const JoinPreview = memo(function JoinPreview({ state }: { state: SessionJoinPre
               data-join-preview-person=""
               key={`${participant.sessionId}-${participant.nickname}-${index}`}
             >
-              <PlayerAvatar participant={participant} />
+              <Avatar avatarUrl={participant.avatarUrl} nickname={participant.nickname} />
               <div>
                 <strong>{participant.nickname}</strong>
                 <span>
