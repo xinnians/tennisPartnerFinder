@@ -274,8 +274,19 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   回報 `docs/migration-reports/batch-8.6.md`（含驗收方註記）。
   觀察項（PM）：message.body／createdAt 為 undefined 時顯示字面 "undefined"（既有行為，
   未修）。
-- 批 8.7（或併入 8.1 當 rider）：mountDialog 系 openWithdrawSessionConfirmation（:2094）＋
-  openReportDialog（:2137）。
+- ✅ 批 8.7（2026-08-19，e43f0b7）：mountDialog 系 openWithdrawSessionConfirmation＋
+  openReportDialog 遷 React（`src/sheets/{WithdrawSessionConfirmationDialog,ReportDialog}.tsx`），
+  **sessionViews 的 surface 遷移全數收官**。兩元件零 React state 零 effect——render 一生
+  一次，結構上無 re-render 路徑，比「常數 prop diff 為空」更強的不變量；legacy imperative
+  writer（error／form.hidden／success／disabled）與 runAsyncAction controls 因此天然安全。
+  close reason `"complete"` 語意由 probe `closeReasons` 欄直接實測；「先不要」動作鈕與 ×
+  同走 React onClick→mounted.close()，dev canary B 直接證偽「空殼下殼還會綁
+  [data-surface-close]」。驗收：probe 15 案例×2 viewport 零差異、五發 canary
+  （dev 四發＋驗收方 data-confirm-withdraw 接線錨點一發）、read-back 三 lens 全 PASS
+  （唯一 concern＝runtime shallow freeze vs readonly 型別宣稱，裁決接受——全庫既有慣例
+  非本批退化）、七站 gate 全綠。回報 `docs/migration-reports/batch-8.7.md`（含驗收方註記）。
+  觀察項（PM）：smoke.spec.js:2780 只斷 dialog 殼不碰內容（既有覆蓋事實）；
+  runAsyncAction clearError 不清 textContent（失敗文字 hidden 留存，既有行為）。
 - 觀察項：sheets.js 內 openLoginModal（:175）屬 surface 殼模組自身內容，是否遷移待批 8.x
   收尾時再議，不擋批 9。
 
@@ -341,4 +352,7 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   有牙紅綠實證；依 user 指示暫停派發，批 8.6（chat 壓軸）待 compact 後發單。
 - 2026-08-19：批 8.6 驗收通過並 commit（d4b8cd3）——sheet 批壓軸收官，批 8.5 rider 收口；
   雙 writer 鏡像案例（composer 必須不重建）與焦點語意有牙實證；幾何指紋動畫／rAF settle
-  兩教訓入流程。**下一批：批 8.7（mountDialog 系兩 surface）**。
+  兩教訓入流程。批 8.7（mountDialog 系兩 surface）派工單已發。
+- 2026-08-19：批 8.7 驗收通過並 commit（e43f0b7）——**sessionViews surface 遷移全數收官**，
+  零 state 純靜態模式確立。剩餘：openLoginModal 觀察項裁決（批 9 前議）→ 批 9
+  （controller store 化）→ 批 10（CSS 收整）。
