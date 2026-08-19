@@ -216,8 +216,19 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   rider 完成：CourtPlayersSheet key 命名空間分離。驗收：幾何指紋三態逐值全同、雙 canary、
   五 lens read-back 32 項全 PASS（含 reset 時序批次語意與 memo 鏈論證）、七站 gate 綠。
   回報 `docs/migration-reports/batch-8.2.md`。
-- 批 8.3：openPlayerDirectoryList（:2949）＋openPlayerCardSheet（:3218）——球友系相依
-  （目錄開球友卡）。
+- 批 8.3（**完成，2026-08-19**）：openPlayerDirectoryList＋openPlayerCardSheet →
+  `src/sheets/{PlayerDirectorySheet,PlayerCardSheet}.tsx`＋共用 `src/components/Avatar.tsx`。
+  本批起實作者改為 Claude opus subagent（Codex token 用罄，user 拍板）。邀請表單狀態機
+  忠實對映 runAsyncAction（superseded 用 mounted.root——surface.contains 於 detach 後恆真，
+  偏離論證成立）；generation key 重現 innerHTML 置換清 radio；六個字串 helper 退役，
+  avatarMarkup 留待批 8.4。probe serializer 升級為逐 text node 比對（抓到 JSX 複合文字拆分
+  回歸並修正——前兩批 join(" ") 序列化會掩蓋此類差異，後續批沿用新 serializer）。
+  驗收：幾何指紋逐 byte 相同、雙 canary（驗收方第一發假陰性：注入面要對準測試實際斷言的
+  modifier class）、五 lens read-back 僅一 CONCERN（setDirectory(null) 整參數 null 由 HEAD
+  crash 變容錯——裁決接受，latent hardening）、七站 gate 綠。
+  回報 `docs/migration-reports/batch-8.3.md`（含驗收方註記 §16）。
+  **rider（併批 8.4）**：MePage.tsx:126 與 SessionDetailSheet.tsx:446 各有私有 PlayerAvatar，
+  DOM 與共用 Avatar 一致——批 8.4 退役 avatarMarkup 字串版時一併改用共用版。
 - 批 8.4：openProfileCompletionSheet（:2314）——三級 gate 表單，沿批 7 uncontrolled 模式。
 - 批 8.5：openDecideSessionSheet（:2698)——候選定案表單。
 - 批 8.6：openSessionChatSheet（:1569）——最大（feed＋輸入＋輪詢），壓軸。
@@ -278,3 +289,7 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   fallback 疵點轉 rider 併批 8.2；批 8.2（filter sheet）派工單已發。
 - 2026-08-19：批 8.2 驗收通過並 commit（47a42f6）——syncControls 模式退役，rider 收口；
   批 8.3（球友目錄＋球友卡）派工單已發。
+- 2026-08-19：**管線角色變更**——Codex token 用罄，user 拍板實作者改為 Claude opus
+  subagent（同 session 內派單→實作→驗收，「做事的 agent 不驗收」不變）。
+- 2026-08-19：批 8.3 驗收通過並 commit（a4645c0）——probe serializer 升級入流程；
+  PlayerAvatar 統一 rider 併批 8.4；批 8.4（profile completion sheet）派工單已發。
