@@ -71,7 +71,7 @@ function CourtPlayersSheet({ court, onClose, players }: CourtPlayersSheetProps) 
                 className="player-card"
                 data-testid={`court-player-card-${presentation.id}`}
                 data-player-id={presentation.id}
-                key={player.profileId == null ? index : presentation.id}
+                key={player.profileId == null ? `missing:${index}` : `id:${presentation.id}`}
               >
                 <strong>{presentation.nickname}</strong> · {presentation.ntrpLabel}
                 {presentation.showPresence ? (
