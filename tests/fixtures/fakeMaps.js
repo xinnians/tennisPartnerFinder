@@ -1,5 +1,10 @@
 import { expect } from "@playwright/test";
 
+const TRANSPARENT_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64"
+);
+
 const fakeMapsScript = `
 (() => {
   const testMarkers = [];
@@ -202,6 +207,12 @@ export async function installFakeMaps(page) {
       contentType: "application/javascript",
       body: fakeMapsScript,
     })
+  );
+  // Avatar fixtures keep their real Google-shaped URLs so the production URL
+  // allowlist is exercised, but the browser must never reach the public CDN.
+  // Tests dispatch their own `error` events when they need to verify fallback.
+  await page.route("https://lh*.googleusercontent.com/**", (route) =>
+    route.fulfill({ contentType: "image/png", body: TRANSPARENT_PIXEL_PNG })
   );
   // 測試同樣不打真實 Google Fonts CDN:2026-08-14 實測 fonts.gstatic.com 的
   // Noto Sans TC 子集檔偶發 404,會隨機污染 zero-console-error 契約。CSS 回空樣式

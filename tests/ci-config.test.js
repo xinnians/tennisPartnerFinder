@@ -8,6 +8,7 @@ import createViteConfig from "../vite.config.ts";
 const PACKAGE = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", import.meta.url), "utf8");
 const PERFORMANCE_SPEC = readFileSync(new URL("./performance.spec.js", import.meta.url), "utf8");
+const FAKE_MAPS = readFileSync(new URL("./fixtures/fakeMaps.js", import.meta.url), "utf8");
 const DEVELOPMENT_BRANCH = "claude/tennis-partner-finder-proto-xfrr6g";
 
 const scriptCommands = (name) => PACKAGE.scripts[name].split("&&").map((command) => command.trim());
@@ -52,6 +53,12 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
     assert.ok(project?.testMatch.test("error-boundary.spec.js"), `${name} silently excludes the boundary gate`);
     assert.ok(project?.testMatch.test("react-unmount.spec.js"), `${name} silently excludes the unmount gate`);
   }
+});
+
+test("browser fixtures intercept every Google-hosted avatar without bypassing fallback assertions", () => {
+  assert.match(FAKE_MAPS, /page\.route\("https:\/\/lh\*\.googleusercontent\.com\/\*\*"/);
+  assert.match(FAKE_MAPS, /contentType: "image\/png"/);
+  assert.match(readFileSync(new URL(".\/smoke.spec.js", import.meta.url), "utf8"), /dispatchEvent\("error"\)/);
 });
 
 test("production alias excludes mockData through every relative import shape", () => {

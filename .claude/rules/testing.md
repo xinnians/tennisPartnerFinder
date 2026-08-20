@@ -41,8 +41,9 @@ CI 由 `.github/workflows/quality-gate.yml` 分成 frontend 與 Supabase 兩個 
 的 shell timing 預算，本機預設仍是 1000ms；不得用這個變數放寬其他斷言。
 frontend CI 在 build 後必跑 `npm run check:production-bundle`，防止 mock 暱稱被打進正式產物。
 另有獨立 `mobile-webkit` job；它會留失敗證據，但目前以 `continue-on-error` 運作，不擋合併。
-2026-08-20 基準為 Chromium `266 passed / 4 skipped`、WebKit
-`125 passed / 7 failed / 3 skipped`；七條 WebKit 細節見 `docs/migration-reports/batch-23.md`。
+2026-08-21 基準為 Chromium `266 passed / 4 skipped`；WebKit 在 avatar CDN stub 後連跑三次
+均為 `126 passed / 6 failed / 3 skipped`。另有一條負載相依、非穩定的 dialog focus 訊號；
+完整分類與批 23 初版數字更正見 `docs/migration-reports/batch-23.md`、`batch-26.md`。
 
 `npm run test:mock` 與 `npm run test:local` 的 pre-script 都會先跑 `npm run typecheck`；
 `lint` 與 `prettier:check` 只掃 `.ts/.tsx`，不把存量 `.js` 納入本批改寫範圍。

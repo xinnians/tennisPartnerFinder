@@ -63,27 +63,29 @@ continue-on-error: true
 | production bundle gate      | 12 output files；12 demo identifiers absent        |
 | `git diff --check`          | exit 0                                             |
 
-獨立執行 `npm run test:mock:webkit -- --reporter=line` 的結果為：
+> 2026-08-21／批 26 更正：本節初版記載的 `125 passed / 7 failed / 3 skipped`
+> 與「7/7 均分類」不實。驗收方在修 fixture 前完整重跑為
+> `123 passed / 9 failed / 3 skipped`；初版漏列 `performance.spec.js:175` 與
+> `smoke.spec.js:1640`。批 26 stub Google avatar 後連跑三次，三次皆為
+> `126 passed / 6 failed / 3 skipped`。以下保留完整歷史分類，不再把一次跑分寫成固定基準。
 
-```text
-125 passed / 7 failed / 3 skipped（135）
-```
-
-七條失敗已逐條分類：
+修 fixture 前的九條失敗完整分類：
 
 | 失敗位置 | 分類 | 判讀與處置 |
 | --- | --- | --- |
 | `performance.spec.js:59`，開 drawer 後 close 未成為 active element | Safari 程式化焦點差異 | 保留現有可及性斷言與非阻擋訊號；後續用實機鍵盤確認再決定產品修法 |
+| `performance.spec.js:175`，dialog focus/restore 偶發未成立 | 負載相依、非穩定 | 驗收完整跑曾紅；隔離 `--repeat-each=3` 為 0/3，本批 26 三次完整跑也為 0/3；不混入穩定 Safari focus 差異 |
 | `smoke.spec.js:160`，關 filter 後 trigger 未恢復焦點 | Safari 程式化焦點差異 | 同上；不為了綠燈放寬既有斷言 |
 | `smoke.spec.js:826`，drawer close 未取得焦點 | Safari 程式化焦點差異 | 同上；持續由 WebKit job 追蹤 |
-| `smoke.spec.js:1696`，Google 假頭像網址回 400 被記為 console error | 測試 fixture／網路差異 | avatar fallback 本身通過，沒有 page exception；後續可將假頭像改成同源 route fixture |
+| `smoke.spec.js:1640`，Google 假頭像網址回 400 被記為 console error | 測試 fixture／真實外網 | 批 26 已以 wildcard route 回合法 PNG；測試仍自行 dispatch `error` 驗 fallback |
+| `smoke.spec.js:1696`，Google 假頭像網址回 400 被記為 console error | 測試 fixture／真實外網 | 同上；批 26 後兩條 avatar 測試皆為 3/3 綠 |
 | `smoke.spec.js:2346`，presence 失敗重畫後未回控制項 | Safari 程式化焦點差異 | 保留失敗證據，等實機 VoiceOver／鍵盤確認 |
 | `smoke.spec.js:2521`，`uncheck()` 後 checkbox 未聚焦 | 測試輸入模型差異 | iOS 點按不保證 focus；後續測試應分開驗證觸控與鍵盤，不修改產品來迎合模擬點按 |
 | `smoke.spec.js:3203`，定位按鈕 click 後未聚焦 | 測試輸入模型差異 | 同上；保留 Chromium 鍵盤契約與 WebKit 訊號 |
 
-本次 WebKit 的 `Importing a module script failed` 為 **0**；表示批 15 的 harness 問題沒有復發。
-與批 15 相比，多出的唯一失敗是測試使用的 Google 假頭像網址在 WebKit 會記錄 400；新增的
-`error-boundary`、`react-unmount` 也都通過。
+批 26 三次完整 WebKit 的 `Importing a module script failed` 與 Google avatar 400 均為 **0**；
+表示批 15 的 module harness 沒復發，批 26 的 avatar fixture 也已生效。剩餘六條在三次完整
+跑分均一致，`error-boundary`、`react-unmount` 也都通過。
 
 `npm run test:db`、`npm run test:local` 豁免：本批只有 Playwright／CI／文件設定，零 migration、
 零 `dataApi.js`、零 RPC 簽名與產品 runtime 行為。沒有 push、deploy 或 REL。
@@ -97,7 +99,7 @@ continue-on-error: true
 | CI 安裝並執行 WebKit | ✅ |
 | WebKit job 失敗不擋合併 | ✅ `continue-on-error: true` |
 | Chromium 必跑 script 與通過／skip 數不變 | ✅ `266 / 4` |
-| 所有 WebKit 失敗均分類並附處置 | ✅ 7/7 |
+| 所有 WebKit 失敗均分類並附處置 | 初版 ❌；批 26 更正後歷史 9/9、現行穩定 6/6 |
 | WebKit module import harness 失敗維持 0 | ✅ |
 | 現行測試文件與數字同步 | ✅ |
 
