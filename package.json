@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "check:production-bundle": "node scripts/check-production-bundle.mjs",
     "preview": "vite preview",
     "pretest": "node scripts/generate-courts-seed.mjs --check",
     "pretest:mock": "npm run typecheck",
@@ -17,7 +18,7 @@
     "test:db": "npx supabase test db supabase/tests",
     "test:local": "RUN_LOCAL_SUPABASE_API_TEST=1 node --test tests/session-data-local-api.test.js && TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-chromium",
     "test:local:mobile": "TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-mobile-chromium",
-    "test:ci:frontend": "node scripts/generate-courts-seed.mjs --check && npm run typecheck && npm run lint && npm run prettier:check && npm run test:mock && npm run build && git diff --check",
+    "test:ci:frontend": "node scripts/generate-courts-seed.mjs --check && npm run typecheck && npm run lint && npm run prettier:check && npm run test:mock && npm run build && npm run check:production-bundle && git diff --check",
     "test:ci:supabase": "node scripts/generate-courts-seed.mjs --check && npm run test:db && npm run test:local && npm run test:local:mobile && git diff --check",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts",

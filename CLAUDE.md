@@ -63,6 +63,8 @@
 - React 頁面批的 mount、import、DOM 凍結與焦點／Escape 混用規則見 `.claude/rules/react-migration.md`。
 - `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
 - `src/mockData.js`：安全的本機 demo `SessionSummary`。
+- production build 以 Vite alias 改讀 `src/mockData.empty.js`；`npm run check:production-bundle`
+  會阻止示範暱稱進入 `dist`，mock dev／測試仍使用完整 fixture。
 - `data/courts.json`：球場目錄單一來源；產生 migration／pgTAP fixture 的來源。
 
 既有頁面以 `innerHTML` 產生 DOM 時，所有動態內容都必須使用 `esc()`。新 `.ts/.tsx` 走

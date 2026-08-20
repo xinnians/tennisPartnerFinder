@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { createPlaywrightConfig } from "../playwright.config.js";
+import createViteConfig from "../vite.config.ts";
 
 const PACKAGE = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", import.meta.url), "utf8");
@@ -26,6 +27,7 @@ test("frontend CI script contains every current non-database gate in order", () 
     "npm run prettier:check",
     "npm run test:mock",
     "npm run build",
+    "npm run check:production-bundle",
     "git diff --check",
   ];
   let previous = -1;
@@ -35,6 +37,22 @@ test("frontend CI script contains every current non-database gate in order", () 
     previous = position;
   }
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
+});
+
+test("production alias excludes mockData through every relative import shape", () => {
+  assert.equal(typeof createViteConfig, "function");
+  const production = createViteConfig({ command: "build", mode: "production" });
+  const aliases = production.resolve?.alias;
+  assert.equal(aliases?.length, 1);
+  const [{ find, replacement }] = aliases;
+  for (const specifier of ["mockData.js", "./mockData.js", "../mockData.js", "../../src/mockData.js", "/src/mockData.js"]) {
+    assert.ok(find.test(specifier), `production mock alias misses ${specifier}`);
+  }
+  assert.equal(find.test("./mockData.empty.js"), false);
+  assert.match(replacement, /\/src\/mockData\.empty\.js$/);
+
+  const development = createViteConfig({ command: "serve", mode: "development" });
+  assert.equal(development.resolve, undefined, "development and mock harness must retain the full fixture");
 });
 
 test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () => {
