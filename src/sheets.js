@@ -65,7 +65,16 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
   const surface = root.querySelector(".surface");
   const releaseIsolation = pushSurfaceIsolation(root);
   let closed = false;
+  let unmountContent = null;
   let surfaceEntry = null;
+  const registerUnmount = (unmount) => {
+    if (typeof unmount !== "function") throw new TypeError("Surface unmount callback must be a function.");
+    if (closed) {
+      unmount();
+      return;
+    }
+    unmountContent = unmount;
+  };
   const close = ({ reason = "dismiss", restoreFocus = true } = {}) => {
     if (closed) return;
     closed = true;
@@ -73,10 +82,18 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
     const stackIndex = surfaceStack.indexOf(surfaceEntry);
     if (stackIndex >= 0) surfaceStack.splice(stackIndex, 1);
     releaseIsolation();
+    let unmountError = null;
+    try {
+      unmountContent?.();
+    } catch (error) {
+      unmountError = error;
+    }
+    unmountContent = null;
     root.innerHTML = "";
     surfaces.delete(root);
     onClose?.({ reason });
     if (restoreFocus) resolveRestoreTarget(previousFocus)?.focus({ preventScroll: true });
+    if (unmountError) throw unmountError;
   };
 
   const onKeyDown = (event) => {
@@ -131,7 +148,7 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
       (focusableNodes(surface)[0] ?? surface).focus({ preventScroll: true });
     }
   });
-  return { root, surface, close };
+  return { root, surface, close, registerUnmount };
 }
 
 function closeSurface(root, { reason = "dismiss", restoreFocus = true } = {}) {

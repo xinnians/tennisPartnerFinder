@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface SessionUnavailableSheetProps {
   onClose: () => void;
@@ -31,8 +31,11 @@ function SessionUnavailableSheet({ onClose }: SessionUnavailableSheetProps) {
 }
 
 /** Mount static React content inside mountSheet's existing surface element. */
-export function mountSessionUnavailableSheetContent(rootElement: HTMLElement, onClose: () => void): void {
-  const reactRoot = createRoot(rootElement);
+export function mountSessionUnavailableSheetContent(
+  rootElement: HTMLElement,
+  onClose: () => void
+): SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   flushSync(() =>
     reactRoot.render(
       <AppErrorBoundary rootElement={rootElement} surface="session-unavailable-sheet">
@@ -40,4 +43,5 @@ export function mountSessionUnavailableSheetContent(rootElement: HTMLElement, on
       </AppErrorBoundary>
     )
   );
+  return reactRoot;
 }

@@ -1,12 +1,12 @@
 import { Fragment, memo } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
 import { sessionDetailSheetRuntime } from "../sessionViews.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 type JoinStage = "idle" | "confirming" | "submitting" | "success" | "error";
 
@@ -69,7 +69,7 @@ interface SessionDetailSheetProps {
   snapshot: SessionDetailSnapshot;
 }
 
-export interface SessionDetailContentContract {
+export interface SessionDetailContentContract extends SurfaceContentLifecycle {
   renderStage(stage: JoinStage, message?: string, expectedAccepted?: boolean): void;
   setJoinPreview(state: SessionJoinPreviewState): void;
 }
@@ -536,10 +536,11 @@ export function mountSessionDetailSheetContent(
   detail: SessionDetailContentOptions,
   initialSnapshot: SessionDetailSnapshot
 ): SessionDetailContentContract {
-  const reactRoot = createRoot(rootElement);
+  const reactRoot = createSurfaceRoot(rootElement);
   let snapshot = { ...initialSnapshot, actionGeneration: initialSnapshot.actionGeneration ?? 0 };
 
   const commit = () => {
+    if (!reactRoot.isSurfaceRootLive()) return;
     flushSync(() =>
       reactRoot.render(
         <AppErrorBoundary resetKey={snapshot.actionGeneration} rootElement={rootElement} surface="session-detail-sheet">
@@ -551,6 +552,7 @@ export function mountSessionDetailSheetContent(
 
   commit();
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     renderStage(stage, message = "", expectedAccepted = snapshot.expectedAccepted) {
       snapshot = {
         ...snapshot,
@@ -571,5 +573,6 @@ export function mountSessionDetailSheetContent(
       };
       commit();
     },
+    unmount: reactRoot.unmount,
   };
 }

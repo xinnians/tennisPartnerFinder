@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface WithdrawSessionConfirmationContentOptions {
   onClose(): void;
@@ -44,8 +44,8 @@ function WithdrawSessionConfirmationDialog({ onClose }: WithdrawSessionConfirmat
 export function mountWithdrawSessionConfirmationDialogContent(
   rootElement: HTMLElement,
   options: WithdrawSessionConfirmationContentOptions
-): void {
-  const reactRoot = createRoot(rootElement);
+): SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   flushSync(() =>
     reactRoot.render(
       <AppErrorBoundary rootElement={rootElement} surface="withdraw-session-dialog">
@@ -53,4 +53,5 @@ export function mountWithdrawSessionConfirmationDialogContent(
       </AppErrorBoundary>
     )
   );
+  return reactRoot;
 }

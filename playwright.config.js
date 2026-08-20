@@ -42,12 +42,12 @@ export function createPlaywrightConfig({
     projects: [
       {
         name: "desktop-chromium",
-        testMatch: /(?:smoke|performance|error-boundary)\.spec\.js/,
+        testMatch: /(?:smoke|performance|error-boundary|react-unmount)\.spec\.js/,
         use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:5174" },
       },
       {
         name: "mobile-chromium",
-        testMatch: /(?:smoke|performance|error-boundary)\.spec\.js/,
+        testMatch: /(?:smoke|performance|error-boundary|react-unmount)\.spec\.js/,
         use: {
           ...devices["Pixel 5"],
           baseURL: "http://127.0.0.1:5174",

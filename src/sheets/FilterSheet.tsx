@@ -1,10 +1,10 @@
 import { createRef, forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { TAIPEI_DISTRICTS } from "../districts.ts";
 import { BANDS, DEFAULT_FILTER_STATE } from "../filters.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 const FILTER_SHEET_PLAY_TYPES = ["單打", "雙打", "練球"] as const;
 const FILTER_SHEET_DATE_OPTIONS = [
@@ -270,8 +270,8 @@ const FilterSheetWithRef = forwardRef<FilterSheetContentContract, FilterSheetCon
 export function mountFilterSheetContent(
   rootElement: HTMLElement,
   options: FilterSheetContentOptions
-): FilterSheetContentContract {
-  const reactRoot = createRoot(rootElement);
+): FilterSheetContentContract & SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   const contentRef = createRef<FilterSheetContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
@@ -290,11 +290,13 @@ export function mountFilterSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("FilterSheet content did not mount.");
 
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     setFilters(filters) {
       flushSync(() => contentRef.current?.setFilters(filters));
     },
     setResultCount(count) {
       flushSync(() => contentRef.current?.setResultCount(count));
     },
+    unmount: reactRoot.unmount,
   };
 }

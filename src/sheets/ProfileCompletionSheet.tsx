@@ -1,11 +1,11 @@
 import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 import { profileCompletionSheetRuntime } from "../sessionViews.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 export interface ProfileCompletionCourt extends CourtSummary {
   city?: string;
@@ -285,8 +285,8 @@ const ProfileCompletionSheetWithRef = forwardRef<ProfileCompletionContentContrac
 export function mountProfileCompletionSheetContent(
   rootElement: HTMLElement,
   options: ProfileCompletionContentOptions
-): ProfileCompletionContentContract {
-  const reactRoot = createRoot(rootElement);
+): ProfileCompletionContentContract & SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   const contentRef = createRef<ProfileCompletionContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
@@ -305,8 +305,10 @@ export function mountProfileCompletionSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("ProfileCompletionSheet content did not mount.");
 
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     setCourts(courts, courtsOptions) {
       flushSync(() => contentRef.current?.setCourts(courts, courtsOptions));
     },
+    unmount: reactRoot.unmount,
   };
 }

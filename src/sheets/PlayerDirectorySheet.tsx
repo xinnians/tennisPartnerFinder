@@ -1,11 +1,11 @@
 import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { SurfaceLoadStatus } from "../domainTypes.ts";
 import { playerDirectorySheetRuntime } from "../sessionViews.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 export interface DirectoryPlayer {
   courtName?: string;
@@ -213,8 +213,8 @@ const PlayerDirectorySheetWithRef = forwardRef<PlayerDirectorySheetContentContra
 export function mountPlayerDirectorySheetContent(
   rootElement: HTMLElement,
   options: PlayerDirectorySheetContentOptions
-): PlayerDirectorySheetContentContract {
-  const reactRoot = createRoot(rootElement);
+): PlayerDirectorySheetContentContract & SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   const contentRef = createRef<PlayerDirectorySheetContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
@@ -233,8 +233,10 @@ export function mountPlayerDirectorySheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("PlayerDirectorySheet content did not mount.");
 
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     setDirectory(next) {
       flushSync(() => contentRef.current?.setDirectory(next));
     },
+    unmount: reactRoot.unmount,
   };
 }

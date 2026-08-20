@@ -66,7 +66,7 @@ test("global error and rejection listeners are idempotent, removable, and transp
 
 test("all 18 React roots mount inside the shared boundary and ref adapters retain their contract guard", () => {
   const rootFiles = sourceFiles(ROOT.pathname).filter(
-    (path) => extname(path) === ".tsx" && readFileSync(path, "utf8").includes("createRoot")
+    (path) => extname(path) === ".tsx" && /create(?:Root|SurfaceRoot)\(/.test(readFileSync(path, "utf8"))
   );
   assert.equal(rootFiles.length, 18);
   assert.equal(APP_ERROR_SURFACES.length, 19, "18 roots plus the global channel must stay named");

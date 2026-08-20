@@ -1622,6 +1622,7 @@ export function openSessionChatSheet(
     venueCourt: venue.court,
     venueTime: venue.time,
   });
+  mounted.registerUnmount(content.unmount);
   const feed = mounted.root.querySelector("[data-chat-feed]");
   const loading = mounted.root.querySelector("[data-chat-loading]");
   const error = mounted.root.querySelector("[data-chat-error]");
@@ -1926,8 +1927,11 @@ export function openSessionSheet(
       stage: initialStage,
     }
   );
+  mounted.registerUnmount(content.unmount);
   const container = mounted.root.querySelector(".session-detail__actions");
-  const setJoinPreview = (state) => content.setJoinPreview(state);
+  const setJoinPreview = (state) => {
+    if (content.isSurfaceRootLive()) content.setJoinPreview(state);
+  };
   // mountSheet 掛 listener 時 React close button 尚未存在；補線只委派回既有 close，
   // surface teardown、focus restore 與 onClose 仍完全由 mountSheet 負責。
   mounted.root.querySelector("[data-surface-close]")?.addEventListener("click", mounted.close);
@@ -2013,14 +2017,16 @@ export function openSessionSheet(
   }
 
   function renderStage(nextStage, message = "") {
+    if (!content.isSurfaceRootLive()) return false;
     content.renderStage(nextStage, message, confirmingExpectedAccepted);
     stage = nextStage;
+    return true;
   }
 
   // React state 只改變 `.session-detail__actions` 子樹；memo 化的其餘內容維持同一批
   // DOM nodes。每次切換後明確把焦點移到新態的第一個可操作元素(或成功卡標題)。
   function setStage(nextStage, message = "") {
-    renderStage(nextStage, message);
+    if (!renderStage(nextStage, message)) return;
     if (nextStage === "idle") wireIdle();
     else if (nextStage === "confirming") wireConfirming();
     else if (nextStage === "success") wireSuccess();
@@ -2078,7 +2084,8 @@ export function openSessionUnavailableSheet() {
     label: "找不到球局",
     html: "",
   });
-  mountSessionUnavailableSheetContent(mounted.surface, () => mounted.close());
+  const content = mountSessionUnavailableSheetContent(mounted.surface, () => mounted.close());
+  mounted.registerUnmount(content.unmount);
   return mounted;
 }
 
@@ -2096,7 +2103,10 @@ export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm 
   // mountDialog 建殼時內容還空著,綁不到 [data-surface-close];× 與「先不要」改由 React
   // onClick 呼叫同一個 mounted.close()。等價性見批 8.1:HEAD 的 listener 收到 MouseEvent,
   // close({ reason = "dismiss", restoreFocus = true } = {}) 解構它拿到的就是兩個預設值。
-  mountWithdrawSessionConfirmationDialogContent(mounted.surface, { onClose: () => mounted.close() });
+  const content = mountWithdrawSessionConfirmationDialogContent(mounted.surface, {
+    onClose: () => mounted.close(),
+  });
+  mounted.registerUnmount(content.unmount);
   const confirmButton = mounted.root.querySelector("[data-confirm-withdraw]");
   const error = mounted.root.querySelector("[data-withdraw-error]");
   let submitting = false;
@@ -2135,10 +2145,11 @@ export function openReportDialog({ targetLabel = "這個項目", onClose = () =>
   });
   // targetLabel 沿用 esc() 的 String() 語意(React 自己負責 escape);× 的 close 走
   // React onClick,理由同 openWithdrawSessionConfirmation。
-  mountReportDialogContent(mounted.surface, {
+  const content = mountReportDialogContent(mounted.surface, {
     onClose: () => mounted.close(),
     targetLabel: String(targetLabel),
   });
+  mounted.registerUnmount(content.unmount);
   const form = mounted.root.querySelector("[data-testid='report-form']");
   const submit = mounted.root.querySelector("[data-testid='report-submit']");
   const error = mounted.root.querySelector("[data-report-error]");
@@ -2385,6 +2396,7 @@ export function openProfileCompletionSheet({
     slotOptions: PROFILE_SLOTS,
     standalone,
   });
+  mounted.registerUnmount(content.unmount);
 
   const setCourts = (nextCourts, { ready = true } = {}) => {
     content.setCourts(nextCourts, { ready });
@@ -2644,6 +2656,7 @@ export function openCreateSessionSheet({
     },
     toast,
   });
+  mounted.registerUnmount(content.unmount);
 
   const setCourts = (nextCourts, { ready = true } = {}) => {
     content.setCourts(sessionFormSheetRuntime.taipeiCourts(nextCourts), { ready: Boolean(ready) });
@@ -2703,6 +2716,7 @@ export function openDecideSessionSheet(
     startAtLocal: taipeiDateTimeLocalValue(session?.startAt, { includeMilliseconds: true }),
     unavailable,
   });
+  mounted.registerUnmount(content.unmount);
   const controls = mounted.root.querySelector("[data-decision-controls]");
   const terminal = mounted.root.querySelector("[data-decision-terminal]");
   const error = mounted.root.querySelector("[data-decision-error]");
@@ -2822,6 +2836,7 @@ export function openEditSessionSheet(
       includeMilliseconds: true,
     }),
   });
+  mounted.registerUnmount(content.unmount);
 
   const setCourts = (nextCourts, { ready = true } = {}) => {
     content.setCourts(sessionFormSheetRuntime.taipeiCourts(nextCourts), { ready: Boolean(ready) });
@@ -2838,12 +2853,13 @@ export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSes
     label: "球場球局",
     html: "",
   });
-  mountCourtSessionSheetContent(mounted.surface, {
+  const content = mountCourtSessionSheetContent(mounted.surface, {
     court,
     courts,
     onClose: () => mounted.close(),
     sessions,
   });
+  mounted.registerUnmount(content.unmount);
   wireSessionCards(mounted.root, onOpenSession);
   return mounted;
 }
@@ -2872,7 +2888,12 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
     onClose,
     html: "",
   });
-  mountCourtPlayersSheetContent(mounted.surface, { court, onClose: () => mounted.close(), players });
+  const content = mountCourtPlayersSheetContent(mounted.surface, {
+    court,
+    onClose: () => mounted.close(),
+    players,
+  });
+  mounted.registerUnmount(content.unmount);
   mounted.root.querySelectorAll("[data-player-id]").forEach((node) => {
     node.addEventListener("click", () => {
       const target = players.find((player) => String(player.profileId) === node.dataset.playerId);
@@ -2918,6 +2939,7 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
     onOpenPlayer,
     onRetry,
   });
+  mounted.registerUnmount(content.unmount);
   content.setDirectory({ status: "loading" });
   return { ...mounted, setDirectory: content.setDirectory };
 }
@@ -2954,6 +2976,7 @@ export function openFilterSheet({
     onSetFilter,
     resultCount,
   });
+  mounted.registerUnmount(content.unmount);
   return {
     ...mounted,
     setFilters: content.setFilters,
@@ -3031,6 +3054,7 @@ export function openPlayerCardSheet(
     player,
     sheetRoot: mounted.root,
   });
+  mounted.registerUnmount(content.unmount);
   return { ...mounted, setInvitableSessions: content.setInvitableSessions };
 }
 

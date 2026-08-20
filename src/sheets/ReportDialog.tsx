@@ -1,8 +1,8 @@
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { reportDialogRuntime } from "../sessionViews.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 /**
  * The reason list stays a single source in `sessionViews.js`; this content only
@@ -63,8 +63,11 @@ function ReportDialog({ onClose, targetLabel }: ReportDialogContentOptions) {
 }
 
 /** Mount static React content inside mountDialog's existing surface element. */
-export function mountReportDialogContent(rootElement: HTMLElement, options: ReportDialogContentOptions): void {
-  const reactRoot = createRoot(rootElement);
+export function mountReportDialogContent(
+  rootElement: HTMLElement,
+  options: ReportDialogContentOptions
+): SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   flushSync(() =>
     reactRoot.render(
       <AppErrorBoundary rootElement={rootElement} surface="report-dialog">
@@ -72,4 +75,5 @@ export function mountReportDialogContent(rootElement: HTMLElement, options: Repo
       </AppErrorBoundary>
     )
   );
+  return reactRoot;
 }

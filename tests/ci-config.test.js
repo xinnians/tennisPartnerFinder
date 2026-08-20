@@ -39,11 +39,12 @@ test("frontend CI script contains every current non-database gate in order", () 
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
 });
 
-test("both mock Chromium projects execute the dedicated error-boundary spec", () => {
+test("both mock Chromium projects execute dedicated runtime safety specs", () => {
   const config = createPlaywrightConfig();
   for (const name of ["desktop-chromium", "mobile-chromium"]) {
     const project = config.projects.find((candidate) => candidate.name === name);
     assert.ok(project?.testMatch.test("error-boundary.spec.js"), `${name} silently excludes the boundary gate`);
+    assert.ok(project?.testMatch.test("react-unmount.spec.js"), `${name} silently excludes the unmount gate`);
   }
 });
 

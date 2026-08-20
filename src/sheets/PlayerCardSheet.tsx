@@ -1,11 +1,11 @@
 import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { playerCardSheetRuntime } from "../sessionViews.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface PlayerCardCourt extends CourtSummary {
   district?: string;
@@ -318,8 +318,8 @@ const PlayerCardSheetWithRef = forwardRef<PlayerCardSheetContentContract, Player
 export function mountPlayerCardSheetContent(
   rootElement: HTMLElement,
   options: PlayerCardSheetContentOptions
-): PlayerCardSheetContentContract {
-  const reactRoot = createRoot(rootElement);
+): PlayerCardSheetContentContract & SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   const contentRef = createRef<PlayerCardSheetContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
@@ -338,8 +338,10 @@ export function mountPlayerCardSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("PlayerCardSheet content did not mount.");
 
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     setInvitableSessions(sessions) {
       flushSync(() => contentRef.current?.setInvitableSessions(sessions));
     },
+    unmount: reactRoot.unmount,
   };
 }

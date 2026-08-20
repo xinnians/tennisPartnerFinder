@@ -1,10 +1,10 @@
 import { createRef, forwardRef, useImperativeHandle, useState } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { ChatMessage, SessionRosterEntry } from "../domainTypes.ts";
 import { sessionChatSheetRuntime } from "../sessionViews.js";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface ChatRosterRow {
   text: string;
@@ -274,8 +274,8 @@ const SessionChatSheetWithRef = forwardRef<SessionChatContentContract, SessionCh
 export function mountSessionChatSheetContent(
   rootElement: HTMLElement,
   options: SessionChatContentOptions
-): SessionChatContentContract {
-  const reactRoot = createRoot(rootElement);
+): SessionChatContentContract & SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   const contentRef = createRef<SessionChatContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
@@ -294,8 +294,10 @@ export function mountSessionChatSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("SessionChatSheet content did not mount.");
 
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     setContent(roster, messages) {
       flushSync(() => contentRef.current?.setContent(roster, messages));
     },
+    unmount: reactRoot.unmount,
   };
 }

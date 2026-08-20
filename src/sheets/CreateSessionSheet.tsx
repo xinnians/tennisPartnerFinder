@@ -1,9 +1,9 @@
 import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
+import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface CreateCourt extends CourtSummary {
   city?: string;
@@ -792,8 +792,8 @@ const CreateSessionSheetWithRef = forwardRef<CreateSessionContentContract, Creat
 export function mountCreateSessionSheetContent(
   rootElement: HTMLElement,
   options: CreateSessionContentOptions
-): CreateSessionContentContract {
-  const reactRoot = createRoot(rootElement);
+): CreateSessionContentContract & SurfaceContentLifecycle {
+  const reactRoot = createSurfaceRoot(rootElement);
   const contentRef = createRef<CreateSessionContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
@@ -812,11 +812,13 @@ export function mountCreateSessionSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("CreateSessionSheet content did not mount.");
 
   return {
+    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
     setCourts(courts, options) {
       flushSync(() => contentRef.current?.setCourts(courts, options));
     },
     showDone(value, result) {
       flushSync(() => contentRef.current?.showDone(value, result));
     },
+    unmount: reactRoot.unmount,
   };
 }
