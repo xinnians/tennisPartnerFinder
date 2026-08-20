@@ -6,7 +6,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
-import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionViews.js";
+import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionPresentation.ts";
 import { taipeiClock } from "../taipeiTime.js";
 
 type NearbySession = Partial<SessionSummary>;
@@ -49,20 +49,7 @@ interface EmptyAction {
   label: string;
 }
 
-interface NearbyDrawerRuntime {
-  discoveryEmptyActions(filtersActive: boolean): EmptyAction[];
-  drawerSessionGroups(sessions: NearbySession[]): DrawerSessionGroup[];
-  taipeiDayWord(value?: string): string;
-}
-
 const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: Root }>();
-
-// Resolve lazily: sessionViews owns the browser glob that loads this module, so
-// reading the runtime during module initialization would cross the circular
-// import before sessionViews has finished defining its exports.
-function runtime(): NearbyDrawerRuntime {
-  return nearbySessionsDrawerRuntime;
-}
 
 function PeekArrow() {
   return (
@@ -84,7 +71,7 @@ function PeekArrow() {
 }
 
 function SessionGroups({ courts, sessions }: { courts: NearbyCourt[]; sessions: NearbySession[] }) {
-  const groups = runtime().drawerSessionGroups(sessions);
+  const groups: DrawerSessionGroup[] = nearbySessionsDrawerRuntime.drawerSessionGroups(sessions);
   return groups.map((group) => (
     <Fragment key={group.key}>
       <div className="session-group">
@@ -104,7 +91,7 @@ function SessionGroups({ courts, sessions }: { courts: NearbyCourt[]; sessions: 
 }
 
 function DiscoveryEmpty({ filtersActive }: { filtersActive: boolean }) {
-  const actions = runtime().discoveryEmptyActions(filtersActive);
+  const actions: EmptyAction[] = nearbySessionsDrawerRuntime.discoveryEmptyActions(filtersActive);
   return (
     <div id="discovery-empty" className="discovery-empty">
       <p>這個範圍暫時沒有可加入的球局</p>
@@ -173,7 +160,9 @@ export function NearbySessionsDrawer({
   const loading = resolvedMapStatus.kind === "loading";
   const error = resolvedMapStatus.kind === "error";
   const first = sessions[0];
-  const nextLabel = first ? `最近 ${runtime().taipeiDayWord(first.startAt)} ${taipeiClock(first.startAt)}` : "";
+  const nextLabel = first
+    ? `最近 ${nearbySessionsDrawerRuntime.taipeiDayWord(first.startAt)} ${taipeiClock(first.startAt)}`
+    : "";
 
   return (
     <>

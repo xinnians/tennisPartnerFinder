@@ -1,5 +1,5 @@
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
-import { sessionCardRuntime } from "../sessionViews.js";
+import { sessionCardRuntime } from "../sessionPresentation.ts";
 
 type SessionCardSession = Partial<SessionSummary>;
 
@@ -23,28 +23,17 @@ interface SessionCardPresentation {
   vacancy: string;
 }
 
-interface SessionCardRuntime {
-  sessionCardPresentation(
-    session: SessionCardSession,
-    options: { compact: boolean; courts: SessionCardCourt[] | null }
-  ): SessionCardPresentation;
-}
-
 export interface SessionCardProps {
   compact?: boolean;
   courts?: SessionCardCourt[] | null;
   session: SessionCardSession;
 }
 
-// sessionViews owns the eager glob that reaches every current consumer of
-// this component. Resolve the runtime only while rendering so the circular
-// module edge never reads its const export during initialization.
-function runtime(): SessionCardRuntime {
-  return sessionCardRuntime;
-}
-
 export function SessionCard({ compact = false, courts = [], session }: SessionCardProps) {
-  const presentation = runtime().sessionCardPresentation(session, { compact, courts });
+  const presentation: SessionCardPresentation = sessionCardRuntime.sessionCardPresentation(session, {
+    compact,
+    courts,
+  });
   return (
     <button
       type="button"

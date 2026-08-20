@@ -5,7 +5,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
-import { sessionDetailSheetRuntime } from "../sessionViews.js";
+import { sessionDetailSheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 type JoinStage = "idle" | "confirming" | "submitting" | "success" | "error";

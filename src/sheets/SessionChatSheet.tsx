@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { ChatMessage, SessionRosterEntry } from "../domainTypes.ts";
-import { sessionChatSheetRuntime } from "../sessionViews.js";
+import { sessionChatSheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface ChatRosterRow {
@@ -22,19 +22,6 @@ interface ChatMessageRow {
   senderNickname: string;
   senderProfileId: string;
   showAuthor: boolean;
-}
-
-/**
- * Every chat judgment stays in sessionViews.js: `acceptedChatRoster` decides who
- * appears in the roster, and the message kind/self/governance rules plus the
- * Taipei timestamp label are produced by `chatMessagesPresentation`. This content
- * only renders what they returned — the rows carry raw strings because React
- * escapes text nodes on render (the imperative version needed `esc()` only to
- * build an HTML string).
- */
-interface SessionChatRuntime {
-  chatMessagesPresentation(messages: readonly ChatMessage[]): ChatMessageRow[];
-  chatRosterPresentation(roster: readonly SessionRosterEntry[]): ChatRosterRow[];
 }
 
 export interface SessionChatContentContract {
@@ -60,10 +47,6 @@ interface SessionChatSheetProps extends SessionChatContentOptions {
 interface SessionChatRows {
   messages: ChatMessageRow[] | null;
   roster: ChatRosterRow[] | null;
-}
-
-function runtime(): SessionChatRuntime {
-  return sessionChatSheetRuntime;
 }
 
 function SessionChatSheet({
@@ -96,8 +79,8 @@ function SessionChatSheet({
     () => ({
       setContent(roster, messages) {
         setRows({
-          messages: runtime().chatMessagesPresentation(messages),
-          roster: runtime().chatRosterPresentation(roster),
+          messages: sessionChatSheetRuntime.chatMessagesPresentation(messages),
+          roster: sessionChatSheetRuntime.chatRosterPresentation(roster),
         });
         setGeneration((value) => value + 1);
       },

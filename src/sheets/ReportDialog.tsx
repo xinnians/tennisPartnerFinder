@@ -1,28 +1,20 @@
 import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
-import { reportDialogRuntime } from "../sessionViews.js";
+import { reportDialogRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 /**
- * The reason list stays a single source in `sessionViews.js`; this content only
+ * The reason list stays a single source in `sessionPresentation.ts`; this content only
  * renders it. Validation ("請選擇檢舉原因。"), the submitting guard, `runAsyncAction`
  * and the success swap (`form.hidden` / `success.hidden` / focus) all stay in the
  * factory closure, and `[data-report-error]`, `[data-report-success]`, the form and
  * the submit button keep their legacy imperative writers. This component declares
  * no state, so it never re-renders and can never patch those writes back.
  */
-interface ReportDialogRuntime {
-  REPORT_REASONS: readonly string[];
-}
-
 interface ReportDialogContentOptions {
   onClose(): void;
   targetLabel: string;
-}
-
-function runtime(): ReportDialogRuntime {
-  return reportDialogRuntime;
 }
 
 function ReportDialog({ onClose, targetLabel }: ReportDialogContentOptions) {
@@ -41,7 +33,7 @@ function ReportDialog({ onClose, targetLabel }: ReportDialogContentOptions) {
       <form data-testid="report-form" className="report-form" noValidate>
         <fieldset className="form-fieldset">
           <legend>檢舉原因</legend>
-          {runtime().REPORT_REASONS.map((reason) => (
+          {reportDialogRuntime.REPORT_REASONS.map((reason) => (
             // The radios stay uncontrolled: the factory reads the chosen reason
             // straight off the DOM with `[name='report-reason']:checked`.
             <label key={reason}>

@@ -6,11 +6,12 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
-import { mySessionsPageRuntime } from "../sessionViews.js";
+import { mySessionsPageRuntime } from "../sessionPresentation.ts";
 
 type Identifier = number | string | null | undefined;
 type CallbackResult = unknown | Promise<unknown>;
 type MySessionsSegment = "hosted" | "joined";
+type MySessionsVenue = ReturnType<typeof mySessionsPageRuntime.sessionVenuePresentation>;
 
 interface MySessionsSession extends Partial<MySessionSummary>, Partial<Pick<SessionSummary, "candidateCourtIds">> {}
 
@@ -121,7 +122,7 @@ function ActionButton({
   );
 }
 
-function TimeTile({ session, venue }: { session: MySessionsSession; venue: unknown }) {
+function TimeTile({ session, venue }: { session: MySessionsSession; venue: MySessionsVenue }) {
   const presentation = mySessionsPageRuntime.sessionTimeTilePresentation(session, venue, { compact: true });
   return (
     <span className={presentation.className}>
@@ -564,11 +565,7 @@ export function MySessionsPage({
 }: MySessionsPageProps) {
   const safeGroups = groups ?? EMPTY_GROUPS;
   const focusSessionId = highlightSessionId ?? createdSessionId;
-  const activeSegment = mySessionsPageRuntime.resolveMySessionsSegment(
-    rootElement,
-    safeGroups,
-    focusSessionId
-  ) as MySessionsSegment;
+  const activeSegment = mySessionsPageRuntime.resolveMySessionsSegment(rootElement, safeGroups, focusSessionId);
   const split = mySessionsPageRuntime.mySessionsSplitBySegment(safeGroups);
   const joinedCount = split.joined.needsAction.length + split.joined.upcoming.length;
   const hostedCount = split.hosted.needsAction.length + split.hosted.upcoming.length;

@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
-import { mePageRuntime } from "../sessionViews.js";
+import { mePageRuntime } from "../sessionPresentation.ts";
 
 interface AuthSession {
   user?: {

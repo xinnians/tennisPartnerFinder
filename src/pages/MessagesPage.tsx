@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
-import { messagesFromGroups } from "../sessionViews.js";
+import { messagesFromGroups } from "../sessionPresentation.ts";
 import { taipeiClock, taipeiDateKey, taipeiParts } from "../taipeiTime.js";
 
 type MessagesSession = MySessionSummary & Partial<Pick<SessionSummary, "candidateCourtIds">>;

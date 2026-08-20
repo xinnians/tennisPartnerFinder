@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { SurfaceLoadStatus } from "../domainTypes.ts";
-import { playerDirectorySheetRuntime } from "../sessionViews.js";
+import { playerDirectorySheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 export interface DirectoryPlayer {
@@ -17,21 +17,6 @@ export interface DirectoryPlayer {
   playedCount?: number | null;
   profileId?: number | string | null;
   slotCodes?: string[] | null;
-}
-
-interface DirectoryRowPresentation {
-  courtsText: string;
-  id: string;
-  nickname: string;
-  ntrpValue: string;
-  showOnline: boolean;
-  showSelf: boolean;
-  slotsText: string;
-  trustText: string | null;
-}
-
-interface PlayerDirectoryRuntime {
-  playerDirectoryRowPresentation(player: DirectoryPlayer): DirectoryRowPresentation;
 }
 
 /** `null` models the shell mountSheet used to render before its first setDirectory. */
@@ -59,12 +44,8 @@ interface PlayerDirectorySheetProps extends PlayerDirectorySheetContentOptions {
   contentRef: React.Ref<PlayerDirectorySheetContentContract>;
 }
 
-function runtime(): PlayerDirectoryRuntime {
-  return playerDirectorySheetRuntime;
-}
-
 function DirectoryRow({ onOpenPlayer, player }: { onOpenPlayer(id: string): void; player: DirectoryPlayer }) {
-  const presentation = runtime().playerDirectoryRowPresentation(player);
+  const presentation = playerDirectorySheetRuntime.playerDirectoryRowPresentation(player);
   return (
     <button
       type="button"

@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
-import { playerCardSheetRuntime } from "../sessionViews.js";
+import { playerCardSheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface PlayerCardCourt extends CourtSummary {
@@ -29,37 +29,6 @@ export interface CardPlayer {
   slotCodes?: string[] | null;
 }
 
-interface PlayerCardPresentation {
-  courtNameText: string;
-  courtsText: string;
-  districtLabel: string;
-  greetingLabel: string;
-  nickname: string;
-  ntrpValue: string;
-  playTypesText: string;
-  presenceLabel: string;
-  profileId: string;
-  showGreeting: boolean;
-  showPresence: boolean;
-  slotsText: string;
-  trustText: string | null;
-}
-
-interface InviteOptionPresentation {
-  badge: string;
-  court: string;
-  notes: string;
-  ntrpRange: string;
-  playType: string;
-  sessionId: string;
-  time: string;
-}
-
-interface PlayerCardRuntime {
-  playerCardPresentation(player: CardPlayer): PlayerCardPresentation;
-  playerInviteOptionPresentation(session: InvitableSession, courts: PlayerCardCourt[]): InviteOptionPresentation;
-}
-
 export interface PlayerCardSheetContentContract {
   setInvitableSessions(sessions?: InvitableSession[] | null): void;
 }
@@ -81,10 +50,6 @@ interface PlayerCardSheetProps extends PlayerCardSheetContentOptions {
 }
 
 type InviteBranch = "self" | "form" | "empty";
-
-function runtime(): PlayerCardRuntime {
-  return playerCardSheetRuntime;
-}
 
 function InviteEmpty({ onCreate }: { onCreate(): void }) {
   return (
@@ -124,7 +89,7 @@ function InviteOptions({
   return (
     <>
       {sessions.map((session, index) => {
-        const option = runtime().playerInviteOptionPresentation(session, courts);
+        const option = playerCardSheetRuntime.playerInviteOptionPresentation(session, courts);
         const identity = session.sessionId == null ? `missing:${index}` : `id:${option.sessionId}`;
         return (
           // The legacy setInvitableSessions replaced the option markup wholesale,
@@ -218,7 +183,7 @@ function PlayerCardSheet({
     [onInvite, sheetRoot]
   );
 
-  const presentation = runtime().playerCardPresentation(player);
+  const presentation = playerCardSheetRuntime.playerCardPresentation(player);
 
   return (
     <>

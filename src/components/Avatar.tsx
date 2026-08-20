@@ -1,4 +1,4 @@
-import { avatarRuntime } from "../sessionViews.js";
+import { avatarRuntime } from "../sessionPresentation.ts";
 
 export type AvatarSize = "" | "md" | "lg";
 
@@ -6,19 +6,6 @@ export interface AvatarProps {
   avatarUrl?: string;
   nickname?: string;
   size?: AvatarSize;
-}
-
-interface AvatarRuntime {
-  avatarInitial(nickname: unknown): string;
-  safeGoogleAvatarUrl(value: unknown): string;
-  showAvatarFallback(image: HTMLImageElement): void;
-}
-
-// sessionViews owns the eager glob that reaches every consumer of this
-// component, so resolve the runtime only while rendering: the circular module
-// edge must never read the const export during initialization.
-function runtime(): AvatarRuntime {
-  return avatarRuntime;
 }
 
 /**
@@ -32,7 +19,7 @@ function runtime(): AvatarRuntime {
  * 會渲染 <img>。
  */
 export function Avatar({ avatarUrl = "", nickname = "", size = "" }: AvatarProps) {
-  const helpers = runtime();
+  const helpers = avatarRuntime;
   const safeUrl = helpers.safeGoogleAvatarUrl(avatarUrl);
   return (
     <span className={size ? `player-avatar player-avatar--${size}` : "player-avatar"} data-player-avatar="">

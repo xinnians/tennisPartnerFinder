@@ -4,38 +4,12 @@ import { flushSync } from "react-dom";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
-import { profileCompletionSheetRuntime } from "../sessionViews.js";
+import { profileCompletionSheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 export interface ProfileCompletionCourt extends CourtSummary {
   city?: string;
   district?: string;
-}
-
-interface ProfileCourtOption {
-  checked: boolean;
-  id: string;
-  label: string;
-}
-
-interface ProfileCourtOptionsPresentation {
-  options: ProfileCourtOption[];
-  statusHidden: boolean;
-  statusText: string;
-}
-
-/**
- * Every profile gate/validation rule stays in sessionViews.js: this content only
- * renders what the frozen runtime decided. `selectedCourtCheckboxValues` is the
- * one judgment reached back into, so the "keep the live draft" rule has a single
- * source shared with the legacy form.
- */
-interface ProfileCompletionRuntime {
-  profileCourtOptionsPresentation(
-    courts: ProfileCompletionCourt[],
-    options: { ready?: boolean; selected?: Set<string> }
-  ): ProfileCourtOptionsPresentation;
-  selectedCourtCheckboxValues(container: Element | null | undefined, fallback: Set<string>): Set<string>;
 }
 
 export interface ProfileCompletionActionNodes {
@@ -73,10 +47,6 @@ interface ProfileCompletionContentOptions {
 
 interface ProfileCompletionSheetProps extends ProfileCompletionContentOptions {
   contentRef: React.Ref<ProfileCompletionContentContract>;
-}
-
-function runtime(): ProfileCompletionRuntime {
-  return profileCompletionSheetRuntime;
 }
 
 function ProfileCompletionSheet({
@@ -122,7 +92,9 @@ function ProfileCompletionSheet({
         // Legacy parity: without the compact-gate picker there is no container,
         // and updateCourtCheckboxes returned before touching anything.
         if (compactCreateGate) return;
-        setSelectedCourts(runtime().selectedCourtCheckboxValues(courtsContainerRef.current, initialSelectedCourts));
+        setSelectedCourts(
+          profileCompletionSheetRuntime.selectedCourtCheckboxValues(courtsContainerRef.current, initialSelectedCourts)
+        );
         setCourts(nextCourts);
         setCourtsReady(Boolean(ready));
         setGeneration((value) => value + 1);
@@ -139,7 +111,10 @@ function ProfileCompletionSheet({
 
   const courtOptions = compactCreateGate
     ? null
-    : runtime().profileCourtOptionsPresentation(courts, { ready: courtsReady, selected: selectedCourts });
+    : profileCompletionSheetRuntime.profileCourtOptionsPresentation(courts, {
+        ready: courtsReady,
+        selected: selectedCourts,
+      });
 
   return (
     <>

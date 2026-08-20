@@ -2,7 +2,7 @@ import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
-import { courtPlayersSheetRuntime } from "../sessionViews.js";
+import { courtPlayersSheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 interface CourtPlayersCourt extends CourtSummary {
@@ -19,29 +19,10 @@ interface CourtPlayer {
   profileId?: number | string | null;
 }
 
-interface CourtPlayerPresentation {
-  greetingLabel: string;
-  id: string;
-  nickname: string;
-  ntrpLabel: string;
-  playTypesLabel: string;
-  presenceLabel: string;
-  showGreeting: boolean;
-  showPresence: boolean;
-}
-
-interface CourtPlayersRuntime {
-  courtPlayerCardPresentation(player: CourtPlayer): CourtPlayerPresentation;
-}
-
 interface CourtPlayersSheetProps {
   court: CourtPlayersCourt;
   onClose: () => void;
   players: CourtPlayer[];
-}
-
-function runtime(): CourtPlayersRuntime {
-  return courtPlayersSheetRuntime;
 }
 
 function CourtPlayersSheet({ court, onClose, players }: CourtPlayersSheetProps) {
@@ -65,7 +46,7 @@ function CourtPlayersSheet({ court, onClose, players }: CourtPlayersSheetProps) 
       <div className="nearby-sessions__cards">
         {players.length ? (
           players.map((player, index) => {
-            const presentation = runtime().courtPlayerCardPresentation(player);
+            const presentation = courtPlayersSheetRuntime.courtPlayerCardPresentation(player);
             return (
               <button
                 type="button"

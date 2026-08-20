@@ -1,17 +1,56 @@
 import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js";
-import { formatNtrp, validProfileNtrp } from "./profile.js";
+import { validProfileNtrp } from "./profile.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { mountDialog, mountSheet } from "./sheets.js";
-import { canReceiveFocus } from "./meFocus.js";
 import {
   taipeiClock,
-  taipeiDateKey,
   taipeiDateTime,
   taipeiDateTimeLocalValue,
   taipeiLocalDateTimeToIso,
   taipeiParts,
 } from "./taipeiTime.js";
 import { esc } from "./util.js";
+import {
+  runAsyncAction,
+  runMySessionAction,
+  runNotificationSettingAction,
+  runPresenceSettingAction,
+  setMySessionActionScope,
+  syncPendingMySessionActions,
+} from "./sessionActions.js";
+import {
+  PROFILE_SLOTS,
+  discoveryEmptyActions,
+  mySessionsSegmentState,
+  notificationPushHint,
+  padTwo,
+  sessionVenuePresentation,
+  successPushPromptPresentation,
+  taipeiCourts,
+  taipeiDayWord,
+  taipeiTileDate,
+} from "./sessionPresentation.ts";
+export {
+  avatarRuntime,
+  courtPlayersSheetRuntime,
+  decideSessionSheetRuntime,
+  mePageRuntime,
+  messagesFromGroups,
+  mySessionsPageRuntime,
+  nearbySessionsDrawerRuntime,
+  nearbySessionsSummaryText,
+  playerCardSheetRuntime,
+  playerDirectorySheetRuntime,
+  profileCompletionSheetRuntime,
+  reportDialogRuntime,
+  sessionCardRuntime,
+  sessionChatSheetRuntime,
+  sessionDetailSheetRuntime,
+} from "./sessionPresentation.ts";
+
+// One-way boundary: this legacy adapter may mount React and consume presentation
+// helpers, while React modules import only sessionPresentation.ts and never reach
+// back into this file.
 
 // Vite 將單檔 eager glob 轉為 browser 的同步 import；Node 22 unit tests 沒有
 // document，會短路而不解析其不支援的 .tsx 副檔名。
@@ -60,8 +99,7 @@ const mountPlayerDirectorySheetContent =
   playerDirectorySheetModules["./sheets/PlayerDirectorySheet.tsx"]?.mountPlayerDirectorySheetContent;
 const playerCardSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/PlayerCardSheet.tsx", { eager: true });
-const mountPlayerCardSheetContent =
-  playerCardSheetModules["./sheets/PlayerCardSheet.tsx"]?.mountPlayerCardSheetContent;
+const mountPlayerCardSheetContent = playerCardSheetModules["./sheets/PlayerCardSheet.tsx"]?.mountPlayerCardSheetContent;
 const profileCompletionSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/ProfileCompletionSheet.tsx", { eager: true });
 const mountProfileCompletionSheetContent =
@@ -87,79 +125,13 @@ const mountReportDialogContent = reportDialogModules["./sheets/ReportDialog.tsx"
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
-const GOOGLE_AVATAR_URL = /^https:\/\/lh[0-9]+[.]googleusercontent[.]com\//;
-
-function safeGoogleAvatarUrl(value) {
-  const candidate = String(value ?? "");
-  return GOOGLE_AVATAR_URL.test(candidate) ? candidate : "";
-}
-
-function avatarInitial(nickname) {
-  return [...String(nickname ?? "").trim()][0] || "球";
-}
-
-// 批 D8:NTRP 磚(dc §1/§3 大版、§2 小版)——null/未填一律顯示「—」,不落回
-// Number(null)=0 的舊陷阱(hosted QA 已記過一次教訓,見 memory hosted-qa-minor-copy-bugs)。
-function ntrpBrickValue(ntrp) {
-  return validProfileNtrp(ntrp) ? Number(ntrp).toFixed(1) : "—";
-}
-
-function showAvatarFallback(image) {
-  image.hidden = true;
-  const fallback = image.closest("[data-player-avatar]")?.querySelector("[data-avatar-fallback]");
-  if (fallback) fallback.hidden = false;
-}
-
-/**
- * 中性聚合數:只陳述事實,不做比率、星等或排名;N 為 0 時整行不顯示。
- *
- * 三個呼叫點(加入前名單主揪列、球友名單列、球友卡)的容器都是 grid,所以這個 span
- * 會自成一列,不需要各自加 display。
- */
-function trustCountText(count, label) {
-  const value = Number(count ?? 0);
-  if (!Number.isFinite(value) || value <= 0) return null;
-  return label.replace("{n}", String(value));
-}
-
-/** Single React source for the `.player-avatar` block shared by every avatar surface. */
-export const avatarRuntime = Object.freeze({ avatarInitial, safeGoogleAvatarUrl, showAvatarFallback });
-
-// 批 D8:我頁 profile 卡副行「常打 X」——profile.courts 可能存 court.id 或(舊資料)
-// court.name,雙重比對沿用 profileCourtOptionsPresentation(既有個人檔案表單邏輯)同一
-// 寫法,不是新發明的判準。
-function profileCourtNames(profile, courts) {
-  const selected = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
-  if (!selected.size) return [];
-  return (Array.isArray(courts) ? courts : [])
-    .filter((court) => selected.has(String(court?.id)) || selected.has(court?.name))
-    .map((court) => court.name);
-}
-
 const dialogFocusable =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const drawerBindings = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
 const drawerScrollPositions = new WeakMap();
-const mySessionActionStates = new WeakMap();
 const mySessionsRenderOptions = new WeakMap();
-// 批 D6:segmented tab(我報名的／我主揪的)狀態掛在 root 上,同一顆 DOM 節點在
-// show/hide 之間沿用(main.js 只切 hidden,不拆 innerHTML),語意與
-// mySessionActionStates 相同——view-only 狀態,不進 sessionController。
-const mySessionsSegmentStates = new WeakMap();
-const MY_SESSION_LIFECYCLE_ACTIONS = new Set([
-  "accept",
-  "accept-invite",
-  "attendance",
-  "cancel",
-  "decline",
-  "decline-invite",
-  "played",
-  "refresh",
-  "toggle-visibility",
-  "withdraw",
-]);
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
@@ -297,7 +269,8 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
 
   if (courtId == null) errors.courtId = "請選擇台北市球場。";
   if (!EDIT_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
-  if (!Number.isInteger(slotsMissing) || slotsMissing < 1 || slotsMissing > 3) errors.slotsMissing = "缺額請填 1 到 3 位。";
+  if (!Number.isInteger(slotsMissing) || slotsMissing < 1 || slotsMissing > 3)
+    errors.slotsMissing = "缺額請填 1 到 3 位。";
   if (!startAt || new Date(startAt).getTime() < new Date(now).getTime() - NOW_START_CREATE_GRACE_MS) {
     errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
   }
@@ -419,7 +392,8 @@ function restoreFocusedSessionCard(root) {
     if (!focusIntent) return;
     const active = document.activeElement;
     const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
-    if (hasNewSurface || (active?.isConnected && active !== document.body && active !== document.documentElement)) return;
+    if (hasNewSurface || (active?.isConnected && active !== document.body && active !== document.documentElement))
+      return;
     const toggle = root.querySelector("#nearby-sessions-toggle");
     if (focusIntent === DRAWER_TOGGLE_FOCUS) {
       if (toggle?.getAttribute("aria-expanded") === "false") {
@@ -483,60 +457,6 @@ function restoreFocusedSessionCard(root) {
   });
 }
 
-function ntrpRange(session) {
-  // Number(null) is 0 and passes isFinite, so the empty range must be rejected first.
-  if (session?.ntrpMin == null || session?.ntrpMax == null) return "NTRP 不限";
-  const min = Number(session.ntrpMin);
-  const max = Number(session.ntrpMax);
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return "NTRP 不限";
-  if (min === max) return `NTRP ${min.toFixed(1)}`;
-  return `NTRP ${min.toFixed(1)}–${max.toFixed(1)}`;
-}
-
-// 批 D9 backlog #1:記分板格眉已經是「NTRP」,格值若沿用 ntrpRange() 原輸出會
-// 重複前綴、390px 折兩行;只在這個格值呼叫點剝掉前綴,ntrpRange() 本體與其他
-// 呼叫點(session-card meta、聊天球局資訊列等)維持原字串不動。
-function scoreboardNtrpValue(session) {
-  return ntrpRange(session).replace(/^NTRP /, "");
-}
-
-function vacancyLabel(session) {
-  const remaining = Number(session.slotsRemaining);
-  if (!Number.isFinite(remaining) || remaining <= 0) return "已額滿";
-  return `缺 ${remaining} 位`;
-}
-
-// ==== 批 D2:v2 時間磚與日期分組 helper(格式對照 dc.html L825/L845-846/L915-916) ====
-const TAIPEI_WEEKDAY_WORD = ["日", "一", "二", "三", "四", "五", "六"];
-const padTwo = (value) => String(value).padStart(2, "0");
-
-// 時間磚下行「08/10 一」(dc L825:DAY_OF 去括號版)
-function taipeiTileDate(value) {
-  const parts = taipeiParts(value);
-  return parts ? `${padTwo(parts.month)}/${padTwo(parts.day)} ${TAIPEI_WEEKDAY_WORD[parts.weekday]}` : "";
-}
-
-function taipeiDayKey(value) {
-  return taipeiDateKey(value) ?? "";
-}
-
-// 「今天」「明天」或「週X」——組標與 peek「最近」共用(dc DAY_WORD 的動態日期版)
-function taipeiDayWord(value, now = new Date()) {
-  const key = taipeiDayKey(value);
-  if (!key) return "";
-  if (key === taipeiDayKey(now)) return "今天";
-  if (key === taipeiDayKey(new Date(now.getTime() + 86_400_000))) return "明天";
-  const parts = taipeiParts(value);
-  return `週${TAIPEI_WEEKDAY_WORD[parts.weekday]}`;
-}
-
-// 抽屜組標「今天 08/10(一)」(dc L915-916:`${DAY_WORD} ${DAY_OF}`)
-function drawerGroupLabel(value, now = new Date()) {
-  const parts = taipeiParts(value);
-  if (!parts) return "時間待確認";
-  return `${taipeiDayWord(value, now)} ${padTwo(parts.month)}/${padTwo(parts.day)}(${TAIPEI_WEEKDAY_WORD[parts.weekday]})`;
-}
-
 // 批 D7:訊息列表列與聊天室 header 副行共用(抽取規格 §3 r.sub / §4 chatSub 同一
 // 語意,但只有 §4 給出完整算式:`${DAY_WORD} ${range} · 主揪 ${host}`)。dc 假設
 // 每局都有明確的 start/end,本站資料模型只有候選局才有時段範圍(rangeEnd)、一般
@@ -558,381 +478,6 @@ function sessionHostInitial(session) {
   if (String(session?.viewerRole ?? "").toLowerCase() === "host") return "我";
   const nickname = String(session?.hostNickname ?? "").trim();
   return nickname ? nickname.slice(0, 1) : "主";
-}
-
-function isOngoingSession(session) {
-  const startAt = new Date(session?.startAt ?? "").getTime();
-  return Number.isFinite(startAt) && startAt <= Date.now();
-}
-
-// 時間磚:一般=HH:MM;未定案候選=小時範圍「18–22」(dc L845-846)
-function sessionTimeTilePresentation(session, venue, { detail = false, compact = false } = {}) {
-  const parts = taipeiParts(session?.startAt);
-  const undecided = venue?.undecidedCandidates === true;
-  const endParts = undecided && session?.rangeEnd ? taipeiParts(session.rangeEnd) : null;
-  const start = undecided && endParts && parts ? `${parts.hour}–${endParts.hour}` : taipeiClock(session?.startAt);
-  const ongoing = !undecided && isOngoingSession(session);
-  const modifiers = `${detail ? " time-tile--detail" : ""}${compact ? " time-tile--compact" : ""}${ongoing ? " time-tile--ongoing" : ""}`;
-  return {
-    className: `time-tile${modifiers}`,
-    date: taipeiTileDate(session?.startAt) || "待確認",
-    start: start || "--:--",
-  };
-}
-
-const VENUE_TYPE_LABELS = {
-  booked: "已訂場",
-  candidates: "候選局",
-  walk_on: "現場等場",
-};
-
-function sessionVenuePresentation(session, courts = []) {
-  const venueType = String(session?.venueType ?? "booked");
-  const undecided = isUndecidedCandidate(session);
-  const decided = venueType === "candidates" && !undecided;
-  if (!undecided) {
-    return {
-      badge: decided ? "候選局 · 已定案" : (VENUE_TYPE_LABELS[venueType] ?? VENUE_TYPE_LABELS.booked),
-      court: [session?.court, session?.courtDistrict].filter(Boolean).join(" · "),
-      decided,
-      time: taipeiDateTime(session?.startAt),
-      undecidedCandidates: false,
-    };
-  }
-
-  const catalogue = new Map((Array.isArray(courts) ? courts : []).map((court) => [String(court?.id), court]));
-  const names = (Array.isArray(session?.candidateCourtIds) ? session.candidateCourtIds : [])
-    .map((courtId, index) => catalogue.get(String(courtId))?.name ?? (index === 0 ? session?.court : null))
-    .filter(Boolean);
-  return {
-    badge: VENUE_TYPE_LABELS.candidates,
-    candidateNames: names,
-    court: names.join("、") || session?.court || "候選球場待確認",
-    decided: false,
-    time: session?.rangeEnd
-      ? `${taipeiDateTime(session.startAt)} 至 ${taipeiDateTime(session.rangeEnd)}`
-      : taipeiDateTime(session?.startAt),
-    undecidedCandidates: true,
-  };
-}
-
-function completionLabel(session) {
-  return session.hostProfileComplete ? "資料完整" : "資料未完成";
-}
-
-function ongoingSessionMinutes(session) {
-  const startAt = new Date(session?.startAt ?? "").getTime();
-  if (!Number.isFinite(startAt) || startAt > Date.now()) return null;
-  return Math.max(0, Math.floor((Date.now() - startAt) / 60_000));
-}
-
-// 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄(標題列/meta/底列)。
-// 候選場次以標題後綴「等 N 館候選」+時段範圍表達(dc L845-846),不另掛 badge。
-// courtLabel/hostLabel 兩個 helper 批 D6 抽出——My Sessions React 薄卡列
-// 沿用同一套候選局縮寫與主揪標籤慣例,避免兩處各自定義
-// 同一格式。
-function sessionCourtLabel(session, venue) {
-  const candidateNames = venue.candidateNames ?? [];
-  return venue.undecidedCandidates
-    ? `${candidateNames[0] ?? "候選球場待確認"}${candidateNames.length > 1 ? ` 等 ${candidateNames.length} 館候選` : ""}`
-    : session?.court || venue.court;
-}
-
-function sessionHostLabel(session) {
-  const hostNtrpValue = Number(session?.hostNtrp);
-  return `主揪 ${session.hostNickname}${Number.isFinite(hostNtrpValue) ? ` ${hostNtrpValue.toFixed(1)}` : ""}`;
-}
-
-/**
- * `courts` 需要明寫型別:預設值 `[]` 會讓 TypeScript 從這個 .js 推成 `never[]`,
- * 使 React 端(SessionCard.tsx)宣告的 `CourtSummary[] | null` 對不上,
- * 逼出一個雙重型別斷言。這段 JSDoc 讓推論正確,斷言就不需要了(批 12)。
- *
- * @param {*} session
- * @param {{ compact?: boolean, courts?: readonly any[] | null }} [options]
- */
-function sessionCardPresentation(session, { compact = false, courts = [] } = {}) {
-  const venue = sessionVenuePresentation(session, courts);
-  const courtLabel = sessionCourtLabel(session, venue);
-  const hostLabel = sessionHostLabel(session);
-  return {
-    booked: String(session?.venueType ?? "booked") === "booked",
-    className: `session-card${compact ? " session-card--compact" : ""}`,
-    courtLabel,
-    feeLabel: session.feeNote ? `費用：${session.feeNote}` : null,
-    instant: session.joinMode === "instant",
-    metaLabel: `${session.playType} · ${ntrpRange(session)} · ${hostLabel}`,
-    ongoing: !venue.undecidedCandidates && isOngoingSession(session),
-    timeTile: sessionTimeTilePresentation(session, venue, { compact }),
-    vacancy: vacancyLabel(session),
-  };
-}
-
-function mySessionReason(session) {
-  const status = String(session?.status ?? "").toLowerCase();
-  const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-  // 用被動句、不點名主揪:與 202608060001 已上線的推播 body「你的加入申請已被婉拒。」
-  // 逐字一致(定詞表的目的),同時保住 smoke.spec.js 那條「歷史不得出現『主揪婉拒』」的既有守衛。
-  if (participantStatus === "declined") return "你的加入申請已被婉拒";
-  if (participantStatus === "withdrawn") return "你已退出這一局";
-  if (status === "played") return "本局已回報打成";
-  if (status === "cancelled") return "主揪已取消這一局";
-  if (status === "expired") return "這一局已逾期結束";
-  return "這一局已無可進行的動作";
-}
-
-function actionDescriptor(button) {
-  return {
-    action:
-      button.dataset.myAction ?? (button.id === "my-sessions-refresh" ? "refresh" : ""),
-    participantId: button.dataset.participantId ?? "",
-    profileId: button.dataset.profileId ?? "",
-    sessionId: button.dataset.sessionId ?? "",
-  };
-}
-
-function actionDescriptorKey(descriptor) {
-  return JSON.stringify([descriptor.action, descriptor.sessionId, descriptor.participantId, descriptor.profileId]);
-}
-
-function pendingMySessionActionState(root) {
-  let state = mySessionActionStates.get(root);
-  if (!state) {
-    state = { pending: new Map(), scopeKey: null };
-    mySessionActionStates.set(root, state);
-  }
-  return state;
-}
-
-function pendingMySessionActions(root) {
-  return pendingMySessionActionState(root).pending;
-}
-
-function setMySessionActionScope(root, scopeKey) {
-  const state = pendingMySessionActionState(root);
-  if (state.scopeKey === scopeKey) return;
-  // A render for another account/profile epoch must not inherit a stale
-  // promise's disabled button or error surface from the previous account.
-  mySessionActionStates.set(root, { pending: new Map(), scopeKey });
-}
-
-function sameActionDescriptor(left, right) {
-  return (
-    left?.action === right?.action &&
-    left?.sessionId === right?.sessionId &&
-    left?.participantId === right?.participantId &&
-    left?.profileId === right?.profileId
-  );
-}
-
-function currentMySessionActionButton(root, descriptor) {
-  if (descriptor.action === "refresh") return root.querySelector("#my-sessions-refresh");
-  return [...root.querySelectorAll("[data-my-action]")].find((button) => sameActionDescriptor(actionDescriptor(button), descriptor));
-}
-
-function syncPendingMySessionActions(root) {
-  for (const descriptor of pendingMySessionActions(root).values()) {
-    const button = currentMySessionActionButton(root, descriptor);
-    if (button) button.disabled = true;
-  }
-}
-
-function showMySessionActionError(root, message) {
-  const error = root.querySelector("[data-my-sessions-error]");
-  if (!error) return;
-  error.textContent = message;
-  error.hidden = false;
-}
-
-function focusMySessionActionResult(root, descriptor, { failed = false } = {}) {
-  if (failed && ["accept-invite", "decline-invite"].includes(descriptor.action)) {
-    const error = root.querySelector("[data-my-sessions-error]");
-    if (error && !error.hidden) {
-      error.focus({ preventScroll: true });
-      return;
-    }
-  }
-  const currentButton = currentMySessionActionButton(root, descriptor);
-  if (currentButton && !currentButton.disabled) {
-    currentButton.focus({ preventScroll: true });
-    return;
-  }
-  if (failed) {
-    const error = root.querySelector("[data-my-sessions-error]");
-    if (error && !error.hidden) {
-      error.focus({ preventScroll: true });
-      return;
-    }
-  }
-  const nextAction = root.querySelector("#my-needs-action [data-my-action]:not([disabled])");
-  if (nextAction) {
-    nextAction.focus({ preventScroll: true });
-    return;
-  }
-  const sessionCard = [...root.querySelectorAll("[data-open-my-session]")].find(
-    (button) => String(button.dataset.sessionId) === String(descriptor.sessionId)
-  );
-  if (sessionCard) {
-    sessionCard.focus({ preventScroll: true });
-    return;
-  }
-  root.querySelector("#my-sessions-refresh")?.focus({ preventScroll: true });
-}
-
-/**
- * Run one DOM-backed async action without letting a stale pre-render control
- * overwrite the authoritative disabled state produced by a callback render.
- * Callers keep only their action-specific success, error, and focus policy.
- */
-async function runAsyncAction({
-  root,
-  callback,
-  controls = [],
-  watchNodes = [],
-  error = null,
-  clearError = true,
-  clearErrorText = false,
-  errorMessage = "操作暫時無法完成，請稍後再試。",
-  errorFocus = false,
-  errorResult,
-  current = () => true,
-  onSuccess,
-  onSuccessAfterRerender = false,
-  onError,
-  onErrorAfterRerender = false,
-  onFinally,
-  onFinallyAfterRerender = false,
-  canRestoreControls = () => true,
-  resolveControls,
-  restoreAfterRerender = false,
-  focus,
-}) {
-  const unlockedControls = controls.filter((control) => control && !control.disabled);
-  const watchedNodes = [...new Set([...unlockedControls, ...watchNodes.filter(Boolean)])];
-  const active = document.activeElement;
-  const belongsToRoot = (node) => root.contains(node);
-  const focusIntent =
-    focus?.capture && active instanceof HTMLElement && belongsToRoot(active) ? focus.capture(active) : null;
-  const rerendered = () => watchedNodes.some((node) => !belongsToRoot(node));
-
-  unlockedControls.forEach((control) => {
-    control.disabled = true;
-  });
-  if (clearError && error) {
-    error.hidden = true;
-    if (clearErrorText) error.textContent = "";
-  }
-
-  let result;
-  let cause;
-  let completed = false;
-  try {
-    result = await callback();
-    const context = { cause, completed, error, result, rerendered: rerendered(), controlsRestored: false };
-    if (current() && (!context.rerendered || onSuccessAfterRerender)) await onSuccess?.(result, context);
-    completed = true;
-    return result;
-  } catch (actionError) {
-    cause = actionError;
-    const context = { cause, completed, error, result, rerendered: rerendered(), controlsRestored: false };
-    if (current() && (!context.rerendered || onErrorAfterRerender)) {
-      if (onError) {
-        await onError(actionError, context);
-      } else if (error) {
-        error.textContent = actionError?.message || errorMessage;
-        error.hidden = false;
-        if (errorFocus) error.focus({ preventScroll: true });
-      }
-    }
-    return typeof errorResult === "function" ? errorResult(actionError) : errorResult;
-  } finally {
-    const isCurrent = current();
-    const context = { cause, completed, error, result, rerendered: rerendered(), controlsRestored: false };
-    if (isCurrent && (!context.rerendered || restoreAfterRerender) && canRestoreControls(context)) {
-      const controlsToRestore = resolveControls?.(context) ?? unlockedControls;
-      controlsToRestore.filter(Boolean).forEach((control) => {
-        control.disabled = false;
-      });
-      context.controlsRestored = true;
-    }
-    if (isCurrent && (!context.rerendered || onFinallyAfterRerender)) await onFinally?.(context);
-    if (isCurrent && focusIntent != null && (focus.shouldRestore?.(context) ?? true)) {
-      focus.restore?.(focusIntent, context);
-    }
-  }
-}
-
-function runMySessionAction(button, callback, root) {
-  if (!callback || button.disabled) return;
-  const descriptor = actionDescriptor(button);
-  const descriptorKey = actionDescriptorKey(descriptor);
-  const pending = pendingMySessionActions(root);
-  const opensConfirmation = descriptor.action === "withdraw";
-  if (!opensConfirmation) pending.set(descriptorKey, descriptor);
-  let restoreActionFocus = false;
-  void runAsyncAction({
-    root,
-    callback,
-    controls: opensConfirmation ? [] : [button],
-    error: root.querySelector("[data-my-sessions-error]"),
-    clearError: !opensConfirmation,
-    current: () => pendingMySessionActions(root) === pending,
-    onError: (actionError) => {
-      showMySessionActionError(root, actionError?.message || "操作暫時無法完成，請稍後再試。");
-      // reloadParticipation can replace the original button before an error
-      // arrives. Resolve the semantic action again in the current DOM so the
-      // keyboard user stays in the same operational context.
-      restoreActionFocus = !opensConfirmation;
-    },
-    onErrorAfterRerender: true,
-    resolveControls: () => (opensConfirmation ? [] : [currentMySessionActionButton(root, descriptor)]),
-    restoreAfterRerender: true,
-    onFinally: () => {
-      if (!opensConfirmation) pending.delete(descriptorKey);
-      if (!opensConfirmation && MY_SESSION_LIFECYCLE_ACTIONS.has(descriptor.action)) {
-        focusMySessionActionResult(root, descriptor, { failed: restoreActionFocus });
-      }
-    },
-    onFinallyAfterRerender: true,
-  });
-}
-
-function normalizedNotificationSettings(settings = {}) {
-  const preferences = settings?.prefs ?? {};
-  return {
-    courtIds: new Set(
-      (Array.isArray(settings?.courtIds) ? settings.courtIds : [])
-        .map(Number)
-        .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
-    ),
-    errorMessage: typeof settings?.errorMessage === "string" ? settings.errorMessage : "",
-    prefs: {
-      chatMessageEnabled: preferences.chatMessageEnabled !== false,
-      guestInvitedEnabled: preferences.guestInvitedEnabled !== false,
-      guestRequestReviewedEnabled: preferences.guestRequestReviewedEnabled !== false,
-      hostNewRequestEnabled: preferences.hostNewRequestEnabled !== false,
-      sessionReminderEnabled: preferences.sessionReminderEnabled !== false,
-      sessionUpdatedEnabled: preferences.sessionUpdatedEnabled !== false,
-    },
-    pushStatus: typeof settings?.pushStatus === "string" ? settings.pushStatus : "idle",
-    webPushConfigured: settings?.webPushConfigured === true,
-  };
-}
-
-function notificationPushHint({ pushStatus, webPushConfigured }) {
-  if (!webPushConfigured) return "這個環境尚未設定 Web Push 公鑰，暫時無法開啟推播。";
-  if (pushStatus === "unsupported") return "此瀏覽器不支援 Web Push，暫時無法在這個裝置開啟推播。";
-  if (pushStatus === "enabled") return "此裝置已開啟推播通知。";
-  if (pushStatus === "denied") return "你已拒絕通知權限。請到瀏覽器或系統設定重新開啟通知後，再回來按「開啟推播」。";
-  return "開啟後，只有這個裝置會收到你選擇的通知。";
-}
-
-const IOS_PUSH_INSTALL_HINT = "若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。";
-
-function successPushPromptPresentation(settings, { message, testId }) {
-  const notification = normalizedNotificationSettings(settings);
-  if (!notification.webPushConfigured || ["enabled", "unsupported"].includes(notification.pushStatus)) return null;
-  return { iosHint: IOS_PUSH_INSTALL_HINT, message, testId };
 }
 
 function successPushPromptMarkup(settings, options) {
@@ -985,232 +530,6 @@ function wireSuccessPushPrompt(root, onEnablePush) {
   });
 }
 
-function normalizedPresenceSettings(settings = {}) {
-  return {
-    locationStatus: typeof settings?.locationStatus === "string" ? settings.locationStatus : "idle",
-    openToGreeting: settings?.openToGreeting === true,
-    sharePresence: settings?.sharePresence === true,
-  };
-}
-
-function presenceLocationHint({ locationStatus, sharePresence }) {
-  if (!sharePresence) return "關閉後會立即移除你目前的在線狀態。";
-  if (locationStatus === "denied") return "你已拒絕定位權限；請到瀏覽器或系統設定開啟定位後，再重新開啟分享。";
-  if (locationStatus === "unsupported") return "此瀏覽器不支援定位，暫時無法更新在線狀態。";
-  if (locationStatus === "unavailable") return "目前無法取得定位；恢復後會自動嘗試更新。";
-  if (locationStatus === "update-failed") return "在線狀態暫時無法更新，請稍後再試。";
-  if (locationStatus === "active") return "定位已開啟；只有在球場 100 公尺內才會顯示在線狀態。";
-  return "開啟後會請求定位權限；只有在球場 100 公尺內才會顯示在線狀態。";
-}
-
-/**
- * 以語意描述通知控制項。六個事件偏好共用同一個 selector，靠 preference 區分，
- * 所以描述用物件而不是組出來的 selector 字串。
- */
-function notificationControlDescriptor(control) {
-  if (!(control instanceof HTMLElement)) return null;
-  if (control.matches("[data-enable-push]")) return { selector: "[data-enable-push]" };
-  if (control.matches("[data-subscribe-all-courts]")) return { selector: "[data-subscribe-all-courts]" };
-  if (control.matches("[data-court-picker-toggle]")) return { selector: "[data-court-picker-toggle]" };
-  if (control.matches("[data-notification-court]")) {
-    return { courtId: control.value, selector: "[data-notification-court]" };
-  }
-  if (control.matches("[data-notification-pref]")) {
-    return { preference: control.dataset.notificationPref, selector: "[data-notification-pref]" };
-  }
-  return null;
-}
-
-function findNotificationControl(root, descriptor) {
-  if (!descriptor) return null;
-  if (descriptor.courtId != null) {
-    return (
-      [...root.querySelectorAll(descriptor.selector)].find(
-        (control) => String(control.value) === String(descriptor.courtId)
-      ) ?? null
-    );
-  }
-  if (descriptor.preference == null) return root.querySelector(descriptor.selector);
-  return (
-    [...root.querySelectorAll(descriptor.selector)].find(
-      (control) => control.dataset.notificationPref === descriptor.preference
-    ) ?? null
-  );
-}
-
-async function runNotificationSettingAction(root, callback) {
-  const controls = [...root.querySelectorAll("[data-notification-control]")];
-  const unlockedDescriptors = controls.filter((control) => !control.disabled).map(notificationControlDescriptor);
-  const error = root.querySelector("[data-notification-error]");
-  return runAsyncAction({
-    root,
-    callback: async () => {
-      await callback();
-      return true;
-    },
-    controls,
-    error,
-    clearErrorText: true,
-    errorMessage: "通知設定暫時無法更新，請稍後再試。",
-    errorFocus: true,
-    errorResult: false,
-    resolveControls: () => unlockedDescriptors.map((descriptor) => findNotificationControl(root, descriptor)),
-    focus: {
-      capture: notificationControlDescriptor,
-      shouldRestore: ({ completed }) => completed,
-      restore: (focusedDescriptor) => {
-        const current = document.activeElement;
-        // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
-        const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
-        const target = focusIsLoose ? findNotificationControl(root, focusedDescriptor) : null;
-        if (canReceiveFocus(target)) target.focus({ preventScroll: true });
-        else if (focusIsLoose) {
-          // 勾到最後一座球場會讓清單自動收合，原目標隨即隱形；退回展開鈕才不會掉到 body。
-          const toggle = root.querySelector("[data-court-picker-toggle]");
-          if (canReceiveFocus(toggle)) toggle.focus({ preventScroll: true });
-        }
-      },
-    },
-  });
-}
-
-/**
- * 以語意 selector 描述在線設定控制項。跨 await 只保留 selector、不保留節點，
- * 因為回呼期間整段 markup 可能被重繪抽換，舊節點會 detach。
- */
-function presenceControlSelector(control) {
-  if (!(control instanceof HTMLElement)) return null;
-  if (control.matches("[data-set-presence-sharing]")) return "[data-set-presence-sharing]";
-  if (control.matches("[data-open-to-greeting]")) return "[data-open-to-greeting]";
-  return null;
-}
-
-async function runPresenceSettingAction(root, callback) {
-  const controls = [...root.querySelectorAll("[data-presence-control]")];
-  const unlockedSelectors = controls.filter((control) => !control.disabled).map(presenceControlSelector);
-  const error = root.querySelector("[data-presence-error]");
-  return runAsyncAction({
-    root,
-    callback: async () => (await callback()) !== false,
-    controls,
-    error,
-    clearErrorText: true,
-    errorMessage: "在線設定暫時無法更新，請稍後再試。",
-    errorResult: false,
-    resolveControls: () => unlockedSelectors.map((selector) => root.querySelector(selector)),
-    focus: {
-      capture: presenceControlSelector,
-      // 回呼回 false 代表被 gate 攔截並開了補件 sheet，焦點歸該 sheet 管；
-      // 失敗則留在原控制項，接不住時才退到 role=alert。
-      shouldRestore: ({ completed, result }) => !completed || result,
-      restore: (focusedSelector) => {
-        const current = document.activeElement;
-        // 只接手被 disable 踢成無主的焦點；使用者自己移走的焦點不搶回來。
-        const focusIsLoose = !(current instanceof HTMLElement) || current === document.body;
-        const target = focusIsLoose ? root.querySelector(focusedSelector) : null;
-        if (canReceiveFocus(target)) target.focus({ preventScroll: true });
-        else if (focusIsLoose && error && !error.hidden && canReceiveFocus(error)) {
-          // 控制項接不住(被收合、被移除)時才退到錯誤訊息,不讓焦點留在 body。
-          error.focus({ preventScroll: true });
-        }
-      },
-    },
-  });
-}
-
-/** Single-source presentation and DOM action helpers consumed by the React Me page. */
-export const mePageRuntime = Object.freeze({
-  canReceiveFocus,
-  normalizedNotificationSettings,
-  normalizedPresenceSettings,
-  notificationPushHint,
-  ntrpBrickValue,
-  playerSlotLabels,
-  presenceLocationHint,
-  profileCourtNames,
-  runMySessionAction,
-  runNotificationSettingAction,
-  runPresenceSettingAction,
-});
-
-// 批 D6:kind 就決定我主揪的/我報名的(host-request 恆為 hosted,其餘 needsAction
-// 都是 joined,理由見抽取規格 §6:hostedItems 只來自 st.hosted,joinedItems 只來自
-// st.applied);upcoming/history 兩個扁平陣列改看 session.viewerRole,因為同一顆
-// session 物件本身就標了 viewerRole,不需要另外查表。
-function mySessionsSplitBySegment(groups) {
-  const needsAction = Array.isArray(groups?.needsAction) ? groups.needsAction : [];
-  const upcoming = Array.isArray(groups?.upcoming) ? groups.upcoming : [];
-  const history = Array.isArray(groups?.history) ? groups.history : [];
-  const isHostRole = (session) => String(session?.viewerRole).toLowerCase() === "host";
-  return {
-    hosted: {
-      history: history.filter(isHostRole),
-      needsAction: needsAction.filter((entry) => entry.kind === "host-request"),
-      upcoming: upcoming.filter(isHostRole),
-    },
-    joined: {
-      history: history.filter((session) => !isHostRole(session)),
-      needsAction: needsAction.filter((entry) => entry.kind !== "host-request"),
-      upcoming: upcoming.filter((session) => !isHostRole(session)),
-    },
-  };
-}
-
-// 聚焦目標(剛建立／剛加入的球局)決定初始分頁該切去哪——created 場合對齊 dc
-// gotoMine(host→我主揪的),join 場合維持 dc 初值(guest→我報名的,見抽取規格
-// §6)。同一個 sessionId 只會落在 needsAction 或 upcoming/history 其中一組,故找
-// 到第一個相符就回傳其角色。
-function mySessionsFocusRole(groups, sessionId) {
-  if (sessionId == null) return null;
-  const id = String(sessionId);
-  const needsAction = Array.isArray(groups?.needsAction) ? groups.needsAction : [];
-  const needsActionHit = needsAction.find((entry) => String(entry?.session?.sessionId) === id);
-  if (needsActionHit) return needsActionHit.kind === "host-request" ? "host" : "guest";
-  const upcoming = Array.isArray(groups?.upcoming) ? groups.upcoming : [];
-  const history = Array.isArray(groups?.history) ? groups.history : [];
-  const flatHit = [...upcoming, ...history].find((session) => String(session?.sessionId) === id);
-  if (!flatHit) return null;
-  return String(flatHit.viewerRole).toLowerCase() === "host" ? "host" : "guest";
-}
-
-// segmented 分頁態掛在 root(WeakMap),同一顆 my-sessions-root 節點在 show/hide
-// 之間沿用(main.js 只切 hidden,不拆 innerHTML)。lastFocusSessionId 只在「這次
-// focusSessionId 跟上次不同」時觸發自動切頁,避免使用者手動切走之後,同一個
-// focus 目標的後續重繪(例如 refreshMySessions 完成後再 render 一次)把分頁搶回去。
-function mySessionsSegmentState(root) {
-  let state = mySessionsSegmentStates.get(root);
-  if (!state) {
-    state = { lastFocusSessionId: undefined, segment: "joined" };
-    mySessionsSegmentStates.set(root, state);
-  }
-  return state;
-}
-
-function resolveMySessionsSegment(root, groups, focusSessionId) {
-  const state = mySessionsSegmentState(root);
-  if (focusSessionId != null && String(focusSessionId) !== String(state.lastFocusSessionId)) {
-    state.segment = mySessionsFocusRole(groups, focusSessionId) === "host" ? "hosted" : "joined";
-  }
-  state.lastFocusSessionId = focusSessionId ?? null;
-  return state.segment;
-}
-
-/** Single-source presentation/state helpers consumed by the React My Sessions page. */
-export const mySessionsPageRuntime = Object.freeze({
-  mySessionReason,
-  mySessionsSplitBySegment,
-  normalizedNotificationSettings,
-  ntrpRange,
-  resolveMySessionsSegment,
-  runMySessionAction,
-  sessionCourtLabel,
-  sessionHostLabel,
-  sessionTimeTilePresentation,
-  sessionVenuePresentation,
-  successPushPromptPresentation,
-  vacancyLabel,
-});
-
 function wireMySessionsPage(root, options = {}) {
   const {
     onAccept = () => {},
@@ -1237,7 +556,9 @@ function wireMySessionsPage(root, options = {}) {
   root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
   wireSuccessPushPrompt(root, onEnablePush);
-  root.querySelector("#my-sessions-refresh")?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
+  root
+    .querySelector("#my-sessions-refresh")
+    ?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
   root.querySelector("[data-my-sessions-empty-map]")?.addEventListener("click", onBack);
   root.querySelector("[data-my-sessions-empty-create]")?.addEventListener("click", onCreateSession);
   root.querySelectorAll("[data-my-sessions-seg]").forEach((button) => {
@@ -1412,39 +733,6 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", onToggle }) {
   );
 }
 
-// 抽屜摘要文字的單一來源。main.js 的 renderDiscovery 也要用同一句文案更新一顆
-// drawer 重建範圍之外的持久 live region(見 index.html #nearby-sessions-count-status),
-// 兩處若各自組字串,文案改一邊漏另一邊不會有任何測試或型別錯誤能抓到。
-export function nearbySessionsSummaryText(count, hasUserLocation) {
-  return `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
-}
-
-// 批 D2:抽屜清單按日期分組(dc L915-916):組標=詞+日期、延伸線、右側 mono 數量;
-// 空組直接不出現。組間依日期升冪、組內依開始時間升冪。
-function drawerSessionGroups(sessions) {
-  const groups = new Map();
-  for (const session of sessions) {
-    const key = taipeiDayKey(session.startAt) || "unknown";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(session);
-  }
-  return [...groups.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, items]) => {
-      const sorted = [...items].sort((a, b) => String(a.startAt).localeCompare(String(b.startAt)));
-      return { key, label: drawerGroupLabel(sorted[0].startAt), sessions: sorted };
-    });
-}
-
-/** Single-source presentation helpers consumed by the React nearby drawer. */
-export const sessionCardRuntime = Object.freeze({ sessionCardPresentation });
-
-export const nearbySessionsDrawerRuntime = Object.freeze({
-  discoveryEmptyActions,
-  drawerSessionGroups,
-  taipeiDayWord,
-});
-
 /** Render the map-bound peek strip and its two-state (collapsed/open) drawer. */
 export function renderNearbySessionsDrawer(
   root,
@@ -1471,7 +759,9 @@ export function renderNearbySessionsDrawer(
   mountNearbySessionsDrawer(root, { courts, drawerState, filters, hasUserLocation, mapStatus, sessions });
 
   const isOpen = drawerState === "open";
-  root.querySelector("#nearby-sessions-toggle")?.addEventListener("click", () => onToggle(isOpen ? "collapsed" : "open"));
+  root
+    .querySelector("#nearby-sessions-toggle")
+    ?.addEventListener("click", () => onToggle(isOpen ? "collapsed" : "open"));
   wireSessionCards(root, onOpenSession);
   root.querySelector("#peek-reset")?.addEventListener("click", onReset);
   root.querySelector("#peek-create")?.addEventListener("click", onOpenCreate);
@@ -1515,74 +805,6 @@ export function renderDiscoveryEmpty({
     </div>
   </div>`;
 }
-
-function discoveryEmptyActions(filtersActive) {
-  const buttons = [];
-  if (filtersActive) buttons.push({ className: "session-secondary", id: "discovery-reset", label: "清除篩選" });
-  buttons.push({ className: "session-secondary", id: "discovery-expand", label: "擴大地圖範圍" });
-  buttons.push({ className: "session-secondary", id: "discovery-subscribe", label: "有新球局時通知我" });
-  buttons.push({ className: "session-primary", id: "discovery-first", label: "開第一局" });
-  return buttons;
-}
-
-function acceptedChatRoster(roster) {
-  return (Array.isArray(roster) ? roster : []).filter((participant) => String(participant?.status).toLowerCase() === "accepted");
-}
-
-/**
- * Accepted-member chips for the chat roster. The role label, the optional NTRP
- * suffix and the nickname fallback are exactly what the imperative
- * `chatRosterMarkup()` encoded inside its HTML string; the row text stays raw
- * because React escapes it on render (an `esc()` here would double-escape).
- */
-function chatRosterPresentation(roster) {
-  return acceptedChatRoster(roster).map((participant) => {
-    const role = String(participant.role).toLowerCase() === "host" ? "主揪" : "球友";
-    const ntrp = participant.ntrp == null ? "" : ` · ${formatNtrp(participant.ntrp)}`;
-    return { text: `${participant.nickname || "球友"} · ${role}${ntrp}` };
-  });
-}
-
-/**
- * One row per chat message. Kind normalisation, the self/author split and the
- * governance eligibility rule (a real, positive sender profile on somebody
- * else's user message) are the same rules the imperative `chatMessagesMarkup()`
- * used; the React feed only renders what this returned.
- *
- * 批 D7:他人泡泡改配 28px avatar(dc §4「他人」型),自己/系統維持無 avatar；
- * 既有 data-chat-* 錨點、report/block 覆寫與 sender/body/meta 內容一律不動,
- * 只是多包一層 .chat-message__bubble,讓 avatar 能當 bubble 的 flex 手足。
- */
-function chatMessagesPresentation(messages) {
-  const safeMessages = Array.isArray(messages) ? messages : [];
-  return safeMessages.map((message) => {
-    const kind = message.kind === "system" ? "system" : "user";
-    const isSelf = kind === "user" && message.isSelf === true;
-    const senderProfileId = Number(message.senderProfileId);
-    const canGovern = kind === "user" && !isSelf && Number.isSafeInteger(senderProfileId) && senderProfileId > 0;
-    const senderNickname = message.senderNickname || "球友";
-    const senderInitial = String(senderNickname).trim().slice(0, 1) || "球";
-    return {
-      body: String(message.body),
-      canGovern,
-      createdAt: String(message.createdAt),
-      createdAtLabel: String(taipeiDateTime(message.createdAt)),
-      isSelf,
-      kind,
-      messageId: String(message.messageId),
-      senderInitial,
-      senderNickname: String(senderNickname),
-      senderProfileId: String(senderProfileId),
-      showAuthor: kind === "user" && !isSelf,
-    };
-  });
-}
-
-/** Roster chip and message row rules shared with the React chat sheet. */
-export const sessionChatSheetRuntime = Object.freeze({
-  chatMessagesPresentation,
-  chatRosterPresentation,
-});
 
 /** Open the accepted-member chat with an event-driven, authority-refreshed feed. */
 export function openSessionChatSheet(
@@ -1676,9 +898,7 @@ export function openSessionChatSheet(
     if (nearBottom) scrollFeedToLatest();
     else feed.scrollTop = previousScrollTop;
     if (status === "ready") {
-      const nextMessageIds = new Set(
-        safeMessages.map((message) => String(message?.messageId ?? "")).filter(Boolean)
-      );
+      const nextMessageIds = new Set(safeMessages.map((message) => String(message?.messageId ?? "")).filter(Boolean));
       const newMessageCount = feedInitialized
         ? [...nextMessageIds].filter((messageId) => !knownMessageIds.has(messageId)).length
         : 0;
@@ -1719,45 +939,24 @@ export function openSessionChatSheet(
   const handleFeedClick = (event) => {
     const reportButton = event.target.closest("[data-chat-report]");
     const blockButton = event.target.closest("[data-chat-block]");
-    if (reportButton) void Promise.resolve().then(() => onReport(reportButton.dataset.chatReport)).catch((reportError) => {
-      error.textContent = reportError?.message || "目前無法開啟檢舉。";
-      error.hidden = false;
-    });
-    if (blockButton) void Promise.resolve(onBlock(blockButton.dataset.chatBlock)).catch((blockError) => {
-      error.textContent = blockError?.message || "封鎖設定暫時無法更新，請稍後再試。";
-      error.hidden = false;
-    });
+    if (reportButton)
+      void Promise.resolve()
+        .then(() => onReport(reportButton.dataset.chatReport))
+        .catch((reportError) => {
+          error.textContent = reportError?.message || "目前無法開啟檢舉。";
+          error.hidden = false;
+        });
+    if (blockButton)
+      void Promise.resolve(onBlock(blockButton.dataset.chatBlock)).catch((blockError) => {
+        error.textContent = blockError?.message || "封鎖設定暫時無法更新，請稍後再試。";
+        error.hidden = false;
+      });
   };
   mounted.root.querySelector("[data-chat-withdraw]")?.addEventListener("click", () => {
     onWithdraw();
   });
 
   return { ...mounted, setArchived, setState };
-}
-
-// ============================================================
-// 批 D7:訊息頁(dc §3)——群聊列表+未讀點。資料源是既有 getMySessionState()
-// 的 groups(upcoming+history 攤平),不新增 dataApi 呼叫;過濾規則見
-// messagesFromGroups。點列沿用既有 controller.openSessionChat(既有清未讀流程)。
-// ============================================================
-
-/**
- * Chat-eligible rows for the messages page: accepted participants (host or
- * guest) whose session is not cancelled/expired. Played/archived sessions
- * stay listed (read-only chat history remains reachable); needsAction-only
- * entries (not-yet-accepted requests/invites) are intentionally excluded —
- * their underlying session, once accepted, already surfaces via upcoming.
- */
-export function messagesFromGroups(groups = {}) {
-  const upcoming = Array.isArray(groups?.upcoming) ? groups.upcoming : [];
-  const history = Array.isArray(groups?.history) ? groups.history : [];
-  return [...upcoming, ...history]
-    .filter((session) => {
-      const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-      const status = String(session?.status ?? "").toLowerCase();
-      return participantStatus === "accepted" && status !== "cancelled" && status !== "expired";
-    })
-    .sort((left, right) => String(left?.startAt ?? "").localeCompare(String(right?.startAt ?? "")));
 }
 
 /** Mount or update the React CHATS destination without changing its public adapter. */
@@ -1769,12 +968,6 @@ export function renderMessagesPage(root, options = {}) {
 const JOIN_STAGE_FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-function joinConfirmHintText(expectedAccepted) {
-  return expectedAccepted
-    ? "確認後將直接加入這場球局，加入後即可在球局群組聊天協調細節。"
-    : "確認後將送出申請，主揪會在球局流程中處理申請。";
-}
-
 /** The three OK outcomes plus the accepted branch, unchanged from the retired dialog. */
 function joinSuccessMessage(result) {
   if (result?.accepted) return "已加入球局！前往我的球局開啟群組聊天。";
@@ -1782,66 +975,6 @@ function joinSuccessMessage(result) {
   if (result?.outcome === "OK_NTRP_OUT_OF_RANGE") return "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。";
   return "已送出申請，等待主揪回覆。";
 }
-
-/** 球場名(19px)那一行:未定案候選改用 sessionCourtLabel() 同一套 D2 卡片
- * 「X 等 N 館候選」縮寫公式(批 D9 backlog #2)——完整候選清單只留在下方
- * React candidate info 的完整候選資訊列,不再頭部/資訊列各重複一份;
- * 其餘沿用 session.court 原始球場名——不再像舊版把行政區併進同一行。 */
-function sessionDetailCourtName(session, venue) {
-  return venue.undecidedCandidates ? sessionCourtLabel(session, venue) : session?.court || venue.court;
-}
-
-/** 行政區・時間那一行:只有時間片段套 mono(dc L349 inline span)。 */
-/** 訂場狀態三態(dc L983):候選未定案一律顯示「定案後補訂場」,壓過 booked 值;
- * 已定案的候選局(venue.decided)視同已訂場——dc 的簡化資料模型沒有 walk_on
- * 對應態,這裡另外把「尚未訂場」留給 walk_on(現場等場),屬本批推論延伸。 */
-function hostRowBookedStatus(session, venue) {
-  if (venue.undecidedCandidates) return "定案後補訂場";
-  if (venue.decided) return "✓ 已訂場";
-  // sessionVenuePresentation() defaults a missing venueType to "booked"(見該
-  // function 的 `String(session?.venueType ?? "booked")`);這裡比照同一預設,
-  // 否則沒帶 venueType 的呼叫端會出現頭部 badge 說「已訂場」、這一行卻說
-  // 「尚未訂場」的矛盾(D4b 視覺驗收時肉眼抓到)。
-  return String(session?.venueType ?? "booked") === "walk_on" ? "尚未訂場" : "✓ 已訂場";
-}
-
-/** 主揪列(dc L370-376):avatar 用既有 avatarInitial() helper;NTRP 沿用
- * formatNtrp() 保留「尚未填寫 NTRP」的空值語意,並在同一行後綴既有的
- * completionLabel()(資料完整/資料未完成)——dc 原型沒有這個欄位,但它是
- * CLAUDE.md 明列的匿名公開欄位之一,拿掉等於砍資訊,故意保留,回報標注。 */
-/** 記分板缺額格(dc L980 dSpots:ds.need+' 位')——刻意不用既有 vacancyLabel()
- * 的「缺 N 位/已額滿」格式,因為那個格式是為 CTA 主鈕文案設計的,dc 這一格只要
- * 裸數字+「位」,額滿時就是「0 位」。 */
-function scoreboardVacancyText(session) {
-  const remaining = Number(session?.slotsRemaining);
-  return `${Number.isFinite(remaining) ? Math.max(0, remaining) : 0} 位`;
-}
-
-/** 候選定案面板要用的球場列(id 對照 courts 目錄取名稱+行政區)。 */
-function candidateCourtRows(session, courts = []) {
-  const catalogue = new Map((Array.isArray(courts) ? courts : []).map((court) => [String(court?.id), court]));
-  return (Array.isArray(session?.candidateCourtIds) ? session.candidateCourtIds : [])
-    .map((courtId) => catalogue.get(String(courtId)))
-    .filter(Boolean);
-}
-
-/** React detail content imports the existing presentation rules from one source. */
-export const sessionDetailSheetRuntime = Object.freeze({
-  avatarInitial,
-  candidateCourtRows,
-  completionLabel,
-  hostRowBookedStatus,
-  joinConfirmHintText,
-  ongoingSessionMinutes,
-  scoreboardNtrpValue,
-  scoreboardVacancyText,
-  sessionCourtLabel,
-  sessionDetailCourtName,
-  sessionTimeTilePresentation,
-  sessionVenuePresentation,
-  successPushPromptPresentation,
-  trustCountText,
-});
 
 /**
  * Open a public session detail sheet with the privacy-reviewed field order.
@@ -2130,10 +1263,6 @@ export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm 
   return mounted;
 }
 
-const REPORT_REASONS = ["與實際球局不符", "不當行為", "疑似詐騙", "其他"];
-
-export const reportDialogRuntime = Object.freeze({ REPORT_REASONS });
-
 /** Collect a minimal, reviewable report without exposing any new profile data. */
 export function openReportDialog({ targetLabel = "這個項目", onClose = () => {}, onSubmit = () => {} } = {}) {
   if (!mountReportDialogContent) throw new Error("ReportDialog browser mount is unavailable.");
@@ -2190,69 +1319,6 @@ const PROFILE_PLAY_TYPES = ["單打", "雙打", "對拉", "練球"];
 // 建局表單只提供三種；「對拉」的語意由「練球」涵蓋。
 const CREATE_SESSION_PLAY_TYPES = ["單打", "雙打", "練球"];
 const PLAY_TYPE_HINT = "單打｜一對一。雙打｜二對二。練球｜餵球、對拉、發球等不計分的練習。";
-const PROFILE_SLOTS = [
-  ["wd-m", "平日早上"],
-  ["wd-a", "平日下午"],
-  ["wd-e", "平日晚上"],
-  ["we-m", "週末早上"],
-  ["we-a", "週末下午"],
-  ["we-e", "週末晚上"],
-];
-const PROFILE_SLOT_LABELS = new Map(PROFILE_SLOTS);
-
-function playerSlotLabels(slotCodes) {
-  return (Array.isArray(slotCodes) ? slotCodes : []).map((code) => {
-    const safeCode = String(code ?? "");
-    return PROFILE_SLOT_LABELS.get(safeCode) ?? safeCode;
-  });
-}
-
-function playerPresenceLabel(player = {}) {
-  if (player?.isPresent !== true) return "";
-  const minutes = Number(player?.minutesAgo);
-  const safeMinutes = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
-  return `在線・${safeMinutes} 分鐘前`;
-}
-
-function playerGreetingLabel(player = {}) {
-  return player?.openToGreeting === true ? "接受現場問候" : "";
-}
-
-function taipeiCourts(courts) {
-  return (Array.isArray(courts) ? courts : []).filter((court) => court?.city === "台北市");
-}
-
-/** Reads any live profile-court checkbox selection before a re-render replaces it. */
-function selectedCourtCheckboxValues(container, fallback = new Set()) {
-  const selected = new Set(
-    [...(container?.querySelectorAll("input[name='profile-courts']:checked") ?? [])].map((input) => input.value)
-  );
-  return selected.size ? selected : new Set(fallback);
-}
-
-/**
- * Profile「常打球場」picker options and status (cf. #notification-court-picker
- * template). Only Taipei courts are選-able, a court counts as selected by either
- * id or (legacy rows) name, and the picker renders nothing at all until the
- * catalogue is both ready and non-empty — the same three rules the imperative
- * `updateCourtCheckboxes()` used to encode inside its innerHTML string.
- */
-function profileCourtOptionsPresentation(courts, { ready = true, selected = new Set() } = {}) {
-  const nextCourts = taipeiCourts(courts);
-  const selectedValues = selected instanceof Set ? selected : new Set(selected ?? []);
-  return {
-    options:
-      ready && nextCourts.length
-        ? nextCourts.map((court) => ({
-            checked: selectedValues.has(String(court.id)) || selectedValues.has(court.name),
-            id: String(court.id),
-            label: `${court.name} · ${court.district || "台北市"}`,
-          }))
-        : [],
-    statusHidden: Boolean(ready && nextCourts.length > 0),
-    statusText: !ready ? "正在載入台北市球場…" : nextCourts.length ? "" : "目前沒有可選的台北市球場。",
-  };
-}
 
 function selectedValues(form, name) {
   return new Set([...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value));
@@ -2289,7 +1355,8 @@ function profileGateHint(gate, intent = null) {
     return "要查看在線球友，請填寫公開暱稱與 NTRP（1.0–7.0）。";
   }
   if (gate === "ntrp") return "要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。";
-  if (gate === "directory") return "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。";
+  if (gate === "directory")
+    return "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。";
   return "要加入球局，請填寫公開暱稱。";
 }
 
@@ -2302,15 +1369,10 @@ function validateProfileForm(profile, requiredGate, intent = null) {
     return "NTRP 最多一位小數，或留白。";
   }
   if (requiredGate === "ntrp" && !validProfileNtrp(profile.ntrp)) return profileGateHint("ntrp", intent);
-  if (requiredGate === "directory" && (!validProfileNtrp(profile.ntrp) || !profile.courts.size)) return profileGateHint("directory");
+  if (requiredGate === "directory" && (!validProfileNtrp(profile.ntrp) || !profile.courts.size))
+    return profileGateHint("directory");
   return "";
 }
-
-/** Court picker rules and live-draft capture shared with the React profile sheet. */
-export const profileCompletionSheetRuntime = Object.freeze({
-  profileCourtOptionsPresentation,
-  selectedCourtCheckboxValues,
-});
 
 /** Open the private profile-completion sheet without leaking profile fields to public renderers. */
 export function openProfileCompletionSheet({
@@ -2532,9 +1594,7 @@ export function createSessionFormRawInput(form, now = new Date()) {
   const { ntrpMax, ntrpMin } = createNtrpRangeForBand(form.band);
   const candidateWindow = isCandidate ? createCandidateWindowLocal(form, now) : null;
   return {
-    candidateCourtIds: isCandidate
-      ? Object.keys(form.candCourts).filter((id) => form.candCourts[id])
-      : [],
+    candidateCourtIds: isCandidate ? Object.keys(form.candCourts).filter((id) => form.candCourts[id]) : [],
     courtId: isCandidate ? "" : (form.court ?? ""),
     feeNote: form.feeNote,
     joinMode: form.instant ? "instant" : "approval",
@@ -2664,35 +1724,6 @@ export function openCreateSessionSheet({
 
   return { ...mounted, setCourts };
 }
-
-/**
- * Candidate decision buttons and their status line. Only the session's own
- * candidate court ids are選-able (the catalogue can legitimately be wider), and
- * the status is the same three-state line the imperative `renderCourtButtons()`
- * used to encode around its innerHTML string: still loading, loaded but nothing
- * resolvable, or resolved and therefore silent.
- */
-function decideCourtOptionsPresentation(courts, candidateIds, { ready = true } = {}) {
-  const available = Array.isArray(courts) ? courts : [];
-  const ids = candidateIds instanceof Set ? candidateIds : new Set([...(candidateIds ?? [])].map(String));
-  const candidateCourts = available.filter((court) => ids.has(String(court.id)));
-  return {
-    // Raw strings on purpose: the imperative version needed esc() because it built
-    // an HTML string, whereas React escapes on render — esc() here would produce a
-    // visible double-escape of the exact same court names.
-    options: candidateCourts.map((court) => ({ id: String(court.id), name: String(court.name) })),
-    statusText: !ready
-      ? "正在載入候選球場…"
-      : candidateCourts.length === 0
-        ? "候選球場資料暫時無法載入，請稍後再試。"
-        : "",
-  };
-}
-
-/** Candidate court filtering and status rules shared with the React decision sheet. */
-export const decideSessionSheetRuntime = Object.freeze({
-  decideCourtOptionsPresentation,
-});
 
 /** Open the one-tap candidate decision sheet backed by a fresh SessionSummary. */
 export function openDecideSessionSheet(
@@ -2829,8 +1860,7 @@ export function openEditSessionSheet(
       });
     },
     playTypeHint: PLAY_TYPE_HINT,
-    playTypes:
-      session.playType === "對拉" ? [...CREATE_SESSION_PLAY_TYPES, "對拉"] : CREATE_SESSION_PLAY_TYPES,
+    playTypes: session.playType === "對拉" ? [...CREATE_SESSION_PLAY_TYPES, "對拉"] : CREATE_SESSION_PLAY_TYPES,
     session,
     startAtLocal: sessionFormSheetRuntime.taipeiDateTimeLocalValue(session.startAt, {
       includeMilliseconds: true,
@@ -2864,21 +1894,6 @@ export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSes
   return mounted;
 }
 
-function courtPlayerCardPresentation(player) {
-  return {
-    greetingLabel: playerGreetingLabel(player),
-    id: String(player.profileId),
-    nickname: String(player.nickname),
-    ntrpLabel: formatNtrp(player.ntrp),
-    playTypesLabel: (player.playTypes ?? []).join("、") || "未填打法",
-    presenceLabel: playerPresenceLabel(player),
-    showGreeting: Boolean(player.openToGreeting),
-    showPresence: Boolean(player.isPresent),
-  };
-}
-
-export const courtPlayersSheetRuntime = Object.freeze({ courtPlayerCardPresentation });
-
 /** Open the public player-directory rows for one court. */
 export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onOpenPlayer = () => {} } = {}) {
   if (!mountCourtPlayersSheetContent) throw new Error("CourtPlayersSheet browser mount is unavailable.");
@@ -2902,27 +1917,6 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
   });
   return mounted;
 }
-
-// 批 D8:列改 dc §2 逐字結構(44px avatar+名+.ntrp-brick--sm+副行「常打 X · 時段」+
-// chevron);「在線」「這是你」與 .trust-count 是既有功能,dc 玩具資料沒有這些概念,
-// 刻意保留融入新版列(不是照抄 dc,是既有功能優先——.trust-count 由
-// session.spec.js:1865/1890/1893 的 hosted 測試鎖定,不可移除)。打法整行 dc 沒有,
-// 這裡收斂進副行,不獨立佔一行(dc §2 沒有對應欄位,且沒有測試依賴這行文字)。
-function playerDirectoryRowPresentation(player) {
-  return {
-    courtsText: String((player.courtNames ?? []).join("、") || player.courtName || "未填球場"),
-    id: String(player.profileId),
-    nickname: String(player.nickname || "未命名球友"),
-    ntrpValue: ntrpBrickValue(player.ntrp),
-    showOnline: Boolean(player.isPresent),
-    showSelf: Boolean(player.isSelf),
-    slotsText: playerSlotLabels(player.slotCodes).join("、") || "未填時段",
-    trustText: trustCountText(player.playedCount, "已打 {n} 場"),
-  };
-}
-
-/** React directory rows import the existing presentation rules from one source. */
-export const playerDirectorySheetRuntime = Object.freeze({ playerDirectoryRowPresentation });
 
 /** Open the all-Taipei opt-in directory without coupling it to map bounds. */
 export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () => {}, onRetry = () => {} } = {}) {
@@ -2984,43 +1978,6 @@ export function openFilterSheet({
   };
 }
 
-function playerInviteOptionPresentation(session, courts = []) {
-  const venue = sessionVenuePresentation(session, courts);
-  return {
-    badge: String(venue.badge),
-    court: String(venue.court),
-    notes: session.notes ? String(session.notes) : "",
-    ntrpRange: ntrpRange(session),
-    playType: String(session.playType),
-    sessionId: String(session.sessionId),
-    time: String(venue.time),
-  };
-}
-
-// 批 D8:常打／時段抽成變數,同時餵新版頭部副行與既有 .player-profile 段落——
-// 後者逐字文案是 smoke.spec.js「player drawer and card escape every public
-// value」測試鎖定的字串(時段：週末下午、mystery<img...>),不可改動計算方式。
-function playerCardPresentation(player) {
-  return {
-    courtNameText: String(player.courtName || "未填球場"),
-    courtsText: String((player.courtNames ?? []).join("、") || player.courtName || "未填球場"),
-    districtLabel: String(player.courtDistrict || "台北市"),
-    greetingLabel: playerGreetingLabel(player),
-    nickname: String(player.nickname),
-    ntrpValue: ntrpBrickValue(player.ntrp),
-    playTypesText: String((player.playTypes ?? []).join("、") || "未填打法"),
-    presenceLabel: playerPresenceLabel(player),
-    profileId: String(player.profileId),
-    showGreeting: Boolean(player.openToGreeting),
-    showPresence: Boolean(player.isPresent),
-    slotsText: playerSlotLabels(player.slotCodes).join("、") || "未填時段",
-    trustText: trustCountText(player.playedCount, "已打 {n} 場"),
-  };
-}
-
-/** React player card imports the existing presentation rules from one source. */
-export const playerCardSheetRuntime = Object.freeze({ playerCardPresentation, playerInviteOptionPresentation });
-
 /** Open one public player card and, for non-self rows, its host invitation entry point. */
 export function openPlayerCardSheet(
   player,
@@ -3077,7 +2034,10 @@ export function renderPlayerLayerToggle(button, { message = "", on = false, stat
 }
 
 /** Render only user-facing, non-sensitive loading/error/location messages. */
-export function renderMapDataStatus(root, { kind = "idle", message = "", onRetry = () => {}, locationMessage = "" } = {}) {
+export function renderMapDataStatus(
+  root,
+  { kind = "idle", message = "", onRetry = () => {}, locationMessage = "" } = {}
+) {
   const visible = kind !== "idle" || Boolean(locationMessage);
   root.hidden = !visible;
   if (!visible) {

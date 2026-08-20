@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
-import { decideSessionSheetRuntime } from "../sessionViews.js";
+import { decideSessionSheetRuntime } from "../sessionPresentation.ts";
 import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
 
 export interface DecideSessionCourt extends CourtSummary {
@@ -21,20 +21,6 @@ interface DecideCourtButtonsPresentation {
   statusText: string;
 }
 
-/**
- * Every candidate/lifecycle judgment stays in sessionViews.js: `isUndecidedCandidate`
- * decides `unavailable`, `taipeiDateTimeLocalValue` produces the three datetime-local
- * strings, and the candidate filter plus the three-state court status live in
- * `decideCourtOptionsPresentation`. This content only renders what they returned.
- */
-interface DecideSessionRuntime {
-  decideCourtOptionsPresentation(
-    courts: DecideSessionCourt[],
-    candidateIds: Set<string>,
-    options: { ready?: boolean }
-  ): DecideCourtButtonsPresentation;
-}
-
 export interface DecideSessionContentContract {
   setCourts(courts: DecideSessionCourt[], options?: { ready?: boolean }): void;
 }
@@ -50,10 +36,6 @@ interface DecideSessionContentOptions {
 
 interface DecideSessionSheetProps extends DecideSessionContentOptions {
   contentRef: React.Ref<DecideSessionContentContract>;
-}
-
-function runtime(): DecideSessionRuntime {
-  return decideSessionSheetRuntime;
 }
 
 function DecideSessionSheet({
@@ -86,7 +68,7 @@ function DecideSessionSheet({
     contentRef,
     () => ({
       setCourts(nextCourts, { ready = true } = {}) {
-        setCourtButtons(runtime().decideCourtOptionsPresentation(nextCourts, candidateIds, { ready }));
+        setCourtButtons(decideSessionSheetRuntime.decideCourtOptionsPresentation(nextCourts, candidateIds, { ready }));
         setGeneration((value) => value + 1);
       },
     }),
