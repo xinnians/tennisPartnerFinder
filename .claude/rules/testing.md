@@ -47,6 +47,9 @@ frontend CI 在 build 後必跑 `npm run check:production-bundle`，防止 mock 
 `npm run test:mock` 與 `npm run test:local` 的 pre-script 都會先跑 `npm run typecheck`；
 `lint` 與 `prettier:check` 只掃 `.ts/.tsx`，不把存量 `.js` 納入本批改寫範圍。
 
+只要批次修改 `src/` 的 runtime 程式碼，就不得豁免 `npm run test:local`；只有純測試檔、
+CI 設定或文件批次可豁免。`npm run test:db` 維持零 migration 即可豁免的判準。
+
 ## Playwright projects
 
 - `desktop-chromium`、`mobile-chromium`：mock mode，port 5174，執行 `smoke.spec.js`、

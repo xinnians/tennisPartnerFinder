@@ -5023,6 +5023,7 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
         status: "open",
       },
       {
+        canWithdraw: true,
         onBlock: (profileId) => window.__chatActions.push(["block", profileId]),
         onPost: (body) => window.__chatActions.push(["post", body]),
         onReport: (messageId) => window.__chatActions.push(["report", messageId]),
@@ -5132,6 +5133,9 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await page.evaluate(() => window.__chatSheet.setArchived());
   await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
   await expect(chat).toContainText("球局已封存");
+  await expect(chat.locator("[data-chat-withdraw]")).toHaveCount(0);
+  await chat.locator("[data-surface-close]").click();
+  await expect(chat).toHaveCount(0);
   expect(runtimeErrors).toEqual([]);
 });
 

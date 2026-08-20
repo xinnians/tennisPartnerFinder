@@ -850,7 +850,6 @@ export function openSessionChatSheet(
   const error = mounted.root.querySelector("[data-chat-error]");
   const input = mounted.root.querySelector("[data-testid='chat-message-input']");
   const send = mounted.root.querySelector("[data-testid='chat-send']");
-  const archivedNote = mounted.root.querySelector("[data-chat-archived-note]");
   const announcement = mounted.root.querySelector("[data-chat-announcement]");
   let feedInitialized = false;
   let knownMessageIds = new Set();
@@ -871,10 +870,11 @@ export function openSessionChatSheet(
 
   function setArchived(message = "") {
     archived = true;
-    input.disabled = true;
-    send.disabled = true;
-    archivedNote.hidden = false;
-    mounted.root.querySelector("[data-chat-withdraw]")?.remove();
+    // Keep React's DOM ownership coherent: the withdraw button is conditional
+    // React output, so the archived transition must remove it through a render.
+    // Imperatively detaching it makes a later root.unmount() call removeChild on
+    // an already-removed node (the batch-20 archived-chat close regression).
+    content.setArchived();
     if (message) {
       error.textContent = message;
       error.hidden = false;

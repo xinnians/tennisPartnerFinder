@@ -25,6 +25,7 @@ interface ChatMessageRow {
 }
 
 export interface SessionChatContentContract {
+  setArchived(): void;
   setContent(roster: readonly SessionRosterEntry[], messages: readonly ChatMessage[]): void;
 }
 
@@ -50,7 +51,7 @@ interface SessionChatRows {
 }
 
 function SessionChatSheet({
-  archived,
+  archived: initiallyArchived,
   canWithdraw,
   contentRef,
   headerSub,
@@ -61,6 +62,7 @@ function SessionChatSheet({
   venueCourt,
   venueTime,
 }: SessionChatSheetProps) {
+  const [archived, setArchived] = useState(initiallyArchived);
   // Legacy parity: mountSheet produced a roster container holding the "reading
   // participants" line and a completely empty feed section, and only the first
   // `setState()` replaced either of them. `null` reproduces that pre-setState
@@ -77,6 +79,9 @@ function SessionChatSheet({
   useImperativeHandle(
     contentRef,
     () => ({
+      setArchived() {
+        setArchived(true);
+      },
       setContent(roster, messages) {
         setRows({
           messages: sessionChatSheetRuntime.chatMessagesPresentation(messages),
@@ -146,7 +151,7 @@ function SessionChatSheet({
           </div>
         </section>
         {/* `hidden`/`textContent` on the next two nodes stay imperative: setState,
-            setArchived, the composer validation branch and runAsyncAction keep
+            the composer validation branch and runAsyncAction keep
             owning them, and React never declares a changing prop for either. */}
         <p className="my-sessions-message" data-chat-loading="" role="status" aria-live="polite">
           正在讀取群組訊息…
@@ -206,9 +211,9 @@ function SessionChatSheet({
       </p>
       {/* The composer keeps stable DOM identity across every refresh: runAsyncAction
           watches these two controls, so recreating them mid-post would flip
-          `rerendered()` and reverse the disabled-restore semantics. `disabled` is a
-          constant mount-time prop; setArchived and runAsyncAction stay its only
-          later writers. */}
+          `rerendered()` and reverse the disabled-restore semantics. React owns the
+          archived transition; runAsyncAction may temporarily write disabled while
+          an active post is pending. */}
       <form className="chat-composer" data-chat-composer="">
         <label htmlFor="chat-message-input" className="visually-hidden">
           傳送純文字訊息
@@ -278,6 +283,9 @@ export function mountSessionChatSheetContent(
 
   return {
     isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    setArchived() {
+      flushSync(() => contentRef.current?.setArchived());
+    },
     setContent(roster, messages) {
       flushSync(() => contentRef.current?.setContent(roster, messages));
     },

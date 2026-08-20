@@ -655,6 +655,10 @@ D6 決定翻案：使用者滑到哪就停在哪。
 6. **凍結清單**（`.claude/rules/react-migration.md`）：既有 e2e 斷言、`data-testid`、
    `id`、`class`、`aria`、文案、DOM 結構，**不得為了配合改動而修改**。
    若某張單必須動，要在報告裡單獨說明理由。
+7. **`test:local` 豁免看 runtime 範圍，不看資料庫範圍**：只要批次修改 `src/` 的
+   runtime 程式碼，就必須跑 `npm run test:local`；只有純測試、CI 設定或文件批次可豁免。
+   `npm run test:db` 仍可在零 migration 時豁免。批 20 的 archived-chat 關閉回歸證明
+   mock 全綠不能替代真實 Supabase browser journey。
 
 ---
 
