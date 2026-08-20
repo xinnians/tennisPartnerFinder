@@ -40,7 +40,7 @@ export interface SessionCardProps {
 // this component. Resolve the runtime only while rendering so the circular
 // module edge never reads its const export during initialization.
 function runtime(): SessionCardRuntime {
-  return sessionCardRuntime as unknown as SessionCardRuntime;
+  return sessionCardRuntime;
 }
 
 export function SessionCard({ compact = false, courts = [], session }: SessionCardProps) {

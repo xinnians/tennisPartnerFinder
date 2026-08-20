@@ -620,6 +620,14 @@ function sessionHostLabel(session) {
   return `主揪 ${session.hostNickname}${Number.isFinite(hostNtrpValue) ? ` ${hostNtrpValue.toFixed(1)}` : ""}`;
 }
 
+/**
+ * `courts` 需要明寫型別:預設值 `[]` 會讓 TypeScript 從這個 .js 推成 `never[]`,
+ * 使 React 端(SessionCard.tsx)宣告的 `CourtSummary[] | null` 對不上,
+ * 逼出一個雙重型別斷言。這段 JSDoc 讓推論正確,斷言就不需要了(批 12)。
+ *
+ * @param {*} session
+ * @param {{ compact?: boolean, courts?: readonly any[] | null }} [options]
+ */
 function sessionCardPresentation(session, { compact = false, courts = [] } = {}) {
   const venue = sessionVenuePresentation(session, courts);
   const courtLabel = sessionCourtLabel(session, venue);

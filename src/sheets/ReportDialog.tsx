@@ -21,7 +21,7 @@ interface ReportDialogContentOptions {
 }
 
 function runtime(): ReportDialogRuntime {
-  return reportDialogRuntime as unknown as ReportDialogRuntime;
+  return reportDialogRuntime;
 }
 
 function ReportDialog({ onClose, targetLabel }: ReportDialogContentOptions) {

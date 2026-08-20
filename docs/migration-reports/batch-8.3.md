@@ -812,3 +812,8 @@ Git 不把 untracked 納入 `git diff --stat`；另有（`wc -l` 實算）：
    面，選錯面會假陰性。
 3. 其餘四 lens（markup／async-machine／report-audit／tsx-quality）與 handle-behavior 其他 12 項
    全 PASS；§15 偏離 1-5 逐一覆核成立、偏離 6 轉批 8.4 rider。
+
+> **批 12 後註（2026-08-20）**：本節記載的 `as unknown as` 雙重斷言寫法已全面移除。
+> 實測顯示它會吞掉 `sessionViews.js` 的 runtime 匯出漂移（改名或改回傳形狀，`tsc` 都靜默通過）。
+> 根因是 `sessionCardPresentation` 的 `courts = []` 被推成 `never[]`，已改以 JSDoc 標註修正，
+> 10 處斷言全部可直接刪除。新程式碼請勿再沿用此寫法，詳見 `docs/migration-reports/batch-12.md`。

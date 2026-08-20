@@ -18,7 +18,7 @@ interface AvatarRuntime {
 // component, so resolve the runtime only while rendering: the circular module
 // edge must never read the const export during initialization.
 function runtime(): AvatarRuntime {
-  return avatarRuntime as unknown as AvatarRuntime;
+  return avatarRuntime;
 }
 
 /**

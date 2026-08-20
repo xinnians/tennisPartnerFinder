@@ -82,7 +82,7 @@ interface PlayerCardSheetProps extends PlayerCardSheetContentOptions {
 type InviteBranch = "self" | "form" | "empty";
 
 function runtime(): PlayerCardRuntime {
-  return playerCardSheetRuntime as unknown as PlayerCardRuntime;
+  return playerCardSheetRuntime;
 }
 
 function InviteEmpty({ onCreate }: { onCreate(): void }) {

@@ -62,7 +62,7 @@ interface SessionChatRows {
 }
 
 function runtime(): SessionChatRuntime {
-  return sessionChatSheetRuntime as unknown as SessionChatRuntime;
+  return sessionChatSheetRuntime;
 }
 
 function SessionChatSheet({

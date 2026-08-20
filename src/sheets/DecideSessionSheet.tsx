@@ -52,7 +52,7 @@ interface DecideSessionSheetProps extends DecideSessionContentOptions {
 }
 
 function runtime(): DecideSessionRuntime {
-  return decideSessionSheetRuntime as unknown as DecideSessionRuntime;
+  return decideSessionSheetRuntime;
 }
 
 function DecideSessionSheet({

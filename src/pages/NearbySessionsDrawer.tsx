@@ -60,7 +60,7 @@ const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: R
 // reading the runtime during module initialization would cross the circular
 // import before sessionViews has finished defining its exports.
 function runtime(): NearbyDrawerRuntime {
-  return nearbySessionsDrawerRuntime as unknown as NearbyDrawerRuntime;
+  return nearbySessionsDrawerRuntime;
 }
 
 function PeekArrow() {

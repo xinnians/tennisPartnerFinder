@@ -75,7 +75,7 @@ interface ProfileCompletionSheetProps extends ProfileCompletionContentOptions {
 }
 
 function runtime(): ProfileCompletionRuntime {
-  return profileCompletionSheetRuntime as unknown as ProfileCompletionRuntime;
+  return profileCompletionSheetRuntime;
 }
 
 function ProfileCompletionSheet({

@@ -40,7 +40,7 @@ interface CourtPlayersSheetProps {
 }
 
 function runtime(): CourtPlayersRuntime {
-  return courtPlayersSheetRuntime as unknown as CourtPlayersRuntime;
+  return courtPlayersSheetRuntime;
 }
 
 function CourtPlayersSheet({ court, onClose, players }: CourtPlayersSheetProps) {

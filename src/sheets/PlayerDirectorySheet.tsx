@@ -59,7 +59,7 @@ interface PlayerDirectorySheetProps extends PlayerDirectorySheetContentOptions {
 }
 
 function runtime(): PlayerDirectoryRuntime {
-  return playerDirectorySheetRuntime as unknown as PlayerDirectoryRuntime;
+  return playerDirectorySheetRuntime;
 }
 
 function DirectoryRow({ onOpenPlayer, player }: { onOpenPlayer(id: string): void; player: DirectoryPlayer }) {
