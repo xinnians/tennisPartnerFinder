@@ -59,6 +59,10 @@ local URL/key 和 `VITE_GOOGLE_MAPS_API_KEY=e2e`，不依賴 `.env.local`。
 - mock 成功旅程必須收集 `console.error` 與 `pageerror`，並斷言為空。
 - modal/drawer test 必須驗證 role/label、Tab trap、Escape、trigger restore；可替換 DOM 的
   drawer 要在 loading 與 stale data 中保留可用焦點，不可落在 `body`。
+- 已知且接受的 focus 例外（2026-08-20）：`--color-court #1c5c3c` 疊在
+  `--color-ink #12291c` 的實算值為 1.9457:1（約 1.95:1），影響 `.bottom-navigation` 與
+  `#map-data-status`。產品以觸控為主、桌面鍵盤為次要情境，因此維持現色且不加 focus
+  對比 gate；若日後要求 WCAG 1.4.11 合規，需重新拍板。
 - 標題 grep 一律帶 `--project`，避免 mock/local 混跑。
 
 ## Local session fixture

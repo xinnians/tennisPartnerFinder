@@ -350,8 +350,8 @@ user 授權「9b 五項留置和 PM 觀察項照驗收方建議做」後的裁�
   （main.js import 次序＝層疊次序，檔頭與各檔皆註明）；12 組結構性重複去重、
   38 組巧合同值刻意不併（點名的拉把 ×5／頁頭 ×3 皆非逐字副本，差異保留）。
   **@layer 縮 scope 不做**（三個實證反例：跨群組特異性決勝，任何 layer 邊界都會
-  翻轉勝負）；**token 不搬出 session.css**（tests/contrast-tokens 正則直讀約束，
-  驗收方已用故意違規確認檢查會失敗）；CSS Module 不上（class 名凍結）。
+  翻轉勝負）；**token 在批 10 當時不搬出 session.css**（當時 contrast gate 只直讀該檔；
+  批 14 已改成自動掃全部 13 個 CSS，這項限制現已解除）；CSS Module 不上（class 名凍結）。
   視覺零變更四重獨立證據：幾何指紋 48 案例 234,864 值／dist 層宣告多重集合
   2643=2643／驗收方 source 層攤平 2642=2642／逐鍵勝出值 2616 鍵，全零差異。
   流程事故（canary 還原誤用 git checkout 回退 main.js）已重建並經 read-back

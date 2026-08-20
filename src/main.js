@@ -2,8 +2,8 @@
    **這串 import 的次序就是層疊次序**(本專案未用 @layer,理由見
    docs/migration-reports/batch-10.md §3):同特異性時後 import 的檔勝出,
    調換次序會靜默改變視覺。新增樣式檔請先確認它該落在哪一段,再插進對應位置。
-   session.css 只剩「設計 token + 球局詳情 + 群組聊天」三塊,且必須留在該檔——
-   tests/contrast-tokens.test.js 以正則直讀該檔字面內容(見該檔檔頭)。 */
+   session.css 只剩「設計 token + 球局詳情 + 群組聊天」三塊；
+   tests/contrast-tokens.test.js 會自動讀取 src/ 全部 CSS,不再限制 token 所在檔。 */
 import "./style.css"; /* 1 全域 reset/base */
 import "./map-page.css"; /* 2 地圖頁殼、topbar、工具列 chips、程度 popover */
 import "./discovery.css"; /* 3 附近球局 peek/抽屜、球局卡、badge、地圖狀態列 */

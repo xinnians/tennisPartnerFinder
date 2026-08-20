@@ -86,7 +86,11 @@ remaining rule count: 566 566
 其餘 566 條規則的**內容與相對順序逐條相同**。配合 §2.2，切檔本身對計算值零影響是被證明的，
 不是被斷言的。
 
-### 2.4 為何 token 與群聊不能搬出 `session.css`
+### 2.4 批 10 當時為何 token 與群聊不能搬出 `session.css`
+
+> **批 14 後註（2026-08-20）**：`tests/contrast-tokens.test.js` 已改為自動讀取 `src/`
+> 全部 13 個 CSS 檔，下面是批 10 當時的歷史限制，不再是目前契約。token 與三條群聊
+> 規則日後可在維持層疊與視覺契約的前提下搬檔。
 
 `tests/contrast-tokens.test.js` 以 `readFileSync` **直讀 `src/session.css` 的字面內容**，正則驗三件事，
 而 `tests/**` 是本批凍結面（零修改零新增）：

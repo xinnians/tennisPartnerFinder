@@ -1,8 +1,29 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-const CSS = readFileSync(new URL("../src/session.css", import.meta.url), "utf8");
+// 已知且接受的 focus 例外（2026-08-20）：--color-court #1c5c3c 疊在 --color-ink
+// #12291c 的實算值是 1.9457:1（約 1.95:1），低於非文字元素 3:1；影響
+// .bottom-navigation 與 #map-data-status。產品以觸控為主、桌面鍵盤為次要情境，維持現色，
+// 所以本檔不新增 focus 對比斷言；若日後要求 WCAG 1.4.11 合規，需重新拍板顏色。
+
+const CSS_DIR = new URL("../src/", import.meta.url);
+const CSS_FILES = readdirSync(CSS_DIR, { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".css"))
+  .map((entry) => entry.name)
+  .sort();
+const CSS_SOURCES = CSS_FILES.map((name) => [name, readFileSync(new URL(name, CSS_DIR), "utf8")]);
+const CSS = CSS_SOURCES.map(([, source]) => source)
+  .join("\n")
+  .replace(/\/\*[\s\S]*?\*\//g, "");
+
+test("對比 gate 遞迴前的分檔結果全部納入掃描", () => {
+  assert.ok(CSS_FILES.length >= 13, `CSS 掃描集過小（僅 ${CSS_FILES.length} 檔）：${CSS_FILES.join(", ")}`);
+  for (const [name, source] of CSS_SOURCES) {
+    assert.ok(source.length > 100, `src/${name} 讀取異常，CSS 掃描集可能漏檔`);
+  }
+  assert.ok(CSS.length > 70_000, `剝除註解後的 CSS 掃描內容過小（僅 ${CSS.length} 字元）`);
+});
 
 /** WCAG 2.1 相對亮度。https://www.w3.org/TR/WCAG21/#dfn-relative-luminance */
 function luminance(hex) {
