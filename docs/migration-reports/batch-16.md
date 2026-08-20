@@ -100,7 +100,7 @@ GitHub-hosted runner 未實跑：派工單明令不得 push，而 workflow 只�
 | CI timing budget 可參數化、本機仍 1000ms | ✅ |
 | local config 的 loopback 防護維持通過 | ✅ |
 | WebKit 尚未加入本批必要 gate | ✅ |
-| 凍結 DOM／文案／aria／class／testid 與 e2e 斷言零變更 | ✅ |
+| 一處既有 e2e 斷言依工單參數化（本機門檻值不變），其餘凍結項零變更 | ✅ |
 
 ## 6. 變更清單與偏離
 

@@ -95,7 +95,7 @@ Vercel response headers，且派工單明確禁止 push、REL 與任何 deployme
 | 條件                                                      | 結果                 |
 | --------------------------------------------------------- | -------------------- |
 | 全站有 `nosniff`、frame、referrer 與 permissions 明確契約 | ✅ 本機設定與 gate   |
-| CSP 使用目前 React build 的外部來源清單                   | ✅ 本機設定與 gate   |
+| CSP 來源由本批人工盤點；gate 只保證整條 policy 與已列來源未被整段移除，不證明清單完備 | ✅ 人工盤點＋有限 gate |
 | 尚未做人工違規盤點前，不啟用 enforcing CSP                | ✅ 僅 Report-Only    |
 | `/push-sw.js` 每次使用前會 revalidate                     | ✅ 本機設定與 gate   |
 | preview Report-Only console 全流程盤點                    | ⏸ 維護者部署後執行   |

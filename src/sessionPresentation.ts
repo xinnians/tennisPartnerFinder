@@ -90,6 +90,8 @@ export function avatarInitial(nickname: unknown): string {
   return [...String(nickname ?? "").trim()][0] || "球";
 }
 
+// NTRP 磚的 null／未填值必須顯示「—」；不要改成 Number(ntrp) 判斷，
+// 否則 Number(null) 會落回 0.0（既有 hosted QA 曾捕捉這個回歸）。
 export function ntrpBrickValue(ntrp: unknown): string {
   return validProfileNtrp(ntrp) ? Number(ntrp).toFixed(1) : "—";
 }
@@ -100,6 +102,10 @@ export function showAvatarFallback(image: HTMLImageElement): void {
   if (fallback instanceof HTMLElement) fallback.hidden = false;
 }
 
+/**
+ * 中性聚合數：只陳述事實，不做比率、星等或排名；N 為 0 時整行不顯示。
+ * 加入前名單主揪列、球友名單列與球友卡共用這個規則，不可讓三處文案漂移。
+ */
 export function trustCountText(count: unknown, label: string): string | null {
   const value = Number(count ?? 0);
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -108,6 +114,8 @@ export function trustCountText(count: unknown, label: string): string | null {
 
 export const avatarRuntime = Object.freeze({ avatarInitial, safeGoogleAvatarUrl, showAvatarFallback });
 
+// 個人檔案可能存 court.id 或舊資料的 court.name；雙重比對沿用既有 profile picker
+// 的相容規則，不可只留其中一種，否則舊檔案會遺失「常打」球場。
 export function profileCourtNames(
   profile: ProfileInput | null | undefined,
   courts: readonly CourtInput[] | null
@@ -119,6 +127,8 @@ export function profileCourtNames(
     .map((court) => court.name);
 }
 
+// 分頁狀態掛在持久的 root DOM 節點上，跨 show/hide 沿用；這是 view-only 狀態，
+// 不可搬進 sessionController 的資料契約。
 export const mySessionsSegmentStates = new WeakMap<
   HTMLElement,
   { lastFocusSessionId: Identifier; segment: "hosted" | "joined" }
@@ -134,6 +144,8 @@ export function ntrpRange(session: SessionInput): string {
   return `NTRP ${min.toFixed(1)}–${max.toFixed(1)}`;
 }
 
+// 計分板已有獨立的「NTRP」標籤，只有這個 surface 去掉共同 formatter 的前綴；
+// 不可直接改 ntrpRange，否則其他卡片與篩選文案也會一起改變。
 export function scoreboardNtrpValue(session: SessionInput): string {
   return ntrpRange(session).replace(/^NTRP /, "");
 }
@@ -438,6 +450,7 @@ export const mySessionsPageRuntime = Object.freeze({
   vacancyLabel,
 });
 
+// 地圖主畫面與 drawer live region 共用這一份摘要，避免可見文字與讀屏播報漂移。
 export function nearbySessionsSummaryText(count: number, hasUserLocation: boolean): string {
   return `${hasUserLocation ? "附近" : "這個地圖範圍內"} ${count} 場可加入`;
 }
@@ -693,6 +706,8 @@ export function courtPlayerCardPresentation(player: PlayerInput) {
 
 export const courtPlayersSheetRuntime = Object.freeze({ courtPlayerCardPresentation });
 
+// 「在線」「這是你」與 trust count 是設計稿以外的既有功能；session.spec.js 的
+// player-directory hosted assertions 鎖住這些欄位，不可因對齊視覺稿而移除。
 export function playerDirectoryRowPresentation(player: PlayerInput) {
   return {
     courtsText: String((player.courtNames ?? []).join("、") || player.courtName || "未填球場"),
@@ -721,6 +736,8 @@ export function playerInviteOptionPresentation(session: SessionInput, courts: re
   };
 }
 
+// 常打／時段同時餵頭部副行與既有 player-profile 段落；smoke.spec.js 的
+// "player drawer and card escape every public value" 鎖住逐字值與 escaping，不可改計算方式。
 export function playerCardPresentation(player: PlayerInput) {
   return {
     courtNameText: String(player.courtName || "未填球場"),

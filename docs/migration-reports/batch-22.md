@@ -30,7 +30,7 @@ TSX 還各自保留 runtime interface 與延後讀值的 `runtime()` 包裝，�
   owner，避免拆檔後各有一份 pending 狀態。
 - 建局／編輯表單的 `sessionFormSheetRuntime` 留在 `sessionViews.js`：它沒有被 TSX 反向
   import，不在本次循環內，硬搬只會擴大風險。
-- 新增 4 條單元 gate，並註冊到寫死檔名的 `test:session-unit`：鎖住 14→0 反向 import、
+- 新增 4 條單元 gate，並註冊到寫死檔名的 `test:session-unit`：鎖住所有 `src/**/*.tsx` 零反向 import、
   presentation 不得回頭依賴 view adapter、禁止 `@ts-nocheck` / explicit `any`，以及相容
   re-export 不得複製物件。
 
