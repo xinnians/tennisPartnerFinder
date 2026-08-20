@@ -131,11 +131,13 @@ npm run typecheck
 npm run lint
 npm run prettier:check
 npm run build
+npm run check:production-bundle
 git diff --check
 ```
 
-`.github/workflows/quality-gate.yml` 在 `main` 與目前開發分支執行相同 gates；frontend 與
-Supabase 聚合入口分別是 `npm run test:ci:frontend`、`npm run test:ci:supabase`；WebKit 是獨立的非阻擋 job。
+`.github/workflows/quality-gate.yml` 已設定在 `main` 與目前開發分支執行相同 gates，但尚未
+push；待 REL 讓 `main` 追上後才會在 `main` 生效。frontend 與 Supabase 聚合入口分別是
+`npm run test:ci:frontend`、`npm run test:ci:supabase`；WebKit 是獨立的非阻擋 job。
 
 `npm test` 等同 `npm run test:mock`，**不會**重置資料庫；`npm run test:local` 也不會。
 需要清空本機資料時，唯一標準入口是帶有 `CONFIRM_LOCAL_DB_RESET=1` 的 guarded 指令。

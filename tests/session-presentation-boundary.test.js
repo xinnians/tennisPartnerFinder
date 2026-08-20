@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
+const EXPLICIT_ANY = /:\s*any\b|\bas\s+any\b|\bany\s*\[\s*\]|<\s*any\s*>/;
 
 function readTsxTree(directory = SRC_DIR, prefix = "src") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -68,7 +69,8 @@ test("all 14 presentation consumers depend on the TypeScript boundary", () => {
 
 test("the presentation boundary cannot reach back into the legacy view adapter", () => {
   const presentation = source("src/sessionPresentation.ts");
-  assert.doesNotMatch(presentation, /sessionViews\.js|import\.meta\.glob|@ts-nocheck|:\s*any\b/);
+  assert.doesNotMatch(presentation, /sessionViews\.js|import\.meta\.glob|@ts-nocheck/);
+  assert.doesNotMatch(presentation, EXPLICIT_ANY);
   assert.equal((presentation.match(/Object\.freeze/g) ?? []).length, 13);
 });
 

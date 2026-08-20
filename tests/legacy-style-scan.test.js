@@ -18,6 +18,7 @@ function readSourceTree(directory = SRC_DIR, prefix = "src") {
 }
 
 const srcFiles = readSourceTree().sort();
+const EXPECTED_SOURCE_DIRECTORIES = ["src", "src/components", "src/pages", "src/sheets"];
 
 const SCAN_PATHS = [...srcFiles, "index.html"];
 const FILES = SCAN_PATHS.map((path) => [path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8")]);
@@ -28,11 +29,16 @@ const FILES = SCAN_PATHS.map((path) => [path, readFileSync(new URL(`../${path}`,
 const BANNED = ["#d7f22a", "#2465bd", "#142c4b", "#eef4fb", "#64758b", "#d6e1ee", "Baloo", "20, 44, 75", "11, 28, 50"];
 
 test("舊視覺常數不再出現於任何樣式來源", () => {
-  // 下限高於只掃 src/ 頂層時的退化值,遞迴若被移除會先紅在「掃描集過小」。
+  // 目前基線是 64 個 src 檔 + index.html；貼近實數的下限會抓到單檔漏掃，
+  // 逐目錄非空斷言則防止整個既有子目錄被遞迴器跳過。
   assert.ok(
-    FILES.length >= 50,
+    FILES.length >= 65,
     `掃描集過小(僅 ${FILES.length} 檔),readdir 可能漏掃 src/ 或路徑錯誤;掃到:${SCAN_PATHS.join(", ")}`
   );
+  for (const directory of EXPECTED_SOURCE_DIRECTORIES) {
+    const directChildren = srcFiles.filter((path) => path.slice(0, path.lastIndexOf("/")) === directory);
+    assert.ok(directChildren.length > 0, `${directory} 沒有任何直接來源檔，遞迴掃描可能漏掉整個目錄`);
+  }
   for (const [path, content] of FILES) {
     assert.ok(content.length > 100, `${path} 讀取異常,掃描集會漏檔`);
     for (const banned of BANNED) {

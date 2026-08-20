@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 // 已知且接受的 focus 例外（2026-08-20）：--color-court #1c5c3c 疊在 --color-ink
@@ -7,20 +8,27 @@ import test from "node:test";
 // .bottom-navigation 與 #map-data-status。產品以觸控為主、桌面鍵盤為次要情境，維持現色，
 // 所以本檔不新增 focus 對比斷言；若日後要求 WCAG 1.4.11 合規，需重新拍板顏色。
 
-const CSS_DIR = new URL("../src/", import.meta.url);
-const CSS_FILES = readdirSync(CSS_DIR, { withFileTypes: true })
-  .filter((entry) => entry.isFile() && entry.name.endsWith(".css"))
-  .map((entry) => entry.name)
-  .sort();
-const CSS_SOURCES = CSS_FILES.map((name) => [name, readFileSync(new URL(name, CSS_DIR), "utf8")]);
+const SRC_DIR = fileURLToPath(new URL("../src/", import.meta.url));
+
+function readCssTree(directory = SRC_DIR, prefix = "src") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, pathToFileURL(`${directory}/`));
+    const path = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) return readCssTree(fileURLToPath(entryUrl), path);
+    return entry.name.endsWith(".css") ? [[path, readFileSync(entryUrl, "utf8")]] : [];
+  });
+}
+
+const CSS_SOURCES = readCssTree().sort(([left], [right]) => left.localeCompare(right));
+const CSS_FILES = CSS_SOURCES.map(([path]) => path);
 const CSS = CSS_SOURCES.map(([, source]) => source)
   .join("\n")
   .replace(/\/\*[\s\S]*?\*\//g, "");
 
-test("對比 gate 遞迴前的分檔結果全部納入掃描", () => {
+test("對比 gate 遞迴納入 src 子目錄的全部 CSS", () => {
   assert.ok(CSS_FILES.length >= 13, `CSS 掃描集過小（僅 ${CSS_FILES.length} 檔）：${CSS_FILES.join(", ")}`);
   for (const [name, source] of CSS_SOURCES) {
-    assert.ok(source.length > 100, `src/${name} 讀取異常，CSS 掃描集可能漏檔`);
+    assert.ok(source.length > 100, `${name} 讀取異常，CSS 掃描集可能漏檔`);
   }
   assert.ok(CSS.length > 70_000, `剝除註解後的 CSS 掃描內容過小（僅 ${CSS.length} 字元）`);
 });
@@ -87,7 +95,10 @@ const BACKGROUNDS = [
   ["他人的聊天泡泡 .chat-message", COLOR_INFO_BG], // 批 A-8 起改用 var(--color-info-bg),不再是可 regex 抓的字面 hex,直接引用 token 常數
   ["自己的聊天泡泡 .chat-message--self", COLOR_SUCCESS_BG], // 批 A-8 起改用 var(--color-success-bg)
   ["球局摘要 .chat-session-summary", COLOR_INFO_BG], // 批 A-8 起改用 var(--color-info-bg)
-  ["封存提示 .chat-archived-note", cssValue(/\.chat-archived-note \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-archived-note 背景")], // 非計分板 token 系統的獨立中性灰,批 A 未動,仍是字面 hex
+  [
+    "封存提示 .chat-archived-note",
+    cssValue(/\.chat-archived-note \{[^}]*background:\s*(#[0-9a-f]{6})/i, ".chat-archived-note 背景"),
+  ], // 非計分板 token 系統的獨立中性灰,批 A 未動,仍是字面 hex
   ["在場設定 .presence-settings", COLOR_SUCCESS_BG], // 批 A-7 起改用 var(--color-success-bg),不再是可 regex 抓的字面 hex,比照上方 .chat-message 直接引用 token 常數
 ];
 

@@ -1,5 +1,8 @@
 import { canReceiveFocus } from "./meFocus.js";
 
+// Coverage note: this JavaScript module is outside the current TypeScript check (`checkJs: false`)
+// and ESLint glob (`.ts/.tsx` only). Until it is converted or those tools include JS, changes here
+// require focused action/lifecycle tests and manual review; do not assume static type protection.
 // DOM-backed async state is intentionally separate from pure presentation. Both
 // sessionViews.js and React runtime facades consume this one shared action owner.
 

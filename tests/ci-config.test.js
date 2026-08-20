@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import { createPlaywrightConfig } from "../playwright.config.js";
 import createViteConfig from "../vite.config.ts";
 
 const PACKAGE = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const PACKAGE_LOCK = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", import.meta.url), "utf8");
 const PERFORMANCE_SPEC = readFileSync(new URL("./performance.spec.js", import.meta.url), "utf8");
 const FAKE_MAPS = readFileSync(new URL("./fixtures/fakeMaps.js", import.meta.url), "utf8");
@@ -44,6 +45,17 @@ test("frontend CI script contains every current non-database gate in order", () 
   ];
   assert.deepEqual(commands, gates);
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
+});
+
+test("the session unit aggregate registers every top-level unit test except the local API suite", () => {
+  const localOnly = "session-data-local-api.test.js";
+  const expected = readdirSync(new URL("./", import.meta.url))
+    .filter((name) => name.endsWith(".test.js") && name !== localOnly)
+    .map((name) => `tests/${name}`)
+    .sort();
+  const registered = (PACKAGE.scripts["test:session-unit"].match(/tests\/[^ ]+\.test\.js/g) ?? []).sort();
+  assert.deepEqual(registered, expected);
+  assert.match(PACKAGE.scripts["test:local"], new RegExp(`tests/${localOnly.replaceAll(".", "\\.")}`));
 });
 
 test("both mock Chromium projects execute dedicated runtime safety specs", () => {
@@ -98,6 +110,13 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
   assert.match(WORKFLOW, /run: npm run test:ci:supabase/);
   assert.match(WORKFLOW, /CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test/);
   assert.match(WORKFLOW, /if: always\(\)[\s\S]*npx supabase stop --no-backup/);
+});
+
+test("the Supabase CLI used by npx is pinned exactly in the lockfile", () => {
+  assert.equal(PACKAGE.devDependencies.supabase, "2.115.0");
+  assert.equal(PACKAGE_LOCK.packages["node_modules/supabase"].version, "2.115.0");
+  assert.match(WORKFLOW, /npx supabase start/);
+  assert.match(WORKFLOW, /npx supabase stop --no-backup/);
 });
 
 test("required frontend and Supabase jobs cannot be downgraded to continue-on-error", () => {
