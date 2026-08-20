@@ -34,6 +34,11 @@ npm run build
 git diff --check
 ```
 
+CI 由 `.github/workflows/quality-gate.yml` 分成 frontend 與 Supabase 兩個 job；聚合入口是
+`npm run test:ci:frontend`、`npm run test:ci:supabase`。後者包含新增的
+`npm run test:local:mobile`。CI 可用 `TENNIS_DISCOVERY_SHELL_BUDGET_MS=2500` 放寬共用 runner
+的 shell timing 預算，本機預設仍是 1000ms；不得用這個變數放寬其他斷言。
+
 `npm run test:mock` 與 `npm run test:local` 的 pre-script 都會先跑 `npm run typecheck`；
 `lint` 與 `prettier:check` 只掃 `.ts/.tsx`，不把存量 `.js` 納入本批改寫範圍。
 

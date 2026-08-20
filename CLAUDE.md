@@ -131,6 +131,9 @@ npm run build
 git diff --check
 ```
 
+`.github/workflows/quality-gate.yml` 在 `main` 與目前開發分支執行相同 gates；frontend 與
+Supabase 聚合入口分別是 `npm run test:ci:frontend`、`npm run test:ci:supabase`。
+
 `npm test` 等同 `npm run test:mock`，**不會**重置資料庫；`npm run test:local` 也不會。
 需要清空本機資料時，唯一標準入口是帶有 `CONFIRM_LOCAL_DB_RESET=1` 的 guarded 指令。
 測試規則、ports、Fake Maps 與本機登入 fixture 見 `.claude/rules/testing.md`。

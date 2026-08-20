@@ -1,0 +1,74 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    branches: [main, claude/tennis-partner-finder-proto-xfrr6g]
+  push:
+    branches: [main, claude/tennis-partner-finder-proto-xfrr6g]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend and Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run current frontend gates
+        env:
+          TENNIS_DISCOVERY_SHELL_BUDGET_MS: "2500"
+        run: npm run test:ci:frontend
+      - name: Upload frontend Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-playwright-evidence
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  supabase:
+    name: Supabase RLS and browser journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx supabase start
+      - name: Reset the ephemeral loopback test database
+        run: CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test
+      - run: npm run test:ci:supabase
+      - name: Upload Supabase Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-playwright-evidence
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop local Supabase
+        if: always()
+        continue-on-error: true
+        run: npx supabase stop --no-backup

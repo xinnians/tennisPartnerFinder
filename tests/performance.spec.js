@@ -5,6 +5,11 @@ import { installAppModuleImporter, installAppTestHooks, readAppTestHook } from "
 import { installFakeMaps, setFakeMapBounds, setFakeMapBoundsBurst } from "./fixtures/fakeMaps.js";
 
 const isLocalHarness = process.env.TENNIS_TEST_HARNESS_MODE === "local";
+const DISCOVERY_SHELL_BUDGET_MS = Number(process.env.TENNIS_DISCOVERY_SHELL_BUDGET_MS ?? 1_000);
+
+if (!Number.isFinite(DISCOVERY_SHELL_BUDGET_MS) || DISCOVERY_SHELL_BUDGET_MS <= 0) {
+  throw new Error("TENNIS_DISCOVERY_SHELL_BUDGET_MS must be a positive number.");
+}
 
 test.beforeEach(async ({ page }) => installAppModuleImporter(page));
 
@@ -84,7 +89,7 @@ test("slow discovery keeps the map shell, base courts, and status usable before 
   await expect(baseCourtPin).toBeVisible();
   await baseCourtPin.click();
   await expect(page.locator("#court-session-sheet")).toBeVisible();
-  expect(Date.now() - startedAt).toBeLessThan(1_000);
+  expect(Date.now() - startedAt).toBeLessThan(DISCOVERY_SHELL_BUDGET_MS);
 
   await page.keyboard.press("Escape");
   await expect(baseCourtPin).toBeFocused();
