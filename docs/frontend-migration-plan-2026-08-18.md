@@ -69,7 +69,7 @@
   重跑通過。回報 `docs/migration-reports/batch-0b.md`。
   **殘項（rider，併入批 1a）**：`line_id` 掃描收窄成只掃 src/——需補「public/ 樹 line_id 為零」
   斷言，恢復原本 src+public 全覆蓋。
-- 驗收：韌性模擬（搬檔不紅）＋有牙 canary（違規必紅）雙向證明；全 gate 綠。
+- 驗收：韌性模擬（搬檔不紅）＋故意違規驗證（違規必紅）雙向證明；全 gate 綠。
 
 ### 批 1：框架無關 vanilla 收斂（拆 4 小批，遷移後全數存活）
 
@@ -247,7 +247,7 @@ Codex 與驗收方的 gate 清單都沒含 `npm test`，由 read-back 抓出；2
   時間 input 以常數 prop 交付後由 legacy adapter＋runAsyncAction 維持 imperative 寫入
   （read-back 逐 patch 路徑攻擊無可達覆蓋）。decide／setCourts／setTerminal 本體 token 級
   零改；generation key 保 rerendered() 語意——實作 agent 的 probe 涵蓋宣稱經 read-back 證偽
-  （in-flight 快照咬不住），驗收方臨時探針紅綠實證有牙（穩定 key 行為反轉）。
+  （in-flight 快照咬不住），驗收方以臨時探針完成紅綠反向驗證（穩定 key 行為反轉）。
   流程升級：agent 自帶幾何指紋（19 案例×2 viewport）進 probe、probe 凍結 Date 防
   「未提供時間→用現在」假紅。驗收：三發 canary、四 lens read-back、七站 gate 綠。
   回報 `docs/migration-reports/batch-8.5.md`（含驗收方註記——由驗收方追加）。
@@ -351,7 +351,7 @@ user 授權「9b 五項留置和 PM 觀察項照驗收方建議做」後的裁�
   38 組巧合同值刻意不併（點名的拉把 ×5／頁頭 ×3 皆非逐字副本，差異保留）。
   **@layer 縮 scope 不做**（三個實證反例：跨群組特異性決勝，任何 layer 邊界都會
   翻轉勝負）；**token 不搬出 session.css**（tests/contrast-tokens 正則直讀約束，
-  驗收方 canary 實證有牙）；CSS Module 不上（class 名凍結）。
+  驗收方已用故意違規確認檢查會失敗）；CSS Module 不上（class 名凍結）。
   視覺零變更四重獨立證據：幾何指紋 48 案例 234,864 值／dist 層宣告多重集合
   2643=2643／驗收方 source 層攤平 2642=2642／逐鍵勝出值 2616 鍵，全零差異。
   流程事故（canary 還原誤用 git checkout 回退 main.js）已重建並經 read-back
@@ -410,9 +410,9 @@ user 授權「9b 五項留置和 PM 觀察項照驗收方建議做」後的裁�
 - 2026-08-19：批 8.4 驗收通過並 commit（b054148）——avatar 單一來源收官；test-local flaky
   定因 DB 累積並 reset 收口；批 8.5（decide sheet）派工單已發。
 - 2026-08-19：批 8.5 驗收通過並 commit（0dc2cfc）——雙 writer 分界模式確立；generation key
-  有牙紅綠實證；依 user 指示暫停派發，批 8.6（chat 壓軸）待 compact 後發單。
+  已完成「故意改錯時失敗、還原後通過」的反向驗證；依 user 指示暫停派發，批 8.6（chat 壓軸）待 compact 後發單。
 - 2026-08-19：批 8.6 驗收通過並 commit（d4b8cd3）——sheet 批壓軸收官，批 8.5 rider 收口；
-  雙 writer 鏡像案例（composer 必須不重建）與焦點語意有牙實證；幾何指紋動畫／rAF settle
+  雙 writer 鏡像案例（composer 必須不重建）與焦點語意的反向驗證；幾何指紋動畫／rAF settle
   兩教訓入流程。批 8.7（mountDialog 系兩 surface）派工單已發。
 - 2026-08-19：批 8.7 驗收通過並 commit（e43f0b7）——**sessionViews surface 遷移全數收官**，
   零 state 純靜態模式確立。
