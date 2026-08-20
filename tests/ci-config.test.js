@@ -54,7 +54,13 @@ test("production alias excludes mockData through every relative import shape", (
   const aliases = production.resolve?.alias;
   assert.equal(aliases?.length, 1);
   const [{ find, replacement }] = aliases;
-  for (const specifier of ["mockData.js", "./mockData.js", "../mockData.js", "../../src/mockData.js", "/src/mockData.js"]) {
+  for (const specifier of [
+    "mockData.js",
+    "./mockData.js",
+    "../mockData.js",
+    "../../src/mockData.js",
+    "/src/mockData.js",
+  ]) {
     assert.ok(find.test(specifier), `production mock alias misses ${specifier}`);
   }
   assert.equal(find.test("./mockData.empty.js"), false);
@@ -77,15 +83,38 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
   assert.match(WORKFLOW, /if: always\(\)[\s\S]*npx supabase stop --no-backup/);
 });
 
-test("CI widens only the timing budget and keeps the four current Chromium projects", () => {
+test("CI widens only the timing budget while mock WebKit stays outside the required Chromium script", () => {
   assert.match(PERFORMANCE_SPEC, /TENNIS_DISCOVERY_SHELL_BUDGET_MS \?\? 1_000/);
   assert.match(WORKFLOW, /TENNIS_DISCOVERY_SHELL_BUDGET_MS: "2500"/);
   const config = createPlaywrightConfig({ mode: "mock" });
   assert.deepEqual(
     config.projects.map(({ name }) => name),
-    ["desktop-chromium", "mobile-chromium", "supabase-chromium", "supabase-mobile-chromium"]
+    ["desktop-chromium", "mobile-chromium", "mobile-webkit", "supabase-chromium", "supabase-mobile-chromium"]
   );
-  assert.doesNotMatch(WORKFLOW, /webkit/i);
+  assert.equal(
+    PACKAGE.scripts["test:mock"],
+    "npm run test:session-unit && TENNIS_TEST_HARNESS_MODE=mock playwright test --project=desktop-chromium --project=mobile-chromium"
+  );
+  assert.equal(
+    PACKAGE.scripts["test:mock:webkit"],
+    "TENNIS_TEST_HARNESS_MODE=mock playwright test --project=mobile-webkit"
+  );
+});
+
+test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workflow", () => {
+  const config = createPlaywrightConfig({ mode: "mock" });
+  const chromium = config.projects.find(({ name }) => name === "mobile-chromium");
+  const webkit = config.projects.find(({ name }) => name === "mobile-webkit");
+  assert.ok(chromium && webkit);
+  for (const spec of ["smoke.spec.js", "performance.spec.js", "error-boundary.spec.js", "react-unmount.spec.js"]) {
+    assert.equal(webkit.testMatch.test(spec), chromium.testMatch.test(spec), `WebKit coverage drifted for ${spec}`);
+  }
+  assert.deepEqual(webkit.use.viewport, { width: 390, height: 844 });
+  assert.equal(webkit.use.defaultBrowserType, "webkit");
+  assert.match(
+    WORKFLOW,
+    /webkit:\n    name: Mobile WebKit \(non-blocking\)[\s\S]*?continue-on-error: true[\s\S]*?playwright install --with-deps webkit[\s\S]*?npm run test:mock:webkit/
+  );
 });
 
 test("workflow uses read-only permissions, cancellation, pinned major actions, and failure evidence", () => {
@@ -94,5 +123,5 @@ test("workflow uses read-only permissions, cancellation, pinned major actions, a
   for (const action of ["actions/checkout@v4", "actions/setup-node@v4", "actions/upload-artifact@v4"]) {
     assert.ok(WORKFLOW.includes(action), `workflow action missing: ${action}`);
   }
-  assert.equal((WORKFLOW.match(/if: failure\(\)/g) ?? []).length, 2);
+  assert.equal((WORKFLOW.match(/if: failure\(\)/g) ?? []).length, 3);
 });

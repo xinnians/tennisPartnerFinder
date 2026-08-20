@@ -55,6 +55,15 @@ export function createPlaywrightConfig({
         },
       },
       {
+        name: "mobile-webkit",
+        testMatch: /(?:smoke|performance|error-boundary|react-unmount)\.spec\.js/,
+        use: {
+          ...devices["iPhone 12"],
+          baseURL: "http://127.0.0.1:5174",
+          viewport: { width: 390, height: 844 },
+        },
+      },
+      {
         name: "supabase-chromium",
         testMatch: /(?:session|performance)\.spec\.js/,
         use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:5175" },
@@ -72,6 +81,4 @@ export function createPlaywrightConfig({
   };
 }
 
-export default defineConfig(
-  createPlaywrightConfig({ mode: process.env.TENNIS_TEST_HARNESS_MODE ?? "mock" })
-);
+export default defineConfig(createPlaywrightConfig({ mode: process.env.TENNIS_TEST_HARNESS_MODE ?? "mock" }));

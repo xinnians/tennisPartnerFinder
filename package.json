@@ -15,6 +15,7 @@
     "test": "npm run test:mock",
     "test:session-unit": "node --test tests/session-controller.test.js tests/session-controller-sequence.test.js tests/session-create-form.test.js tests/session-data-boundary.test.js tests/session-route.test.js tests/local-supabase-config.test.js tests/ci-config.test.js tests/app-errors.test.js tests/react-surface-lifecycle.test.js tests/security-headers.test.js tests/session-presentation-boundary.test.js tests/notification-data-api.test.js tests/notification-dispatch.test.js tests/notification-push.test.js tests/player-presence.test.js tests/me-focus.test.js tests/contrast-tokens.test.js tests/legacy-style-scan.test.js tests/public-brand-scan.test.js tests/reset-local-test-db.test.js tests/filters.test.js",
     "test:mock": "npm run test:session-unit && TENNIS_TEST_HARNESS_MODE=mock playwright test --project=desktop-chromium --project=mobile-chromium",
+    "test:mock:webkit": "TENNIS_TEST_HARNESS_MODE=mock playwright test --project=mobile-webkit",
     "test:db": "npx supabase test db supabase/tests",
     "test:local": "RUN_LOCAL_SUPABASE_API_TEST=1 node --test tests/session-data-local-api.test.js && TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-chromium",
     "test:local:mobile": "TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-mobile-chromium",

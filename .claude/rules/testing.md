@@ -24,6 +24,7 @@ npx supabase start
 CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test
 npm run test:db
 npm run test:mock
+npm run test:mock:webkit  # Mobile Safari 相容性訊號；目前非阻擋
 npm run test:local
 TENNIS_TEST_HARNESS_MODE=local npx playwright test --project=supabase-mobile-chromium
 node scripts/generate-courts-seed.mjs --check
@@ -39,14 +40,18 @@ CI 由 `.github/workflows/quality-gate.yml` 分成 frontend 與 Supabase 兩個 
 `npm run test:local:mobile`。CI 可用 `TENNIS_DISCOVERY_SHELL_BUDGET_MS=2500` 放寬共用 runner
 的 shell timing 預算，本機預設仍是 1000ms；不得用這個變數放寬其他斷言。
 frontend CI 在 build 後必跑 `npm run check:production-bundle`，防止 mock 暱稱被打進正式產物。
+另有獨立 `mobile-webkit` job；它會留失敗證據，但目前以 `continue-on-error` 運作，不擋合併。
+2026-08-20 基準為 Chromium `266 passed / 4 skipped`、WebKit
+`125 passed / 7 failed / 3 skipped`；七條 WebKit 細節見 `docs/migration-reports/batch-23.md`。
 
 `npm run test:mock` 與 `npm run test:local` 的 pre-script 都會先跑 `npm run typecheck`；
 `lint` 與 `prettier:check` 只掃 `.ts/.tsx`，不把存量 `.js` 納入本批改寫範圍。
 
 ## Playwright projects
 
-- `desktop-chromium`、`mobile-chromium`：mock mode，port 5174，執行
-  `smoke.spec.js` 與 `performance.spec.js`。
+- `desktop-chromium`、`mobile-chromium`：mock mode，port 5174，執行 `smoke.spec.js`、
+  `performance.spec.js`、`error-boundary.spec.js` 與 `react-unmount.spec.js`。
+- `mobile-webkit`：同一組 mock specs，iPhone 12／390×844；由非阻擋 CI job 獨立執行。
 - `supabase-chromium`：local Supabase mode，port 5175，執行 `session.spec.js` 與
   local-only `performance.spec.js`。
 - `supabase-mobile-chromium`：local Supabase mode，port 5175，執行

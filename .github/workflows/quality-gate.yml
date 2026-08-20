@@ -42,6 +42,34 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  webkit:
+    name: Mobile WebKit (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - name: Run the mobile Safari compatibility signal
+        env:
+          TENNIS_DISCOVERY_SHELL_BUDGET_MS: "2500"
+        run: npm run test:mock:webkit
+      - name: Upload WebKit Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webkit-playwright-evidence
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
   supabase:
     name: Supabase RLS and browser journeys
     runs-on: ubuntu-latest
