@@ -141,6 +141,7 @@ const dialogFocusable =
 const drawerBindings = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
+const drawerScrollPositions = new WeakMap();
 const mySessionActionStates = new WeakMap();
 const mySessionsRenderOptions = new WeakMap();
 // 批 D6:segmented tab(我報名的／我主揪的)狀態掛在 root 上,同一顆 DOM 節點在
@@ -329,6 +330,28 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
 function activeDrawerPanel(root) {
   const panel = root.querySelector("#nearby-sessions-list");
   return panel && !panel.hidden ? panel : null;
+}
+
+// Batch 18 deliberately overturns Batch 8's redraw-parity decision: an open
+// drawer keeps its reading position across the 60-second quiet refresh. A
+// collapsed redraw must not replace the last useful position with zero.
+function rememberDrawerScrollTop(root) {
+  const panel = activeDrawerPanel(root);
+  if (panel?.dataset.drawerState !== "open") return;
+  const scroll = panel.querySelector(".nearby-drawer__scroll");
+  if (!(scroll instanceof HTMLElement) || scroll.clientHeight === 0) return;
+  drawerScrollPositions.set(root, scroll.scrollTop);
+}
+
+function restoreDrawerScrollTop(root, drawerState) {
+  if (drawerState !== "open" || !drawerScrollPositions.has(root)) return;
+  const savedScrollTop = drawerScrollPositions.get(root);
+  requestAnimationFrame(() => {
+    const scroll = activeDrawerPanel(root)?.querySelector(".nearby-drawer__scroll");
+    if (!(scroll instanceof HTMLElement)) return;
+    const maxScrollTop = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+    scroll.scrollTop = Math.min(savedScrollTop, maxScrollTop);
+  });
 }
 
 function rememberFocusedSessionCard(root) {
@@ -1443,6 +1466,7 @@ export function renderNearbySessionsDrawer(
   } = {}
 ) {
   rememberFocusedSessionCard(root);
+  rememberDrawerScrollTop(root);
   if (!mountNearbySessionsDrawer) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
   mountNearbySessionsDrawer(root, { courts, drawerState, filters, hasUserLocation, mapStatus, sessions });
 
@@ -1457,7 +1481,10 @@ export function renderNearbySessionsDrawer(
   root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
   root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
   wireDrawerInteractions(root, { drawerState, onToggle });
+  // Register focus first and scroll second. Both callbacks run after the
+  // flushSync commit, so any focus-induced browser scroll is corrected last.
   restoreFocusedSessionCard(root);
+  restoreDrawerScrollTop(root, drawerState);
 }
 
 /**

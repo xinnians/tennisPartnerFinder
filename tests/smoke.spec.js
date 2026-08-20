@@ -970,6 +970,119 @@ test("open drawer: opening a session detail sheet and closing it restores the dr
   expect(runtimeErrors).toEqual([]);
 });
 
+test("batch 18 quiet discovery refresh preserves drawer scroll after restoring card focus", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  await page.evaluate(async () => {
+    const { createSessionController } = await window.__importAppModule("sessionController");
+    const { COURTS, MOCK_SESSIONS } = await window.__importAppModule("mockData");
+    const { renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
+    document.getElementById("nearby-sessions-drawer")?.remove();
+    const root = document.createElement("aside");
+    root.id = "batch-18-drawer";
+    document.body.appendChild(root);
+
+    const template = MOCK_SESSIONS.find((session) => session.slotsRemaining > 0);
+    const sessions = Array.from({ length: 32 }, (_, index) => ({
+      ...template,
+      sessionId: 18000 + index,
+    }));
+    const visibilityTarget = new EventTarget();
+    Object.defineProperty(visibilityTarget, "visibilityState", { value: "visible" });
+    let discoveryLoads = 0;
+    const controller = createSessionController({
+      api: {
+        loadSessionDiscovery: async () => {
+          discoveryLoads += 1;
+          return sessions;
+        },
+      },
+      discoveryPollIntervalMs: 1_000_000,
+      visibilityTarget,
+      render: (view) => renderNearbySessionsDrawer(root, { ...view, courts: COURTS }),
+    });
+    await controller.loadDiscovery();
+    controller.setDrawerState("open");
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const scroll = root.querySelector(".nearby-drawer__scroll");
+    const focusedCard = root.querySelectorAll("[data-session-id]")[8];
+    focusedCard.focus({ preventScroll: true });
+    scroll.scrollTop = 200;
+    window.__batch18QuietRefresh = () => visibilityTarget.dispatchEvent(new Event("visibilitychange"));
+    window.__batch18DiscoveryLoads = () => discoveryLoads;
+  });
+
+  expect(await page.evaluate(() => document.querySelector("#batch-18-drawer .nearby-drawer__scroll").scrollTop)).toBe(200);
+  await page.evaluate(() => window.__batch18QuietRefresh());
+  await expect.poll(() => page.evaluate(() => window.__batch18DiscoveryLoads())).toBe(2);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+
+  const result = await page.evaluate(() => ({
+    focusedSessionId: document.activeElement?.getAttribute("data-session-id"),
+    scrollTop: document.querySelector("#batch-18-drawer .nearby-drawer__scroll").scrollTop,
+  }));
+  expect(result).toEqual({ focusedSessionId: "18008", scrollTop: 200 });
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("batch 18 drawer scroll memory covers first render, both v2 states, collapsed redraw, and shorter-list clamping", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+
+  const firstRender = await page.evaluate(async () => {
+    const { COURTS, MOCK_SESSIONS } = await window.__importAppModule("mockData");
+    const { renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
+    document.getElementById("nearby-sessions-drawer")?.remove();
+    const root = document.createElement("aside");
+    root.id = "batch-18-state-drawer";
+    document.body.appendChild(root);
+    const template = MOCK_SESSIONS.find((session) => session.slotsRemaining > 0);
+    const sessions = Array.from({ length: 32 }, (_, index) => ({
+      ...template,
+      sessionId: 18100 + index,
+    }));
+    const render = (drawerState, nextSessions = sessions) =>
+      renderNearbySessionsDrawer(root, { courts: COURTS, drawerState, sessions: nextSessions });
+
+    render("collapsed");
+    window.__batch18DrawerState = { render, sessions, template };
+    return {
+      hidden: root.querySelector("#nearby-sessions-list").hidden,
+      scrollTop: root.querySelector(".nearby-drawer__scroll").scrollTop,
+      state: root.querySelector("#nearby-sessions-list").dataset.drawerState,
+    };
+  });
+  expect(firstRender).toEqual({ hidden: true, scrollTop: 0, state: "collapsed" });
+
+  await page.evaluate(() => {
+    const { render } = window.__batch18DrawerState;
+    render("open");
+    document.querySelector("#batch-18-state-drawer .nearby-drawer__scroll").scrollTop = 200;
+    render("collapsed");
+    // This second collapsed render is the falsifiable step: a broken
+    // implementation would overwrite the remembered 200 with the hidden
+    // replacement element's zero before the drawer is reopened.
+    render("collapsed");
+    render("open");
+  });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  expect(await page.evaluate(() => document.querySelector("#batch-18-state-drawer .nearby-drawer__scroll").scrollTop)).toBe(200);
+
+  const clamped = await page.evaluate(async () => {
+    const { render, template } = window.__batch18DrawerState;
+    render("open", [{ ...template, sessionId: 18999 }]);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    const scroll = document.querySelector("#batch-18-state-drawer .nearby-drawer__scroll");
+    return { maxScrollTop: Math.max(0, scroll.scrollHeight - scroll.clientHeight), scrollTop: scroll.scrollTop };
+  });
+  expect(clamped.scrollTop).toBe(clamped.maxScrollTop);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("swiping the drawer up moves it one segment at a time, and swiping down reverses it one segment at a time", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
