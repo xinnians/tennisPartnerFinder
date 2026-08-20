@@ -55,7 +55,7 @@ role 不可讀寫。
 ## Web Push 與通知 outbox
 
 - `push_subscriptions`、`notification_prefs`、`court_subscriptions` 都是 owner-only；通知
-  設定只要求登入，不得藉此取消既有球局／球友目錄的分級 profile gate。球場訂閱只接受台北市
+  設定只要求登入，不得藉此取消既有球局／球友目錄的分級個人檔案門檻。球場訂閱只接受台北市
   active 球場（上限為當下符合條件的球場總數），browser 只以既有 RPC 儲存。
 - `notification_outbox` 是 service-only queue：anon 與 authenticated 不可 select、insert、
   update、delete，也不可新增 browser view 或 RPC 旁路。它的欄位順序與 payload allowlist 受
@@ -95,7 +95,7 @@ LINE、電話、email、常打球場、可用時段、歷史或 roster。`sessio
 不可新增欄位。
 
 `player_directory` 是獨立的 authenticated-only security-definer view，DB 亦以
-`private.profile_meets_gate(..., 'directory')` gate：未通過 directory 門檻的 viewer
+`private.profile_meets_gate(..., 'directory')` 門檻：未通過 directory 門檻的 viewer
 即使已登入也只能得到 0 列。
 其欄位有序 allowlist **精確為**：
 
@@ -160,11 +160,11 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
   `instant`；開始時間可早至現在前 5 分鐘。
   同一主揪至多可有五個仍在可加入窗口內的 `open`／`full` 球局（未來或開打後兩小時內），超過時
   RPC 回傳 `SESSION_LIMIT`；開打超過兩小時，或已是 `cancelled`、`played`、`expired` 的局不計入。
-- `request_to_join_session` 使用 nickname gate；`approval` 局建立 `requested` 並回 `OK`。
+- `request_to_join_session` 使用 nickname 門檻；`approval` 局建立 `requested` 並回 `OK`。
   `instant` 局只有 viewer NTRP 已填且在局方範圍內時直接 `accepted`／回 `ACCEPTED`；未填或
   範圍外仍建立 `requested`，分別回 `OK_NTRP_MISSING`／`OK_NTRP_OUT_OF_RANGE`。未定案候選局
   的加入窗口只到範圍起點；其他局維持開始後兩小時。既有取消、退出與出席回報窗口不因此延長。
-- `invite_to_session(session_id, profile_id)` 僅通過 ntrp gate 的 host 可呼叫，對通過 directory、可發現且 opt-in 的
+- `invite_to_session(session_id, profile_id)` 僅通過 ntrp 門檻的 host 可呼叫，對通過 directory、可發現且 opt-in 的
   其他球友建立 `invited`／`initiated_by='host'`；受邀者可在開始後兩小時內回覆。同一 host 在其
   名下所有球局的 host-initiated
   invite 採滾動 24 小時計數，上限 10。migration 以該 host 的 profile-row lock 序列化此計數
@@ -203,7 +203,7 @@ npm run test:local
 已套用的 migration 不可修改。球場目錄只改 `data/courts.json`，用新 stamp 產生 migration
 與 `courts_catalog.sql`；`node scripts/generate-courts-seed.mjs --check` 必須通過。
 
-Hosted 推送屬人工、授權後操作：先備份並記錄 sessions/participants counts，再跑 local gate，
+Hosted 推送屬人工、授權後操作：先備份並記錄 sessions/participants counts，再跑本機驗證，
 以 `npx supabase migration list` 確認每個 local stamp 與 remote 對齊，才可執行 migration。
 之後重新驗證匿名 allowlist、raw table denial 與 cron job；不要把未跑的
 hosted 檢查寫成已完成。

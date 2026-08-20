@@ -17,7 +17,7 @@ CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test
 guarded reset 只接受 loopback Supabase API；不要以 `npx supabase db reset` 取代它，也不要
 在 `beforeAll`／測試 script 中隱性清庫。
 
-## 標準本機 gate
+## 標準本機驗證
 
 ```bash
 npx supabase start

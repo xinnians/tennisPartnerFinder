@@ -1,3 +1,13 @@
+---
+paths:
+  - "src/pages/**"
+  - "src/sheets/**"
+  - "src/main.js"
+  - "src/sessionViews.js"
+  - "src/sheets.js"
+  - "tests/fixtures/appRuntime.js"
+---
+
 # React 頁面遷移規則
 
 ## Importer 慣例

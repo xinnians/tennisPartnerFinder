@@ -24,14 +24,14 @@
 - 匿名公開面只有 `public.session_discovery`。與主揪相關的匿名公開資料**只有**
   `host_nickname`、`host_ntrp`、`host_profile_complete`；不可增加 profile ID、連結、
   真名、LINE、電話、email、常打球場、歷史或 roster 資料。
-- 個人檔案採三級 gate：`nickname`＝非空暱稱；`ntrp`＝暱稱＋1.0–7.0 NTRP；
+- 個人檔案採三級完整度門檻：`nickname`＝非空暱稱；`ntrp`＝暱稱＋1.0–7.0 NTRP；
   `directory`＝ntrp＋至少一座台北市 active 常打球場。資料庫授權只以
   `private.require_profile_gate(level)`／`private.profile_meets_gate` 為準，前端
-  `src/profile.js` 僅做同語意引導；LINE、打法與時段都不是 gate 必填。
-- 通過 directory gate 的球友目錄走 authenticated-only `public.player_directory`，不是匿名
+  `src/profile.js` 僅做同語意引導；LINE、打法與時段都不影響這些門檻。
+- 通過 directory 門檻的球友目錄走 authenticated-only `public.player_directory`，不是匿名
   公開探索；使用者預設不出現在目錄，僅能透過 `set_player_visibility` 自行 opt-in，關閉後立即下架。
 - 在場狀態是獨立、預設關閉、authenticated-only 的互惠面
-  `public.player_presence_directory`：匿名沒有 SELECT 權限；viewer 自己必須通過 ntrp gate 且已開
+  `public.player_presence_directory`：匿名沒有 SELECT 權限；viewer 自己必須通過 ntrp 門檻且已開
   `share_presence` 才可讀到其他分享者。`player_presence` 原表不可給 browser 讀寫；raw GPS
   座標只在前景 `watchPosition` 呼叫期間短暫存在，RPC 只可落地最近台北 active court 的
   `court_id + updated_at`，不可進任何表、view、payload 或 log。
@@ -55,7 +55,7 @@
 ## 程式結構
 
 - `src/main.js`：應用程式入口、頁面切換、Maps/Auth 接線。
-- `src/sessionController.js`：探索、地圖 bounds、登入／檔案 gate、生命週期 refresh。
+- `src/sessionController.js`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh。
 - `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions 與群聊。
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
 - `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
@@ -71,18 +71,18 @@ strict TypeScript、ESLint flat config 與 Prettier；存量 `.js` 採 `allowJs`
 
 ## Session 資料流程
 
-公開流程：地圖 → 附近球局 → 詳情與登入後加入前名單 → 依所需 gate 補檔案 → 申請或直接加入 →
+公開流程：地圖 → 附近球局 → 詳情與登入後加入前名單 → 依所需門檻補齊個人檔案 → 申請或直接加入 →
 （審核制）主揪接受／婉拒 → accepted 成員使用 My Sessions 與球局群組聊天。
 
-- `create_session`：通過 ntrp gate 的主揪可建 `booked`、`walk_on` 或 `candidates` 球局；前兩型
+- `create_session`：通過 ntrp 門檻的主揪可建 `booked`、`walk_on` 或 `candidates` 球局；前兩型
   使用單一台北市 active tennis court，候選型依序保存 2–3 座候選球場與時間範圍，之後只可用
   `decide_session_court` 收斂場地與時間。開始時間可早至現在前 5 分鐘、缺額 1–3，同一主揪在
   有效窗口內至多五局；`join_mode` 為 `approval` 或 `instant`。
-- `request_to_join_session` 使用 nickname gate。`approval` 建立 `requested` 並回 `OK`；
+- `request_to_join_session` 使用 nickname 門檻。`approval` 建立 `requested` 並回 `OK`；
   `instant` 只有 NTRP 已填且在局方範圍內時直接 `ACCEPTED`，未填或範圍外仍建立 `requested`，
   分別回 `OK_NTRP_MISSING`／`OK_NTRP_OUT_OF_RANGE`。未定案候選局只到範圍起點可加入；
   其他局維持開始後兩小時窗口。
-- `invite_to_session`：通過 ntrp gate 的主揪只可邀請目前在 opt-in directory 目錄中的其他人，建立
+- `invite_to_session`：通過 ntrp 門檻的主揪只可邀請目前在 opt-in directory 目錄中的其他人，建立
   `invited`（`initiated_by='host'`）列；`respond_to_session_invite` 讓受邀 guest 接受或
   婉拒。封鎖檢查與最後缺額的原子容量規則都由資料庫執行。
 - `review_join_request`：只有主揪可接受／婉拒。最後缺額的接受是資料庫鎖定的原子操作。
@@ -108,7 +108,7 @@ strict TypeScript、ESLint flat config 與 Prettier；存量 `.js` 採 `allowJs`
   `court_subscriptions`（台北市 active 球場、上限為當下符合條件的球場總數）派送；行政區訂閱已退役。
   通知是 best-effort，outbox 寫入失敗不可中斷球局 RPC。
 - 分享／推播深連結使用 `#/session/:id`：進入地圖並開啟該局 sheet；不存在或已下架要顯示
-  明確 empty sheet，登入或對應的三級 gate 仍沿用既有 intent。
+  明確 empty sheet，登入或對應的三級個人檔案門檻仍沿用既有 intent。
 
 ## 本機開發與驗證
 
@@ -175,7 +175,7 @@ allowlist 與 Supabase Site URL 的 QA 入口）與 `...-xinnians-...`（CLI 部
 任何 hosted migration、環境變數、部署或社群發布前，先完成
 `docs/mvp-plan.md` 的 release checklist：備份／count preflight、migration list 對齊、
 匿名 REST allowlist、兩帳號群聊、cron、OAuth、390px 慢網路與
-support/privacy link 的人工檢查。未實際完成的 hosted gate 不可在文件中標記為完成。
+support/privacy link 的人工檢查。未實際完成的正式環境檢查不可在文件中標記為完成。
 
 ## 球場目錄與文件維護
 
