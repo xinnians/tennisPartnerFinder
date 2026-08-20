@@ -2,6 +2,7 @@ import { createRef, forwardRef, useImperativeHandle, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { ChatMessage, SessionRosterEntry } from "../domainTypes.ts";
 import { sessionChatSheetRuntime } from "../sessionViews.js";
 
@@ -276,8 +277,21 @@ export function mountSessionChatSheetContent(
 ): SessionChatContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<SessionChatContentContract>();
-  flushSync(() => reactRoot.render(<SessionChatSheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("SessionChatSheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="session-chat-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <SessionChatSheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("SessionChatSheet content did not mount.");
 
   return {
     setContent(roster, messages) {

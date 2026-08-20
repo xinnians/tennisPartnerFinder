@@ -1,6 +1,8 @@
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
+
 interface WithdrawSessionConfirmationContentOptions {
   onClose(): void;
 }
@@ -44,5 +46,11 @@ export function mountWithdrawSessionConfirmationDialogContent(
   options: WithdrawSessionConfirmationContentOptions
 ): void {
   const reactRoot = createRoot(rootElement);
-  flushSync(() => reactRoot.render(<WithdrawSessionConfirmationDialog {...options} />));
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary rootElement={rootElement} surface="withdraw-session-dialog">
+        <WithdrawSessionConfirmationDialog {...options} />
+      </AppErrorBoundary>
+    )
+  );
 }

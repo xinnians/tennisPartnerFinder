@@ -39,6 +39,14 @@ test("frontend CI script contains every current non-database gate in order", () 
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
 });
 
+test("both mock Chromium projects execute the dedicated error-boundary spec", () => {
+  const config = createPlaywrightConfig();
+  for (const name of ["desktop-chromium", "mobile-chromium"]) {
+    const project = config.projects.find((candidate) => candidate.name === name);
+    assert.ok(project?.testMatch.test("error-boundary.spec.js"), `${name} silently excludes the boundary gate`);
+  }
+});
+
 test("production alias excludes mockData through every relative import shape", () => {
   assert.equal(typeof createViteConfig, "function");
   const production = createViteConfig({ command: "build", mode: "production" });

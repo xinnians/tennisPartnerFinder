@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
@@ -654,6 +655,10 @@ export function mountMySessionsPage(rootElement: HTMLElement, options: MySession
   mounted.generation += 1;
   const generation = mounted.generation;
   flushSync(() => {
-    mounted.reactRoot.render(<MySessionsPage {...options} key={generation} rootElement={rootElement} />);
+    mounted.reactRoot.render(
+      <AppErrorBoundary resetKey={generation} surface="my-sessions-page">
+        <MySessionsPage {...options} key={generation} rootElement={rootElement} />
+      </AppErrorBoundary>
+    );
   });
 }

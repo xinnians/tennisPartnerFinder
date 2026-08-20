@@ -1,6 +1,7 @@
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { reportDialogRuntime } from "../sessionViews.js";
 
 /**
@@ -64,5 +65,11 @@ function ReportDialog({ onClose, targetLabel }: ReportDialogContentOptions) {
 /** Mount static React content inside mountDialog's existing surface element. */
 export function mountReportDialogContent(rootElement: HTMLElement, options: ReportDialogContentOptions): void {
   const reactRoot = createRoot(rootElement);
-  flushSync(() => reactRoot.render(<ReportDialog {...options} />));
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary rootElement={rootElement} surface="report-dialog">
+        <ReportDialog {...options} />
+      </AppErrorBoundary>
+    )
+  );
 }

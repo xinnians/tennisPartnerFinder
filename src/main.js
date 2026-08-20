@@ -84,6 +84,7 @@ import {
   withdrawFromSession,
 } from "./dataApi.js";
 import { isSupabaseConfigured } from "./supabaseClient.js";
+import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.ts";
 import { createSessionController } from "./sessionController.js";
 import {
   openCourtSessionDrawer,
@@ -116,6 +117,10 @@ import { eligibilityFromPrivateProfile } from "./profile.js";
 import { createRequestGate } from "./requestGate.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
+
+installGlobalErrorHandlers(globalThis.window, {
+  onCaptured: () => showGlobalErrorNotice(document),
+});
 
 let google = null;
 let map = null;

@@ -2,6 +2,7 @@ import type { ChangeEvent, MouseEvent } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
 import { mePageRuntime } from "../sessionViews.js";
@@ -781,34 +782,36 @@ export function mountMePage(rootElement: HTMLElement, options: MePageOptions = {
   const generation = mounted.generation;
   flushSync(() => {
     mounted.reactRoot.render(
-      <MePage
-        key={generation}
-        rootElement={rootElement}
-        authSession={authSession}
-        profile={profile}
-        avatarUrl={avatarUrl}
-        blockedPlayers={blockedPlayers}
-        blockedPlayersError={blockedPlayersError}
-        blockedPlayersStatus={blockedPlayersStatus}
-        courts={courts}
-        lineProviderId={lineProviderId}
-        linkedProviders={linkedProviders}
-        notificationSettings={notificationSettings}
-        onEditProfile={onEditProfile}
-        onEnablePush={onEnablePush}
-        onLinkProvider={onLinkProvider}
-        onSaveCourtSubscriptions={onSaveCourtSubscriptions}
-        onSaveNotificationPreferences={onSaveNotificationPreferences}
-        onSetOpenToGreeting={onSetOpenToGreeting}
-        onSetPresenceSharing={onSetPresenceSharing}
-        onSignIn={onSignIn}
-        onSignOut={onSignOut}
-        onTogglePlayerVisibility={onTogglePlayerVisibility}
-        onUnblockPlayer={onUnblockPlayer}
-        playerVisibility={playerVisibility}
-        presence={presence}
-        supportHref={supportHref}
-      />
+      <AppErrorBoundary resetKey={generation} surface="me-page">
+        <MePage
+          key={generation}
+          rootElement={rootElement}
+          authSession={authSession}
+          profile={profile}
+          avatarUrl={avatarUrl}
+          blockedPlayers={blockedPlayers}
+          blockedPlayersError={blockedPlayersError}
+          blockedPlayersStatus={blockedPlayersStatus}
+          courts={courts}
+          lineProviderId={lineProviderId}
+          linkedProviders={linkedProviders}
+          notificationSettings={notificationSettings}
+          onEditProfile={onEditProfile}
+          onEnablePush={onEnablePush}
+          onLinkProvider={onLinkProvider}
+          onSaveCourtSubscriptions={onSaveCourtSubscriptions}
+          onSaveNotificationPreferences={onSaveNotificationPreferences}
+          onSetOpenToGreeting={onSetOpenToGreeting}
+          onSetPresenceSharing={onSetPresenceSharing}
+          onSignIn={onSignIn}
+          onSignOut={onSignOut}
+          onTogglePlayerVisibility={onTogglePlayerVisibility}
+          onUnblockPlayer={onUnblockPlayer}
+          playerVisibility={playerVisibility}
+          presence={presence}
+          supportHref={supportHref}
+        />
+      </AppErrorBoundary>
     );
   });
 }

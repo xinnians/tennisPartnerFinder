@@ -2,6 +2,7 @@ import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useSta
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { SurfaceLoadStatus } from "../domainTypes.ts";
 import { playerDirectorySheetRuntime } from "../sessionViews.js";
@@ -215,8 +216,21 @@ export function mountPlayerDirectorySheetContent(
 ): PlayerDirectorySheetContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<PlayerDirectorySheetContentContract>();
-  flushSync(() => reactRoot.render(<PlayerDirectorySheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("PlayerDirectorySheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="player-directory-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <PlayerDirectorySheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("PlayerDirectorySheet content did not mount.");
 
   return {
     setDirectory(next) {

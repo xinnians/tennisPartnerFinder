@@ -2,6 +2,7 @@ import { createRef, forwardRef, memo, useCallback, useImperativeHandle, useRef, 
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { TAIPEI_DISTRICTS } from "../districts.ts";
 import { BANDS, DEFAULT_FILTER_STATE } from "../filters.js";
 
@@ -272,8 +273,21 @@ export function mountFilterSheetContent(
 ): FilterSheetContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<FilterSheetContentContract>();
-  flushSync(() => reactRoot.render(<FilterSheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("FilterSheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="filter-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <FilterSheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("FilterSheet content did not mount.");
 
   return {
     setFilters(filters) {

@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
@@ -276,6 +277,10 @@ export function mountNearbySessionsDrawer(rootElement: HTMLElement, options: Nea
   }
   mounted.generation += 1;
   flushSync(() => {
-    mounted.reactRoot.render(<NearbySessionsDrawer {...options} key={mounted.generation} />);
+    mounted.reactRoot.render(
+      <AppErrorBoundary resetKey={mounted.generation} surface="nearby-sessions-drawer">
+        <NearbySessionsDrawer {...options} key={mounted.generation} />
+      </AppErrorBoundary>
+    );
   });
 }

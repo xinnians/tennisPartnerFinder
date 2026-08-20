@@ -2,6 +2,7 @@ import { createRef, forwardRef, useImperativeHandle, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 import { decideSessionSheetRuntime } from "../sessionViews.js";
 
@@ -161,8 +162,21 @@ export function mountDecideSessionSheetContent(
 ): DecideSessionContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<DecideSessionContentContract>();
-  flushSync(() => reactRoot.render(<DecideSessionSheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("DecideSessionSheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="decide-session-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <DecideSessionSheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("DecideSessionSheet content did not mount.");
 
   return {
     setCourts(courts, courtsOptions) {

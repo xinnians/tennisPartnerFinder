@@ -2,6 +2,7 @@ import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "re
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 
 interface CreateCourt extends CourtSummary {
@@ -794,8 +795,21 @@ export function mountCreateSessionSheetContent(
 ): CreateSessionContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<CreateSessionContentContract>();
-  flushSync(() => reactRoot.render(<CreateSessionSheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("CreateSessionSheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="create-session-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <CreateSessionSheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("CreateSessionSheet content did not mount.");
 
   return {
     setCourts(courts, options) {

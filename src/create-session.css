@@ -138,3 +138,7 @@
 #toast-root { position: fixed; z-index: var(--z-toast); left: 50%; bottom: calc(34px + var(--bottom-navigation-offset)); transform: translateX(-50%); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
 .toast { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: var(--radius-lg); background: var(--color-ink); color: var(--color-surface-page); box-shadow: var(--elevation-2); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; animation: qmToast 0.22s ease; }
 .toast__check { flex: none; }
+.app-error-notice { position: fixed; z-index: var(--z-toast); left: 50%; bottom: calc(34px + var(--bottom-navigation-offset)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(440px, calc(100vw - 32px)); padding: 13px 16px; border-radius: var(--radius-lg); background: var(--color-ink); color: var(--color-surface-page); box-shadow: var(--elevation-2); font-size: 13.5px; font-weight: 600; }
+.app-error-notice__close { flex: none; min-width: 44px; min-height: 44px; border: 1px solid var(--color-signal); border-radius: var(--radius-md); background: transparent; color: var(--color-signal); font: inherit; cursor: pointer; }
+.app-error-fallback { display: grid; justify-items: start; gap: 14px; width: min(100%, 520px); margin: auto; padding: clamp(24px, 6vw, 48px); }
+.app-error-fallback h2, .app-error-fallback p { margin: 0; }

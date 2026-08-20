@@ -2,6 +2,7 @@ import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "re
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 import { profileCompletionSheetRuntime } from "../sessionViews.js";
@@ -287,8 +288,21 @@ export function mountProfileCompletionSheetContent(
 ): ProfileCompletionContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<ProfileCompletionContentContract>();
-  flushSync(() => reactRoot.render(<ProfileCompletionSheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("ProfileCompletionSheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="profile-completion-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <ProfileCompletionSheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("ProfileCompletionSheet content did not mount.");
 
   return {
     setCourts(courts, courtsOptions) {

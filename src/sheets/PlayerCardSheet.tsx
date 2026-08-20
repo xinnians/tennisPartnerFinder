@@ -2,6 +2,7 @@ import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useSta
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { playerCardSheetRuntime } from "../sessionViews.js";
@@ -320,8 +321,21 @@ export function mountPlayerCardSheetContent(
 ): PlayerCardSheetContentContract {
   const reactRoot = createRoot(rootElement);
   const contentRef = createRef<PlayerCardSheetContentContract>();
-  flushSync(() => reactRoot.render(<PlayerCardSheetWithRef {...options} ref={contentRef} />));
-  if (!contentRef.current) throw new Error("PlayerCardSheet content did not mount.");
+  let boundaryFailed = false;
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary
+        rootElement={rootElement}
+        surface="player-card-sheet"
+        onError={() => {
+          boundaryFailed = true;
+        }}
+      >
+        <PlayerCardSheetWithRef {...options} ref={contentRef} />
+      </AppErrorBoundary>
+    )
+  );
+  if (!contentRef.current && !boundaryFailed) throw new Error("PlayerCardSheet content did not mount.");
 
   return {
     setInvitableSessions(sessions) {

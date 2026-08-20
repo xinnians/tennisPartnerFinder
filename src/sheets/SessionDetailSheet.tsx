@@ -2,6 +2,7 @@ import { Fragment, memo } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
@@ -539,7 +540,13 @@ export function mountSessionDetailSheetContent(
   let snapshot = { ...initialSnapshot, actionGeneration: initialSnapshot.actionGeneration ?? 0 };
 
   const commit = () => {
-    flushSync(() => reactRoot.render(<SessionDetailSheet detail={detail} snapshot={snapshot} />));
+    flushSync(() =>
+      reactRoot.render(
+        <AppErrorBoundary resetKey={snapshot.actionGeneration} rootElement={rootElement} surface="session-detail-sheet">
+          <SessionDetailSheet detail={detail} snapshot={snapshot} />
+        </AppErrorBoundary>
+      )
+    );
   };
 
   commit();

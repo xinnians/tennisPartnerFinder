@@ -1,6 +1,7 @@
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
 import { messagesFromGroups } from "../sessionViews.js";
@@ -40,7 +41,7 @@ const DEFAULT_GROUPS: MessagesGroups = {
   upcoming: [],
 };
 const TAIPEI_WEEKDAY_WORD = ["日", "一", "二", "三", "四", "五", "六"];
-const mountedRoots = new WeakMap<HTMLElement, Root>();
+const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: Root }>();
 const noopOpenChat = () => {};
 
 function taipeiDayKey(value: string | Date): string {
@@ -174,14 +175,19 @@ export function MessagesPage({ courts, groups, onOpenChat }: MessagesPageProps) 
 
 /** One React root per legacy mount element; subsequent calls synchronously update props. */
 export function mountMessagesPage(root: HTMLElement, options: MessagesPageOptions = {}): void {
-  let reactRoot = mountedRoots.get(root);
-  if (!reactRoot) {
-    reactRoot = createRoot(root);
-    mountedRoots.set(root, reactRoot);
+  let mounted = mountedRoots.get(root);
+  if (!mounted) {
+    mounted = { generation: 0, reactRoot: createRoot(root) };
+    mountedRoots.set(root, mounted);
   }
+  mounted.generation += 1;
 
   const { courts = [], groups = DEFAULT_GROUPS, onOpenChat = noopOpenChat } = options;
   flushSync(() => {
-    reactRoot.render(<MessagesPage courts={courts} groups={groups} onOpenChat={onOpenChat} />);
+    mounted.reactRoot.render(
+      <AppErrorBoundary resetKey={mounted.generation} surface="messages-page">
+        <MessagesPage courts={courts} groups={groups} onOpenChat={onOpenChat} />
+      </AppErrorBoundary>
+    );
   });
 }

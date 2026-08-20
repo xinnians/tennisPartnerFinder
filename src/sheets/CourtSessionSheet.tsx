@@ -1,6 +1,7 @@
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 
+import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 
@@ -55,5 +56,11 @@ function CourtSessionSheet({ court, courts, onClose, sessions }: CourtSessionShe
 /** Mount React content inside mountSheet's existing surface element. */
 export function mountCourtSessionSheetContent(rootElement: HTMLElement, props: CourtSessionSheetProps): void {
   const reactRoot = createRoot(rootElement);
-  flushSync(() => reactRoot.render(<CourtSessionSheet {...props} />));
+  flushSync(() =>
+    reactRoot.render(
+      <AppErrorBoundary rootElement={rootElement} surface="court-session-sheet">
+        <CourtSessionSheet {...props} />
+      </AppErrorBoundary>
+    )
+  );
 }
