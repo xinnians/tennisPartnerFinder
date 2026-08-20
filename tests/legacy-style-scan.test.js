@@ -1,16 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
+const SOURCE_EXTENSIONS = [".css", ".js", ".ts", ".tsx"];
 
-// readdir 掃 src/ 全部 .css/.js/.ts/.tsx 檔(而非寫死清單),批 A fix wave(2026-08-07)才擴面;
-// 之後 src/ 新增樣式或渲染檔會自動納入掃描,不必記得手動加進 FILES。
-const srcFiles = readdirSync(SRC_DIR, { withFileTypes: true })
-  .filter((entry) => entry.isFile() && [".css", ".js", ".ts", ".tsx"].some((extension) => entry.name.endsWith(extension)))
-  .map((entry) => `src/${entry.name}`)
-  .sort();
+// 遞迴掃 src/ 全部樣式與渲染來源,讓 pages/sheets/components 及未來新增的子目錄
+// 自動納入封條,不必人工維護 FILES 清單。
+function readSourceTree(directory = SRC_DIR, prefix = "src") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, pathToFileURL(`${directory}/`));
+    const path = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) return readSourceTree(fileURLToPath(entryUrl), path);
+    return SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension)) ? [path] : [];
+  });
+}
+
+const srcFiles = readSourceTree().sort();
 
 const SCAN_PATHS = [...srcFiles, "index.html"];
 const FILES = SCAN_PATHS.map((path) => [path, readFileSync(new URL(`../${path}`, import.meta.url), "utf8")]);
@@ -21,10 +28,9 @@ const FILES = SCAN_PATHS.map((path) => [path, readFileSync(new URL(`../${path}`,
 const BANNED = ["#d7f22a", "#2465bd", "#142c4b", "#eef4fb", "#64758b", "#d6e1ee", "Baloo", "20, 44, 75", "11, 28, 50"];
 
 test("舊視覺常數不再出現於任何樣式來源", () => {
-  // 下限抓 src/ 目前 22 個 .css/.js/.ts/.tsx 檔 + index.html = 23 的保守值,
-  // 抓太緊 readdir 增檔會誤報,抓太鬆 readdir 壞掉(例如目錄改名)也偵測不到。
+  // 下限高於只掃 src/ 頂層時的退化值,遞迴若被移除會先紅在「掃描集過小」。
   assert.ok(
-    FILES.length >= 23,
+    FILES.length >= 50,
     `掃描集過小(僅 ${FILES.length} 檔),readdir 可能漏掃 src/ 或路徑錯誤;掃到:${SCAN_PATHS.join(", ")}`
   );
   for (const [path, content] of FILES) {
