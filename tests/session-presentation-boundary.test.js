@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+
+const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
+
+function readTsxTree(directory = SRC_DIR, prefix = "src") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, pathToFileURL(`${directory}/`));
+    const path = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) return readTsxTree(fileURLToPath(entryUrl), path);
+    return entry.name.endsWith(".tsx") ? [path] : [];
+  });
+}
+
+const ALL_TSX = readTsxTree().sort();
 
 const REACT_CONSUMERS = [
   "src/components/Avatar.tsx",
@@ -37,11 +51,18 @@ const RUNTIME_EXPORTS = [
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("all 14 React consumers depend on TypeScript presentation instead of sessionViews", () => {
+test("every TSX module stays outside the legacy sessionViews dependency edge", () => {
+  assert.ok(ALL_TSX.length >= 21, `TSX scan unexpectedly small: ${ALL_TSX.length}`);
+  for (const path of ALL_TSX) {
+    assert.doesNotMatch(source(path), /from ["'][^"']*sessionViews\.js["']/, `${path} recreates the reverse edge`);
+  }
+});
+
+test("all 14 presentation consumers depend on the TypeScript boundary", () => {
+  assert.equal(REACT_CONSUMERS.length, 14);
   for (const path of REACT_CONSUMERS) {
     const content = source(path);
     assert.match(content, /from "\.\.\/sessionPresentation\.ts";/, `${path} misses the presentation boundary`);
-    assert.doesNotMatch(content, /from ["'][^"']*sessionViews\.js["']/, `${path} recreates the reverse edge`);
   }
 });
 

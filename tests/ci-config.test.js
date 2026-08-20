@@ -10,6 +10,17 @@ const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", i
 const PERFORMANCE_SPEC = readFileSync(new URL("./performance.spec.js", import.meta.url), "utf8");
 const DEVELOPMENT_BRANCH = "claude/tennis-partner-finder-proto-xfrr6g";
 
+const scriptCommands = (name) => PACKAGE.scripts[name].split("&&").map((command) => command.trim());
+
+function workflowJob(name) {
+  const marker = `\n  ${name}:\n`;
+  const start = WORKFLOW.indexOf(marker);
+  assert.ok(start >= 0, `workflow job missing: ${name}`);
+  const tail = WORKFLOW.slice(start + marker.length);
+  const nextJob = tail.search(/\n  [a-z][\w-]*:\n/);
+  return nextJob < 0 ? tail : tail.slice(0, nextJob);
+}
+
 test("quality workflow runs for main and the current development branch", () => {
   assert.ok(WORKFLOW.length > 1_000, "quality workflow is unexpectedly small");
   assert.match(WORKFLOW, /pull_request:\n    branches: \[main, claude\/tennis-partner-finder-proto-xfrr6g\]/);
@@ -19,7 +30,7 @@ test("quality workflow runs for main and the current development branch", () => 
 });
 
 test("frontend CI script contains every current non-database gate in order", () => {
-  const script = PACKAGE.scripts["test:ci:frontend"];
+  const commands = scriptCommands("test:ci:frontend");
   const gates = [
     "node scripts/generate-courts-seed.mjs --check",
     "npm run typecheck",
@@ -30,12 +41,7 @@ test("frontend CI script contains every current non-database gate in order", () 
     "npm run check:production-bundle",
     "git diff --check",
   ];
-  let previous = -1;
-  for (const gate of gates) {
-    const position = script.indexOf(gate);
-    assert.ok(position > previous, `frontend CI gate missing or out of order: ${gate}`);
-    previous = position;
-  }
+  assert.deepEqual(commands, gates);
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
 });
 
@@ -75,12 +81,22 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
     PACKAGE.scripts["test:local:mobile"],
     "TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-mobile-chromium"
   );
-  const script = PACKAGE.scripts["test:ci:supabase"];
-  for (const gate of ["npm run test:db", "npm run test:local", "npm run test:local:mobile", "git diff --check"]) {
-    assert.ok(script.includes(gate), `Supabase CI gate missing: ${gate}`);
-  }
+  assert.deepEqual(scriptCommands("test:ci:supabase"), [
+    "node scripts/generate-courts-seed.mjs --check",
+    "npm run test:db",
+    "npm run test:local",
+    "npm run test:local:mobile",
+    "git diff --check",
+  ]);
+  assert.match(WORKFLOW, /run: npm run test:ci:supabase/);
   assert.match(WORKFLOW, /CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test/);
   assert.match(WORKFLOW, /if: always\(\)[\s\S]*npx supabase stop --no-backup/);
+});
+
+test("required frontend and Supabase jobs cannot be downgraded to continue-on-error", () => {
+  for (const name of ["frontend", "supabase"]) {
+    assert.doesNotMatch(workflowJob(name), /^    continue-on-error:/m, `${name} job no longer blocks merging`);
+  }
 });
 
 test("CI widens only the timing budget while mock WebKit stays outside the required Chromium script", () => {
