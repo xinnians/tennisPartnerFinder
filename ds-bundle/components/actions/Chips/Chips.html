@@ -1,0 +1,81 @@
+<!-- @dsCard group="動作 Actions" name="Chips" subtitle="chip 基底/變體/選中態(vanilla+React 雙來源)、band-option 兩種脈絡、toggle-switch" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chips — 選項契約</title>
+<link rel="stylesheet" href="../../../styles.css">
+<style>
+.demo { padding: var(--space-5); display: grid; gap: var(--space-5); max-width: 560px; }
+.demo h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-ink); }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+.demo-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="demo">
+  <section>
+    <h2>Chip 基底 .chip(地圖頂列日期,vanilla)</h2>
+    <p class="demo-note">真實實例一律帶 aria-pressed(index.html:51-53,根目錄非 src/,由 src/main.js:539-543 保持同步)。文案取自實際 data-date-chip 選項。</p>
+    <div class="demo-row">
+      <button type="button" class="chip" data-date-chip="today" aria-pressed="false">今天</button>
+      <button type="button" class="chip is-selected" data-date-chip="tomorrow" aria-pressed="true">明天</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>.chip--form(篩選/開球局表單,React)</h2>
+    <p class="demo-note">40px,mono。React 原生類別,並非從 vanilla 搬遷。文案逐字取自 src/sheets/FilterSheet.tsx 的 FILTER_SHEET_DATE_OPTIONS。</p>
+    <div class="demo-row">
+      <button type="button" class="chip chip--form" aria-pressed="false">今天</button>
+      <button type="button" class="chip chip--form is-selected" aria-pressed="true">明天</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>.chip--time(開球局時段,React)</h2>
+    <p class="demo-note">40px,mono + tabular-nums。文案取自 src/sessionViews.js CREATE_TIME_PRESETS 與 CreateSessionSheet.tsx:485。</p>
+    <div class="demo-row">
+      <button type="button" class="chip chip--time" aria-pressed="false">19:00</button>
+      <button type="button" class="chip chip--time is-selected" aria-pressed="true">現在開打</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>.chip--district(行政區篩選 — 尺寸差異已是死碼)</h2>
+    <p class="demo-note">src/surfaces.css:101-108 記錄:批 11-B 移除的三條尺寸宣告從未真正生效(輸給 .chip 較後載入的同特異性規則),現況行政區 chip 視覺上與純 .chip 無異(36px/44px)。class 名稱仍在用(src/sheets/FilterSheet.tsx:152),但不再是獨立尺寸變體。</p>
+    <div class="demo-row">
+      <button type="button" class="chip chip--district" aria-pressed="false">大安區</button>
+      <button type="button" class="chip chip--district is-selected" aria-pressed="true">中山區</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>程度選項 .band-option — 兩個並存脈絡</h2>
+    <p class="demo-note">地圖頂列程度 popover(vanilla,src/main.js:1260-1274)多一顆 .band-option__check SVG 勾勾(15×15,stroke=var(--color-signal),stroke-width 3);篩選 sheet(React,src/sheets/FilterSheet.tsx:105-120)是純文字,兩者都帶 aria-pressed。真實區間見 src/filters.js BANDS:全部/≤ 3.0/3.0–4.0/4.0–5.0/5.0 +(注意 ≤ 與 + 前後都有空格;此卡片先前示範的「2.5–3.5」在任何資料集中都不存在,已移除)。</p>
+    <p class="demo-note" style="margin-top:var(--space-2);">地圖頂列版(vanilla,帶勾勾)：</p>
+    <div class="demo-row" style="max-width:240px; display:grid; gap:var(--space-1);">
+      <button type="button" class="band-option" aria-pressed="false"><span>≤ 3.0</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
+      <button type="button" class="band-option is-active" aria-pressed="true"><span>3.0–4.0</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
+      <button type="button" class="band-option" aria-pressed="false"><span>全部</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
+    </div>
+    <p class="demo-note" style="margin-top:var(--space-2);">篩選 sheet 版(React,無勾勾)：</p>
+    <div class="demo-row" style="max-width:240px; display:grid; gap:var(--space-1);">
+      <button type="button" class="band-option" aria-pressed="false">≤ 3.0</button>
+      <button type="button" class="band-option is-active" aria-pressed="true">3.0–4.0</button>
+      <button type="button" class="band-option" aria-pressed="false">全部</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>開關 .toggle-switch</h2>
+    <p class="demo-note">52×31 軌道 + knob,狀態走 aria-checked(非 class),開啟時 ink 底 + signal knob。軌道本身 31px 高不足 44px 觸控標準,靠 ::before 用 inset:-7px(四邊均勻各擴 7px)擴出約 66×45 的透明熱區補足;非正方形是因為軌道本身較寬(52×31),不是擴出量不均。用於開球局表單(src/sheets/CreateSessionSheet.tsx:642-668)的「直接加入」「已訂場」開關,兩個 aria-label 逐字取自實際模板字串。</p>
+    <div class="demo-row">
+      <button type="button" class="toggle-switch" role="switch" aria-checked="true" aria-label="直接加入：已開啟"></button>
+      <button type="button" class="toggle-switch" role="switch" aria-checked="false" aria-label="已訂場：已關閉"></button>
+    </div>
+  </section>
+</div>
+</body>
+</html>

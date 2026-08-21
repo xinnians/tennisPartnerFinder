@@ -1,0 +1,62 @@
+<!-- @dsCard group="回饋 Feedback" name="Toast 與狀態" subtitle="v2 toast(ink 底+signal 勾)/ 地圖狀態(4態)/ 附近球局狀態列(含空清單)/ badge" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toast 與狀態回饋</title>
+<link rel="stylesheet" href="../../../styles.css">
+<style>
+.demo { padding: var(--space-5); display: grid; gap: var(--space-5); max-width: 480px; }
+.demo h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-ink); }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+.demo #map-data-status { position: static; max-width: none; }
+</style>
+</head>
+<body>
+<div class="demo">
+  <section style="display:grid; gap:var(--space-2);">
+    <h2>Toast .toast</h2>
+    <p class="demo-note">ink 深底白字 + elevation-2,水平置中浮於底部導覽列上方(非右下角);左側固定帶 .toast__check signal 黃勾(src/main.js:181-186)。容器本身無 role 屬性,由 #toast-root(index.html:157)的 aria-live="polite" aria-atomic="true" 負責通知。</p>
+    <div class="toast"><svg class="toast__check" width="15" height="15" viewBox="0 0 15 15" aria-hidden="true"><path d="M2.5 8l3.2 3.2L12.5 4" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>已送出申請，等待主揪回覆。</div>
+  </section>
+
+  <section style="display:grid; gap:var(--space-2);">
+    <h2>地圖資料狀態 chip #map-data-status(4 態)</h2>
+    <p class="demo-note">深底浮動 chip,由 src/sessionController.js 的 mapStatus 決定四種 kind:warning(可瀏覽但地圖失效)、loading、error(唯一會帶「重新載入」鈕的態)、idle(隱藏)。</p>
+    <div id="map-data-status"><p>地圖目前無法使用；你仍可瀏覽附近球局。</p></div>
+    <div id="map-data-status"><p>球局資料暫時無法載入。</p><button type="button" id="map-retry" class="session-secondary">重新載入</button></div>
+  </section>
+
+  <section style="display:grid; gap:var(--space-2);">
+    <h2>附近球局載入狀態 .nearby-sessions__status</h2>
+    <p class="demo-note">React 元件(src/pages/NearbySessionsDrawer.tsx:128-141)。載入中態 role="status"(128 行,下方示範);錯誤態是 role="alert"(135 行,未示範)。不涵蓋空清單(見下方 .discovery-empty)。</p>
+    <div class="nearby-sessions__status" role="status"><p>正在載入球局資料…</p></div>
+  </section>
+
+  <section style="display:grid; gap:var(--space-2);">
+    <h2>空清單狀態 #discovery-empty .discovery-empty</h2>
+    <p class="demo-note">與上面是不同元件(src/pages/NearbySessionsDrawer.tsx:93-107),不是 .nearby-sessions__status 的變體——先前版本誤把這段文案標成 nearby-sessions__status,已修正。</p>
+    <div id="discovery-empty" class="discovery-empty"><p>這個範圍暫時沒有可加入的球局</p></div>
+  </section>
+
+  <section style="display:grid; gap:var(--space-2);">
+    <h2>球局 badge .session-badge</h2>
+    <p class="demo-note">signal 黃=直接加入;ink 反相=開打中;candidate/host/無修飾詞三種只出現在球局詳情頁,不會出現在探索卡片上(全部見 SessionDetailSheet.tsx:354,366-367)。</p>
+    <div style="display:flex; gap:var(--space-2); flex-wrap:wrap;">
+      <span class="session-badge session-badge--instant">直接加入</span>
+      <span class="session-badge session-badge--ongoing">進行中</span>
+      <span class="session-badge session-badge--candidate">候選中</span>
+      <span class="session-badge session-badge--host">我主揪的</span>
+      <span class="session-badge">已訂場</span>
+    </div>
+  </section>
+
+  <section style="display:grid; gap:var(--space-2);">
+    <h2>圖層狀態 .player-layer-status</h2>
+    <p class="demo-note">地圖左上圖層開關下的狀態小卡(ink 深底),仍是 vanilla(src/sessionViews.js:2019-2034)。</p>
+    <p class="player-layer-status">正在載入在線球友…</p>
+  </section>
+</div>
+</body>
+</html>

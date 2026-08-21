@@ -1,0 +1,130 @@
+<!-- @dsCard group="卡片 Cards" name="Session Card" subtitle="v2 球局卡(時間磚+內容,含 compact/費用變體)/球友卡/我的球局薄卡列與狀態章" -->
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>Session Card — 球局卡片</title><link rel="stylesheet" href="../../../styles.css">
+<style>
+.demo { padding: var(--space-5); display: grid; gap: var(--space-5); max-width: 420px; }
+.demo h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-ink); }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+.demo-stack { display: grid; gap: var(--space-2); }
+</style>
+</head>
+<body>
+<div class="demo">
+  <section class="demo-stack">
+    <h2>探索清單球局卡 .session-card</h2>
+    <p class="demo-note">左時間磚(mono + tabular-nums)+ 右欄(標題列/meta/底列)。src/components/SessionCard.tsx 只有 instant/ongoing 兩種頭部 badge——沒有 candidate 分支(候選局的「候選中」徽章只出現在球局詳情頁,不會畫在探索卡上)。第二張示範費用列(feeLabel,src/components/SessionCard.tsx:55)是有填「費用備註」時才會多出的第二行 meta。</p>
+    <button type="button" class="session-card" data-testid="session-card">
+      <span class="time-tile"><span class="time-tile__start">19:00</span><span class="time-tile__date">08/12 三</span></span>
+      <span class="session-card__body">
+        <span class="session-card__title">
+          <span class="session-card__court">大安運動中心網球場</span>
+          <span class="session-badge session-badge--instant">直接加入</span>
+        </span>
+        <span class="session-card__meta">雙打 · NTRP 3.0–4.0 · 主揪 阿哲 3.5</span>
+        <span class="session-card__foot">
+          <span class="slots-brick">缺 2 位</span>
+          <span class="booked-note">✓ 已訂場</span>
+          <span class="session-card__chevron" aria-hidden="true">›</span>
+        </span>
+      </span>
+    </button>
+    <button type="button" class="session-card" data-testid="session-card">
+      <span class="time-tile time-tile--ongoing"><span class="time-tile__start">18:30</span><span class="time-tile__date">08/10 一</span></span>
+      <span class="session-card__body">
+        <span class="session-card__title">
+          <span class="session-card__court">百齡河濱公園網球場</span>
+          <span class="session-badge session-badge--ongoing">進行中</span>
+        </span>
+        <span class="session-card__meta">對拉 · NTRP 不限 · 主揪 小美 4.0</span>
+        <span class="session-card__meta">費用：場地費均分</span>
+        <span class="session-card__foot"><span class="slots-brick">缺 1 位</span><span class="session-card__chevron" aria-hidden="true">›</span></span>
+      </span>
+    </button>
+    <button type="button" class="session-card session-card--compact" data-testid="session-card">
+      <span class="time-tile"><span class="time-tile__start">18–22</span><span class="time-tile__date">08/14 五</span></span>
+      <span class="session-card__body">
+        <span class="session-card__title"><span class="session-card__court">中山運動中心 等 3 館候選</span></span>
+        <span class="session-card__meta">雙打 · NTRP 2.5–4.0 · 主揪 阿凱 3.0</span>
+        <span class="session-card__foot"><span class="slots-brick">缺 3 位</span><span class="session-card__chevron" aria-hidden="true">›</span></span>
+      </span>
+    </button>
+  </section>
+
+  <section class="demo-stack">
+    <h2>球友卡 .player-card</h2>
+    <p class="demo-note">現行唯一產生點 src/sheets/CourtPlayersSheet.tsx:51-66。結構是 strong 後面直接接 NTRP 裸文字(不包 span)、條件式在場列(格式「在線・N 分鐘前」,無 ● 字元前綴)、永遠顯示的打法列——在場列排在打法列之前。</p>
+    <button type="button" class="player-card">
+      <strong>網球阿north</strong> · NTRP 3.5
+      <span class="player-presence">在線・12 分鐘前</span>
+      <span>雙打、對拉</span>
+    </button>
+  </section>
+
+  <section class="demo-stack">
+    <h2>我的球局薄卡列 .my-session-brief + 狀態章 .my-status-chip</h2>
+    <p class="demo-note">58px 緊湊時間磚(.time-tile--compact)+ 球場名/meta 兩行 + 右側狀態章(src/pages/MySessionsPage.tsx)。狀態章四型:--host 主揪、--info 受邀中／待確認(同一 class 依情境切換文案)、--success 已確認、--danger 已婉拒。</p>
+    <div class="my-session-brief">
+      <span class="time-tile time-tile--compact"><span class="time-tile__start">19:00</span><span class="time-tile__date">08/12 三</span></span>
+      <div class="my-session-brief__body">
+        <p class="my-session-brief__court">大安運動中心網球場</p>
+        <p class="my-session-brief__meta">雙打 · NTRP 3.0–4.0 · 主揪 阿哲 3.5</p>
+      </div>
+      <span class="my-status-chip my-status-chip--host">主揪</span>
+    </div>
+    <div class="my-session-brief">
+      <span class="time-tile time-tile--compact"><span class="time-tile__start">18:30</span><span class="time-tile__date">08/13 四</span></span>
+      <div class="my-session-brief__body">
+        <p class="my-session-brief__court">中山運動中心網球場</p>
+        <p class="my-session-brief__meta">單打 · NTRP 3.0–5.0 · 主揪 公開主揪 4.0</p>
+      </div>
+      <span class="my-status-chip my-status-chip--info">受邀中</span>
+    </div>
+    <div class="my-session-brief">
+      <span class="time-tile time-tile--compact"><span class="time-tile__start">17:00</span><span class="time-tile__date">08/16 日</span></span>
+      <div class="my-session-brief__body">
+        <p class="my-session-brief__court">青年公園網球場</p>
+        <p class="my-session-brief__meta">雙打 · NTRP 2.5–4.0 · 主揪 阿凱 3.0</p>
+      </div>
+      <span class="my-status-chip my-status-chip--info">待確認</span>
+    </div>
+    <div class="my-session-brief">
+      <span class="time-tile time-tile--compact"><span class="time-tile__start">20:00</span><span class="time-tile__date">08/15 六</span></span>
+      <div class="my-session-brief__body">
+        <p class="my-session-brief__court">青年公園網球場</p>
+        <p class="my-session-brief__meta">雙打 · NTRP 2.5–4.0 · 主揪 小美 4.0</p>
+      </div>
+      <span class="my-status-chip my-status-chip--success">已確認</span>
+    </div>
+    <div class="my-session-brief">
+      <span class="time-tile time-tile--compact"><span class="time-tile__start">19:30</span><span class="time-tile__date">08/09 日</span></span>
+      <div class="my-session-brief__body">
+        <p class="my-session-brief__court">彩虹河濱網球場</p>
+        <p class="my-session-brief__meta">雙打 · NTRP 3.0–4.0 · 主揪 阿凱 3.0</p>
+      </div>
+      <span class="my-status-chip my-status-chip--danger">已婉拒</span>
+    </div>
+  </section>
+
+  <section class="demo-stack">
+    <h2>我的球局卡 .my-session-card</h2>
+    <p class="demo-note">.my-session-brief 當卡首 + 管理動作列(.my-session-card__actions)在其下(src/pages/MySessionsPage.tsx 201-264)。實際依情境最多可出現 8 顆動作鈕;「取消球局」實際 class 是 session-secondary(ActionButton 未帶 className 時的預設值),真正的 session-tertiary 是永遠會渲染、此卡先前版本完全沒畫出來的「檢舉此球局」。</p>
+    <article class="my-session-card">
+      <div class="my-session-brief">
+        <span class="time-tile time-tile--compact"><span class="time-tile__start">19:00</span><span class="time-tile__date">08/12 三</span></span>
+        <div class="my-session-brief__body">
+          <p class="my-session-brief__court">大安運動中心網球場</p>
+          <p class="my-session-brief__meta">雙打 · NTRP 3.0–4.0 · 主揪 阿哲 3.5</p>
+        </div>
+        <span class="my-status-chip my-status-chip--host">主揪</span>
+      </div>
+      <div class="my-session-card__actions">
+        <button type="button" class="session-secondary">查看球局</button>
+        <button type="button" class="session-primary">群組聊天</button>
+        <button type="button" class="session-secondary">取消球局</button>
+        <button type="button" class="session-tertiary">檢舉此球局</button>
+      </div>
+    </article>
+  </section>
+</div>
+</body>
+</html>

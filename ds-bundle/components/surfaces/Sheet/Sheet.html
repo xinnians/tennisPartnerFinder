@@ -1,0 +1,157 @@
+<!-- @dsCard group="面板 Surfaces" name="Sheet 與表單" subtitle="surface sheet + 編輯球局表單契約 + 篩選 sheet(4 fieldset)+ 球局詳情頭部摘要" -->
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>Sheet 與表單契約</title><link rel="stylesheet" href="../../../styles.css">
+<style>
+body { padding: var(--space-5); background: var(--color-surface-page); }
+.demo .surface { position: static; width: min(420px, 100%); max-height: none; }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0 0 var(--space-3); }
+</style>
+</head>
+<body>
+<div class="demo">
+  <p class="demo-note">sheet 從底部升起(手機貼底、桌機右下),上緣 1.5px ink 實線是計分板面板的識別特徵。所有表單控件手機下 ≥44px,focus 一律 3px court 綠外框。</p>
+
+  <p class="demo-note"><strong>.create-session-sheet / .create-session-form 現在是「編輯球局」表單的 class</strong>(src/sheets/EditSessionSheet.tsx),不是建立新球局的表單——真正的建局流程已改版成全螢幕的 create-v2 chip/stepper/toggle 流程(class 前綴 .create-v2__*,src/sheets/CreateSessionSheet.tsx),其視覺見 components/screens/CreateSession 卡片的截圖,不再是這種傳統表單 sheet。</p>
+  <div class="surface surface--sheet create-session-sheet">
+    <div class="surface__head">
+      <div>
+        <p class="surface__eyebrow">編輯球局</p>
+        <h2>更新已建立的球局</h2>
+      </div>
+      <button type="button" class="surface__close" aria-label="關閉編輯球局">×</button>
+    </div>
+    <form class="create-session-form" data-testid="session-edit-form">
+      <p><span class="session-badge">已訂場</span></p>
+      <label class="form-field" for="demo-edit-start-at">
+        <span>台北時間</span>
+        <input id="demo-edit-start-at" type="datetime-local" value="2026-08-12T19:00">
+      </label>
+      <div class="form-field">
+        <label for="demo-edit-court">台北市球場</label>
+        <select id="demo-edit-court"><option>大安運動中心網球場 · 大安區</option></select>
+      </div>
+      <div class="form-field">
+        <label for="demo-edit-play-type">打法</label>
+        <select id="demo-edit-play-type"><option>雙打</option></select>
+      </div>
+      <fieldset class="form-fieldset">
+        <legend>還缺幾位</legend>
+        <div class="slots-options">
+          <label><input type="radio" name="slotsMissing" value="1"><span>1 位</span></label>
+          <label><input type="radio" name="slotsMissing" value="2" checked><span>2 位</span></label>
+          <label><input type="radio" name="slotsMissing" value="3"><span>3 位</span></label>
+        </div>
+        <p class="form-hint">不含你自己。</p>
+      </fieldset>
+      <details class="form-optional">
+        <summary>進階設定（選填）</summary>
+        <fieldset class="form-fieldset">
+          <legend>適合程度（選填）</legend>
+          <div class="form-row">
+            <label class="form-field" for="demo-edit-ntrp-min"><span>最低 NTRP</span><input id="demo-edit-ntrp-min" type="number" min="1" max="7" step="0.5"></label>
+            <label class="form-field" for="demo-edit-ntrp-max"><span>最高 NTRP</span><input id="demo-edit-ntrp-max" type="number" min="1" max="7" step="0.5"></label>
+          </div>
+        </fieldset>
+        <label class="form-field" for="demo-edit-fee-note"><span>費用說明（選填，最多 500 字）</span><textarea id="demo-edit-fee-note" maxlength="500" rows="2"></textarea></label>
+      </details>
+      <p class="form-error" role="alert" hidden></p>
+      <button type="submit" class="session-primary" data-testid="session-edit-submit">儲存變更</button>
+    </form>
+  </div>
+
+  <p class="demo-note" style="margin-top:var(--space-6);">篩選 sheet 頂部 grabber(.filter-sheet__grabber,細條)+ 底部固定 .filter-sheet__footer(重設 + 主 CTA,footer 不隨內容捲動)。實際共有 4 個 fieldset(日期/NTRP 程度/打法/行政區,src/sheets/FilterSheet.tsx:81-164),日期選項含「不限」共 4 個,NTRP 區間逐字取自 src/filters.js 的 BANDS。</p>
+  <div class="surface surface--sheet filter-sheet">
+    <span class="filter-sheet__grabber" aria-hidden="true"></span>
+    <div class="surface__head filter-sheet__head">
+      <div>
+        <p class="surface__eyebrow">FILTERS</p>
+        <h2>篩選球局</h2>
+      </div>
+      <button type="button" class="surface__close" aria-label="關閉篩選">×</button>
+    </div>
+    <div class="filter-sheet__scroll">
+      <div class="filter-sheet-form">
+        <fieldset class="form-fieldset filter-sheet-section">
+          <legend>日期</legend>
+          <div class="filter-sheet-chips" role="group" aria-label="日期">
+            <button type="button" class="chip chip--form" aria-pressed="false">不限</button>
+            <button type="button" class="chip chip--form is-selected" aria-pressed="true">今天</button>
+            <button type="button" class="chip chip--form" aria-pressed="false">明天</button>
+            <button type="button" class="chip chip--form" aria-pressed="false">週末</button>
+          </div>
+        </fieldset>
+        <fieldset class="form-fieldset filter-sheet-section">
+          <legend>NTRP 程度</legend>
+          <div class="filter-sheet-band-grid" role="group" aria-label="NTRP 程度">
+            <button type="button" class="band-option" aria-pressed="false">全部</button>
+            <button type="button" class="band-option" aria-pressed="false">≤ 3.0</button>
+            <button type="button" class="band-option is-active" aria-pressed="true">3.0–4.0</button>
+            <button type="button" class="band-option" aria-pressed="false">4.0–5.0</button>
+            <button type="button" class="band-option" aria-pressed="false">5.0 +</button>
+          </div>
+        </fieldset>
+        <fieldset class="form-fieldset filter-sheet-section">
+          <legend>打法</legend>
+          <div class="filter-sheet-chips" role="group" aria-label="打法">
+            <button type="button" class="chip chip--form" aria-pressed="false">單打</button>
+            <button type="button" class="chip chip--form is-selected" aria-pressed="true">雙打</button>
+          </div>
+        </fieldset>
+        <fieldset class="form-fieldset filter-sheet-section">
+          <legend>行政區</legend>
+          <div class="filter-sheet-chips filter-sheet-chips--district" role="group" aria-label="行政區">
+            <button type="button" class="chip chip--district" aria-pressed="false">大安區</button>
+            <button type="button" class="chip chip--district is-selected" aria-pressed="true">中山區</button>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="filter-sheet__footer">
+      <button type="button" class="filters-reset" data-filter="reset">重設</button>
+      <button type="button" class="session-primary filter-sheet__apply" data-filter="apply">看 <span data-filter-count="">12</span> 場球局</button>
+    </div>
+  </div>
+
+  <p class="demo-note" style="margin-top:var(--space-6);">球局詳情 sheet 頭部:殼(.session-detail-sheet 根 + grabber)留在 vanilla adapter,內容(.session-detail 起)由 React SessionDetailSheet.tsx 掛入。.session-detail__head(74px 詳情版時間磚 + badge/球場名/時間)+ .scoreboard-strip 三格記分板 + .host-row 主揪摘要列;badges 區實際還有 ongoing/candidate/host 三種條件式徽章可搭配(見 Toast 與狀態卡片的完整清單)。</p>
+  <div class="surface surface--sheet session-detail-sheet">
+    <span class="session-detail-sheet__grabber"></span>
+    <div class="session-detail">
+      <div class="session-detail__head">
+        <span class="time-tile time-tile--detail"><span class="time-tile__start">19:00</span><span class="time-tile__date">08/12 三</span></span>
+        <div class="session-detail__headcopy">
+          <div class="session-detail__badges">
+            <span class="session-badge">已訂場</span>
+            <span class="session-badge session-badge--instant">直接加入</span>
+          </div>
+          <p class="session-detail__court">大安運動中心網球場</p>
+          <p class="session-detail__meta">大安區 · <span class="session-detail__mono">08/12(三)19:00–21:00</span></p>
+        </div>
+        <button type="button" class="session-detail__close" aria-label="關閉球局詳情">×</button>
+      </div>
+      <div class="scoreboard-strip session-detail__scoreboard">
+        <div class="scoreboard-strip__cell">
+          <p class="scoreboard-strip__eyebrow">TYPE</p>
+          <p class="scoreboard-strip__value">雙打</p>
+        </div>
+        <div class="scoreboard-strip__cell">
+          <p class="scoreboard-strip__eyebrow">NTRP</p>
+          <p class="scoreboard-strip__value scoreboard-strip__value--mono">3.0–4.0</p>
+        </div>
+        <div class="scoreboard-strip__cell scoreboard-strip__cell--inverse">
+          <p class="scoreboard-strip__eyebrow">缺額</p>
+          <p class="scoreboard-strip__value scoreboard-strip__value--mono">2 位</p>
+        </div>
+      </div>
+      <div class="host-row">
+        <span class="host-row__avatar" aria-hidden="true">阿</span>
+        <div class="host-row__copy">
+          <p class="host-row__nameline"><strong>阿哲</strong><span class="host-row__chip">主揪</span></p>
+          <p class="host-row__ntrp"><span class="session-detail__mono">NTRP 3.5</span> · 資料完整</p>
+        </div>
+        <p class="host-row__status">✓ 已訂場</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

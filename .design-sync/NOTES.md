@@ -35,3 +35,28 @@
 - `_ds_bundle.css` 對應插入四條宣告(緊接 `.toast__check` 之後,與本機
   `src/create-session.css` 位置一致);README.md 樣式語彙、元件索引同步補充。
 - 未新增 token,沿用既有 `--z-toast`/`--radius-lg`/`--radius-md`/`--color-signal` 等。
+
+## 2026-08-21 重新驗證既有 9 張卡片(repo HEAD 260ef16 起)
+
+- 背景:上次卡片內容基準是 08-11(v2 D1-D9),期間 repo 發生大規模 vanilla→React 遷移
+  (sessionViews.js 由 3990 行大量瘦身,新增 src/pages/*.tsx、src/sheets/*.tsx)。用戶要求
+  重新驗證剩下 8 張既有卡片(Bricks 除外,原生 CSS 磚無遷移疑慮)。
+- **第一輪驗證**(9 個平行 agent,含 Chips 因 schema 異常重跑一次):8 張回報有落差,
+  只有 Bricks 完全準確。落差分佈:class 名稱本身無一被改名或刪除(視覺語彙撐過遷移),
+  但 demo 呈現的結構、文案、變體覆蓋度大量過時,含一項嚴重項——Sheet 卡片的「建立公開球局」
+  子示範其實已變成編輯表單的殘餘外殼(真正建局流程改版成全螢幕 create-v2 chip/stepper 流程)。
+- **修正**:8 張卡片依驗證結果逐一重寫(Bricks 不動)。
+- **第二輪驗證**(fresh agent,不用原改寫 agent 自驗):8 張仍抓到殘留/改寫時新造的錯誤
+  (虛構文案、虛構 data-testid/aria-label、citation 行號錯誤等),只有 BottomNav 過關、
+  Sheet 無需改動(唯一落差是本機 ds-bundle/ 沒有 screens/ 目錄造成的假陽性,遠端專案實際有)。
+- **修正**:依第二輪結果對 Buttons/Chips/SessionCard/Chat/Toast/Tokens 六張再修一輪。
+- **第三輪驗證**(針對六張修正過的卡片再次 fresh agent 覆核):確認前兩輪落差全部修正
+  無誤,但抓到新的小疵(CSS 選取器鏈虛構、hit-area 數學敘述誤導、player-card 兩個 span
+  順序顛倒、Chat 卡缺 5 個一定會渲染的 data-* / aria-live / tabindex 屬性與兩個整段隱藏
+  元素、Toast 卡文字自相矛盾、Tokens 卡 --elevation-2 消費端誤植「抽屜」)。
+- **修正**:六張再修一輪,本機截圖覆核渲染無異常,已上傳。三輪修正+驗證後停止迭代
+  (第四輪預期只會抓到更瑣碎的細節,報酬遞減)。
+- 未變更:Bricks、BottomNav、Sheet 三張(Sheet 已於第二輪驗證確認準確)。
+- 品牌文案落差(球局地圖→球咖,08-15 改名)已在 BottomNav 卡修正;design-sync 專案本身
+  名稱「網球球局地圖設計系統」與 conventions.md/README 標題仍用舊名,是否要一併改名
+  待 user 決定,本輪未動。

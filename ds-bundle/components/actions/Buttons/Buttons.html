@@ -1,0 +1,107 @@
+<!-- @dsCard group="動作 Actions" name="Buttons" subtitle="primary / secondary / tertiary / instant / CTA 狀態列與選中態" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buttons — 按鈕契約</title>
+<link rel="stylesheet" href="../../../styles.css">
+<style>
+/* 展示版面(demo-only) */
+.demo { padding: var(--space-5); display: grid; gap: var(--space-5); max-width: 640px; }
+.demo h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-ink); }
+.demo-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+</style>
+</head>
+<body>
+<div class="demo">
+  <section>
+    <h2>主要動作 .session-primary</h2>
+    <p class="demo-note">ink 深底 + signal 黃字:每個畫面最多一顆的高亮主動作。</p>
+    <div class="demo-row">
+      <button type="button" class="session-primary">建立球局</button>
+      <button type="button" class="session-primary">申請加入</button>
+      <button type="button" class="session-primary" disabled>送出中…</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>直接加入態 .session-primary--instant</h2>
+    <p class="demo-note">signal 黃底 + ink 字,CSS 選取器 .session-detail__actions .session-primary--instant(src/session.css:139)限定在球局詳情作用域內生效。cta-row 實際永遠與「複製連結」次要鈕同層並列(src/sheets/SessionDetailSheet.tsx:170-179),不會只出現單顆主鈕。</p>
+    <div class="session-detail__actions">
+      <div class="cta-row">
+        <button type="button" class="session-secondary">複製連結</button>
+        <button type="button" class="session-primary session-primary--instant" data-session-action="primary">直接加入</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>次要動作 .session-secondary</h2>
+    <p class="demo-note">透明底 + 1.5px ink 實線框(--border-strong):與主動作並列的替代動作。示範取自 src/pages/MySessionsPage.tsx:585 的「重新整理」與球局詳情的「複製連結」。</p>
+    <div class="demo-row">
+      <button type="button" class="session-secondary">重新整理</button>
+      <button type="button" class="session-secondary">複製連結</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>文字鈕 .session-tertiary</h2>
+    <p class="demo-note">無框、court 綠、底線標示可點:卡片內的低權重動作。真實呼叫點語意是「檢舉」(src/sheets/SessionDetailSheet.tsx:140-142「檢舉此球局」),不是退出球局。</p>
+    <div class="demo-row">
+      <button type="button" class="session-tertiary">檢舉此球局</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>文字鈕 .cta-text-action</h2>
+    <p class="demo-note">--color-danger 紅字、無框、寬度撐滿的次動作,出現在球局詳情 CTA 列下方;class 本身是 session.css 的全域選取器,並未限定在 .session-detail__actions 作用域內(不同於真的有作用域限定的 .session-primary--instant)。文案「取消申請」由共用的 TextAction helper(src/sheets/SessionDetailSheet.tsx:148)在 kind==="waiting" 分支呼叫時傳入(同檔 198 行)。</p>
+    <div class="session-detail__actions" style="max-width:280px;">
+      <button type="button" class="cta-text-action" data-session-action="secondary">取消申請</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>CTA 狀態面板 .cta-status</h2>
+    <p class="demo-note">球局詳情主 CTA 依態切換為靜態面板(非按鈕語意即用 div,終態才用 disabled button)。--pending 與 --disabled 帶 data-session-action="primary" 屬性,--joined 沒有;--pending/--joined 前面固定帶一顆 .cta-status__icon SVG(時鐘/勾勾)(src/sheets/SessionDetailSheet.tsx:193-222,242)。</p>
+    <div class="session-detail__actions" style="display:grid; gap:var(--space-2); max-width:320px;">
+      <div class="cta-status cta-status--pending" data-session-action="primary" aria-disabled="true"><svg class="cta-status__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-secondary)" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2" stroke-linecap="round"></path></svg>已送出申請 · 等主揪確認</div>
+      <div class="cta-status cta-status--joined"><svg class="cta-status__icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>已加入這場球局</div>
+      <button type="button" class="cta-status cta-status--disabled" data-session-action="primary" disabled>已額滿</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>工具鈕與篩選 chip</h2>
+    <p class="demo-note">.topbar-icon-button 是寫死在 index.html(根目錄,非 src/)的靜態按鈕,固定帶人像 SVG。.filter-chip 實際永遠與 .chip base class 併用(class="chip filter-chip",index.html:62),且從未帶過 is-active——is-active 屬於下面的 .band-option(main.js:550、FilterSheet.tsx:110),日期 .chip 選中態走的是 is-selected(main.js:538)。.band-option 目前有兩個並存的實作:地圖頂列程度 popover 仍是 vanilla(src/main.js:1260-1274,多一顆 .band-option__check SVG 勾勾,15×15,stroke=var(--color-signal),stroke-width 3)、篩選 sheet 內是 React(src/sheets/FilterSheet.tsx:105-120,純文字無 SVG)。兩者皆帶 aria-pressed。真實 NTRP 區間見 src/filters.js 的 BANDS:全部/≤ 3.0/3.0–4.0/4.0–5.0/5.0 +(注意 ≤ 與 + 前後都有空格)。</p>
+    <div class="demo-row">
+      <button type="button" class="topbar-icon-button" aria-label="球友名單"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="8" r="3.6"/><path d="M22 21v-1.8a4 4 0 0 0-3-3.85M16.2 4.3a3.6 3.6 0 0 1 0 7.1"/></svg></button>
+      <button type="button" class="chip filter-chip" aria-label="篩選"><span class="filter-chip__badge">⋅2</span></button>
+      <button type="button" class="chip is-selected" data-date-chip="today" aria-pressed="true">今天</button>
+    </div>
+    <p class="demo-note">地圖頂列程度 popover 版(vanilla,帶 checkmark)：</p>
+    <div class="demo-row" style="max-width:200px; display:grid; gap:var(--space-1);">
+      <button type="button" class="band-option" aria-pressed="false"><span>全部</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
+      <button type="button" class="band-option is-active" aria-pressed="true"><span>3.0–4.0</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
+    </div>
+    <p class="demo-note">篩選 sheet 版(React,無 checkmark)：</p>
+    <div class="demo-row" style="max-width:200px; display:grid; gap:var(--space-1);">
+      <button type="button" class="band-option" aria-pressed="false">全部</button>
+      <button type="button" class="band-option is-active" aria-pressed="true">3.0–4.0</button>
+    </div>
+    <div class="demo-row">
+      <button type="button" class="filters-reset" data-filter="reset">重設</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>關閉鈕 .surface__close</h2>
+    <p class="demo-note">同時有 vanilla(src/sheets.js:204,登入 modal)與 React(多個 sheets/*.tsx)兩處來源,兩者都帶 data-surface-close——這是 mountDialog 綁定關閉事件的 selector(src/sheets.js:139)。</p>
+    <div class="demo-row">
+      <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
+    </div>
+  </section>
+</div>
+</body>
+</html>

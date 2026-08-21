@@ -1,0 +1,107 @@
+<!-- @dsCard group="基礎 Foundations" name="Design Tokens" subtitle="計分板配色/字階/間距/圓角/陰影/停用態/動效(v2 D1,含死碼標註)" -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Tokens — 計分板</title>
+<link rel="stylesheet" href="../../../styles.css">
+<style>
+.demo { padding: var(--space-5); display: grid; gap: var(--space-6); max-width: 720px; }
+.demo h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-xl); color: var(--color-ink); }
+.demo-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-2); }
+.demo-swatch { border: var(--border-thin); border-radius: var(--radius-md); overflow: hidden; background: var(--color-surface-card); }
+.demo-swatch__chip { height: 56px; }
+.demo-swatch__label { padding: var(--space-2); font-size: var(--text-xs); font-family: var(--font-mono); color: var(--color-text-primary); display: grid; gap: 2px; }
+.demo-row { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0; }
+.demo-bar { background: var(--color-court); height: 12px; border-radius: 2px; }
+.demo-radius-box { width: 72px; height: 48px; background: var(--color-info-bg); border: var(--border-strong); display: grid; place-items: center; font-size: var(--text-xs); font-family: var(--font-mono); }
+.demo-elev { width: 150px; padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface-card); font-size: var(--text-sm); }
+</style>
+</head>
+<body>
+<div class="demo">
+  <section>
+    <h2>色彩 Color</h2>
+    <p class="demo-note">墨綠 ink(主文字/深底)+ 球場綠 court(強調/可互動)+ optic 黃 signal(高亮訊號),紙白 page 底。全部組合已過 WCAG AA。</p>
+    <div class="demo-swatches">
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-ink)"></div><div class="demo-swatch__label"><strong>--color-ink</strong>#12291c</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-court)"></div><div class="demo-swatch__label"><strong>--color-court</strong>#1c5c3c</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-signal)"></div><div class="demo-swatch__label"><strong>--color-signal</strong>#ddf53c</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-surface-page)"></div><div class="demo-swatch__label"><strong>--color-surface-page</strong>#faf9f3</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-surface-card); border-bottom: var(--border-thin);"></div><div class="demo-swatch__label"><strong>--color-surface-card</strong>#ffffff</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-text-secondary)"></div><div class="demo-swatch__label"><strong>--color-text-secondary</strong>#46554b</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-line)"></div><div class="demo-swatch__label"><strong>--color-line</strong>#cfd8cd</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-danger)"></div><div class="demo-swatch__label"><strong>--color-danger</strong>#a1241b</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-danger-bg)"></div><div class="demo-swatch__label"><strong>--color-danger-bg</strong>#fff0ef</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-success)"></div><div class="demo-swatch__label"><strong>--color-success</strong>#1c5c3c</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-success-bg)"></div><div class="demo-swatch__label"><strong>--color-success-bg</strong>#e8f2e3</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-info-bg)"></div><div class="demo-swatch__label"><strong>--color-info-bg</strong>#eef1e7</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>字體 Typography</h2>
+    <p class="demo-note">display 只用於 eyebrow/品牌;mono 用於時間與數字(tabular-nums);內文 Noto Sans TC。mono 僅載 500/600,font-synthesis:none 不合成粗體。</p>
+    <div class="demo-row"><span style="font-family:var(--font-display); font-size:var(--text-2xl); font-weight:700;">Barlow Condensed — 球局 SCOREBOARD</span></div>
+    <div class="demo-row"><span style="font-family:var(--font-body); font-size:var(--text-md);">Noto Sans TC — 台北市網球公開球局</span></div>
+    <div class="demo-row"><span style="font-family:var(--font-mono); font-size:var(--text-md); font-weight:600; font-variant-numeric:tabular-nums;">IBM Plex Mono — 08/12 19:00–21:00</span></div>
+    <div class="demo-row" style="align-items:baseline;">
+      <span style="font-size:var(--text-xs)">xs 11</span><span style="font-size:var(--text-sm)">sm 12</span><span style="font-size:var(--text-base)">base 14</span><span style="font-size:var(--text-md)">md 15</span><span style="font-size:var(--text-lg)">lg 17</span><span style="font-size:var(--text-xl)">xl 20</span><span style="font-size:var(--text-2xl)">2xl 24</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>間距 Spacing</h2>
+    <div style="display:grid; gap:var(--space-2);">
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-1 4px</span><div class="demo-bar" style="width:4px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-2 8px</span><div class="demo-bar" style="width:8px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-3 12px</span><div class="demo-bar" style="width:12px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-4 16px</span><div class="demo-bar" style="width:16px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-5 20px</span><div class="demo-bar" style="width:20px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-6 24px</span><div class="demo-bar" style="width:24px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-7 32px</span><div class="demo-bar" style="width:32px"></div></div>
+      <div class="demo-row"><span class="demo-note" style="width:90px">space-8 40px</span><div class="demo-bar" style="width:40px"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>圓角/邊框/陰影 Radius · Border · Elevation</h2>
+    <div class="demo-row">
+      <div class="demo-radius-box" style="border-radius:var(--radius-sm)">sm 4</div>
+      <div class="demo-radius-box" style="border-radius:var(--radius-md)">md 8</div>
+      <div class="demo-radius-box" style="border-radius:var(--radius-lg)">lg 10</div>
+      <div class="demo-radius-box" style="border-radius:var(--radius-xl)">xl 16</div>
+      <div class="demo-radius-box" style="border-radius:var(--radius-pill)">pill</div>
+    </div>
+    <p class="demo-note">--radius-lg 用於 .time-tile--detail(球局詳情大時間磚);--radius-xl 用於 .toggle-switch 軌道。--border-strong:1.5px ink 實線(計分板記分格特徵框)。--border-thin:1px line。</p>
+    <div class="demo-row" style="padding: var(--space-4) 0;">
+      <div class="demo-elev" style="box-shadow:var(--elevation-1)">--elevation-1<br><span style="color:var(--color-danger)">目前無消費端(死碼)</span></div>
+      <div class="demo-elev" style="box-shadow:var(--elevation-2)">--elevation-2<br>surface(sheet/dialog)/toast/導覽列</div>
+    </div>
+    <p class="demo-note">--elevation-1 的 token 仍定義著,但 src/*.css 與 .tsx 目前查無任何消費端(grep 零命中)——曾用於 #player-directory-open 與程度 popover,批 D4a 篩選改版時被移除或改成硬寫數值,未收斂回 token。新設計不應假設它仍在生效。--elevation-2 實際消費端是 .surface(sheet/dialog 共用基底)、.toast、.app-error-notice 與底部導覽列;附近球局抽屜 .nearby-drawer 是硬寫自己的陰影值,不吃這個 token。</p>
+  </section>
+
+  <section>
+    <h2>停用態 Disabled(批 D1 新增)</h2>
+    <p class="demo-note">--color-disabled-bg/--color-disabled-text 雙 token,依 WCAG 停用控件對比豁免。除了 .cta-status--disabled 與真正的 :disabled 表單控件外,src/create-session.css 的 .create-v2__publish 也借用同一組色值作為「尚未就緒」的預設外觀——但該鈕本身 pointer-events:auto、並非原生 disabled,只是視覺上借用停用色階,不是嚴格的停用控件豁免情境。</p>
+    <div class="demo-swatches">
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-disabled-bg)"></div><div class="demo-swatch__label"><strong>--color-disabled-bg</strong>#e3e6dc</div></div>
+      <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-disabled-text)"></div><div class="demo-swatch__label"><strong>--color-disabled-text</strong>#8a978c</div></div>
+    </div>
+    <div class="demo-row" style="padding-top:var(--space-2);">
+      <button type="button" class="cta-status cta-status--disabled" disabled>已額滿</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>動效 Motion</h2>
+    <p class="demo-note">--ease-brand:cubic-bezier(0.22, 0.61, 0.36, 1),品牌 easing。keyframes qmSheetUp/qmPop/qmSlide/qmToast 皆有實際消費端;qmFade 目前定義著但全 repo 查無任何 animation: 引用(死碼)。全域已有 prefers-reduced-motion: reduce 降級,元件不應繞過。</p>
+    <div class="demo-row">
+      <code style="font-family:var(--font-mono); font-size:var(--text-sm); background:var(--color-info-bg); padding:var(--space-2) var(--space-3); border-radius:var(--radius-sm);">transition: transform 0.2s var(--ease-brand);</code>
+    </div>
+  </section>
+</div>
+</body>
+</html>

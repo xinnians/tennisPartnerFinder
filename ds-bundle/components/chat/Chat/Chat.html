@@ -1,0 +1,74 @@
+<!-- @dsCard group="聊天 Chat" name="群組聊天" subtitle="v2 泡泡三型(他人/自己/系統)+ 名冊 + 輸入區(SessionChatSheet.tsx,批 8.6)" -->
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>群組聊天</title><link rel="stylesheet" href="../../../styles.css">
+<style>
+body { padding: var(--space-5); background: var(--color-surface-page); }
+.demo .surface { position: static; width: min(420px, 100%); max-height: none; }
+.demo-note { color: var(--color-text-secondary); font-size: var(--text-sm); margin: 0 0 var(--space-3); }
+</style>
+</head>
+<body>
+<div class="demo">
+  <p class="demo-note">殼層由 src/sheets.js mountSurface 產生(&lt;section&gt; + role="dialog"/aria-modal,前面帶 .surface-backdrop 兄弟節點);內容由 src/sheets/SessionChatSheet.tsx 掛載(批 8.6,commit d4b8cd3)。泡泡三型:他人(左側,28px avatar + 泡泡,class 恆帶 chat-message--user)、自己(chat-message--user chat-message--self,右側無 avatar)、系統(chat-message--system,置中 pill)。每則訊息(含系統)都無條件帶 .chat-message__meta/&lt;time&gt;。成員限主揪與已接受參加者;封存後唯讀,composer 停用。</p>
+  <div class="surface-backdrop" data-surface-dismiss></div>
+  <section class="surface surface--sheet session-chat-sheet" id="session-chat-sheet" data-testid="session-chat-sheet" role="dialog" aria-modal="true" aria-label="球局群組聊天" tabindex="-1">
+    <div class="chat-v2__head" data-screen-label="群組聊天">
+      <button type="button" class="chat-v2__back" aria-label="關閉群組聊天" data-surface-close>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="chat-v2__head-copy">
+        <p class="chat-v2__court">大安運動中心網球場</p>
+        <p class="chat-v2__sub">今天 19:00 · 主揪 阿哲</p>
+      </div>
+    </div>
+    <div class="chat-v2__info">
+      <section class="chat-session-summary" aria-label="球局資訊">
+        <strong><span class="session-badge">已訂場</span> 大安運動中心網球場</strong>
+        <span>08/12(三)19:00–21:00 · 雙打</span>
+      </section>
+      <section class="chat-roster" aria-labelledby="chat-roster-title">
+        <h3 id="chat-roster-title">參加者</h3>
+        <div data-chat-roster>
+          <span class="chat-roster__member">阿哲 · 主揪 · NTRP 3.5</span>
+          <span class="chat-roster__member">小美 · 球友 · NTRP 4.0</span>
+          <span class="chat-roster__member">我 · 球友 · NTRP 3.5</span>
+        </div>
+      </section>
+      <p class="my-sessions-message" data-chat-loading role="status" aria-live="polite">正在讀取群組訊息…</p>
+      <p class="form-error" data-chat-error role="alert" tabindex="-1" hidden></p>
+    </div>
+    <section class="chat-feed qm-scroll" data-chat-feed aria-label="群組訊息">
+      <article class="chat-message chat-message--system" data-chat-message data-chat-message-id="demo-1" data-chat-message-kind="system" data-chat-message-self="false">
+        <div class="chat-message__bubble">
+          <p class="chat-message__body">你已加入球局,在這裡跟大家聯絡。</p>
+          <div class="chat-message__meta"><time datetime="2026-08-12T19:00:00+08:00">19:00</time></div>
+        </div>
+      </article>
+      <article class="chat-message chat-message--user" data-chat-message data-chat-message-id="demo-2" data-chat-message-kind="user" data-chat-message-self="false">
+        <span class="chat-message__avatar" aria-hidden="true">阿</span>
+        <div class="chat-message__bubble">
+          <p class="chat-message__sender">阿哲</p>
+          <p class="chat-message__body">大家好!當天球場見,我會帶兩筒新球。</p>
+          <div class="chat-message__meta"><time datetime="2026-08-12T19:02:00+08:00">19:02</time></div>
+        </div>
+      </article>
+      <article class="chat-message chat-message--user chat-message--self" data-chat-message data-chat-message-id="demo-3" data-chat-message-kind="user" data-chat-message-self="true">
+        <div class="chat-message__bubble">
+          <p class="chat-message__body">收到,我可能會晚 10 分鐘到!</p>
+          <div class="chat-message__meta"><time datetime="2026-08-12T19:05:00+08:00">19:05</time></div>
+        </div>
+      </article>
+    </section>
+    <p class="visually-hidden" data-chat-announcement role="status" aria-live="polite" aria-atomic="true"></p>
+    <p class="chat-archived-note" hidden>球局已封存；你仍可查看先前訊息，但不能再傳送。</p>
+    <form class="chat-composer" data-chat-composer>
+      <label for="demo-chat-input" class="visually-hidden">傳送純文字訊息</label>
+      <input id="demo-chat-input" type="text" autocomplete="off" maxlength="1000" placeholder="傳訊息給球局成員…" data-testid="chat-message-input" />
+      <button type="submit" class="chat-v2__send" aria-label="傳送" data-testid="chat-send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </form>
+  </section>
+</div>
+</body>
+</html>
