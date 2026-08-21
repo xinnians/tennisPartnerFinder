@@ -15,6 +15,19 @@ import {
   selectVisibleSessions,
   validBounds,
 } from "./features/discovery/discoveryFeature.ts";
+import {
+  MY_SESSION_FINAL_STATUSES,
+  MY_SESSION_OPEN_STATUSES,
+  actionKey,
+  compareSessionStart,
+  groupMySessions,
+  hostCanDecideSession,
+  hostCanEditSession,
+  sameSessionDetail,
+  staleIntentMessage,
+  terminalAction,
+  timeValue,
+} from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
@@ -67,40 +80,10 @@ function profileUnavailableMessage(readiness) {
     : "個人檔案暫時無法載入，請重新整理後再試。";
 }
 
-function terminalAction(session) {
-  const status = String(session.status || "").toLowerCase();
-  if (status === "cancelled") return "球局已取消";
-  if (status === "expired") return "球局已結束";
-  if (status === "started") return "球局已開始";
-  return null;
-}
-
-const MY_SESSION_FINAL_STATUSES = new Set(["cancelled", "expired", "played"]);
-const MY_SESSION_OPEN_STATUSES = new Set(["open", "full"]);
-const KIND_ORDER = { "host-request": 0, invite: 1, "guest-request": 2 };
-const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW_START_JOIN_WINDOW_MS = 2 * 60 * 60 * 1000;
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
 const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
-
-function timeValue(value, fallback = 0) {
-  const time = new Date(value ?? "").getTime();
-  return Number.isFinite(time) ? time : fallback;
-}
-
-function compareSessionStart(left, right) {
-  return timeValue(left?.startAt, Number.POSITIVE_INFINITY) - timeValue(right?.startAt, Number.POSITIVE_INFINITY) ||
-    Number(left?.sessionId) - Number(right?.sessionId);
-}
-
-function compareHistorySession(left, right) {
-  return (
-    timeValue(right?.updatedAt, timeValue(right?.startAt)) - timeValue(left?.updatedAt, timeValue(left?.startAt)) ||
-    timeValue(right?.startAt) - timeValue(left?.startAt) ||
-    Number(right?.sessionId) - Number(left?.sessionId)
-  );
-}
 
 /** Highest messageId present in a chat feed batch, or null when the batch is empty/unusable. */
 function latestChatMessageId(messages) {
@@ -117,87 +100,11 @@ function latestChatMessageId(messages) {
  * rows are supplied by an already-authorized roster hydrate; public discovery
  * is never used to infer them.
  */
-export function groupMySessions(items = [], now = new Date()) {
-  const currentTime = timeValue(now, Date.now());
-  const needsAction = [];
-  const upcoming = [];
-  const history = [];
-  let hasUnread = false;
-
-  for (const session of Array.isArray(items) ? items : []) {
-    if (Number(session?.unreadMessageCount) > 0) hasUnread = true;
-    const status = String(session?.status ?? "").toLowerCase();
-    const viewerRole = String(session?.viewerRole ?? "").toLowerCase();
-    const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-    const startedMoreThanADayAgo =
-      MY_SESSION_OPEN_STATUSES.has(status) && timeValue(session?.startAt, Number.NEGATIVE_INFINITY) <= currentTime - DAY_MS;
-
-    if (
-      MY_SESSION_FINAL_STATUSES.has(status) ||
-      startedMoreThanADayAgo ||
-      (viewerRole === "guest" && (participantStatus === "declined" || participantStatus === "withdrawn"))
-    ) {
-      history.push(session);
-      continue;
-    }
-
-    if (viewerRole === "guest" && participantStatus === "invited") {
-      if (session?.canRespondInvite) needsAction.push({ kind: "invite", session });
-      else history.push(session);
-      continue;
-    }
-
-    if (viewerRole === "guest" && participantStatus === "requested") {
-      if (session?.canWithdraw) needsAction.push({ kind: "guest-request", session });
-      else history.push(session);
-      continue;
-    }
-
-    if (!MY_SESSION_OPEN_STATUSES.has(status) || participantStatus !== "accepted") {
-      history.push(session);
-      continue;
-    }
-
-    upcoming.push(session);
-    if (viewerRole !== "host" || !session?.canCancel) continue;
-    const requests = (Array.isArray(session?.pendingRequests) ? session.pendingRequests : [])
-      .filter((participant) => participant?.role === "guest" && participant?.status === "requested")
-      .sort((left, right) => Number(left?.participantId) - Number(right?.participantId));
-    for (const participant of requests) needsAction.push({ kind: "host-request", participant, session });
-  }
-
-  needsAction.sort((left, right) => {
-    const kindOrder = (KIND_ORDER[left.kind] ?? 9) - (KIND_ORDER[right.kind] ?? 9);
-    return (
-      kindOrder ||
-      compareSessionStart(left.session, right.session) ||
-      Number(left.participant?.participantId ?? 0) - Number(right.participant?.participantId ?? 0)
-    );
-  });
-  upcoming.sort(compareSessionStart);
-  history.sort(compareHistorySession);
-  return {
-    hasUnread,
-    history,
-    needsAction,
-    needsActionCount: needsAction.length,
-    upcoming,
-  };
-}
+export { groupMySessions };
 
 function samePendingIntent(left, right) {
   if (!left || !right || left.action !== right.action) return false;
   return left.action !== "join" || String(left.sessionId) === String(right.sessionId);
-}
-
-function staleIntentMessage(session) {
-  if (!session) return "球局已取消、結束或不再開放，已回到附近球局。";
-  const status = String(session.status || "").toLowerCase();
-  if (isSessionFull(session)) return "球局已額滿，已回到附近球局。";
-  if (status === "cancelled") return "球局已取消，已回到附近球局。";
-  if (status === "expired") return "球局已結束，已回到附近球局。";
-  if (status === "started") return "球局已開始，已回到附近球局。";
-  return null;
 }
 
 function browserIntentStore() {
@@ -208,42 +115,8 @@ function browserIntentStore() {
   };
 }
 
-const SESSION_DETAIL_FIELDS = [
-  "sessionId",
-  "sportCode",
-  "courtId",
-  "court",
-  "courtDistrict",
-  "courtLat",
-  "courtLng",
-  "startAt",
-  "playType",
-  "ntrpMin",
-  "ntrpMax",
-  "slotsTotal",
-  "slotsRemaining",
-  "notes",
-  "status",
-  "hostNickname",
-  "hostNtrp",
-  "hostProfileComplete",
-  "venueType",
-  "rangeEnd",
-  "feeNote",
-  "joinMode",
-  "decidedAt",
-];
-
 const EXPLICIT_VIEWPORT_IDLE_GRACE_MS = MAP_IDLE_DEBOUNCE_MS * 8;
 const MAX_EXPECTED_EXPLICIT_VIEWPORTS = 6;
-
-function sameSessionDetail(left, right) {
-  return SESSION_DETAIL_FIELDS.every((key) => left?.[key] === right?.[key]);
-}
-
-function actionKey(action) {
-  return JSON.stringify([action?.label ?? "", Boolean(action?.disabled), action?.secondaryLabel ?? "", action?.note ?? ""]);
-}
 
 function createSurfaceRegistry(definitions) {
   const entries = Object.fromEntries(
@@ -1846,22 +1719,6 @@ export function createSessionController({
     );
     if (typeof api?.confirmSessionAttendance !== "function") throw new Error("目前無法確認到場。");
     return runMySessionMutation("attendance", session, authSnapshot, () => api.confirmSessionAttendance(session.sessionId), "已確認到場。");
-  }
-
-  function hostCanDecideSession(session) {
-    return (
-      String(session?.viewerRole) === "host" &&
-      Boolean(session?.canCancel) &&
-      isUndecidedCandidate(session)
-    );
-  }
-
-  function hostCanEditSession(session) {
-    return (
-      String(session?.viewerRole) === "host" &&
-      Boolean(session?.canCancel) &&
-      ["booked", "walk_on"].includes(session?.venueType)
-    );
   }
 
   async function openSessionDecision(sessionId) {
