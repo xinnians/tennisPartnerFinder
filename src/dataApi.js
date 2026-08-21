@@ -1,6 +1,38 @@
-import { DISCOVERY_WINDOW_DAYS, LAUNCH_CITY, TAIPEI_CITY_BOUNDS } from "./config.js";
+import { LAUNCH_CITY } from "./config.js";
 import { COURTS, MOCK_PLAYER_PRESENCE, MOCK_PLAYERS, MOCK_SESSION_JOIN_PREVIEWS, MOCK_SESSIONS } from "./mockData.js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "./supabaseClient.js";
+import {
+  defaultNotificationPreferences,
+  mapCourt,
+  mapCurrentProfile,
+  mapMyPlayerBlockRow,
+  mapNotificationPreferences,
+  mapPlayerDirectoryRow,
+  mapPlayerPresenceDirectoryRow,
+} from "./data/mappers/profileMappers.ts";
+import { discoveryQuery, withinBounds, withinDiscoveryQuery } from "./data/mappers/queryMappers.ts";
+import {
+  mapMockSessionJoinPreviewRow,
+  mapMockSessionSummary,
+  mapMySession,
+  mapSessionJoinPreviewRow,
+  mapSessionMessageRow,
+  mapSessionRosterRow,
+  mapSessionSummary,
+} from "./data/mappers/sessionMappers.ts";
+import { asArray, asNumber, asText, profileValues } from "./data/mappers/valueMappers.ts";
+
+export {
+  mapCurrentProfile,
+  mapMyPlayerBlockRow,
+  mapMySession,
+  mapPlayerDirectoryRow,
+  mapPlayerPresenceDirectoryRow,
+  mapSessionJoinPreviewRow,
+  mapSessionMessageRow,
+  mapSessionRosterRow,
+  mapSessionSummary,
+};
 
 async function runMockDataTestHook(name) {
   const hook = globalThis.__tennisE2ETestHooks?.dataApi?.[name];
@@ -116,8 +148,6 @@ const PLAYER_PRESENCE_DIRECTORY_COLUMNS = [
   "minutes_ago",
   "is_self",
 ];
-const NOW_START_DISCOVERY_WINDOW_MS = 2 * 60 * 60 * 1000;
-
 export const SESSION_DISCOVERY_SELECT = [...SESSION_SUMMARY_COLUMNS, ...SESSION_DISCOVERY_VENUE_COLUMNS].join(",");
 export const MY_SESSIONS_SELECT = MY_SESSION_COLUMNS.join(",");
 export const SESSION_ROSTER_SELECT = SESSION_ROSTER_COLUMNS.join(",");
@@ -211,348 +241,6 @@ export class DataApiUnavailableError extends DataApiError {
   }
 }
 
-function asNumber(value) {
-  if (value == null || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function asText(value, fallback = "") {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asBoolean(value) {
-  return value === true || value === "true";
-}
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function defaultNotificationPreferences() {
-  return {
-    chatMessageEnabled: true,
-    guestInvitedEnabled: true,
-    guestRequestReviewedEnabled: true,
-    hostNewRequestEnabled: true,
-    sessionReminderEnabled: true,
-    sessionUpdatedEnabled: true,
-  };
-}
-
-function mapNotificationPreferences(row = {}) {
-  return {
-    chatMessageEnabled: row.chat_message_enabled !== false,
-    hostNewRequestEnabled: row.host_new_request_enabled !== false,
-    guestRequestReviewedEnabled: row.guest_request_reviewed_enabled !== false,
-    guestInvitedEnabled: row.guest_invited_enabled !== false,
-    sessionReminderEnabled: row.session_reminder_enabled !== false,
-    sessionUpdatedEnabled: row.session_updated_enabled !== false,
-  };
-}
-
-function sessionSummaryValues(row = {}) {
-  return {
-    sessionId: asNumber(row.session_id),
-    sportCode: asText(row.sport_code),
-    courtId: asNumber(row.court_id),
-    court: asText(row.court),
-    courtDistrict: asText(row.court_district),
-    courtLat: asNumber(row.court_lat),
-    courtLng: asNumber(row.court_lng),
-    startAt: asText(row.start_at),
-    playType: asText(row.play_type),
-    ntrpMin: asNumber(row.ntrp_min),
-    ntrpMax: asNumber(row.ntrp_max),
-    slotsTotal: asNumber(row.slots_total),
-    slotsRemaining: asNumber(row.slots_remaining),
-    notes: asText(row.notes),
-    hostNickname: asText(row.host_nickname),
-    hostNtrp: asNumber(row.host_ntrp),
-    hostProfileComplete: asBoolean(row.host_profile_complete),
-    status: asText(row.status),
-    joinMode: asText(row.join_mode),
-    venueType: asText(row.venue_type),
-    rangeEnd: asText(row.range_end),
-    candidateCourtIds: asArray(row.candidate_court_ids).map(asNumber).filter((courtId) => courtId != null),
-    feeNote: asText(row.fee_note),
-    decidedAt: asText(row.decided_at),
-  };
-}
-
-/** Public-only mapper: every output field is intentionally named here. */
-export function mapSessionSummary(row) {
-  return sessionSummaryValues(row);
-}
-
-function mapMockSessionSummary(session = {}) {
-  return {
-    sessionId: asNumber(session.sessionId),
-    sportCode: asText(session.sportCode),
-    courtId: asNumber(session.courtId),
-    court: asText(session.court),
-    courtDistrict: asText(session.courtDistrict),
-    courtLat: asNumber(session.courtLat),
-    courtLng: asNumber(session.courtLng),
-    startAt: asText(session.startAt),
-    playType: asText(session.playType),
-    ntrpMin: asNumber(session.ntrpMin),
-    ntrpMax: asNumber(session.ntrpMax),
-    slotsTotal: asNumber(session.slotsTotal),
-    slotsRemaining: asNumber(session.slotsRemaining),
-    notes: asText(session.notes),
-    hostNickname: asText(session.hostNickname),
-    hostNtrp: asNumber(session.hostNtrp),
-    hostProfileComplete: asBoolean(session.hostProfileComplete),
-    status: asText(session.status),
-    joinMode: asText(session.joinMode),
-    venueType: asText(session.venueType, "booked"),
-    rangeEnd: asText(session.rangeEnd),
-    candidateCourtIds: asArray(session.candidateCourtIds).map(asNumber).filter((courtId) => courtId != null),
-    feeNote: asText(session.feeNote),
-    decidedAt: asText(session.decidedAt),
-  };
-}
-
-/** Authenticated history mapper, still without contact/profile identifiers. */
-export function mapMySession(row = {}) {
-  const session = sessionSummaryValues(row);
-  return {
-    sessionId: session.sessionId,
-    sportCode: session.sportCode,
-    courtId: session.courtId,
-    court: session.court,
-    courtDistrict: session.courtDistrict,
-    courtLat: session.courtLat,
-    courtLng: session.courtLng,
-    startAt: session.startAt,
-    playType: session.playType,
-    ntrpMin: session.ntrpMin,
-    ntrpMax: session.ntrpMax,
-    slotsTotal: session.slotsTotal,
-    slotsRemaining: session.slotsRemaining,
-    notes: session.notes,
-    hostNickname: session.hostNickname,
-    hostNtrp: session.hostNtrp,
-    hostProfileComplete: session.hostProfileComplete,
-    status: session.status,
-    joinMode: session.joinMode,
-    venueType: session.venueType,
-    rangeEnd: session.rangeEnd,
-    decidedAt: asText(row.decided_at),
-    feeNote: asText(row.fee_note),
-    viewerRole: asText(row.viewer_role),
-    viewerParticipantStatus: asText(row.viewer_participant_status),
-    viewerPlayedConfirmed: asBoolean(row.viewer_played_confirmed),
-    updatedAt: asText(row.updated_at),
-    canCancel: asBoolean(row.can_cancel),
-    canWithdraw: asBoolean(row.can_withdraw),
-    canConfirmPlayed: asBoolean(row.can_confirm_played),
-    canConfirmAttendance: asBoolean(row.can_confirm_attendance),
-    canRespondInvite: asBoolean(row.can_respond_invite),
-    // 未讀數是 UI 判斷（>0 顯示徽章/圓點）的輸入，不可為 null——asNumber 對缺欄位回傳
-    // null，這裡明確補一個預設 0，別的欄位允許 null 但這個不行。
-    unreadMessageCount: asNumber(row.unread_message_count) ?? 0,
-  };
-}
-
-/** Private roster mapper. It is never used for public discovery UI. */
-export function mapSessionRosterRow(row = {}) {
-  return {
-    sessionId: asNumber(row.session_id),
-    participantId: asNumber(row.participant_id),
-    profileId: asNumber(row.profile_id),
-    nickname: asText(row.nickname),
-    ntrp: asNumber(row.ntrp),
-    playTypes: asArray(row.play_types).filter((value) => typeof value === "string"),
-    homeCourts: asArray(row.home_courts).filter((value) => typeof value === "string"),
-    role: asText(row.role),
-    status: asText(row.status),
-  };
-}
-
-/** Authenticated pre-join mapper: no participant or profile identity crosses this boundary. */
-export function mapSessionJoinPreviewRow(row = {}) {
-  return {
-    sessionId: asNumber(row.session_id),
-    role: asText(row.role),
-    nickname: asText(row.nickname),
-    ntrp: asNumber(row.ntrp),
-    avatarUrl: asText(row.avatar_url),
-    hostedPlayedCount: Number(row.hosted_played_count ?? 0),
-  };
-}
-
-function mapMockSessionJoinPreviewRow(row = {}) {
-  return {
-    sessionId: asNumber(row.sessionId),
-    role: asText(row.role),
-    nickname: asText(row.nickname),
-    ntrp: asNumber(row.ntrp),
-    avatarUrl: asText(row.avatarUrl),
-    hostedPlayedCount: Number(row.hostedPlayedCount ?? 0),
-  };
-}
-
-/** Authenticated chat-feed mapper: every output field is intentionally named here. */
-export function mapSessionMessageRow(row = {}) {
-  return {
-    messageId: asNumber(row.message_id),
-    sessionId: asNumber(row.session_id),
-    senderProfileId: asNumber(row.sender_profile_id),
-    senderNickname: asText(row.sender_nickname),
-    kind: asText(row.kind),
-    body: asText(row.body),
-    createdAt: asText(row.created_at),
-    isSelf: asBoolean(row.is_self),
-  };
-}
-
-/** Authenticated block-list mapper: only the blocked profile's safe display fields are exposed. */
-export function mapMyPlayerBlockRow(row = {}) {
-  return {
-    blockedProfileId: asNumber(row.blocked_profile_id),
-    blockedNickname: asText(row.blocked_nickname),
-    createdAt: asText(row.created_at),
-  };
-}
-
-/** Public player-directory mapper: every output field is intentionally named here. */
-export function mapPlayerDirectoryRow(row = {}) {
-  return {
-    profileId: asNumber(row.profile_id),
-    nickname: asText(row.nickname),
-    ntrp: asNumber(row.ntrp),
-    playTypes: asArray(row.play_types),
-    slotCodes: asArray(row.slot_codes),
-    courtId: asNumber(row.court_id),
-    courtName: asText(row.court_name),
-    courtDistrict: asText(row.court_district),
-    courtLat: asNumber(row.court_lat),
-    courtLng: asNumber(row.court_lng),
-    isSelf: asBoolean(row.is_self),
-    playedCount: Number(row.played_count ?? 0),
-  };
-}
-
-/** Presence view mapper: its source is reciprocal-only and excludes contacts. */
-export function mapPlayerPresenceDirectoryRow(row = {}) {
-  return {
-    profileId: asNumber(row.profile_id),
-    nickname: asText(row.nickname),
-    ntrp: asNumber(row.ntrp),
-    openToGreeting: asBoolean(row.open_to_greeting),
-    courtId: asNumber(row.court_id),
-    courtName: asText(row.court_name),
-    courtDistrict: asText(row.court_district),
-    courtLat: asNumber(row.court_lat),
-    courtLng: asNumber(row.court_lng),
-    minutesAgo: asNumber(row.minutes_ago),
-    isSelf: asBoolean(row.is_self),
-  };
-}
-
-function mapCourt(row = {}) {
-  return {
-    id: asNumber(row.id),
-    name: asText(row.name),
-    city: asText(row.city),
-    district: asText(row.district),
-    lat: asNumber(row.lat),
-    lng: asNumber(row.lng),
-  };
-}
-
-export function mapCurrentProfile(row = {}, courts = []) {
-  const courtNamesById = new Map(courts.map((court) => [String(court.id), court.name]));
-  const selectedCourts = asArray(row.court_ids)
-    .map((courtId) => courtNamesById.get(String(courtId)))
-    .filter((name) => typeof name === "string");
-
-  return {
-    nick: asText(row.nickname),
-    ntrp: asNumber(row.ntrp),
-    types: new Set(asArray(row.play_types).filter((value) => typeof value === "string")),
-    courts: new Set(selectedCourts),
-    slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string")),
-    isPublic: asBoolean(row.is_public),
-    sharePresence: asBoolean(row.share_presence),
-    openToGreeting: asBoolean(row.open_to_greeting),
-  };
-}
-
-function asDate(value) {
-  if (value == null || value === "") return null;
-  const date = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function isoForQuery(value, fallback) {
-  if (typeof value === "string" && asDate(value)) return value;
-  if (value instanceof Date && asDate(value)) return value.toISOString();
-  return fallback.toISOString();
-}
-
-function normalizedBounds(bounds) {
-  const candidate = bounds ?? TAIPEI_CITY_BOUNDS;
-  const south = asNumber(candidate.south);
-  const west = asNumber(candidate.west);
-  const north = asNumber(candidate.north);
-  const east = asNumber(candidate.east);
-
-  if (south == null || west == null || north == null || east == null || south > north || west > east) {
-    return TAIPEI_CITY_BOUNDS;
-  }
-
-  return { south, west, north, east };
-}
-
-function discoveryQuery(input = {}, now = new Date()) {
-  const currentTime = asDate(now) ?? new Date();
-  const defaultStart = new Date(currentTime.getTime() - NOW_START_DISCOVERY_WINDOW_MS);
-  const defaultEnd = new Date(currentTime.getTime() + DISCOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  return {
-    bounds: normalizedBounds(input.bounds),
-    startAfter: isoForQuery(input.startAfter, defaultStart),
-    startBefore: isoForQuery(input.startBefore, defaultEnd),
-  };
-}
-
-function withinDiscoveryQuery(session, query) {
-  const lat = asNumber(session.courtLat);
-  const lng = asNumber(session.courtLng);
-  const startAt = asDate(session.startAt);
-  const startAfter = asDate(query.startAfter);
-  const startBefore = asDate(query.startBefore);
-  return (
-    lat != null &&
-    lng != null &&
-    startAt &&
-    startAfter &&
-    startBefore &&
-    lat >= query.bounds.south &&
-    lat <= query.bounds.north &&
-    lng >= query.bounds.west &&
-    lng <= query.bounds.east &&
-    startAt > startAfter &&
-    startAt < startBefore
-  );
-}
-
-function withinBounds(entry, bounds) {
-  if (!bounds) return true;
-  const lat = asNumber(entry.courtLat);
-  const lng = asNumber(entry.courtLng);
-  return (
-    lat != null &&
-    lng != null &&
-    lat >= bounds.south &&
-    lat <= bounds.north &&
-    lng >= bounds.west &&
-    lng <= bounds.east
-  );
-}
-
 function codeFromSupabaseError(error) {
   if (error?.code !== "P0001" || typeof error?.message !== "string") {
     return "UNKNOWN_ACTION_ERROR";
@@ -571,11 +259,6 @@ function asDataApiError(error) {
     code: error?.code,
     name: typeof error?.name === "string" ? error.name : "DataApiError",
   });
-}
-
-function profileValues(value) {
-  if (value instanceof Set) return [...value];
-  return Array.isArray(value) ? value : [];
 }
 
 function selectedCourtIds(profile, courts) {
