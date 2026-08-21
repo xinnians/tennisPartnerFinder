@@ -19,14 +19,12 @@ import {
   MY_SESSION_FINAL_STATUSES,
   MY_SESSION_OPEN_STATUSES,
   actionKey,
-  compareSessionStart,
   groupMySessions,
   hostCanDecideSession,
   hostCanEditSession,
   sameSessionDetail,
   staleIntentMessage,
   terminalAction,
-  timeValue,
 } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { chatMemberSession, latestChatMessageId, visibleChatMessage } from "./features/chat/chatFeature.ts";
 import {
@@ -42,11 +40,15 @@ import {
   samePendingIntent,
   sessionIdentity,
 } from "./features/profile-auth/profileAuthFeature.ts";
+import {
+  groupPlayersByCourt,
+  playerDirectoryRows,
+  selectInvitableSessions,
+} from "./features/player-directory/playerDirectoryFeature.ts";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
 
-const NOW_START_JOIN_WINDOW_MS = 2 * 60 * 60 * 1000;
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
 const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
@@ -306,26 +308,7 @@ export function createSessionController({
   }
 
   function playerGroups() {
-    const groups = new Map();
-    for (const player of read().players) {
-      const key = String(player?.courtId ?? "");
-      if (!key) continue;
-      const group = groups.get(key) ?? {
-        court: {
-          id: player.courtId,
-          name: player.courtName,
-          district: player.courtDistrict,
-          lat: Number(player.courtLat),
-          lng: Number(player.courtLng),
-        },
-        players: [],
-        presenceCount: 0,
-      };
-      group.players.push(player);
-      if (player.isPresent) group.presenceCount += 1;
-      groups.set(key, group);
-    }
-    return [...groups.values()];
+    return groupPlayersByCourt(read().players);
   }
 
   function mapStatus() {
@@ -660,51 +643,6 @@ export function createSessionController({
       publish();
       return false;
     }
-  }
-
-  function playerDirectoryRows(directoryRows, presenceRows) {
-    const presenceByProfileId = new Map(
-      (Array.isArray(presenceRows) ? presenceRows : []).map((player) => [String(player?.profileId), player])
-    );
-    const profiles = new Map();
-    for (const row of Array.isArray(directoryRows) ? directoryRows : []) {
-      const key = String(row?.profileId ?? "");
-      if (!key) continue;
-      const existing = profiles.get(key);
-      if (!existing) {
-        profiles.set(key, {
-          ...row,
-          courtDistricts: row?.courtDistrict ? [row.courtDistrict] : [],
-          courtNames: row?.courtName ? [row.courtName] : [],
-        });
-        continue;
-      }
-      if (row?.courtName && !existing.courtNames.includes(row.courtName)) existing.courtNames.push(row.courtName);
-      if (row?.courtDistrict && !existing.courtDistricts.includes(row.courtDistrict)) {
-        existing.courtDistricts.push(row.courtDistrict);
-      }
-    }
-    return [...profiles.values()]
-      .map((player) => {
-        const presence = presenceByProfileId.get(String(player.profileId));
-        const courtNames = [...player.courtNames];
-        const courtDistricts = [...player.courtDistricts];
-        return {
-          ...player,
-          courtDistrict: courtDistricts.join("、"),
-          courtDistricts,
-          courtName: courtNames.join("、"),
-          courtNames,
-          isPresent: Boolean(presence),
-          minutesAgo: presence?.minutesAgo ?? null,
-          openToGreeting: presence?.openToGreeting === true,
-        };
-      })
-      .sort(
-        (left, right) =>
-          Number(right.isPresent) - Number(left.isPresent) ||
-          String(left.nickname ?? "").localeCompare(String(right.nickname ?? ""), "zh-Hant")
-      );
   }
 
   async function loadPlayerDirectoryList() {
@@ -1166,14 +1104,7 @@ export function createSessionController({
   }
 
   function invitableSessions(now = Date.now()) {
-    return read().mySessions
-      .filter(
-        (session) =>
-          String(session?.viewerRole).toLowerCase() === "host" &&
-          String(session?.status).toLowerCase() === "open" &&
-          timeValue(session?.startAt, Number.NEGATIVE_INFINITY) > now - NOW_START_JOIN_WINDOW_MS
-      )
-      .sort(compareSessionStart);
+    return selectInvitableSessions(read().mySessions, now);
   }
 
   function openPlayer(player, { gateLevel = "ntrp", requiresLayer = true } = {}) {
