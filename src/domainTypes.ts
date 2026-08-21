@@ -1,15 +1,25 @@
 /** Core domain shapes returned by the allowlisted mappers in dataApi.js. */
 
+export type SportCode = "tennis";
+export type PlayType = "單打" | "雙打" | "對拉" | "練球";
+export type SessionStatus = "open" | "full" | "cancelled" | "played" | "expired";
+export type SessionJoinMode = "approval" | "instant";
+export type SessionVenueType = "booked" | "walk_on" | "candidates";
+export type SessionParticipantRole = "host" | "guest";
+export type SessionParticipantStatus = "requested" | "invited" | "accepted" | "declined" | "withdrawn";
+export type SessionMessageKind = "user" | "system";
+export type ProfileSlotCode = "wd-m" | "wd-a" | "wd-e" | "we-m" | "we-a" | "we-e";
+
 export interface SessionSummary {
   sessionId: number | null;
-  sportCode: string;
+  sportCode: SportCode;
   courtId: number | null;
   court: string;
   courtDistrict: string;
   courtLat: number | null;
   courtLng: number | null;
   startAt: string;
-  playType: string;
+  playType: PlayType;
   ntrpMin: number | null;
   ntrpMax: number | null;
   slotsTotal: number | null;
@@ -18,9 +28,9 @@ export interface SessionSummary {
   hostNickname: string;
   hostNtrp: number | null;
   hostProfileComplete: boolean;
-  status: string;
-  joinMode: string;
-  venueType: string;
+  status: SessionStatus;
+  joinMode: SessionJoinMode;
+  venueType: SessionVenueType;
   rangeEnd: string;
   candidateCourtIds: number[];
   feeNote: string;
@@ -35,8 +45,8 @@ export interface MySessionSummary extends Omit<SessionSummary, "candidateCourtId
   canRespondInvite: boolean;
   canWithdraw: boolean;
   updatedAt: string;
-  viewerRole: string;
-  viewerParticipantStatus: string;
+  viewerRole: SessionParticipantRole;
+  viewerParticipantStatus: SessionParticipantStatus;
   viewerPlayedConfirmed: boolean;
   unreadMessageCount: number;
 }
@@ -50,9 +60,9 @@ export interface CourtSummary {
 export interface Profile {
   nick: string;
   ntrp: number | null;
-  types: Set<string>;
+  types: Set<PlayType>;
   courts: Set<string>;
-  slots: Set<string>;
+  slots: Set<ProfileSlotCode>;
   isPublic: boolean;
   sharePresence: boolean;
   openToGreeting: boolean;
@@ -60,7 +70,7 @@ export interface Profile {
 
 export interface SessionJoinPreview {
   sessionId: number | null;
-  role: string;
+  role: SessionParticipantRole;
   nickname: string;
   ntrp: number | null;
   avatarUrl: string;
@@ -73,10 +83,10 @@ export interface SessionRosterEntry {
   profileId: number | null;
   nickname: string;
   ntrp: number | null;
-  playTypes: string[];
+  playTypes: PlayType[];
   homeCourts: string[];
-  role: string;
-  status: string;
+  role: SessionParticipantRole;
+  status: SessionParticipantStatus;
 }
 
 export type SessionRoster = SessionRosterEntry[];
@@ -86,7 +96,7 @@ export interface ChatMessage {
   sessionId: number | null;
   senderProfileId: number | null;
   senderNickname: string;
-  kind: string;
+  kind: SessionMessageKind;
   body: string;
   createdAt: string;
   isSelf: boolean;
