@@ -29,57 +29,22 @@ import {
   timeValue,
 } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { chatMemberSession, latestChatMessageId, visibleChatMessage } from "./features/chat/chatFeature.ts";
+import {
+  authSnapshotForState,
+  authSnapshotIsCurrent,
+  browserIntentStore,
+  profileGateForIntent,
+  profileIsPublic,
+  profileIsReady,
+  profileMeetsGate,
+  profileReadiness,
+  profileUnavailableMessage,
+  samePendingIntent,
+  sessionIdentity,
+} from "./features/profile-auth/profileAuthFeature.ts";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
-import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
 import { createStore } from "./sessionStore.ts";
-
-function sessionIdentity(session) {
-  const value = session?.user?.id ?? session?.access_token ?? null;
-  return value == null ? null : String(value);
-}
-
-function profileMeetsGate(eligibility, level) {
-  return eligibility?.[level] === true;
-}
-
-function profileGateForIntent(intent) {
-  if (["create", "players"].includes(intent?.action)) return "ntrp";
-  if (["directory", "visibility"].includes(intent?.action)) return "directory";
-  if (intent?.action === "join") return "nickname";
-  return null;
-}
-
-function profileIsPublic(eligibility) {
-  return eligibility?.isPublic === true;
-}
-
-function profileReadiness(eligibility, level = null) {
-  if (eligibility?.status === "loading") return { source: "profile", state: "loading" };
-  if (eligibility?.status === "error") return { source: "profile", state: "error" };
-  if (level === "directory" && eligibility?.directoryStatus === "loading") {
-    return { source: "courts", state: "loading" };
-  }
-  if (level === "directory" && eligibility?.directoryStatus === "error") {
-    return { source: "courts", state: "error" };
-  }
-  return { source: null, state: "ready" };
-}
-
-function profileIsReady(eligibility, level = null) {
-  return profileReadiness(eligibility, level).state === "ready";
-}
-
-function profileUnavailableMessage(readiness) {
-  if (readiness.source === "courts") {
-    return readiness.state === "loading"
-      ? "正在讀取球場資料，請稍候。"
-      : "球場資料暫時無法載入，請稍後再試。";
-  }
-  return readiness.state === "loading"
-    ? "正在讀取個人檔案，請稍候。"
-    : "個人檔案暫時無法載入，請重新整理後再試。";
-}
 
 const NOW_START_JOIN_WINDOW_MS = 2 * 60 * 60 * 1000;
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
@@ -92,19 +57,6 @@ const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖
  * is never used to infer them.
  */
 export { groupMySessions };
-
-function samePendingIntent(left, right) {
-  if (!left || !right || left.action !== right.action) return false;
-  return left.action !== "join" || String(left.sessionId) === String(right.sessionId);
-}
-
-function browserIntentStore() {
-  return {
-    clear: () => clearPendingIntent(),
-    read: () => readPendingIntent(),
-    save: (intent) => savePendingIntent(intent),
-  };
-}
 
 const EXPLICIT_VIEWPORT_IDLE_GRACE_MS = MAP_IDLE_DEBOUNCE_MS * 8;
 const MAX_EXPECTED_EXPLICIT_VIEWPORTS = 6;
@@ -603,15 +555,11 @@ export function createSessionController({
   }
 
   function captureAuthSnapshot() {
-    return { epoch: read().authEpoch, identity: sessionIdentity(read().authSession) };
+    return authSnapshotForState(read());
   }
 
   function isCurrentAuthSnapshot(snapshot) {
-    return (
-      Boolean(snapshot?.identity) &&
-      snapshot.epoch === read().authEpoch &&
-      sessionIdentity(read().authSession) === snapshot.identity
-    );
+    return authSnapshotIsCurrent(snapshot, read());
   }
 
   function lifecycleActionKey(sessionId, identity = sessionIdentity(read().authSession)) {
