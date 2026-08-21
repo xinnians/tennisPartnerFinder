@@ -3,13 +3,15 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
+import type {
+  ControllerCallbackResult as CallbackResult,
+  ControllerIdentifier as Identifier,
+} from "../controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
 import { mySessionsPageRuntime } from "../sessionPresentation.ts";
 
-type Identifier = number | string | null | undefined;
-type CallbackResult = unknown | Promise<unknown>;
 type MySessionsSegment = "hosted" | "joined";
 type MySessionsVenue = ReturnType<typeof mySessionsPageRuntime.sessionVenuePresentation>;
 

@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
+import type { ControllerCallbackResult as CallbackResult } from "../controllerContracts.ts";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
 import { mePageRuntime } from "../sessionPresentation.ts";
 
@@ -43,8 +44,6 @@ interface PresenceSettingsInput {
   openToGreeting?: boolean;
   sharePresence?: boolean;
 }
-
-type CallbackResult = unknown | Promise<unknown>;
 
 export interface MePageOptions {
   authSession?: AuthSession | null;

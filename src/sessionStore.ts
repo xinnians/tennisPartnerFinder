@@ -11,20 +11,22 @@ export type StorePatch<S> = Partial<S> | ((state: Readonly<S>) => Partial<S>);
 /** 通道訂閱者;派發時收到當下的狀態快照。 */
 export type StoreListener<S> = (state: Readonly<S>) => void;
 
-export interface Store<S extends object> {
+export interface Store<S extends object = SessionControllerState, Channel extends string = ControllerEventName> {
   /** 目前狀態快照。每次寫入都會換成新的頂層物件,呼叫端不可跨 await 快取。 */
   getState: () => Readonly<S>;
   /** 合併寫入指定欄位,回傳寫入後的快照;不派發任何通道。 */
   setState: (patch: StorePatch<S>) => Readonly<S>;
   /** 訂閱具名通道,回傳解除訂閱函式。 */
-  subscribe: (channel: string, listener: StoreListener<S>) => () => void;
+  subscribe: (channel: Channel, listener: StoreListener<S>) => () => void;
   /** 以目前快照同步派發指定通道的所有訂閱者,依訂閱順序逐一呼叫。 */
-  emit: (channel: string) => void;
+  emit: (channel: Channel) => void;
 }
 
-export function createStore<S extends object>(initialState: S): Store<S> {
+export function createStore<S extends object = SessionControllerState, Channel extends string = ControllerEventName>(
+  initialState: S
+): Store<S, Channel> {
   let state: Readonly<S> = { ...initialState };
-  const channels = new Map<string, Set<StoreListener<S>>>();
+  const channels = new Map<Channel, Set<StoreListener<S>>>();
 
   const getState = (): Readonly<S> => state;
 
@@ -34,7 +36,7 @@ export function createStore<S extends object>(initialState: S): Store<S> {
     return state;
   };
 
-  const subscribe = (channel: string, listener: StoreListener<S>): (() => void) => {
+  const subscribe = (channel: Channel, listener: StoreListener<S>): (() => void) => {
     const listeners = channels.get(channel) ?? new Set<StoreListener<S>>();
     channels.set(channel, listeners);
     listeners.add(listener);
@@ -44,7 +46,7 @@ export function createStore<S extends object>(initialState: S): Store<S> {
   };
 
   // 派發期間若有訂閱者增減,以派發當下的名單為準,避免同一次派發漏叫或重複叫。
-  const emit = (channel: string): void => {
+  const emit = (channel: Channel): void => {
     const listeners = channels.get(channel);
     if (!listeners) return;
     for (const listener of [...listeners]) listener(state);
@@ -52,3 +54,4 @@ export function createStore<S extends object>(initialState: S): Store<S> {
 
   return { emit, getState, setState, subscribe };
 }
+import type { ControllerEventName, SessionControllerState } from "./controllerContracts.ts";
