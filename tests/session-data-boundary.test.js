@@ -395,7 +395,7 @@ test("my-profile mapping preserves an absent NTRP instead of inventing a default
   assert.equal(profile.ntrp, null);
 });
 
-test("main forwards every Stage 1–3 data API capability into the session controller", async () => {
+test("main forwards every non-notification Stage 1–3 data API capability into the session controller", async () => {
   const expectedKeys = [
     "updateSession",
     "decideSessionCourt",
@@ -404,8 +404,6 @@ test("main forwards every Stage 1–3 data API capability into the session contr
     "markSessionChatRead",
     "setPlayerBlock",
     "loadMyPlayerBlocks",
-    "loadCourtSubscriptions",
-    "saveCourtSubscriptions",
     "loadSessionJoinPreview",
   ];
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
@@ -416,6 +414,27 @@ test("main forwards every Stage 1–3 data API capability into the session contr
   for (const key of expectedKeys) {
     assert.match(apiBlock, new RegExp(`\\b${key},`), `${key} is passed to createSessionController`);
     assert.equal(typeof api[key], "function", `${key} remains available from dataApi`);
+  }
+});
+
+test("the notification feature owns every notification data API capability", async () => {
+  const expectedKeys = [
+    "loadNotificationPreferences",
+    "loadCourtSubscriptions",
+    "saveNotificationPreferences",
+    "saveCourtSubscriptions",
+    "savePushSubscription",
+  ];
+  const source = await readFile(
+    new URL("../src/features/notifications/notificationFeature.ts", import.meta.url),
+    "utf8"
+  );
+  const importBlock = source.match(/import \{([\s\S]*?)\} from "\.\.\/\.\.\/dataApi\.js";/)?.[1] ?? "";
+
+  assert.notEqual(importBlock, "", "notification data API source scan must inspect a nonempty block");
+  for (const key of expectedKeys) {
+    assert.match(importBlock, new RegExp(`\\b${key},?`), `${key} is imported by the notification feature`);
+    assert.match(source, new RegExp(`\\b${key}\\(`), `${key} is called by the notification feature`);
   }
 });
 

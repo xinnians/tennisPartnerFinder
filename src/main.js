@@ -24,7 +24,7 @@ if (import.meta.env.PROD) {
   });
 }
 
-import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL, WEB_PUSH_VAPID_PUBLIC_KEY } from "./config.js";
+import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.js";
 import { BANDS, countActiveFilters, joinableSessionCount } from "./filters.js";
 import {
   createMap,
@@ -51,11 +51,9 @@ import {
   inviteToSession,
   linkLoginIdentity,
   loadCourts,
-  loadCourtSubscriptions,
   loadCurrentProfile,
   loadMySessions,
   loadMyPlayerBlocks,
-  loadNotificationPreferences,
   loadPlayerDirectory,
   loadPlayerPresenceDirectory,
   loadSessionDiscovery,
@@ -69,10 +67,7 @@ import {
   postSessionMessage,
   requestToJoinSession,
   respondToSessionInvite,
-  saveCourtSubscriptions,
   saveCurrentProfile,
-  saveNotificationPreferences,
-  savePushSubscription,
   signInWithOAuthProvider,
   signOut,
   setPlayerVisibility,
@@ -111,7 +106,10 @@ import {
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
 import { canReceiveFocus, shouldReleasePendingMeFocus } from "./meFocus.js";
-import { enableBrowserPush } from "./notificationPush.js";
+import {
+  createNotificationFeature,
+  defaultNotificationSettings,
+} from "./features/notifications/notificationFeature.ts";
 import { createPresenceTracker } from "./playerPresence.js";
 import { eligibilityFromPrivateProfile } from "./profile.js";
 import { createRequestGate } from "./requestGate.js";
@@ -330,23 +328,6 @@ async function updateOpenToGreetingSetting(open) {
   currentProfile = { ...(currentProfile ?? defaultProfile()), openToGreeting: open === true };
   rerenderVisibleNotificationSettings();
   toast(open ? "已開啟接受現場問候。" : "已關閉接受現場問候。");
-}
-
-function defaultNotificationSettings() {
-  return {
-    courtIds: [],
-    errorMessage: "",
-    prefs: {
-      chatMessageEnabled: true,
-      guestInvitedEnabled: true,
-      guestRequestReviewedEnabled: true,
-      hostNewRequestEnabled: true,
-      sessionReminderEnabled: true,
-      sessionUpdatedEnabled: true,
-    },
-    pushStatus: "idle",
-    webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
-  };
 }
 
 function currentAuthAvatarUrl() {
@@ -856,126 +837,36 @@ function rerenderVisibleNotificationSettings() {
   else if (activePage === "me") renderMeDestination();
 }
 
-async function refreshNotificationSettings() {
-  const request = captureAuthRequest();
-  if (!request.identity || !authSession || !isSupabaseConfigured) return false;
-  try {
-    const [prefs, courtIds] = await Promise.all([
-      loadNotificationPreferences(),
-      loadCourtSubscriptions(),
-    ]);
-    if (request.isStale()) return false;
-    notificationSettings = {
-      ...notificationSettings,
-      courtIds,
-      errorMessage: "",
-      prefs,
-      webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
-    };
-  } catch {
-    if (request.isStale()) return false;
-    notificationSettings = {
-      ...notificationSettings,
-      errorMessage: "通知設定暫時無法載入，請稍後再試。",
-    };
-  }
-  rerenderVisibleNotificationSettings();
-  return true;
+const notificationFeature = createNotificationFeature({
+  captureAuthRequest,
+  getAuthSession: () => authSession,
+  getCourts: () => courts,
+  getSettings: () => notificationSettings,
+  rerenderVisibleSettings: rerenderVisibleNotificationSettings,
+  setSettings: (settings) => {
+    notificationSettings = settings;
+  },
+  toast,
+});
+
+function refreshNotificationSettings() {
+  return notificationFeature.refreshNotificationSettings();
 }
 
-async function updateNotificationPreferences(preferences) {
-  const request = captureAuthRequest();
-  if (!request.identity || !authSession) throw new Error("請先登入後再調整通知設定。");
-  const nextPreferences = {
-    chatMessageEnabled: preferences?.chatMessageEnabled === true,
-    guestInvitedEnabled: preferences?.guestInvitedEnabled === true,
-    guestRequestReviewedEnabled: preferences?.guestRequestReviewedEnabled === true,
-    hostNewRequestEnabled: preferences?.hostNewRequestEnabled === true,
-    sessionReminderEnabled: preferences?.sessionReminderEnabled === true,
-    sessionUpdatedEnabled: preferences?.sessionUpdatedEnabled === true,
-  };
-  await saveNotificationPreferences(nextPreferences);
-  if (request.isStale()) return;
-  notificationSettings = { ...notificationSettings, errorMessage: "", prefs: nextPreferences };
-  rerenderVisibleNotificationSettings();
-  toast("通知偏好已儲存。");
+function updateNotificationPreferences(preferences) {
+  return notificationFeature.updateNotificationPreferences(preferences);
 }
 
-async function updateCourtSubscriptions(courtIds) {
-  const request = captureAuthRequest();
-  if (!request.identity || !authSession) throw new Error("請先登入後再調整通知設定。");
-  const nextCourtIds = [
-    ...new Set(
-      (Array.isArray(courtIds) ? courtIds : [])
-        .map(Number)
-        .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
-    ),
-  ];
-  const activeTaipeiCourtCount = courts.filter((court) => court?.city === "台北市").length;
-  if (activeTaipeiCourtCount > 0 && nextCourtIds.length > activeTaipeiCourtCount) {
-    throw new Error("訂閱球場數量超過目前可選的台北市球場。");
-  }
-  await saveCourtSubscriptions(nextCourtIds);
-  if (request.isStale()) return;
-  notificationSettings = { ...notificationSettings, courtIds: nextCourtIds, errorMessage: "" };
-  rerenderVisibleNotificationSettings();
-  toast("球場訂閱已儲存。");
+function updateCourtSubscriptions(courtIds) {
+  return notificationFeature.updateCourtSubscriptions(courtIds);
 }
 
-/**
- * 新帳號第一次把個人檔案存進資料庫時,預設訂閱全部台北市 active 球場。
- *
- * 只在存檔前資料庫沒有任何 profiles 列時執行(見 storedProfileExists 的說明),所以
- * 它永遠不會覆蓋任何既有選擇——包含「先在通知設定訂了再全部取消、之後才建檔」這條路徑,
- * 因為那次取消已經讓 ensure_notification_profile 建好了列。
- *
- * 走既有的 saveCourtSubscriptions(set_court_subscriptions RPC),不新開資料路徑。
- * 任何失敗都吞掉:個人檔案是主要動作,訂閱種入是附帶的,不可讓使用者看到存檔失敗。
- */
-async function seedAllTaipeiCourtSubscriptions() {
-  const request = captureAuthRequest();
-  const courtIds = courts
-    .filter((court) => court?.city === "台北市")
-    .map((court) => Number(court?.id))
-    .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0);
-  // 球場清單還沒載入就跳過:寧可不種,也不能因此讓存檔流程出錯。
-  if (!courtIds.length) return;
-  try {
-    await saveCourtSubscriptions(courtIds);
-  } catch {
-    return;
-  }
-  if (request.isStale()) return;
-  notificationSettings = { ...notificationSettings, courtIds, errorMessage: "" };
-  rerenderVisibleNotificationSettings();
+function seedAllTaipeiCourtSubscriptions() {
+  return notificationFeature.seedAllTaipeiCourtSubscriptions();
 }
 
-async function enablePushNotifications() {
-  const request = captureAuthRequest();
-  if (!request.identity || !authSession) throw new Error("請先登入後再開啟推播。");
-  if (!WEB_PUSH_VAPID_PUBLIC_KEY.trim()) {
-    notificationSettings = { ...notificationSettings, pushStatus: "unsupported" };
-    rerenderVisibleNotificationSettings();
-    return "unsupported";
-  }
-  const result = await enableBrowserPush({ vapidPublicKey: WEB_PUSH_VAPID_PUBLIC_KEY });
-  if (request.isStale()) return;
-  if (result.status !== "granted" || !result.subscription) {
-    const pushStatus = result.status === "denied" ? "denied" : result.status === "unsupported" ? "unsupported" : "idle";
-    notificationSettings = {
-      ...notificationSettings,
-      errorMessage: "",
-      pushStatus,
-    };
-    rerenderVisibleNotificationSettings();
-    return pushStatus;
-  }
-  await savePushSubscription(result.subscription);
-  if (request.isStale()) return;
-  notificationSettings = { ...notificationSettings, errorMessage: "", pushStatus: "enabled" };
-  rerenderVisibleNotificationSettings();
-  toast("已開啟推播通知。");
-  return "enabled";
+function enablePushNotifications() {
+  return notificationFeature.enablePushNotifications();
 }
 
 function renderMySessionsDestination() {
@@ -1494,8 +1385,6 @@ function init() {
       setPlayerBlock,
       setOpenToGreeting,
       setPresenceSharing,
-      loadCourtSubscriptions,
-      saveCourtSubscriptions,
       postSessionMessage,
       updateSession,
       updateMyPresence,
