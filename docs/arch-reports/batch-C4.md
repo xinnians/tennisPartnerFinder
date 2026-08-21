@@ -10,7 +10,7 @@
 
 controller 內盤點到的 profile/auth orchestration 是 `captureAuthSnapshot` wrapper、`isCurrentAuthSnapshot` wrapper、`requireReadyProfile`、`requireSessionAction`、`openProfileForIntent`、`resumePendingIntent` 與 `setAuthState`。其中 `setAuthState` 會依 identity、三層 gate 與 readiness 決定 auth epoch、關閉 surface、清 player cache、清 participation，再 reload；這段刻意留在 controller，避免改動跨 feature 時序。
 
-`main.js` 仍負責 auth session 與完整 profile 的來源（1309–1403），並在 484、1310、1322、1353、1362 呼叫 `controller.setAuthState`。`sessionViews.js` 仍只負責表單端 gate 提示，沒有改成依賴 controller feature。
+`main.js` 仍負責 auth session 與完整 profile 的來源（1309–1403），並在 484、1310、1322、1353、1362、1391 呼叫 `controller.setAuthState`。`sessionViews.js` 仍只負責表單端 gate 提示，沒有改成依賴 controller feature。
 
 ## 搬移對照
 
