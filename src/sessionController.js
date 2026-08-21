@@ -5,91 +5,20 @@ import {
   MAP_IDLE_DEBOUNCE_MS,
   TAIPEI_CITY_BOUNDS,
 } from "./config.js";
-import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "./filters.js";
+import { DEFAULT_FILTER_STATE } from "./filters.js";
+import {
+  boundsContainSession,
+  cloneBounds,
+  cloneFilters,
+  mapStatusForState,
+  representsExpectedViewport,
+  selectVisibleSessions,
+  validBounds,
+} from "./features/discovery/discoveryFeature.ts";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
 import { createStore } from "./sessionStore.ts";
-
-function cloneFilters() {
-  return {
-    ...DEFAULT_FILTER_STATE,
-    types: new Set(DEFAULT_FILTER_STATE.types),
-    districts: new Set(DEFAULT_FILTER_STATE.districts),
-  };
-}
-
-function cloneBounds(bounds) {
-  const candidate = bounds ?? TAIPEI_CITY_BOUNDS;
-  return {
-    south: Number(candidate.south),
-    west: Number(candidate.west),
-    north: Number(candidate.north),
-    east: Number(candidate.east),
-  };
-}
-
-function validBounds(bounds) {
-  const values = [bounds?.south, bounds?.west, bounds?.north, bounds?.east].map(Number);
-  return values.every(Number.isFinite) && values[0] <= values[2] && values[1] <= values[3];
-}
-
-function viewportCenter(bounds) {
-  if (!validBounds(bounds)) return null;
-  return {
-    lat: (Number(bounds.south) + Number(bounds.north)) / 2,
-    lng: (Number(bounds.west) + Number(bounds.east)) / 2,
-  };
-}
-
-function viewportSpan(bounds) {
-  if (!validBounds(bounds)) return null;
-  return {
-    lat: Number(bounds.north) - Number(bounds.south),
-    lng: Number(bounds.east) - Number(bounds.west),
-  };
-}
-
-/**
- * Google can report the post-fit viewport with padding, so expected idles
- * cannot use exact coordinate equality. Keep the center tight enough that a
- * real pan still wins, while accepting modest viewport expansion from fitBounds.
- */
-function representsExpectedViewport(actual, expected) {
-  const actualCenter = viewportCenter(actual);
-  const expectedCenter = viewportCenter(expected);
-  const actualSpan = viewportSpan(actual);
-  const expectedSpan = viewportSpan(expected);
-  if (!actualCenter || !expectedCenter || !actualSpan || !expectedSpan) return false;
-  if (expectedSpan.lat <= 0 || expectedSpan.lng <= 0 || actualSpan.lat <= 0 || actualSpan.lng <= 0) return false;
-
-  const latCenterTolerance = Math.max(0.001, Math.max(actualSpan.lat, expectedSpan.lat) * 0.05);
-  const lngCenterTolerance = Math.max(0.001, Math.max(actualSpan.lng, expectedSpan.lng) * 0.05);
-  const latScale = actualSpan.lat / expectedSpan.lat;
-  const lngScale = actualSpan.lng / expectedSpan.lng;
-  return (
-    Math.abs(actualCenter.lat - expectedCenter.lat) <= latCenterTolerance &&
-    Math.abs(actualCenter.lng - expectedCenter.lng) <= lngCenterTolerance &&
-    latScale >= 0.5 &&
-    latScale <= 2 &&
-    lngScale >= 0.5 &&
-    lngScale <= 2
-  );
-}
-
-function boundsContainSession(bounds, session) {
-  if (!validBounds(bounds)) return false;
-  const lat = Number(session?.courtLat);
-  const lng = Number(session?.courtLng);
-  return (
-    Number.isFinite(lat) &&
-    Number.isFinite(lng) &&
-    lat >= Number(bounds.south) &&
-    lat <= Number(bounds.north) &&
-    lng >= Number(bounds.west) &&
-    lng <= Number(bounds.east)
-  );
-}
 
 function sessionIdentity(session) {
   const value = session?.user?.id ?? session?.access_token ?? null;
@@ -557,7 +486,7 @@ export function createSessionController({
   const inFlightLifecycleActions = new Map();
 
   function visibleSessions() {
-    return sortSessionsForDrawer(filterSessions(read().sessions, read().filters), read().userLocation, new Date(), read().courts);
+    return selectVisibleSessions(read());
   }
 
   function playerGroups() {
@@ -584,10 +513,7 @@ export function createSessionController({
   }
 
   function mapStatus() {
-    if (read().mapUnavailable) return { kind: "warning", message: "地圖目前無法使用；你仍可瀏覽附近球局。" };
-    if (read().discoveryStatus === "loading") return { kind: "loading", message: "正在載入球局資料…" };
-    if (read().discoveryStatus === "error") return { kind: "error", message: "球局資料暫時無法載入。" };
-    return { kind: "idle", message: "" };
+    return mapStatusForState(read());
   }
 
   // 通道 1「map」:球局列表、圖釘與球友圖層。派發一律由 publish() 顯式觸發,不做
