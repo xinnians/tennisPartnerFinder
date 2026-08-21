@@ -48,7 +48,9 @@ main 單向推送）。33 個頂層 `let` 逐一分類：遷移進 store／保�
 ## 凍結白名單
 
 - 可動：`src/app/**`（新）、`src/main.js`（D3 起）、`src/sessionViews.js`（D2/D4 縮減）、
-  `src/sheets.js`（D2）、pages／sheets 的 mount 接線、綁內部結構的契約測試。
+  `src/sheets.js`（D2）、`src/sessionController.js`（D3 起，限單一 owner 所需的 store
+  欄位／API 接線；2026-08-21 終驗補註——原版漏列，D3 實作經逐行檢視無夾帶，判可接受）、
+  pages／sheets 的 mount 接線、綁內部結構的契約測試。
 - 禁動：`src/map.js`／`src/pins.js` 的 imperative 介面方向、dataApi／features 層、
   所有對外可觀察行為。
 
