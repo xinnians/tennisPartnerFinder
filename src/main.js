@@ -122,8 +122,6 @@ installGlobalErrorHandlers(globalThis.window, {
 
 let google = null;
 let map = null;
-let courts = [];
-let courtsReady = false;
 // openFilters() 開啟篩選 sheet 時的資料來源,亦是 renderFilters 判斷 badge N 的依據。
 let latestFilters = null;
 // 批 C1 Task 3:目前開著的篩選 sheet(未開時為 null)。renderFilters 靠它把地圖控件
@@ -136,9 +134,6 @@ let playerMarkers = [];
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 const authRequestGate = createRequestGate();
-let currentAuthIdentity = null;
-let authSession = null;
-let currentProfile = null;
 // 資料庫裡是否已經有這個帳號的 profiles 列。
 // 這是「這人有沒有表態過球場訂閱」的唯一可靠訊號:private.ensure_notification_profile()
 // (202607230001:93)在任何通知 RPC 上都會 insert 一列 profiles,所以「沒有列」等價於
@@ -147,7 +142,12 @@ let currentProfile = null;
 let storedProfileExists = false;
 let activeProfileCompletion = null;
 
-function currentProfileEligibility(profile = currentProfile) {
+function getAppState() {
+  return controller?.getAppState?.() ?? { authSession: null, courts: [], courtsReady: false, profile: null };
+}
+
+function currentProfileEligibility(profile = getAppState().profile) {
+  const { courts, courtsReady } = getAppState();
   return eligibilityFromPrivateProfile(profile, {
     courts,
     courtsReady,
@@ -256,10 +256,11 @@ function defaultProfile() {
 }
 
 function presenceSettingsForProfile() {
+  const profile = getAppState().profile;
   return {
     locationStatus: presenceLocationStatus,
-    openToGreeting: currentProfile?.openToGreeting === true,
-    sharePresence: currentProfile?.sharePresence === true,
+    openToGreeting: profile?.openToGreeting === true,
+    sharePresence: profile?.sharePresence === true,
   };
 }
 
@@ -275,8 +276,9 @@ function updatePresenceLocationStatus(status) {
 }
 
 function reconcilePresenceTracking() {
+  const { authSession, profile } = getAppState();
   const eligible = currentProfileEligibility();
-  const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && currentProfile?.sharePresence === true);
+  const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && profile?.sharePresence === true);
   if (!canTrack) {
     stopPresenceTracking();
     return false;
@@ -299,6 +301,7 @@ function reconcilePresenceTracking() {
 
 async function updatePresenceSharing(shared) {
   const request = captureAuthRequest();
+  const { authSession, profile } = getAppState();
   if (!request.identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
   if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
@@ -306,7 +309,7 @@ async function updatePresenceSharing(shared) {
   }
   await setPresenceSharing(shared === true);
   if (request.isStale()) throw new Error("登入狀態已變更，請重新整理後再試。");
-  currentProfile = { ...(currentProfile ?? defaultProfile()), sharePresence: shared === true };
+  controller.setProfile({ ...(profile ?? defaultProfile()), sharePresence: shared === true });
   if (shared) reconcilePresenceTracking();
   else {
     stopPresenceTracking();
@@ -318,6 +321,7 @@ async function updatePresenceSharing(shared) {
 
 async function updateOpenToGreetingSetting(open) {
   const request = captureAuthRequest();
+  const { authSession, profile } = getAppState();
   if (!request.identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
   if (!currentProfileEligibility().ntrp) {
     openProfileCompletion({ intent: { action: "presence" } });
@@ -325,12 +329,13 @@ async function updateOpenToGreetingSetting(open) {
   }
   await setOpenToGreeting(open === true);
   if (request.isStale()) throw new Error("登入狀態已變更，請重新整理後再試。");
-  currentProfile = { ...(currentProfile ?? defaultProfile()), openToGreeting: open === true };
+  controller.setProfile({ ...(profile ?? defaultProfile()), openToGreeting: open === true });
   rerenderVisibleNotificationSettings();
   toast(open ? "已開啟接受現場問候。" : "已關閉接受現場問候。");
 }
 
 function currentAuthAvatarUrl() {
+  const { authSession } = getAppState();
   const metadata = authSession?.user?.user_metadata ?? {};
   return metadata.avatar_url ?? metadata.picture ?? "";
 }
@@ -348,6 +353,7 @@ const bootAuthParams = (() => {
 })();
 
 function currentLinkedProviders() {
+  const { authSession } = getAppState();
   return (authSession?.user?.identities ?? []).map((identity) => identity.provider);
 }
 
@@ -417,14 +423,14 @@ function openProfileCompletion({
   onClose = () => {},
   returnSession,
 } = {}) {
-  const openedIdentity = authIdentity(authSession);
+  const openedIdentity = authIdentity(getAppState().authSession);
   let mounted = null;
   // 判斷點取在「存檔前」:存檔本身會建立 profiles 列,存檔後再問就永遠是 true。
   let seedCourtSubscriptionsAfterSave = false;
   mounted = openProfileCompletionSheet({
     avatarUrl: currentAuthAvatarUrl(),
-    courts: selectableCourts ?? courts,
-    courtsReady: formCourtsReady ?? courtsReady,
+    courts: selectableCourts ?? getAppState().courts,
+    courtsReady: formCourtsReady ?? getAppState().courtsReady,
     mode,
     onClose: (detail) => {
       if (activeProfileCompletion === mounted) {
@@ -434,7 +440,7 @@ function openProfileCompletion({
     },
     onSave: async (draft) => {
       if (!isSupabaseConfigured) throw new Error(LOCAL_DEMO_UNAVAILABLE);
-      if (!openedIdentity || openedIdentity !== authIdentity(authSession)) {
+      if (!openedIdentity || openedIdentity !== authIdentity(getAppState().authSession)) {
         throw new Error("登入狀態已變更，請重新開啟個人檔案。");
       }
       if (profileLoadStatus !== "ready") {
@@ -442,19 +448,21 @@ function openProfileCompletion({
       }
       const wasFirstStoredProfile = !storedProfileExists;
       const saved = await saveCurrentProfile(draft);
-      if (openedIdentity !== authIdentity(authSession)) {
+      if (openedIdentity !== authIdentity(getAppState().authSession)) {
         throw new Error("登入狀態已變更，請重新開啟個人檔案。");
       }
       profileRevision += 1;
       profileLoadStatus = "ready";
       storedProfileExists = true;
       seedCourtSubscriptionsAfterSave = wasFirstStoredProfile;
-      currentProfile = saved ?? draft;
-      return currentProfile;
+      const profile = saved ?? draft;
+      controller.setProfile(profile);
+      return profile;
     },
     onSaved: async (savedProfile) => {
-      if (openedIdentity !== authIdentity(authSession)) return;
-      currentProfile = savedProfile ?? currentProfile ?? defaultProfile();
+      if (openedIdentity !== authIdentity(getAppState().authSession)) return;
+      controller.setProfile(savedProfile ?? getAppState().profile ?? defaultProfile());
+      const { authSession } = getAppState();
       if (!authSession) return;
       // 種入排在存檔成功之後、重繪之前:存檔結果已經定案,種入失敗影響不到它,
       // 而重繪能立刻反映訂到全部後的收合態。
@@ -477,7 +485,7 @@ function openProfileCompletion({
       }
     },
     intent,
-    profile: currentProfile ?? defaultProfile(),
+    profile: getAppState().profile ?? defaultProfile(),
     returnSession: intent?.action === "join" ? returnSession : null,
   });
   activeProfileCompletion = mounted;
@@ -492,8 +500,8 @@ function openCreateSession({
   onViewMySessions,
 } = {}) {
   return openCreateSessionSheet({
-    courts: selectableCourts ?? courts,
-    courtsReady: formCourtsReady ?? courtsReady,
+    courts: selectableCourts ?? getAppState().courts,
+    courtsReady: formCourtsReady ?? getAppState().courtsReady,
     onClose,
     onSubmit,
     onViewMySessions,
@@ -544,7 +552,7 @@ function renderFilters(filters) {
 function openFilters(handlers = {}) {
   return openFilterSheet({
     filters: latestFilters ?? undefined,
-    courts,
+    courts: getAppState().courts,
     resultCount: controller?.getVisibleSessions?.().length ?? 0,
     onSetFilter: (field, value) => controller.setFilter(field, value),
     onReset: () => controller.resetFilters(),
@@ -557,7 +565,7 @@ function openFilters(handlers = {}) {
 
 function renderSessionMarkers(sessions) {
   if (!google || !map) return;
-  const groups = groupSessionsByCourt(courts, sessions);
+  const groups = groupSessionsByCourt(getAppState().courts, sessions);
   sessionMarkers = renderSessionPins(
     google,
     map,
@@ -596,7 +604,7 @@ function renderDiscovery(view) {
     hasUserLocation: view.hasUserLocation,
     mapStatus: view.mapStatus,
     filters: view.filters,
-    authenticated: Boolean(authSession),
+    authenticated: Boolean(getAppState().authSession),
     onToggle: controller.setDrawerState,
     onOpenSession: controller.openSession,
     onReset: controller.resetFilters,
@@ -825,9 +833,9 @@ function restoreMeFocus(root, focus, generation) {
 }
 
 function captureAuthRequest(isCurrent = () => true) {
-  const identity = currentAuthIdentity;
+  const identity = authIdentity(getAppState().authSession);
   const token = authRequestGate.capture(
-    () => Boolean(authSession) && identity === currentAuthIdentity && isCurrent()
+    () => Boolean(getAppState().authSession) && identity === authIdentity(getAppState().authSession) && isCurrent()
   );
   return { identity, isStale: token.isStale };
 }
@@ -839,8 +847,8 @@ function rerenderVisibleNotificationSettings() {
 
 const notificationFeature = createNotificationFeature({
   captureAuthRequest,
-  getAuthSession: () => authSession,
-  getCourts: () => courts,
+  getAuthSession: () => getAppState().authSession,
+  getCourts: () => getAppState().courts,
   getSettings: () => notificationSettings,
   rerenderVisibleSettings: rerenderVisibleNotificationSettings,
   setSettings: (settings) => {
@@ -886,7 +894,7 @@ function renderMySessionsDestination() {
   renderMySessionsPage(root, {
     actionScopeKey: state.viewGeneration,
     authenticated: state.authenticated,
-    courts,
+    courts: getAppState().courts,
     createdSessionId,
     highlightSessionId: focusSessionId,
     errorMessage: state.error,
@@ -951,6 +959,7 @@ function renderMeDestination() {
   else if (activePage !== "me") pendingMeFocus = null;
   const generation = ++meRenderGeneration;
   const state = controller?.getMySessionState?.() ?? {};
+  const { authSession, courts, profile } = getAppState();
   // renderMePage() 下面會整段換掉 root.innerHTML，若舊焦點節點正好在 root 內，瀏覽器會
   // 同步發出 focusout（relatedTarget=null）。這個訊號在既有 shouldReleasePendingMeFocus
   // 語意裡代表「使用者主動把焦點移出 root」，但這裡其實是本函式自己的 DOM 換血造成，不是
@@ -985,7 +994,7 @@ function renderMeDestination() {
     onUnblockPlayer: controller?.unblockPlayer,
     playerVisibility: state.isPublic === true,
     presence: presenceSettingsForProfile(),
-    profile: currentProfile ?? defaultProfile(),
+    profile: profile ?? defaultProfile(),
     supportHref: supportContactHref(),
   });
   suppressMeFocusRelease = false;
@@ -1013,7 +1022,7 @@ function renderMessagesDestination() {
   const focus = activePage === "messages" ? captureMessagesFocus(root) : null;
   const generation = ++messagesRenderGeneration;
   renderMessagesPage(root, {
-    courts,
+    courts: getAppState().courts,
     groups: state.groups,
     onOpenChat: (sessionId) => controller.openSessionChat(sessionId),
   });
@@ -1092,7 +1101,7 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   const page = document.getElementById("me-page");
   page.hidden = false;
   renderMeDestination();
-  if (authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
+  if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
   void refreshNotificationSettings();
   void controller.refreshMyPlayerBlocks();
   if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
@@ -1131,7 +1140,13 @@ function showMessagesPage({ focus = false } = {}) {
 
 function renderBaseCourtPins() {
   if (!google || !map) return;
-  courtMarkers = renderCourtBasePins(google, map, courts, (court) => controller.openCourt(court), courtMarkers);
+  courtMarkers = renderCourtBasePins(
+    google,
+    map,
+    getAppState().courts,
+    (court) => controller.openCourt(court),
+    courtMarkers
+  );
 }
 
 function wireFilters() {
@@ -1193,10 +1208,10 @@ function wireFilters() {
 
 async function loadCourtsImmediately() {
   try {
-    courts = await loadCourts();
-    courtsReady = true;
+    const courts = await loadCourts();
     courtCatalogueStatus = "ready";
     controller.setCourts(courts, { ready: true });
+    const { authSession } = getAppState();
     if (authSession && profileLoadStatus === "ready") {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
@@ -1205,10 +1220,9 @@ async function loadCourtsImmediately() {
     else if (activePage === "messages") renderMessagesDestination();
     else if (activePage === "me") renderMeDestination();
   } catch {
-    courts = [];
-    courtsReady = false;
     courtCatalogueStatus = "error";
     controller.setCourts([], { ready: false });
+    const { authSession } = getAppState();
     if (authSession && profileLoadStatus === "ready") {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
@@ -1241,15 +1255,17 @@ async function reloadCurrentProfile() {
     // until the next successful auth/profile load.
     if (profileLoadStatus !== "ready") {
       profileLoadStatus = "error";
+      const { authSession } = getAppState();
       await controller.setAuthState(authSession, { directory: false, nickname: false, ntrp: false, status: "error" });
     }
     throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
   }
   // loadCurrentProfile 在沒有 my_profile 列時回 null(dataApi.js:757);
-  // currentProfile 隨即被 defaultProfile() 補齊,所以 null 這個訊號要在這裡就留下來。
+  // store profile 隨即被 defaultProfile() 補齊,所以 null 這個訊號要在這裡就留下來。
   storedProfileExists = profile !== null;
-  currentProfile = profile ?? defaultProfile();
+  controller.setProfile(profile ?? defaultProfile());
   profileLoadStatus = "ready";
+  const { authSession } = getAppState();
   await controller.setAuthState(authSession, currentProfileEligibility());
   reconcilePresenceTracking();
   renderMeDestination();
@@ -1263,28 +1279,26 @@ async function reloadCurrentProfile() {
 function applyAuthCandidate(session) {
   authRequestGate.invalidate();
   const identity = authIdentity(session);
-  const previousIdentity = currentAuthIdentity;
+  const previousIdentity = authIdentity(getAppState().authSession);
   const identityChanged = previousIdentity !== identity;
   if (identityChanged) closeActiveProfileCompletion();
-  currentAuthIdentity = identity;
-  authSession = session ?? null;
   // Only a genuinely different account may clear the controller's profile
-  // state. Auth token refreshes for the same account must not invalidate an
+  // eligibility state. Auth token refreshes for the same account must not invalidate an
   // open confirmation or temporarily make an eligible profile unavailable.
   if (identityChanged) {
     stopPresenceTracking();
     presenceLocationStatus = "idle";
     profileRevision += 1;
-    currentProfile = defaultProfile();
+    controller.setProfile(defaultProfile());
     storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = session ? "loading" : "idle";
     void controller.setAuthState(session, session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null);
-  }
+  } else controller.setAuthSession(session);
   if (!session) {
     stopPresenceTracking();
     presenceLocationStatus = "idle";
-    currentProfile = defaultProfile();
+    controller.setProfile(defaultProfile());
     storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = "idle";
@@ -1319,7 +1333,7 @@ async function restoreAuth() {
   // getInitialSession waits for Supabase's URL/session initialization. Clear a
   // stale intent only after that result is definitively anonymous, so an OAuth
   // callback cannot lose its return intent during client startup.
-  if (initialSessionResolved && !initialSession && !authSession) {
+  if (initialSessionResolved && !initialSession && !getAppState().authSession) {
     controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion);
   }
   if (!initialSessionResolved || initialRequest.isStale()) return;

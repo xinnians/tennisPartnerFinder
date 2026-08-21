@@ -376,6 +376,37 @@ function createHarness(overrides = {}) {
   };
 }
 
+test("controller store owns the application courts, auth session, and private profile snapshot", async () => {
+  const harness = createHarness();
+  const courts = [{ city: "台北市", district: "大安區", id: 8, lat: 25.03, lng: 121.54, name: "示範球場" }];
+  const authSession = { access_token: "fresh-token", user: { id: "app-state-owner" } };
+  const profile = {
+    courts: new Set(["8"]),
+    isPublic: false,
+    nick: "單一狀態球友",
+    ntrp: 3.5,
+    openToGreeting: false,
+    sharePresence: false,
+    slots: new Set(),
+    types: new Set(),
+  };
+
+  assert.deepEqual(harness.controller.getAppState(), {
+    authSession: null,
+    courts: [],
+    courtsReady: false,
+    profile: null,
+  });
+
+  harness.controller.setCourts(courts, { ready: true });
+  harness.controller.setProfile(profile);
+  harness.controller.setAuthSession(authSession);
+  assert.deepEqual(harness.controller.getAppState(), { authSession, courts, courtsReady: true, profile });
+
+  await harness.controller.setAuthState(authSession, { directory: true, nickname: true, ntrp: true });
+  assert.strictEqual(harness.controller.getAppState().profile, profile, "derived eligibility must not replace private profile");
+});
+
 test("My Sessions visibility mutation commits the RPC-confirmed state before profile reconciliation finishes", async () => {
   const events = [];
   const profileReload = deferred();

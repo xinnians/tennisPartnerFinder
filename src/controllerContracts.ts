@@ -1,6 +1,7 @@
 import type {
   ChatMessage,
   MySessionSummary,
+  Profile,
   SessionRosterEntry,
   SessionSummary,
   SurfaceCloseOptions,
@@ -47,7 +48,14 @@ export interface ControllerPlayer extends PlayerPresenceDirectoryEntry {
   isPresent: boolean;
 }
 
-/** `sessionController.js` 唯一 `createStore({...})` 的 26 個初始欄位。 */
+export interface ControllerAppState {
+  authSession: ControllerAuthSession | null;
+  courts: DataCourt[];
+  courtsReady: boolean;
+  profile: Partial<Profile> | null;
+}
+
+/** `sessionController.js` 唯一 `createStore({...})` 的 27 個初始欄位。 */
 export interface SessionControllerState {
   authEpoch: number;
   authSession: ControllerAuthSession | null;
@@ -72,7 +80,8 @@ export interface SessionControllerState {
   playerLayerOn: boolean;
   playerLayerStatus: SurfaceLoadStatus;
   players: ControllerPlayer[];
-  profile: ControllerProfileEligibility | null;
+  profile: Partial<Profile> | null;
+  profileEligibility: ControllerProfileEligibility | null;
   sessions: SessionSummary[];
   userLocation: ControllerCoordinates | null;
 }
@@ -241,7 +250,7 @@ export interface ControllerOpenSessionResult {
 type ControllerDiscoveryResult = Promise<boolean | void>;
 type ControllerSurfaceResult = ControllerSurfaceHandle | null | undefined;
 
-/** `createSessionController()` return object 的 42 個公開方法，名稱與同步／非同步邊界照現況。 */
+/** `createSessionController()` return object 的公開方法，名稱與同步／非同步邊界照現況。 */
 export interface ControllerApi {
   attachMap(map: unknown): void;
   cancelMySession(sessionId: ControllerIdentifier): Promise<unknown>;
@@ -250,6 +259,7 @@ export interface ControllerApi {
   clearPendingIntentIfUnchanged(version: number): boolean;
   confirmMySessionAttendance(sessionId: ControllerIdentifier): Promise<unknown>;
   expandBounds(): ControllerDiscoveryResult | void;
+  getAppState(): ControllerAppState;
   getMySessionGroups(): ControllerMySessionGroups;
   getMySessions(): MySessionSummary[];
   getMySessionState(): ControllerMySessionsViewState;
@@ -284,10 +294,12 @@ export interface ControllerApi {
     decision: "accepted" | "declined"
   ): Promise<unknown>;
   setAuthState(session: ControllerAuthSession | null, profile?: ControllerProfileEligibility | null): Promise<void>;
+  setAuthSession(session: ControllerAuthSession | null): void;
   setCourts(courts: DataCourt[], options?: { ready?: boolean }): void;
   setDrawerState(value: ControllerDrawerState): void;
   setFilter<Key extends keyof ControllerFilters>(key: Key, value: ControllerFilters[Key]): void;
   setMapUnavailable(): void;
+  setProfile(profile: Partial<Profile> | null): void;
   togglePlayerLayer(): Promise<boolean> | void;
   togglePlayerVisibility(): Promise<void> | void;
   unblockPlayer(profileId: ControllerIdentifier): Promise<true>;

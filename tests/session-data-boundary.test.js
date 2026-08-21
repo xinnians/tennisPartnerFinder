@@ -486,10 +486,20 @@ test("messagesFromGroups tolerates missing/malformed groups instead of throwing"
 test("main includes court catalogue status when deriving private profile eligibility", async () => {
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const eligibilityBlock =
-    source.match(/function currentProfileEligibility\(profile = currentProfile\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    source.match(/function currentProfileEligibility\(profile = getAppState\(\)\.profile\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
 
   assert.notEqual(eligibilityBlock, "", "profile eligibility source scan must inspect a nonempty block");
   assert.match(eligibilityBlock, /\bcourtsStatus: courtCatalogueStatus,/);
+});
+
+test("main reads courts, auth session, and private profile from the controller-owned app state", async () => {
+  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /^let (?:courts|courtsReady|authSession|currentProfile)\b/m);
+  assert.match(source, /function getAppState\(\) \{/);
+  assert.match(source, /controller\?\.getAppState\?\.\(\)/);
+  assert.match(source, /controller\.setProfile\(/);
+  assert.match(source, /controller\.setAuthSession\(/);
 });
 
 test("profile avatar preview reads only the current auth session metadata", async () => {
