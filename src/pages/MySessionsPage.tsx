@@ -1,8 +1,5 @@
 import { Fragment } from "react";
-import { flushSync } from "react-dom";
-import { createRoot, type Root } from "react-dom/client";
 
-import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type {
   ControllerCallbackResult as CallbackResult,
   ControllerIdentifier as Identifier,
@@ -79,7 +76,7 @@ export interface MySessionsPageOptions {
   status?: string;
 }
 
-interface MySessionsPageProps extends MySessionsPageOptions {
+export interface MySessionsPageProps extends MySessionsPageOptions {
   rootElement: HTMLElement;
 }
 
@@ -94,7 +91,6 @@ interface ActionButtonProps {
 }
 
 const EMPTY_GROUPS: MySessionsGroups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] };
-const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: Root }>();
 
 function dataValue(value: Identifier): string {
   return String(value);
@@ -642,22 +638,4 @@ export function MySessionsPage({
       />
     </>
   );
-}
-
-/** One React root per legacy mount; each generation preserves the old full-subtree replacement contract. */
-export function mountMySessionsPage(rootElement: HTMLElement, options: MySessionsPageOptions = {}): void {
-  let mounted = mountedRoots.get(rootElement);
-  if (!mounted) {
-    mounted = { generation: 0, reactRoot: createRoot(rootElement) };
-    mountedRoots.set(rootElement, mounted);
-  }
-  mounted.generation += 1;
-  const generation = mounted.generation;
-  flushSync(() => {
-    mounted.reactRoot.render(
-      <AppErrorBoundary resetKey={generation} surface="my-sessions-page">
-        <MySessionsPage {...options} key={generation} rootElement={rootElement} />
-      </AppErrorBoundary>
-    );
-  });
 }

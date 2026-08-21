@@ -1,8 +1,5 @@
 import { Fragment } from "react";
-import { flushSync } from "react-dom";
-import { createRoot, type Root } from "react-dom/client";
 
-import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
@@ -48,8 +45,6 @@ interface EmptyAction {
   id: string;
   label: string;
 }
-
-const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: Root }>();
 
 function PeekArrow() {
   return (
@@ -255,21 +250,4 @@ export function NearbySessionsDrawer({
       </section>
     </>
   );
-}
-
-/** One React root per drawer; keyed generations retain the legacy full-detach redraw contract. */
-export function mountNearbySessionsDrawer(rootElement: HTMLElement, options: NearbySessionsDrawerOptions = {}): void {
-  let mounted = mountedRoots.get(rootElement);
-  if (!mounted) {
-    mounted = { generation: 0, reactRoot: createRoot(rootElement) };
-    mountedRoots.set(rootElement, mounted);
-  }
-  mounted.generation += 1;
-  flushSync(() => {
-    mounted.reactRoot.render(
-      <AppErrorBoundary resetKey={mounted.generation} surface="nearby-sessions-drawer">
-        <NearbySessionsDrawer {...options} key={mounted.generation} />
-      </AppErrorBoundary>
-    );
-  });
 }

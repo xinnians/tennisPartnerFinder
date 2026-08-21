@@ -54,18 +54,12 @@ export {
 
 // Vite 將單檔 eager glob 轉為 browser 的同步 import；Node 22 unit tests 沒有
 // document，會短路而不解析其不支援的 .tsx 副檔名。
-const messagesPageModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./pages/MessagesPage.tsx", { eager: true });
-const mountMessagesPage = messagesPageModules["./pages/MessagesPage.tsx"]?.mountMessagesPage;
-const mePageModules = typeof document === "undefined" ? {} : import.meta.glob("./pages/MePage.tsx", { eager: true });
-const mountMePage = mePageModules["./pages/MePage.tsx"]?.mountMePage;
-const mySessionsPageModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./pages/MySessionsPage.tsx", { eager: true });
-const mountMySessionsPage = mySessionsPageModules["./pages/MySessionsPage.tsx"]?.mountMySessionsPage;
-const nearbySessionsDrawerModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./pages/NearbySessionsDrawer.tsx", { eager: true });
-const mountNearbySessionsDrawer =
-  nearbySessionsDrawerModules["./pages/NearbySessionsDrawer.tsx"]?.mountNearbySessionsDrawer;
+const appModules = typeof document === "undefined" ? {} : import.meta.glob("./app/App.tsx", { eager: true });
+const appModule = appModules["./app/App.tsx"];
+const renderMePageInApp = appModule?.renderMePageInApp;
+const renderMessagesPageInApp = appModule?.renderMessagesPageInApp;
+const renderMySessionsPageInApp = appModule?.renderMySessionsPageInApp;
+const renderNearbySessionsDrawerInApp = appModule?.renderNearbySessionsDrawerInApp;
 const sessionDetailSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
 const mountSessionDetailSheetContent =
@@ -152,10 +146,10 @@ export const NTRP_SCALE_EXPLANATION =
 
 /** Mount or update the React account and service skeleton for the Me destination. */
 export function renderMePage(root, options = {}) {
-  if (!mountMePage) throw new Error("MePage browser mount is unavailable.");
+  if (!renderMePageInApp) throw new Error("MePage browser mount is unavailable.");
   const authSession = options.authSession ?? null;
   setMySessionActionScope(root, authSession?.user?.id ?? null);
-  mountMePage(root, options);
+  renderMePageInApp(root, options);
   syncPendingMySessionActions(root);
 }
 
@@ -636,10 +630,10 @@ function scheduleMySessionsCreatedFocus(root, options = {}) {
 
 /** Mount or update the private, action-first My Sessions destination. */
 export function renderMySessionsPage(root, options = {}) {
-  if (!mountMySessionsPage) throw new Error("MySessionsPage browser mount is unavailable.");
+  if (!renderMySessionsPageInApp) throw new Error("MySessionsPage browser mount is unavailable.");
   mySessionsRenderOptions.set(root, options);
   setMySessionActionScope(root, options.actionScopeKey ?? null);
-  mountMySessionsPage(root, options);
+  renderMySessionsPageInApp(root, options);
   wireMySessionsPage(root, options);
   syncPendingMySessionActions(root);
   scheduleMySessionsCreatedFocus(root, options);
@@ -755,8 +749,8 @@ export function renderNearbySessionsDrawer(
 ) {
   rememberFocusedSessionCard(root);
   rememberDrawerScrollTop(root);
-  if (!mountNearbySessionsDrawer) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
-  mountNearbySessionsDrawer(root, { courts, drawerState, filters, hasUserLocation, mapStatus, sessions });
+  if (!renderNearbySessionsDrawerInApp) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
+  renderNearbySessionsDrawerInApp(root, { courts, drawerState, filters, hasUserLocation, mapStatus, sessions });
 
   const isOpen = drawerState === "open";
   root
@@ -961,8 +955,8 @@ export function openSessionChatSheet(
 
 /** Mount or update the React CHATS destination without changing its public adapter. */
 export function renderMessagesPage(root, options = {}) {
-  if (!mountMessagesPage) throw new Error("MessagesPage browser mount is unavailable.");
-  mountMessagesPage(root, options);
+  if (!renderMessagesPageInApp) throw new Error("MessagesPage browser mount is unavailable.");
+  renderMessagesPageInApp(root, options);
 }
 
 const JOIN_STAGE_FOCUSABLE_SELECTOR =

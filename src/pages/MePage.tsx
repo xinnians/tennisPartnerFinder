@@ -1,8 +1,5 @@
 import type { ChangeEvent, MouseEvent } from "react";
-import { flushSync } from "react-dom";
-import { createRoot, type Root } from "react-dom/client";
 
-import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { ControllerCallbackResult as CallbackResult } from "../controllerContracts.ts";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
@@ -72,7 +69,7 @@ export interface MePageOptions {
   supportHref?: string;
 }
 
-interface MePageProps {
+export interface MePageProps {
   rootElement: HTMLElement;
   authSession: AuthSession | null;
   profile: MeProfile | null;
@@ -119,10 +116,6 @@ const NOTIFICATION_PREFERENCES: Array<{
   { key: "chatMessageEnabled", label: "群組有新訊息", testId: "notification-chat-message" },
   { key: "sessionReminderEnabled", label: "開打前提醒", testId: "notification-session-reminder" },
 ];
-
-const mountedRoots = new WeakMap<HTMLElement, { generation: number; reactRoot: Root }>();
-
-function noop() {}
 
 function NtrpBrick({ ntrp }: { ntrp: number | null | undefined }) {
   return (
@@ -741,76 +734,4 @@ export function MePage(props: MePageProps) {
       ) : null}
     </div>
   );
-}
-
-/** One React root per legacy mount; a new key preserves the legacy full-subtree replacement contract. */
-export function mountMePage(rootElement: HTMLElement, options: MePageOptions = {}): void {
-  const {
-    authSession = null,
-    profile = {},
-    avatarUrl = "",
-    blockedPlayers = [],
-    blockedPlayersError = "",
-    blockedPlayersStatus = "idle",
-    courts = [],
-    lineProviderId = "",
-    linkedProviders = [],
-    notificationSettings = {},
-    onEditProfile = noop,
-    onEnablePush = noop,
-    onLinkProvider = noop,
-    onSaveCourtSubscriptions = noop,
-    onSaveNotificationPreferences = noop,
-    onSetOpenToGreeting = noop,
-    onSetPresenceSharing = noop,
-    onSignIn = noop,
-    onSignOut = noop,
-    onTogglePlayerVisibility = noop,
-    onUnblockPlayer = noop,
-    playerVisibility = false,
-    presence = {},
-    supportHref = "",
-  } = options;
-
-  let mounted = mountedRoots.get(rootElement);
-  if (!mounted) {
-    mounted = { generation: 0, reactRoot: createRoot(rootElement) };
-    mountedRoots.set(rootElement, mounted);
-  }
-  mounted.generation += 1;
-  const generation = mounted.generation;
-  flushSync(() => {
-    mounted.reactRoot.render(
-      <AppErrorBoundary resetKey={generation} surface="me-page">
-        <MePage
-          key={generation}
-          rootElement={rootElement}
-          authSession={authSession}
-          profile={profile}
-          avatarUrl={avatarUrl}
-          blockedPlayers={blockedPlayers}
-          blockedPlayersError={blockedPlayersError}
-          blockedPlayersStatus={blockedPlayersStatus}
-          courts={courts}
-          lineProviderId={lineProviderId}
-          linkedProviders={linkedProviders}
-          notificationSettings={notificationSettings}
-          onEditProfile={onEditProfile}
-          onEnablePush={onEnablePush}
-          onLinkProvider={onLinkProvider}
-          onSaveCourtSubscriptions={onSaveCourtSubscriptions}
-          onSaveNotificationPreferences={onSaveNotificationPreferences}
-          onSetOpenToGreeting={onSetOpenToGreeting}
-          onSetPresenceSharing={onSetPresenceSharing}
-          onSignIn={onSignIn}
-          onSignOut={onSignOut}
-          onTogglePlayerVisibility={onTogglePlayerVisibility}
-          onUnblockPlayer={onUnblockPlayer}
-          playerVisibility={playerVisibility}
-          presence={presence}
-          supportHref={supportHref}
-        />
-      </AppErrorBoundary>
-    );
-  });
 }

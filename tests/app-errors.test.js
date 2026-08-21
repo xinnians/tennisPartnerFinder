@@ -64,18 +64,32 @@ test("global error and rejection listeners are idempotent, removable, and transp
   restoreTransport();
 });
 
-test("all 18 React roots mount inside the shared boundary and ref adapters retain their contract guard", () => {
+test("one App root and 14 sheet roots retain all 18 isolated error surfaces", () => {
   const rootFiles = sourceFiles(ROOT.pathname).filter(
     (path) => extname(path) === ".tsx" && /create(?:Root|SurfaceRoot)\(/.test(readFileSync(path, "utf8"))
   );
-  assert.equal(rootFiles.length, 18);
-  assert.equal(APP_ERROR_SURFACES.length, 19, "18 roots plus the global channel must stay named");
+  assert.equal(rootFiles.length, 15);
+  assert.equal(APP_ERROR_SURFACES.length, 19, "18 isolated surfaces plus the global channel must stay named");
 
   for (const path of rootFiles) {
     const source = readFileSync(path, "utf8");
     const label = relative(ROOT.pathname, path);
     assert.match(source, /import \{ AppErrorBoundary \}/, `${label} does not import the shared boundary`);
     assert.match(source, /<AppErrorBoundary\b/, `${label} renders a naked React root`);
+  }
+
+  const appSource = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+  const pageSources = sourceFiles(new URL("../src/pages/", import.meta.url).pathname)
+    .filter((path) => extname(path) === ".tsx")
+    .map((path) => readFileSync(path, "utf8"));
+  assert.equal((appSource.match(/createRoot\(/g) ?? []).length, 1, "App must own exactly one React root");
+  assert.equal(
+    pageSources.filter((source) => /createRoot\(/.test(source)).length,
+    0,
+    "page modules must render through App instead of creating roots"
+  );
+  for (const surface of ["me-page", "messages-page", "my-sessions-page", "nearby-sessions-drawer"]) {
+    assert.match(appSource, new RegExp(`surface=["']${surface}["']`), `${surface} lost its isolated boundary`);
   }
 
   const refAdapters = rootFiles.filter((path) => readFileSync(path, "utf8").includes("content did not mount"));
