@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 
 const DIST_DIR = new URL("../dist/", import.meta.url);
+// E1 final entry chunk was 639,896 raw bytes / 184,705 gzip bytes.
+// Keep 10% headroom for normal maintenance without allowing the main chunk to grow back unnoticed.
+const MAIN_CHUNK_RAW_LIMIT_BYTES = 703_886;
+const MAIN_CHUNK_GZIP_LIMIT_BYTES = 203_176;
 const DEMO_IDENTIFIERS = [
   "示範山嵐",
   "示範彗星",
@@ -28,4 +33,23 @@ for (const identifier of DEMO_IDENTIFIERS) {
   assert.ok(!output.includes(identifier), `production bundle still contains demo identifier: ${identifier}`);
 }
 
-console.log(`production bundle check passed: ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent`);
+const indexHtml = readFileSync(new URL("../dist/index.html", import.meta.url), "utf8");
+const entryScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="\/([^"]+\.js)"[^>]*><\/script>/g)].map(
+  ([, source]) => source
+);
+assert.deepEqual(entryScripts.length, 1, `expected one production entry script, found ${entryScripts.length}`);
+const [mainChunkPath] = entryScripts;
+const mainChunk = readFileSync(new URL(`../dist/${mainChunkPath}`, import.meta.url));
+const mainChunkGzipBytes = gzipSync(mainChunk).length;
+assert.ok(
+  mainChunk.length <= MAIN_CHUNK_RAW_LIMIT_BYTES,
+  `production main chunk raw size ${mainChunk.length} bytes exceeds ${MAIN_CHUNK_RAW_LIMIT_BYTES} bytes: ${mainChunkPath}`
+);
+assert.ok(
+  mainChunkGzipBytes <= MAIN_CHUNK_GZIP_LIMIT_BYTES,
+  `production main chunk gzip size ${mainChunkGzipBytes} bytes exceeds ${MAIN_CHUNK_GZIP_LIMIT_BYTES} bytes: ${mainChunkPath}`
+);
+
+console.log(
+  `production bundle check passed: ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; main chunk ${mainChunk.length}/${mainChunkGzipBytes} bytes within ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}`
+);
