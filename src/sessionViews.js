@@ -52,7 +52,7 @@ export {
 // helpers, while React modules import only sessionPresentation.ts and never reach
 // back into this file.
 
-// Vite 將單檔 eager glob 轉為 browser 的同步 import；Node 22 unit tests 沒有
+// App shell、首頁附近抽屜與詳情 sheet 留在主 chunk；Node 22 unit tests 沒有
 // document，會短路而不解析其不支援的 .tsx 副檔名。
 const appModules = typeof document === "undefined" ? {} : import.meta.glob("./app/App.tsx", { eager: true });
 const appModule = appModules["./app/App.tsx"];
@@ -60,62 +60,258 @@ const renderMePageInApp = appModule?.renderMePageInApp;
 const renderMessagesPageInApp = appModule?.renderMessagesPageInApp;
 const renderMySessionsPageInApp = appModule?.renderMySessionsPageInApp;
 const renderNearbySessionsDrawerInApp = appModule?.renderNearbySessionsDrawerInApp;
+const preloadMePageInApp = appModule?.preloadMePageInApp;
+const preloadMessagesPageInApp = appModule?.preloadMessagesPageInApp;
+const preloadMySessionsPageInApp = appModule?.preloadMySessionsPageInApp;
 const sessionDetailSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
 const mountSessionDetailSheetContent =
   sessionDetailSheetModules["./sheets/SessionDetailSheet.tsx"]?.mountSessionDetailSheetContent;
-const createSessionSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/CreateSessionSheet.tsx", { eager: true });
-const mountCreateSessionSheetContent =
-  createSessionSheetModules["./sheets/CreateSessionSheet.tsx"]?.mountCreateSessionSheetContent;
-const editSessionSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/EditSessionSheet.tsx", { eager: true });
-const mountEditSessionSheetContent =
-  editSessionSheetModules["./sheets/EditSessionSheet.tsx"]?.mountEditSessionSheetContent;
-const sessionUnavailableSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionUnavailableSheet.tsx", { eager: true });
-const mountSessionUnavailableSheetContent =
-  sessionUnavailableSheetModules["./sheets/SessionUnavailableSheet.tsx"]?.mountSessionUnavailableSheetContent;
-const courtSessionSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/CourtSessionSheet.tsx", { eager: true });
-const mountCourtSessionSheetContent =
-  courtSessionSheetModules["./sheets/CourtSessionSheet.tsx"]?.mountCourtSessionSheetContent;
-const courtPlayersSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/CourtPlayersSheet.tsx", { eager: true });
-const mountCourtPlayersSheetContent =
-  courtPlayersSheetModules["./sheets/CourtPlayersSheet.tsx"]?.mountCourtPlayersSheetContent;
-const filterSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/FilterSheet.tsx", { eager: true });
-const mountFilterSheetContent = filterSheetModules["./sheets/FilterSheet.tsx"]?.mountFilterSheetContent;
-const playerDirectorySheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/PlayerDirectorySheet.tsx", { eager: true });
-const mountPlayerDirectorySheetContent =
-  playerDirectorySheetModules["./sheets/PlayerDirectorySheet.tsx"]?.mountPlayerDirectorySheetContent;
-const playerCardSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/PlayerCardSheet.tsx", { eager: true });
-const mountPlayerCardSheetContent = playerCardSheetModules["./sheets/PlayerCardSheet.tsx"]?.mountPlayerCardSheetContent;
-const profileCompletionSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/ProfileCompletionSheet.tsx", { eager: true });
-const mountProfileCompletionSheetContent =
-  profileCompletionSheetModules["./sheets/ProfileCompletionSheet.tsx"]?.mountProfileCompletionSheetContent;
-const decideSessionSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/DecideSessionSheet.tsx", { eager: true });
-const mountDecideSessionSheetContent =
-  decideSessionSheetModules["./sheets/DecideSessionSheet.tsx"]?.mountDecideSessionSheetContent;
-const sessionChatSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionChatSheet.tsx", { eager: true });
-const mountSessionChatSheetContent =
-  sessionChatSheetModules["./sheets/SessionChatSheet.tsx"]?.mountSessionChatSheetContent;
-const withdrawSessionConfirmationDialogModules =
+const nonHomeSheetModules =
   typeof document === "undefined"
     ? {}
-    : import.meta.glob("./sheets/WithdrawSessionConfirmationDialog.tsx", { eager: true });
-const mountWithdrawSessionConfirmationDialogContent =
-  withdrawSessionConfirmationDialogModules["./sheets/WithdrawSessionConfirmationDialog.tsx"]
-    ?.mountWithdrawSessionConfirmationDialogContent;
-const reportDialogModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/ReportDialog.tsx", { eager: true });
-const mountReportDialogContent = reportDialogModules["./sheets/ReportDialog.tsx"]?.mountReportDialogContent;
+    : import.meta.glob([
+        "./sheets/CourtPlayersSheet.tsx",
+        "./sheets/CourtSessionSheet.tsx",
+        "./sheets/CreateSessionSheet.tsx",
+        "./sheets/DecideSessionSheet.tsx",
+        "./sheets/EditSessionSheet.tsx",
+        "./sheets/FilterSheet.tsx",
+        "./sheets/PlayerCardSheet.tsx",
+        "./sheets/PlayerDirectorySheet.tsx",
+        "./sheets/ProfileCompletionSheet.tsx",
+        "./sheets/ReportDialog.tsx",
+        "./sheets/SessionChatSheet.tsx",
+        "./sheets/SessionUnavailableSheet.tsx",
+        "./sheets/WithdrawSessionConfirmationDialog.tsx",
+      ]);
+
+let mountCreateSessionSheetContent;
+let mountEditSessionSheetContent;
+let mountSessionUnavailableSheetContent;
+let mountCourtSessionSheetContent;
+let mountCourtPlayersSheetContent;
+let mountFilterSheetContent;
+let mountPlayerDirectorySheetContent;
+let mountPlayerCardSheetContent;
+let mountProfileCompletionSheetContent;
+let mountDecideSessionSheetContent;
+let mountSessionChatSheetContent;
+let mountWithdrawSessionConfirmationDialogContent;
+let mountReportDialogContent;
+
+function createMountPreloader(modulePath, exportName, assign) {
+  let request = null;
+  return () => {
+    if (request) return request;
+    const load = nonHomeSheetModules[modulePath];
+    if (!load) return Promise.reject(new Error(`Lazy surface module is unavailable: ${modulePath}`));
+    request = load().then((module) => {
+      const mount = module?.[exportName];
+      if (typeof mount !== "function") throw new Error(`Lazy surface export is unavailable: ${exportName}`);
+      assign(mount);
+    });
+    return request;
+  };
+}
+
+const preloadCreateSessionSheet = createMountPreloader(
+  "./sheets/CreateSessionSheet.tsx",
+  "mountCreateSessionSheetContent",
+  (mount) => (mountCreateSessionSheetContent = mount)
+);
+const preloadEditSessionSheet = createMountPreloader(
+  "./sheets/EditSessionSheet.tsx",
+  "mountEditSessionSheetContent",
+  (mount) => (mountEditSessionSheetContent = mount)
+);
+const preloadSessionUnavailableSheet = createMountPreloader(
+  "./sheets/SessionUnavailableSheet.tsx",
+  "mountSessionUnavailableSheetContent",
+  (mount) => (mountSessionUnavailableSheetContent = mount)
+);
+const preloadCourtSessionSheet = createMountPreloader(
+  "./sheets/CourtSessionSheet.tsx",
+  "mountCourtSessionSheetContent",
+  (mount) => (mountCourtSessionSheetContent = mount)
+);
+const preloadCourtPlayersSheet = createMountPreloader(
+  "./sheets/CourtPlayersSheet.tsx",
+  "mountCourtPlayersSheetContent",
+  (mount) => (mountCourtPlayersSheetContent = mount)
+);
+const preloadFilterSheet = createMountPreloader(
+  "./sheets/FilterSheet.tsx",
+  "mountFilterSheetContent",
+  (mount) => (mountFilterSheetContent = mount)
+);
+const preloadPlayerDirectorySheet = createMountPreloader(
+  "./sheets/PlayerDirectorySheet.tsx",
+  "mountPlayerDirectorySheetContent",
+  (mount) => (mountPlayerDirectorySheetContent = mount)
+);
+const preloadPlayerCardSheet = createMountPreloader(
+  "./sheets/PlayerCardSheet.tsx",
+  "mountPlayerCardSheetContent",
+  (mount) => (mountPlayerCardSheetContent = mount)
+);
+const preloadProfileCompletionSheet = createMountPreloader(
+  "./sheets/ProfileCompletionSheet.tsx",
+  "mountProfileCompletionSheetContent",
+  (mount) => (mountProfileCompletionSheetContent = mount)
+);
+const preloadDecideSessionSheet = createMountPreloader(
+  "./sheets/DecideSessionSheet.tsx",
+  "mountDecideSessionSheetContent",
+  (mount) => (mountDecideSessionSheetContent = mount)
+);
+const preloadSessionChatSheet = createMountPreloader(
+  "./sheets/SessionChatSheet.tsx",
+  "mountSessionChatSheetContent",
+  (mount) => (mountSessionChatSheetContent = mount)
+);
+const preloadWithdrawSessionConfirmationDialog = createMountPreloader(
+  "./sheets/WithdrawSessionConfirmationDialog.tsx",
+  "mountWithdrawSessionConfirmationDialogContent",
+  (mount) => (mountWithdrawSessionConfirmationDialogContent = mount)
+);
+const preloadReportDialog = createMountPreloader(
+  "./sheets/ReportDialog.tsx",
+  "mountReportDialogContent",
+  (mount) => (mountReportDialogContent = mount)
+);
+
+function lazySurfaceHtml(label) {
+  return `<div class="surface__head">
+    <div><p class="surface__eyebrow">LOADING</p><h2>${esc(label)}</h2></div>
+    <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
+  </div>
+  <p class="surface__copy" data-lazy-surface-status role="status" aria-live="polite" aria-atomic="true">正在載入…</p>`;
+}
+
+function deferSurfaceOpen({
+  className = "",
+  id,
+  label,
+  load,
+  methods = [],
+  onClose = () => {},
+  open,
+  type = "sheet",
+}) {
+  let active = null;
+  let live = true;
+  let readyHandle = null;
+  let replacing = false;
+  const pendingCalls = [];
+  const mount = type === "dialog" ? mountDialog : mountSheet;
+  active = mount({
+    id,
+    label,
+    className,
+    html: lazySurfaceHtml(label),
+    onClose: (detail) => {
+      if (replacing) return;
+      live = false;
+      onClose(detail);
+    },
+  });
+
+  const deferred = {
+    close(options) {
+      return active.close(options);
+    },
+    get root() {
+      return active.root;
+    },
+    get surface() {
+      return active.surface;
+    },
+  };
+  for (const method of methods) {
+    deferred[method] = (...args) => {
+      if (readyHandle) return readyHandle[method]?.(...args);
+      pendingCalls.push([method, args]);
+    };
+  }
+
+  void load()
+    .then(() => {
+      if (!live) return;
+      replacing = true;
+      const next = open();
+      replacing = false;
+      active = next;
+      readyHandle = next;
+      for (const [method, args] of pendingCalls.splice(0)) readyHandle[method]?.(...args);
+    })
+    .catch(() => {
+      replacing = false;
+      if (!live) return;
+      const status = active.root.querySelector("[data-lazy-surface-status]");
+      if (status) status.textContent = "載入失敗，請關閉後再試。";
+    });
+  return deferred;
+}
+
+const authenticatedViewPreloads = [
+  preloadMePageInApp,
+  preloadMessagesPageInApp,
+  preloadMySessionsPageInApp,
+  preloadCreateSessionSheet,
+  preloadEditSessionSheet,
+  preloadCourtPlayersSheet,
+  preloadPlayerDirectorySheet,
+  preloadPlayerCardSheet,
+  preloadProfileCompletionSheet,
+  preloadDecideSessionSheet,
+  preloadSessionChatSheet,
+  preloadWithdrawSessionConfirmationDialog,
+  preloadReportDialog,
+];
+
+const namedViewPreloads = {
+  chat: preloadSessionChatSheet,
+  create: preloadCreateSessionSheet,
+  filter: preloadFilterSheet,
+  me: preloadMePageInApp,
+  mySessions: preloadMySessionsPageInApp,
+  withdraw: preloadWithdrawSessionConfirmationDialog,
+};
+
+export function preloadNonHomeViews(viewNames = Object.keys(namedViewPreloads)) {
+  const names = Array.isArray(viewNames) ? viewNames : [viewNames];
+  return Promise.all(names.map((name) => namedViewPreloads[name]?.()).filter(Boolean)).then(() => undefined);
+}
+
+function warmView(preload) {
+  if (typeof preload === "function") void preload().catch(() => {});
+}
+
+function preloadAuthenticatedViews() {
+  for (const preload of authenticatedViewPreloads) warmView(preload);
+}
+
+function preloadForIntent(target) {
+  if (!(target instanceof Element)) return;
+  if (target.closest("#me-tab")) warmView(preloadMePageInApp);
+  if (target.closest("#messages-tab")) {
+    warmView(preloadMessagesPageInApp);
+    warmView(preloadSessionChatSheet);
+  }
+  if (target.closest("#my-sessions-tab")) warmView(preloadMySessionsPageInApp);
+  if (target.closest("#create-session-tab")) warmView(preloadCreateSessionSheet);
+  if (target.closest("#filter-sheet-open")) warmView(preloadFilterSheet);
+  if (target.closest("#player-directory-open")) {
+    warmView(preloadPlayerDirectorySheet);
+    warmView(preloadPlayerCardSheet);
+  }
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerover", (event) => preloadForIntent(event.target), { passive: true });
+  document.addEventListener("focusin", (event) => preloadForIntent(event.target));
+}
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
@@ -148,9 +344,9 @@ export const NTRP_SCALE_EXPLANATION =
 export function renderMePage(root, options = {}) {
   if (!renderMePageInApp) throw new Error("MePage browser mount is unavailable.");
   const authSession = options.authSession ?? null;
+  if (authSession) preloadAuthenticatedViews();
   setMySessionActionScope(root, authSession?.user?.id ?? null);
-  renderMePageInApp(root, options);
-  syncPendingMySessionActions(root);
+  renderMePageInApp(root, options, () => syncPendingMySessionActions(root));
 }
 
 // 新球局不再提供「對拉」（它的語意併入「練球」）。編輯仍須接受四值：DB 的 CHECK 沒變，
@@ -633,10 +829,11 @@ export function renderMySessionsPage(root, options = {}) {
   if (!renderMySessionsPageInApp) throw new Error("MySessionsPage browser mount is unavailable.");
   mySessionsRenderOptions.set(root, options);
   setMySessionActionScope(root, options.actionScopeKey ?? null);
-  renderMySessionsPageInApp(root, options);
-  wireMySessionsPage(root, options);
-  syncPendingMySessionActions(root);
-  scheduleMySessionsCreatedFocus(root, options);
+  renderMySessionsPageInApp(root, options, () => {
+    wireMySessionsPage(root, options);
+    syncPendingMySessionActions(root);
+    scheduleMySessionsCreatedFocus(root, options);
+  });
 }
 
 function wireSessionCards(root, onOpenSession) {
@@ -813,7 +1010,18 @@ export function openSessionChatSheet(
     onWithdraw = () => {},
   } = {}
 ) {
-  if (!mountSessionChatSheetContent) throw new Error("SessionChatSheet browser mount is unavailable.");
+  if (!mountSessionChatSheetContent) {
+    return deferSurfaceOpen({
+      id: "session-chat-sheet",
+      label: "球局群組聊天",
+      className: "session-chat-sheet",
+      load: preloadSessionChatSheet,
+      methods: ["setArchived", "setState"],
+      onClose,
+      open: () =>
+        openSessionChatSheet(session, { canWithdraw, courts, onBlock, onClose, onPost, onReport, onWithdraw }),
+    });
+  }
   let archived = ["cancelled", "expired", "played"].includes(String(session?.status).toLowerCase());
   const venue = sessionVenuePresentation(session, courts);
   // 批 D7:header 副行沿用抽取規格 §4 chatSub 語意(今天/明天/週X + 時刻 + 主揪
@@ -1205,7 +1413,14 @@ export function openSessionSheet(
 
 /** Explain a public deep link that no longer resolves to an available session. */
 export function openSessionUnavailableSheet() {
-  if (!mountSessionUnavailableSheetContent) throw new Error("SessionUnavailableSheet browser mount is unavailable.");
+  if (!mountSessionUnavailableSheetContent) {
+    return deferSurfaceOpen({
+      id: "session-unavailable-sheet",
+      label: "找不到球局",
+      load: preloadSessionUnavailableSheet,
+      open: () => openSessionUnavailableSheet(),
+    });
+  }
   const mounted = mountSheet({
     id: "session-unavailable-sheet",
     label: "找不到球局",
@@ -1219,7 +1434,14 @@ export function openSessionUnavailableSheet() {
 /** Require an explicit in-project warning before a member exits a session. */
 export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm = async () => {} } = {}) {
   if (!mountWithdrawSessionConfirmationDialogContent) {
-    throw new Error("WithdrawSessionConfirmationDialog browser mount is unavailable.");
+    return deferSurfaceOpen({
+      id: "withdraw-session-confirmation",
+      label: "確認退出這一局？",
+      load: preloadWithdrawSessionConfirmationDialog,
+      onClose,
+      open: () => openWithdrawSessionConfirmation({ onClose, onConfirm }),
+      type: "dialog",
+    });
   }
   const mounted = mountDialog({
     id: "withdraw-session-confirmation",
@@ -1259,7 +1481,16 @@ export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm 
 
 /** Collect a minimal, reviewable report without exposing any new profile data. */
 export function openReportDialog({ targetLabel = "這個項目", onClose = () => {}, onSubmit = () => {} } = {}) {
-  if (!mountReportDialogContent) throw new Error("ReportDialog browser mount is unavailable.");
+  if (!mountReportDialogContent) {
+    return deferSurfaceOpen({
+      id: "report-dialog",
+      label: "檢舉",
+      load: preloadReportDialog,
+      onClose,
+      open: () => openReportDialog({ targetLabel, onClose, onSubmit }),
+      type: "dialog",
+    });
+  }
   const mounted = mountDialog({
     id: "report-dialog",
     label: "檢舉",
@@ -1381,7 +1612,29 @@ export function openProfileCompletionSheet({
   profile = {},
   returnSession = null,
 } = {}) {
-  if (!mountProfileCompletionSheetContent) throw new Error("ProfileCompletionSheet browser mount is unavailable.");
+  if (!mountProfileCompletionSheetContent) {
+    return deferSurfaceOpen({
+      id: "profile-completion-sheet",
+      label: mode === "standalone" ? "編輯個人檔案" : "完成個人檔案",
+      className: "profile-sheet",
+      load: preloadProfileCompletionSheet,
+      methods: ["setCourts"],
+      onClose: (detail = {}) => onClose({ ...detail, saved: false }),
+      open: () =>
+        openProfileCompletionSheet({
+          avatarUrl,
+          courts,
+          courtsReady,
+          intent,
+          mode,
+          onClose,
+          onSave,
+          onSaved,
+          profile,
+          returnSession,
+        }),
+    });
+  }
   // standalone 是「我」頁的常駐編輯入口：同一份表單與驗證，只是不帶 gate 的催促語氣。
   const standalone = mode === "standalone";
   const selectedCourts = profile.courts instanceof Set ? profile.courts : new Set(profile.courts ?? []);
@@ -1641,7 +1894,17 @@ export function openCreateSessionSheet({
   onViewMySessions = () => {},
   toast = () => {},
 } = {}) {
-  if (!mountCreateSessionSheetContent) throw new Error("CreateSessionSheet browser mount is unavailable.");
+  if (!mountCreateSessionSheetContent) {
+    return deferSurfaceOpen({
+      id: "session-create-modal",
+      label: "開球局",
+      className: "create-v2",
+      load: preloadCreateSessionSheet,
+      methods: ["setCourts"],
+      onClose,
+      open: () => openCreateSessionSheet({ courts, courtsReady, onClose, onSubmit, onViewMySessions, toast }),
+    });
+  }
   const now = () => new Date();
   let submitting = false;
   let content;
@@ -1724,7 +1987,16 @@ export function openDecideSessionSheet(
   session,
   { courts = [], courtsReady = true, onClose = () => {}, onDecide = async () => {} } = {}
 ) {
-  if (!mountDecideSessionSheetContent) throw new Error("DecideSessionSheet browser mount is unavailable.");
+  if (!mountDecideSessionSheetContent) {
+    return deferSurfaceOpen({
+      id: "session-decision-sheet",
+      label: "定案場地與時間",
+      load: preloadDecideSessionSheet,
+      methods: ["setCourts", "setTerminal"],
+      onClose,
+      open: () => openDecideSessionSheet(session, { courts, courtsReady, onClose, onDecide }),
+    });
+  }
   const candidateIds = new Set((session?.candidateCourtIds ?? []).map(String));
   const unavailable = !isUndecidedCandidate(session);
   const mounted = mountSheet({
@@ -1812,7 +2084,17 @@ export function openEditSessionSheet(
   session,
   { courts = [], courtsReady = true, onClose = () => {}, onSubmit = async () => {} } = {}
 ) {
-  if (!mountEditSessionSheetContent) throw new Error("EditSessionSheet browser mount is unavailable.");
+  if (!mountEditSessionSheetContent) {
+    return deferSurfaceOpen({
+      id: "session-edit-sheet",
+      label: "編輯球局",
+      className: "create-session-sheet",
+      load: preloadEditSessionSheet,
+      methods: ["setCourts"],
+      onClose,
+      open: () => openEditSessionSheet(session, { courts, courtsReady, onClose, onSubmit }),
+    });
+  }
   // 漸進式揭露反模式防呆:已填的選填欄位不可被預設收合藏起來,四欄任一有值就預設展開。
   const hasOptionalValues = [session.ntrpMin, session.ntrpMax, session.feeNote, session.notes].some(
     (value) => value != null && String(value).trim() !== ""
@@ -1871,7 +2153,14 @@ export function openEditSessionSheet(
 
 /** Open a session-only list for the selected base court or aggregate marker. */
 export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSession = () => {} } = {}) {
-  if (!mountCourtSessionSheetContent) throw new Error("CourtSessionSheet browser mount is unavailable.");
+  if (!mountCourtSessionSheetContent) {
+    return deferSurfaceOpen({
+      id: "court-session-sheet",
+      label: "球場球局",
+      load: preloadCourtSessionSheet,
+      open: () => openCourtSessionDrawer(court, sessions, { courts, onOpenSession }),
+    });
+  }
   const mounted = mountSheet({
     id: "court-session-sheet",
     label: "球場球局",
@@ -1890,7 +2179,15 @@ export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSes
 
 /** Open the public player-directory rows for one court. */
 export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onOpenPlayer = () => {} } = {}) {
-  if (!mountCourtPlayersSheetContent) throw new Error("CourtPlayersSheet browser mount is unavailable.");
+  if (!mountCourtPlayersSheetContent) {
+    return deferSurfaceOpen({
+      id: "court-players-sheet",
+      label: "球場球友",
+      load: preloadCourtPlayersSheet,
+      onClose,
+      open: () => openCourtPlayersDrawer(court, players, { onClose, onOpenPlayer }),
+    });
+  }
   const mounted = mountSheet({
     id: "court-players-sheet",
     label: "球場球友",
@@ -1914,7 +2211,17 @@ export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onO
 
 /** Open the all-Taipei opt-in directory without coupling it to map bounds. */
 export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () => {}, onRetry = () => {} } = {}) {
-  if (!mountPlayerDirectorySheetContent) throw new Error("PlayerDirectorySheet browser mount is unavailable.");
+  if (!mountPlayerDirectorySheetContent) {
+    return deferSurfaceOpen({
+      id: "player-directory-sheet",
+      label: "球友名單",
+      className: "player-directory-sheet",
+      load: preloadPlayerDirectorySheet,
+      methods: ["setDirectory"],
+      onClose,
+      open: () => openPlayerDirectoryList({ onClose, onOpenPlayer, onRetry }),
+    });
+  }
   const mounted = mountSheet({
     id: "player-directory-sheet",
     label: "球友名單",
@@ -1949,7 +2256,17 @@ export function openFilterSheet({
   onReset = () => {},
   onClose = () => {},
 } = {}) {
-  if (!mountFilterSheetContent) throw new Error("FilterSheet browser mount is unavailable.");
+  if (!mountFilterSheetContent) {
+    return deferSurfaceOpen({
+      id: "filters-sheet",
+      label: "篩選球局",
+      className: "filter-sheet",
+      load: preloadFilterSheet,
+      methods: ["setFilters", "setResultCount"],
+      onClose,
+      open: () => openFilterSheet({ filters, courts, resultCount, onSetFilter, onReset, onClose }),
+    });
+  }
   const mounted = mountSheet({
     id: "filters-sheet",
     label: "篩選球局",
@@ -1984,7 +2301,25 @@ export function openPlayerCardSheet(
     onSeeDirectory = () => {},
   } = {}
 ) {
-  if (!mountPlayerCardSheetContent) throw new Error("PlayerCardSheet browser mount is unavailable.");
+  if (!mountPlayerCardSheetContent) {
+    return deferSurfaceOpen({
+      id: "player-card-sheet",
+      label: "球友卡",
+      className: "player-card-sheet",
+      load: preloadPlayerCardSheet,
+      methods: ["setInvitableSessions"],
+      onClose,
+      open: () =>
+        openPlayerCardSheet(player, {
+          courts,
+          myInvitableSessions,
+          onClose,
+          onCreate,
+          onInvite,
+          onSeeDirectory,
+        }),
+    });
+  }
   const mounted = mountSheet({
     id: "player-card-sheet",
     label: "球友卡",

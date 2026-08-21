@@ -22,7 +22,9 @@ test("closing and replacing sheets unmount each SurfaceHost portal exactly once"
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet, openFilterSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet, openFilterSheet, preloadNonHomeViews } =
+      await window.__importAppModule("sessionViews");
+    await preloadNonHomeViews(["create", "filter"]);
     openCreateSessionSheet();
     openFilterSheet();
   });

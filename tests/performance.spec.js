@@ -390,6 +390,10 @@ test("a stale opening focus callback cannot steal focus after an immediate drawe
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
+  await page.evaluate(async () => {
+    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    await preloadNonHomeViews("filter");
+  });
 
   // 批 D4a:退場的 #date-filter 曾在同一個同步 evaluate 區塊內把「篩選出零結果」與
   // 「開抽屜→聚焦並點擊 reset」串在一起,刻意不讓任何一步跨到下一個 tick,重現這個

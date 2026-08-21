@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
+const APP = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
 const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
 const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
 const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
@@ -34,6 +35,16 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
   for (const { name, source } of imperativeAdapters) {
     assert.match(source, /surfaceContent\.commit\(/, `${name} loses synchronous imperative update semantics`);
   }
+});
+
+test("non-home pages and sheets stay behind explicit preloadable module boundaries", () => {
+  assert.equal((SESSION_VIEWS.match(/eager: true/g) ?? []).length, 2, "only App and Session Detail stay eager");
+  const lazySheetList = SESSION_VIEWS.match(/import\.meta\.glob\(\[([\s\S]*?)\]\)/)?.[1] ?? "";
+  assert.equal((lazySheetList.match(/\.\/sheets\/.+?\.tsx/g) ?? []).length, 13);
+  assert.doesNotMatch(lazySheetList, /eager:/);
+  assert.equal((APP.match(/Request \?\?= import\("\.\.\/pages\//g) ?? []).length, 3);
+  assert.match(SESSION_VIEWS, /pointerover[\s\S]*focusin/);
+  assert.match(SESSION_VIEWS, /if \(authSession\) preloadAuthenticatedViews\(\)/);
 });
 
 test("surface close unmounts React before clearing DOM and remains idempotent", () => {

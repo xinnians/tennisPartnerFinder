@@ -115,7 +115,8 @@ test("My Sessions segment switching redraws from the latest rendered snapshot", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    await preloadNonHomeViews("mySessions");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -2380,7 +2381,9 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews, renderMePage, renderMySessionsPage } =
+      await window.__importAppModule("sessionViews");
+    await preloadNonHomeViews(["me", "mySessions"]);
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -3048,7 +3051,9 @@ test("a pending withdrawal accepts only one intentional submission", async ({ pa
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionSheet, openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet, openWithdrawSessionConfirmation, preloadNonHomeViews } =
+      await window.__importAppModule("sessionViews");
+    await preloadNonHomeViews("withdraw");
     let releaseWithdrawal;
     window.__withdrawalCalls = 0;
     window.__releaseWithdrawal = () => releaseWithdrawal?.();
@@ -5010,7 +5015,8 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionChatSheet, preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    await preloadNonHomeViews("chat");
     window.__chatActions = [];
     const sheet = openSessionChatSheet(
       {

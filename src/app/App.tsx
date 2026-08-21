@@ -1,17 +1,18 @@
-import { memo } from "react";
+import { memo, useEffect, useLayoutEffect } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
-import { MePage, type MePageOptions } from "../pages/MePage.tsx";
-import { MessagesPage, type MessagesPageOptions } from "../pages/MessagesPage.tsx";
-import { MySessionsPage, type MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
+import type { MePageOptions } from "../pages/MePage.tsx";
+import type { MessagesPageOptions } from "../pages/MessagesPage.tsx";
+import type { MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
 import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
 import { installSurfaceHostRenderer, SurfaceHost, type SurfaceHostSnapshot } from "./SurfaceHost.tsx";
 
 interface PageSlot<Options> {
   generation: number;
   id: number;
+  onCommit?: () => void;
   options: Options;
   rootElement: HTMLElement;
 }
@@ -32,6 +33,15 @@ const EMPTY_MESSAGES_GROUPS = { history: [], needsAction: [], needsActionCount: 
 const noop = () => {};
 let appRoot: Root | null = null;
 let nextSlotId = 1;
+let MePageComponent: typeof import("../pages/MePage.tsx").MePage | null = null;
+let MessagesPageComponent: typeof import("../pages/MessagesPage.tsx").MessagesPage | null = null;
+let MySessionsPageComponent: typeof import("../pages/MySessionsPage.tsx").MySessionsPage | null = null;
+let mePageRequest: Promise<void> | null = null;
+let messagesPageRequest: Promise<void> | null = null;
+let mySessionsPageRequest: Promise<void> | null = null;
+let mePageLoadFailed = false;
+let messagesPageLoadFailed = false;
+let mySessionsPageLoadFailed = false;
 let snapshot: AppSnapshot = {
   mePages: new Map(),
   messagesPages: new Map(),
@@ -39,6 +49,78 @@ let snapshot: AppSnapshot = {
   nearbyDrawers: new Map(),
   surfaces: new Map(),
 };
+
+function hasVisiblePageSlot(key: "mePages" | "messagesPages" | "mySessionsPages"): boolean {
+  return [...snapshot[key].values()].some((slot) => !slot.rootElement.closest("[hidden]"));
+}
+
+function loadMePage(): Promise<void> {
+  if (MePageComponent) return Promise.resolve();
+  mePageRequest ??= import("../pages/MePage.tsx").then(
+    ({ MePage }) => {
+      MePageComponent = MePage;
+      if (appRoot && hasVisiblePageSlot("mePages")) renderApp();
+    },
+    (error) => {
+      mePageLoadFailed = true;
+      if (appRoot && hasVisiblePageSlot("mePages")) renderApp();
+      throw error;
+    }
+  );
+  return mePageRequest;
+}
+
+function loadMessagesPage(): Promise<void> {
+  if (MessagesPageComponent) return Promise.resolve();
+  messagesPageRequest ??= import("../pages/MessagesPage.tsx").then(
+    ({ MessagesPage }) => {
+      MessagesPageComponent = MessagesPage;
+      if (appRoot && hasVisiblePageSlot("messagesPages")) renderApp();
+    },
+    (error) => {
+      messagesPageLoadFailed = true;
+      if (appRoot && hasVisiblePageSlot("messagesPages")) renderApp();
+      throw error;
+    }
+  );
+  return messagesPageRequest;
+}
+
+function loadMySessionsPage(): Promise<void> {
+  if (MySessionsPageComponent) return Promise.resolve();
+  mySessionsPageRequest ??= import("../pages/MySessionsPage.tsx").then(
+    ({ MySessionsPage }) => {
+      MySessionsPageComponent = MySessionsPage;
+      if (appRoot && hasVisiblePageSlot("mySessionsPages")) renderApp();
+    },
+    (error) => {
+      mySessionsPageLoadFailed = true;
+      if (appRoot && hasVisiblePageSlot("mySessionsPages")) renderApp();
+      throw error;
+    }
+  );
+  return mySessionsPageRequest;
+}
+
+export function preloadMePageInApp(): Promise<void> {
+  return loadMePage();
+}
+
+export function preloadMessagesPageInApp(): Promise<void> {
+  return loadMessagesPage();
+}
+
+export function preloadMySessionsPageInApp(): Promise<void> {
+  return loadMySessionsPage();
+}
+
+function PageLoading({ label }: { label: string }) {
+  return (
+    <div className="page-lazy-status" role="status" aria-live="polite" aria-atomic="true">
+      {label}
+    </div>
+  );
+}
 
 function renderPortals<Options>(
   slots: Map<HTMLElement, PageSlot<Options>>,
@@ -48,7 +130,22 @@ function renderPortals<Options>(
   return [...slots.values()].map((slot) => createPortal(render(slot), slot.rootElement, `${prefix}:${slot.id}`));
 }
 
-const MeDestination = memo(function MeDestination({ slot }: { slot: PageSlot<MePageOptions> }) {
+const MeDestination = memo(function MeDestination({
+  failed,
+  loaded,
+  slot,
+}: {
+  failed: boolean;
+  loaded: boolean;
+  slot: PageSlot<MePageOptions>;
+}) {
+  useEffect(() => {
+    if (!loaded && !failed) void loadMePage().catch(() => {});
+  }, [failed, loaded]);
+  useLayoutEffect(() => {
+    if (loaded) slot.onCommit?.();
+  }, [loaded, slot]);
+  if (!MePageComponent) return <PageLoading label={failed ? "「我」載入失敗，請重新整理。" : "正在載入「我」…"} />;
   const {
     authSession = null,
     profile = {},
@@ -78,7 +175,7 @@ const MeDestination = memo(function MeDestination({ slot }: { slot: PageSlot<MeP
 
   return (
     <AppErrorBoundary resetKey={slot.generation} surface="me-page">
-      <MePage
+      <MePageComponent
         key={slot.generation}
         rootElement={slot.rootElement}
         authSession={authSession}
@@ -110,19 +207,51 @@ const MeDestination = memo(function MeDestination({ slot }: { slot: PageSlot<MeP
   );
 });
 
-const MessagesDestination = memo(function MessagesDestination({ slot }: { slot: PageSlot<MessagesPageOptions> }) {
+const MessagesDestination = memo(function MessagesDestination({
+  failed,
+  loaded,
+  slot,
+}: {
+  failed: boolean;
+  loaded: boolean;
+  slot: PageSlot<MessagesPageOptions>;
+}) {
+  useEffect(() => {
+    if (!loaded && !failed) void loadMessagesPage().catch(() => {});
+  }, [failed, loaded]);
+  useLayoutEffect(() => {
+    if (loaded) slot.onCommit?.();
+  }, [loaded, slot]);
+  if (!MessagesPageComponent) return <PageLoading label={failed ? "訊息載入失敗，請重新整理。" : "正在載入訊息…"} />;
   const { courts = [], groups = EMPTY_MESSAGES_GROUPS, onOpenChat = noop } = slot.options;
   return (
     <AppErrorBoundary resetKey={slot.generation} surface="messages-page">
-      <MessagesPage courts={courts} groups={groups} onOpenChat={onOpenChat} />
+      <MessagesPageComponent courts={courts} groups={groups} onOpenChat={onOpenChat} />
     </AppErrorBoundary>
   );
 });
 
-const MySessionsDestination = memo(function MySessionsDestination({ slot }: { slot: PageSlot<MySessionsPageOptions> }) {
+const MySessionsDestination = memo(function MySessionsDestination({
+  failed,
+  loaded,
+  slot,
+}: {
+  failed: boolean;
+  loaded: boolean;
+  slot: PageSlot<MySessionsPageOptions>;
+}) {
+  useEffect(() => {
+    if (!loaded && !failed) void loadMySessionsPage().catch(() => {});
+  }, [failed, loaded]);
+  useLayoutEffect(() => {
+    if (loaded) slot.onCommit?.();
+  }, [loaded, slot]);
+  if (!MySessionsPageComponent) {
+    return <PageLoading label={failed ? "我的球局載入失敗，請重新整理。" : "正在載入我的球局…"} />;
+  }
   return (
     <AppErrorBoundary resetKey={slot.generation} surface="my-sessions-page">
-      <MySessionsPage {...slot.options} key={slot.generation} rootElement={slot.rootElement} />
+      <MySessionsPageComponent {...slot.options} key={slot.generation} rootElement={slot.rootElement} />
     </AppErrorBoundary>
   );
 });
@@ -146,21 +275,25 @@ export function App({ snapshot: current }: AppProps) {
       {renderPortals(
         current.mePages,
         (slot) => (
-          <MeDestination slot={slot} />
+          <MeDestination failed={mePageLoadFailed} loaded={Boolean(MePageComponent)} slot={slot} />
         ),
         "me"
       )}
       {renderPortals(
         current.messagesPages,
         (slot) => (
-          <MessagesDestination slot={slot} />
+          <MessagesDestination failed={messagesPageLoadFailed} loaded={Boolean(MessagesPageComponent)} slot={slot} />
         ),
         "messages"
       )}
       {renderPortals(
         current.mySessionsPages,
         (slot) => (
-          <MySessionsDestination slot={slot} />
+          <MySessionsDestination
+            failed={mySessionsPageLoadFailed}
+            loaded={Boolean(MySessionsPageComponent)}
+            slot={slot}
+          />
         ),
         "my-sessions"
       )}
@@ -198,7 +331,12 @@ function commitPageAdapterSynchronously(): void {
   flushSync(renderApp);
 }
 
-function renderPage<Options>(key: keyof AppSnapshot, rootElement: HTMLElement, options: Options): void {
+function renderPage<Options>(
+  key: keyof AppSnapshot,
+  rootElement: HTMLElement,
+  options: Options,
+  onCommit?: () => void
+): void {
   const slots = new Map(snapshot[key] as Map<HTMLElement, PageSlot<Options>>);
   const previous = slots.get(rootElement);
   slots.set(rootElement, {
@@ -206,6 +344,7 @@ function renderPage<Options>(key: keyof AppSnapshot, rootElement: HTMLElement, o
     // gives it fresh nodes and also resets a previously tripped error boundary.
     generation: (previous?.generation ?? 0) + 1,
     id: previous?.id ?? nextSlotId++,
+    onCommit,
     options,
     rootElement,
   });
@@ -213,16 +352,24 @@ function renderPage<Options>(key: keyof AppSnapshot, rootElement: HTMLElement, o
   commitPageAdapterSynchronously();
 }
 
-export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}): void {
-  renderPage("mePages", rootElement, options);
+export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}, onCommit?: () => void): void {
+  renderPage("mePages", rootElement, options, onCommit);
 }
 
-export function renderMessagesPageInApp(rootElement: HTMLElement, options: MessagesPageOptions = {}): void {
-  renderPage("messagesPages", rootElement, options);
+export function renderMessagesPageInApp(
+  rootElement: HTMLElement,
+  options: MessagesPageOptions = {},
+  onCommit?: () => void
+): void {
+  renderPage("messagesPages", rootElement, options, onCommit);
 }
 
-export function renderMySessionsPageInApp(rootElement: HTMLElement, options: MySessionsPageOptions = {}): void {
-  renderPage("mySessionsPages", rootElement, options);
+export function renderMySessionsPageInApp(
+  rootElement: HTMLElement,
+  options: MySessionsPageOptions = {},
+  onCommit?: () => void
+): void {
+  renderPage("mySessionsPages", rootElement, options, onCommit);
 }
 
 export function renderNearbySessionsDrawerInApp(
