@@ -9,11 +9,11 @@ import type {
 import { canReceiveFocus } from "./meFocus.js";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
-import { runMySessionAction, runNotificationSettingAction, runPresenceSettingAction } from "./sessionActions.js";
+import { runMySessionAction, runNotificationSettingAction, runPresenceSettingAction } from "./sessionActions.ts";
 import { taipeiClock, taipeiDateKey, taipeiDateTime, taipeiParts } from "./taipeiTime.js";
 
 // Typed, side-effect-free presentation rules shared by legacy adapters and React.
-// DOM-backed async action ownership is isolated in sessionActions.js so this file
+// DOM-backed async action ownership is isolated in sessionActions.ts so this file
 // never imports the legacy view adapter and cannot recreate the old module cycle.
 
 type Identifier = number | string | null | undefined;

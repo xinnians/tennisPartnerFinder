@@ -17,7 +17,7 @@ import {
   runPresenceSettingAction,
   setMySessionActionScope,
   syncPendingMySessionActions,
-} from "./sessionActions.js";
+} from "./sessionActions.ts";
 import {
   PROFILE_SLOTS,
   discoveryEmptyActions,
