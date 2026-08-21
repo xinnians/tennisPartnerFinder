@@ -1,5 +1,4 @@
 import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
@@ -287,25 +286,23 @@ export function mountPlayerCardSheetContent(
   const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<PlayerCardSheetContentContract>();
   let boundaryFailed = false;
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary
-        rootElement={rootElement}
-        surface="player-card-sheet"
-        onError={() => {
-          boundaryFailed = true;
-        }}
-      >
-        <PlayerCardSheetWithRef {...options} ref={contentRef} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary
+      rootElement={rootElement}
+      surface="player-card-sheet"
+      onError={() => {
+        boundaryFailed = true;
+      }}
+    >
+      <PlayerCardSheetWithRef {...options} ref={contentRef} />
+    </AppErrorBoundary>
   );
   if (!contentRef.current && !boundaryFailed) throw new Error("PlayerCardSheet content did not mount.");
 
   return {
     isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setInvitableSessions(sessions) {
-      flushSync(() => contentRef.current?.setInvitableSessions(sessions));
+      surfaceContent.commit(() => contentRef.current?.setInvitableSessions(sessions));
     },
     unmount: surfaceContent.unmount,
   };

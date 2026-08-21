@@ -1,5 +1,3 @@
-import { flushSync } from "react-dom";
-
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
@@ -36,12 +34,10 @@ export function mountSessionUnavailableSheetContent(
   onClose: () => void
 ): SurfaceContentLifecycle {
   const surfaceContent = mountSurfaceContent(rootElement);
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary rootElement={rootElement} surface="session-unavailable-sheet">
-        <SessionUnavailableSheet onClose={onClose} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary rootElement={rootElement} surface="session-unavailable-sheet">
+      <SessionUnavailableSheet onClose={onClose} />
+    </AppErrorBoundary>
   );
   return surfaceContent;
 }

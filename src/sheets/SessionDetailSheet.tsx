@@ -1,5 +1,4 @@
 import { Fragment, memo } from "react";
-import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
@@ -541,12 +540,10 @@ export function mountSessionDetailSheetContent(
 
   const commit = () => {
     if (!surfaceContent.isSurfaceRootLive()) return;
-    flushSync(() =>
-      surfaceContent.render(
-        <AppErrorBoundary resetKey={snapshot.actionGeneration} rootElement={rootElement} surface="session-detail-sheet">
-          <SessionDetailSheet detail={detail} snapshot={snapshot} />
-        </AppErrorBoundary>
-      )
+    surfaceContent.render(
+      <AppErrorBoundary resetKey={snapshot.actionGeneration} rootElement={rootElement} surface="session-detail-sheet">
+        <SessionDetailSheet detail={detail} snapshot={snapshot} />
+      </AppErrorBoundary>
     );
   };
 

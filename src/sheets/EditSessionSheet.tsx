@@ -1,5 +1,4 @@
 import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
@@ -292,25 +291,23 @@ export function mountEditSessionSheetContent(
   const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<EditSessionContentContract>();
   let boundaryFailed = false;
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary
-        rootElement={rootElement}
-        surface="edit-session-sheet"
-        onError={() => {
-          boundaryFailed = true;
-        }}
-      >
-        <EditSessionSheetWithRef {...options} ref={contentRef} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary
+      rootElement={rootElement}
+      surface="edit-session-sheet"
+      onError={() => {
+        boundaryFailed = true;
+      }}
+    >
+      <EditSessionSheetWithRef {...options} ref={contentRef} />
+    </AppErrorBoundary>
   );
   if (!contentRef.current && !boundaryFailed) throw new Error("EditSessionSheet content did not mount.");
 
   return {
     isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setCourts(courts, options) {
-      flushSync(() => contentRef.current?.setCourts(courts, options));
+      surfaceContent.commit(() => contentRef.current?.setCourts(courts, options));
     },
     unmount: surfaceContent.unmount,
   };

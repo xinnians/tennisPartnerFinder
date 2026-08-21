@@ -139,7 +139,7 @@ const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
   );
 });
 
-/** One React tree; legacy page containers remain stable portal targets until D4 removes their adapters. */
+/** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */
 export function App({ snapshot: current }: AppProps) {
   return (
     <>
@@ -189,17 +189,28 @@ function renderApp(): void {
   ensureAppRoot().render(<App snapshot={snapshot} />);
 }
 
+/**
+ * sessionViews wires native listeners immediately after each public render call,
+ * so this compatibility boundary must expose committed DOM before it returns.
+ * Internal React updates do not use this path.
+ */
+function commitPageAdapterSynchronously(): void {
+  flushSync(renderApp);
+}
+
 function renderPage<Options>(key: keyof AppSnapshot, rootElement: HTMLElement, options: Options): void {
   const slots = new Map(snapshot[key] as Map<HTMLElement, PageSlot<Options>>);
   const previous = slots.get(rootElement);
   slots.set(rootElement, {
+    // sessionViews rebinds native listeners after every adapter call. Remounting
+    // gives it fresh nodes and also resets a previously tripped error boundary.
     generation: (previous?.generation ?? 0) + 1,
     id: previous?.id ?? nextSlotId++,
     options,
     rootElement,
   });
   snapshot = { ...snapshot, [key]: slots };
-  flushSync(renderApp);
+  commitPageAdapterSynchronously();
 }
 
 export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}): void {

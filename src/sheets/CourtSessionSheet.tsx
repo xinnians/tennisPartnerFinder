@@ -1,5 +1,3 @@
-import { flushSync } from "react-dom";
-
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
@@ -59,12 +57,10 @@ export function mountCourtSessionSheetContent(
   props: CourtSessionSheetProps
 ): SurfaceContentLifecycle {
   const surfaceContent = mountSurfaceContent(rootElement);
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary rootElement={rootElement} surface="court-session-sheet">
-        <CourtSessionSheet {...props} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary rootElement={rootElement} surface="court-session-sheet">
+      <CourtSessionSheet {...props} />
+    </AppErrorBoundary>
   );
   return surfaceContent;
 }

@@ -1,5 +1,3 @@
-import { flushSync } from "react-dom";
-
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
@@ -46,12 +44,10 @@ export function mountWithdrawSessionConfirmationDialogContent(
   options: WithdrawSessionConfirmationContentOptions
 ): SurfaceContentLifecycle {
   const surfaceContent = mountSurfaceContent(rootElement);
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary rootElement={rootElement} surface="withdraw-session-dialog">
-        <WithdrawSessionConfirmationDialog {...options} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary rootElement={rootElement} surface="withdraw-session-dialog">
+      <WithdrawSessionConfirmationDialog {...options} />
+    </AppErrorBoundary>
   );
   return surfaceContent;
 }

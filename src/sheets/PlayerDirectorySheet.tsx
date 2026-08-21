@@ -1,5 +1,4 @@
 import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
@@ -198,25 +197,23 @@ export function mountPlayerDirectorySheetContent(
   const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<PlayerDirectorySheetContentContract>();
   let boundaryFailed = false;
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary
-        rootElement={rootElement}
-        surface="player-directory-sheet"
-        onError={() => {
-          boundaryFailed = true;
-        }}
-      >
-        <PlayerDirectorySheetWithRef {...options} ref={contentRef} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary
+      rootElement={rootElement}
+      surface="player-directory-sheet"
+      onError={() => {
+        boundaryFailed = true;
+      }}
+    >
+      <PlayerDirectorySheetWithRef {...options} ref={contentRef} />
+    </AppErrorBoundary>
   );
   if (!contentRef.current && !boundaryFailed) throw new Error("PlayerDirectorySheet content did not mount.");
 
   return {
     isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setDirectory(next) {
-      flushSync(() => contentRef.current?.setDirectory(next));
+      surfaceContent.commit(() => contentRef.current?.setDirectory(next));
     },
     unmount: surfaceContent.unmount,
   };

@@ -1,5 +1,4 @@
-import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { createRef, forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
@@ -227,6 +226,11 @@ function CreateSessionSheet({
     setForm((current) => ({ ...current, ...next }));
   };
 
+  useLayoutEffect(() => {
+    if (form.dateKey !== "custom" || typeof customDateFieldRef.current?.scrollIntoView !== "function") return;
+    customDateFieldRef.current.scrollIntoView({ block: "nearest" });
+  }, [form.dateKey]);
+
   const chooseCandidateCourt = (court: CreateCourt) => {
     const id = String(court.id);
     const selected = Boolean(form.candCourts[id]);
@@ -242,10 +246,7 @@ function CreateSessionSheet({
   const chooseDate = (key: string) => {
     const openedAt = now();
     const customDate = key === "custom" && !form.customDate ? dateValueNow(openedAt) : form.customDate;
-    flushSync(() => updateForm({ customDate, dateKey: key, nowStart: false }));
-    if (key === "custom" && typeof customDateFieldRef.current?.scrollIntoView === "function") {
-      customDateFieldRef.current.scrollIntoView({ block: "nearest" });
-    }
+    updateForm({ customDate, dateKey: key, nowStart: false });
   };
 
   const choosePlayType = (type: string) => {
@@ -796,28 +797,26 @@ export function mountCreateSessionSheetContent(
   const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<CreateSessionContentContract>();
   let boundaryFailed = false;
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary
-        rootElement={rootElement}
-        surface="create-session-sheet"
-        onError={() => {
-          boundaryFailed = true;
-        }}
-      >
-        <CreateSessionSheetWithRef {...options} ref={contentRef} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary
+      rootElement={rootElement}
+      surface="create-session-sheet"
+      onError={() => {
+        boundaryFailed = true;
+      }}
+    >
+      <CreateSessionSheetWithRef {...options} ref={contentRef} />
+    </AppErrorBoundary>
   );
   if (!contentRef.current && !boundaryFailed) throw new Error("CreateSessionSheet content did not mount.");
 
   return {
     isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setCourts(courts, options) {
-      flushSync(() => contentRef.current?.setCourts(courts, options));
+      surfaceContent.commit(() => contentRef.current?.setCourts(courts, options));
     },
     showDone(value, result) {
-      flushSync(() => contentRef.current?.showDone(value, result));
+      surfaceContent.commit(() => contentRef.current?.showDone(value, result));
     },
     unmount: surfaceContent.unmount,
   };

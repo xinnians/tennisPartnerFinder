@@ -7,6 +7,7 @@ export interface SurfaceContentLifecycle {
 }
 
 interface SurfaceContentHandle extends SurfaceContentLifecycle {
+  commit(update: () => void): void;
   render(children: ReactNode): void;
 }
 
@@ -51,17 +52,26 @@ function commitSurfaceSlots(): void {
   renderSurfaceHost(new Map(slots));
 }
 
+/** Imperative sheet adapters read their portal DOM before returning; React-owned event updates bypass this boundary. */
+function commitSynchronously(update: () => void): void {
+  flushSync(update);
+}
+
 /** Register one existing shell content slot with the single App root. */
 export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHandle {
   const id = nextSurfaceSlotId++;
   let isLive = true;
 
   return {
+    commit(update) {
+      if (!isLive) return;
+      commitSynchronously(update);
+    },
     isSurfaceRootLive: () => isLive,
     render(children) {
       if (!isLive) return;
       slots.set(rootElement, { children, id, rootElement });
-      commitSurfaceSlots();
+      commitSynchronously(commitSurfaceSlots);
     },
     unmount() {
       if (!isLive) return;
@@ -69,7 +79,7 @@ export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHan
       try {
         if (slots.get(rootElement)?.id === id) {
           slots.delete(rootElement);
-          flushSync(commitSurfaceSlots);
+          commitSynchronously(commitSurfaceSlots);
         }
       } finally {
         const hooks = (globalThis as typeof globalThis & { __tennisE2ETestHooks?: SurfaceContentTestHooks })

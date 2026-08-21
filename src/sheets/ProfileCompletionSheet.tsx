@@ -1,5 +1,4 @@
 import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
@@ -264,25 +263,23 @@ export function mountProfileCompletionSheetContent(
   const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<ProfileCompletionContentContract>();
   let boundaryFailed = false;
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary
-        rootElement={rootElement}
-        surface="profile-completion-sheet"
-        onError={() => {
-          boundaryFailed = true;
-        }}
-      >
-        <ProfileCompletionSheetWithRef {...options} ref={contentRef} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary
+      rootElement={rootElement}
+      surface="profile-completion-sheet"
+      onError={() => {
+        boundaryFailed = true;
+      }}
+    >
+      <ProfileCompletionSheetWithRef {...options} ref={contentRef} />
+    </AppErrorBoundary>
   );
   if (!contentRef.current && !boundaryFailed) throw new Error("ProfileCompletionSheet content did not mount.");
 
   return {
     isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setCourts(courts, courtsOptions) {
-      flushSync(() => contentRef.current?.setCourts(courts, courtsOptions));
+      surfaceContent.commit(() => contentRef.current?.setCourts(courts, courtsOptions));
     },
     unmount: surfaceContent.unmount,
   };

@@ -1,5 +1,4 @@
 import { createRef, forwardRef, memo, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { TAIPEI_DISTRICTS } from "../districts.ts";
@@ -274,28 +273,26 @@ export function mountFilterSheetContent(
   const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<FilterSheetContentContract>();
   let boundaryFailed = false;
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary
-        rootElement={rootElement}
-        surface="filter-sheet"
-        onError={() => {
-          boundaryFailed = true;
-        }}
-      >
-        <FilterSheetWithRef {...options} ref={contentRef} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary
+      rootElement={rootElement}
+      surface="filter-sheet"
+      onError={() => {
+        boundaryFailed = true;
+      }}
+    >
+      <FilterSheetWithRef {...options} ref={contentRef} />
+    </AppErrorBoundary>
   );
   if (!contentRef.current && !boundaryFailed) throw new Error("FilterSheet content did not mount.");
 
   return {
     isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setFilters(filters) {
-      flushSync(() => contentRef.current?.setFilters(filters));
+      surfaceContent.commit(() => contentRef.current?.setFilters(filters));
     },
     setResultCount(count) {
-      flushSync(() => contentRef.current?.setResultCount(count));
+      surfaceContent.commit(() => contentRef.current?.setResultCount(count));
     },
     unmount: surfaceContent.unmount,
   };

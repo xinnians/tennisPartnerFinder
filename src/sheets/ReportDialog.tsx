@@ -1,5 +1,3 @@
-import { flushSync } from "react-dom";
-
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { reportDialogRuntime } from "../sessionPresentation.ts";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
@@ -60,12 +58,10 @@ export function mountReportDialogContent(
   options: ReportDialogContentOptions
 ): SurfaceContentLifecycle {
   const surfaceContent = mountSurfaceContent(rootElement);
-  flushSync(() =>
-    surfaceContent.render(
-      <AppErrorBoundary rootElement={rootElement} surface="report-dialog">
-        <ReportDialog {...options} />
-      </AppErrorBoundary>
-    )
+  surfaceContent.render(
+    <AppErrorBoundary rootElement={rootElement} surface="report-dialog">
+      <ReportDialog {...options} />
+    </AppErrorBoundary>
   );
   return surfaceContent;
 }

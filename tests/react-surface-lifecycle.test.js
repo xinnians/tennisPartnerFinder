@@ -6,6 +6,7 @@ import test from "node:test";
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
 const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
 const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
+const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
 
 test("all 14 React sheet adapters register tracked SurfaceHost portal content", () => {
   const sheetSources = readdirSync(SHEETS_DIR)
@@ -16,6 +17,7 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
   assert.equal(sheetSources.length, 14);
   for (const { name, source } of sheetSources) {
     assert.doesNotMatch(source, /create(?:Root|SurfaceRoot)\(/, `${name} creates an independent React root`);
+    assert.doesNotMatch(source, /flushSync/, `${name} bypasses SurfaceHost's centralized synchronous adapter`);
     assert.match(
       source,
       /\breturn surfaceContent;|\bunmount: surfaceContent\.unmount/,
@@ -23,6 +25,15 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
     );
   }
   assert.equal((SESSION_VIEWS.match(/mounted\.registerUnmount\(content\.unmount\)/g) ?? []).length, 14);
+  assert.equal((SURFACE_HOST.match(/flushSync\(/g) ?? []).length, 1, "SurfaceHost must centralize synchronous sheet commits");
+  assert.match(SURFACE_HOST, /commitSynchronously\(commitSurfaceSlots\)/);
+  assert.match(SURFACE_HOST, /commitSynchronously\(update\)/);
+
+  const imperativeAdapters = sheetSources.filter(({ source }) => source.includes("contentRef.current"));
+  assert.equal(imperativeAdapters.length, 8);
+  for (const { name, source } of imperativeAdapters) {
+    assert.match(source, /surfaceContent\.commit\(/, `${name} loses synchronous imperative update semantics`);
+  }
 });
 
 test("surface close unmounts React before clearing DOM and remains idempotent", () => {
