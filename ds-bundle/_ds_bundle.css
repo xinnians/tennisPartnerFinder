@@ -1,0 +1,1461 @@
+/* 網球球局地圖設計系統 — 元件樣式全文。
+   來源:app 實際 stylesheet(src/style.css 全域基座 + src/session.css 全文)逐字複製,
+   v2 計分板改版 D1-D9 完成版(2026-08-11 回同步,repo HEAD 2685213)。
+   不是摘錄——設計 agent 讀到的就是產品跑的樣式。token :root 同時定義於此與
+   tokens/tokens.css(值完全相同;tokens.css 是可讀參考表)。 */
+:root {
+  color: var(--color-text-primary);
+  background: var(--color-surface-page);
+  /* 批 B-8:改引 --font-body(原本是與 token 值幾乎重複的字面 "Noto Sans TC" 堆疊,
+     token 定義後從未被引用);token 已在 index.html 載入 Noto Sans TC 400/500/700,
+     故拿掉 system-ui 後備風險低。 */
+  font-family: var(--font-body);
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body,
+#app { min-width: 0; min-height: 100%; margin: 0; }
+
+body { overflow-x: hidden; }
+
+button,
+input,
+select { font: inherit; }
+
+button { cursor: pointer; }
+
+/* 批 D9 backlog #3(dc L22 逐字):全域 focus-visible 外框,取代原本只涵蓋
+   button/input/select 三個標籤的版本——舊版對 <a>、自訂 tabindex 元素(如
+   session-card、chips)一律沒有預設外框,全靠瀏覽器預設值。個別元件若已有自己的
+   :focus-visible 樣式(如 .form-optional > summary、.option-grid--stacked
+   label:has(input:focus-visible)),選擇器帶 class 的具體性天生高於這條裸
+   :focus-visible,元件版本本來就會贏,不需要額外排除。 */
+:focus-visible { outline: 3px solid var(--color-court); outline-offset: 2px; }
+
+button:disabled { cursor: not-allowed; opacity: 0.58; }
+
+[hidden] { display: none !important; }
+
+:root {
+  /* ==== 計分板 token 層(spec 2026-08-07 批 A);語意命名,dark mode 未來只翻此層 ==== */
+  --color-ink: #12291c;
+  --color-court: #1c5c3c;
+  --color-signal: #ddf53c;
+  --color-surface-page: #faf9f3;
+  --color-surface-card: #ffffff;
+  --color-text-primary: #12291c;
+  --color-text-secondary: #46554b; /* 候選 #5c6a5f 對 success-bg 不足 4.5 時用此加深值;以 Step 4 實算為準 */
+  --color-line: #cfd8cd;
+  --color-danger: #a1241b;
+  --color-danger-bg: #fff0ef;
+  --color-success: #1c5c3c;
+  --color-success-bg: #e8f2e3;
+  --color-info-bg: #eef1e7;
+  --font-body: "Noto Sans TC", sans-serif;
+  --font-mono: "IBM Plex Mono", "Noto Sans TC", monospace;
+  --font-display: "Barlow Condensed", "Noto Sans TC", sans-serif;
+  --text-xs: 11px; --text-sm: 12px; --text-base: 14px; --text-md: 15px;
+  --text-lg: 17px; --text-xl: 20px; --text-2xl: 24px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-7: 32px; --space-8: 40px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 10px; --radius-xl: 16px; --radius-pill: 999px;
+  /* 批 D1(v2 改版):停用態雙 token(停用控件依 WCAG 豁免對比)與品牌 easing。 */
+  --color-disabled-bg: #e3e6dc;
+  --color-disabled-text: #8a978c;
+  --ease-brand: cubic-bezier(0.22, 0.61, 0.36, 1); /* @kind other */
+  --border-strong: 1.5px solid var(--color-ink);
+  --border-thin: 1px solid var(--color-line);
+  --elevation-1: 0 2px 8px rgba(18, 41, 28, 0.10);
+  --elevation-2: 0 14px 32px rgba(18, 41, 28, 0.22);
+  --z-header: 10; /* @kind other */
+  --z-map-controls: 6; /* @kind other */
+  --z-drawer: 20; /* @kind other */
+  --z-sheet: 31; /* @kind other */
+  --z-toast: 40; /* @kind other */
+  /* 批 D7:五格導覽(dc §1)容器高 84px(10px 8px 20px padding 撐出,含置中浮起的
+     開球局鈕);--bottom-navigation-offset 全站多處定位依賴此 token,連動改高不必
+     逐一改動引用點(map-zoom-controls/nearby-peek/toast/me-page 等)。 */
+  --bottom-navigation-height: 84px;
+  --bottom-navigation-offset: calc(var(--bottom-navigation-height) + env(safe-area-inset-bottom, 0px));
+}
+
+/* 批 D4a:v2 頂部 overlay(dc L88-106)取代退場的 app-header——container 本身
+   pointer-events:none,子列(row1 品牌/城市/球友名單、row2 chips)各自
+   pointer-events:auto,讓地圖手勢仍可穿透 overlay 空白處。top padding 依 dc 註記
+   改 14px(本 repo 無瀏海安全區需求,不套用原稿 50px)。 */
+.map-topbar {
+  position: absolute;
+  z-index: var(--z-header);
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 14px 20px;
+  background: linear-gradient(var(--color-surface-page) 30%, rgba(250, 249, 243, 0.88) 62%, rgba(250, 249, 243, 0));
+  pointer-events: none;
+}
+
+.map-topbar__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 11px;
+  pointer-events: auto;
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-ink);
+  color: var(--color-surface-page);
+  box-shadow: 0 6px 16px rgba(18, 41, 28, 0.28);
+  text-decoration: none;
+}
+
+.app-brand__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  box-shadow: inset -3px -3px 0 rgba(18, 41, 28, 0.3);
+}
+
+.app-brand__name { font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: 1.5px; }
+.app-brand__code { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; letter-spacing: 2.5px; color: #9db3a4; /* dc 深底非活躍慣例色,非 token 階 */ }
+
+.city-chip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.topbar-icon-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-ink);
+  transition: transform 0.1s;
+}
+.topbar-icon-button:active { transform: scale(0.92); }
+
+.session-primary,
+.session-secondary {
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+}
+
+/* 批 A-4 已將 .session-primary/.session-secondary 套用計分板按鈕契約(見下方與 279 行);
+   #map-data-status/.form-field__label-row 等處的 .session-secondary 覆寫仍留舊值,
+   非本任務 Files 範圍,見 task-4-report concerns。
+   fix round 1(驗收退回,實測抓到):.filters-reset 的 38px 在這裡被下方 216 行的
+   同選擇器覆寫(cascade 後者勝),真正生效的數字改在那裡處理;這裡只留
+   .band-option 用的 38px,不重複兩個互相打架的來源。 */
+.band-option {
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+}
+
+.session-primary { padding: 0 var(--space-4); background: var(--color-ink); color: var(--color-signal); }
+
+.map-page {
+  position: relative;
+  min-width: 0;
+  height: 100dvh;
+  min-height: 560px;
+  overflow: hidden;
+  background: linear-gradient(140deg, var(--color-surface-page), var(--color-info-bg) 58%, var(--color-success-bg));
+}
+
+#map { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; min-width: 0; background: linear-gradient(140deg, var(--color-surface-page), var(--color-info-bg) 58%, var(--color-success-bg)); }
+
+.map-controls { display: contents; }
+/* 批 D4a:球友名單鈕(#player-directory-open)已移入頂列 row1;此容器只剩狀態文字,
+   位置從 chips 列下方重新起算(topbar 總高≈132px,見 .map-topbar 註記)。 */
+.player-layer-control { position: absolute; z-index: 6; top: 132px; left: clamp(12px, 3vw, 30px); display: grid; justify-items: start; gap: 5px; }
+
+/* 批 D3:右下控制直欄(dc L81-86):44px 白鈕 1.5px ink 框;
+   「顯示在線」開啟態 ink 反相 signal icon(dc L958)。定位在 peek 列上方。 */
+.map-zoom-controls { position: absolute; z-index: var(--z-map-controls); right: 14px; bottom: calc(88px + var(--bottom-navigation-offset)); display: flex; flex-direction: column; gap: 8px; }
+.map-zoom-controls button { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 1.5px solid var(--color-ink); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.96); color: var(--color-ink); font-family: var(--font-mono); font-weight: 600; font-size: 20px; line-height: 1; box-shadow: 0 4px 12px rgba(18, 41, 28, 0.16); transition: transform 0.1s; }
+.map-zoom-controls button:active { transform: scale(0.92); }
+#player-layer-toggle.is-active { background: var(--color-ink); color: var(--color-signal); }
+.player-layer-status { max-width: 240px; margin: 0; padding: 7px 9px; border-radius: 9px; background: var(--color-ink); color: var(--color-surface-card); font-size: var(--text-sm); font-weight: 700; }
+
+.presence-settings { display: grid; gap: var(--space-2); margin: var(--space-4) 0; padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-success-bg); }
+.presence-settings h2 { margin: 0; color: var(--color-ink); }
+.presence-settings .form-hint { margin: var(--space-1) 0 0; color: var(--color-text-secondary); }
+.presence-settings__greeting { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-weight: 700; }
+.player-presence, .player-greeting { color: var(--color-success); font-weight: 700; }
+.player-directory-list { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+/* 批 D8:列改 dc §2 逐字結構——44px avatar+名/磚/在線·這是你徽章一行+副行+chevron
+  (原本是縱向堆疊四行純段落,汰換不是疊加,理由同 D4b 檔頭同款註記)。 */
+.player-directory-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: var(--space-3); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); color: var(--color-ink); text-align: left; transition: transform 0.12s; }
+.player-directory-row:hover,
+.player-directory-row:focus-visible { border-color: var(--color-court); background: var(--color-info-bg); }
+.player-directory-row:active { transform: scale(0.98); }
+.player-directory-row__body { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.player-directory-row__head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.player-directory-row__head strong { overflow-wrap: anywhere; font-size: 14.5px; font-weight: 700; }
+.player-directory-row__sub { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12px; }
+.player-directory-row__online,
+.player-directory-row__self { padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); font-size: var(--text-sm); font-weight: 700; }
+.player-directory-row__online { background: var(--color-success-bg); color: var(--color-success); }
+.player-directory-row__self { background: var(--color-info-bg); color: var(--color-court); }
+.player-directory-row__chevron { flex: none; color: #9aa79b; /* dc 裝飾箭頭專用色(非文字,AA 豁免),同 .session-card__chevron */ font-size: 18px; line-height: 1; }
+
+/* 批 D4a:第二列 chips 容器(dc L100)——沿用既有 .map-toolbar class 名與行動斷點
+   order 慣例,但視覺改為透明、可橫向捲動的 chip 列(overflow-x:auto,隱藏捲軸),
+   不再是白色卡片容器。個別 chip 的通用視覺見下方 .chip 語彙(D1 既有);這裡只補
+   四種 chip 各自的形狀差異。 */
+.map-toolbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  pointer-events: auto;
+  scrollbar-width: none;
+}
+.map-toolbar::-webkit-scrollbar { display: none; }
+/* fix round 1(視覺實測):.chip 沒有 flex-shrink:0,窄視窗下 flex 容器會先讓
+   chip 文字換行、把「程度 4.0-5.0」擠成兩行,而不是觸發 overflow-x 捲動——
+   overflow-x:auto 只有在子項「不縮」時才有意義,兩者要成對出現。 */
+.map-toolbar > * { flex: none; white-space: nowrap; }
+
+.level-chip { gap: 6px; font-weight: 600; }
+.level-chip__value { font-family: var(--font-mono); font-weight: 600; }
+.level-chip__caret { flex: none; }
+
+.instant-chip { gap: 6px; }
+.instant-chip__dot { flex: none; width: 9px; height: 9px; border-radius: 3px; background: var(--color-signal); border: 1.5px solid var(--color-ink); }
+
+/* 篩選 chip(dc L106):永遠白底,不切換選中態;badge 才是「有 N 組條件」的唯一指示。 */
+.filter-chip { gap: 6px; }
+.filter-chip__badge { font-family: var(--font-mono); font-weight: 600; font-size: 11px; background: var(--color-ink); color: var(--color-signal); border-radius: var(--radius-sm); padding: 1px 5px; }
+
+/* fix round 1(驗收退回,實測抓到 390px 掃描 44×38,低於互動目標下限):38px 升 44px。 */
+.filters-reset { min-height: 44px; border: 0; background: transparent; color: var(--color-court); font-weight: 700; }
+
+/* 程度 popover(dc L109-117):錨在程度 chip 下方,qmPop 進場動畫。 */
+.level-popover {
+  position: absolute;
+  z-index: 7;
+  top: 132px;
+  left: clamp(12px, 3vw, 30px);
+  width: 200px;
+  padding: 7px;
+  border: 1.5px solid var(--color-ink);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  box-shadow: 0 14px 32px rgba(18, 41, 28, 0.22);
+  animation: qmPop 0.18s ease;
+}
+.level-popover p { margin: 0; padding: 6px 9px 7px; font-family: var(--font-display); font-weight: 600; font-size: 11.5px; letter-spacing: 2px; color: var(--color-text-secondary); }
+#band-options { display: grid; gap: var(--space-1); }
+/* .band-option 基底刻意輕量:popover 列(#band-options 作用域)與篩選 sheet 的
+   NTRP 程度 2 欄 grid(.filter-sheet-band-grid 作用域)視覺差異大,各自在下方
+   （sheet 版見 filter-sheet 區塊)用更高特異性覆寫。 */
+.band-option { display: block; width: 100%; border: 0; text-align: left; background: transparent; color: var(--color-ink); font-family: inherit; cursor: pointer; }
+#band-options .band-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 11px;
+  margin-bottom: 2px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: transform 0.1s;
+}
+#band-options .band-option:last-child { margin-bottom: 0; }
+#band-options .band-option:hover { background: var(--color-info-bg); }
+#band-options .band-option:active { transform: scale(0.97); }
+#band-options .band-option.is-active { background: var(--color-ink); color: var(--color-surface-card); font-weight: 600; }
+.band-option__check { flex: none; visibility: hidden; }
+#band-options .band-option.is-active .band-option__check { visibility: visible; }
+
+/* ==== 批 D2:附近球局改 v2 兩態——peek 列(dc L118-131)+展開抽屜(dc L135-176)。
+   root aside 本身不再是視覺容器,兩個子面板各自 fixed 定位;無 scrim、地圖恆可互動。
+   置中規則:以對稱 inset 取代 translateX,避免與 qmSheetUp 的 transform 打架。 ==== */
+.nearby-sessions { position: static; }
+
+.nearby-peek {
+  position: fixed;
+  z-index: var(--z-drawer);
+  left: max(14px, calc(50% - 246px));
+  right: max(14px, calc(50% - 246px));
+  bottom: calc(16px + var(--bottom-navigation-offset));
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 56px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-ink);
+  box-shadow: 0 12px 28px rgba(18, 41, 28, 0.38);
+  color: var(--color-surface-card);
+  text-align: left;
+  transition: transform 0.12s;
+}
+.nearby-peek:active { transform: scale(0.97); }
+.nearby-peek__count { font-family: var(--font-mono); font-weight: 600; font-size: 21px; color: var(--color-signal); font-variant-numeric: tabular-nums; }
+.nearby-peek__label { font-size: 13.5px; font-weight: 600; color: var(--color-surface-card); }
+.nearby-peek__next { margin-left: auto; font-size: 12px; color: #9db3a4; font-variant-numeric: tabular-nums; }
+.nearby-peek__arrow { flex: none; }
+.nearby-peek--empty {
+  height: auto;
+  min-height: 56px;
+  gap: var(--space-2);
+  padding: var(--space-3) 16px;
+  border: 1.5px solid var(--color-ink);
+  background: var(--color-surface-card);
+  box-shadow: 0 12px 28px rgba(18, 41, 28, 0.2);
+  color: var(--color-ink);
+  transition: none;
+}
+.nearby-peek--empty:active { transform: none; }
+.nearby-peek__empty-toggle { min-height: 44px; padding: 0; border: 0; background: none; color: var(--color-ink); font-size: 13.5px; font-weight: 600; text-align: left; }
+.nearby-peek__reset { margin-left: auto; min-height: 44px; padding: 6px 2px; border: 0; background: none; color: var(--color-court); font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.nearby-peek__create { min-height: 44px; padding: 8px 12px; border: 0; border-radius: 6px; /* dc L130 字面值,不在 radius 階 */ background: var(--color-signal); color: var(--color-ink); font-size: 13px; font-weight: 700; transition: transform 0.1s; }
+.nearby-peek__create:active { transform: scale(0.95); }
+.nearby-peek--empty .nearby-peek__empty-toggle { flex: 1 1 auto; }
+.nearby-peek--empty .nearby-peek__reset { margin-left: 0; }
+
+.nearby-drawer {
+  position: fixed;
+  z-index: var(--z-drawer);
+  left: max(0px, calc(50% - 260px));
+  right: max(0px, calc(50% - 260px));
+  top: 31%;
+  bottom: var(--bottom-navigation-offset);
+  display: flex;
+  flex-direction: column;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--color-surface-card);
+  box-shadow: 0 -14px 40px rgba(18, 41, 28, 0.22);
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.nearby-drawer__handle { flex: none; min-height: 44px; padding: 10px 0 4px; border: 0; background: none; cursor: pointer; }
+.nearby-drawer__bar { display: block; width: 44px; height: 5px; margin: 0 auto; border-radius: 3px; background: var(--color-line); }
+.nearby-drawer__head { flex: none; display: flex; align-items: center; gap: 9px; padding: 2px 18px 12px; }
+.nearby-drawer__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 11.5px; letter-spacing: 2.5px; color: var(--color-court); }
+.nearby-drawer__countrow { display: flex; align-items: baseline; gap: 6px; margin-top: 2px; color: var(--color-ink); }
+.nearby-drawer__count { font-family: var(--font-mono); font-weight: 600; font-size: 22px; line-height: 1; font-variant-numeric: tabular-nums; }
+.nearby-drawer__unit { font-size: 15px; font-weight: 700; }
+/* dc 是 36px,依 handoff 自身的 a11y 規範(觸控 ≥44px)升為 44。 */
+.nearby-drawer__close { flex: none; margin-left: auto; width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--color-line); background: var(--color-surface-card); color: var(--color-text-secondary); font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+.nearby-drawer__close:active { transform: scale(0.92); }
+.nearby-drawer__scroll { flex: 1; overflow-y: auto; padding: 0 14px 14px; }
+
+.session-group { display: flex; align-items: center; gap: 8px; margin: 12px 2px 8px; }
+.session-group__label { font-size: 12px; font-weight: 700; color: var(--color-text-secondary); letter-spacing: 1px; }
+.session-group__line { flex: 1; height: 1px; background: var(--color-line); }
+.session-group__count { font-family: var(--font-mono); font-weight: 500; font-size: 11.5px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+
+.surface__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-1) var(--space-2); }
+.surface__eyebrow { margin: 0 0 var(--space-1); color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
+.surface h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); line-height: 1.25; }
+
+.surface__close { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-2xl); line-height: 1; }
+.nearby-sessions__cards { display: block; }
+.nearby-sessions__status { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.nearby-sessions__status p { margin: 0; overflow-wrap: anywhere; }
+.nearby-sessions__status .session-secondary { margin-top: var(--space-2); }
+
+/* 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄三行。 */
+.session-card { display: flex; gap: 12px; width: 100%; margin-bottom: 9px; padding: 12px; border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.session-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
+.session-card__body { flex: 1; min-width: 0; }
+.session-card__title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.session-card__court { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 700; }
+.session-card__meta { display: block; margin-top: 4px; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12.5px; line-height: 1.45; }
+.session-card__foot { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.session-card__chevron { margin-left: auto; color: #9aa79b; /* dc L168 裝飾箭頭專用色(非文字,AA 豁免) */ font-size: 18px; line-height: 1; }
+.session-card--compact { padding: var(--space-3); }
+.player-card { display: grid; width: 100%; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
+.player-card:hover { border-color: var(--color-court); background: var(--color-info-bg); }
+.player-card span { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.session-badge { display: inline-flex; align-items: center; justify-self: start; width: fit-content; font-weight: 700; line-height: 1.4; }
+/* 批 D1:badge 縮為 v2 緊湊規格(dc.html L161/L162/L345/L346 逐字值)。 */
+.session-badge--instant {
+  background: var(--color-signal);
+  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.session-badge--ongoing {
+  background: var(--color-ink);
+  color: var(--color-signal);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 11px;
+}
+.session-badge--candidate {
+  border: 1.5px dashed var(--color-ink);
+  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+.session-badge--host {
+  background: var(--color-info-bg);
+  color: var(--color-court);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+  font-size: 11px;
+}
+/* 「✓ 已訂場」在參考稿是純文字不是 badge(dc L167),照稿。 */
+.booked-note { font-size: 11.5px; font-weight: 600; color: var(--color-court); }
+.session-ongoing-time { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; }
+
+.discovery-empty { display: grid; gap: var(--space-3); padding: var(--space-5) var(--space-2) var(--space-2); color: var(--color-ink); text-align: center; }
+.discovery-empty p { margin: 0; font-weight: 700; }
+.discovery-empty__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.session-secondary { padding: 0 var(--space-3); border: var(--border-strong); background: transparent; color: var(--color-ink); }
+
+#map-data-status {
+  /* 深底浮動 chip 契約比照 .bottom-navigation:固定用 --color-ink 不透明底,
+     不循原本 navy/blue rgba 半透明映射(fix wave 2026-08-07,批 A final review F1)。 */
+  position: absolute;
+  z-index: 6;
+  left: clamp(12px, 3vw, 30px);
+  bottom: calc(22px + var(--bottom-navigation-offset));
+  max-width: min(420px, calc(100% - 24px));
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--color-ink);
+  color: var(--color-surface-card);
+  box-shadow: var(--elevation-2);
+  font-size: var(--text-sm);
+}
+#map-data-status p { margin: 0; overflow-wrap: anywhere; }
+#map-data-status .session-secondary { margin-top: var(--space-2); min-height: 32px; background: var(--color-surface-card); color: var(--color-ink); }
+/* .map-data-status--loading/--warning 修飾規則已刪除:兩者 background 皆為 var(--color-ink),
+   與基礎 #map-data-status 規則完全相同,是無效果的 no-op;sessionViews.js renderMapDataStatus
+   仍會掛上這兩個 class(kind 語意仍在),只是本檔不再為它們重複宣告視覺。 */
+.location-feedback { margin-top: 6px !important; color: #fff; font-weight: 700; }
+
+.surface-backdrop { position: fixed; z-index: calc(var(--z-sheet) - 1); inset: 0; background: rgba(18, 41, 28, 0.38); } /* ink 基底,同上換掉舊 navy rgba(11,28,50) */
+.surface {
+  position: fixed;
+  z-index: var(--z-sheet);
+  width: min(530px, calc(100vw - 24px));
+  max-height: min(82dvh, 720px);
+  overflow-y: auto;
+  padding: var(--space-4); /* 17px 不在間距映射表(14-16→space-4/18,20→space-5)的相鄰一階,取較近的 16px */
+  border-radius: var(--radius-md);
+  border-top: var(--border-strong);
+  background: var(--color-surface-card);
+  box-shadow: var(--elevation-2);
+}
+.surface--sheet { right: 20px; bottom: 20px; }
+.surface--dialog { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.surface__copy { margin: var(--space-1) 0 var(--space-4); color: var(--color-text-secondary); line-height: 1.55; overflow-wrap: anywhere; }
+.profile-return-context { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.profile-form,
+.create-session-form { display: grid; gap: 13px; }
+/* 批 C1-4:批 6(ea4a41b)只覆蓋 .create-session-sheet 的 .session-primary/.session-secondary,
+   個人檔案 sheet 的儲存鈕(.profile-form [data-testid=profile-save])當時不在範圍內,實測仍是
+   基底 38px。比照同一批的 scoped 覆寫慣例,掛在 .profile-sheet 上。 */
+.profile-sheet .session-primary { min-height: 44px; }
+.candidate-decision-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.candidate-decision-buttons .session-primary { flex: 1 1 132px; }
+.form-field { display: grid; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.form-field__label-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.form-field__label-row .session-secondary { min-height: 44px; font-size: var(--text-sm); }
+.form-field input,
+.form-field select,
+.form-field textarea,
+.form-fieldset select { width: 100%; min-width: 0; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-sm); background: var(--color-surface-card); color: var(--color-ink); padding: var(--space-2); font: inherit; font-weight: 500; }
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.form-fieldset select:focus { border-color: var(--color-court); }
+.form-field textarea { resize: vertical; }
+.form-fieldset { display: grid; gap: var(--space-2); min-width: 0; margin: 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); }
+.form-fieldset legend { padding: 0 var(--space-1); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.form-fieldset select { min-height: 108px; }
+.form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+/* 390px 觸控目標:建局與編輯表單共用 .create-session-sheet,一次覆蓋兩張表單。
+   不列舉 id——之後這兩張表單新增欄位會自動納入(對稱式而非列舉式)。 */
+.create-session-sheet .form-field input,
+.create-session-sheet .form-field select,
+.create-session-sheet .form-field textarea { min-height: 44px; }
+.create-session-sheet .session-primary,
+.create-session-sheet .session-secondary { min-height: 44px; }
+.create-session-sheet .form-fieldset > label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+
+/* 批 D4a:篩選 sheet 改 v2 版面(dc L431-469)——真正的貼邊 bottom sheet(top:20%,
+   只在上緣圓角),取代泛用 .surface--sheet 的右下浮卡定位;.surface 基底的
+   overflow-y:auto 也要關掉,改由內層 .filter-sheet__scroll 承擔捲動,讓頭/尾固定。
+   置中規則沿用 .nearby-drawer 的對稱 inset 寫法。 */
+.surface.filter-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: 20%;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px 24px;
+  border-top: 0;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.filter-sheet__grabber { flex: none; display: block; width: 44px; height: 5px; margin: 2px auto 12px; border-radius: 3px; background: var(--color-line); }
+.filter-sheet__head { flex: none; margin: 0; padding: 0 0 var(--space-2); }
+.filter-sheet__scroll { flex: 1; overflow-y: auto; }
+.filter-sheet-form { display: grid; gap: 4px; }
+.filter-sheet-section:first-child { margin: 12px 0 9px; }
+.filter-sheet-section { margin: 18px 0 9px; border: 0; padding: 0; }
+.filter-sheet-section legend { padding: 0 0 9px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--color-text-secondary); }
+.filter-sheet-band-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.filter-sheet-band-grid .band-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-card);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  transition: transform 0.1s;
+}
+.filter-sheet-band-grid .band-option:active { transform: scale(0.97); }
+.filter-sheet-band-grid .band-option.is-active { border: 1.5px solid var(--color-ink); background: var(--color-ink); color: var(--color-surface-card); font-weight: 700; }
+.filter-sheet-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+/* 行政區 chip 比日期／打法矮一階(dc:h38 而非 h40),獨立尺寸,不進 .chip--form。 */
+.chip--district { height: 38px; padding: 0 13px; font-size: 13px; }
+.chip--district:active { transform: scale(0.95); }
+.filter-sheet__footer { flex: none; display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid var(--color-line); }
+.filter-sheet__footer .filters-reset { flex: none; text-decoration: underline; text-underline-offset: 3px; }
+.filter-sheet__apply {
+  flex: 1;
+  height: 50px;
+  border-radius: var(--radius-md);
+  background: var(--color-ink);
+  color: var(--color-signal);
+  font-weight: 700;
+  font-size: 15.5px;
+  box-shadow: 0 8px 18px rgba(18, 41, 28, 0.3);
+}
+.filter-sheet__apply [data-filter-count] { font-family: var(--font-mono); }
+
+/* 建局／編輯表單的「進階設定（選填）」摺疊區:預設收合，展開箭頭沿用瀏覽器預設 marker。 */
+.form-optional { display: grid; gap: 13px; border: var(--border-thin); border-radius: var(--radius-md); padding: var(--space-3); }
+.form-optional > summary { box-sizing: border-box; min-height: 44px; padding: 11px var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
+.form-optional > summary:focus-visible { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+
+.option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); }
+/* 批 C1-4 實測:未加 min-height 時量到 19px。這顆同時管到個人檔案 sheet 的常打類型／可打
+   時段 checkbox 與「我」頁 #notification-court-picker 展開時的球場 checkbox(同一 class),
+   兩邊都需要 44px,不另外拆 selector。 */
+.option-grid label { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: 44px; overflow-wrap: anywhere; }
+/* 場地題改問處境後每個選項多一句說明，單欄堆疊才讀得完。 */
+.option-grid--stacked { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
+.option-grid--stacked label { align-items: flex-start; min-height: 44px; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+.option-grid--stacked label span { display: grid; gap: var(--space-1); font-weight: 700; }
+.option-grid--stacked label small { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 600; line-height: 1.45; }
+.option-grid--stacked label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); }
+/* 選中態底改為 --color-info-bg 後，--color-text-secondary 對它的對比約 6.9:1，通過 AA，
+   與未選中態同一 token，故移除原本的 `:has(input:checked) small` 覆寫(no-op，值相同，fix round 1 刪除)。 */
+.option-grid--stacked label:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+/* 缺額用 radio 做成並排按鈕：取值路徑仍是表單的 name，鍵盤方向鍵也還能切換。 */
+.slots-options { display: flex; gap: var(--space-2); }
+.slots-options label { position: relative; display: flex; flex: 1 1 0; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+.slots-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+/* fix round 1：選中態改回 brief 字面指示(info-bg 淺底＋border-strong 框)，
+   文字色改用 ink(而非原本的 surface-card 白字)以避免淺底崩潰；ink on info-bg 對比約 13.5:1，AA 遠超。 */
+.slots-options label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); color: var(--color-ink); }
+.slots-options label:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+.form-hint,
+.form-disclosure,
+.form-error { margin: 0; overflow-wrap: anywhere; }
+.form-hint { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.form-disclosure { padding: var(--space-2) var(--space-3); border-left: 3px solid var(--color-court); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; line-height: 1.55; }
+.form-error { padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-danger-bg); color: var(--color-danger); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; }
+.surface__message { margin: var(--space-3) 0 0; color: var(--color-ink); font-size: var(--text-base); font-weight: 700; line-height: 1.55; overflow-wrap: anywhere; }
+.join-session-form,
+.report-form { display: grid; gap: 12px; }
+.join-session-summary { margin-top: 2px; }
+.report-form .form-fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+/* 批 D7:五格導覽改 dc §1 flex 殼(取代舊 4 欄 grid)——四個一般格 flex:1,
+   置中「開球局」改用獨立 .bottom-navigation__create(flex:none 64px、負
+   margin-top 上浮),align-items:flex-start 讓浮起的圓鈕不被裁切。 */
+.bottom-navigation {
+  position: fixed;
+  z-index: calc(var(--z-drawer) - 1); /* 導覽列在抽屜遮罩之下(對應原 18 < backdrop 20),避免同層時 DOM 較晚的導覽列蓋過遮罩 */
+  right: 50%;
+  bottom: 0;
+  display: flex;
+  align-items: flex-start;
+  width: min(520px, 100%);
+  min-height: var(--bottom-navigation-height);
+  padding: 10px 8px calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(50%);
+  border: 1px solid var(--color-line);
+  border-top: var(--border-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-ink); /* 深底導覽契約,批 A-2 起固定深色底,非套用淺底 mist/paper 映射 */
+  box-shadow: var(--elevation-2);
+}
+.bottom-navigation__item {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  border: 0;
+  background: transparent;
+  color: #9db3a4; /* 深底導覽專用非活躍文字色,不循淺底 ink-muted 映射表 */
+  font-size: 11px;
+  font-weight: 700;
+  transition: transform 0.1s;
+}
+.bottom-navigation__item:active { transform: scale(0.92); }
+.bottom-navigation__item[aria-current="page"] { color: var(--color-signal); /* 深底導覽專用 active 態色 */ }
+.bottom-navigation__icon { position: relative; display: flex; }
+.bottom-navigation__icon svg { display: block; }
+/* 置中「開球局」signal 圓鈕(dc §1 L697-700 逐字尺寸/上浮量),常態顯示於訊號色,
+   不參與 aria-current 的活躍/非活躍配色(它從不是一個「頁面」)。 */
+.bottom-navigation__create {
+  flex: none;
+  width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: -24px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.bottom-navigation__create:active { transform: scale(0.93); }
+.bottom-navigation__create-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-xl);
+  background: var(--color-signal);
+  border: 2.5px solid var(--color-ink);
+  box-shadow: 0 8px 20px rgba(221, 245, 60, 0.4);
+  color: var(--color-ink);
+}
+.bottom-navigation__create-label { font-size: 11px; font-weight: 700; color: var(--color-signal); }
+.my-sessions-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  display: grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-signal);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+/* 批 C4-2 起:未讀圓點是獨立於 needsActionCount 數字徽章的裝飾用信號(aria-hidden,
+   播報交給 messages-tab 的 aria-label);批 D7 起圓點語意隸屬「訊息」格
+  (dc chatsBadge),故錨點只需在自己 icon 右上、不必再跟數字徽章的位置錯開
+  (兩者已分屬不同 tab,不會同框重疊)。尺寸/位置沿用 dc §1 導覽列圓點原文
+  (9px、2px 框);pointer-events:none 確保不吃掉按鈕本身 44px 觸控範圍的任何點擊。 */
+.my-sessions-unread-dot {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  border: 2px solid var(--color-ink);
+  pointer-events: none;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* app-header 退場後這幾頁不再有固定頁首吃掉版面高度,min-height 改回整個 100dvh。
+   批 D7:訊息頁(.messages-page)沿用 my-sessions-page/me-page 同一套「一般可捲動
+   頁面」慣例,不是 dc §3 的 position:absolute;inset:0 覆蓋殼——跟 D6 把 dc 的
+   my-sessions 全螢幕殼改成一般頁面是同一個既有架構決策,這裡只是延續,不重新引入
+   絕對定位覆蓋層。 */
+.my-sessions-page,
+.messages-page,
+.me-page { min-height: 100dvh; padding: clamp(18px, 4vw, 42px) clamp(18px, 4vw, 42px) calc(42px + var(--bottom-navigation-offset)); background: linear-gradient(140deg, var(--color-surface-page), #f7fbf1); }
+.my-sessions-shell { width: min(680px, 100%); margin: 0 auto; }
+.messages-shell { width: min(680px, 100%); margin: 0 auto; }
+.messages-page__head { margin-bottom: var(--space-3); }
+.messages-page__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 2.5px; color: var(--color-court); }
+.messages-page__title { margin: 2px 0 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+.messages-page__list { display: grid; gap: 9px; }
+.messages-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: var(--border-thin);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card);
+  padding: var(--space-3);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s;
+  font-family: var(--font-body);
+}
+.messages-row:active { transform: scale(0.98); }
+.messages-row__avatar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-signal);
+  font-weight: 700;
+  font-size: 17px;
+}
+.messages-row__body { flex: 1; min-width: 0; }
+.messages-row__court { display: block; overflow: hidden; color: var(--color-ink); font-size: 14.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.messages-row__sub { display: block; margin-top: 3px; color: var(--color-text-secondary); font-family: var(--font-mono); font-weight: 500; font-size: 12px; }
+.messages-row__unread { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--color-signal); border: 1.5px solid var(--color-ink); }
+.messages-page__empty { margin-top: 16px; padding: 28px 20px; border: 1.5px dashed var(--color-line); border-radius: var(--radius-lg); text-align: center; }
+.messages-page__empty-text { margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); font-weight: 600; line-height: 1.6; }
+.my-sessions-shell__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.my-sessions-shell__head h1 { margin: 0; color: var(--color-ink); font-size: var(--text-2xl); }
+.my-sessions-shell__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.me-shell { display: grid; width: min(680px, 100%); margin: 0 auto; gap: 18px; }
+/* ============================================================
+   批 D8(v2 改版):「我」頁改 dc 計分板殼(抽取規格 §1)。頁頭沿用 D6/D7 頁殼模式
+   (.messages-page__head 同款 eyebrow+22px 標題,非 dc §0 的 position:absolute;inset:0
+   覆蓋殼——理由同 D7 檔頭 680 行註記,這裡不重複)。既有六個功能區(個人檔案/球友卡/
+   在線狀態/通知設定/封鎖清單 五個 section + profile 卡)一個都不砍、順序不動,只把
+   卡殼升級成 dc §1 的「白卡 1px line radius 12」語彙(dc L219 逐字 border:1px solid
+   #cfd8cd;border-radius:12px,已映射回 var(--border-thin)/字面 12px;12px 不在
+   --radius 階,同 .nearby-peek__create 一類寫法);.presence-settings 的
+   --color-success-bg 底色是批 A-7 既有語意(分享中狀態),不因這裡「白卡」而洗掉。 */
+.me-page-v2__head { margin-bottom: var(--space-2); }
+.me-page-v2__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 2.5px; color: var(--color-court); }
+.me-page-v2__title { margin: 2px 0 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+/* ---- profile 卡+球友卡共用的「avatar+名/副行+NTRP 磚」一列(dc §1 L219-227、
+   §3 L313-321 同一視覺單位,只有名字 17px/18px 一階之差——見呼叫端 --player 修飾)。 ---- */
+.profile-brick-row { display: flex; align-items: center; gap: 13px; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+.profile-brick-row__copy { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.profile-brick-row__copy strong { overflow-wrap: anywhere; font-size: 17px; font-weight: 700; color: var(--color-ink); }
+.profile-brick-row__copy span { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12.5px; }
+.profile-brick-row--player .profile-brick-row__copy strong { font-size: 18px; }
+.me-identity-card,
+.me-sign-in-card,
+.me-service-links { padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+.me-sign-in-card { display: grid; justify-items: start; gap: var(--space-2); color: var(--color-ink); }
+.me-sign-in-card h2,
+.me-service-links h2 { margin: 0; color: var(--color-ink); font-size: var(--text-lg); }
+.me-sign-in-card .surface__copy { margin: 0; }
+.me-service-links { display: grid; gap: var(--space-2); }
+.me-service-links div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.me-service-links a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); color: var(--color-court); font-size: var(--text-base); font-weight: 700; text-decoration: none; }
+.me-service-links a:focus-visible { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+.me-sign-in-card .session-primary { min-width: 44px; min-height: 44px; }
+/* 登出(dc L238):紅字文字鈕,無按壓態,但保留 44px 熱區(a11y 升級,dc 沒有這條)。 */
+.me-sign-out-action { display: block; width: 100%; min-height: 44px; margin-top: 4px; padding: 10px; border: 0; background: none; color: var(--color-danger); font-family: var(--font-body); font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; }
+.player-visibility { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+.player-visibility h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
+.player-visibility .form-hint { margin: 0; }
+.player-visibility [role="switch"] { flex: 0 0 auto; min-width: 72px; }
+.me-edit-profile { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+.me-edit-profile h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
+.me-edit-profile .form-hint { margin: 0; }
+.me-edit-profile .session-secondary { flex: 0 0 auto; min-width: 72px; }
+.me-page .me-edit-profile .session-secondary,
+.me-page .player-visibility [role="switch"],
+.me-page .presence-settings [role="switch"],
+.me-page .presence-settings__greeting,
+.me-page .notification-settings [data-enable-push],
+.me-page .notification-settings__fieldset label,
+.me-page [data-court-picker-toggle],
+.me-page .blocked-player-settings .session-secondary { min-height: 44px; }
+.notification-settings { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+.notification-settings__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.notification-settings h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
+.notification-settings .form-hint { margin: 0; }
+.notification-settings__hint { color: var(--color-court); font-weight: 700; }
+.notification-settings__ios-hint { padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.notification-settings__fieldset { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); }
+.notification-settings__fieldset legend { padding: 0 var(--space-1); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+.notification-settings__fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+/* 訂閱球場改兩段式：主控 checkbox + 可展開的球場清單。 */
+.court-subscribe-all { align-items: center; gap: var(--space-2); padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-info-bg); font-weight: 700; }
+#notification-court-picker { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin-top: var(--space-1); }
+#notification-court-picker label { align-items: center; padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); }
+#notification-court-picker label:has(input:checked) { border: var(--border-strong); background: var(--color-info-bg); }
+#notification-court-picker label:has(input:focus-visible),
+.court-subscribe-all:has(input:focus-visible) { outline: 3px solid var(--color-court); outline-offset: var(--space-1); }
+.success-push-prompt { display: grid; flex: 1 1 100%; justify-items: start; gap: var(--space-2); margin: var(--space-2) 0; padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-ink); }
+.success-push-prompt p { margin: 0; }
+@media (max-width: 460px) { .notification-settings__head { align-items: flex-start; flex-direction: column; } }
+.blocked-player-settings { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding: var(--space-4); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); }
+.blocked-player-settings h2 { margin: 0 0 var(--space-1); color: var(--color-ink); font-size: var(--text-lg); }
+.blocked-player-settings .form-hint,
+.blocked-player-settings .surface__copy { margin: 0; }
+.blocked-player-list { display: grid; gap: var(--space-2); }
+.blocked-player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-base); font-weight: 700; }
+.blocked-player-row span { min-width: 0; overflow-wrap: anywhere; }
+.my-sessions-section { display: grid; gap: var(--space-2); margin-top: var(--space-6); }
+.my-sessions-section__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.my-sessions-section__head h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); }
+.my-sessions-section__head span { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+.my-sessions-list { display: grid; gap: var(--space-2); }
+.my-sessions-empty { display: grid; gap: var(--space-2); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
+.my-sessions-empty h2 { margin: 0; font-size: var(--text-lg); }
+.my-session-card,
+.my-action-card { display: grid; gap: var(--space-2); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
+.my-action-card__eyebrow { color: var(--color-court); font-size: var(--text-sm); font-weight: 700; font-family: var(--font-display); }
+.my-action-card h3 { margin: 0; overflow-wrap: anywhere; font-size: var(--text-md); }
+.my-action-card p { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+.my-session-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
+/* 文字鈕契約(Task 4):.session-tertiary 比照 secondary 語意,無框;字色比照既有 .filters-reset
+   的文字鈕前例採 court(可互動強調色),而非 text-secondary(純資訊態),因底線本身已標示可點擊。 */
+.session-tertiary { min-height: 34px; padding: 0 var(--space-1); border: 0; background: transparent; color: var(--color-court); font-size: var(--text-sm); font-weight: 700; text-decoration: underline; }
+.my-history-reason { margin-top: -4px; padding: 0 var(--space-1); }
+.my-sessions-message { margin: var(--space-2) 0; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+
+/* ============================================================
+   批 D6(v2 改版):「我的球局」改 dc 計分板列表殼(抽取規格 §1-6)。segmented
+   分「我報名的／我主揪的」,清單卡改薄卡列(58px 時間磚)當卡首+右側狀態章;
+   管理列(接受/婉拒/邀請回覆/群聊/生命週期/檢舉)刻意保留在卡首下方同一張卡
+   內——對 dc「點卡才開詳情」的刻意架構偏離(本站申請者管理需一頁可及,見 D6
+   派工單決策 4),故 .my-session-card/.my-action-card 外殼、.my-action-card__eyebrow
+   與 .my-session-card__actions(上方 D1/D4b 既有)原樣沿用,這裡只補頁殼、
+   segmented、薄卡列與狀態章四型。
+   ============================================================ */
+.my-sessions-v2__head { margin-bottom: var(--space-2); }
+.my-sessions-v2__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 2.5px; color: var(--color-court); }
+.my-sessions-v2__head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); margin-top: 2px; }
+.my-sessions-v2__title { margin: 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
+.my-sessions-v2__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.my-sessions-v2__tool-btn { min-height: 44px; padding: 0 var(--space-3); font-size: var(--text-sm); }
+
+/* segmented(dc §2 逐字):1.5px ink 框、h44、radius-lg(=10px)、中線只在右格
+  (`+` 相鄰選擇器只加左格),選中態 ink 反相底+signal 字。 */
+.my-sessions-v2__segmented { display: flex; height: 44px; margin-top: 10px; border: var(--border-strong); border-radius: var(--radius-lg); overflow: hidden; }
+.my-sessions-v2__seg-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; }
+.my-sessions-v2__seg-btn + .my-sessions-v2__seg-btn { border-left: var(--border-strong); }
+.my-sessions-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
+.my-sessions-v2__seg-count { font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; }
+
+/* 薄卡列(dc §3 逐字):58px 時間磚(.time-tile--compact,D1 既有)+球場名 ellipsis+
+   meta「打法 · NTRP x–y · 主揪 nick n.n」+右側狀態章。管理列在其下、同一張卡
+   內,沿用上方 .my-session-card__actions(D1)。 */
+.my-session-brief { display: flex; align-items: center; gap: 12px; }
+.my-session-brief__body { flex: 1; min-width: 0; }
+.my-session-brief__court { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.my-session-brief__meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 12px; }
+
+/* 狀態章四型(dc §4 逐字)+ 本站延伸「受邀中」(dc 沒有邀請概念,見抽取規格 §4
+   決策)。歷史卡(cancelled/expired/played/withdrawn)不強套四型,呼叫端回傳
+   空字串,交給既有 .my-history-reason 說明。 */
+.my-status-chip { flex: none; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 6px; /* dc §4 字面值,不在 radius 階(慣例同 .nearby-peek__create) */ }
+.my-status-chip--info { background: var(--color-info-bg); color: var(--color-text-secondary); }
+.my-status-chip--success { background: var(--color-success-bg); color: var(--color-success); }
+.my-status-chip--danger { background: var(--color-danger-bg); color: var(--color-danger); }
+.my-status-chip--host { background: var(--color-ink); color: var(--color-signal); }
+
+/* 空狀態(dc §5 逐字):dashed 框,只在該分頁非歷史卡為 0 時由呼叫端插入,與既有
+   #my-needs-action/#my-upcoming-sessions 各自的「目前沒有…」提示並存——那兩個
+   容器 id 是既有測試依賴的錨點,任何分頁都必須存在,見 D6 派工單決策 3。 */
+.my-sessions-v2__empty { display: grid; gap: var(--space-2); margin-top: var(--space-3); padding: 28px 20px; border: 1.5px dashed var(--color-line); border-radius: var(--radius-lg); text-align: center; }
+.my-sessions-v2__empty-text { margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); font-weight: 600; line-height: 1.6; }
+.my-sessions-v2__empty-btn { justify-self: center; min-height: 44px; padding: 0 20px; }
+
+/* ============================================================
+   批 D4b(v2 改版):詳情 sheet 改 dc 計分板殼(dc L333-426)。舊版 `.session-detail p`
+   通用段落規則(逐列 border-bottom、nth-child 配色)假設扁平段落堆疊,新版每個
+   欄位都有自己的 BEM 子 class,故整段汰換,不是疊加。時間磚/記分板條/badge 語彙
+   直接複用檔尾 D1 區塊(.time-tile--detail/.scoreboard-strip/.session-badge 系列),
+   這裡只補 D1 沒有的部分:sheet 殼本身、頭部版面、主揪列、候選面板、CTA 動作列。
+   ============================================================ */
+
+/* ---- sheet 殼(dc L334):貼邊 bottom sheet,無固定高度——與篩選 sheet(top:20%
+   固定高度+內部捲動)不同,這裡讓內容撐開;但本站是 100dvh 固定殼(.map-page
+   overflow:hidden),為避免內容在小螢幕下高於視窗卻無法捲動,保留
+   overflow-y:auto + 慷慨的 max-height(88dvh),不採 dc 原型「完全無上限」的寫法,
+   屬刻意的可及性偏離。 ---- */
+.surface.session-detail-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: auto;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 10px 20px 26px;
+  /* dc L334 詳情 sheet 沒有邊框,只靠 box-shadow 分隔——附近球局抽屜(D2)才是
+     ink 邊框,兩者在 dc 裡刻意不同;明確 border:0 蓋掉 .surface 基底的
+     border-top: var(--border-strong)。 */
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.34s var(--ease-brand);
+}
+.session-detail-sheet__grabber { display: block; width: 44px; height: 5px; margin: 2px auto 14px; border-radius: 3px; background: var(--color-line); }
+
+.session-detail { display: block; }
+
+/* ---- 頭部(dc L336-351):74px 時間磚 + badge/球場名/行政區·時間 + ✕。 ---- */
+.session-detail__head { display: flex; gap: 13px; align-items: flex-start; }
+.session-detail__headcopy { flex: 1; min-width: 0; }
+.session-detail__badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.session-detail__court { margin: 4px 0 0; overflow-wrap: anywhere; font-size: 19px; font-weight: 700; color: var(--color-ink); line-height: 1.3; }
+.session-detail__meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 13px; }
+.session-detail__mono { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+/* dc 是 36px,依本站既有的 a11y 升級慣例(.nearby-drawer__close 同一手法)升為 44px 觸控目標。 */
+.session-detail__close { flex: none; width: 44px; height: 44px; border-radius: var(--radius-md); border: 1px solid var(--color-line); background: var(--color-surface-card); color: var(--color-text-secondary); font-size: 15px; cursor: pointer; transition: transform 0.1s; }
+.session-detail__close:active { transform: scale(0.92); }
+
+.session-detail__scoreboard { margin-top: 16px; }
+
+/* ---- 候選資訊列(guest 視角,dc L367-368)。 ---- */
+.candidate-info-panel { margin: 13px 0 0; padding: 11px 14px; border-radius: var(--radius-lg); background: var(--color-info-bg); color: var(--color-ink); font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+
+/* ---- 主揪列(dc L370-376)。 ---- */
+.host-row { display: flex; align-items: center; gap: 11px; margin-top: 14px; }
+.host-row__avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: var(--color-ink); color: var(--color-signal); font-weight: 700; font-size: 16px; }
+.host-row__copy { flex: 1; min-width: 0; }
+.host-row__nameline { display: flex; align-items: center; gap: 7px; margin: 0; overflow-wrap: anywhere; font-size: 14.5px; font-weight: 700; color: var(--color-ink); }
+.host-row__chip { font-size: 11px; font-weight: 600; color: var(--color-text-secondary); background: var(--color-info-bg); padding: 2px 7px; border-radius: var(--radius-sm); }
+.host-row__ntrp { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12px; }
+.host-row__status { flex: none; margin: 0; color: var(--color-text-secondary); font-size: 12px; }
+
+/* ---- 備註區(dc L378-379)。 ---- */
+.session-detail__notes { margin: 13px 0 0; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--color-info-bg); color: var(--color-ink); font-size: 13.5px; line-height: 1.6; overflow-wrap: anywhere; }
+/* `.session-detail` 不再是 D1 之前那種靠 grid gap 統一分隔子項的容器(改回
+   block,理由見檔案開頭本區塊註解),feeNote(既有欄位,dc 沒有對應概念,沿用
+   .form-hint 次要文字語意)、join preview、action.note、report-error 這幾個
+   「有時候才出現」的區塊都得自己補上緣間距;用 direct child 選擇器範圍限定在
+   這張 sheet,不動 .form-hint/.form-error/.join-preview 在其他呼叫點的樣子。 */
+.session-detail > .form-hint,
+.session-detail > .form-error { margin-top: 13px; }
+.session-detail > .join-preview { margin-top: 14px; }
+
+/* ---- 候選定案面板(host 視角,dc L381-393):dashed 框與申請者面板(未落地,D6
+   範圍)的實線框對比。定案鈕 dc 是 36px,同上一律升為 44px 觸控目標。 ---- */
+.candidate-decide-panel { margin-top: 14px; padding: 12px 13px; border: 1.5px dashed var(--color-ink); border-radius: var(--radius-lg); }
+.candidate-decide-panel__title { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; color: var(--color-text-secondary); }
+.candidate-decide-panel__row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.candidate-decide-panel__copy { flex: 1; min-width: 0; }
+.candidate-decide-panel__name { margin: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 700; color: var(--color-ink); }
+.candidate-decide-panel__district { margin: 1px 0 0; color: var(--color-text-secondary); font-size: 11.5px; }
+.candidate-decide-panel__cta { flex: none; height: 44px; padding: 0 14px; border: 0; border-radius: var(--radius-md); background: var(--color-signal); color: var(--color-ink); font-family: var(--font-body); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
+.candidate-decide-panel__cta:active { transform: scale(0.94); }
+
+/* ---- CTA 動作列(dc L414-426)。.session-primary/.session-secondary 基底沿用
+   全站契約(第 114/133/388 行),這裡只在動作列範圍內覆寫尺寸與 join 態專屬的
+   陰影/配色——不 global 覆寫,避免動到表單、My Sessions 等其他呼叫點。容器改
+   flex column:五態(idle/confirming/submitting/success/error)裡不是每個都用
+   `.cta-row` 包兩顆鈕並排(confirming/submitting 的取消/確認送出鈕直接是容器
+   的子元素),column 方向的 stretch 讓它們照樣各自撐滿寬度、垂直堆疊。 ---- */
+.session-detail__actions { display: flex; flex-direction: column; margin-top: 16px; }
+.session-detail__actions .cta-row { display: flex; gap: 10px; }
+.session-detail__actions .session-primary,
+.session-detail__actions .session-secondary,
+.session-detail__actions .cta-status { min-height: 50px; border-radius: var(--radius-md); font-size: 16px; }
+.session-detail__actions .cta-row > .session-primary,
+.session-detail__actions .cta-row > .cta-status { flex: 1; }
+.session-detail__actions .session-primary { box-shadow: 0 8px 18px rgba(18, 41, 28, 0.3); }
+.session-detail__actions .session-primary--instant { background: var(--color-signal); color: var(--color-ink); box-shadow: 0 8px 18px rgba(221, 245, 60, 0.45); }
+.session-detail__actions .cta-row > .session-secondary { flex: none; padding: 0 16px; font-size: 14px; }
+
+.cta-status { display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; font-weight: 600; }
+.cta-status__icon { flex: none; }
+.cta-status--pending { background: var(--color-info-bg); color: var(--color-text-secondary); }
+.cta-status--joined { margin-bottom: 10px; background: var(--color-success-bg); color: var(--color-success); font-weight: 700; }
+/* 已額滿／終局(取消/結束/開始)套用 WCAG 對停用控件的對比豁免雙 token,
+   非本批新造——D1 已備妥卻尚未有呼叫點,這裡是第一個使用處。 */
+.cta-status--disabled { background: var(--color-disabled-bg); color: var(--color-disabled-text); font-weight: 700; }
+
+.cta-text-action { display: block; width: 100%; min-height: 44px; margin-top: 4px; border: 0; background: none; color: var(--color-danger); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; }
+.cta-text-action:active { transform: scale(0.98); }
+
+.cta-footnote { margin: 11px 0 0; text-align: center; color: var(--color-text-secondary); font-size: 11.5px; }
+.join-preview { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-info-bg); }
+.join-preview h3 { margin: 0; color: var(--color-ink); font-size: var(--text-base); }
+.join-preview .form-hint { margin: 0; padding: 0; border: 0; }
+.join-preview__people { display: grid; gap: var(--space-2); }
+.join-preview__person { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: var(--space-2); color: var(--color-ink); }
+.join-preview__person div { display: grid; gap: var(--space-1); min-width: 0; }
+.join-preview__person strong { overflow-wrap: anywhere; }
+.join-preview__person span:not(.player-avatar, .player-avatar__fallback) { color: var(--color-text-secondary); font-size: var(--text-sm); } /* 內容「主揪/已確認 · NTRP」以中文開頭,不套 mono(fix round 1,見 task-5-report) */
+/* 第二個選擇器只是為了追平上一行 :not() 的特異性(0,2,1),靠順序取勝。
+   顏色改用計分板次要文字 token,AA 對比已在 :root --color-text-secondary 定義處驗證,不需另加深。 */
+.trust-count,
+.join-preview__person span.trust-count { color: var(--color-text-secondary); font-size: var(--text-sm); } /* 內容「已成局 {n} 次」以中文開頭,不套 mono(fix round 1,見 task-5-report) */
+.player-avatar { position: relative; display: inline-grid; width: 40px; height: 40px; place-items: center; overflow: hidden; border-radius: var(--radius-pill); background: var(--color-surface-page); color: var(--color-court); font-weight: 700; }
+.player-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.player-avatar__fallback { display: grid; width: 100%; height: 100%; place-items: center; }
+/* 批 D8:md/lg 是 dc §1/§2/§3 逐字尺寸,且 dc 三處 avatar 都是 ink 底 signal 字
+  (與這裡 40px 既有版的淺底 court 字不同色系)——只在這兩個 modifier 覆寫顏色,
+   不動 40px 基底(join-preview／個人檔案表單預覽是 D4b/既有面,不在本批範圍)。 */
+.player-avatar--md,
+.player-avatar--lg { background: var(--color-ink); color: var(--color-signal); }
+.player-avatar--md { width: 44px; height: 44px; font-size: 17px; }
+.player-avatar--lg { width: 52px; height: 52px; font-size: 20px; }
+.profile-avatar-preview { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.profile-avatar-preview p { margin: 0; font-size: var(--text-sm); font-weight: 700; }
+/* ============================================================
+   批 D7(v2 改版):群組聊天改全螢幕殼(抽取規格 §4)。跟 .surface.create-v2
+  (D5)同一套「fixed inset:0 覆蓋 .surface--sheet 右下浮卡預設」手法——className
+   沿用既有的 "session-chat-sheet"(mountSheet 呼叫點不動),只在這裡疊出更高
+   specificity 的 .surface.session-chat-sheet 覆蓋規則。header 上緣 padding
+   與返回鈕比照 D5 既有升級慣例(dc 40px 一律升到 44px,不套用 dc 原文的 40),
+   .chat-session-summary/.chat-roster 等既有區塊原樣保留在 header 之下、
+   訊息流之上的「既有位置」(D7 派工單決策 4 的第二個選項),只是不再是
+   position:sticky(新殼本身不再整段捲動,只有 .chat-feed 捲動)。 */
+.surface.session-chat-sheet {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-page);
+  animation: qmSlide 0.3s var(--ease-brand);
+}
+.chat-v2__head { flex: none; display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; border-bottom: var(--border-thin); }
+.chat-v2__back { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); cursor: pointer; transition: transform 0.1s; }
+.chat-v2__back:active { transform: scale(0.92); }
+.chat-v2__head-copy { flex: 1; min-width: 0; }
+.chat-v2__court { margin: 0; overflow: hidden; color: var(--color-ink); font-size: 15.5px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.chat-v2__sub { margin: 1px 0 0; color: var(--color-text-secondary); font-size: 11.5px; }
+.chat-v2__info { flex: none; overflow-y: auto; max-height: 40vh; padding: var(--space-3) 16px 0; }
+.chat-session-summary { display: grid; gap: var(--space-1); margin-bottom: var(--space-3); padding: var(--space-3); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.chat-session-summary span { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.chat-roster { display: grid; gap: var(--space-2); margin-bottom: var(--space-3); }
+.chat-roster h3 { margin: 0; color: var(--color-ink); font-size: var(--text-base); }
+.chat-roster [data-chat-roster] { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chat-roster__member { padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-surface-card); border: var(--border-thin); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.chat-feed { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-2); min-height: 0; overflow-y: auto; padding: 14px 16px; }
+.chat-feed__empty { margin: auto; text-align: center; }
+/* 聊天泡泡三型(dc §4 逐字):系統置中 pill、他人左尖+28px avatar、自己右尖;
+   泡泡尾角原 3px(相鄰一階內)併入 radius-sm。avatar/sender/meta 沿用既有
+   data-chat-report/data-chat-block 錨點與 44px 觸控覆寫,只是內容換包進
+   .chat-message__bubble,方便他人泡泡在旁邊多插一顆 avatar。 */
+.chat-message { display: flex; align-items: flex-end; gap: 8px; max-width: 82%; align-self: flex-start; }
+.chat-message--self { align-self: flex-end; }
+.chat-message--system { align-self: center; max-width: 96%; }
+.chat-message__avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--color-ink); color: var(--color-signal); font-weight: 700; font-size: 12px; }
+.chat-message__bubble { min-width: 0; padding: 9px 12px; border-radius: var(--radius-md) var(--radius-md) var(--radius-md) var(--radius-sm); background: var(--color-info-bg); color: var(--color-ink); font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.chat-message--self .chat-message__bubble { border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-md); background: var(--color-success-bg); }
+.chat-message--system .chat-message__bubble { background: transparent; padding: 5px 13px; color: var(--color-text-secondary); font-size: var(--text-sm); text-align: center; }
+.chat-message__bubble p { margin: 0; }
+.chat-message__sender { margin-bottom: var(--space-1) !important; color: var(--color-court); font-size: var(--text-xs); font-weight: 700; }
+.chat-message__body { white-space: pre-wrap; }
+.chat-message__meta { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-sm); }
+.chat-message__meta .session-tertiary { min-width: 44px; min-height: 44px; padding: 0 var(--space-1); font-size: var(--text-sm); }
+.chat-archived-note { flex: none; margin: 0 16px var(--space-2); padding: var(--space-2); border-radius: var(--radius-md); background: #f2f3f5; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
+.chat-composer { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 16px 26px; border-top: var(--border-thin); background: var(--color-surface-card); }
+.chat-composer input[type="text"] { flex: 1; min-width: 0; height: 44px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-page); padding: 0 13px; font-family: var(--font-body); font-size: var(--text-base); color: var(--color-ink); outline: none; }
+.chat-composer input[type="text"]:focus { border-color: var(--color-court); }
+.chat-composer input[type="text"]:disabled { background: #f2f3f5; color: var(--color-text-secondary); }
+.chat-v2__send { flex: none; width: 44px; height: 44px; border-radius: var(--radius-md); border: 0; background: var(--color-ink); color: var(--color-signal); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.1s; }
+.chat-v2__send:active { transform: scale(0.9); }
+.chat-v2__send:disabled { background: var(--color-disabled-bg); color: var(--color-disabled-text); cursor: not-allowed; }
+.chat-v2__withdraw { flex: none; width: 100%; padding: 4px 16px 14px; background: var(--color-surface-card); text-align: center; }
+.player-profile { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); }
+.player-profile p { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.player-invite-form,
+.player-invite-options { display: grid; gap: var(--space-2); }
+.player-invite-option { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-1) var(--space-2); padding: var(--space-2); border: var(--border-thin); border-radius: var(--radius-md); color: var(--color-ink); }
+.player-invite-option input { grid-row: 1 / span 4; align-self: start; }
+.player-invite-option span { overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.player-invite-success { margin: 0; padding: var(--space-2); border-radius: var(--radius-md); background: var(--color-success-bg); color: var(--color-success); font-weight: 700; }
+.player-invite-empty { display: grid; justify-items: start; }
+
+/* ============================================================
+   批 D5(v2 改版):開球局改全螢幕計分板流程(dc §1-6)。大量複用 D1 語彙
+  (.chip/.chip--form/.chip--time/.toggle-switch/.time-tile/.slots-brick/
+   qmSlide/qmPop/--ease-brand/--color-disabled-*),這裡只補全螢幕殼、卡片、
+   segmented、stepper、固定底鈕與成功頁——D1 沒有的部分。
+   ============================================================ */
+
+/* .qm-scroll 是抽取規格 §0 的基礎規則,D1-D4 都還沒有實際呼叫點;這裡是第一個
+   消費者(捲動區與時間 chips 橫捲列都要用),故在此補上定義而非疊加到 D1 段。 */
+.qm-scroll { scrollbar-width: none; }
+.qm-scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+/* 殼(dc L474-475):dc 用 position:absolute+z-index:66 疊在自家單頁 app 殼上;
+   本站 #sheet-root 掛在 body 層級,改用既有 .surface 的 fixed 定位語意(z-sheet
+   而非新開一個 66 的一次性數值)才能真正貼滿視窗,不隨 #sheet-root 的父層位置
+   偏移。header 上緣 padding dc 是 52px(assumes 原生 App 瀏海安全區),比照
+   D4a 對 .map-topbar 的既有偏離(14px)改用本站慣用值,不套用原稿 50px+。
+   互動目標:dc 的返回鈕/segmented 都是 40px,依本站既有升級慣例
+  (.session-detail__close 36→44 的同一手法)一律升到 44px,不只在手機斷點才升。 */
+.surface.create-v2 {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: var(--color-surface-page);
+  animation: qmSlide 0.3s var(--ease-brand);
+}
+.create-v2__head { flex: none; display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
+.create-v2__back { flex: none; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); cursor: pointer; transition: transform 0.1s; }
+.create-v2__back:active { transform: scale(0.92); }
+.create-v2__head h2 { font-size: var(--text-xl); }
+.create-v2__scroll { position: relative; flex: 1; overflow-y: auto; padding: 4px 16px 130px; }
+
+/* 卡片式區塊共用殼(dc §8):首張無 margin-top,其餘 12px。 */
+.create-v2__card { margin-top: 12px; padding: 14px; border: var(--border-thin); border-radius: var(--radius-lg); background: var(--color-surface-card); }
+.create-v2__card:first-child { margin-top: 0; }
+.create-v2__label { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; letter-spacing: 1px; }
+.create-v2__label--mt { margin: 14px 0 10px; }
+.create-v2__hint { margin: 0 0 8px; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.create-v2__mono { font-family: var(--font-mono); font-weight: 600; }
+
+/* segmented(dc L487-489):40px 升 44px,見殼註解。
+   fix round 1(驗收退回,實測抓到):44px 原本設在容器(.create-v2__segmented)的
+   border-box 高度上,但容器自己的 1px 上下框各吃掉 1px,實際可點的 <button> 子元素
+   (伸展填滿容器 content box)量出來只有 42px——不是把 44px 標在容器,而是要標在
+   真正互動的元素本身。改成容器高度隨內容(不再寫死 44px),min-height 標在
+   .create-v2__seg-btn 上,子元素本身保證 ≥44px,容器的框線與圓角視覺不變。 */
+.create-v2__segmented { display: flex; margin-bottom: 10px; border: var(--border-strong); border-radius: var(--radius-md); overflow: hidden; }
+.create-v2__seg-btn { flex: 1; min-height: 44px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; }
+.create-v2__seg-btn + .create-v2__seg-btn { border-left: var(--border-strong); }
+.create-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
+
+/* 球場卡格(dc L494-497 已定/候選逐字共用):台北市數十座球場,dc 原型只有數座,
+   加內捲上限(批次核可延伸),不做搜尋框。 */
+.create-v2__court-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 320px; overflow-y: auto; }
+.create-v2__court-cell { min-height: 44px; padding: 10px 11px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); text-align: left; cursor: pointer; transition: transform 0.1s; }
+.create-v2__court-cell:active { transform: scale(0.97); }
+.create-v2__court-cell.is-selected { border: var(--border-strong); background: var(--color-ink); }
+.create-v2__court-cell.is-selected .create-v2__court-name { color: var(--color-surface-card); }
+.create-v2__court-cell.is-selected .create-v2__court-sub { color: #9db3a4; }
+.create-v2__court-name { display: block; font-size: 13px; font-weight: 700; line-height: 1.35; }
+.create-v2__court-sub { display: block; margin-top: 2px; color: var(--color-text-secondary); font-size: 11px; }
+
+/* 時間卡:日期 chip 用 .chip.chip--form,時段/開始時間用 .chip.chip--time(D1
+   既有)。這裡只補列容器與橫捲時間列、自訂日期輸入、自訂時間 stepper。 */
+.create-v2__chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.create-v2__chip-row--scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+.create-v2__chip-row--scroll > * { flex: none; }
+.create-v2__custom-date { margin: 8px 0 0; }
+.create-v2__custom-date input { min-height: 44px; width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-sm); background: var(--color-surface-card); color: var(--color-ink); padding: var(--space-2); font: inherit; }
+
+/* 自訂時間 / 缺幾位共用的 ± stepper 列(dc L536-542 與 L568/L570 逐字同款 44px 鈕)。 */
+.create-v2__stepper { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.create-v2__stepper-label { flex: 1; margin: 0; color: var(--color-text-secondary); font-size: var(--text-base); }
+.create-v2__stepper-btn { flex: none; width: 44px; height: 44px; border: var(--border-strong); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-family: var(--font-mono); font-weight: 600; font-size: 18px; line-height: 1; cursor: pointer; transition: transform 0.1s; }
+.create-v2__stepper-btn:active { transform: scale(0.9); }
+.create-v2__stepper-value { display: inline-block; width: 64px; text-align: center; font-family: var(--font-mono); font-weight: 600; font-size: 20px; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.create-v2__stepper-value--lg { width: 34px; font-size: var(--text-2xl); }
+.create-v2__stepper-row { display: flex; align-items: center; gap: 12px; }
+.create-v2__stepper-title { flex: 1; margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+
+/* 人數卡的加入方式／已訂場 toggle 列(dc L573 分隔線款式套用到兩列)。 */
+.create-v2__toggle-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-info-bg); }
+.create-v2__toggle-copy { flex: 1; min-width: 0; }
+.create-v2__toggle-title { margin: 0; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.create-v2__toggle-sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
+
+/* 批 D9 backlog #3:拿掉原本的 outline: none——這顆 textarea 沒有其他替代
+   focus 樣式(不像 .chat-composer input[type="text"] 有 :focus 專屬 border-color
+   當替代視覺提示),留著會讓同specificity 的全域 :focus-visible 外框規則因後定義
+   而被蓋掉,鍵盤 tab 進來時完全沒有 focus 指示。 */
+.create-v2__textarea { width: 100%; box-sizing: border-box; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-page); color: var(--color-ink); padding: 11px 13px; font-family: var(--font-body); font-size: var(--text-base); line-height: 1.55; resize: none; }
+
+/* 固定底鈕(dc L590-592):漸層座 + 雙態視覺鈕,無 native disabled——未完成點擊
+   由 toast 引導,不擋 submit 事件本身。 */
+/* fix round 1(實測):漸層座視覺上頂端透明,但整個 padded box 預設仍會吃掉
+   點擊——蓋住底下捲動內容(候選程度 chip、缺幾位 stepper 等)點不到。比照
+   .map-topbar 的既有解法:容器本身 pointer-events:none,只有實際子元素(文案/
+   錯誤/按鈕)恢復 auto。 */
+.create-v2__footer { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 16px 26px; background: linear-gradient(rgba(250, 249, 243, 0), var(--color-surface-page) 30%); pointer-events: none; }
+/* fix round 2(實測):前一版把 pointer-events:auto 還給「所有直接子元素」,
+   disclosure/error 這兩段純文字 <p> 沒有可互動內容,卻仍以整段文字寬度攔截
+   點擊——只有真正可互動的發布鈕需要 auto,文字段落維持 none 讓點擊穿透到
+   捲動內容。 */
+.create-v2__footer .form-disclosure,
+.create-v2__footer .form-error { margin-bottom: var(--space-2); }
+.create-v2__publish { pointer-events: auto; width: 100%; min-height: 54px; border: 0; border-radius: var(--radius-md); background: var(--color-disabled-bg); color: var(--color-disabled-text); font-family: var(--font-body); font-weight: 700; font-size: 16px; cursor: pointer; transition: transform 0.1s; }
+.create-v2__publish:active { transform: scale(0.98); }
+.create-v2__publish.is-ready { background: var(--color-ink); color: var(--color-signal); box-shadow: 0 10px 22px rgba(18, 41, 28, 0.32); }
+
+/* 成功頁(dc §6):qmPop 進場,新球局卡預覽複用 .time-tile(--done 覆寫 60px 版)
+   與 .slots-brick(逐字相符,不再另定義)。 */
+.create-v2__done { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 0 28px 40px; text-align: center; animation: qmPop 0.3s var(--ease-brand); }
+.create-v2__done-badge { display: flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 50%; border: 2.5px solid var(--color-ink); background: var(--color-signal); color: var(--color-ink); box-shadow: 0 12px 26px rgba(221, 245, 60, 0.5); }
+.create-v2__done-title { margin: 18px 0 0; color: var(--color-ink); font-size: 21px; font-weight: 700; }
+.create-v2__done-copy { margin: 6px 0 0; color: var(--color-text-secondary); font-size: 13.5px; line-height: 1.6; }
+.create-v2__done-card { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 20px; padding: 12px; border: var(--border-strong); border-radius: var(--radius-lg); background: var(--color-surface-card); text-align: left; }
+.time-tile--done { width: 60px; gap: 2px; }
+.create-v2__done-card-copy { flex: 1; min-width: 0; }
+.create-v2__done-court { margin: 0; overflow-wrap: anywhere; color: var(--color-ink); font-size: 14.5px; font-weight: 700; }
+.create-v2__done-meta { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.create-v2__done-primary { width: 100%; min-height: 52px; margin-top: 22px; }
+.create-v2__done-secondary { width: 100%; min-height: 46px; margin-top: 4px; border: 0; background: none; color: var(--color-text-secondary); font-family: var(--font-body); font-size: var(--text-base); font-weight: 600; cursor: pointer; }
+
+/* 批 D1:toast 改 v2 規格——中置於導覽列上方、signal ✓、qmToast 進場(dc L671-674)。
+   偏離稿面兩點:keyframes 的 -50% 位移移到 #toast-root(結構不同),nowrap 改
+   overflow-wrap(中文長句在 390px 會爆版,a11y 取捨)。 */
+#toast-root { position: fixed; z-index: var(--z-toast); left: 50%; bottom: calc(34px + var(--bottom-navigation-offset)); transform: translateX(-50%); max-width: min(360px, calc(100vw - 32px)); pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: var(--radius-lg); background: var(--color-ink); color: var(--color-surface-page); box-shadow: var(--elevation-2); font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; animation: qmToast 0.22s ease; }
+.toast__check { flex: none; }
+
+/* 批 19(d54c098,2026-08-20):全域執行期錯誤處理新增的提示 UI——app-error-notice
+   為非 React 例外的可關閉 toast(appErrors.ts showGlobalErrorNotice);
+   app-error-fallback 為 React error boundary 的區塊級 fallback
+   (components/AppErrorBoundary.tsx)。逐字取自 src/create-session.css。 */
+.app-error-notice { position: fixed; z-index: var(--z-toast); left: 50%; bottom: calc(34px + var(--bottom-navigation-offset)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: min(440px, calc(100vw - 32px)); padding: 13px 16px; border-radius: var(--radius-lg); background: var(--color-ink); color: var(--color-surface-page); box-shadow: var(--elevation-2); font-size: 13.5px; font-weight: 600; }
+.app-error-notice__close { flex: none; min-width: 44px; min-height: 44px; border: 1px solid var(--color-signal); border-radius: var(--radius-md); background: transparent; color: var(--color-signal); font: inherit; cursor: pointer; }
+.app-error-fallback { display: grid; justify-items: start; gap: 14px; width: min(100%, 520px); margin: auto; padding: clamp(24px, 6vw, 48px); }
+.app-error-fallback h2, .app-error-fallback p { margin: 0; }
+
+@media (max-width: 700px) {
+  .map-topbar { padding: 12px 12px 16px; }
+  .map-topbar__row { gap: 6px; }
+  .app-brand { min-height: 44px; }
+  #player-directory-open { min-width: 44px; min-height: 44px; }
+  /* chip 手機斷點的 44px 升級規則在下方「chips 語彙」段落之後(fix round 1:同
+     specificity 的 .chip 選取器,寫在 vocab 定義之前會被之後宣告的 .chip{height:36px}
+     依來源順序蓋掉,即使身在 @media 區塊內也一樣——media 只決定條件是否成立,
+     不影響同特異性時的層疊順序)。 */
+  /* topbar row2(chips)與 row1(品牌/城市/球友名單)高度都因 44px 升級而增加,
+     player-layer-control／level-popover 的錨點需要略微下移。 */
+  .player-layer-control { top: 144px; }
+  .level-popover { top: 144px; left: 10px; }
+  .surface { width: calc(100vw - 20px); max-height: 80dvh; padding: var(--space-4); }
+  .surface--sheet { right: 10px; bottom: 10px; }
+  .surface--dialog { top: 50%; }
+  .my-sessions-page,
+  .me-page { min-height: 100dvh; padding: var(--space-5) var(--space-3) calc(18px + var(--bottom-navigation-offset)); }
+  .my-sessions-shell__head h1 { font-size: var(--text-2xl); }
+}
+
+@media (max-width: 390px) {
+  /* fix round 1:dc 原稿 390px 就顯示台北市 chip;舊 .city-label 的隱藏規則不承襲。 */
+  .player-layer-status { max-width: 180px; }
+  .discovery-empty__actions > * { flex: 1 1 120px; }
+  .option-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   批 D1(v2 改版):基礎元件語彙。值逐字抄自設計參考稿
+   SessionMapApp.dc.html(行號標注於各段),hex 已映射回語意 token。
+   ============================================================ */
+
+/* ---- 時間磚 time-tile:base=球局卡 64px 版(dc L154-156);
+        --compact 58px(L191-193)、--detail 74px/radius-lg(L337-339)、
+        --ongoing 進行中反相(L979)。候選場次只換文字(範圍「18–22」),磚體不變。 ---- */
+.time-tile { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; padding: 9px 0; gap: 3px; border: 1.5px solid var(--color-ink); border-radius: var(--radius-md); background: var(--color-surface-page); }
+.time-tile__start { font-family: var(--font-mono); font-weight: 600; font-size: 16px; line-height: 1; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.time-tile__date { font-size: 10.5px; color: var(--color-text-secondary); }
+.time-tile--compact { width: 58px; padding: 8px 0; gap: 2px; }
+.time-tile--compact .time-tile__start { font-size: 15px; }
+.time-tile--compact .time-tile__date { font-size: 10px; }
+.time-tile--detail { width: 74px; padding: 11px 0; border-radius: var(--radius-lg); }
+.time-tile--detail .time-tile__start { font-size: 19px; }
+.time-tile--ongoing { background: var(--color-ink); }
+.time-tile--ongoing .time-tile__start { color: var(--color-signal); }
+.time-tile--ongoing .time-tile__date { color: #9db3a4; /* 深底非活躍文字慣例色 */ }
+
+/* ---- 記分板條 scoreboard-strip(dc L353-364):格間線=前兩格 border-right;
+        TYPE 格的值是 Noto 700、NTRP/缺額格是 mono 600(照稿,兩型並存)。 ---- */
+.scoreboard-strip { display: grid; grid-template-columns: 1fr 1fr 1fr; overflow: hidden; border: 1.5px solid var(--color-ink); border-radius: var(--radius-lg); background: var(--color-surface-card); }
+.scoreboard-strip__cell { padding: 11px 6px; text-align: center; border-right: 1px solid var(--color-line); }
+.scoreboard-strip__cell:last-child { border-right: 0; }
+.scoreboard-strip__eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 10.5px; letter-spacing: 2px; color: var(--color-text-secondary); }
+.scoreboard-strip__value { margin-top: 3px; font-size: 16px; font-weight: 700; color: var(--color-ink); }
+.scoreboard-strip__value--mono { font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.scoreboard-strip__cell--inverse { background: var(--color-ink); border-right: 0; }
+.scoreboard-strip__cell--inverse .scoreboard-strip__eyebrow { color: #9db3a4; }
+.scoreboard-strip__cell--inverse .scoreboard-strip__value { color: var(--color-signal); }
+
+/* ---- 缺 N 磚(dc L166/L271/L608 逐字相同) ---- */
+.slots-brick { flex: none; display: inline-block; padding: 3px 8px; border-radius: var(--radius-sm); background: var(--color-ink); color: var(--color-signal); font-family: var(--font-mono); font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ---- chips 語彙(dc chip() helper L851-853 + 各尺寸殼):
+        未選 white 底 1px line 500;選中 ink 底白字 1.5px ink 框 700;
+        --paper 未選底改 page;尺寸:base h36(頂列)/--form h40/--time h40 mono/--filter h44。 ---- */
+.chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-size: 13.5px; font-weight: 500; transition: transform 0.1s; cursor: pointer; }
+.chip:active { transform: scale(0.94); }
+.chip.is-selected { border: 1.5px solid var(--color-ink); background: var(--color-ink); color: var(--color-surface-card); font-weight: 700; }
+.chip--paper:not(.is-selected) { background: var(--color-surface-page); }
+.chip--form { height: 40px; padding: 0 14px; font-family: var(--font-mono); font-size: 13px; }
+.chip--form:active { transform: scale(0.95); }
+.chip--time { height: 40px; padding: 0 13px; font-family: var(--font-mono); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.chip--time:active { transform: scale(0.95); }
+.chip--filter { height: 44px; font-family: var(--font-mono); font-size: 14px; }
+.chip--filter:active { transform: scale(0.97); }
+
+/* 批 D4a:dc 的 chip 基準是 h36(topbar)/h40(sheet 日期・打法)/h38(sheet 行政區),
+   手機斷點下依既有 .filter-chip 44px 慣例統一升級。這條規則刻意放在上面的
+   .chip/.chip--form/.chip--district/.chip--time 定義「之後」(而非放進檔案較早的
+   @media (max-width:700px) 主區塊):CSS 層疊在特異性相同時以來源順序決勝,身處
+   @media 區塊內不會改變這點,寫在較早位置會被這裡的基底定義蓋回 36/40/38px。 */
+@media (max-width: 700px) {
+  .chip { height: 44px; }
+}
+
+/* ---- toggle 開關 52×31(dc L578 + on/off 值 L1010):
+        knob 用 left 位移動畫(照稿),aria-checked 驅動狀態。 ---- */
+.toggle-switch { position: relative; flex: none; width: 52px; height: 31px; padding: 0; border: 1.5px solid var(--color-ink); border-radius: var(--radius-xl); background: var(--color-info-bg); transition: background 0.15s; cursor: pointer; }
+/* dc 軌道 31px 高不足 44px 觸控目標;::after 已被 knob 占用,用 ::before 撐透明熱區(31+7×2=45)。 */
+.toggle-switch::before { content: ""; position: absolute; inset: -7px; }
+.toggle-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 23px; height: 23px; box-sizing: border-box; border: 1.5px solid var(--color-ink); border-radius: 50%; background: var(--color-surface-card); transition: left 0.15s; }
+.toggle-switch[aria-checked="true"] { background: var(--color-ink); }
+.toggle-switch[aria-checked="true"]::after { left: 25px; background: var(--color-signal); }
+
+/* ---- NTRP 磚:大版(我頁/球友卡,dc L225-227)+小版(名單列,dc L299) ---- */
+.ntrp-brick { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 13px; border-radius: var(--radius-md); background: var(--color-ink); }
+.ntrp-brick__eyebrow { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 10px; letter-spacing: 2px; color: #9db3a4; }
+.ntrp-brick__value { margin: 0; font-family: var(--font-mono); font-weight: 600; font-size: 21px; line-height: 1; color: var(--color-signal); font-variant-numeric: tabular-nums; }
+.ntrp-brick--sm { display: inline-block; padding: 2px 7px; border-radius: var(--radius-sm); background: var(--color-ink); color: var(--color-signal); font-family: var(--font-mono); font-weight: 600; font-size: 11.5px; }
+
+/* ============================================================
+   批 D8(v2 改版):球友名單 sheet(抽取規格 §2)+球友卡 sheet(§3)+在線球友釘(§4)。
+   兩個 sheet 都改真正貼邊 bottom sheet(取代舊版 .surface--sheet 右下浮卡),語彙
+   複用 D4a filter-sheet 的殼寫法(對稱 inset、qmSheetUp);名單 sheet 額外加
+   max-height 74%+內層捲動(dc §2 逐字),球友卡沿用 D4b session-detail-sheet 同款
+   「overflow-y:auto + 88dvh」可及性偏離(dc 原型無上限,小螢幕會裁切,理由同 D4b
+   檔頭註記,不重複)。
+   ============================================================ */
+.surface.player-directory-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: auto;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: 74dvh;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px 26px;
+  border: 1.5px solid var(--color-ink);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.32s var(--ease-brand);
+}
+.player-directory-sheet__grabber { flex: none; display: block; width: 44px; height: 5px; margin: 2px auto 12px; border-radius: 3px; background: var(--color-line); }
+.player-directory-sheet__head { flex: none; margin: 0; padding: 0 0 var(--space-2); }
+.player-directory-sheet__sub { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 12.5px; }
+.player-directory-sheet__count { font-family: var(--font-mono); font-weight: 500; }
+.player-directory-sheet__scroll { flex: 1; overflow-y: auto; padding: 2px 2px 4px; }
+
+.surface.player-card-sheet {
+  left: max(0px, calc(50% - 265px));
+  right: max(0px, calc(50% - 265px));
+  top: auto;
+  bottom: 0;
+  width: auto;
+  max-width: none;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 10px 20px 26px;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -14px 44px rgba(18, 41, 28, 0.28);
+  animation: qmSheetUp 0.34s var(--ease-brand);
+}
+.player-card-sheet__grabber { display: block; width: 44px; height: 5px; margin: 2px auto 14px; border-radius: 3px; background: var(--color-line); }
+.player-card-sheet__actions { display: flex; gap: 10px; margin-top: 16px; }
+.player-card-sheet__actions .session-secondary { flex: none; padding: 0 16px; min-height: 48px; }
+.player-card-sheet__actions .session-primary { flex: 1; min-height: 48px; }
+.player-card-sheet__footnote { margin: 11px 0 0; text-align: center; color: var(--color-text-secondary); font-size: 11.5px; }
+
+/* ---- 動效原語(dc L15-19 keyframes;時長與 easing 於使用處標注):
+        sheetUp .32/.34s ease-brand、fade .2s、pop .18s(popover)/.3s(成功頁)、
+        slide .28/.3s ease-brand、toast .22s。 ---- */
+@keyframes qmSheetUp { from { transform: translateY(103%); } to { transform: translateY(0); } }
+@keyframes qmFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qmPop { from { opacity: 0; transform: scale(0.92) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes qmSlide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes qmToast { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- 按壓回饋(dc style-active 對照表):鈕類 transform .1s、卡片類 .12s。
+        既有元件先接上;新畫面元件各自帶 :active(見上方各語彙)。 ---- */
+.session-primary, .session-secondary, .session-tertiary, .filter-chip, .band-option, .filters-reset { transition: transform 0.1s; }
+.session-primary:active, .session-secondary:active, .filter-chip:active, .band-option:active, .session-tertiary:active, .filters-reset:active { transform: scale(0.95); }
+.surface__close { transition: transform 0.1s; }
+.surface__close:active { transform: scale(0.92); }
+.session-card, .player-card { transition: transform 0.12s; }
+.session-card:active, .player-card:active { transform: scale(0.98); }
+
+/* ---- reduced-motion 全域降級(dc L23;涵蓋上方所有動畫與 transition) ---- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

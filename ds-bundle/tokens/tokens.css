@@ -1,0 +1,44 @@
+/* 網球球局地圖設計系統 — token 全表(可讀參考;同一份 :root 也在 _ds_bundle.css 內)。
+   來源:src/session.css :root 逐字複製,v2 D1-D9 完成版(2026-08-11)。 */
+:root {
+  /* ==== 計分板 token 層(spec 2026-08-07 批 A);語意命名,dark mode 未來只翻此層 ==== */
+  --color-ink: #12291c;
+  --color-court: #1c5c3c;
+  --color-signal: #ddf53c;
+  --color-surface-page: #faf9f3;
+  --color-surface-card: #ffffff;
+  --color-text-primary: #12291c;
+  --color-text-secondary: #46554b; /* 候選 #5c6a5f 對 success-bg 不足 4.5 時用此加深值;以 Step 4 實算為準 */
+  --color-line: #cfd8cd;
+  --color-danger: #a1241b;
+  --color-danger-bg: #fff0ef;
+  --color-success: #1c5c3c;
+  --color-success-bg: #e8f2e3;
+  --color-info-bg: #eef1e7;
+  --font-body: "Noto Sans TC", sans-serif;
+  --font-mono: "IBM Plex Mono", "Noto Sans TC", monospace;
+  --font-display: "Barlow Condensed", "Noto Sans TC", sans-serif;
+  --text-xs: 11px; --text-sm: 12px; --text-base: 14px; --text-md: 15px;
+  --text-lg: 17px; --text-xl: 20px; --text-2xl: 24px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-7: 32px; --space-8: 40px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 10px; --radius-xl: 16px; --radius-pill: 999px;
+  /* 批 D1(v2 改版):停用態雙 token(停用控件依 WCAG 豁免對比)與品牌 easing。 */
+  --color-disabled-bg: #e3e6dc;
+  --color-disabled-text: #8a978c;
+  --ease-brand: cubic-bezier(0.22, 0.61, 0.36, 1); /* @kind other */
+  --border-strong: 1.5px solid var(--color-ink);
+  --border-thin: 1px solid var(--color-line);
+  --elevation-1: 0 2px 8px rgba(18, 41, 28, 0.10);
+  --elevation-2: 0 14px 32px rgba(18, 41, 28, 0.22);
+  --z-header: 10; /* @kind other */
+  --z-map-controls: 6; /* @kind other */
+  --z-drawer: 20; /* @kind other */
+  --z-sheet: 31; /* @kind other */
+  --z-toast: 40; /* @kind other */
+  /* 批 D7:五格導覽(dc §1)容器高 84px(10px 8px 20px padding 撐出,含置中浮起的
+     開球局鈕);--bottom-navigation-offset 全站多處定位依賴此 token,連動改高不必
+     逐一改動引用點(map-zoom-controls/nearby-peek/toast/me-page 等)。 */
+  --bottom-navigation-height: 84px;
+  --bottom-navigation-offset: calc(var(--bottom-navigation-height) + env(safe-area-inset-bottom, 0px));
+}

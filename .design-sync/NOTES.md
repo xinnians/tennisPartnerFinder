@@ -24,3 +24,14 @@
 - 舊卡曾引用從未進 bundle 的 `.location-button`/`.app-header`/`.city-label`,重寫時已換真實 class。
 - 設計 read-back 待問(下次設計 session):訊息列副行時間格式(工程合成式)、
   導覽數字徽章視覺(dc 無對應)、詳情 badge 雙語彙(venue badge+dc badge 並存)收斂。
+
+## 2026-08-21 補充同步(單卡,repo HEAD b7ed4a0)
+
+- 範圍限定:只新增批 19(d54c098,2026-08-20)引入的錯誤處理 UI,其餘既有卡片未重驗
+  (自 08-11 基準以來的 CSS 改動經查僅結構重排/死宣告刪除,視覺零變更,詳見對話紀錄)。
+- 新卡 **錯誤狀態**(`components/feedback/ErrorStates/ErrorStates.html`):
+  `.app-error-notice`(逐字取自 `src/appErrors.ts` showGlobalErrorNotice)、
+  `.app-error-fallback`(逐字取自 `src/components/AppErrorBoundary.tsx`)。
+- `_ds_bundle.css` 對應插入四條宣告(緊接 `.toast__check` 之後,與本機
+  `src/create-session.css` 位置一致);README.md 樣式語彙、元件索引同步補充。
+- 未新增 token,沿用既有 `--z-toast`/`--radius-lg`/`--radius-md`/`--color-signal` 等。

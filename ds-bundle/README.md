@@ -45,3 +45,42 @@
   <span class="session-card__chevron" aria-hidden="true">›</span>
 </button>
 ```
+
+---
+
+## 元件索引(2026-08-11 回同步,repo HEAD 2685213;2026-08-21 補充批 19 錯誤狀態元件,其餘卡片未重驗)
+
+### 動作 Actions
+- **Buttons**(`components/actions/Buttons/Buttons.html`)——primary / secondary / tertiary / instant / CTA 狀態列與選中態
+- **Chips**(`components/actions/Chips/Chips.html`)——chip 基底/變體/選中態、band-option 與 toggle-switch
+
+### 卡片 Cards
+- **Session Card**(`components/cards/SessionCard/SessionCard.html`)——v2 球局卡(時間磚+內容)/球友卡/我的球局薄卡列與狀態章
+
+### 回饋 Feedback
+- **Toast 與狀態**(`components/feedback/Toast/Toast.html`)——v2 toast(ink 底+signal 勾)/ 地圖狀態 chip / 清單狀態列 / badge
+- **錯誤狀態**(`components/feedback/ErrorStates/ErrorStates.html`)——全域錯誤提示 toast(`.app-error-notice`)/ 區塊級 fallback(`.app-error-fallback`,批 19 新增)
+
+### 基礎 Foundations
+- **Design Tokens**(`components/foundations/Tokens/Tokens.html`)——計分板配色/字階/間距/圓角/陰影/停用態/動效(v2 D1)
+- **計分磚 Bricks**(`components/foundations/Bricks/Bricks.html`)——time-tile / scoreboard-strip / ntrp-brick / slots-brick
+
+### 導覽 Navigation
+- **Bottom Navigation**(`components/navigation/BottomNav/BottomNav.html`)——v2 五格導覽:4 個 __item + 置中浮起 __create,含數字徽章與未讀圓點
+
+### 畫面 Screens
+- **「我」頁**(`components/screens/MePage/MePage.html`)——mock 模式 390×844 實截(已登入態,v2)
+- **我的球局頁**(`components/screens/MySessions/MySessions.html`)——mock 模式 390×844 實截
+- **球局群組聊天室**(`components/screens/ChatRoom/ChatRoom.html`)——mock 模式 390×844 實截
+- **球局詳情 sheet**(`components/screens/SessionDetail/SessionDetail.html`)——mock 模式 390×844 實截(v2)
+- **篩選 sheet**(`components/screens/FilterSheet/FilterSheet.html`)——mock 模式 390×844 實截(v2)
+- **訊息頁**(`components/screens/Messages/Messages.html`)——mock 模式 390×844 實截
+- **開球局全螢幕流**(`components/screens/CreateSession/CreateSession.html`)——mock 模式 390×844 實截
+- **附近球局(兩態抽屜・展開)**(`components/screens/DrawerOpen/DrawerOpen.html`)——mock 模式 390×844 實截
+- **首頁(地圖+頂列)**(`components/screens/MapHome/MapHome.html`)——mock 模式 390×844 實截(v2)
+
+### 聊天 Chat
+- **群組聊天**(`components/chat/Chat/Chat.html`)——v2 泡泡三型(他人/自己/系統)+ 名冊 + 輸入區
+
+### 面板 Surfaces
+- **Sheet 與表單**(`components/surfaces/Sheet/Sheet.html`)——surface sheet + 表單契約 + 篩選 sheet grabber/footer + 球局詳情頭部摘要
