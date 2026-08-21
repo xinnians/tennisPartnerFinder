@@ -28,6 +28,7 @@ import {
   terminalAction,
   timeValue,
 } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
+import { chatMemberSession, latestChatMessageId, visibleChatMessage } from "./features/chat/chatFeature.ts";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { clearPendingIntent, readPendingIntent, savePendingIntent } from "./sessionIntent.js";
@@ -84,16 +85,6 @@ const NOW_START_JOIN_WINDOW_MS = 2 * 60 * 60 * 1000;
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
 const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
-
-/** Highest messageId present in a chat feed batch, or null when the batch is empty/unusable. */
-function latestChatMessageId(messages) {
-  let latest = null;
-  for (const message of Array.isArray(messages) ? messages : []) {
-    const id = Number(message?.messageId);
-    if (Number.isFinite(id) && (latest == null || id > latest)) latest = id;
-  }
-  return latest;
-}
 
 /**
  * Arrange private My Sessions rows around the next safe action. Host request
@@ -1070,10 +1061,6 @@ export function createSessionController({
     }
   }
 
-  function chatMemberSession(session) {
-    return String(session?.viewerParticipantStatus).toLowerCase() === "accepted";
-  }
-
   // 批 C4-2:已讀游標只掛在這次開聊天期間存活的 context 上,不是跨 session 的全域
   // Map——每次 openSessionChat 重開都是新 context,重新標記一次也符合 RPC 冪等語意;
   // 節流只為壓掉同一次開啟期間 visibilitychange 等高頻重跑造成的重複呼叫。
@@ -1125,16 +1112,6 @@ export function createSessionController({
       });
       return false;
     }
-  }
-
-  function visibleChatMessage(context, messageId) {
-    return context?.messages.find(
-      (message) =>
-        String(message.messageId) === String(messageId) &&
-        message.kind === "user" &&
-        message.isSelf !== true &&
-        Number.isSafeInteger(Number(message.senderProfileId))
-    );
   }
 
   function openChatMessageReport(context, messageId) {
