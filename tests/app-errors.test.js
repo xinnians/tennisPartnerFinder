@@ -4,6 +4,7 @@ import { extname, join, relative } from "node:path";
 import test from "node:test";
 
 import {
+  APP_ERROR_TRANSPORT_FIELDS,
   APP_ERROR_SURFACES,
   captureAppError,
   configureAppErrorTransport,
@@ -33,9 +34,25 @@ test("error transport receives only the fixed privacy allowlist", () => {
 
   assert.deepEqual(report, { errorName: "Error", kind: "react-render", surface: "session-detail-sheet" });
   assert.deepEqual(unknown, { errorName: "Error", kind: "window-error", surface: "global" });
-  assert.deepEqual(Object.keys(report).sort(), ["errorName", "kind", "surface"]);
+  assert.deepEqual(APP_ERROR_TRANSPORT_FIELDS, ["errorName", "kind", "surface"]);
+  assert.deepEqual(Object.keys(report), APP_ERROR_TRANSPORT_FIELDS);
   assert.doesNotMatch(JSON.stringify(reports), /私密球友|25\.1|121\.5|LINE|secret|roster|email/i);
+  assert.ok(Object.isFrozen(APP_ERROR_TRANSPORT_FIELDS));
   assert.ok(Object.isFrozen(report));
+});
+
+test("production leaves the sole error transport registration point uncalled", () => {
+  const references = sourceFiles(ROOT.pathname).flatMap((path) => {
+    if (![".js", ".ts", ".tsx"].includes(extname(path))) return [];
+    const matches = readFileSync(path, "utf8").match(/configureAppErrorTransport/g) ?? [];
+    return matches.map(() => relative(ROOT.pathname, path));
+  });
+
+  assert.deepEqual(references, ["appErrors.ts"]);
+  assert.match(
+    readFileSync(new URL("../src/appErrors.ts", import.meta.url), "utf8"),
+    /let transport: AppErrorTransport = NOOP_TRANSPORT/
+  );
 });
 
 test("global error and rejection listeners are idempotent, removable, and transport-safe", () => {

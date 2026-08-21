@@ -37,6 +37,8 @@ export interface AppErrorReport {
   readonly surface: AppErrorSurface;
 }
 
+/** The complete payload contract available to any future external transport. */
+export const APP_ERROR_TRANSPORT_FIELDS = Object.freeze(["errorName", "kind", "surface"] as const);
 export type AppErrorTransport = (report: AppErrorReport) => void;
 
 const SAFE_ERROR_NAMES = new Set<AppErrorReport["errorName"]>([
@@ -77,7 +79,10 @@ export function captureAppError(kind: AppErrorKind, surface: string, error: unkn
   return report;
 }
 
-/** Install a future transport without choosing or contacting an endpoint now. */
+/**
+ * The sole registration point for a future vendor adapter. Production does not
+ * call it yet, so the default remains NOOP_TRANSPORT.
+ */
 export function configureAppErrorTransport(nextTransport: AppErrorTransport = NOOP_TRANSPORT): () => void {
   const previous = transport;
   transport = typeof nextTransport === "function" ? nextTransport : NOOP_TRANSPORT;
