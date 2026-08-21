@@ -19,6 +19,10 @@ C5 features/player-directory   球友目錄、邀請、在場
 C6 features/notifications      通知偏好、push 訂閱、court subscriptions
 ```
 
+> **C6 已由 `06b-batch-C6R-notifications.md` 取代**（2026-08-21）：原 C6 前提錯誤——
+> 通知責任在 `main.js` 而非 controller，BLOCKED 紀錄見 `docs/arch-reports/batch-C6.md`。
+> 本檔以下內容僅適用 C1–C5。
+
 歸屬有模糊時以「該段程式主要服務哪個使用者流程」判斷，把裁量寫進回報；跨 feature 共用的
 小工具放 `src/features/shared/`（保持最小，不得變成新雜物抽屜）。
 

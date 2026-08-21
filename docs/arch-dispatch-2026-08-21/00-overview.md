@@ -34,7 +34,7 @@ D 批開工前若發現批次檔細節與 B/C 落地現況衝突，寫 BLOCKED �
 5. **測試不得為變綠而弱化**：禁空斷言、禁刪 assert。字串掃描型契約測試允許「等語意演進」（掃描目標隨檔案搬移擴充），但演進後必須保持掃描集非空斷言，且回報附前後語意對照表。涵蓋／遷移類驗收寫對稱性論證，不用列舉。
 6. **import 紀律**：importer 明寫實際副檔名（`.ts`／`.tsx`／`.js`）；型別用 `import type`；不建 barrel。
 7. **不 push、不 `vercel deploy`、不動 `.env*`**；`.github/workflows/` 只有批次檔白名單明列時可動。
-8. **本機 DB 異常不得自行 reset**。需要乾淨 fixture 只能執行 `CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test`，且僅限批次檔明示。
+8. **本機 DB 異常不得自行 reset**。需要乾淨 fixture 只能執行 `CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test`，且僅限批次檔明示。**例外（2026-08-21 起明示授權）**：`test:local` 因 fixture 資源耗盡失敗（如「the court scan must find two unused Taipei courts」——反覆跑 local e2e 會累積球局佔滿 61 座台北場）時，可執行上述 guarded reset 一次並重跑，處置記錄於回報檔；同因二次失敗仍屬 BLOCKED。
 
 ## 每批固定 gate（全綠才可 commit）
 
