@@ -6,7 +6,7 @@ import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
 import { formatNtrp } from "../profile.js";
 import { sessionDetailSheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 type JoinStage = "idle" | "confirming" | "submitting" | "success" | "error";
 
@@ -536,13 +536,13 @@ export function mountSessionDetailSheetContent(
   detail: SessionDetailContentOptions,
   initialSnapshot: SessionDetailSnapshot
 ): SessionDetailContentContract {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   let snapshot = { ...initialSnapshot, actionGeneration: initialSnapshot.actionGeneration ?? 0 };
 
   const commit = () => {
-    if (!reactRoot.isSurfaceRootLive()) return;
+    if (!surfaceContent.isSurfaceRootLive()) return;
     flushSync(() =>
-      reactRoot.render(
+      surfaceContent.render(
         <AppErrorBoundary resetKey={snapshot.actionGeneration} rootElement={rootElement} surface="session-detail-sheet">
           <SessionDetailSheet detail={detail} snapshot={snapshot} />
         </AppErrorBoundary>
@@ -552,7 +552,7 @@ export function mountSessionDetailSheetContent(
 
   commit();
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     renderStage(stage, message = "", expectedAccepted = snapshot.expectedAccepted) {
       snapshot = {
         ...snapshot,
@@ -573,6 +573,6 @@ export function mountSessionDetailSheetContent(
       };
       commit();
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }

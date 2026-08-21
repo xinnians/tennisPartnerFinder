@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { ChatMessage, SessionRosterEntry } from "../domainTypes.ts";
 import { sessionChatSheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 interface ChatRosterRow {
   text: string;
@@ -263,11 +263,11 @@ export function mountSessionChatSheetContent(
   rootElement: HTMLElement,
   options: SessionChatContentOptions
 ): SessionChatContentContract & SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<SessionChatContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary
         rootElement={rootElement}
         surface="session-chat-sheet"
@@ -282,13 +282,13 @@ export function mountSessionChatSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("SessionChatSheet content did not mount.");
 
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setArchived() {
       flushSync(() => contentRef.current?.setArchived());
     },
     setContent(roster, messages) {
       flushSync(() => contentRef.current?.setContent(roster, messages));
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }

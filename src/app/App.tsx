@@ -1,6 +1,5 @@
 import { memo } from "react";
-import { createPortal } from "react-dom";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
@@ -8,6 +7,7 @@ import { MePage, type MePageOptions } from "../pages/MePage.tsx";
 import { MessagesPage, type MessagesPageOptions } from "../pages/MessagesPage.tsx";
 import { MySessionsPage, type MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
 import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
+import { installSurfaceHostRenderer, SurfaceHost, type SurfaceHostSnapshot } from "./SurfaceHost.tsx";
 
 interface PageSlot<Options> {
   generation: number;
@@ -21,6 +21,7 @@ interface AppSnapshot {
   messagesPages: Map<HTMLElement, PageSlot<MessagesPageOptions>>;
   mySessionsPages: Map<HTMLElement, PageSlot<MySessionsPageOptions>>;
   nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
+  surfaces: SurfaceHostSnapshot;
 }
 
 interface AppProps {
@@ -36,6 +37,7 @@ let snapshot: AppSnapshot = {
   messagesPages: new Map(),
   mySessionsPages: new Map(),
   nearbyDrawers: new Map(),
+  surfaces: new Map(),
 };
 
 function renderPortals<Options>(
@@ -169,6 +171,7 @@ export function App({ snapshot: current }: AppProps) {
         ),
         "nearby"
       )}
+      <SurfaceHost slots={current.surfaces} />
     </>
   );
 }
@@ -182,6 +185,10 @@ function ensureAppRoot(): Root {
   return appRoot;
 }
 
+function renderApp(): void {
+  ensureAppRoot().render(<App snapshot={snapshot} />);
+}
+
 function renderPage<Options>(key: keyof AppSnapshot, rootElement: HTMLElement, options: Options): void {
   const slots = new Map(snapshot[key] as Map<HTMLElement, PageSlot<Options>>);
   const previous = slots.get(rootElement);
@@ -192,8 +199,7 @@ function renderPage<Options>(key: keyof AppSnapshot, rootElement: HTMLElement, o
     rootElement,
   });
   snapshot = { ...snapshot, [key]: slots };
-  const root = ensureAppRoot();
-  flushSync(() => root.render(<App snapshot={snapshot} />));
+  flushSync(renderApp);
 }
 
 export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}): void {
@@ -214,3 +220,8 @@ export function renderNearbySessionsDrawerInApp(
 ): void {
   renderPage("nearbyDrawers", rootElement, options);
 }
+
+installSurfaceHostRenderer((surfaces) => {
+  snapshot = { ...snapshot, surfaces };
+  renderApp();
+});

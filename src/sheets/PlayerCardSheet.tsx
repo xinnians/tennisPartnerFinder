@@ -5,7 +5,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { playerCardSheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 interface PlayerCardCourt extends CourtSummary {
   district?: string;
@@ -284,11 +284,11 @@ export function mountPlayerCardSheetContent(
   rootElement: HTMLElement,
   options: PlayerCardSheetContentOptions
 ): PlayerCardSheetContentContract & SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<PlayerCardSheetContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary
         rootElement={rootElement}
         surface="player-card-sheet"
@@ -303,10 +303,10 @@ export function mountPlayerCardSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("PlayerCardSheet content did not mount.");
 
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setInvitableSessions(sessions) {
       flushSync(() => contentRef.current?.setInvitableSessions(sessions));
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }

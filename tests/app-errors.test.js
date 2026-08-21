@@ -64,11 +64,11 @@ test("global error and rejection listeners are idempotent, removable, and transp
   restoreTransport();
 });
 
-test("one App root and 14 sheet roots retain all 18 isolated error surfaces", () => {
+test("the single App root retains all 18 isolated error surfaces", () => {
   const rootFiles = sourceFiles(ROOT.pathname).filter(
     (path) => extname(path) === ".tsx" && /create(?:Root|SurfaceRoot)\(/.test(readFileSync(path, "utf8"))
   );
-  assert.equal(rootFiles.length, 15);
+  assert.equal(rootFiles.length, 1);
   assert.equal(APP_ERROR_SURFACES.length, 19, "18 isolated surfaces plus the global channel must stay named");
 
   for (const path of rootFiles) {
@@ -79,6 +79,9 @@ test("one App root and 14 sheet roots retain all 18 isolated error surfaces", ()
   }
 
   const appSource = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+  const sheetFiles = sourceFiles(new URL("../src/sheets/", import.meta.url).pathname).filter(
+    (path) => extname(path) === ".tsx" && /mountSurfaceContent\(/.test(readFileSync(path, "utf8"))
+  );
   const pageSources = sourceFiles(new URL("../src/pages/", import.meta.url).pathname)
     .filter((path) => extname(path) === ".tsx")
     .map((path) => readFileSync(path, "utf8"));
@@ -92,7 +95,14 @@ test("one App root and 14 sheet roots retain all 18 isolated error surfaces", ()
     assert.match(appSource, new RegExp(`surface=["']${surface}["']`), `${surface} lost its isolated boundary`);
   }
 
-  const refAdapters = rootFiles.filter((path) => readFileSync(path, "utf8").includes("content did not mount"));
+  assert.equal(sheetFiles.length, 14, "all sheet contents must register with SurfaceHost");
+  for (const path of sheetFiles) {
+    const source = readFileSync(path, "utf8");
+    assert.match(source, /import \{ AppErrorBoundary \}/, `${relative(ROOT.pathname, path)} lost its boundary`);
+    assert.match(source, /<AppErrorBoundary\b/, `${relative(ROOT.pathname, path)} renders naked portal content`);
+  }
+
+  const refAdapters = sheetFiles.filter((path) => readFileSync(path, "utf8").includes("content did not mount"));
   assert.equal(refAdapters.length, 8);
   for (const path of refAdapters) {
     assert.match(

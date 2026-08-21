@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 interface EditCourt extends CourtSummary {
   city?: string;
@@ -289,11 +289,11 @@ export function mountEditSessionSheetContent(
   rootElement: HTMLElement,
   options: EditSessionContentOptions
 ): EditSessionContentContract & SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<EditSessionContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary
         rootElement={rootElement}
         surface="edit-session-sheet"
@@ -308,10 +308,10 @@ export function mountEditSessionSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("EditSessionSheet content did not mount.");
 
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setCourts(courts, options) {
       flushSync(() => contentRef.current?.setCourts(courts, options));
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }

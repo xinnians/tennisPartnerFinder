@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 import { decideSessionSheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 export interface DecideSessionCourt extends CourtSummary {
   city?: string;
@@ -142,11 +142,11 @@ export function mountDecideSessionSheetContent(
   rootElement: HTMLElement,
   options: DecideSessionContentOptions
 ): DecideSessionContentContract & SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<DecideSessionContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary
         rootElement={rootElement}
         surface="decide-session-sheet"
@@ -161,10 +161,10 @@ export function mountDecideSessionSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("DecideSessionSheet content did not mount.");
 
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setCourts(courts, courtsOptions) {
       flushSync(() => contentRef.current?.setCourts(courts, courtsOptions));
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }

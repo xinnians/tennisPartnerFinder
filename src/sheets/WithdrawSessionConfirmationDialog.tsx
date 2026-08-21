@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 interface WithdrawSessionConfirmationContentOptions {
   onClose(): void;
@@ -45,13 +45,13 @@ export function mountWithdrawSessionConfirmationDialogContent(
   rootElement: HTMLElement,
   options: WithdrawSessionConfirmationContentOptions
 ): SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary rootElement={rootElement} surface="withdraw-session-dialog">
         <WithdrawSessionConfirmationDialog {...options} />
       </AppErrorBoundary>
     )
   );
-  return reactRoot;
+  return surfaceContent;
 }

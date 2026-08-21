@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 import { courtPlayersSheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 interface CourtPlayersCourt extends CourtSummary {
   city?: string;
@@ -79,13 +79,13 @@ export function mountCourtPlayersSheetContent(
   rootElement: HTMLElement,
   props: CourtPlayersSheetProps
 ): SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary rootElement={rootElement} surface="court-players-sheet">
         <CourtPlayersSheet {...props} />
       </AppErrorBoundary>
     )
   );
-  return reactRoot;
+  return surfaceContent;
 }

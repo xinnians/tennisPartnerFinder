@@ -5,7 +5,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { SurfaceLoadStatus } from "../domainTypes.ts";
 import { playerDirectorySheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 export interface DirectoryPlayer {
   courtName?: string;
@@ -195,11 +195,11 @@ export function mountPlayerDirectorySheetContent(
   rootElement: HTMLElement,
   options: PlayerDirectorySheetContentOptions
 ): PlayerDirectorySheetContentContract & SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<PlayerDirectorySheetContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary
         rootElement={rootElement}
         surface="player-directory-sheet"
@@ -214,10 +214,10 @@ export function mountPlayerDirectorySheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("PlayerDirectorySheet content did not mount.");
 
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setDirectory(next) {
       flushSync(() => contentRef.current?.setDirectory(next));
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }

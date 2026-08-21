@@ -5,7 +5,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary } from "../domainTypes.ts";
 import { profileCompletionSheetRuntime } from "../sessionPresentation.ts";
-import { createSurfaceRoot, type SurfaceContentLifecycle } from "./surfaceRoot.ts";
+import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 export interface ProfileCompletionCourt extends CourtSummary {
   city?: string;
@@ -261,11 +261,11 @@ export function mountProfileCompletionSheetContent(
   rootElement: HTMLElement,
   options: ProfileCompletionContentOptions
 ): ProfileCompletionContentContract & SurfaceContentLifecycle {
-  const reactRoot = createSurfaceRoot(rootElement);
+  const surfaceContent = mountSurfaceContent(rootElement);
   const contentRef = createRef<ProfileCompletionContentContract>();
   let boundaryFailed = false;
   flushSync(() =>
-    reactRoot.render(
+    surfaceContent.render(
       <AppErrorBoundary
         rootElement={rootElement}
         surface="profile-completion-sheet"
@@ -280,10 +280,10 @@ export function mountProfileCompletionSheetContent(
   if (!contentRef.current && !boundaryFailed) throw new Error("ProfileCompletionSheet content did not mount.");
 
   return {
-    isSurfaceRootLive: reactRoot.isSurfaceRootLive,
+    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
     setCourts(courts, courtsOptions) {
       flushSync(() => contentRef.current?.setCourts(courts, courtsOptions));
     },
-    unmount: reactRoot.unmount,
+    unmount: surfaceContent.unmount,
   };
 }
