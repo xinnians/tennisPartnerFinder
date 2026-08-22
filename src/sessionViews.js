@@ -20,12 +20,10 @@ import {
 } from "./sessionActions.ts";
 import {
   PROFILE_SLOTS,
-  discoveryEmptyActions,
   mySessionsSegmentState,
   notificationPushHint,
   padTwo,
   sessionVenuePresentation,
-  successPushPromptPresentation,
   taipeiCourts,
   taipeiDayWord,
   taipeiTileDate,
@@ -315,8 +313,6 @@ if (typeof document !== "undefined") {
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
-const dialogFocusable =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const drawerBindings = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
@@ -662,27 +658,6 @@ function sessionScheduleLabel(session) {
   return `${dayWord} ${timeLabel} · 主揪 ${hostLabel}`;
 }
 
-// 訊息列表 44px 頭像字——host 視角看自己主揪顯示「我」,否則主揪暱稱首字
-// (dc §3:`hostInitial:s.mine?'我':s.host.slice(0,1)`)。
-function sessionHostInitial(session) {
-  if (String(session?.viewerRole ?? "").toLowerCase() === "host") return "我";
-  const nickname = String(session?.hostNickname ?? "").trim();
-  return nickname ? nickname.slice(0, 1) : "主";
-}
-
-function successPushPromptMarkup(settings, options) {
-  const presentation = successPushPromptPresentation(settings, options);
-  if (!presentation) return "";
-  return `<section class="success-push-prompt" data-success-push-prompt>
-    <p>${esc(presentation.message)}</p>
-    <button type="button" class="session-secondary" data-success-enable-push data-testid="${esc(
-      presentation.testId
-    )}">開啟推播</button>
-    <p class="form-hint">${esc(presentation.iosHint)}</p>
-    <p class="form-error" data-success-push-error role="alert" tabindex="-1" hidden></p>
-  </section>`;
-}
-
 function wireSuccessPushPrompt(root, onEnablePush) {
   const prompt = root.querySelector("[data-success-push-prompt]");
   const button = prompt?.querySelector("[data-success-enable-push]");
@@ -966,35 +941,6 @@ export function renderNearbySessionsDrawer(
   // flushSync commit, so any focus-induced browser scroll is corrected last.
   restoreFocusedSessionCard(root);
   restoreDrawerScrollTop(root, drawerState);
-}
-
-/**
- * Render the standard session-only empty state in the active drawer.
- * Buttons render by situation: "清除篩選" only when filters differ from the
- * default state; "擴大地圖範圍"、"有新球局時通知我" 與主要的「開第一局」CTA
- * 恆在。There is no situational "重新載入" here — the mapStatus==="error"
- * case never reaches this function (renderNearbySessionsDrawer's outer
- * ternary short-circuits to the #drawer-map-retry status branch first), so
- * that button and its isError flag were removed as unreachable. Built as an
- * array so future situational buttons can slot in without restructuring
- * this function.
- */
-export function renderDiscoveryEmpty({
-  onReset = () => {},
-  onExpandBounds = () => {},
-  onOpenCreate = () => {},
-  onSubscribe = () => {},
-  filtersActive = false,
-} = {}) {
-  const buttons = discoveryEmptyActions(filtersActive).map(
-    ({ className, id, label }) => `<button type="button" id="${id}" class="${className}">${label}</button>`
-  );
-  return `<div id="discovery-empty" class="discovery-empty">
-    <p>這個範圍暫時沒有可加入的球局</p>
-    <div class="discovery-empty__actions">
-      ${buttons.join("\n      ")}
-    </div>
-  </div>`;
 }
 
 /** Open the accepted-member chat with an event-driven, authority-refreshed feed. */
