@@ -28,7 +28,7 @@ function captureConsoleErrors(page) {
 async function forceZeroMatchDistrictFilter(page) {
   await page.locator("#filter-sheet-open").click();
   await page.locator('#filters-sheet [data-filter="districts"][data-value="文山區"]').click();
-  await page.locator('#filters-sheet [data-surface-close]').click();
+  await page.locator("#filters-sheet [data-surface-close]").click();
 }
 
 // 批 D4a:退場的 #date-filter 曾用一個不移動焦點的 dispatchEvent(new Event("input"))
@@ -56,7 +56,9 @@ async function failFirstMockDiscovery(page) {
   });
 }
 
-test("slow discovery keeps the map shell, base courts, and status usable before session rows arrive", async ({ page }) => {
+test("slow discovery keeps the map shell, base courts, and status usable before session rows arrive", async ({
+  page,
+}) => {
   test.skip(isLocalHarness, "The delayed discovery shell is a deterministic mock-harness check.");
   const runtimeErrors = captureConsoleErrors(page);
   await delayMockDiscovery(page, 2_500);
@@ -97,7 +99,9 @@ test("slow discovery keeps the map shell, base courts, and status usable before 
 
   await drawerToggle.click();
   await expect(page.locator("[data-testid='session-card']").first()).toBeVisible();
-  await expect.poll(() => readAppTestHook(page, ["dataApi", "loadSessionDiscovery", "consumedCount"])).toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(() => readAppTestHook(page, ["dataApi", "loadSessionDiscovery", "consumedCount"]))
+    .toBeGreaterThanOrEqual(1);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -168,7 +172,9 @@ test("an in-context drawer retry replaces the semantic error state with results"
   await expect(drawer).toBeVisible();
   await expect(drawer.locator("[data-testid='session-card']").first()).toBeVisible();
   await expect(mapStatus).toBeHidden();
-  await expect.poll(() => readAppTestHook(page, ["dataApi", "loadSessionDiscovery", "consumedCount"])).toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(() => readAppTestHook(page, ["dataApi", "loadSessionDiscovery", "consumedCount"]))
+    .toBeGreaterThanOrEqual(1);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -309,7 +315,9 @@ test("a stale drawer card hands keyboard focus to the empty-state retry", async 
   await card.focus();
   await setFakeMapBounds(page, { south: 25.14, west: 121.6, north: 25.16, east: 121.62 });
   await expect(page.locator("#discovery-empty")).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)).toBe("discovery-expand");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName))
+    .toBe("discovery-expand");
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -352,7 +360,9 @@ test("drawer redraws preserve a focused collapsed toggle and empty-state action"
   await expect(first).toBeVisible();
   await first.focus();
   await triggerFilterRedraw(page);
-  await expect.poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName)).toBe("discovery-first");
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName))
+    .toBe("discovery-first");
 
   // 對稱案例：批 B-4 fix round 1 補了 DRAWER_ACTION_IDS 收 "discovery-subscribe"，這裡鎖住
   // 回歸——沒收的話，這顆按鈕上的鍵盤焦點在抽屜重繪時會被 drawerRecoveryTarget() fallback
@@ -402,7 +412,7 @@ test("a stale opening focus callback cannot steal focus after an immediate drawe
   await page.evaluate(() => {
     document.querySelector("#filter-sheet-open")?.click();
     document.querySelector('#filters-sheet [data-filter="districts"][data-value="文山區"]')?.click();
-    document.querySelector('#filters-sheet [data-surface-close]')?.click();
+    document.querySelector("#filters-sheet [data-surface-close]")?.click();
     document.querySelector("#nearby-sessions-toggle")?.click();
     const reset = document.querySelector("#discovery-reset");
     reset?.focus();
@@ -447,7 +457,9 @@ test("a 390×667 open drawer reveals at least 1 session card without scrolling",
   await page.locator("#nearby-sessions-toggle").click();
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
   // 等 qmSheetUp 進場動畫收斂再量,避免拿到滑入中的幾何。
-  await page.locator("#nearby-sessions-list").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+  await page
+    .locator("#nearby-sessions-list")
+    .evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
 
   const measurement = await page.evaluate(() => {
     const list = document.getElementById("nearby-sessions-list");

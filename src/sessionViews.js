@@ -188,16 +188,7 @@ function lazySurfaceHtml(label) {
   <p class="surface__copy" data-lazy-surface-status role="status" aria-live="polite" aria-atomic="true">正在載入…</p>`;
 }
 
-function deferSurfaceOpen({
-  className = "",
-  id,
-  label,
-  load,
-  methods = [],
-  onClose = () => {},
-  open,
-  type = "sheet",
-}) {
+function deferSurfaceOpen({ className = "", id, label, load, methods = [], onClose = () => {}, open, type = "sheet" }) {
   let active = null;
   let live = true;
   let readyHandle = null;

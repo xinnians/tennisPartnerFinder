@@ -275,9 +275,7 @@ function createHarness(overrides = {}) {
       opened.push({ detail, handlers, session: openedSession });
       return detail;
     },
-    openWithdrawConfirmation:
-      overrides.openWithdrawConfirmation ??
-      ((handlers) => handlers.onConfirm()),
+    openWithdrawConfirmation: overrides.openWithdrawConfirmation ?? ((handlers) => handlers.onConfirm()),
     openCourtDrawer: (court, sessions, handlers) => {
       const detail = createSurface();
       courtDrawers.push({ court, detail, handlers, sessions });
@@ -404,7 +402,11 @@ test("controller store owns the application courts, auth session, and private pr
   assert.deepEqual(harness.controller.getAppState(), { authSession, courts, courtsReady: true, profile });
 
   await harness.controller.setAuthState(authSession, { directory: true, nickname: true, ntrp: true });
-  assert.strictEqual(harness.controller.getAppState().profile, profile, "derived eligibility must not replace private profile");
+  assert.strictEqual(
+    harness.controller.getAppState().profile,
+    profile,
+    "derived eligibility must not replace private profile"
+  );
 });
 
 test("My Sessions visibility mutation commits the RPC-confirmed state before profile reconciliation finishes", async () => {
@@ -420,12 +422,18 @@ test("My Sessions visibility mutation commits the RPC-confirmed state before pro
     reloadCurrentProfile: async () => {
       events.push(["reload"]);
       await profileReload.promise;
-      await harness.controller.setAuthState({ user: { id: "player" } }, { directory: true, nickname: true, ntrp: true, isPublic: true });
+      await harness.controller.setAuthState(
+        { user: { id: "player" } },
+        { directory: true, nickname: true, ntrp: true, isPublic: true }
+      );
       return true;
     },
   });
 
-  await harness.controller.setAuthState({ user: { id: "player" } }, { directory: true, nickname: true, ntrp: true, isPublic: false });
+  await harness.controller.setAuthState(
+    { user: { id: "player" } },
+    { directory: true, nickname: true, ntrp: true, isPublic: false }
+  );
   const toggled = harness.controller.togglePlayerVisibility();
   await flush();
 
@@ -448,12 +456,12 @@ test("RPC success + profile reload failure keeps committed My Sessions visibilit
     reloadCurrentProfile: async () => false,
   });
 
-  await harness.controller.setAuthState({ user: { id: "player" } }, { directory: true, nickname: true, ntrp: true, isPublic: false });
-
-  await assert.rejects(
-    harness.controller.togglePlayerVisibility(),
-    /球友卡設定已更新，但個人檔案同步失敗/
+  await harness.controller.setAuthState(
+    { user: { id: "player" } },
+    { directory: true, nickname: true, ntrp: true, isPublic: false }
   );
+
+  await assert.rejects(harness.controller.togglePlayerVisibility(), /球友卡設定已更新，但個人檔案同步失敗/);
   assert.equal(harness.controller.getMySessionState().isPublic, true);
   assert.equal(harness.mySessionChanges.at(-1).isPublic, true);
 });
@@ -467,12 +475,18 @@ test("an account switch invalidates visibility reconciliation without publishing
     reloadCurrentProfile: () => profileReload.promise,
   });
 
-  await harness.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true, isPublic: false });
+  await harness.controller.setAuthState(
+    { user: { id: "account-a" } },
+    { directory: true, nickname: true, ntrp: true, isPublic: false }
+  );
   const toggled = harness.controller.togglePlayerVisibility();
   await flush();
   assert.equal(harness.controller.getMySessionState().isPublic, true);
 
-  await harness.controller.setAuthState({ user: { id: "account-b" } }, { directory: true, nickname: true, ntrp: true, isPublic: false });
+  await harness.controller.setAuthState(
+    { user: { id: "account-b" } },
+    { directory: true, nickname: true, ntrp: true, isPublic: false }
+  );
   profileReload.resolve(false);
 
   await assert.rejects(toggled, /登入狀態已變更/);
@@ -492,7 +506,10 @@ test("a failed My Sessions visibility mutation preserves the authoritative publi
     },
   });
 
-  await harness.controller.setAuthState({ user: { id: "player" } }, { directory: true, nickname: true, ntrp: true, isPublic: false });
+  await harness.controller.setAuthState(
+    { user: { id: "player" } },
+    { directory: true, nickname: true, ntrp: true, isPublic: false }
+  );
   await assert.rejects(harness.controller.togglePlayerVisibility(), /球友卡設定暫時無法更新/);
 
   assert.equal(harness.controller.getMySessionState().isPublic, false);
@@ -571,9 +588,19 @@ test("My Sessions groups private lifecycle rows by the next safe action", () => 
       ["guest-request", 2, null],
     ]
   );
-  assert.deepEqual(groups.upcoming.map((entry) => entry.sessionId), [3, 1]);
-  assert.deepEqual(groups.history.map((entry) => entry.sessionId), [4, 5, 6]);
-  assert.equal(groups.history[1].canConfirmAttendance, true, "played history can retain its server-authorized attendance action");
+  assert.deepEqual(
+    groups.upcoming.map((entry) => entry.sessionId),
+    [3, 1]
+  );
+  assert.deepEqual(
+    groups.history.map((entry) => entry.sessionId),
+    [4, 5, 6]
+  );
+  assert.equal(
+    groups.history[1].canConfirmAttendance,
+    true,
+    "played history can retain its server-authorized attendance action"
+  );
 });
 
 test("My Sessions groups expose a hasUnread aggregate for any session with an unread chat count", () => {
@@ -616,7 +643,10 @@ test("My Sessions puts an expired or cancelled guest invitation in history", () 
   const groups = groupMySessions([invitedSession], new Date("2026-07-17T04:00:00.000Z"));
 
   assert.deepEqual(groups.needsAction, []);
-  assert.deepEqual(groups.history.map((entry) => entry.sessionId), [8]);
+  assert.deepEqual(
+    groups.history.map((entry) => entry.sessionId),
+    [8]
+  );
 });
 
 test("My Sessions orders host requests, invites, then guest requests", () => {
@@ -688,7 +718,11 @@ test("My Sessions hydrates host-only rosters for the badge and refreshes details
   const groupsAfterRosterHydrate = harness.controller.getMySessionGroups();
   assert.equal(groupsAfterRosterHydrate.needsAction.length, 1);
   assert.deepEqual(
-    groupsAfterRosterHydrate.needsAction.map((entry) => [entry.kind, entry.session.sessionId, entry.participant?.participantId ?? null]),
+    groupsAfterRosterHydrate.needsAction.map((entry) => [
+      entry.kind,
+      entry.session.sessionId,
+      entry.participant?.participantId ?? null,
+    ]),
     [["host-request", 51, 72]]
   );
   assert.equal(groupsAfterRosterHydrate.needsActionCount, 1);
@@ -717,7 +751,13 @@ test("a host review uses an authorized roster request and refreshes My Sessions 
       loadMySessions: async () => [hostSession],
       loadSessionRoster: async () => [
         { participantId: 1, profileId: 11, role: "host", status: "accepted" },
-        { participantId: 72, profileId: 22, nickname: "待審核球友", role: "guest", status: requested ? "requested" : "accepted" },
+        {
+          participantId: 72,
+          profileId: 22,
+          nickname: "待審核球友",
+          role: "guest",
+          status: requested ? "requested" : "accepted",
+        },
       ],
     },
   });
@@ -727,7 +767,11 @@ test("a host review uses an authorized roster request and refreshes My Sessions 
 
   assert.deepEqual(calls, [[61, 72]]);
   const groupsAfterAccept = harness.controller.getMySessionGroups();
-  assert.deepEqual(groupsAfterAccept.needsAction, [], "the accepted request no longer needs action after the authoritative refresh");
+  assert.deepEqual(
+    groupsAfterAccept.needsAction,
+    [],
+    "the accepted request no longer needs action after the authoritative refresh"
+  );
   assert.equal(groupsAfterAccept.needsActionCount, 0);
   assert.ok(harness.toasts.includes("已接受申請。"));
 });
@@ -758,11 +802,17 @@ test("an invited guest can accept through the authorized My Sessions row and rec
     },
   });
 
-  await harness.controller.setAuthState({ user: { id: "invited-guest" } }, { directory: true, nickname: true, ntrp: true });
+  await harness.controller.setAuthState(
+    { user: { id: "invited-guest" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await harness.controller.respondInvite(62, "accepted");
 
   assert.deepEqual(responses, [[62, "accepted"]]);
-  assert.deepEqual(harness.controller.getMySessionGroups().upcoming.map((session) => session.sessionId), [62]);
+  assert.deepEqual(
+    harness.controller.getMySessionGroups().upcoming.map((session) => session.sessionId),
+    [62]
+  );
   assert.ok(harness.toasts.includes("已接受邀請。"));
 });
 
@@ -792,11 +842,17 @@ test("an invited guest can decline and move the invitation to history", async ()
     },
   });
 
-  await harness.controller.setAuthState({ user: { id: "invited-guest" } }, { directory: true, nickname: true, ntrp: true });
+  await harness.controller.setAuthState(
+    { user: { id: "invited-guest" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await harness.controller.respondInvite(63, "declined");
 
   assert.deepEqual(responses, [[63, "declined"]]);
-  assert.deepEqual(harness.controller.getMySessionGroups().history.map((session) => session.sessionId), [63]);
+  assert.deepEqual(
+    harness.controller.getMySessionGroups().history.map((session) => session.sessionId),
+    [63]
+  );
   assert.ok(harness.toasts.includes("已婉拒邀請。"));
 });
 
@@ -819,7 +875,10 @@ test("invite responses require the current complete invited-guest authority and 
   const harness = createHarness({ api: baseApi });
 
   await assert.rejects(harness.controller.respondInvite(64, "accepted"), /登入或個人檔案狀態已變更/);
-  await harness.controller.setAuthState({ user: { id: "invited-guest" } }, { directory: true, nickname: true, ntrp: true });
+  await harness.controller.setAuthState(
+    { user: { id: "invited-guest" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await assert.rejects(harness.controller.respondInvite(64, "ignored"), /邀請已更新/);
 
   const hostHarness = createHarness({
@@ -859,7 +918,10 @@ test("invite response refresh failures, expiry, and server errors never announce
       respondToSessionInvite: async () => ({ outcome: "OK", reloadRequired: false }),
     },
   });
-  await failedRefresh.controller.setAuthState({ user: { id: "refresh-failure" } }, { directory: true, nickname: true, ntrp: true });
+  await failedRefresh.controller.setAuthState(
+    { user: { id: "refresh-failure" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await assert.rejects(failedRefresh.controller.respondInvite(65, "accepted"), /球局狀態暫時無法重新載入/);
   assert.equal(failedRefresh.toasts.includes("已接受邀請。"), false);
 
@@ -873,7 +935,10 @@ test("invite response refresh failures, expiry, and server errors never announce
       respondToSessionInvite: async () => ({ outcome: "SESSION_EXPIRED", reloadRequired: true }),
     },
   });
-  await expired.controller.setAuthState({ user: { id: "expired-invite" } }, { directory: true, nickname: true, ntrp: true });
+  await expired.controller.setAuthState(
+    { user: { id: "expired-invite" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await assert.rejects(expired.controller.respondInvite(65, "declined"), /球局狀態已更新，請重新載入/);
   assert.ok(expiredReads >= 2, "expired responses reload authoritative My Sessions");
   assert.equal(expired.toasts.includes("已婉拒邀請。"), false);
@@ -890,7 +955,10 @@ test("invite response refresh failures, expiry, and server errors never announce
       },
     },
   });
-  await rejected.controller.setAuthState({ user: { id: "rejected-invite" } }, { directory: true, nickname: true, ntrp: true });
+  await rejected.controller.setAuthState(
+    { user: { id: "rejected-invite" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await assert.rejects(rejected.controller.respondInvite(65, "accepted"), /邀請已由其他裝置處理/);
   assert.ok(rejectionReads >= 2, "server rejections reload authoritative My Sessions");
   assert.equal(rejected.toasts.includes("已接受邀請。"), false);
@@ -944,7 +1012,9 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
         loads += 1;
         return rows;
       },
-      loadSessionRoster: async () => [{ participantId: 2, profileId: 20, nickname: "待審核球友", role: "guest", status: "requested" }],
+      loadSessionRoster: async () => [
+        { participantId: 2, profileId: 20, nickname: "待審核球友", role: "guest", status: "requested" },
+      ],
     },
   });
 
@@ -953,7 +1023,11 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
   const groupsAfterManualRefresh = harness.controller.getMySessionGroups();
   assert.equal(groupsAfterManualRefresh.needsAction.length, 1);
   assert.deepEqual(
-    groupsAfterManualRefresh.needsAction.map((entry) => [entry.kind, entry.session.sessionId, entry.participant?.participantId ?? null]),
+    groupsAfterManualRefresh.needsAction.map((entry) => [
+      entry.kind,
+      entry.session.sessionId,
+      entry.participant?.participantId ?? null,
+    ]),
     [["host-request", 71, 2]]
   );
   assert.equal(groupsAfterManualRefresh.needsActionCount, 1);
@@ -964,7 +1038,11 @@ test("My Sessions refresh rereads authoritative rows and clears private output o
   assert.deepEqual(harness.controller.getMySessionGroups().upcoming, []);
 
   await harness.controller.setAuthState(null, null);
-  assert.equal(harness.mySessionChanges.at(-1).authenticated, false, "sign-out publishes the anonymous My Sessions state");
+  assert.equal(
+    harness.mySessionChanges.at(-1).authenticated,
+    false,
+    "sign-out publishes the anonymous My Sessions state"
+  );
   const groupsAfterSignOut = harness.mySessionChanges.at(-1).groups;
   assert.deepEqual(groupsAfterSignOut.needsAction, [], "sign-out clears the private needs-action queue");
   assert.equal(groupsAfterSignOut.needsActionCount, 0);
@@ -1017,10 +1095,7 @@ test("a lifecycle mutation never announces success when its authoritative refres
   });
 
   await harness.controller.setAuthState({ user: { id: "host" } }, { directory: true, nickname: true, ntrp: true });
-  await assert.rejects(
-    harness.controller.reviewMySessionParticipant(76, 7, "accepted"),
-    /球局狀態暫時無法重新載入/
-  );
+  await assert.rejects(harness.controller.reviewMySessionParticipant(76, 7, "accepted"), /球局狀態暫時無法重新載入/);
   assert.equal(harness.toasts.includes("已接受申請。"), false);
   assert.equal(harness.controller.getMySessionState().status, "error");
 });
@@ -1127,7 +1202,10 @@ test("expired join and withdrawal refresh authority without success toasts", asy
       },
     },
   });
-  await withdrawHarness.controller.setAuthState({ user: { id: "guest" } }, { directory: true, nickname: true, ntrp: true });
+  await withdrawHarness.controller.setAuthState(
+    { user: { id: "guest" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await withdrawHarness.controller.loadDiscovery();
   const withdrawDetail = openAction(withdrawHarness);
   await withdrawDetail.handlers.onWithdraw();
@@ -1210,7 +1288,14 @@ test("only the newest location callback can update discovery and map readiness r
     mapTools: {
       setUserLocation(location) {
         mapCalls.push(location);
-        return mapReady ? { south: location.lat - 0.04, west: location.lng - 0.05, north: location.lat + 0.04, east: location.lng + 0.05 } : null;
+        return mapReady
+          ? {
+              south: location.lat - 0.04,
+              west: location.lng - 0.05,
+              north: location.lat + 0.04,
+              east: location.lng + 0.05,
+            }
+          : null;
       },
       subscribeToMapIdle() {},
     },
@@ -1262,7 +1347,12 @@ test("an ephemeral location never reaches the join mutation payload", async () =
     },
     mapTools: {
       setUserLocation(location) {
-        return { south: location.lat - 0.04, west: location.lng - 0.05, north: location.lat + 0.04, east: location.lng + 0.05 };
+        return {
+          south: location.lat - 0.04,
+          west: location.lng - 0.05,
+          north: location.lat + 0.04,
+          east: location.lng + 0.05,
+        };
       },
     },
   });
@@ -1310,7 +1400,10 @@ test("a bounds refresh clears stale cards and pins until the newest discovery re
   assert.deepEqual(harness.pinBatches.at(-1), []);
   second.resolve([secondSession]);
   await refresh;
-  assert.deepEqual(harness.renders.at(-1).sessions.map((item) => item.sessionId), [2]);
+  assert.deepEqual(
+    harness.renders.at(-1).sessions.map((item) => item.sessionId),
+    [2]
+  );
 });
 
 test("authoritative discovery changes close a detail whose session fields are now stale", async () => {
@@ -1318,7 +1411,9 @@ test("authoritative discovery changes close a detail whose session fields are no
   const harness = createHarness({
     api: {
       loadSessionDiscovery: async () =>
-        discoveryCall++ === 0 ? [futureSession({ slotsRemaining: 1, status: "open" })] : [futureSession({ slotsRemaining: 0, status: "full" })],
+        discoveryCall++ === 0
+          ? [futureSession({ slotsRemaining: 1, status: "open" })]
+          : [futureSession({ slotsRemaining: 0, status: "full" })],
     },
   });
 
@@ -1394,7 +1489,9 @@ test("join actions preflight missing and out-of-range viewer NTRP without blocki
 
 test("join preflight notes stay stable across discovery arrays and close stale detail when profile NTRP changes", async () => {
   const session = futureSession({ candidateCourtIds: [8, 9], joinMode: "instant", venueType: "candidates" });
-  const harness = createHarness({ api: { loadSessionDiscovery: async () => [{ ...session, candidateCourtIds: [...session.candidateCourtIds] }] } });
+  const harness = createHarness({
+    api: { loadSessionDiscovery: async () => [{ ...session, candidateCourtIds: [...session.candidateCourtIds] }] },
+  });
   const auth = { user: { id: "profile-preflight" } };
   await harness.controller.setAuthState(auth, {
     directory: false,
@@ -1475,7 +1572,10 @@ test("a viewport refresh closes an active court drawer before its stale cards ca
   await firstLoad;
   harness.controller.openCourt({ id: 8, name: "示範球場" });
   const courtDrawer = harness.courtDrawers.at(-1);
-  assert.deepEqual(courtDrawer.sessions.map((item) => item.sessionId), [session.sessionId]);
+  assert.deepEqual(
+    courtDrawer.sessions.map((item) => item.sessionId),
+    [session.sessionId]
+  );
 
   const secondLoad = harness.controller.loadDiscovery({ south: 25.1, west: 121.6, north: 25.12, east: 121.62 });
   assert.equal(courtDrawer.detail.closeCalls, 1, "stale court cards are removed while the new viewport is loading");
@@ -1504,9 +1604,15 @@ test("auth epochs clear stale participation on logout and account switches", asy
   let detail = openAction(harness);
   assert.equal(detail.handlers.action.label, "申請加入");
 
-  const accountA = harness.controller.setAuthState({ user: { id: "A" } }, { directory: true, nickname: true, ntrp: true });
+  const accountA = harness.controller.setAuthState(
+    { user: { id: "A" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
-  const accountB = harness.controller.setAuthState({ user: { id: "B" } }, { directory: true, nickname: true, ntrp: true });
+  const accountB = harness.controller.setAuthState(
+    { user: { id: "B" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
   pendingParticipation[2].resolve([{ sessionId: 41, viewerParticipantStatus: "accepted" }]);
   await accountB;
@@ -1617,7 +1723,10 @@ test("a delayed participation refresh closes a detail whose CTA would otherwise 
   });
 
   await harness.controller.loadDiscovery();
-  const authUpdate = harness.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true });
+  const authUpdate = harness.controller.setAuthState(
+    { user: { id: "account-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
   const staleDetail = openAction(harness);
   assert.equal(staleDetail.handlers.action.label, "申請加入");
@@ -2072,7 +2181,10 @@ test("base-court drawers receive the same locally filtered session set as pins a
   await harness.controller.loadDiscovery();
   harness.controller.setFilter("types", new Set(["單打"]));
   harness.controller.openCourt({ id: 8, name: "示範球場" });
-  assert.deepEqual(harness.courtDrawers.at(-1).sessions.map((item) => item.sessionId), [1]);
+  assert.deepEqual(
+    harness.courtDrawers.at(-1).sessions.map((item) => item.sessionId),
+    [1]
+  );
 });
 
 test("district filter Sets are cloned on input and every reset starts from an unpolluted default", async () => {
@@ -2182,9 +2294,15 @@ test("a same-account auth refresh cannot strand an in-flight Join intent", async
     api: { loadSessionSummary: () => target.promise },
   });
 
-  const firstAuth = harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
+  const firstAuth = harness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
-  const refresh = harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
+  const refresh = harness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
   target.resolve(futureSession());
   await Promise.all([firstAuth, refresh]);
@@ -2230,9 +2348,15 @@ test("the newest same-account participation refresh wins over an older late resp
     },
   });
 
-  const first = harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
+  const first = harness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
-  const second = harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
+  const second = harness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await flush();
   assert.equal(pendingLoads.length, 2);
 
@@ -2248,13 +2372,19 @@ test("profile loading and profile-load errors preserve intent without opening an
   const intentStore = createIntentStore();
   const harness = createHarness({ intentStore });
 
-  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: false, nickname: false, ntrp: false, status: "loading" });
+  await harness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: false, nickname: false, ntrp: false, status: "loading" }
+  );
   harness.controller.openCreateIntent();
   assert.equal(harness.profilePrompts.length, 0);
   assert.ok(harness.toasts.includes("正在讀取個人檔案，請稍候。"));
   assert.deepEqual(intentStore.value(), { action: "create" });
 
-  await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: false, nickname: false, ntrp: false, status: "error" });
+  await harness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: false, nickname: false, ntrp: false, status: "error" }
+  );
   assert.equal(harness.profilePrompts.length, 0);
   assert.ok(harness.toasts.includes("個人檔案暫時無法載入，請重新整理後再試。"));
   assert.deepEqual(intentStore.value(), { action: "create" });
@@ -2284,12 +2414,15 @@ test("create intent resume is silent while profile loads, reports errors, and op
   assert.equal(loading.createSheets.length, 1);
 
   const failed = createHarness({ intentStore: createIntentStore({ action: "create" }) });
-  await failed.controller.setAuthState({ user: { id: "create-resume-error" } }, {
-    directory: false,
-    nickname: false,
-    ntrp: false,
-    status: "error",
-  });
+  await failed.controller.setAuthState(
+    { user: { id: "create-resume-error" } },
+    {
+      directory: false,
+      nickname: false,
+      ntrp: false,
+      status: "error",
+    }
+  );
   assert.deepEqual(failed.toasts, ["個人檔案暫時無法載入，請重新整理後再試。"]);
 });
 
@@ -2324,12 +2457,15 @@ test("join intent resume is silent while profile loads, reports errors, and open
     intentStore: createIntentStore({ action: "join", sessionId: 41 }),
     api: { loadSessionSummary: async () => futureSession() },
   });
-  await failed.controller.setAuthState({ user: { id: "join-resume-error" } }, {
-    directory: false,
-    nickname: false,
-    ntrp: false,
-    status: "error",
-  });
+  await failed.controller.setAuthState(
+    { user: { id: "join-resume-error" } },
+    {
+      directory: false,
+      nickname: false,
+      ntrp: false,
+      status: "error",
+    }
+  );
   assert.deepEqual(failed.toasts, ["個人檔案暫時無法載入，請重新整理後再試。"]);
 });
 
@@ -2344,20 +2480,32 @@ test("an account switch closes account-bound create and profile forms before the
     },
   });
 
-  await createFlow.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true });
+  await createFlow.controller.setAuthState(
+    { user: { id: "account-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   createFlow.controller.openCreateIntent();
   const staleCreate = createFlow.createSheets.at(-1);
-  await createFlow.controller.setAuthState({ user: { id: "account-b" } }, { directory: true, nickname: true, ntrp: true });
+  await createFlow.controller.setAuthState(
+    { user: { id: "account-b" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
 
   assert.equal(staleCreate.detail.closeCalls, 1);
-  await assert.rejects(staleCreate.handlers.onSubmit({ courtId: 8 }, () => {}), /登入或個人檔案狀態已變更/);
+  await assert.rejects(
+    staleCreate.handlers.onSubmit({ courtId: 8 }, () => {}),
+    /登入或個人檔案狀態已變更/
+  );
   assert.equal(createCalls, 0);
 
   const profileHarness = createHarness();
   await profileHarness.controller.setAuthState({ user: { id: "account-a" } }, null);
   profileHarness.controller.openCreateIntent();
   const staleProfile = profileHarness.profilePrompts.at(-1);
-  await profileHarness.controller.setAuthState({ user: { id: "account-b" } }, { directory: true, nickname: true, ntrp: true });
+  await profileHarness.controller.setAuthState(
+    { user: { id: "account-b" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
 
   assert.equal(staleProfile.detail.closeCalls, 1);
 });
@@ -2379,7 +2527,13 @@ test("create session publish keeps the sheet open for its own success page and d
   harness.controller.openCreateIntent();
   const sheet = harness.createSheets.at(-1);
 
-  const input = { courtId: 8, playType: "雙打", slotsTotal: 2, startAt: "2099-07-18T01:00:00.000Z", venueType: "walk_on" };
+  const input = {
+    courtId: 8,
+    playType: "雙打",
+    slotsTotal: 2,
+    startAt: "2099-07-18T01:00:00.000Z",
+    venueType: "walk_on",
+  };
   const result = await sheet.handlers.onSubmit(input);
 
   assert.deepEqual(created, [input]);
@@ -2456,7 +2610,10 @@ test("D5 fixed-mode date+time combination converts to the datetime-local string 
   assert.equal(createFixedStartAtLocal({ dateKey: "tomorrow", time: "06:30" }, now), "2026-08-11T06:30");
   // 週六 chip:下一個週六;今天(週一)不是週六,故往前推算到 08/15。
   assert.equal(createFixedStartAtLocal({ dateKey: "sat", time: "09:00" }, now), "2026-08-15T09:00");
-  assert.equal(createFixedStartAtLocal({ customDate: "2099-01-01", dateKey: "custom", time: "21:00" }, now), "2099-01-01T21:00");
+  assert.equal(
+    createFixedStartAtLocal({ customDate: "2099-01-01", dateKey: "custom", time: "21:00" }, now),
+    "2099-01-01T21:00"
+  );
   assert.equal(createFixedStartAtLocal({ dateKey: "today", time: null }, now), "");
 });
 
@@ -2488,7 +2645,10 @@ test("D5 custom start-time stepper clamps to 06:00-22:00 in 15-minute steps", as
 test("active profile and create forms receive courts loaded after they open", async () => {
   const taipeiCourts = [{ id: 8, city: "台北市", district: "大安區", name: "示範球場" }];
   const createFlow = createHarness();
-  await createFlow.controller.setAuthState({ user: { id: "account-a" } }, { directory: true, nickname: true, ntrp: true });
+  await createFlow.controller.setAuthState(
+    { user: { id: "account-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   createFlow.controller.openCreateIntent();
   const createForm = createFlow.createSheets.at(-1);
   createFlow.controller.setCourts(taipeiCourts);
@@ -2508,7 +2668,10 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
     intentStore: fullIntent,
     api: { loadSessionSummary: async () => futureSession({ slotsRemaining: 0, status: "full" }) },
   });
-  await fullHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
+  await fullHarness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   assert.equal(fullIntent.value(), null);
   assert.deepEqual(fullHarness.toasts, ["球局已額滿，已回到附近球局。"]);
   // 批 D2:v2 兩態,closeForStaleIntent 的 auto-expand 映射 open(非 modal,地圖可見)。
@@ -2525,7 +2688,10 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
       intentStore,
       api: { loadSessionSummary: async () => futureSession({ status }) },
     });
-    await harness.controller.setAuthState({ user: { id: `guest-${status}` } }, { directory: true, nickname: true, ntrp: true });
+    await harness.controller.setAuthState(
+      { user: { id: `guest-${status}` } },
+      { directory: true, nickname: true, ntrp: true }
+    );
     assert.equal(intentStore.value(), null, `${status} clears the original intent`);
     assert.deepEqual(harness.toasts, [message]);
     assert.equal(harness.opened.length, 0);
@@ -2536,7 +2702,10 @@ test("unavailable or full resume targets clear intent and leave the nearby drawe
     intentStore: unavailableIntent,
     api: { loadSessionSummary: async () => null },
   });
-  await unavailableHarness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
+  await unavailableHarness.controller.setAuthState(
+    { user: { id: "guest-a" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   assert.equal(unavailableIntent.value(), null);
   assert.deepEqual(unavailableHarness.toasts, ["球局已取消、結束或不再開放，已回到附近球局。"]);
   assert.equal(unavailableHarness.renders.at(-1).drawerState, "open");
@@ -2546,7 +2715,11 @@ test("setDrawerState accepts the two-value enum and ignores illegal values", () 
   const harness = createHarness();
   const { controller } = harness;
 
-  assert.equal(typeof controller.setDrawerExpanded, "undefined", "setDrawerExpanded wrapper is retired; callers use setDrawerState directly");
+  assert.equal(
+    typeof controller.setDrawerExpanded,
+    "undefined",
+    "setDrawerExpanded wrapper is retired; callers use setDrawerState directly"
+  );
 
   controller.setDrawerState("open");
   assert.equal(harness.renders.at(-1).drawerState, "open");
@@ -2607,7 +2780,9 @@ test("online layer uses the NTRP gate, reads only reciprocal presence, and resum
       },
       loadPlayerPresenceDirectory: async (input) => {
         presenceLoads.push(input);
-        return [{ profileId: 8, courtId: 3, courtName: "河濱球場", courtDistrict: "中山區", courtLat: 25.1, courtLng: 121.5 }];
+        return [
+          { profileId: 8, courtId: 3, courtName: "河濱球場", courtDistrict: "中山區", courtLat: 25.1, courtLng: 121.5 },
+        ];
       },
     },
   });
@@ -2617,12 +2792,22 @@ test("online layer uses the NTRP gate, reads only reciprocal presence, and resum
   assert.equal(anonymous.loginPrompts.length, 1);
   assert.equal(anonymous.controller.getPlayerLayerState().on, false);
 
-  await anonymous.controller.setAuthState({ user: { id: "player-a" } }, { directory: false, nickname: true, ntrp: true });
+  await anonymous.controller.setAuthState(
+    { user: { id: "player-a" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
   assert.equal(anonymous.playerRenders.at(-1)?.on, true);
-  assert.deepEqual(anonymous.playerRenders.at(-1)?.groups.map((group) => group.players.map((player) => player.profileId)), [[8]]);
+  assert.deepEqual(
+    anonymous.playerRenders.at(-1)?.groups.map((group) => group.players.map((player) => player.profileId)),
+    [[8]]
+  );
   assert.equal(presenceLoads.length, 1);
   assert.ok(presenceLoads[0]?.bounds, "the online layer keeps its viewport-bounded presence query");
-  assert.equal(anonymous.profilePrompts.length, 0, "a missing directory court does not block the NTRP-level online layer");
+  assert.equal(
+    anonymous.profilePrompts.length,
+    0,
+    "a missing directory court does not block the NTRP-level online layer"
+  );
   assert.equal(anonymousIntent.value(), null, "a successfully resumed layer does not replay on every auth refresh");
 
   const incompleteIntent = createIntentStore();
@@ -2630,13 +2815,19 @@ test("online layer uses the NTRP gate, reads only reciprocal presence, and resum
     intentStore: incompleteIntent,
     api: { loadPlayerPresenceDirectory: async () => [] },
   });
-  await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { directory: false, nickname: false, ntrp: false });
+  await incomplete.controller.setAuthState(
+    { user: { id: "player-b" } },
+    { directory: false, nickname: false, ntrp: false }
+  );
   await incomplete.controller.togglePlayerLayer?.();
   assert.deepEqual(incompleteIntent.value(), { action: "players" });
   assert.equal(incomplete.profilePrompts.length, 1);
   assert.deepEqual(incomplete.profilePrompts[0].intent, { action: "players" });
 
-  await incomplete.controller.setAuthState({ user: { id: "player-b" } }, { directory: false, nickname: true, ntrp: true });
+  await incomplete.controller.setAuthState(
+    { user: { id: "player-b" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
   assert.equal(incomplete.playerRenders.at(-1)?.on, true);
   assert.equal(incompleteIntent.value(), null);
 });
@@ -2645,17 +2836,35 @@ test("online layer groups only reciprocal presence rows and carries their count 
   const harness = createHarness({
     api: {
       loadPlayerPresenceDirectory: async () => [
-        { profileId: 8001, nickname: "在線球友", ntrp: 3.5, openToGreeting: true, courtId: 101, courtName: "台北網球中心", courtDistrict: "內湖區", courtLat: 25.067446, courtLng: 121.596648, minutesAgo: 2, isSelf: false },
+        {
+          profileId: 8001,
+          nickname: "在線球友",
+          ntrp: 3.5,
+          openToGreeting: true,
+          courtId: 101,
+          courtName: "台北網球中心",
+          courtDistrict: "內湖區",
+          courtLat: 25.067446,
+          courtLng: 121.596648,
+          minutesAgo: 2,
+          isSelf: false,
+        },
       ],
     },
   });
 
-  await harness.controller.setAuthState({ user: { id: "presence-viewer" } }, { directory: true, nickname: true, ntrp: true });
+  await harness.controller.setAuthState(
+    { user: { id: "presence-viewer" } },
+    { directory: true, nickname: true, ntrp: true }
+  );
   await harness.controller.togglePlayerLayer();
 
   const group = harness.controller.getPlayerLayerState().groups[0];
   assert.equal(group.presenceCount, 1);
-  assert.deepEqual(group.players.map((player) => player.profileId), [8001]);
+  assert.deepEqual(
+    group.players.map((player) => player.profileId),
+    [8001]
+  );
   assert.equal(group.players[0].isPresent, true);
   assert.equal(group.players[0].minutesAgo, 2);
   assert.equal(group.players[0].openToGreeting, true);
@@ -2723,7 +2932,10 @@ test("player directory loads without bounds, aggregates home courts, and puts on
   const updates = harness.playerDirectories.at(-1).detail.directoryUpdates;
   assert.equal(updates[0].status, "loading");
   assert.equal(updates.at(-1).status, "ready");
-  assert.deepEqual(updates.at(-1).players.map((player) => player.profileId), [8001, 8002]);
+  assert.deepEqual(
+    updates.at(-1).players.map((player) => player.profileId),
+    [8001, 8002]
+  );
   assert.deepEqual(updates.at(-1).players[0].courtNames, ["第一球場", "第三球場"]);
   assert.equal(updates.at(-1).players[0].isPresent, true);
   assert.equal(updates.at(-1).players[0].isSelf, true);
@@ -2764,16 +2976,25 @@ test("online presence latest bounds wins and off, signout, and API errors cannot
   const refresh = harness.controller.loadDiscovery(latestBounds);
   await flush();
   assert.equal(requests.length, 2);
-  requests[1].request.resolve([{ profileId: 2, courtId: 9, courtName: "新球場", courtDistrict: "北投區", courtLat: 25.11, courtLng: 121.61 }]);
+  requests[1].request.resolve([
+    { profileId: 2, courtId: 9, courtName: "新球場", courtDistrict: "北投區", courtLat: 25.11, courtLng: 121.61 },
+  ]);
   await refresh;
-  requests[0].request.resolve([{ profileId: 1, courtId: 8, courtName: "舊球場", courtDistrict: "大安區", courtLat: 25.03, courtLng: 121.54 }]);
+  requests[0].request.resolve([
+    { profileId: 1, courtId: 8, courtName: "舊球場", courtDistrict: "大安區", courtLat: 25.03, courtLng: 121.54 },
+  ]);
   await opening;
-  assert.deepEqual(harness.playerRenders.at(-1)?.groups.flatMap((group) => group.players.map((player) => player.profileId)), [2]);
+  assert.deepEqual(
+    harness.playerRenders.at(-1)?.groups.flatMap((group) => group.players.map((player) => player.profileId)),
+    [2]
+  );
 
   const pendingOff = harness.controller.loadDiscovery({ south: 25, west: 121.5, north: 25.05, east: 121.55 });
   await flush();
   await harness.controller.togglePlayerLayer?.();
-  requests[2].request.resolve([{ profileId: 3, courtId: 10, courtName: "晚到球場", courtDistrict: "信義區", courtLat: 25.02, courtLng: 121.53 }]);
+  requests[2].request.resolve([
+    { profileId: 3, courtId: 10, courtName: "晚到球場", courtDistrict: "信義區", courtLat: 25.02, courtLng: 121.53 },
+  ]);
   await pendingOff;
   assert.equal(harness.playerRenders.at(-1)?.on, false);
   assert.deepEqual(harness.playerRenders.at(-1)?.groups, []);
@@ -2781,7 +3002,9 @@ test("online presence latest bounds wins and off, signout, and API errors cannot
   const reopen = harness.controller.togglePlayerLayer?.();
   await flush();
   await harness.controller.setAuthState(null, null);
-  requests[3].request.resolve([{ profileId: 4, courtId: 11, courtName: "私密球場", courtDistrict: "士林區", courtLat: 25.04, courtLng: 121.52 }]);
+  requests[3].request.resolve([
+    { profileId: 4, courtId: 11, courtName: "私密球場", courtDistrict: "士林區", courtLat: 25.04, courtLng: 121.52 },
+  ]);
   await reopen;
   assert.equal(harness.playerRenders.at(-1)?.on, false);
   assert.deepEqual(harness.playerRenders.at(-1)?.groups, []);
@@ -2825,31 +3048,39 @@ test("same-court session and player pins have separate clickable anchors and pla
   const google = { maps: { Marker, Point, Size } };
   const map = {};
   const court = { id: 8, name: "示範球場", lat: 25.03, lng: 121.54 };
-  const playerGroups = [{
-    court,
-    players: [{ profileId: 1 }, { profileId: 2 }],
-    presenceCount: 2,
-  }];
+  const playerGroups = [
+    {
+      court,
+      players: [{ profileId: 1 }, { profileId: 2 }],
+      presenceCount: 2,
+    },
+  ];
   const sessionGroups = [{ court, sessions: [futureSession({ courtId: court.id })] }];
   const opened = { base: 0, playerIds: [], sessionIds: [] };
 
-  const baseMarkers = mapModule.renderCourtBasePins(google, map, [court], () => { opened.base += 1; });
-  const sessionMarkers = mapModule.renderSessionPins(
-    google,
-    map,
-    sessionGroups,
-    { onSession: (sessionId) => opened.sessionIds.push(sessionId) }
-  );
+  const baseMarkers = mapModule.renderCourtBasePins(google, map, [court], () => {
+    opened.base += 1;
+  });
+  const sessionMarkers = mapModule.renderSessionPins(google, map, sessionGroups, {
+    onSession: (sessionId) => opened.sessionIds.push(sessionId),
+  });
   const playerMarkers = mapModule.renderPlayerPins(google, map, playerGroups, (_court, players) => {
     opened.playerIds.push(...players.map((player) => player.profileId));
   });
   const sessionMarker = sessionMarkers[0];
   const playerMarker = playerMarkers[0];
 
-  assert.deepEqual(sessionMarker.options.position, playerMarker.options.position, "both remain associated with the exact court coordinate");
+  assert.deepEqual(
+    sessionMarker.options.position,
+    playerMarker.options.position,
+    "both remain associated with the exact court coordinate"
+  );
   const sessionVisualCenter = sessionMarker.options.icon.labelOrigin.x - sessionMarker.options.icon.anchor.x;
   const playerVisualCenter = playerMarker.options.icon.labelOrigin.x - playerMarker.options.icon.anchor.x;
-  assert.ok(Math.abs(playerVisualCenter - sessionVisualCenter) >= 44, "visual anchors keep both full-size controls reachable");
+  assert.ok(
+    Math.abs(playerVisualCenter - sessionVisualCenter) >= 44,
+    "visual anchors keep both full-size controls reachable"
+  );
   assert.equal(playerMarker.options.label.text, "2");
   assert.equal(playerMarker.options.title, "在線 · 示範球場 · 2 人");
   assert.equal(playerMarker.options.optimized, false);
@@ -2869,7 +3100,11 @@ test("same-court session and player pins have separate clickable anchors and pla
 
   const presencePin = pinModule.playerPin?.(google, 2, 1);
   assert.equal(presencePin?.label.text, "2", "the main label preserves the total player count when someone is present");
-  assert.match(decodeURIComponent(presencePin?.icon.url ?? ""), /線1/, "a separate online badge carries the on-court count");
+  assert.match(
+    decodeURIComponent(presencePin?.icon.url ?? ""),
+    /線1/,
+    "a separate online badge carries the on-court count"
+  );
 });
 
 test("undecided candidate sessions fan out to valid candidate courts and collapse to the decided court", () => {
@@ -2885,11 +3120,19 @@ test("undecided candidate sessions fan out to valid candidate courts and collaps
   const undecidedGroups = mapModule.groupSessionsByCourt(courts, [undecided]);
 
   assert.equal(undecidedGroups.length, 2, "the scan must find both catalogue-backed candidate courts");
-  assert.deepEqual(undecidedGroups.map(({ court }) => court.id), [8, 9]);
+  assert.deepEqual(
+    undecidedGroups.map(({ court }) => court.id),
+    [8, 9]
+  );
   assert.ok(undecidedGroups.every((group) => group.undecidedCandidateSessionIds.includes(41)));
 
-  const decidedGroups = mapModule.groupSessionsByCourt(courts, [{ ...undecided, courtId: 9, decidedAt: "2026-07-19T01:00:00Z" }]);
-  assert.deepEqual(decidedGroups.map(({ court }) => court.id), [9]);
+  const decidedGroups = mapModule.groupSessionsByCourt(courts, [
+    { ...undecided, courtId: 9, decidedAt: "2026-07-19T01:00:00Z" },
+  ]);
+  assert.deepEqual(
+    decidedGroups.map(({ court }) => court.id),
+    [9]
+  );
   assert.deepEqual(decidedGroups[0].undecidedCandidateSessionIds, []);
 });
 
@@ -3022,7 +3265,9 @@ test("a missing or already-decided summary opens the terminal decision state and
 
 test("host session detail exposes decision or edit management without changing the join action", async () => {
   const candidate = futureSession({ canCancel: true, decidedAt: "", venueType: "candidates", viewerRole: "host" });
-  const harness = createHarness({ api: { loadMySessions: async () => [candidate], loadSessionSummary: async () => candidate } });
+  const harness = createHarness({
+    api: { loadMySessions: async () => [candidate], loadSessionSummary: async () => candidate },
+  });
   await harness.controller.setAuthState({ user: { id: "host" } }, { nickname: true, ntrp: true });
   harness.controller.openSession(candidate.sessionId);
   assert.equal(harness.opened[0].handlers.canDecide, true);
@@ -3083,7 +3328,12 @@ test("player drawer offers open hosted sessions through the now-start window and
   const futureHost = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
   const futureGuest = futureSession({ sessionId: 72, viewerRole: "guest", status: "open" });
   const fullHost = futureSession({ sessionId: 73, viewerRole: "host", status: "full" });
-  const pastHost = futureSession({ sessionId: 74, viewerRole: "host", status: "open", startAt: "2020-01-01T00:00:00.000Z" });
+  const pastHost = futureSession({
+    sessionId: 74,
+    viewerRole: "host",
+    status: "open",
+    startAt: "2020-01-01T00:00:00.000Z",
+  });
   const ongoingHost = futureSession({
     sessionId: 75,
     viewerRole: "host",
@@ -3091,7 +3341,14 @@ test("player drawer offers open hosted sessions through the now-start window and
     startAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
   });
   const inviteCalls = [];
-  const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
+  const player = {
+    profileId: 88,
+    nickname: "球友",
+    courtId: 8,
+    courtName: "示範球場",
+    courtLat: 25.03,
+    courtLng: 121.54,
+  };
   const harness = createHarness({
     api: {
       inviteToSession: async (...args) => {
@@ -3108,14 +3365,24 @@ test("player drawer offers open hosted sessions through the now-start window and
   harness.controller.openPlayerCourt?.(group.court, group.players);
   harness.playerDrawers.at(-1)?.handlers.onOpenPlayer(player);
 
-  assert.deepEqual(harness.playerCards.at(-1)?.handlers.myInvitableSessions.map((session) => session.sessionId), [75, 71]);
+  assert.deepEqual(
+    harness.playerCards.at(-1)?.handlers.myInvitableSessions.map((session) => session.sessionId),
+    [75, 71]
+  );
   await harness.playerCards.at(-1)?.handlers.onInvite(71);
   assert.deepEqual(inviteCalls, [[71, 88]]);
 });
 
 test("SESSION_EXPIRED player invites refresh choices and reject inline without closing the current card", async () => {
   const hostSession = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
-  const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
+  const player = {
+    profileId: 88,
+    nickname: "球友",
+    courtId: 8,
+    courtName: "示範球場",
+    courtLat: 25.03,
+    courtLng: 121.54,
+  };
   let mySessionLoads = 0;
   const harness = createHarness({
     api: {
@@ -3140,7 +3407,14 @@ test("SESSION_EXPIRED player invites refresh choices and reject inline without c
 test("account switches and profile eligibility loss close player surfaces and reject late invitation success", async () => {
   const invitation = deferred();
   const hostSession = futureSession({ sessionId: 71, viewerRole: "host", status: "open" });
-  const player = { profileId: 88, nickname: "球友", courtId: 8, courtName: "示範球場", courtLat: 25.03, courtLng: 121.54 };
+  const player = {
+    profileId: 88,
+    nickname: "球友",
+    courtId: 8,
+    courtName: "示範球場",
+    courtLat: 25.03,
+    courtLng: 121.54,
+  };
   const harness = createHarness({
     api: {
       inviteToSession: () => invitation.promise,
@@ -3167,7 +3441,10 @@ test("account switches and profile eligibility loss close player surfaces and re
   harness.controller.openPlayerCourt(secondGroup.court, secondGroup.players);
   harness.playerDrawers.at(-1).handlers.onOpenPlayer(player);
   const eligibilityCard = harness.playerCards.at(-1);
-  await harness.controller.setAuthState({ user: { id: "account-b" } }, { directory: false, nickname: false, ntrp: false });
+  await harness.controller.setAuthState(
+    { user: { id: "account-b" } },
+    { directory: false, nickname: false, ntrp: false }
+  );
   assert.equal(eligibilityCard.detail.closeCalls, 1);
   assert.equal(harness.controller.getPlayerLayerState().on, false);
   assert.deepEqual(harness.controller.getPlayerLayerState().groups, []);
@@ -3303,13 +3580,13 @@ test("the production controller consumes explicit gates instead of a legacy comp
     },
   });
 
-  await controller.setAuthState(
-    { user: { id: "explicit-gates-only" } },
-    { complete: true }
-  );
+  await controller.setAuthState({ user: { id: "explicit-gates-only" } }, { complete: true });
   controller.openCreateIntent();
 
-  assert.deepEqual(prompts.map((prompt) => prompt.intent), [{ action: "create" }]);
+  assert.deepEqual(
+    prompts.map((prompt) => prompt.intent),
+    [{ action: "create" }]
+  );
 });
 
 test("a persisted visibility intent resumes once after the directory gate is restored", async () => {
@@ -3329,7 +3606,10 @@ test("a persisted visibility intent resumes once after the directory gate is res
       { directory: false, isPublic: false, nickname: true, ntrp: true }
     );
     controller.togglePlayerVisibility();
-    assert.equal(globalThis.sessionStorage.getItem(PENDING_SESSION_INTENT_KEY), JSON.stringify({ action: "visibility" }));
+    assert.equal(
+      globalThis.sessionStorage.getItem(PENDING_SESSION_INTENT_KEY),
+      JSON.stringify({ action: "visibility" })
+    );
 
     await controller.setAuthState(
       { user: { id: "visibility-resume" } },
@@ -3463,7 +3743,18 @@ test("chat refreshes on foreground visibility and after posting", async () => {
       loadMySessions: async () => [session],
       loadSessionMessages: async (sessionId) => {
         messageLoads.push(sessionId);
-        return [{ body: "球場見", createdAt: "2026-08-03T01:00:00Z", isSelf: false, kind: "user", messageId: 1, senderNickname: "球友", senderProfileId: 92, sessionId }];
+        return [
+          {
+            body: "球場見",
+            createdAt: "2026-08-03T01:00:00Z",
+            isSelf: false,
+            kind: "user",
+            messageId: 1,
+            senderNickname: "球友",
+            senderProfileId: 92,
+            sessionId,
+          },
+        ];
       },
       loadSessionRoster: async (sessionId) => {
         rosterLoads.push(sessionId);
@@ -3514,13 +3805,27 @@ test("chat polls quietly for the other member's messages while open and stops af
       loadMySessions: async () => [session],
       loadSessionMessages: async (sessionId) => {
         messageLoads.push(sessionId);
-        return [{ body: "球場見", createdAt: "2026-08-03T01:00:00Z", isSelf: false, kind: "user", messageId: 1, senderNickname: "球友", senderProfileId: 92, sessionId }];
+        return [
+          {
+            body: "球場見",
+            createdAt: "2026-08-03T01:00:00Z",
+            isSelf: false,
+            kind: "user",
+            messageId: 1,
+            senderNickname: "球友",
+            senderProfileId: 92,
+            sessionId,
+          },
+        ];
       },
       loadSessionRoster: async () => [{ nickname: "球友", profileId: 92, role: "guest", status: "accepted" }],
     },
   });
 
-  await harness.controller.setAuthState({ user: { id: "chat-poll-member" } }, { directory: false, nickname: true, ntrp: true });
+  await harness.controller.setAuthState(
+    { user: { id: "chat-poll-member" } },
+    { directory: false, nickname: true, ntrp: true }
+  );
   const sheet = harness.controller.openSessionChat(session.sessionId);
   await flush();
   const initialLoads = messageLoads.length;
@@ -3528,7 +3833,10 @@ test("chat polls quietly for the other member's messages while open and stops af
 
   // 輪詢:不需要任何使用者動作,訊息會被週期重讀。
   await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.ok(messageLoads.length > initialLoads, `poll ticks reload messages without user action (${messageLoads.length} > ${initialLoads})`);
+  assert.ok(
+    messageLoads.length > initialLoads,
+    `poll ticks reload messages without user action (${messageLoads.length} > ${initialLoads})`
+  );
 
   // 安靜:輪詢 tick 不得進 loading 態(只有初始載入那一次 loading)。
   const loadingUpdates = sheet.stateUpdates.filter((update) => update.status === "loading").length;
@@ -3570,7 +3878,10 @@ test("discovery polls quietly in the foreground without flashing loading or clea
   const rendersAfterInitial = harness.renders.length;
 
   await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.ok(discoveryCalls > initialCalls, `poll refetches discovery without user action (${discoveryCalls} > ${initialCalls})`);
+  assert.ok(
+    discoveryCalls > initialCalls,
+    `poll refetches discovery without user action (${discoveryCalls} > ${initialCalls})`
+  );
 
   // 安靜:輪詢 tick 不得閃 loading、清單持續保留(掃描集非空)。
   const laterViews = harness.renders.slice(rendersAfterInitial);
@@ -3603,8 +3914,26 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
   const visibilityTarget = new EventTarget();
   Object.defineProperty(visibilityTarget, "visibilityState", { configurable: true, value: "visible", writable: true });
   let messageBatch = [
-    { body: "先到先贏", createdAt: "2026-08-08T01:00:00Z", isSelf: false, kind: "user", messageId: 1, senderNickname: "球友", senderProfileId: 92, sessionId: 731 },
-    { body: "球場見", createdAt: "2026-08-08T01:05:00Z", isSelf: false, kind: "user", messageId: 2, senderNickname: "球友", senderProfileId: 92, sessionId: 731 },
+    {
+      body: "先到先贏",
+      createdAt: "2026-08-08T01:00:00Z",
+      isSelf: false,
+      kind: "user",
+      messageId: 1,
+      senderNickname: "球友",
+      senderProfileId: 92,
+      sessionId: 731,
+    },
+    {
+      body: "球場見",
+      createdAt: "2026-08-08T01:05:00Z",
+      isSelf: false,
+      kind: "user",
+      messageId: 2,
+      senderNickname: "球友",
+      senderProfileId: 92,
+      sessionId: 731,
+    },
   ];
   const markReadCalls = [];
   const harness = createHarness({
@@ -3646,11 +3975,24 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
   // 新訊息進來後,節流游標前進,下一次重跑理應再標一次已讀。
   messageBatch = [
     ...messageBatch,
-    { body: "新訊息", createdAt: "2026-08-08T01:10:00Z", isSelf: false, kind: "user", messageId: 3, senderNickname: "球友", senderProfileId: 92, sessionId: 731 },
+    {
+      body: "新訊息",
+      createdAt: "2026-08-08T01:10:00Z",
+      isSelf: false,
+      kind: "user",
+      messageId: 3,
+      senderNickname: "球友",
+      senderProfileId: 92,
+      sessionId: 731,
+    },
   ];
   visibilityTarget.dispatchEvent(new Event("visibilitychange"));
   await flush();
-  assert.deepEqual(markReadCalls, [731, 731], "a newer message resets the throttle and triggers another mark-read call");
+  assert.deepEqual(
+    markReadCalls,
+    [731, 731],
+    "a newer message resets the throttle and triggers another mark-read call"
+  );
 });
 
 test("a failing mark-read RPC does not interrupt the chat sheet and is retried on the next refresh", async () => {
@@ -3698,7 +4040,11 @@ test("a failing mark-read RPC does not interrupt the chat sheet and is retried o
   await flush();
 
   assert.equal(markReadCalls, 1, "the failing RPC is still attempted once");
-  assert.equal(sheet.stateUpdates.at(-1).status, "ready", "a failing best-effort mark-read must not surface a chat load error");
+  assert.equal(
+    sheet.stateUpdates.at(-1).status,
+    "ready",
+    "a failing best-effort mark-read must not surface a chat load error"
+  );
   assert.equal(
     harness.controller.getMySessionState().groups.upcoming.find((entry) => entry.sessionId === 732)?.unreadMessageCount,
     0,
@@ -3766,6 +4112,9 @@ test("chat governance reports the exact visible message, blocks its sender, and 
   assert.equal(harness.controller.getMySessionState().blockedPlayers.length, 1, "the blocked-player scan is nonempty");
 
   await harness.controller.unblockPlayer(92);
-  assert.deepEqual(blocks, [[92, true], [92, false]]);
+  assert.deepEqual(blocks, [
+    [92, true],
+    [92, false],
+  ]);
   assert.deepEqual(harness.controller.getMySessionState().blockedPlayers, []);
 });

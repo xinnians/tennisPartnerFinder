@@ -138,9 +138,7 @@ function validateCourts(courts) {
       continue;
     }
     if (lat < LAT_MIN || lat > LAT_MAX || lng < LNG_MIN || lng > LNG_MAX) {
-      errors.push(
-        `lat/lng 超出雙北 bounding box(可能是未轉換的 TWD97 座標):${c.name} → (${lat}, ${lng})`
-      );
+      errors.push(`lat/lng 超出雙北 bounding box(可能是未轉換的 TWD97 座標):${c.name} → (${lat}, ${lng})`);
     }
   }
 
@@ -320,9 +318,7 @@ function main() {
   // --check
   const existingMigrationPath = findExistingMigration();
   if (!existingMigrationPath) {
-    console.error(
-      `錯誤:找不到任何既有 migration(supabase/migrations/*${MIGRATION_SUFFIX}),請先用 --stamp 產生`
-    );
+    console.error(`錯誤:找不到任何既有 migration(supabase/migrations/*${MIGRATION_SUFFIX}),請先用 --stamp 產生`);
     process.exit(1);
   }
 

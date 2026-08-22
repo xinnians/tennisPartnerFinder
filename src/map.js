@@ -89,7 +89,9 @@ export function groupSessionsByCourt(courts = [], sessions = []) {
   const undecidedByCourtId = new Map();
   for (const session of sessions) {
     const undecidedCandidate = isUndecidedCandidate(session);
-    const placementIds = undecidedCandidate ? [...new Set((session?.candidateCourtIds ?? []).map(String))] : [session?.courtId];
+    const placementIds = undecidedCandidate
+      ? [...new Set((session?.candidateCourtIds ?? []).map(String))]
+      : [session?.courtId];
     for (const courtId of placementIds) {
       const key = String(courtId);
       if (!courtIds.has(key)) continue;
@@ -113,11 +115,18 @@ export function groupSessionsByCourt(courts = [], sessions = []) {
 }
 
 /** Replace visible session markers while preserving the lower-priority court base layer. */
-export function renderSessionPins(google, map, groups, { onSession = () => {}, onCluster = () => {} } = {}, oldMarkers = []) {
+export function renderSessionPins(
+  google,
+  map,
+  groups,
+  { onSession = () => {}, onCluster = () => {} } = {},
+  oldMarkers = []
+) {
   oldMarkers.forEach((marker) => marker.setMap(null));
   return groups.map(({ court, sessions, undecidedCandidateSessionIds = [] }) => {
     const multiple = sessions.length >= 2;
-    const undecided = !multiple && undecidedCandidateSessionIds.some((id) => String(id) === String(sessions[0]?.sessionId));
+    const undecided =
+      !multiple && undecidedCandidateSessionIds.some((id) => String(id) === String(sessions[0]?.sessionId));
     const single = sessions[0];
     const startTime = new Date(single?.startAt ?? "").getTime();
     const ongoing = !undecided && Number.isFinite(startTime) && startTime <= Date.now();
@@ -126,13 +135,20 @@ export function renderSessionPins(google, map, groups, { onSession = () => {}, o
       ? sessionClusterPin(google, sessions.length)
       : undecided
         ? candidateSessionPin(google, { range: taipeiHourRange(single?.startAt, single?.rangeEnd) })
-        : sessionPin(google, { time: taipeiClock(single?.startAt), instant: single?.joinMode === "instant", ongoing, full });
+        : sessionPin(google, {
+            time: taipeiClock(single?.startAt),
+            instant: single?.joinMode === "instant",
+            ongoing,
+            full,
+          });
     const marker = new google.maps.Marker({
       map,
       position: { lat: court.lat, lng: court.lng },
       icon: pin.icon,
       label: pin.label,
-      title: multiple ? `球局 · ${court.name} · ${sessions.length} 場` : `球局 · ${court.name}${undecided ? " · 未定" : ""}`,
+      title: multiple
+        ? `球局 · ${court.name} · ${sessions.length} 場`
+        : `球局 · ${court.name}${undecided ? " · 未定" : ""}`,
       zIndex: multiple ? 40 : 30,
       // Legacy Marker needs a DOM-backed marker for reliable keyboard access.
       optimized: false,
@@ -182,7 +198,12 @@ export function renderPlayerPins(google, map, groups = [], onCourtPlayers = () =
 function boundsAround({ lat, lng }, radiusMeters) {
   const latitudeDelta = radiusMeters / 111_320;
   const longitudeDelta = radiusMeters / (111_320 * Math.max(Math.cos((lat * Math.PI) / 180), 0.01));
-  return { south: lat - latitudeDelta, west: lng - longitudeDelta, north: lat + latitudeDelta, east: lng + longitudeDelta };
+  return {
+    south: lat - latitudeDelta,
+    west: lng - longitudeDelta,
+    north: lat + latitudeDelta,
+    east: lng + longitudeDelta,
+  };
 }
 
 /**
@@ -193,7 +214,13 @@ export function setUserLocation({ lat, lng }, radiusMeters) {
   const latitude = Number(lat);
   const longitude = Number(lng);
   const radius = Number(radiusMeters);
-  if (!runtimeGoogle?.maps || !runtimeMap || !Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(radius)) {
+  if (
+    !runtimeGoogle?.maps ||
+    !runtimeMap ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(radius)
+  ) {
     return null;
   }
   const bounds = boundsAround({ lat: latitude, lng: longitude }, radius);

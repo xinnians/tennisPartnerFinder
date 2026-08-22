@@ -30,7 +30,11 @@ test("NTRP 說明只有一份來源,三個掛載點都引用同一個常數", ()
   const literalMatches = sources.flatMap(({ path, source }) =>
     Array.from({ length: source.split(NTRP_SCALE_EXPLANATION).length - 1 }, () => path)
   );
-  assert.equal(literalMatches.length, 1, `NTRP explanation must have one definition, found in: ${literalMatches.join(", ")}`);
+  assert.equal(
+    literalMatches.length,
+    1,
+    `NTRP explanation must have one definition, found in: ${literalMatches.join(", ")}`
+  );
 
   const definitionPattern = /\b(?:export\s+)?const\s+NTRP_SCALE_EXPLANATION\b/;
   const importPattern = /\bimport\s*\{[^}]*\bNTRP_SCALE_EXPLANATION\b[^}]*\}\s*from\s*["'][^"']+["']/s;
@@ -38,7 +42,11 @@ test("NTRP 說明只有一份來源,三個掛載點都引用同一個常數", ()
   const symbolSources = sources.filter(({ source }) => source.includes("NTRP_SCALE_EXPLANATION"));
   const definitionSources = symbolSources.filter(({ source }) => definitionPattern.test(source));
   assert.equal(definitionSources.length, 1, "NTRP_SCALE_EXPLANATION must have exactly one definition across src/");
-  assert.equal(literalMatches[0], definitionSources[0].path, "the sole NTRP explanation literal must be in its definition file");
+  assert.equal(
+    literalMatches[0],
+    definitionSources[0].path,
+    "the sole NTRP explanation literal must be in its definition file"
+  );
   assert.ok(symbolSources.length >= 1, "NTRP_SCALE_EXPLANATION scan must be nonempty");
   for (const { path, source } of symbolSources) {
     assert.ok(

@@ -13,7 +13,11 @@ import {
 const SAFE_PUBLIC_KEY = "safe-test-public-key";
 const SAFE_SERVICE_ROLE_KEY = "safe-test-service-role-key";
 
-function safeStatusOutput({ apiUrl = LOCAL_SUPABASE_API_URL, publicKey = SAFE_PUBLIC_KEY, serviceRoleKey = SAFE_SERVICE_ROLE_KEY } = {}) {
+function safeStatusOutput({
+  apiUrl = LOCAL_SUPABASE_API_URL,
+  publicKey = SAFE_PUBLIC_KEY,
+  serviceRoleKey = SAFE_SERVICE_ROLE_KEY,
+} = {}) {
   return [`API_URL="${apiUrl}"`, `ANON_KEY="${publicKey}"`, `SERVICE_ROLE_KEY="${serviceRoleKey}"`].join("\n");
 }
 
@@ -27,9 +31,7 @@ test("local public config parses quoted status output and accepts only the exact
 });
 
 test("local public config rejects a non-loopback API target", () => {
-  const environment = parseLocalSupabaseEnvironment(
-    safeStatusOutput({ apiUrl: "http://127.0.0.1:54322" })
-  );
+  const environment = parseLocalSupabaseEnvironment(safeStatusOutput({ apiUrl: "http://127.0.0.1:54322" }));
 
   assert.throws(() => validateLocalSupabaseConfig(environment), /127\.0\.0\.1:54321/);
 });
@@ -66,14 +68,20 @@ test("local admin config accepts a service-role key only for the exact loopback 
     serviceRoleKey: SAFE_SERVICE_ROLE_KEY,
   });
   assert.throws(
-    () => validateLocalSupabaseAdminConfig(parseLocalSupabaseEnvironment(safeStatusOutput({ apiUrl: "https://example.test" }))),
+    () =>
+      validateLocalSupabaseAdminConfig(
+        parseLocalSupabaseEnvironment(safeStatusOutput({ apiUrl: "https://example.test" }))
+      ),
     /127\.0\.0\.1:54321/
   );
 });
 
 test("local admin config loader rejects a missing service-role key", () => {
   assert.throws(
-    () => loadLocalSupabaseAdminConfig({ runStatus: () => ({ status: 0, stdout: safeStatusOutput({ serviceRoleKey: "" }) }) }),
+    () =>
+      loadLocalSupabaseAdminConfig({
+        runStatus: () => ({ status: 0, stdout: safeStatusOutput({ serviceRoleKey: "" }) }),
+      }),
     /service-role key/
   );
 });

@@ -8,9 +8,11 @@ const surfaces = new WeakMap();
 const surfaceStack = [];
 
 function focusableNodes(surface) {
-  return [...surface.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(
-    (node) => !node.hasAttribute("hidden") && !node.closest("[hidden]")
-  );
+  return [
+    ...surface.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ),
+  ].filter((node) => !node.hasAttribute("hidden") && !node.closest("[hidden]"));
 }
 
 function captureRestoreTarget(node) {
@@ -43,7 +45,7 @@ function resolveRestoreTarget(target) {
   // 有值,即 captureRestoreTarget 當初用 node.closest("#nearby-sessions-drawer")
   // 命中);非抽屜語境維持修法前行為——只試 full 專屬選擇器,找不到就不移動焦點。
   const drawerCloseFallback = target.drawerId
-    ? scope.querySelector('[data-testid="drawer-collapse"]') ?? scope.querySelector("#nearby-sessions-toggle")
+    ? (scope.querySelector('[data-testid="drawer-collapse"]') ?? scope.querySelector("#nearby-sessions-toggle"))
     : null;
   return scope.querySelector("[data-nearby-dialog] [data-nearby-close]") ?? drawerCloseFallback;
 }

@@ -1,6 +1,6 @@
-const NAVY = "#12291c";   // 計分板 --color-ink;pins.js 無法讀 CSS 變數,值與 session.css 同步
-const BLUE = "#1c5c3c";   // --color-court
-const LIME = "#ddf53c";   // --color-signal
+const NAVY = "#12291c"; // 計分板 --color-ink;pins.js 無法讀 CSS 變數,值與 session.css 同步
+const BLUE = "#1c5c3c"; // --color-court
+const LIME = "#ddf53c"; // --color-signal
 const SOFT_BLUE = "#e8f2e3"; // --color-success-bg(聚合底)
 
 function svgToDataUri(svg) {
@@ -84,9 +84,7 @@ function markerIcon(google, url, width, height, anchorX, anchorY, labelX, labelY
 // (見上方 PLAYER_PIN_URL),這裡疊加既有的右上角「線N」signal 徽章,標出這個聚合
 // count 裡有幾位「當下」在分享在場狀態,不是 dc 原型的概念。
 function playerPresencePinUrl(presenceCount) {
-  const safePresenceCount = Number.isFinite(Number(presenceCount))
-    ? Math.max(0, Math.trunc(Number(presenceCount)))
-    : 0;
+  const safePresenceCount = Number.isFinite(Number(presenceCount)) ? Math.max(0, Math.trunc(Number(presenceCount))) : 0;
   return svgToDataUri(`
     <svg xmlns="http://www.w3.org/2000/svg" width="86" height="55" viewBox="0 0 86 55">
       <path d="M2 52c16 0 23-10 36-20" fill="none" stroke="${NAVY}" stroke-width="3" stroke-linecap="round"/>
@@ -158,4 +156,12 @@ export function userLocationPin(google) {
   return { icon: markerIcon(google, USER_PIN_URL, 28, 28, 14, 14, 14, 14) };
 }
 
-export { CANDIDATE_SESSION_PIN_URL, CLUSTER_PIN_URL, COURT_PIN_URL, PLAYER_PIN_URL, SESSION_PIN_URL, SOFT_BLUE, USER_PIN_URL };
+export {
+  CANDIDATE_SESSION_PIN_URL,
+  CLUSTER_PIN_URL,
+  COURT_PIN_URL,
+  PLAYER_PIN_URL,
+  SESSION_PIN_URL,
+  SOFT_BLUE,
+  USER_PIN_URL,
+};

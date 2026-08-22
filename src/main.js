@@ -348,7 +348,8 @@ const LINK_RETURN_KEY = "tennis-link-return";
 // 清理 URL,所以在模組載入當下同步抓一份,只供連結回報使用。
 const bootAuthParams = (() => {
   const merged = new URLSearchParams(globalThis.location?.search ?? "");
-  for (const [key, value] of new URLSearchParams((globalThis.location?.hash ?? "").replace(/^#/, ""))) merged.set(key, value);
+  for (const [key, value] of new URLSearchParams((globalThis.location?.hash ?? "").replace(/^#/, "")))
+    merged.set(key, value);
   return merged;
 })();
 
@@ -624,7 +625,8 @@ function renderDiscovery(view) {
   // textContent,螢幕閱讀器才能可靠收到這顆 live region 的計數變動播報;掛在會被
   // 摧毀重建的節點上,新節點帶著 aria-live 屬性一起被建立時,AT 不保證會註冊到它。
   const countStatus = document.getElementById("nearby-sessions-count-status");
-  if (countStatus) countStatus.textContent = nearbySessionsSummaryText(joinableSessionCount(view.sessions), view.hasUserLocation);
+  if (countStatus)
+    countStatus.textContent = nearbySessionsSummaryText(joinableSessionCount(view.sessions), view.hasUserLocation);
 }
 
 function syncBottomNavigation() {
@@ -744,14 +746,16 @@ function captureMeFocus(root) {
   if (active.matches('[data-testid="me-profile-edit-trigger"]')) return { kind: "profile-edit-trigger" };
   if (active.matches('[data-my-action="toggle-visibility"]')) return { kind: "player-visibility" };
   if (active.matches("[data-enable-push]")) return { kind: "enable-push" };
-  if (active.matches("[data-notification-pref]")) return { kind: "notification-pref", preference: active.dataset.notificationPref };
+  if (active.matches("[data-notification-pref]"))
+    return { kind: "notification-pref", preference: active.dataset.notificationPref };
   if (active.matches("[data-subscribe-all-courts]")) return { kind: "subscribe-all-courts" };
   if (active.matches("[data-court-picker-toggle]")) return { kind: "court-picker-toggle" };
   if (active.matches("[data-notification-court]")) return { courtId: active.value, kind: "notification-court" };
   if (active.matches("[data-set-presence-sharing]")) return { kind: "presence-sharing" };
   if (active.matches("[data-open-to-greeting]")) return { kind: "open-to-greeting" };
   if (active.matches(".me-service-links a")) return { href: active.getAttribute("href") ?? "", kind: "service-link" };
-  if (active.matches("[data-link-provider]")) return { kind: "link-provider", provider: active.dataset.linkProvider ?? "" };
+  if (active.matches("[data-link-provider]"))
+    return { kind: "link-provider", provider: active.dataset.linkProvider ?? "" };
   // 封鎖清單的解除按鈕沒有專屬 selector，與 My Sessions 側一樣靠通用 fallback 接住。
   // 排在最後只是讓上面幾個控制項保有專屬 kind：toggle-visibility 就算被這裡接走也還原得回去，
   // 因為它三個 dataset 欄位皆缺，resolve 端正規化成空字串後仍會比對到同一顆按鈕（已實測）。
@@ -795,7 +799,9 @@ function resolveMeFocus(root, focus) {
     return [...root.querySelectorAll(".me-service-links a")].find((link) => link.getAttribute("href") === focus.href);
   }
   if (focus.kind === "link-provider") {
-    return [...root.querySelectorAll("[data-link-provider]")].find((button) => button.dataset.linkProvider === focus.provider);
+    return [...root.querySelectorAll("[data-link-provider]")].find(
+      (button) => button.dataset.linkProvider === focus.provider
+    );
   }
   if (focus.kind === "action") {
     return [...root.querySelectorAll("[data-my-action]")].find(
@@ -887,7 +893,7 @@ function renderMySessionsDestination() {
   const focusSessionId = createdSessionFocusId;
   const createdSessionId = createdSessionFocusReason === "created" ? focusSessionId : null;
   const root = document.getElementById("my-sessions-root");
-  const focus = activePage === "my-sessions" ? captureMySessionsFocus(root) ?? pendingMySessionsFocus : null;
+  const focus = activePage === "my-sessions" ? (captureMySessionsFocus(root) ?? pendingMySessionsFocus) : null;
   if (focus) pendingMySessionsFocus = focus;
   else if (activePage !== "my-sessions") pendingMySessionsFocus = null;
   const generation = ++mySessionsRenderGeneration;
@@ -913,7 +919,8 @@ function renderMySessionsDestination() {
     // 批 D6:「我主揪的」分頁空狀態「開球局」鈕——沿用底部導覽 create-session-tab
     // 同一個入口(controller.openCreateIntent 已含 auth/profile gate),不重新實作。
     onCreateSession: () => controller.openCreateIntent(),
-    onDecline: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
+    onDecline: (sessionId, participantId) =>
+      controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
     onDeclineInvite: (sessionId) => controller.respondInvite(sessionId, "declined"),
     onDecide: controller.openSessionDecision,
     onEdit: controller.openSessionEdit,
@@ -954,7 +961,7 @@ function renderMeDestination() {
       if (shouldReleasePendingMeFocus(root, event.relatedTarget)) pendingMeFocus = null;
     });
   }
-  const focus = activePage === "me" ? captureMeFocus(root) ?? pendingMeFocus : null;
+  const focus = activePage === "me" ? (captureMeFocus(root) ?? pendingMeFocus) : null;
   if (focus) pendingMeFocus = focus;
   else if (activePage !== "me") pendingMeFocus = null;
   const generation = ++meRenderGeneration;
@@ -1104,7 +1111,8 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
   void refreshNotificationSettings();
   void controller.refreshMyPlayerBlocks();
-  if (focus) requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
+  if (focus)
+    requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
   if (focusNotificationSettings) {
     // 這顆 rAF 是快樂路徑：多數情況下背景重繪還沒發生，它先把焦點送到位並讓頁面自然捲到
     // 通知設定區（preventScroll:false）。上面 seed 的 pendingMeFocus 則是兜底：就算它被
@@ -1293,7 +1301,10 @@ function applyAuthCandidate(session) {
     storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
     profileLoadStatus = session ? "loading" : "idle";
-    void controller.setAuthState(session, session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null);
+    void controller.setAuthState(
+      session,
+      session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null
+    );
   } else controller.setAuthSession(session);
   if (!session) {
     stopPresenceTracking();

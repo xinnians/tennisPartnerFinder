@@ -48,10 +48,7 @@ test("countActiveFilters stays 0 when only dateKey/band/instantOnly change (badg
   assert.equal(countActiveFilters({ ...DEFAULT_FILTER_STATE, dateKey: "today" }), 0);
   assert.equal(countActiveFilters({ ...DEFAULT_FILTER_STATE, band: "pro" }), 0);
   assert.equal(countActiveFilters({ ...DEFAULT_FILTER_STATE, instantOnly: true }), 0);
-  assert.equal(
-    countActiveFilters({ ...DEFAULT_FILTER_STATE, dateKey: "weekend", band: "hi", instantOnly: true }),
-    0
-  );
+  assert.equal(countActiveFilters({ ...DEFAULT_FILTER_STATE, dateKey: "weekend", band: "hi", instantOnly: true }), 0);
 });
 
 test("countActiveFilters sums selections across types and districts", () => {

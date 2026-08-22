@@ -126,7 +126,8 @@ function createSurfaceRegistry(definitions) {
         const action = operation.action ?? "close";
         const expected = Object.hasOwn(operation, "expected") ? operation.expected : registry.get(operation.name);
         if (action === "release") registry.release(operation.name, expected);
-        else registry.close(operation.name, Object.hasOwn(operation, "options") ? operation.options : options, expected);
+        else
+          registry.close(operation.name, Object.hasOwn(operation, "options") ? operation.options : options, expected);
       }
     },
     update(name, metadata) {
@@ -244,7 +245,15 @@ export function createSessionController({
     reportDialog: {},
   });
   const SURFACE_TRANSITIONS = Object.freeze({
-    authIdentityChanged: ["createSession", "decisionSession", "editSession", "profilePrompt", "reportDialog", "chat", "detail"],
+    authIdentityChanged: [
+      "createSession",
+      "decisionSession",
+      "editSession",
+      "profilePrompt",
+      "reportDialog",
+      "chat",
+      "detail",
+    ],
     authNicknameLost: ["detail"],
     authNtrpLost: ["createSession"],
     authProfileResolved: ["profilePrompt"],
@@ -482,7 +491,11 @@ export function createSessionController({
   async function unblockPlayer(profileId) {
     const authSnapshot = captureAuthSnapshot();
     const normalizedProfileId = Number(profileId);
-    if (!isCurrentAuthSnapshot(authSnapshot) || !Number.isSafeInteger(normalizedProfileId) || normalizedProfileId <= 0) {
+    if (
+      !isCurrentAuthSnapshot(authSnapshot) ||
+      !Number.isSafeInteger(normalizedProfileId) ||
+      normalizedProfileId <= 0
+    ) {
       throw new Error("封鎖清單已更新，請重新整理後再試。");
     }
     if (!read().blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)) {
@@ -522,10 +535,7 @@ export function createSessionController({
     const sessionMin = Number(session.ntrpMin);
     const sessionMax = Number(session.ntrpMax);
     const hasSessionRange =
-      session.ntrpMin != null &&
-      session.ntrpMax != null &&
-      Number.isFinite(sessionMin) &&
-      Number.isFinite(sessionMax);
+      session.ntrpMin != null && session.ntrpMax != null && Number.isFinite(sessionMin) && Number.isFinite(sessionMax);
     if (hasViewerNtrp && hasSessionRange && (viewerNtrp < sessionMin || viewerNtrp > sessionMax)) {
       return {
         label: "申請加入",
@@ -571,7 +581,8 @@ export function createSessionController({
   async function reloadParticipation(epoch = read().authEpoch, identity = sessionIdentity(read().authSession)) {
     if (!read().authSession || !identity || typeof api?.loadMySessions !== "function") return false;
     const request = participationGate.issue(
-      () => epoch === read().authEpoch && Boolean(read().authSession) && sessionIdentity(read().authSession) === identity
+      () =>
+        epoch === read().authEpoch && Boolean(read().authSession) && sessionIdentity(read().authSession) === identity
     );
     store.setState({ mySessionsStatus: "loading" });
     notifyMySessions();
@@ -616,11 +627,15 @@ export function createSessionController({
   }
 
   async function loadPlayers(bounds = read().bounds) {
-    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profileEligibility, "ntrp")) return false;
+    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profileEligibility, "ntrp"))
+      return false;
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const authSnapshot = captureAuthSnapshot();
     const request = playerGate.issue(
-      () => read().playerLayerOn && profileMeetsGate(read().profileEligibility, "ntrp") && isCurrentAuthSnapshot(authSnapshot)
+      () =>
+        read().playerLayerOn &&
+        profileMeetsGate(read().profileEligibility, "ntrp") &&
+        isCurrentAuthSnapshot(authSnapshot)
     );
     transitionSurfaces("clearPlayerLayer", { reason: "player-refresh", restoreFocus: false });
     store.setState({ players: [], playerLayerStatus: "loading", playerLayerMessage: "正在載入在線球友…" });
@@ -747,7 +762,11 @@ export function createSessionController({
     try {
       const sessions = await api.loadSessionDiscovery({ bounds: read().bounds });
       if (request.isStale()) return false;
-      store.setState({ sessions: Array.isArray(sessions) ? sessions : [], discoveryStatus: "ready", discoveryMessage: "" });
+      store.setState({
+        sessions: Array.isArray(sessions) ? sessions : [],
+        discoveryStatus: "ready",
+        discoveryMessage: "",
+      });
       publish();
       return true;
     } catch {
@@ -792,8 +811,7 @@ export function createSessionController({
     const filters = read().filters;
     if (DEFAULT_FILTER_STATE[key] instanceof Set) {
       filters[key] = value instanceof Set ? new Set(value) : new Set(value ?? []);
-    }
-    else filters[key] = value;
+    } else filters[key] = value;
     store.setState({ filters });
     publish();
   }
@@ -936,7 +954,11 @@ export function createSessionController({
 
   async function openSessionFromLink(sessionId) {
     const normalizedSessionId = Number(sessionId);
-    if (!Number.isSafeInteger(normalizedSessionId) || normalizedSessionId <= 0 || typeof api?.loadSessionSummary !== "function") {
+    if (
+      !Number.isSafeInteger(normalizedSessionId) ||
+      normalizedSessionId <= 0 ||
+      typeof api?.loadSessionSummary !== "function"
+    ) {
       return { status: "unavailable" };
     }
     try {
@@ -1033,7 +1055,10 @@ export function createSessionController({
       !context ||
       !surfaceRegistry.is("chat", context) ||
       !isCurrentAuthSnapshot(context.authSnapshot) ||
-      !context.messages.some((message) => Number(message.senderProfileId) === normalizedProfileId && visibleChatMessage(context, message.messageId))
+      !context.messages.some(
+        (message) =>
+          Number(message.senderProfileId) === normalizedProfileId && visibleChatMessage(context, message.messageId)
+      )
     ) {
       throw new Error("群組狀態已更新，請重新開啟後再試。");
     }
@@ -1061,7 +1086,11 @@ export function createSessionController({
       await refreshActiveChat(context);
       return result;
     } catch (error) {
-      if (surfaceRegistry.is("chat", context) && isCurrentAuthSnapshot(context.authSnapshot) && error?.code === "SESSION_ARCHIVED") {
+      if (
+        surfaceRegistry.is("chat", context) &&
+        isCurrentAuthSnapshot(context.authSnapshot) &&
+        error?.code === "SESSION_ARCHIVED"
+      ) {
         context.sheet?.setArchived?.(error.message);
         await refreshMySessions();
       }
@@ -1111,7 +1140,8 @@ export function createSessionController({
 
   function openCourt(court, onlySessions = null) {
     transitionSurfaces("openCourt");
-    const sessions = onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
+    const sessions =
+      onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
     const drawer = openCourtDrawer(court, sessions, { courts: read().courts, onOpenSession: openSessionById });
     surfaceRegistry.set("courtDrawer", drawer?.close ? drawer : null);
   }
@@ -1182,7 +1212,8 @@ export function createSessionController({
   }
 
   function openPlayerCourt(court, onlyPlayers = null) {
-    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profileEligibility, "ntrp")) return null;
+    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profileEligibility, "ntrp"))
+      return null;
     const players = onlyPlayers ?? read().players.filter((player) => String(player.courtId) === String(court.id));
     transitionSurfaces("openPlayerCourt", { restoreFocus: false });
     let drawer = null;
@@ -1206,7 +1237,9 @@ export function createSessionController({
     const activeDetail = surfaceRegistry.get("detail");
     const activeDetailSession = surfaceRegistry.meta("detail", "session");
     if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
-    const freshSession = read().sessions.find((entry) => String(entry.sessionId) === String(activeDetailSession.sessionId));
+    const freshSession = read().sessions.find(
+      (entry) => String(entry.sessionId) === String(activeDetailSession.sessionId)
+    );
     // A viewport result may omit a still-valid session simply because it is
     // now off-screen. Only close when this authoritative response actually
     // includes the detail session and its rendered fields have changed.
@@ -1522,7 +1555,9 @@ export function createSessionController({
     );
     const participant = (read().mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
       (candidate) =>
-        String(candidate.participantId) === String(participantId) && candidate.role === "guest" && candidate.status === "requested"
+        String(candidate.participantId) === String(participantId) &&
+        candidate.role === "guest" &&
+        candidate.status === "requested"
     );
     if (!participant || !["accepted", "declined"].includes(decision)) {
       throw new Error("這筆申請已更新，請重新整理後再試。");
@@ -1562,7 +1597,13 @@ export function createSessionController({
   async function cancelMySession(sessionId) {
     const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canCancel));
     if (typeof api?.cancelSession !== "function") throw new Error("目前無法取消這個球局。");
-    return runMySessionMutation("cancel", session, authSnapshot, () => api.cancelSession(session.sessionId), "已取消球局。");
+    return runMySessionMutation(
+      "cancel",
+      session,
+      authSnapshot,
+      () => api.cancelSession(session.sessionId),
+      "已取消球局。"
+    );
   }
 
   function withdrawMySession(sessionId) {
@@ -1572,13 +1613,27 @@ export function createSessionController({
   async function performMySessionWithdrawal(sessionId) {
     const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canWithdraw));
     if (typeof api?.withdrawFromSession !== "function") throw new Error("目前無法退出這個球局。");
-    return runMySessionMutation("withdraw", session, authSnapshot, () => api.withdrawFromSession(session.sessionId), "已退出球局。");
+    return runMySessionMutation(
+      "withdraw",
+      session,
+      authSnapshot,
+      () => api.withdrawFromSession(session.sessionId),
+      "已退出球局。"
+    );
   }
 
   async function markMySessionPlayed(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canConfirmPlayed));
+    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) =>
+      Boolean(candidate.canConfirmPlayed)
+    );
     if (typeof api?.markSessionPlayed !== "function") throw new Error("目前無法回報這個球局。");
-    return runMySessionMutation("played", session, authSnapshot, () => api.markSessionPlayed(session.sessionId), "已回報打成。");
+    return runMySessionMutation(
+      "played",
+      session,
+      authSnapshot,
+      () => api.markSessionPlayed(session.sessionId),
+      "已回報打成。"
+    );
   }
 
   async function confirmMySessionAttendance(sessionId) {
@@ -1587,7 +1642,13 @@ export function createSessionController({
       (candidate) => Boolean(candidate.canConfirmAttendance) && !candidate.viewerPlayedConfirmed
     );
     if (typeof api?.confirmSessionAttendance !== "function") throw new Error("目前無法確認到場。");
-    return runMySessionMutation("attendance", session, authSnapshot, () => api.confirmSessionAttendance(session.sessionId), "已確認到場。");
+    return runMySessionMutation(
+      "attendance",
+      session,
+      authSnapshot,
+      () => api.confirmSessionAttendance(session.sessionId),
+      "已確認到場。"
+    );
   }
 
   async function openSessionDecision(sessionId) {
@@ -1789,10 +1850,7 @@ export function createSessionController({
         throw new Error("登入狀態已變更，請重新開啟表單。");
       }
       clearIntent({ action: "create" });
-      await Promise.all([
-        loadDiscovery(read().bounds),
-        reloadParticipation(authSnapshot.epoch, authSnapshot.identity),
-      ]);
+      await Promise.all([loadDiscovery(read().bounds), reloadParticipation(authSnapshot.epoch, authSnapshot.identity)]);
       if (!isCurrentAuthSnapshot(authSnapshot)) {
         throw new Error("登入狀態已變更，請重新整理後再試。");
       }

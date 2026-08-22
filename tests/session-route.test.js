@@ -9,7 +9,16 @@ test("session hash route accepts only a positive safe integer id", () => {
 });
 
 test("session hash route rejects malformed, unsafe, and unrelated hashes", () => {
-  for (const hash of ["", "#/session/", "#/session/0", "#/session/-1", "#/session/01", "#/session/1/extra", "#/sessions/1", "#/session/9007199254740992"]) {
+  for (const hash of [
+    "",
+    "#/session/",
+    "#/session/0",
+    "#/session/-1",
+    "#/session/01",
+    "#/session/1/extra",
+    "#/sessions/1",
+    "#/session/9007199254740992",
+  ]) {
     assert.equal(sessionIdFromHash(hash), null, hash);
   }
 });

@@ -4,7 +4,14 @@ import { expect, test } from "@playwright/test";
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
 import { installAppModuleImporter } from "./fixtures/appRuntime.js";
 import { installFakeMaps, setFakeMapBounds } from "./fixtures/fakeMaps.js";
-import { courtIdByName, createProfile, makeClient, setBrowserSession, signUpUser, SUPABASE_URL } from "./fixtures/localSupabase.js";
+import {
+  courtIdByName,
+  createProfile,
+  makeClient,
+  setBrowserSession,
+  signUpUser,
+  SUPABASE_URL,
+} from "./fixtures/localSupabase.js";
 import {
   callSessionRpc,
   createFutureSessionInput,
@@ -280,7 +287,9 @@ test("a hash session link survives the login gate and resumes the same live sess
   await expect(resumedSheet).toContainText(published.context.host.courts[0]);
 });
 
-test("an initial signed-out bootstrap clears an old session intent before another account can resume it", async ({ page }) => {
+test("an initial signed-out bootstrap clears an old session intent before another account can resume it", async ({
+  page,
+}) => {
   const published = await createPublishedSession();
   const { client: guestClient, session: guestSession } = await signUpUser(published.context.guest.email);
   await createProfile(guestClient, {
@@ -384,9 +393,9 @@ test("saving a profile before court options are ready preserves its existing cou
 // performDetailWithdrawal() 用相反順序(先 refresh 再 close)才是正確寫法,兩者
 // 順序不一致是既有 bug,已用 spawn_task 掛起追蹤(標題:Fix focus loss after
 // stale-join-rejection drawer close),非本批 Files 範圍,明確 fixme 跳過而非靜默排除。
-test.fixme(
-  "a stale Join rejection returns keyboard focus from closing surfaces to the nearby drawer",
-  async ({ page }) => {
+test.fixme("a stale Join rejection returns keyboard focus from closing surfaces to the nearby drawer", async ({
+  page,
+}) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const guest = await createCompleteActor(context.guest);
@@ -420,7 +429,9 @@ test.fixme(
   await expect(page.locator("#nearby-sessions-list [data-testid='drawer-collapse']")).toBeFocused();
 });
 
-test("a stale same-account profile read cannot overwrite a saved profile or its recovered Join confirmation", async ({ page }) => {
+test("a stale same-account profile read cannot overwrite a saved profile or its recovered Join confirmation", async ({
+  page,
+}) => {
   const published = await createPublishedSession();
   const { session: guestSession } = await signUpUser(published.context.guest.email);
   await gotoWithSession(page, guestSession);
@@ -474,7 +485,9 @@ test("a stale same-account profile read cannot overwrite a saved profile or its 
   await expect(profile).toBeHidden();
 });
 
-test("a complete profile creates a Taipei session with an explicit Taipei ISO timestamp and focuses its upcoming card", async ({ page }) => {
+test("a complete profile creates a Taipei session with an explicit Taipei ISO timestamp and focuses its upcoming card", async ({
+  page,
+}) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const { client, session } = await signUpUser(context.host.email);
   await createProfile(client, {
@@ -649,7 +662,9 @@ test("a host decides a candidate session into one solid pin and the database rec
 
   await page.getByTestId("map-tab").click();
   await expect
-    .poll(async () => (await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions)).map(({ title }) => title))
+    .poll(async () =>
+      (await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions)).map(({ title }) => title)
+    )
     .toEqual(expect.arrayContaining([`球局 · ${firstCourtName} · 未定`, `球局 · ${secondCourtName} · 未定`]));
   await page.getByTestId("my-sessions-tab").click();
   await page.locator(`[data-my-action="decide"][data-session-id="${sessionId}"]`).click();
@@ -675,7 +690,9 @@ test("a host decides a candidate session into one solid pin and the database rec
 
   await page.getByTestId("map-tab").click();
   await expect
-    .poll(async () => (await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions)).map(({ title }) => title))
+    .poll(async () =>
+      (await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions)).map(({ title }) => title)
+    )
     .toContain(`球局 · ${secondCourtName}`);
   const titles = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions.map(({ title }) => title));
   expect(titles).not.toContain(`球局 · ${firstCourtName} · 未定`);
@@ -697,7 +714,11 @@ test("a host edits a single-court session and sees authoritative card and detail
   const updatedNotes = `edited-ui-${context.runId}`;
   const sessionId = await createSessionViaRpc(
     host.client,
-    createFutureSessionInput({ courtId: firstCourtId, notes: `before-ui-${context.runId}`, startAt: initialStart.toISOString() })
+    createFutureSessionInput({
+      courtId: firstCourtId,
+      notes: `before-ui-${context.runId}`,
+      startAt: initialStart.toISOString(),
+    })
   );
 
   await gotoWithSession(page, host.session);
@@ -710,9 +731,9 @@ test("a host edits a single-court session and sees authoritative card and detail
   await expect(form.locator('[name="venueType"]')).toHaveCount(0);
   await expect(form.locator('[name="joinMode"]')).toHaveCount(0);
   await form.getByTestId("session-edit-court").selectOption(String(secondCourtId));
-  await form.getByTestId("session-edit-start-at").fill(
-    new Date(updatedStart.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16)
-  );
+  await form
+    .getByTestId("session-edit-start-at")
+    .fill(new Date(updatedStart.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16));
   await form.getByTestId("session-edit-play-type").selectOption("雙打");
   await expect(form.getByTestId("session-edit-slots-3")).toBeChecked();
   await form.getByTestId("session-edit-slots-2").check();
@@ -725,7 +746,9 @@ test("a host edits a single-court session and sees authoritative card and detail
   await form.getByTestId("session-edit-submit").click();
   await expect(page.locator("#session-edit-sheet")).toBeHidden();
 
-  const card = page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id="${sessionId}"]`).locator("xpath=ancestor::article");
+  const card = page
+    .locator(`#my-upcoming-sessions [data-open-my-session][data-session-id="${sessionId}"]`)
+    .locator("xpath=ancestor::article");
   await expect(card).toContainText(secondCourtName);
   // 批 D6:My Sessions 薄卡列(mySessionBriefMarkup)的 meta 行只有「打法 · NTRP ·
   // 主揪」,不再顯示缺額——那個資訊只留在詳情 sheet 的記分板格(下方
@@ -743,7 +766,9 @@ test("a host edits a single-court session and sees authoritative card and detail
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a host creates a now-start direct session in the form, then a guest joins and both can open group chat", async ({ page }) => {
+test("a host creates a now-start direct session in the form, then a guest joins and both can open group chat", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
@@ -872,7 +897,9 @@ test("instant local join accepts immediately and opens group chat without host r
   await expect(runtimeErrors).toEqual([]);
 });
 
-test("host sees a safe requested roster first, can report it, then accepts and enables group chat", async ({ page }) => {
+test("host sees a safe requested roster first, can report it, then accepts and enables group chat", async ({
+  page,
+}) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const guest = await createCompleteActor(context.guest);
@@ -954,7 +981,9 @@ test("host sees a safe requested roster first, can report it, then accepts and e
   await expect(page.locator(`#my-history [data-my-action='cancel'][data-session-id='${sessionId}']`)).toHaveCount(0);
 });
 
-test("accepting the final vacancy declines the remaining request, and an accepted guest withdrawal reopens the session", async ({ page }) => {
+test("accepting the final vacancy declines the remaining request, and an accepted guest withdrawal reopens the session", async ({
+  page,
+}) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const acceptedGuest = await createCompleteActor(context.guest);
@@ -1085,13 +1114,18 @@ test("two isolated host clients can accept only one final vacancy without exposi
   expect(declinedContacts).toEqual([]);
 });
 
-test("after a session starts, the host can report it played and an accepted guest can confirm attendance", async ({ page }) => {
+test("after a session starts, the host can report it played and an accepted guest can confirm attendance", async ({
+  page,
+}) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const guest = await createCompleteActor(context.guest);
   const courtId = await courtIdByName(host.client, context.host.courts[0]);
   const startAt = new Date(Date.now() + 7_000).toISOString();
-  const sessionId = await createSessionViaRpc(host.client, createFutureSessionInput({ courtId, startAt, slotsTotal: 1 }));
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, startAt, slotsTotal: 1 })
+  );
   await requestToJoinSessionViaRpc(guest.client, sessionId);
   const { data: roster, error: rosterError } = await host.client
     .from("session_participant_roster")
@@ -1117,10 +1151,14 @@ test("after a session starts, the host can report it played and an accepted gues
   const attendanceButton = page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`);
   await expect(attendanceButton).toBeVisible();
   await attendanceButton.click();
-  await expect(page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`)).toHaveCount(0);
+  await expect(page.locator(`#my-history [data-my-action='attendance'][data-session-id='${sessionId}']`)).toHaveCount(
+    0
+  );
 });
 
-test("the authenticated Me identity card shows the profile and signing out restores its anonymous prompt", async ({ page }) => {
+test("the authenticated Me identity card shows the profile and signing out restores its anonymous prompt", async ({
+  page,
+}) => {
   const { context, hostSession: initialHostSession, sessionId } = await createPublishedSession();
   const authClient = makeClient();
   const { error: setSessionError } = await authClient.auth.setSession({
@@ -1140,7 +1178,9 @@ test("the authenticated Me identity card shows the profile and signing out resto
   await page.getByTestId("my-sessions-tab").click();
   // 批 D6:host 自己主揪的 upcoming 卡只在「我主揪的」分頁,預設分頁是「我報名的」。
   await page.getByTestId("my-sessions-seg-hosted").click();
-  await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toBeVisible();
+  await expect(
+    page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)
+  ).toBeVisible();
 
   await page.getByTestId("me-tab").click();
   const identityCard = page.getByTestId("me-identity-card");
@@ -1159,11 +1199,15 @@ test("the authenticated Me identity card shows the profile and signing out resto
   await expect(page.getByTestId("me-sign-in")).toBeVisible();
   await expect(page.getByTestId("me-sign-out")).toHaveCount(0);
   await page.getByTestId("my-sessions-tab").click();
-  await expect(page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)).toHaveCount(0);
+  await expect(
+    page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)
+  ).toHaveCount(0);
   await expect(page.locator("#toast-root")).toContainText("已登出");
 });
 
-test("authenticated players persist the authoritative court subscription set without district migration UI", async ({ page }) => {
+test("authenticated players persist the authoritative court subscription set without district migration UI", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const actor = await createCompleteActor(context.host);
@@ -1202,7 +1246,9 @@ test("authenticated players persist the authoritative court subscription set wit
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a visible player can be invited from the directory list, join group chat, and delist immediately", async ({ page }) => {
+test("a visible player can be invited from the directory list, join group chat, and delist immediately", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const player = await createCompleteActor(context.guest);
@@ -1414,7 +1460,9 @@ test("a nickname-only profile cannot bypass the NTRP gate while turning greeting
   }
 });
 
-test("reciprocal foreground presence shows only to sharing viewers and one-tap hiding removes it immediately", async ({ page }) => {
+test("reciprocal foreground presence shows only to sharing viewers and one-tap hiding removes it immediately", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   let playerA;
@@ -1479,10 +1527,12 @@ test("reciprocal foreground presence shows only to sharing viewers and one-tap h
     expect(runtimeErrors).toEqual([]);
   } finally {
     const createdActors = [playerA, playerB, playerC].filter(Boolean);
-    await Promise.allSettled(createdActors.flatMap(({ client }) => [
-      setPresenceSharingViaRpc(client, false),
-      setPlayerVisibilityViaRpc(client, false),
-    ]));
+    await Promise.allSettled(
+      createdActors.flatMap(({ client }) => [
+        setPresenceSharingViaRpc(client, false),
+        setPlayerVisibilityViaRpc(client, false),
+      ])
+    );
   }
 });
 
@@ -1504,9 +1554,15 @@ test("an open chat shows the other member's message via quiet polling without an
     .select("participant_id,profile_id,status")
     .eq("session_id", sessionId);
   if (rosterError) throw rosterError;
-  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  const guestRequest = roster.find(
+    (row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested"
+  );
   expect(guestRequest).toBeTruthy();
-  await reviewJoinRequestViaRpc(host.client, { decision: "accepted", participantId: guestRequest.participant_id, sessionId });
+  await reviewJoinRequestViaRpc(host.client, {
+    decision: "accepted",
+    participantId: guestRequest.participant_id,
+    sessionId,
+  });
 
   await gotoWithSession(page, host.session);
   await page.getByTestId("my-sessions-tab").click();
@@ -1563,7 +1619,9 @@ test("a session deep link survives the auth restore that lands after the sheet o
   expect(runtimeErrors).toEqual([]);
 });
 
-test("accepted members exchange escaped chat, manage blocks, and retain archived read-only history", async ({ page }) => {
+test("accepted members exchange escaped chat, manage blocks, and retain archived read-only history", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
@@ -1581,7 +1639,9 @@ test("accepted members exchange escaped chat, manage blocks, and retain archived
     .eq("session_id", sessionId);
   if (rosterError) throw rosterError;
   expect(roster.length, "the participant scan must be nonempty").toBeGreaterThan(0);
-  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  const guestRequest = roster.find(
+    (row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested"
+  );
   expect(guestRequest).toBeTruthy();
   await reviewJoinRequestViaRpc(host.client, {
     decision: "accepted",
@@ -1704,7 +1764,9 @@ test("a new chat message raises the recipient's unread badge and nav dot, and op
     .select("participant_id,profile_id,role,status")
     .eq("session_id", sessionId);
   if (rosterError) throw rosterError;
-  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  const guestRequest = roster.find(
+    (row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested"
+  );
   expect(guestRequest).toBeTruthy();
   await reviewJoinRequestViaRpc(host.client, {
     decision: "accepted",
@@ -1779,7 +1841,9 @@ test("blocking a sender drops their messages from both the unread count and the 
     .select("participant_id,profile_id,role,status")
     .eq("session_id", sessionId);
   if (rosterError) throw rosterError;
-  const guestRequest = roster.find((row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested");
+  const guestRequest = roster.find(
+    (row) => Number(row.profile_id) === Number(guest.profileId) && row.status === "requested"
+  );
   expect(guestRequest).toBeTruthy();
   await reviewJoinRequestViaRpc(host.client, {
     decision: "accepted",
@@ -1792,7 +1856,11 @@ test("blocking a sender drops their messages from both the unread count and the 
   // 這是本測試要驗證的不變量，不是去斷言某個手算的基準數字。
   async function unreadAndFeedCounts() {
     const [participationResult, feedResult] = await Promise.all([
-      guest.client.from("my_session_participations").select("unread_message_count").eq("session_id", sessionId).single(),
+      guest.client
+        .from("my_session_participations")
+        .select("unread_message_count")
+        .eq("session_id", sessionId)
+        .single(),
       guest.client.from("session_message_feed").select("message_id").eq("session_id", sessionId),
     ]);
     if (participationResult.error) throw participationResult.error;
@@ -1822,8 +1890,12 @@ test("blocking a sender drops their messages from both the unread count and the 
   if (blockError) throw blockError;
 
   const afterBlock = await unreadAndFeedCounts();
-  expect(afterBlock.feedVisible, "the blocked sender's message must disappear from the feed").toBe(baseline.feedVisible);
-  expect(afterBlock.unread, "unread must drop back in lockstep with the now-smaller visible feed").toBe(afterBlock.feedVisible);
+  expect(afterBlock.feedVisible, "the blocked sender's message must disappear from the feed").toBe(
+    baseline.feedVisible
+  );
+  expect(afterBlock.unread, "unread must drop back in lockstep with the now-smaller visible feed").toBe(
+    afterBlock.feedVisible
+  );
 
   // 同一個不變量透過真實 UI 再驗一次，不只是直接查 view。
   await gotoWithSession(page, guest.session);
@@ -1865,10 +1937,7 @@ test("the Me profile entry edits without a gate and refreshes the identity card 
   // 存檔後連續重繪會讓 generation 守衛擋下中間的還原，焦點由 main.js 的明確托管送回。
   await expect(entry).toBeFocused();
 
-  const { data: savedProfile, error: profileError } = await actor.client
-    .from("my_profile")
-    .select("nickname")
-    .single();
+  const { data: savedProfile, error: profileError } = await actor.client.from("my_profile").select("nickname").single();
   if (profileError) throw profileError;
   expect(savedProfile.nickname).toBe(renamed);
   expect(runtimeErrors).toEqual([]);
@@ -2033,7 +2102,9 @@ test("checking the last court collapses the picker without dropping focus to bod
   expect(runtimeErrors).toEqual([]);
 });
 
-test("neutral counts stay hidden at zero and appear on all three surfaces once a session is played", async ({ page }) => {
+test("neutral counts stay hidden at zero and appear on all three surfaces once a session is played", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
@@ -2047,7 +2118,11 @@ test("neutral counts stay hidden at zero and appear on all three surfaces once a
       .eq("profile_id", guest.profileId)
       .single();
     if (error) throw error;
-    await reviewJoinRequestViaRpc(host.client, { decision: "accepted", participantId: roster.participant_id, sessionId });
+    await reviewJoinRequestViaRpc(host.client, {
+      decision: "accepted",
+      participantId: roster.participant_id,
+      sessionId,
+    });
   };
   const openPreviewSheet = async (sessionId) => {
     await page.locator("#nearby-sessions-toggle").click();
@@ -2098,7 +2173,9 @@ test("neutral counts stay hidden at zero and appear on all three surfaces once a
     await requestToJoinSessionViaRpc(guest.client, playedSessionId);
     await acceptGuestInto(playedSessionId);
     expect(await callSessionRpc(host.client, "mark_session_played", { p_session_id: playedSessionId })).toBe("OK");
-    expect(await callSessionRpc(guest.client, "confirm_session_attendance", { p_session_id: playedSessionId })).toBe("OK");
+    expect(await callSessionRpc(guest.client, "confirm_session_attendance", { p_session_id: playedSessionId })).toBe(
+      "OK"
+    );
 
     // ── 正向前提:同樣三個面現在各顯示一則中性事實 ────────────────────
     await switchBrowserSession(page, host.session);
@@ -2113,13 +2190,14 @@ test("neutral counts stay hidden at zero and appear on all three surfaces once a
     await expect(preview.locator("[data-join-preview-person]")).toHaveCount(2);
     // 只有主揪那一列有計數;guest 沒開過局,所以整份名單只有一個 .trust-count。
     await expect(preview.locator(".trust-count")).toHaveCount(1);
-    await expect(preview.locator("[data-join-preview-person]").first().locator(".trust-count")).toHaveText("已成局 1 次");
+    await expect(preview.locator("[data-join-preview-person]").first().locator(".trust-count")).toHaveText(
+      "已成局 1 次"
+    );
     expect(runtimeErrors).toEqual([]);
   } finally {
     await Promise.allSettled([setPlayerVisibilityViaRpc(guest.client, false)]);
   }
 });
-
 
 // ── 批 9a:新帳號首次建檔預設訂閱全台北市 ─────────────────────────────────
 // 判斷依據是「存檔前資料庫有沒有 profiles 列」,不是「目前訂了幾座」——後者分不出
@@ -2153,7 +2231,9 @@ async function saveProfileFromMePage(page, { nickname, courtId }) {
   await expect(sheet).toHaveCount(0);
 }
 
-test("a brand-new account is subscribed to every active Taipei court when it first saves a profile", async ({ page }) => {
+test("a brand-new account is subscribed to every active Taipei court when it first saves a profile", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const { client, session } = await signUpUser(context.guest.email);
@@ -2234,7 +2314,11 @@ test("N3 a failing subscription seed never fails the profile save", async ({ pag
   let seedAttempts = 0;
   await page.route(`${SUPABASE_URL}/rest/v1/rpc/set_court_subscriptions`, async (route) => {
     seedAttempts += 1;
-    await route.fulfill({ body: JSON.stringify({ message: "seed boom" }), contentType: "application/json", status: 500 });
+    await route.fulfill({
+      body: JSON.stringify({ message: "seed boom" }),
+      contentType: "application/json",
+      status: 500,
+    });
   });
 
   await saveProfileFromMePage(page, { courtId, nickname: context.guest.nickname });

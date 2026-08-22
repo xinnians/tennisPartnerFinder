@@ -30,9 +30,9 @@ test("foreground presence tracker submits its first point, then only after 60 se
   await success(position(25.067446, 121.596648));
   currentTime = 59_000;
   await success(position(25.067456, 121.596648));
-  await success(position(25.0680, 121.596648));
+  await success(position(25.068, 121.596648));
   currentTime = 119_000;
-  await success(position(25.0680, 121.596648));
+  await success(position(25.068, 121.596648));
 
   assert.deepEqual(writes, [
     { lat: 25.067446, lng: 121.596648 },

@@ -158,7 +158,10 @@ test(
       preview.find((participant) => participant.role === "guest"),
       { avatarUrl: "", hostedPlayedCount: 0, nickname: "本機已確認球友", ntrp: 3.5, role: "guest", sessionId }
     );
-    assert.equal(preview.some((participant) => participant.nickname === "本機申請中旁觀者"), false);
+    assert.equal(
+      preview.some((participant) => participant.nickname === "本機申請中旁觀者"),
+      false
+    );
 
     const anonClient = makeClient();
     const { data: anonRows, error: anonError } = await anonClient

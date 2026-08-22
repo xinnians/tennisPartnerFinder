@@ -3,18 +3,17 @@ function browserGlobal(value, fallback) {
 }
 
 export function vapidPublicKeyBytes(value) {
-  const normalized = String(value ?? "").trim().replace(/-/g, "+").replace(/_/g, "/");
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
   if (!normalized) throw new Error("缺少 Web Push 公鑰設定。");
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
   const binary = globalThis.atob(padded);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-export async function enableBrowserPush({
-  navigatorRef,
-  NotificationRef,
-  vapidPublicKey,
-} = {}) {
+export async function enableBrowserPush({ navigatorRef, NotificationRef, vapidPublicKey } = {}) {
   const browserNavigator = browserGlobal(navigatorRef, globalThis.navigator);
   const BrowserNotification = browserGlobal(NotificationRef, globalThis.Notification);
   if (!browserNavigator?.serviceWorker || !BrowserNotification || !vapidPublicKey?.trim()) {

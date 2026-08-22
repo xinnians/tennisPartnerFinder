@@ -25,9 +25,9 @@ function createFakeNpx(statusOutput = "") {
   const npxPath = path.join(directory, "npx");
   const script = [
     "#!/bin/sh",
-    "printf '%s\\n' \"$*\" >> \"$TEST_NPX_LOG\"",
-    "printf '%s\\n' \"$PWD\" >> \"$TEST_NPX_CWD_LOG\"",
-    "if [ \"$2\" = \"status\" ]; then",
+    'printf \'%s\\n\' "$*" >> "$TEST_NPX_LOG"',
+    'printf \'%s\\n\' "$PWD" >> "$TEST_NPX_CWD_LOG"',
+    'if [ "$2" = "status" ]; then',
     "  printf '%s\\n' \"$TEST_NPX_STATUS_OUTPUT\"",
     "fi",
   ].join("\n");

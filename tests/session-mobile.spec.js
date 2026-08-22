@@ -48,7 +48,9 @@ function createTouchTargetScanner(page) {
       };
       const targets = [];
       for (const node of roots) {
-        for (const element of node.querySelectorAll("button, a[href], select, input, textarea, label, [role='switch']")) {
+        for (const element of node.querySelectorAll(
+          "button, a[href], select, input, textarea, label, [role='switch']"
+        )) {
           if (!element.checkVisibility()) continue;
           const wrappingLabel = element.closest("label");
           if (element.tagName !== "LABEL" && wrappingLabel && wrappingLabel !== element) continue;
@@ -68,8 +70,7 @@ function createTouchTargetScanner(page) {
       }
       return targets;
     });
-  const undersized = async (root) =>
-    (await measure(root)).filter((target) => target.width < 44 || target.height < 44);
+  const undersized = async (root) => (await measure(root)).filter((target) => target.width < 44 || target.height < 44);
   return { measure, undersized };
 }
 
@@ -119,7 +120,9 @@ async function switchBrowserSession(page, session) {
   await profileResponse;
 }
 
-test("a 390px user can expand discovery, resume join, and reach action-first My Sessions without overflow", async ({ page }) => {
+test("a 390px user can expand discovery, resume join, and reach action-first My Sessions without overflow", async ({
+  page,
+}) => {
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const guest = await createCompleteActor(context.guest);
@@ -224,9 +227,7 @@ test("a 390px user can expand discovery, resume join, and reach action-first My 
   );
   await expect.poll(async () => await visibleCount(nonCourtControls)).toBeGreaterThanOrEqual(15);
   await expect.poll(async () => await visibleCount(meSettingControls)).toBeGreaterThanOrEqual(15);
-  await expect
-    .poll(undersizedMeControls, { message: "390px 下「我」頁全部互動控件必須 ≥44×44" })
-    .toEqual([]);
+  await expect.poll(undersizedMeControls, { message: "390px 下「我」頁全部互動控件必須 ≥44×44" }).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -373,7 +374,9 @@ test("the filter sheet open button, filter sheet controls, and profile-completio
 // 本身(peek 列全域可點,#nearby-sessions-summary 只是它內部一個 visually-hidden 摘要
 // span,不是獨立可點目標),展開態只剩單一 drawer-collapse 把手鈕收合回去。
 // drawer-expand 這個 testid 在目前程式碼裡已不存在,這條測試改驗兩態各自的入口尺寸。
-test("the two-state drawer's collapsed toggle and open-state collapse handle keep 44px touch targets", async ({ page }) => {
+test("the two-state drawer's collapsed toggle and open-state collapse handle keep 44px touch targets", async ({
+  page,
+}) => {
   const runtimeErrors = captureRuntimeErrors(page);
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);

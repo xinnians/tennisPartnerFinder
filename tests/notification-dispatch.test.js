@@ -23,7 +23,7 @@ test("notification titles cover every active Stage 5 event and retain the neutra
         "decide_reminder",
         "court_new_session",
         "unknown_event",
-      ].map((eventType) => [eventType, notificationTitle(eventType)]),
+      ].map((eventType) => [eventType, notificationTitle(eventType)])
     ),
     {
       chat_message: "球局群組有新訊息",
@@ -37,7 +37,7 @@ test("notification titles cover every active Stage 5 event and retain the neutra
       session_reminder: "球局即將開始",
       session_updated: "球局資訊更新",
       unknown_event: "球咖通知",
-    },
+    }
   );
 });
 
@@ -75,8 +75,13 @@ test("flat DB subscription rows are wrapped into the web-push keys shape", () =>
   // 回歸:漏掉 keys 包裝時 web-push 會在發送前拋
   // 「subscription must have 'auth' and 'p256dh' keys」,且因無 statusCode 而被靜默吞掉。
   assert.deepEqual(
-    toWebPushSubscription({ auth: "auth-b64u", endpoint: "https://push.example/e1", p256dh: "p256dh-b64u", profile_id: 9 }),
-    { endpoint: "https://push.example/e1", keys: { auth: "auth-b64u", p256dh: "p256dh-b64u" } },
+    toWebPushSubscription({
+      auth: "auth-b64u",
+      endpoint: "https://push.example/e1",
+      p256dh: "p256dh-b64u",
+      profile_id: 9,
+    }),
+    { endpoint: "https://push.example/e1", keys: { auth: "auth-b64u", p256dh: "p256dh-b64u" } }
   );
   assert.throws(() => toWebPushSubscription({ endpoint: "https://push.example/e1" }), /INVALID_PUSH_SUBSCRIPTION_ROW/);
 });

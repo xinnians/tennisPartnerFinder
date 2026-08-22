@@ -17,7 +17,12 @@ function locationErrorKind(error) {
  * to apply the client-side throttle and are handed to the RPC, which snaps
  * them to a court before any database write.
  */
-export function createPresenceTracker({ geolocation = globalThis.navigator?.geolocation, now = () => Date.now(), onError = () => {}, onPosition = async () => {} } = {}) {
+export function createPresenceTracker({
+  geolocation = globalThis.navigator?.geolocation,
+  now = () => Date.now(),
+  onError = () => {},
+  onPosition = async () => {},
+} = {}) {
   let watchId = null;
   let lastSubmission = null;
 

@@ -91,7 +91,7 @@ async function delayMockCourts(page, milliseconds) {
 async function forceZeroMatchDistrictFilter(page) {
   await page.locator("#filter-sheet-open").click();
   await page.locator('#filters-sheet [data-filter="districts"][data-value="文山區"]').click();
-  await page.locator('#filters-sheet [data-surface-close]').click();
+  await page.locator("#filters-sheet [data-surface-close]").click();
 }
 
 test("mock mode never loads or requests Vercel Analytics", async ({ page }) => {
@@ -192,7 +192,10 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await filterSheet.locator('[data-filter="types"][data-value="單打"]').click();
   await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute("aria-pressed", "true");
   await filterSheet.locator('[data-filter="districts"][data-value="內湖區"]').click();
-  await expect(filterSheet.locator('[data-filter="districts"][data-value="內湖區"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(filterSheet.locator('[data-filter="districts"][data-value="內湖區"]')).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await filterSheet.locator('[data-filter="band"][data-value="mid"]').click();
   await expect(filterSheet.locator('[data-filter="band"][data-value="mid"]')).toHaveAttribute("aria-pressed", "true");
   await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "false");
@@ -202,8 +205,14 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選，已套用 2 組條件");
   await expect(page.locator("#band-options [data-band='mid']")).toHaveAttribute("aria-pressed", "true");
   await filterSheet.locator('[data-filter="reset"]').click();
-  await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute("aria-pressed", "false");
-  await expect(filterSheet.locator('[data-filter="districts"][data-value="內湖區"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(filterSheet.locator('[data-filter="types"][data-value="單打"]')).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
+  await expect(filterSheet.locator('[data-filter="districts"][data-value="內湖區"]')).toHaveAttribute(
+    "aria-pressed",
+    "false"
+  );
   await expect(filterSheet.locator('[data-filter="band"][data-value="all"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
@@ -240,9 +249,11 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
   const exposed = await publicSurface(page).innerText();
   expect(exposed).not.toMatch(/amber\.tw|hsu_tennis|facebook\.com|ptt\.cc|LINE ID/i);
   expect(exposed).not.toMatch(/profile[_ -]?id|真名|常打球場/i);
-  const renderedMarkerAttributes = await page.locator(".test-marker").evaluateAll((markers) =>
-    markers.map((marker) => ({ title: marker.getAttribute("title"), aria: marker.getAttribute("aria-label") }))
-  );
+  const renderedMarkerAttributes = await page
+    .locator(".test-marker")
+    .evaluateAll((markers) =>
+      markers.map((marker) => ({ title: marker.getAttribute("title"), aria: marker.getAttribute("aria-label") }))
+    );
   expect(JSON.stringify(renderedMarkerAttributes)).not.toMatch(/amber|line|profile|source|http/i);
   expect(runtimeErrors).toEqual([]);
 });
@@ -250,7 +261,9 @@ test("anonymous map discovery renders only safe SessionSummary fields", async ({
 // 批 D4a:badge N 改為只計 types+districts 選取數(dc L913 拍板),dateKey/band 兩者
 // 即使切換也不移動 badge——這裡先證明「不移動」這件事本身,再證明真正會移動 badge
 // 的兩個維度確實逐一增減正確,而不是只測「有變化」就當通過。
-test("the filter badge counts only types+districts and mirrors dateKey/band both ways with the sheet", async ({ page }) => {
+test("the filter badge counts only types+districts and mirrors dateKey/band both ways with the sheet", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -267,7 +280,10 @@ test("the filter badge counts only types+districts and mirrors dateKey/band both
 
   await page.locator("#filter-sheet-open").click();
   const filterSheet = page.locator("#filters-sheet");
-  await expect(filterSheet.locator('[data-filter="dateKey"][data-value="today"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(filterSheet.locator('[data-filter="dateKey"][data-value="today"]')).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await expect(filterSheet.locator('[data-filter="band"][data-value="hi"]')).toHaveAttribute("aria-pressed", "true");
 
   // sheet→地圖:sheet 開著時改日期與程度,地圖上(雖已 inert 不可點)仍要看得到鏡像後的值。
@@ -293,13 +309,18 @@ test("the filter badge counts only types+districts and mirrors dateKey/band both
   await expect(page.locator("#filter-sheet-open")).toHaveText("篩選");
   await expect(page.locator("#filter-sheet-open")).toHaveAttribute("aria-label", "篩選");
   // dateKey/band 兩者仍維持上面選的值,證明清空 badge 不代表這兩者被重設。
-  await expect(filterSheet.locator('[data-filter="dateKey"][data-value="tomorrow"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(filterSheet.locator('[data-filter="dateKey"][data-value="tomorrow"]')).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
   await expect(filterSheet.locator('[data-filter="band"][data-value="pro"]')).toHaveAttribute("aria-pressed", "true");
 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("the persistent count live region announces the current session count and updates when a filter narrows it", async ({ page }) => {
+test("the persistent count live region announces the current session count and updates when a filter narrows it", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -339,7 +360,9 @@ test("an undecided candidate session renders two dashed map pins from the court 
   const fullPin = visibleMarkerOptions.find(({ title }) => title?.includes("球局 · 古亭河濱公園網球場"));
   expect(fullPin, "the full session pin exists on the map (nonempty scan)").toBeTruthy();
   expect(decodeURIComponent(fullPin.iconUrl)).toContain('stroke="#8b978d"');
-  const openPins = visibleMarkerOptions.filter(({ title }) => title?.includes("球局") && !title.includes("古亭") && !title.includes("未定"));
+  const openPins = visibleMarkerOptions.filter(
+    ({ title }) => title?.includes("球局") && !title.includes("古亭") && !title.includes("未定")
+  );
   expect(openPins.length).toBeGreaterThan(0);
   expect(openPins.every(({ iconUrl }) => !decodeURIComponent(iconUrl).includes('stroke="#8b978d"'))).toBe(true);
   const mockCandidateOverlap = await page.evaluate(async () => {
@@ -455,7 +478,10 @@ test("refreshing the court catalogue during an in-flight decide detaches the but
   expect(disabledAfterResolve).toEqual([true, true]);
 });
 
-test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({ baseURL, page }) => {
+test("a hash session link opens its detail, copies a stable share link, and gives an empty state when unavailable", async ({
+  baseURL,
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -551,7 +577,9 @@ test("four destinations expose an anonymous Me page while the map header stays m
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions has a bottom navigation destination and stays isolated beneath the nearby drawer", async ({ page }) => {
+test("My Sessions has a bottom navigation destination and stays isolated beneath the nearby drawer", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -580,7 +608,9 @@ test("My Sessions has a bottom navigation destination and stays isolated beneath
 // 批 D7:五格導覽(抽取規格 §1)——找球局/我的球局/置中開球局/訊息/我逐字順序;
 // 徽章分工雙向驗證:數字徽章只在「我的球局」格內、未讀圓點只在「訊息」格內,
 // 兩者互不越界(D7 派工單映射決策 2)。
-test("bottom navigation renders five items in dc order and splits the badge/dot between my-sessions and messages", async ({ page }) => {
+test("bottom navigation renders five items in dc order and splits the badge/dot between my-sessions and messages", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -785,7 +815,9 @@ test("My Sessions empty state shows one dc box instead of stacking three placeho
   expect(runtimeErrors).toEqual([]);
 });
 
-test("anonymous session artifacts strip tainted source fields from HTML, data attributes, markers, and captured JSON", async ({ page }) => {
+test("anonymous session artifacts strip tainted source fields from HTML, data attributes, markers, and captured JSON", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await installTaintedMockSessions(page);
@@ -817,7 +849,9 @@ test("anonymous session artifacts strip tainted source fields from HTML, data at
 
   const capturedJson = JSON.stringify(captured);
   for (const value of TAINTED_PUBLIC_VALUES) expect(capturedJson).not.toContain(value);
-  const mockSessionCount = await page.evaluate(async () => (await window.__importAppModule("mockData")).MOCK_SESSIONS.length);
+  const mockSessionCount = await page.evaluate(
+    async () => (await window.__importAppModule("mockData")).MOCK_SESSIONS.length
+  );
   expect(mockSessionCount).toBeGreaterThan(0);
   await expect.poll(() => readAppTestHook(page, ["mockData", "sessionTaint", "appliedCount"])).toBe(mockSessionCount);
   expect(captured.html).toContain("示範松果");
@@ -870,7 +904,9 @@ test("the open drawer keeps the map layer hit-testable and its base-court pin cl
   await expect(page.locator("#nearby-sessions-list")).toHaveAttribute("data-drawer-state", "open");
   // qmSheetUp 進場動畫 320ms:滑入中量幾何會拿到中途位置,選出的「未被蓋住」釘
   // 在動畫結束後會被抽屜蓋住(全套件下的間歇紅)。先等動畫收斂再量。
-  await page.locator("#nearby-sessions-list").evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+  await page
+    .locator("#nearby-sessions-list")
+    .evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
   await expect(page.locator("#nearby-sessions-backdrop")).toHaveCount(0);
   await expect(page.locator("#map")).toHaveJSProperty("inert", false);
 
@@ -906,13 +942,10 @@ test("the open drawer keeps the map layer hit-testable and its base-court pin cl
     probePoint.y > geometry.drawerRect.y + geometry.drawerRect.height;
   expect(outsideDrawer).toBe(true);
 
-  const hit = await page.evaluate(
-    ({ x, y }) => {
-      const element = document.elementFromPoint(x, y);
-      return { insideMap: Boolean(element?.closest("#map")) };
-    },
-    probePoint
-  );
+  const hit = await page.evaluate(({ x, y }) => {
+    const element = document.elementFromPoint(x, y);
+    return { insideMap: Boolean(element?.closest("#map")) };
+  }, probePoint);
   expect(hit.insideMap).toBe(true);
 
   // Pick whichever base-court pin is not visually covered by the open drawer —
@@ -948,7 +981,9 @@ test("the open drawer keeps the map layer hit-testable and its base-court pin cl
   expect(runtimeErrors).toEqual([]);
 });
 
-test("open drawer: opening a session detail sheet and closing it restores the drawer and focus to the originating card", async ({ page }) => {
+test("open drawer: opening a session detail sheet and closing it restores the drawer and focus to the originating card", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1016,7 +1051,9 @@ test("batch 18 quiet discovery refresh preserves drawer scroll after restoring c
     window.__batch18DiscoveryLoads = () => discoveryLoads;
   });
 
-  expect(await page.evaluate(() => document.querySelector("#batch-18-drawer .nearby-drawer__scroll").scrollTop)).toBe(200);
+  expect(await page.evaluate(() => document.querySelector("#batch-18-drawer .nearby-drawer__scroll").scrollTop)).toBe(
+    200
+  );
   await page.evaluate(() => window.__batch18QuietRefresh());
   await expect.poll(() => page.evaluate(() => window.__batch18DiscoveryLoads())).toBe(2);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -1029,7 +1066,9 @@ test("batch 18 quiet discovery refresh preserves drawer scroll after restoring c
   expect(runtimeErrors).toEqual([]);
 });
 
-test("batch 18 drawer scroll memory covers first render, both v2 states, collapsed redraw, and shorter-list clamping", async ({ page }) => {
+test("batch 18 drawer scroll memory covers first render, both v2 states, collapsed redraw, and shorter-list clamping", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1071,7 +1110,9 @@ test("batch 18 drawer scroll memory covers first render, both v2 states, collaps
     render("open");
   });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
-  expect(await page.evaluate(() => document.querySelector("#batch-18-state-drawer .nearby-drawer__scroll").scrollTop)).toBe(200);
+  expect(
+    await page.evaluate(() => document.querySelector("#batch-18-state-drawer .nearby-drawer__scroll").scrollTop)
+  ).toBe(200);
 
   const clamped = await page.evaluate(async () => {
     const { render, template } = window.__batch18DrawerState;
@@ -1084,7 +1125,9 @@ test("batch 18 drawer scroll memory covers first render, both v2 states, collaps
   expect(runtimeErrors).toEqual([]);
 });
 
-test("swiping the drawer up moves it one segment at a time, and swiping down reverses it one segment at a time", async ({ page }) => {
+test("swiping the drawer up moves it one segment at a time, and swiping down reverses it one segment at a time", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1303,7 +1346,9 @@ test("cancelling chat withdrawal keeps the action enabled and allows reopening c
   expect(runtimeErrors).toEqual([]);
 });
 
-test("cancelling My Sessions withdrawal keeps the action enabled and allows reopening confirmation", async ({ page }) => {
+test("cancelling My Sessions withdrawal keeps the action enabled and allows reopening confirmation", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1355,7 +1400,9 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
   expect(runtimeErrors).toEqual([]);
 });
 
-test("join confirmation shares the sheet's own summary (no repeat) and becomes an in-place success state", async ({ page }) => {
+test("join confirmation shares the sheet's own summary (no repeat) and becomes an in-place success state", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1428,9 +1475,7 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
   await mySessionsCta.click();
   await expect(sheet).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationCalls)).toBe(1);
-  await expect
-    .poll(() => page.evaluate(() => window.__joinSuccessDestinationArgs))
-    .toEqual([9402]);
+  await expect.poll(() => page.evaluate(() => window.__joinSuccessDestinationArgs)).toEqual([9402]);
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -1477,7 +1522,9 @@ test("an accepted joined session focuses its own upcoming card without the creat
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a pending guest request focuses its own withdraw button, not the page heading, without the create-session copy", async ({ page }) => {
+test("a pending guest request focuses its own withdraw button, not the page heading, without the create-session copy", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1638,7 +1685,9 @@ test("join and create success moments offer push only when the device can enable
   expect(runtimeErrors).toEqual([]);
 });
 
-test("authenticated pre-join roster renders host first with escaped names, NTRP fallback, and avatar fallback", async ({ page }) => {
+test("authenticated pre-join roster renders host first with escaped names, NTRP fallback, and avatar fallback", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1661,7 +1710,14 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
       startAt: "2099-07-19T01:00:00.000Z",
     };
     const participants = [
-      { avatarUrl: "", hostedPlayedCount: 0, nickname: "<img src=x onerror=alert(1)>", ntrp: null, role: "guest", sessionId: 881 },
+      {
+        avatarUrl: "",
+        hostedPlayedCount: 0,
+        nickname: "<img src=x onerror=alert(1)>",
+        ntrp: null,
+        role: "guest",
+        sessionId: 881,
+      },
       {
         avatarUrl: "https://lh3.googleusercontent.com/a/stage-t45-host",
         hostedPlayedCount: 3,
@@ -1694,7 +1750,9 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("profile completion previews the current Google avatar and explains that it cannot be customized", async ({ page }) => {
+test("profile completion previews the current Google avatar and explains that it cannot be customized", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1763,7 +1821,9 @@ test("an expected instant outcome explains group chat and shows accepted success
   expect(runtimeErrors).toEqual([]);
 });
 
-test("a host viewing their own accepted session sees no withdraw affordance, unlike an accepted guest", async ({ page }) => {
+test("a host viewing their own accepted session sees no withdraw affordance, unlike an accepted guest", async ({
+  page,
+}) => {
   // fix round 1(驗收回歸):actionFor 的 kind:"chat" 分支同時涵蓋主揪(host)與
   // accepted guest——兩者的 viewerParticipantStatus 都是 accepted。但
   // can_withdraw / withdraw_from_session 是 guest-only
@@ -1857,7 +1917,9 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
   expect(runtimeErrors).toEqual([]);
 });
 
-test("candidate session cards and details resolve every court until Boolean decidedAt becomes true", async ({ page }) => {
+test("candidate session cards and details resolve every court until Boolean decidedAt becomes true", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -1983,7 +2045,13 @@ test("undecided candidate sessions keep their court list and time range across p
           needsAction: [
             {
               kind: "host-request",
-              participant: { nickname: "申請球友", participantId: 201, profileId: 301, role: "guest", status: "requested" },
+              participant: {
+                nickname: "申請球友",
+                participantId: 201,
+                profileId: 301,
+                role: "guest",
+                status: "requested",
+              },
               session,
             },
             { kind: "invite", session },
@@ -2053,7 +2121,14 @@ test("undecided candidate sessions keep their court list and time range across p
     async ({ candidateSession: session, courts: catalogue }) => {
       const { openPlayerCardSheet } = await window.__importAppModule("sessionViews");
       openPlayerCardSheet(
-        { courtDistrict: "中山區", courtName: "第二球場", isSelf: false, nickname: "可邀請球友", ntrp: 3.5, profileId: 991 },
+        {
+          courtDistrict: "中山區",
+          courtName: "第二球場",
+          isSelf: false,
+          nickname: "可邀請球友",
+          ntrp: 3.5,
+          profileId: 991,
+        },
         { courts: catalogue, myInvitableSessions: [session] }
       );
     },
@@ -2064,7 +2139,9 @@ test("undecided candidate sessions keep their court list and time range across p
   expect(runtimeErrors).toEqual([]);
 });
 
-test("decided candidate sessions stay collapsed to one authoritative court and time on private surfaces", async ({ page }) => {
+test("decided candidate sessions stay collapsed to one authoritative court and time on private surfaces", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -2241,7 +2318,9 @@ test("My Sessions renders an escaped invite card with stable response testids", 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("invite response buttons dispatch, stay pending across replacement, and focus the alert on failure", async ({ page }) => {
+test("invite response buttons dispatch, stay pending across replacement, and focus the alert on failure", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -2315,21 +2394,23 @@ test("declined My Sessions history uses neutral participation wording", async ({
     renderMySessionsPage(root, {
       authenticated: true,
       groups: {
-        history: [{
-          court: "青年公園網球場",
-          courtDistrict: "萬華區",
-          hostNickname: "歷史主揪",
-          hostNtrp: 3.5,
-          ntrpMax: 4,
-          ntrpMin: 3,
-          playType: "雙打",
-          sessionId: 735,
-          slotsRemaining: 1,
-          startAt: "2099-07-19T01:00:00.000Z",
-          status: "open",
-          viewerParticipantStatus: "declined",
-          viewerRole: "guest",
-        }],
+        history: [
+          {
+            court: "青年公園網球場",
+            courtDistrict: "萬華區",
+            hostNickname: "歷史主揪",
+            hostNtrp: 3.5,
+            ntrpMax: 4,
+            ntrpMin: 3,
+            playType: "雙打",
+            sessionId: 735,
+            slotsRemaining: 1,
+            startAt: "2099-07-19T01:00:00.000Z",
+            status: "open",
+            viewerParticipantStatus: "declined",
+            viewerRole: "guest",
+          },
+        ],
         needsAction: [],
         needsActionCount: 0,
         upcoming: [],
@@ -2376,13 +2457,14 @@ test("a failed presence setting keeps focus on the control instead of jumping to
   expect(runtimeErrors).toEqual([]);
 });
 
-test("Me owns player visibility while My Sessions omits both moved settings and preserves pending and error state", async ({ page }) => {
+test("Me owns player visibility while My Sessions omits both moved settings and preserves pending and error state", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMePage, renderMySessionsPage } =
-      await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews, renderMePage, renderMySessionsPage } = await window.__importAppModule("sessionViews");
     await preloadNonHomeViews(["me", "mySessions"]);
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
@@ -2452,7 +2534,10 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
     .poll(() =>
       page
         .locator(ME_SECTION_ORDER.map((name) => `#me-root .${name}`).join(", "))
-        .evaluateAll((nodes, order) => nodes.map((node) => [...node.classList].find((name) => order.includes(name))), ME_SECTION_ORDER)
+        .evaluateAll(
+          (nodes, order) => nodes.map((node) => [...node.classList].find((name) => order.includes(name))),
+          ME_SECTION_ORDER
+        )
     )
     .toEqual(ME_SECTION_ORDER);
   // fix round 1(驗收退回):這裡的 groups 全空,My Sessions 現在只畫 dc 空狀態框
@@ -2487,7 +2572,9 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("Me presence settings explain reciprocal visibility, request sharing, and offer one-tap hiding", async ({ page }) => {
+test("Me presence settings explain reciprocal visibility, request sharing, and offer one-tap hiding", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -2587,14 +2674,16 @@ test("Me notification settings save six preferences and Taipei court subscriptio
   await page.getByTestId("notification-host-new-request").uncheck();
   // 存檔期間所有控制項會被 disable，焦點會掉到 body；托管必須把它送回原控制項。
   await expect(page.getByTestId("notification-host-new-request")).toBeFocused();
-  await expect.poll(() => page.evaluate(() => window.__savedNotificationPreferences)).toEqual({
-    chatMessageEnabled: true,
-    guestInvitedEnabled: true,
-    guestRequestReviewedEnabled: true,
-    hostNewRequestEnabled: false,
-    sessionReminderEnabled: true,
-    sessionUpdatedEnabled: true,
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__savedNotificationPreferences))
+    .toEqual({
+      chatMessageEnabled: true,
+      guestInvitedEnabled: true,
+      guestRequestReviewedEnabled: true,
+      hostNewRequestEnabled: false,
+      sessionReminderEnabled: true,
+      sessionUpdatedEnabled: true,
+    });
 
   // 細選路徑：逐一勾兩座，計數與送出的 id 都要跟著走。
   await page.getByTestId("notification-court-8").check();
@@ -2639,9 +2728,9 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
   const courtBoxes = page.locator("#notification-court-picker input[data-notification-court]");
   await expect(courtBoxes).toHaveCount(11);
   await page.getByTestId("subscribe-all-courts").check();
-  await expect.poll(() => page.evaluate(() => window.__savedElevenCourts)).toEqual(
-    Array.from({ length: 11 }, (_, index) => index + 1)
-  );
+  await expect
+    .poll(() => page.evaluate(() => window.__savedElevenCourts))
+    .toEqual(Array.from({ length: 11 }, (_, index) => index + 1));
   await expect(page.locator("#me-root [data-notification-error]")).toBeHidden();
   await expect(page.locator("#me-root")).toContainText("已訂閱 11 座");
   expect(runtimeErrors).toEqual([]);
@@ -2722,7 +2811,9 @@ test("a rerender inside a notification action stays authoritative over the disab
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions moves focus to an updated card and scopes pending actions to the current account render", async ({ page }) => {
+test("My Sessions moves focus to an updated card and scopes pending actions to the current account render", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -2749,7 +2840,12 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
       viewerRole: "host",
     };
     const request = { nickname: "待處理球友", participantId: 16, profileId: 26, role: "guest", status: "requested" };
-    const groupsWithRequest = { history: [], needsAction: [{ kind: "host-request", participant: request, session }], needsActionCount: 1, upcoming: [session] };
+    const groupsWithRequest = {
+      history: [],
+      needsAction: [{ kind: "host-request", participant: request, session }],
+      needsActionCount: 1,
+      upcoming: [session],
+    };
     const groupsAfterReview = { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] };
     const render = ({ groups, onAccept = async () => {}, scopeKey }) =>
       renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onAccept });
@@ -2797,14 +2893,10 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
     const render = (scopeKey, groups, onWithdraw) =>
       renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onWithdraw });
     window.__releaseAccountAAction = release;
-    render(
-      "account-a",
-      { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
-      async () => {
-        await pending;
-        throw new Error("登入狀態已變更，請重新整理後再試。");
-      }
-    );
+    render("account-a", { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] }, async () => {
+      await pending;
+      throw new Error("登入狀態已變更，請重新整理後再試。");
+    });
   });
 
   // 批 D6:session 733 是 viewerRole guest 的 upcoming 卡,屬「我報名的」分頁;
@@ -3268,10 +3360,12 @@ test("map idle refreshes the current bounds and session pins remain keyboard-com
   await installFakeMaps(page);
   await page.goto("/");
 
-  await expect.poll(async () => {
-    const snapshot = await page.evaluate(() => window.__fakeMapsSnapshot());
-    return snapshot.visibleMarkerOptions.length;
-  }).toBeGreaterThan(0);
+  await expect
+    .poll(async () => {
+      const snapshot = await page.evaluate(() => window.__fakeMapsSnapshot());
+      return snapshot.visibleMarkerOptions.length;
+    })
+    .toBeGreaterThan(0);
   const visibleMarkerOptions = await page.evaluate(() => window.__fakeMapsSnapshot().visibleMarkerOptions);
   expect(visibleMarkerOptions.every((marker) => marker.optimized === false)).toBe(true);
 
@@ -3311,7 +3405,9 @@ test("signed-out first-visit empty state explains the product instead of just pr
   expect(runtimeErrors).toEqual([]);
 });
 
-test("empty-state contextual buttons and the subscribe shortcut are visible and clickable while the drawer is open", async ({ page }) => {
+test("empty-state contextual buttons and the subscribe shortcut are visible and clickable while the drawer is open", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3340,7 +3436,9 @@ test("empty-state contextual buttons and the subscribe shortcut are visible and 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("the empty-state subscribe shortcut opens Me and can focus the notification settings heading", async ({ page }) => {
+test("the empty-state subscribe shortcut opens Me and can focus the notification settings heading", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3424,7 +3522,9 @@ test("drawer-card focus survives discovery rerenders and remains a logical sheet
   expect(runtimeErrors).toEqual([]);
 });
 
-test("player drawer and card escape every public value and render self and empty invitation states", async ({ page }) => {
+test("player drawer and card escape every public value and render self and empty invitation states", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3443,7 +3543,11 @@ test("player drawer and card escape every public value and render self and empty
     views.openCourtPlayersDrawer?.(
       { id: 8, name: '<img id="drawer-court-injection">', district: '<img id="drawer-district-injection">' },
       [player],
-      { onOpenPlayer: (selected) => { window.__selectedEscapedPlayer = selected.profileId; } }
+      {
+        onOpenPlayer: (selected) => {
+          window.__selectedEscapedPlayer = selected.profileId;
+        },
+      }
     );
   });
   await expect(page.locator("#court-players-sheet")).toBeVisible();
@@ -3458,7 +3562,7 @@ test("player drawer and card escape every public value and render self and empty
       nickname: '<img id="card-nickname-injection">',
       ntrp: 3.5,
       playTypes: ['單打<img id="card-type-injection">'],
-      slotCodes: ['we-a', 'mystery<img id="card-slot-injection">'],
+      slotCodes: ["we-a", 'mystery<img id="card-slot-injection">'],
       courtName: '<img id="card-court-injection">',
       courtDistrict: '<img id="card-district-injection">',
       isSelf: true,
@@ -3466,15 +3570,31 @@ test("player drawer and card escape every public value and render self and empty
   });
   await expect(page.locator("#player-card-sheet")).toBeVisible();
   await expect(page.locator("#player-card-sheet img")).toHaveCount(0);
-  await expect(page.locator("#player-card-sheet .player-profile")).toContainText('時段：週末下午、mystery<img id="card-slot-injection">');
+  await expect(page.locator("#player-card-sheet .player-profile")).toContainText(
+    '時段：週末下午、mystery<img id="card-slot-injection">'
+  );
   await expect(page.locator("#player-card-sheet [data-player-invite]")).toHaveCount(0);
 
   await page.evaluate(async () => {
     const views = await window.__importAppModule("sessionViews");
     window.__createFromPlayer = 0;
     views.openPlayerCardSheet?.(
-      { profileId: 89, nickname: "無球局球友", ntrp: 3, playTypes: [], slotCodes: [], courtName: "河濱", courtDistrict: "中山區", isSelf: false },
-      { myInvitableSessions: [], onCreate: () => { window.__createFromPlayer += 1; } }
+      {
+        profileId: 89,
+        nickname: "無球局球友",
+        ntrp: 3,
+        playTypes: [],
+        slotCodes: [],
+        courtName: "河濱",
+        courtDistrict: "中山區",
+        isSelf: false,
+      },
+      {
+        myInvitableSessions: [],
+        onCreate: () => {
+          window.__createFromPlayer += 1;
+        },
+      }
     );
   });
   await expect(page.getByText("你目前沒有可邀請的球局", { exact: true })).toBeVisible();
@@ -3534,8 +3654,22 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
     const sheet = openPlayerDirectoryList({});
     sheet.setDirectory({
       players: [
-        { courtNames: ["示範球場"], isPresent: false, nickname: "有程度球友", ntrp: 4, profileId: 701, slotCodes: ["we-e"] },
-        { courtNames: ["第二球場"], isPresent: false, nickname: "未填程度球友", ntrp: null, profileId: 702, slotCodes: [] },
+        {
+          courtNames: ["示範球場"],
+          isPresent: false,
+          nickname: "有程度球友",
+          ntrp: 4,
+          profileId: 701,
+          slotCodes: ["we-e"],
+        },
+        {
+          courtNames: ["第二球場"],
+          isPresent: false,
+          nickname: "未填程度球友",
+          ntrp: null,
+          profileId: 702,
+          slotCodes: [],
+        },
       ],
       status: "ready",
     });
@@ -3569,7 +3703,9 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
   expect(runtimeErrors).toEqual([]);
 });
 
-test("player invitation form escapes session fields and is pending-safe across success, errors, and stale surfaces", async ({ page }) => {
+test("player invitation form escapes session fields and is pending-safe across success, errors, and stale surfaces", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3579,17 +3715,31 @@ test("player invitation form escapes session fields and is pending-safe across s
     window.__inviteCalls = [];
     const promise = new Promise((resolve, reject) => Object.assign(window.__inviteControls, { reject, resolve }));
     views.openPlayerCardSheet?.(
-      { profileId: 91, nickname: "可邀球友", ntrp: 4, playTypes: ["雙打"], slotCodes: ["we-a"], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
       {
-        myInvitableSessions: [{
-          sessionId: '\"><img id="session-id-injection">',
-          startAt: '2030-01-01T01:00:00.000Z<img id="date-injection">',
-          court: '<img id="session-court-injection">',
-          courtDistrict: '<img id="session-district-injection">',
-          playType: '<img id="session-type-injection">',
-          notes: '<img id="session-notes-injection">',
-        }],
-        onInvite: (sessionId) => { window.__inviteCalls.push(sessionId); return promise; },
+        profileId: 91,
+        nickname: "可邀球友",
+        ntrp: 4,
+        playTypes: ["雙打"],
+        slotCodes: ["we-a"],
+        courtName: "大佳",
+        courtDistrict: "中山區",
+        isSelf: false,
+      },
+      {
+        myInvitableSessions: [
+          {
+            sessionId: '\"><img id="session-id-injection">',
+            startAt: '2030-01-01T01:00:00.000Z<img id="date-injection">',
+            court: '<img id="session-court-injection">',
+            courtDistrict: '<img id="session-district-injection">',
+            playType: '<img id="session-type-injection">',
+            notes: '<img id="session-notes-injection">',
+          },
+        ],
+        onInvite: (sessionId) => {
+          window.__inviteCalls.push(sessionId);
+          return promise;
+        },
       }
     );
   });
@@ -3604,8 +3754,31 @@ test("player invitation form escapes session fields and is pending-safe across s
   await page.evaluate(async () => {
     const views = await window.__importAppModule("sessionViews");
     views.openPlayerCardSheet?.(
-      { profileId: 92, nickname: "錯誤球友", ntrp: 4, playTypes: [], slotCodes: [], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
-      { myInvitableSessions: [{ sessionId: 72, startAt: "2030-01-01T01:00:00.000Z", court: "大佳", courtDistrict: "中山區", playType: "雙打", notes: "" }], onInvite: async () => { throw new Error("邀請遭拒"); } }
+      {
+        profileId: 92,
+        nickname: "錯誤球友",
+        ntrp: 4,
+        playTypes: [],
+        slotCodes: [],
+        courtName: "大佳",
+        courtDistrict: "中山區",
+        isSelf: false,
+      },
+      {
+        myInvitableSessions: [
+          {
+            sessionId: 72,
+            startAt: "2030-01-01T01:00:00.000Z",
+            court: "大佳",
+            courtDistrict: "中山區",
+            playType: "雙打",
+            notes: "",
+          },
+        ],
+        onInvite: async () => {
+          throw new Error("邀請遭拒");
+        },
+      }
     );
   });
   await page.getByTestId("player-invite-session").check();
@@ -3616,10 +3789,33 @@ test("player invitation form escapes session fields and is pending-safe across s
   await page.evaluate(async () => {
     const views = await window.__importAppModule("sessionViews");
     window.__staleInvite = {};
-    const promise = new Promise((resolve) => { window.__staleInvite.resolve = resolve; });
+    const promise = new Promise((resolve) => {
+      window.__staleInvite.resolve = resolve;
+    });
     views.openPlayerCardSheet?.(
-      { profileId: 93, nickname: "晚到球友", ntrp: 3, playTypes: [], slotCodes: [], courtName: "大佳", courtDistrict: "中山區", isSelf: false },
-      { myInvitableSessions: [{ sessionId: 73, startAt: "2030-01-01T01:00:00.000Z", court: "大佳", courtDistrict: "中山區", playType: "雙打", notes: "" }], onInvite: () => promise }
+      {
+        profileId: 93,
+        nickname: "晚到球友",
+        ntrp: 3,
+        playTypes: [],
+        slotCodes: [],
+        courtName: "大佳",
+        courtDistrict: "中山區",
+        isSelf: false,
+      },
+      {
+        myInvitableSessions: [
+          {
+            sessionId: 73,
+            startAt: "2030-01-01T01:00:00.000Z",
+            court: "大佳",
+            courtDistrict: "中山區",
+            playType: "雙打",
+            notes: "",
+          },
+        ],
+        onInvite: () => promise,
+      }
     );
   });
   await page.getByTestId("player-invite-session").check();
@@ -3634,7 +3830,9 @@ test("player invitation form escapes session fields and is pending-safe across s
   expect(runtimeErrors).toEqual([]);
 });
 
-test("SESSION_EXPIRED player invitation refreshes choices and renders an inline error instead of success", async ({ page }) => {
+test("SESSION_EXPIRED player invitation refreshes choices and renders an inline error instead of success", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -3758,7 +3956,9 @@ test("390px toolbar contains its content, never intersects the following control
     };
   });
   expect(layout.contentFits).toBe(true);
-  expect(layout.canScrollToFilterChip, "six chips must overflow a 390px viewport for this test to prove anything").toBe(true);
+  expect(layout.canScrollToFilterChip, "six chips must overflow a 390px viewport for this test to prove anything").toBe(
+    true
+  );
   expect(layout.primaryButtonInsideAfterScroll).toBe(true);
   expect(layout.toolbarIntersectsPlayer).toBe(false);
   expect(runtimeErrors).toEqual([]);
@@ -3906,7 +4106,9 @@ test("nested login modal restores focus and announces a failed provider start", 
   expect(runtimeErrors).toEqual([]);
 });
 
-test("the login modal hides LINE by default and passes the custom provider id through when enabled", async ({ page }) => {
+test("the login modal hides LINE by default and passes the custom provider id through when enabled", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -4033,7 +4235,9 @@ test("a session without an NTRP range reads as unrestricted rather than NTRP 0.0
   expect(runtimeErrors).toEqual([]);
 });
 
-test("profile and create sheets disclose public nickname use and retain a local-demo create failure", async ({ page }) => {
+test("profile and create sheets disclose public nickname use and retain a local-demo create failure", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -4105,7 +4309,9 @@ test("profile and create sheets disclose public nickname use and retain a local-
 // sticky footer 遮蔽區;內捲又攔走外層捲動手勢,日期完全選不到。守住兩件事:
 // (1)首屏第一顆日期 chip 整顆落在 footer 上緣之上,不捲動就點得到;
 // (2)點「自訂」展開的日期輸入框整顆在遮蔽區之外(scroll-padding 讓 scrollIntoView 認得 footer)。
-test("the create form keeps date controls reachable above the sticky footer at phone height with a full catalogue", async ({ page }) => {
+test("the create form keeps date controls reachable above the sticky footer at phone height with a full catalogue", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.setViewportSize({ width: 390, height: 664 });
@@ -4114,7 +4320,11 @@ test("the create form keeps date controls reachable above the sticky footer at p
   await page.evaluate(async () => {
     const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
     openCreateSessionSheet({
-      courts: Array.from({ length: 61 }, (_, index) => ({ city: "台北市", id: index + 1, name: `示範球場 ${index + 1}` })),
+      courts: Array.from({ length: 61 }, (_, index) => ({
+        city: "台北市",
+        id: index + 1,
+        name: `示範球場 ${index + 1}`,
+      })),
       onSubmit: async () => {
         throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
       },
@@ -4304,7 +4514,10 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
 
   await page.evaluate(async () => {
     const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
-    openProfileCompletionSheet({ intent: { action: "create" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
+    openProfileCompletionSheet({
+      intent: { action: "create" },
+      profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
+    });
   });
   const createProfile = page.locator("#profile-completion-sheet");
   await expect(createProfile).toContainText("要開球局，請填寫公開暱稱與 NTRP（1.0–7.0）。");
@@ -4327,7 +4540,10 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
 
   await page.evaluate(async () => {
     const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
-    openProfileCompletionSheet({ intent: { action: "players" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
+    openProfileCompletionSheet({
+      intent: { action: "players" },
+      profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
+    });
   });
   await expect(page.locator("#profile-completion-sheet")).toContainText(
     "要查看在線球友，請填寫公開暱稱與 NTRP（1.0–7.0）。"
@@ -4336,7 +4552,10 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
 
   await page.evaluate(async () => {
     const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
-    openProfileCompletionSheet({ intent: { action: "directory" }, profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() } });
+    openProfileCompletionSheet({
+      intent: { action: "directory" },
+      profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
+    });
   });
   await expect(page.locator("#profile-completion-sheet")).toContainText(
     "要使用球友目錄或公開球友卡，請填寫公開暱稱、NTRP（1.0–7.0），並選擇至少一座台北市常打球場。"
@@ -4375,16 +4594,18 @@ test("create sheet submits a walk-on session with one authoritative court", asyn
   await form.getByTestId("create-time-09:00").click();
   await form.getByTestId("session-submit").click();
 
-  await expect.poll(() => page.evaluate(() => window.__walkOnCreatePayload)).toMatchObject({
-    candidateCourtIds: null,
-    courtId: 8,
-    joinMode: "instant",
-    playType: "雙打",
-    rangeEnd: null,
-    slotsTotal: 2,
-    startAt: "2099-07-18T01:00:00.000Z",
-    venueType: "walk_on",
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__walkOnCreatePayload))
+    .toMatchObject({
+      candidateCourtIds: null,
+      courtId: 8,
+      joinMode: "instant",
+      playType: "雙打",
+      rangeEnd: null,
+      slotsTotal: 2,
+      startAt: "2099-07-18T01:00:00.000Z",
+      venueType: "walk_on",
+    });
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -4414,20 +4635,24 @@ test("create sheet submits sensible defaults when only a court and start time ar
   await form.getByTestId("create-time-09:00").click();
   await form.getByTestId("session-submit").click();
 
-  await expect.poll(() => page.evaluate(() => window.__collapsedCreatePayload)).toMatchObject({
-    feeNote: null,
-    joinMode: "instant",
-    notes: null,
-    ntrpMax: null,
-    ntrpMin: null,
-    playType: "雙打",
-    slotsTotal: 2,
-    venueType: "walk_on",
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__collapsedCreatePayload))
+    .toMatchObject({
+      feeNote: null,
+      joinMode: "instant",
+      notes: null,
+      ntrpMax: null,
+      ntrpMin: null,
+      playType: "雙打",
+      slotsTotal: 2,
+      venueType: "walk_on",
+    });
   expect(runtimeErrors).toEqual([]);
 });
 
-test("create sheet switches to candidate mode and submits up to three candidate courts as an array", async ({ page }) => {
+test("create sheet switches to candidate mode and submits up to three candidate courts as an array", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -4481,14 +4706,16 @@ test("create sheet switches to candidate mode and submits up to three candidate 
   await form.getByTestId("session-fee-note").fill("每人 150 元");
   await form.getByTestId("session-submit").click();
 
-  await expect.poll(() => page.evaluate(() => window.__stage4bCreatePayload)).toMatchObject({
-    candidateCourtIds: [8, 9, 10],
-    courtId: null,
-    feeNote: "每人 150 元",
-    rangeEnd: "2099-07-18T09:00:00.000Z",
-    slotsTotal: 2,
-    venueType: "candidates",
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__stage4bCreatePayload))
+    .toMatchObject({
+      candidateCourtIds: [8, 9, 10],
+      courtId: null,
+      feeNote: "每人 150 元",
+      rangeEnd: "2099-07-18T09:00:00.000Z",
+      slotsTotal: 2,
+      venueType: "candidates",
+    });
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -4519,15 +4746,16 @@ test("create sheet blocks publish with guidance toast until the venue requiremen
 
   await form.getByTestId("session-venue-candidates").click();
   await form.getByTestId("session-submit").click();
-  await expect.poll(() => page.evaluate(() => window.__blockedToasts)).toEqual([
-    "先選好球場與開始時間",
-    "先選 2–3 個候選球場與時段",
-  ]);
+  await expect
+    .poll(() => page.evaluate(() => window.__blockedToasts))
+    .toEqual(["先選好球場與開始時間", "先選 2–3 個候選球場與時段"]);
   expect(await page.evaluate(() => window.__blockedSubmitCount)).toBe(0);
   expect(runtimeErrors).toEqual([]);
 });
 
-test("create sheet switches to its own success page after publish and routes 查看我的球局 through onViewMySessions", async ({ page }) => {
+test("create sheet switches to its own success page after publish and routes 查看我的球局 through onViewMySessions", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -4624,10 +4852,12 @@ test("an existing one-decimal NTRP can save a nickname-only edit unchanged", asy
   await profile.getByLabel("公開暱稱").fill("新暱稱");
   await profile.getByTestId("profile-save").click();
   await expect(profile).toBeHidden();
-  await expect.poll(() => page.evaluate(() => window.__savedOneDecimalProfile)).toEqual({
-    nick: "新暱稱",
-    ntrp: 3.7,
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__savedOneDecimalProfile))
+    .toEqual({
+      nick: "新暱稱",
+      ntrp: 3.7,
+    });
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -4706,13 +4936,15 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
   await profile.getByLabel("公開暱稱").fill("暱稱即可");
   await profile.getByTestId("profile-save").click();
   await expect(profile).toBeHidden();
-  await expect.poll(() => page.evaluate(() => window.__nicknameOnlyProfile)).toEqual({
-    courts: [],
-    nick: "暱稱即可",
-    ntrp: null,
-    slots: [],
-    types: [],
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__nicknameOnlyProfile))
+    .toEqual({
+      courts: [],
+      nick: "暱稱即可",
+      ntrp: null,
+      slots: [],
+      types: [],
+    });
   expect(runtimeErrors).toEqual([]);
 });
 
@@ -4888,7 +5120,9 @@ test("mock-mode create does not open OAuth or fabricate a new session", async ({
   expect(runtimeErrors).toEqual([]);
 });
 
-test("mock online layer uses presence pins while the full directory list opens cards and invitations", async ({ page }) => {
+test("mock online layer uses presence pins while the full directory list opens cards and invitations", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -4902,7 +5136,8 @@ test("mock online layer uses presence pins while the full directory list opens c
     const { renderPlayerPins } = await window.__importAppModule("map");
     const { createDataApi } = await window.__importAppModule("dataApi");
     const { createSessionController } = await window.__importAppModule("sessionController");
-    const { openCourtPlayersDrawer, openPlayerCardSheet, openPlayerDirectoryList, renderPlayerLayerToggle } = await window.__importAppModule("sessionViews");
+    const { openCourtPlayersDrawer, openPlayerCardSheet, openPlayerDirectoryList, renderPlayerLayerToggle } =
+      await window.__importAppModule("sessionViews");
     const map = new window.google.maps.Map(document.getElementById("map"), {
       center: { lat: 25.05, lng: 121.53 },
       zoom: 12,
@@ -4942,7 +5177,10 @@ test("mock online layer uses presence pins while the full directory list opens c
         );
       },
     });
-    await controller.setAuthState({ user: { id: "mock-player-host" } }, { directory: true, nickname: true, ntrp: true });
+    await controller.setAuthState(
+      { user: { id: "mock-player-host" } },
+      { directory: true, nickname: true, ntrp: true }
+    );
     await controller.togglePlayerLayer();
     window.__mockPlayerController = controller;
   });
@@ -5003,7 +5241,9 @@ test("player directory escapes every dynamic field before opening the selected p
 
   const directory = page.locator("#player-directory-sheet");
   await expect(directory).toContainText('<img id="directory-name-injection">');
-  await expect(page.locator("#directory-name-injection, #directory-court-injection, #directory-type-injection")).toHaveCount(0);
+  await expect(
+    page.locator("#directory-name-injection, #directory-court-injection, #directory-type-injection")
+  ).toHaveCount(0);
   await page.getByTestId("player-directory-row-8801").click();
   await expect.poll(() => page.evaluate(() => window.__escapedDirectoryPlayer)).toBe(8801);
   expect(runtimeErrors).toEqual([]);
@@ -5145,7 +5385,9 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   expect(runtimeErrors).toEqual([]);
 });
 
-test("My Sessions exposes chat only to accepted members while Me owns the authoritative block list", async ({ page }) => {
+test("My Sessions exposes chat only to accepted members while Me owns the authoritative block list", async ({
+  page,
+}) => {
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
@@ -5213,13 +5455,17 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
   await expect(meRoot.getByText("已封鎖球友 <b>")).toBeVisible();
   await root.getByTestId("open-chat-8201").click();
   await meRoot.getByTestId("unblock-player-92").click();
-  await expect.poll(() => page.evaluate(() => window.__myChatActions)).toEqual([
-    ["chat", "8201"],
-    ["unblock", "92"],
-  ]);
+  await expect
+    .poll(() => page.evaluate(() => window.__myChatActions))
+    .toEqual([
+      ["chat", "8201"],
+      ["unblock", "92"],
+    ]);
 });
 
-test("the create form asks about the venue situation and offers three play types and slot buttons", async ({ page }) => {
+test("the create form asks about the venue situation and offers three play types and slot buttons", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -5322,7 +5568,9 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   expect(runtimeErrors).toEqual([]);
 });
 
-test("edit sheet expands advanced settings by default when the session already has NTRP, fee note, or notes", async ({ page }) => {
+test("edit sheet expands advanced settings by default when the session already has NTRP, fee note, or notes", async ({
+  page,
+}) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
   await page.goto("/");
@@ -5545,7 +5793,11 @@ test("the filter sheet applies a district change immediately to the background d
 
   await expect.poll(() => page.evaluate(() => window.__filterSheetSummaries.at(-1))).toContain("2 場可加入");
   expect(
-    await page.evaluate(() => document.activeElement === document.querySelector('#filters-sheet [data-filter="districts"][data-value="內湖區"]'))
+    await page.evaluate(
+      () =>
+        document.activeElement ===
+        document.querySelector('#filters-sheet [data-filter="districts"][data-value="內湖區"]')
+    )
   ).toBe(true);
 
   // 鍵盤操作打法 chip 也不可把焦點丟到 body（批 B Task 4 的教訓：async 重繪吃焦點）。
@@ -5554,7 +5806,8 @@ test("the filter sheet applies a district change immediately to the background d
   expect(
     await page.evaluate(() => ({
       isBody: document.activeElement === document.body,
-      isChip: document.activeElement === document.querySelector('#filters-sheet [data-filter="types"][data-value="單打"]'),
+      isChip:
+        document.activeElement === document.querySelector('#filters-sheet [data-filter="types"][data-value="單打"]'),
     }))
   ).toEqual({ isBody: false, isChip: true });
 

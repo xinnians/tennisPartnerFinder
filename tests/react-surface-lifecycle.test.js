@@ -26,7 +26,11 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
     );
   }
   assert.equal((SESSION_VIEWS.match(/mounted\.registerUnmount\(content\.unmount\)/g) ?? []).length, 14);
-  assert.equal((SURFACE_HOST.match(/flushSync\(/g) ?? []).length, 1, "SurfaceHost must centralize synchronous sheet commits");
+  assert.equal(
+    (SURFACE_HOST.match(/flushSync\(/g) ?? []).length,
+    1,
+    "SurfaceHost must centralize synchronous sheet commits"
+  );
   assert.match(SURFACE_HOST, /commitSynchronously\(commitSurfaceSlots\)/);
   assert.match(SURFACE_HOST, /commitSynchronously\(update\)/);
 

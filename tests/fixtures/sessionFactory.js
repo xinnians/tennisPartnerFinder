@@ -15,7 +15,9 @@ function requireCourtId(courtId) {
 
 export function createIsoSafeRunId(now = new Date(), suffix = Math.random().toString(36).slice(2, 10)) {
   const timestamp = asDate(now).toISOString().replace(/[-:.]/g, "");
-  const safeSuffix = String(suffix).toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  const safeSuffix = String(suffix)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "");
   if (!safeSuffix) throw new Error("Session fixture requires an ISO-safe suffix");
   return `${timestamp}-${safeSuffix}`;
 }

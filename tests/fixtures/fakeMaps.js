@@ -217,12 +217,8 @@ export async function installFakeMaps(page) {
   // 測試同樣不打真實 Google Fonts CDN:2026-08-14 實測 fonts.gstatic.com 的
   // Noto Sans TC 子集檔偶發 404,會隨機污染 zero-console-error 契約。CSS 回空樣式
   // →瀏覽器退回系統字型,子集檔因此根本不會被請求;gstatic 那條是保險。
-  await page.route("https://fonts.googleapis.com/**", (route) =>
-    route.fulfill({ contentType: "text/css", body: "" })
-  );
-  await page.route("https://fonts.gstatic.com/**", (route) =>
-    route.fulfill({ contentType: "font/woff2", body: "" })
-  );
+  await page.route("https://fonts.googleapis.com/**", (route) => route.fulfill({ contentType: "text/css", body: "" }));
+  await page.route("https://fonts.gstatic.com/**", (route) => route.fulfill({ contentType: "font/woff2", body: "" }));
 }
 
 export async function setFakeMapBounds(page, bounds) {
