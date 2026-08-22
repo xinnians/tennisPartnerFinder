@@ -412,6 +412,7 @@ test("main forwards every non-notification Stage 1–3 data API capability into 
   ];
   const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
   const apiBlock =
+    // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     source.match(/controller = createSessionController\(\{\n    api: \{([\s\S]*?)\n    \},\n    mapTools:/)?.[1] ?? "";
   const api = createDataApi({ configured: false });
   assert.notEqual(apiBlock, "", "controller API source scan must inspect a nonempty block");

@@ -41,5 +41,6 @@ test("MessagesPage 輸出訊息標題、可開啟的球局列與未讀提示", a
   assert.match(html, /<h1[^>]*>訊息<\/h1>/);
   assert.match(html, /data-testid="messages-row-42"/);
   assert.match(html, />大安運動中心</);
+  // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   assert.match(html, /aria-label="大安運動中心，[^\"]*，2 則未讀訊息"/);
 });

@@ -632,6 +632,7 @@ test("a host decides a candidate session into one solid pin and the database rec
   const targetDate = new Date(Date.now() + 72 * 60 * 60 * 1000);
   const dateOnly = new Date(targetDate.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const startAt = new Date(`${dateOnly}T06:00:00+08:00`);
+  // eslint-disable-next-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   const rangeEnd = new Date(`${dateOnly}T10:00:00+08:00`);
   const notes = `decision-ui-${context.runId}`;
 
@@ -705,6 +706,7 @@ test("a host edits a single-court session and sees authoritative card and detail
   const context = createSessionTestContext({ suffix: randomUUID() });
   const host = await createCompleteActor(context.host);
   const [firstCourt, secondCourt] = await unusedCourtPair(host.client);
+  // eslint-disable-next-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   const firstCourtName = firstCourt.name;
   const secondCourtName = secondCourt.name;
   const firstCourtId = firstCourt.id;

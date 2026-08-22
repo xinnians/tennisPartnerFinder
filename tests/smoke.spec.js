@@ -2282,6 +2282,7 @@ test("My Sessions renders an escaped invite card with stable response testids", 
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
+    // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     const payload = '\"><img data-injected="invite-xss" src=x onerror="console.error(\'invite-xss\')">';
     const session = {
       canRespondInvite: true,
@@ -3531,8 +3532,10 @@ test("player drawer and card escape every public value and render self and empty
   await page.evaluate(async () => {
     const views = await window.__importAppModule("sessionViews");
     const player = {
+      // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
       profileId: '\"><img id="profile-injection" src=x onerror=alert(1)>',
       nickname: '<img id="nickname-injection" src=x onerror=alert(1)>',
+      // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
       ntrp: '3.5\"><img id="ntrp-injection">',
       playTypes: ['單打<img id="type-injection">'],
       slotCodes: ['we-m<img id="slot-injection">'],
@@ -3728,6 +3731,7 @@ test("player invitation form escapes session fields and is pending-safe across s
       {
         myInvitableSessions: [
           {
+            // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
             sessionId: '\"><img id="session-id-injection">',
             startAt: '2030-01-01T01:00:00.000Z<img id="date-injection">',
             court: '<img id="session-court-injection">',

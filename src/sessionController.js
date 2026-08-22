@@ -1656,6 +1656,7 @@ export function createSessionController({
     if (typeof api?.loadSessionSummary !== "function" || typeof api?.decideSessionCourt !== "function") {
       throw new Error("目前無法定案這個候選球局。");
     }
+    // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     let summary = null;
     try {
       summary = await api.loadSessionSummary(session.sessionId);
@@ -1751,6 +1752,7 @@ export function createSessionController({
     });
     notifyMySessions();
 
+    // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     let reloaded = false;
     try {
       reloaded = await reloadCurrentProfile();
@@ -1858,6 +1860,7 @@ export function createSessionController({
       return result;
     } catch (error) {
       if (error?.name === "DataApiUnavailableError") {
+        // eslint-disable-next-line preserve-caught-error -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
         throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
       }
       throw error;
@@ -1941,6 +1944,7 @@ export function createSessionController({
       }
 
       if (intent.action !== "join" || typeof api?.loadSessionSummary !== "function") return false;
+      // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
       let target = null;
       try {
         target = await api.loadSessionSummary(intent.sessionId);

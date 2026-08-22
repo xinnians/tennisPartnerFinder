@@ -369,6 +369,7 @@ async function handleLinkProvider(provider) {
 }
 
 function resumeLinkReturn() {
+  // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   let provider = null;
   try {
     provider = sessionStorage.getItem(LINK_RETURN_KEY);

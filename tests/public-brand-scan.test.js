@@ -6,6 +6,7 @@ import test from "node:test";
 // 批 A 計分板換皮涵蓋 src/ 與 index.html(見 legacy-style-scan.test.js),
 // 但 public/ 三檔(manifest、icon、privacy)當時漏掃,殘留舊 navy/blue 配色。
 // 此檔比照 legacy-style-scan 形式,專掃 public/ 三檔,防止舊色再分岔進 build 輸出。
+// eslint-disable-next-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
 const SCAN_PATHS = ["manifest.webmanifest", "icon.svg", "privacy.html"];

@@ -1,4 +1,4 @@
-import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js";
+import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 import { validProfileNtrp } from "./profile.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { mountDialog, mountSheet } from "./sheets.js";
@@ -13,8 +13,8 @@ import { esc } from "./util.js";
 import {
   runAsyncAction,
   runMySessionAction,
-  runNotificationSettingAction,
-  runPresenceSettingAction,
+  runNotificationSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
+  runPresenceSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   setMySessionActionScope,
   syncPendingMySessionActions,
 } from "./sessionActions.ts";
@@ -26,7 +26,7 @@ import {
   sessionScheduleLabel,
   sessionVenuePresentation,
   taipeiCourts,
-  taipeiDayWord,
+  taipeiDayWord, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   taipeiTileDate,
 } from "./sessionPresentation.ts";
 export {
@@ -886,7 +886,7 @@ export function renderNearbySessionsDrawer(
     hasUserLocation = false,
     mapStatus = { kind: "idle", message: "" },
     filters = null,
-    authenticated = false,
+    authenticated = false, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     onToggle = () => {},
     onOpenSession = () => {},
     onReset = () => {},

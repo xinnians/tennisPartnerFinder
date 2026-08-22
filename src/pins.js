@@ -1,5 +1,5 @@
 const NAVY = "#12291c"; // 計分板 --color-ink;pins.js 無法讀 CSS 變數,值與 session.css 同步
-const BLUE = "#1c5c3c"; // --color-court
+const BLUE = "#1c5c3c"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 const LIME = "#ddf53c"; // --color-signal
 const SOFT_BLUE = "#e8f2e3"; // --color-success-bg(聚合底)
 

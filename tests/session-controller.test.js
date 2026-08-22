@@ -3719,6 +3719,7 @@ test("accepted members alone receive chat entry authority from private participa
   assert.equal(acceptedDetail.handlers.onChat(), harness.chatSheets.at(-1).detail);
 
   harness.opened.length = 0;
+  // eslint-disable-next-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   const requestedDetail = harness.controller.openSession(requestedSession.sessionId);
   assert.equal(harness.opened.at(-1).handlers.canChat, false);
   assert.throws(() => harness.controller.openSessionChat(requestedSession.sessionId), /球局的狀態已更新/);

@@ -13,7 +13,7 @@ function longitude(point) {
 }
 
 export function isUndecidedCandidate(session) {
-  return String(session?.venueType) === "candidates" && !Boolean(session?.decidedAt);
+  return String(session?.venueType) === "candidates" && !Boolean(session?.decidedAt); // eslint-disable-line no-extra-boolean-cast -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 }
 
 export function isSessionFull(session) {

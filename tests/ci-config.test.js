@@ -19,13 +19,16 @@ function workflowJob(name) {
   const start = WORKFLOW.indexOf(marker);
   assert.ok(start >= 0, `workflow job missing: ${name}`);
   const tail = WORKFLOW.slice(start + marker.length);
+  // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   const nextJob = tail.search(/\n  [a-z][\w-]*:\n/);
   return nextJob < 0 ? tail : tail.slice(0, nextJob);
 }
 
 test("quality workflow runs for main and the current development branch", () => {
   assert.ok(WORKFLOW.length > 1_000, "quality workflow is unexpectedly small");
+  // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   assert.match(WORKFLOW, /pull_request:\n    branches: \[main, claude\/tennis-partner-finder-proto-xfrr6g\]/);
+  // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   assert.match(WORKFLOW, /push:\n    branches: \[main, claude\/tennis-partner-finder-proto-xfrr6g\]/);
   assert.match(WORKFLOW, /workflow_dispatch:/);
   assert.ok(WORKFLOW.includes(DEVELOPMENT_BRANCH));
@@ -45,6 +48,17 @@ test("frontend CI script contains every current non-database gate in order", () 
   ];
   assert.deepEqual(commands, gates);
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
+});
+
+test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
+  assert.equal(
+    PACKAGE.scripts.lint,
+    'eslint "src/**/*.{js,ts,tsx}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
+  );
+  assert.equal(
+    PACKAGE.scripts["prettier:check"],
+    'prettier --check "src/**/*.{js,ts,tsx}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+  );
 });
 
 test("the session unit aggregate registers every top-level unit test except the local API suite", () => {
@@ -70,6 +84,7 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
 test("browser fixtures intercept every Google-hosted avatar without bypassing fallback assertions", () => {
   assert.match(FAKE_MAPS, /page\.route\("https:\/\/lh\*\.googleusercontent\.com\/\*\*"/);
   assert.match(FAKE_MAPS, /contentType: "image\/png"/);
+  // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   assert.match(readFileSync(new URL(".\/smoke.spec.js", import.meta.url), "utf8"), /dispatchEvent\("error"\)/);
 });
 
@@ -121,6 +136,7 @@ test("the Supabase CLI used by npx is pinned exactly in the lockfile", () => {
 
 test("required frontend and Supabase jobs cannot be downgraded to continue-on-error", () => {
   for (const name of ["frontend", "supabase"]) {
+    // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     assert.doesNotMatch(workflowJob(name), /^    continue-on-error:/m, `${name} job no longer blocks merging`);
   }
 });
@@ -155,11 +171,13 @@ test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workfl
   assert.equal(webkit.use.defaultBrowserType, "webkit");
   assert.match(
     WORKFLOW,
+    // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
     /webkit:\n    name: Mobile WebKit \(non-blocking\)[\s\S]*?continue-on-error: true[\s\S]*?playwright install --with-deps webkit[\s\S]*?npm run test:mock:webkit/
   );
 });
 
 test("workflow uses read-only permissions, cancellation, pinned major actions, and failure evidence", () => {
+  // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   assert.match(WORKFLOW, /permissions:\n  contents: read/);
   assert.match(WORKFLOW, /cancel-in-progress: true/);
   for (const action of ["actions/checkout@v4", "actions/setup-node@v4", "actions/upload-artifact@v4"]) {
