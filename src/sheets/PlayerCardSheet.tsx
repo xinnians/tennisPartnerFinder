@@ -219,7 +219,7 @@ function PlayerCardSheet({
         <p>{`常打球場：${presentation.courtNameText}`}</p>
       </div>
       {branch === "form" ? (
-        <form className="player-invite-form" data-player-invite="" onSubmit={handleSubmit}>
+        <form className="player-invite-form" data-player-invite="" onSubmit={(event) => void handleSubmit(event)}>
           <fieldset className="form-fieldset">
             <legend>邀請加入我的球局</legend>
             <div className="player-invite-options" data-player-invite-options="">

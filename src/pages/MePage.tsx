@@ -621,7 +621,7 @@ function LoginMethods({
   const handleLink = (event: MouseEvent<HTMLButtonElement>, provider: string) => {
     const button = event.currentTarget;
     button.disabled = true;
-    Promise.resolve(onLinkProvider(provider)).finally(() => {
+    void Promise.resolve(onLinkProvider(provider)).finally(() => {
       if (button.isConnected) button.disabled = false;
     });
   };
