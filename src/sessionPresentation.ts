@@ -178,6 +178,21 @@ export function taipeiDayWord(value: DateInput, now = new Date()): string {
   return parts ? `週${TAIPEI_WEEKDAY_WORD[parts.weekday]}` : "";
 }
 
+export function sessionScheduleLabel(session: SessionInput): string {
+  const dayWord = taipeiDayWord(session?.startAt) || "時間待確認";
+  const startClock = taipeiClock(session?.startAt);
+  const undecided = isUndecidedCandidate(session);
+  const timeLabel = undecided && session?.rangeEnd ? `${startClock}–${taipeiClock(session.rangeEnd)}` : startClock;
+  const hostLabel = String(session?.viewerRole ?? "").toLowerCase() === "host" ? "我" : session?.hostNickname || "主揪";
+  return `${dayWord} ${timeLabel} · 主揪 ${hostLabel}`;
+}
+
+export function sessionHostInitial(session: SessionInput): string {
+  if (String(session?.viewerRole ?? "").toLowerCase() === "host") return "我";
+  const nickname = String(session?.hostNickname ?? "").trim();
+  return nickname ? nickname.slice(0, 1) : "主";
+}
+
 export function drawerGroupLabel(value: DateInput, now = new Date()): string {
   const parts = taipeiParts(value);
   if (!parts) return "時間待確認";

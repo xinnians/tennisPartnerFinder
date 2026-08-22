@@ -23,6 +23,7 @@ import {
   mySessionsSegmentState,
   notificationPushHint,
   padTwo,
+  sessionScheduleLabel,
   sessionVenuePresentation,
   taipeiCourts,
   taipeiDayWord,
@@ -641,21 +642,6 @@ function restoreFocusedSessionCard(root) {
     clearDrawerFocusIntent(root);
     card.focus({ preventScroll: true });
   });
-}
-
-// 批 D7:訊息列表列與聊天室 header 副行共用(抽取規格 §3 r.sub / §4 chatSub 同一
-// 語意,但只有 §4 給出完整算式:`${DAY_WORD} ${range} · 主揪 ${host}`)。dc 假設
-// 每局都有明確的 start/end,本站資料模型只有候選局才有時段範圍(rangeEnd)、一般
-// 已定案局只有單一 startAt——比照既有 sessionTimeTilePresentation 的 undecided 分支
-// 判準,不虛構不存在的結束時間;日期詞前綴改用 D2 taipeiDayWord(今天/明天/週X)
-// 而非時間磚上的月/日。
-function sessionScheduleLabel(session) {
-  const dayWord = taipeiDayWord(session?.startAt) || "時間待確認";
-  const startClock = taipeiClock(session?.startAt);
-  const undecided = isUndecidedCandidate(session);
-  const timeLabel = undecided && session?.rangeEnd ? `${startClock}–${taipeiClock(session.rangeEnd)}` : startClock;
-  const hostLabel = String(session?.viewerRole ?? "").toLowerCase() === "host" ? "我" : session?.hostNickname || "主揪";
-  return `${dayWord} ${timeLabel} · 主揪 ${hostLabel}`;
 }
 
 function wireSuccessPushPrompt(root, onEnablePush) {

@@ -74,6 +74,21 @@ test("the presentation boundary cannot reach back into the legacy view adapter",
   assert.equal((presentation.match(/Object\.freeze/g) ?? []).length, 13);
 });
 
+test("session schedule and host-initial presentation preserve chat labels", async () => {
+  const presentation = await import("../src/sessionPresentation.ts");
+  const candidateSession = {
+    hostNickname: "阿玲",
+    rangeEnd: "2024-01-01T03:00:00.000Z",
+    startAt: "2024-01-01T01:30:00.000Z",
+    venueType: "candidates",
+  };
+
+  assert.equal(presentation.sessionScheduleLabel(candidateSession), "週一 09:30–11:00 · 主揪 阿玲");
+  assert.equal(presentation.sessionHostInitial({ viewerRole: "host" }), "我");
+  assert.equal(presentation.sessionHostInitial({ hostNickname: " 阿玲 " }), "阿");
+  assert.equal(presentation.sessionHostInitial({}), "主");
+});
+
 test("batch 27 guard rationale and corrected acceptance claims stay explicit", () => {
   const presentation = source("src/sessionPresentation.ts");
   assert.match(presentation, /Number\(null\).*0\.0/s);
