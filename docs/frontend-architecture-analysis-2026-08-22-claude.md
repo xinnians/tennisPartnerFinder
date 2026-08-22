@@ -11,7 +11,7 @@
 ## 一句話結論
 
 架構的「骨架決策」都是對的（單一 React root、單一資料邊界、注入式 controller、測試護城河），
-真正的病灶只有一個：**React 已經進場，但沒有拿到狀態與事件的主導權**——每次更新都整棵
+真正的病灶只有一個：**React 已經進場，但沒有拿到狀態與事件的主導權**——頁面每次更新都整棵
 remount、事件靠 commit 後手工重綁、重繪靠人工呼叫網。其他多數痛點（數百行焦點還原機制、
 雙軌事件、巨型 props bag）都是這一個病灶的併發症。不需要換框架，需要的是把 React 從
 「模板引擎」升級成「狀態的訂閱者」，再沿既有縫線拆檔 TS 化。
@@ -68,7 +68,10 @@ mappers + 生成型別，是全案最健康的一層。
 remount** [已驗證：`src/app/App.tsx:345`「`generation: (previous?.generation ?? 0) + 1,`」、
 `:254` 以 `key={slot.generation}` 掛載]；再以 `flushSync` 同步 commit（`App.tsx:331`、
 `SurfaceHost.tsx:57`，全庫僅此兩處 [已驗證]），commit 後 `sessionViews.js` 對新 DOM
-`querySelector`＋`addEventListener` 重綁事件。連鎖代價：
+`querySelector`＋`addEventListener` 重綁事件。範圍修正 [已驗證]：整棵 remount 只適用於
+**四個頁面 slot**；14 張 sheet 的內容以穩定 slot id 掛載（`SurfaceHost.tsx:42`
+`key={slot.id}`＋memo）、開啟後經 imperative handle 更新，不隨每次更新 remount——僅部分
+sheet（群聊 feed、詳情動作區）內部以 generation key 重建局部節點。連鎖代價：
 
 - React 內部狀態與焦點每次歸零，main.js 因此養出數百行手工焦點 capture/restore 機制
   （`captureMeFocus`/`restoreMeFocus`/`captureMySessionsFocus` 等，估約 300 行 [推論]），
@@ -105,9 +108,10 @@ sessionController.js 來驗證，契約只是文件。ESLint 也非 type-aware�
 `tests/smoke.spec.js` 有 **107 處** `__importAppModule("sessionViews")`（全 tests 共 138 處
 `__importAppModule`）[已驗證：本文撰寫者親自 grep]，而 `appRuntime.js` 以
 `baseUrl "/src/" + 模組名` 解析、只支援副檔名映射不支援路徑映射
-[已驗證：`tests/fixtures/appRuntime.js:1,21`]。意思是：**拆分 sessionViews.js 之前，
-必須先把這張映射表升級成「名稱→完整路徑」**，否則要嘛永久保留同名 facade 檔，
-要嘛改一百多個 e2e 呼叫點。這一步成本極低（改一張表），卻是所有拆檔計畫的第 0 批。
+[已驗證：`tests/fixtures/appRuntime.js:1,21`]。意思是：**拆檔計畫必須明寫 e2e 呼叫面的
+承接方式**——標準解是拆分時保留同名薄 facade re-export（`dataApi.js` 79 行 facade 是同
+repo 的成功前例），e2e 零改動；`appRuntime.js` 的「名稱→完整路徑」映射只是可選強化
+（供未來想撤 facade 時用），且單靠映射無法把不同 export 分流到不同模組。
 
 同類的重構摩擦還有兩個 [已驗證]：
 - view/DOM 層**零單元級安全網**（無 jsdom；controller 測試把 render 換成純記錄 fake），
@@ -120,9 +124,10 @@ sessionController.js 來驗證，契約只是文件。ESLint 也非 type-aware�
 
 - **auth 差分**：`main.js:1283` 與 `sessionController.js:1996` 各算一次 `identityChanged`，
   各管一半的重置清單，帳號切換語意要兩邊對齊 [已驗證]。
-- **presentation helper**：`MessagesPage.tsx` 內有 `taipeiDayWord`、`sessionScheduleLabel`、
-  `sessionHostInitial`、`sessionVenuePresentation` 四個本地複本，與 `sessionPresentation.ts`
-  同名同語意並存 [已驗證：MessagesPage.tsx:39/49/58/64 vs sessionPresentation.ts:172/216]，
+- **presentation helper**：`MessagesPage.tsx` 內有四個本地複本——`taipeiDayWord` 與
+  `sessionVenuePresentation` 重複 `sessionPresentation.ts`（:172/:216）；`sessionScheduleLabel`
+  與 `sessionHostInitial` 則重複 `sessionViews.js`（:656/:667，後者在該檔為死碼）
+  [已驗證：MessagesPage.tsx:39/49/58/64；`sessionPresentation.ts` 反向 grep 無後兩者]，
   違反 react-migration「presentation helper 單一來源」規則。
 - **死碼四件** [已驗證：本文撰寫者反向 grep，僅定義行命中]：`renderDiscoveryEmpty`
   （sessionViews.js:982，且其 innerHTML 插值未過 esc()，留著是陷阱）、
@@ -160,9 +165,10 @@ sessionController.js 來驗證，契約只是文件。ESLint 也非 type-aware�
 
 ### H（中）：文件與現況脫節（維運面）
 
-- CLAUDE.md 落後一個世代 [已驗證]：仍稱「進入單一 App root 階段」（已於 08-21 完成）、
-  程式結構未列 `src/app`/`src/features`/`src/data`、dataApi.js 已是 79 行 facade、
-  quality-gate「尚未 push」與 origin 現況不符。
+- CLAUDE.md 落後一個世代（分析期間發現，**已由 commit `7f5c1b6` 修正**，保留於此作為
+  當時的查證紀錄）：原稱「進入單一 App root 階段」（已於 08-21 完成）、程式結構未列
+  `src/app`/`src/features`/`src/data`、dataApi.js 已是 79 行 facade、quality-gate
+  「尚未 push」與 origin 現況不符。
 - 已定案／已否決／待辦散落至少三份文件的「不做」清單，無單一決策索引；
   fix-plan 與 migration-plan 檔頭進度快照停在舊批次，照讀會誤判下一步。
 
@@ -177,7 +183,8 @@ sessionController.js 來驗證，契約只是文件。ESLint 也非 type-aware�
 
 ### 第 0 批：鋪安全網（低風險、高槓桿，全部可獨立落地）
 
-1. `appRuntime.js` 副檔名映射表升級為「名稱→完整路徑」映射——把 107 處 e2e 耦合降級成一張表。
+1. 定案 e2e 白箱呼叫面的承接方式：拆檔時以同名薄 facade re-export 承接 107 處呼叫
+   （`dataApi.js` 前例）；`appRuntime.js` 名稱→路徑映射為可選強化（見 §4-D）。
 2. 引入輕量 DOM 單元層（happy-dom/jsdom + 現有 node:test），先覆蓋 sheet 與頁面的
    關鍵渲染/焦點契約，讓後續 view 重構不必全押在單 worker e2e。
 3. 清死碼四件；MessagesPage 四個 presentation 複本收斂回 `sessionPresentation.ts`；
@@ -235,8 +242,10 @@ sessionController.js 來驗證，契約只是文件。ESLint 也非 type-aware�
 
 - 換 Next.js／SSR、一次重寫、現在引入 Redux/Zustand（自製 store 已是 Zustand 形狀，
   等訂閱化完成後如需 devtools 可平移，屬可選）。
-- 為數十筆的清單上虛擬列表（結構上清單有上限：主揪至多五局、24h expire、僅台北市；
-  唯一可能無界的是群聊 feed，建議屆時從資料層 limit 下手 [推論]）。
+- 為現階段的清單過早上虛擬列表。但更正一項初版推論：探索、球友目錄、My Sessions 與群聊
+  查詢目前都無 pagination／`.limit(`（[已驗證] `dataRepository.ts` 全檔無命中），
+  「主揪至多五局」只約束單一主揪、約束不了全站總量——四個面都會隨使用者數成長，
+  屆時應優先從資料層 limit／分頁下手，而非只靠前端節流。
 
 ---
 
@@ -280,7 +289,8 @@ content-visibility 後虛擬化、錯誤監控必須沿用隱私 allowlist——
 
 ### 本文的增量發現（codex 未覆蓋）
 
-- **e2e 白箱 107 處耦合是拆檔的第 0 批前置**（§4-D）——codex 第三階段拆分計畫沒有處理它。
+- **e2e 白箱 107 處耦合是拆檔計畫必須明寫的前置**（§4-D，承接方式＝同名 facade
+  re-export）——codex 第三階段拆分計畫沒有處理它。
 - view 層零 DOM 單元安全網、GOLDEN 序列表的重構摩擦與過渡解析度方案。
 - auth identity 差分雙份實作（main.js:1283 vs sessionController.js:1996）。
 - presentation helper 四複本與死碼四件（本文親自反向 grep 確認）。
@@ -328,10 +338,50 @@ repository；mock alias 與 demo gate 有效且被測試鎖住 [已驗證]；錯
 
 ## 附：查證出處
 
-- 9 切面盤點與 22 條查證的完整證據（含逐字原文）由本次多代理工作流程產出；
-  關鍵數字（行數、grep 計數、build 尺寸）均可用文中指令於 working tree 重現。
+- 22 條查證的逐條判定見**附錄 A**；9 切面盤點的逐字原文證據由本次多代理工作流程產出
+  （工作檔未入 repo），但關鍵數字（行數、grep 計數、build 尺寸）均可用文中與附錄 A
+  的指令於 working tree 重現。
 - 歷史決策時間軸出處：`docs/frontend-migration-plan-2026-08-18.md`（不在 scope 清單）、
   `docs/frontend-fix-plan-2026-08-20.md` §0.5（D1–D7 拍板）、
   `docs/arch-dispatch-2026-08-21/00-overview.md`（非派工項）、
   `docs/arch-reports/final-verdict-2026-08-21.md`（未盡事項與量化終態）、
   `docs/migration-reports/batch-10.md` §3（@layer 反例）。
+
+## 附錄 A：codex 22 條主張逐條判定矩陣
+
+查證基準＝working tree；rec 類的判定對象是「建議所依據的前提」。每列的證據可依「重現」欄
+指令自行重跑。
+
+| ID | 類型 | 主張摘要 | 判定 | 關鍵證據／重現 |
+| --- | --- | --- | --- | --- |
+| C1 | fact | 三大檔 2,382/2,149/1,483 行，合計 6,014、占 JS 76.4% | CONFIRMED | `wc -l src/{sessionViews,sessionController,main}.js`；分母 `find src -name '*.js'` 23 檔 7,867 行 |
+| C2 | fact | JS/TS/TSX＝7,867/6,082/6,045 行、TS+TSX 60.7%；databaseTypes.ts 1,970 行生成檔高估覆蓋 | CONFIRMED | `wc -l` 逐項吻合；扣生成檔後 56.3% |
+| C3 | fact | build 主 chunk 639.90 kB／gzip 184.71 kB | PARTIAL | 實跑 `npm run build`＝639.65/184.51 kB（差約 0.25 kB）；CSS 65.39 kB 吻合、500 kB 警告仍在 |
+| C4 | fact | 單一 createRoot；React root 掛 body 後 portal 進 index.html 容器 | CONFIRMED | `grep -rn "createRoot(" src/`＝App.tsx:317 唯一；index.html 仍持殼與導覽 |
+| C5 | fact | TSX 零反向 import sessionViews；flushSync 僅兩處 | CONFIRMED | 反向 grep 零命中；App.tsx:331、SurfaceHost.tsx:57（有守門測試） |
+| C6 | fact | 非首頁頁面＋13 個 sheet 為 lazy module | CONFIRMED | App.tsx:59/75/91 動態 import；非 eager `import.meta.glob` 恰 13 個 |
+| C7 | fact | commit 後重查 DOM 綁原生事件；generation key 重建子樹；DOM 多方共管 | CONFIRMED | App.tsx:326/331/343-345；sessionViews.js:746-791；batch-20 regression 註解自載 |
+| C8 | fact | allowJs+checkJs:false 使三大檔未受 TS 驗證；controllerContracts 無法約束 JS | CONFIRMED | tsconfig.json:4-5；`grep` 證實零 JS 檔引用 controllerContracts |
+| C9 | fact | setState 不派發、emit 顯式，為舊 renderer 呼叫序設計 | CONFIRMED | sessionStore.ts:2-6 檔頭註解逐字明載設計理由 |
+| C10 | fact | controller 混存遠端資料/畫面狀態/輪詢/gate/surface handle/authEpoch，靠大量版本守衛 | CONFIRMED | `grep -c isCurrentAuthSnapshot`＝50、`isStale()`＝23；store 欄位 181-208 行 |
+| C11 | fact | MySessionsPageOptions「二十多個 callback」 | PARTIAL | callback 實數恰 20（全成員 29）；MePage 多類操作 props 半句屬實 |
+| C12 | fact | 四類長列表全量 render、無節流/虛擬化 | CONFIRMED | 四面皆 `.map` 全量；`content-visibility`/virtualization/`.limit(` 反向 grep 全空 |
+| C13 | fact | 13 個 CSS 檔、import 順序即層疊契約 | CONFIRMED | `ls src/*.css`＝13；main.js:2-4 檔頭明文 |
+| C14 | fact | 有 Error Boundary＋allowlist，但 production transport 是 NOOP | CONFIRMED | appErrors.ts:55；`configureAppErrorTransport` 零 production 呼叫點；無監控 SDK |
+| C15 | fact | 資料存取集中 facade＋src/data；mock 排除三層防護 | CONFIRMED | `.from(`/`.rpc(` 僅 authApi.ts 與 dataRepository.ts；alias＋空模組＋dist 黑名單 |
+| C16 | rec | AppShell 接管殼與切頁；SurfaceProvider 當唯一 stack owner | 前提成立 | 但 SurfaceProvider 牴觸 react-migration.md「stack 不搬進 React」凍結，需先修規則（§6） |
+| C17 | rec | controller 依 use case 拆檔＋新模組 .ts；不開 checkJs | 前提成立 | 與 CLAUDE.md 方向一致；features/ 六模組已部分落地 |
+| C18 | rec | 狀態三分；過渡用 useSyncExternalStore；不加 Redux/Zustand | 前提成立 | C9/C10 前提屬實；TanStack Query 為 08-21 延後附條件項（§6） |
+| C19 | rec | feature hooks＋action object 取代 props 平鋪 | PARTIAL | 「二十多」實為 20；且會動到 adapter 凍結簽名，需先修 react-migration 規則 |
+| C20 | rec | 拆 repository／私人功能 lazy 降 bundle；manualChunks 僅快取優化 | 前提成立 | build 實測前提成立；vite.config 無 manualChunks；判斷正確 |
+| C21 | rec | 長列表先 content-visibility，延後虛擬化 | 前提成立 | 現況零節流實作；延後虛擬化合理（另見「明確不建議」節的總量更正） |
+| C22 | rec | token 搬 src/styles/＋@layer 分批遷移 | 前提成立 | 但 @layer 牴觸 batch-10 實證結論，屬翻案項；token 搬移技術上可行（contrast 測試已遞迴掃描） |
+
+## 修訂紀錄
+
+- 2026-08-22 v2：依 codex 複測回饋修訂六處——(1) §4-H 補「已由 `7f5c1b6` 修正」後註；
+  (2) remount 範圍限縮至四個頁面 slot（sheet 以穩定 slot id 掛載）；(3) 撤回「清單結構性
+  受限、唯群聊無界」推論，更正為四面皆無 limit、隨使用者數成長；(4) e2e 承接方式由
+  「必要的映射表升級」改為「同名 facade re-export 為標準解、映射表可選」；(5) MessagesPage
+  helper 複本歸因更正（2 個對 sessionPresentation.ts、2 個對 sessionViews.js）；
+  (6) 補附錄 A 完整 22 條判定矩陣，修復稽核鏈。
