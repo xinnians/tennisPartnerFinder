@@ -7,6 +7,16 @@
 分工：使用者指派 → codex 開發 → Claude 驗收。
 派工基準 commit：`8213d33`（驗收時以此比對）。
 
+## 拍板紀錄（2026-08-22，使用者採納 Claude 建議）
+
+| 決策 | 裁決 | 生效方式 |
+| --- | --- | --- |
+| F3-0 規則修訂 | 原則核可 | 批 2 驗收通過後才執行；只放寬 surface stack 歸屬與 AppShell 接管區的 DOM 凍結，**testid 凍結保留** |
+| F4-5 CSS @layer | **不翻案**，維持 batch-10 決策 | 項目撤銷；只保留 F4-4 token 單一來源 |
+| F4-6 錯誤監控廠商 | **Sentry 免費方案** | 即日可派工；SDK 必須 lazy load、beforeSend 強制三欄 allowlist |
+| openLoginModal 遷 React | **翻案核可** | 不單獨派工，併入 F3-2 範圍 |
+| TanStack Query | 維持「TS 化後再議」 | 且屆時預設不引入，除非批 2 後有實際痛點提案 |
+
 ---
 
 ## 總則（每一批都適用）
@@ -42,7 +52,7 @@ mock/build/bundle gate）全綠，輸出貼進回報。
   └→ 批 1（React 訂閱化；依賴 F0-1 的 DOM 單元層先落地）
        └→ 批 2（拆檔＋TS 化；依賴批 1 移除 remount 後的穩定 view 層）
             └→ 批 3（AppShell＋導覽；依賴 F3-0 規則修訂先行）
-批 4（效能與收尾）：F4-1/F4-2/F4-4 隨時可做；F4-3 依賴批 2；F4-5 依賴使用者拍板
+批 4（效能與收尾）：F4-1/F4-2/F4-4/F4-6 隨時可做；F4-3 依賴批 2；F4-5 已裁決不做
 文件批 D：隨時可做
 ```
 
@@ -242,12 +252,14 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 
 ## 批 3：AppShell 與導覽（翻案項——F3-0 未完成前不得開工）
 
-### F3-0 規則修訂（前置，需使用者核可）
+### F3-0 規則修訂（前置；已原則核可 2026-08-22，批 2 驗收通過後執行）
 
 - **目標**：批 3 觸及 `.claude/rules/react-migration.md` 的凍結條款
   （DOM/testid 凍結、「surface stack 不搬進 React」、flushSync 同步語意）。
   比照 D6 翻案儀式：修訂規則檔＋在批次報告落檔翻案理由。
-- **驗收**：規則檔 diff＋使用者核可紀錄；受影響的守門測試清單與處置方案。
+- **範圍限制（拍板條款）**：只放寬 (a) surface stack 歸屬、(b) AppShell 接管區域的
+  DOM 凍結；**testid 凍結保留不動**（470+ e2e 斷言依賴）。批 0〜2 期間不得先改。
+- **驗收**：規則檔 diff 符合上述範圍限制；受影響的守門測試清單與處置方案。
 
 ### F3-1 頁面導覽狀態機＋hash 深連結
 
@@ -262,7 +274,8 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 
 - **目標／動機**：結束 index.html／main.js／React 三方分持 UI；topbar chips、
   level popover、底部導覽、toast 遷入 React；此時 flushSync 契約與
-  `import.meta.glob` 橋接可退役。
+  `import.meta.glob` 橋接可退役。**含 openLoginModal 遷 React**（最後一張全內容
+  innerHTML surface；2026-08-22 翻案核可，殼機制不動、只換內容）。
 - **驗收**：`grep -rn "flushSync" src/` 僅剩（或少於）現有兩處並附理由；
   第三套 popover Escape capture listener 刪除；a11y 契約（aria-current、live region、
   Escape 分層）逐條對照測試。
@@ -304,17 +317,21 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 - **驗收**：JS 常數與 CSS 變數同源產出；故意改一側證明 gate 會紅（canary）；
   contrast-tokens 測試綠。
 
-### F4-5 CSS @layer＋token 搬家（翻案項，需使用者先對齊 batch-10 決策）
+### F4-5 CSS @layer（已裁決不做，2026-08-22）
 
-- **前置**：batch-10 §3 有三個實證反例，屬行為變更重構；token 搬 `src/styles/` 技術上
-  可行（contrast 測試已遞迴掃描）但 session.css 檔頭凍結說明需同步更新。
-- **驗收**：分批遷移、每批 Playwright 視覺回歸；`legacy-style-scan` 綠。
+- **裁決理由**：batch-10 §3 有三個實證反例，@layer 化是行為變更而非整理；現行 13 檔
+  import 順序有明文檔頭與兩個自動 gate 守著，只在調動 import 順序時才有風險，
+  回歸成本不成比例。維持 batch-10 決策不翻案。
+- **保留的便宜半套**：token 雙源問題由 F4-4 解決；AppShell 完成後若要重談，另立提案。
 
-### F4-6 錯誤監控接線（需使用者拍板廠商）
+### F4-6 錯誤監控接線（廠商已拍板：Sentry 免費方案，2026-08-22；即日可派工）
 
-- **前置**：廠商選擇是使用者拍板項（`docs/error-transport-wiring.md` 已備妥步驟）。
-- **驗收**：只送 `errorName/kind/surface` 三欄 frozen allowlist（app-errors 測試綠）；
-  raw message／stack 不出境（canary：故意丟含 PII 的 error 證明被濾掉）。
+- **前置**：接線步驟見 `docs/error-transport-wiring.md`。
+- **必要條件（拍板條款）**：(a) Sentry SDK 以 dynamic import 延遲載入，不得進主 chunk
+  （bundle gate 驗證）；(b) `beforeSend` 強制只放行 `errorName/kind/surface` 三欄。
+- **驗收**：只送三欄 frozen allowlist（app-errors 測試綠）；raw message／stack 不出境
+  （canary：故意丟含 PII 的 error 證明被濾掉）；`check:production-bundle` 主 chunk
+  尺寸未因 SDK 上升。
 
 ### F4-7 長列表節流
 
@@ -354,12 +371,11 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 
 | 項目 | 狀態 |
 | --- | --- |
-| TanStack Query | 08-21 延後附條件（dataApi/controller TS 化後再議）；屆時需配 no-restricted-imports 防繞過 mapper |
+| TanStack Query | 維持延後（2026-08-22 重申）；預設不引入，批 2 後有實際痛點才提案，且需配 no-restricted-imports 防繞過 mapper |
 | React Router | 不建議——自製 hash router 足夠（F3-1） |
 | Redux／Zustand | 不加；自製 store 訂閱化後如需 devtools 再議 |
-| openLoginModal 遷 React | 歷史上有「不遷」的使用者拍板，翻案需重新核可 |
+| CSS @layer | 2026-08-22 裁決不翻案（見 F4-5） |
 | 桌面雙欄版面 | 先查 analytics 裝置比例再決定（codex 建議，同意） |
-| 錯誤監控廠商 | 使用者拍板後才派 F4-6 |
 | Next.js／SSR／一次重寫 | 三度審視同結論：不做 |
 
 ---
