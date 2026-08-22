@@ -7,7 +7,9 @@ import type {
   SurfaceCloseOptions,
   SurfaceLoadStatus,
 } from "./domainTypes.ts";
+// eslint-disable-next-line no-restricted-imports -- 既有 controller contract 純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { DataCourt, MyPlayerBlock, PlayerPresenceDirectoryEntry } from "./data/mappers/profileMappers.ts";
+// eslint-disable-next-line no-restricted-imports -- 既有地圖 bounds 純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { MapBounds } from "./data/mappers/queryMappers.ts";
 
 export type ControllerIdentifier = number | string | null | undefined;

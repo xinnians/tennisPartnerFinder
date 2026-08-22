@@ -1,5 +1,6 @@
 import type { ControllerPlayer, ControllerPlayerGroup } from "../../controllerContracts.ts";
 import type { MySessionSummary } from "../../domainTypes.ts";
+// eslint-disable-next-line no-restricted-imports -- 既有玩家目錄純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { PlayerDirectoryEntry, PlayerPresenceDirectoryEntry } from "../../data/mappers/profileMappers.ts";
 import { compareSessionStart, timeValue } from "../session-lifecycle/sessionLifecycleFeature.ts";
 

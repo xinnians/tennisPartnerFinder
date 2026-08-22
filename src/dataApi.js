@@ -8,6 +8,7 @@ export {
   signInWithOAuthProvider,
   signOut,
 } from "./data/authApi.ts";
+export { isSupabaseConfigured } from "./supabaseClient.js";
 export { DataApiError, DataApiUnavailableError, SESSION_ACTION_CODES, SessionActionError } from "./data/dataErrors.ts";
 export {
   mapCurrentProfile,

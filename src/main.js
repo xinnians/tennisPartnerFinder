@@ -49,6 +49,7 @@ import {
   declineSessionParticipant,
   getInitialSession,
   inviteToSession,
+  isSupabaseConfigured,
   linkLoginIdentity,
   loadCourts,
   loadCurrentProfile,
@@ -78,7 +79,6 @@ import {
   updateMyPresence,
   withdrawFromSession,
 } from "./dataApi.js";
-import { isSupabaseConfigured } from "./supabaseClient.js";
 import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.ts";
 import { createSessionController } from "./sessionController.js";
 import {

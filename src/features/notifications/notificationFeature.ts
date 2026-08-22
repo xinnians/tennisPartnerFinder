@@ -1,16 +1,17 @@
 import { WEB_PUSH_VAPID_PUBLIC_KEY } from "../../config.js";
 import type { ControllerAuthSession } from "../../controllerContracts.ts";
 import {
+  isSupabaseConfigured,
   loadCourtSubscriptions,
   loadNotificationPreferences,
   saveCourtSubscriptions,
   saveNotificationPreferences,
   savePushSubscription,
 } from "../../dataApi.js";
+// eslint-disable-next-line no-restricted-imports -- 既有通知球場純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { DataCourt } from "../../data/mappers/profileMappers.ts";
 import type { NotificationPreferences } from "../../domainTypes.ts";
 import { enableBrowserPush } from "../../notificationPush.js";
-import { isSupabaseConfigured } from "../../supabaseClient.js";
 
 export type NotificationPushStatus = "denied" | "enabled" | "idle" | "unsupported";
 

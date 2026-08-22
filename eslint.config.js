@@ -79,5 +79,50 @@ export default tseslint.config(
       "react-hooks/exhaustive-deps": "error",
       "react-hooks/rules-of-hooks": "error",
     },
+  },
+  {
+    files: ["src/**/*.{js,ts,tsx}"],
+    ignores: ["src/data/**", "src/dataApi.js"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/supabaseClient", "**/supabaseClient.*"],
+              message: "禁止直接匯入 supabaseClient；請改由 dataApi facade 存取。",
+            },
+            {
+              group: ["**/data/mappers/**"],
+              message: "禁止直接匯入 data 內部 mapper；請改由 dataApi facade 存取。",
+            },
+            {
+              regex: "(?:^|/)data/mappers/?$",
+              message: "禁止直接匯入 data 內部 mapper；請改由 dataApi facade 存取。",
+            },
+            {
+              group: ["**/data/repositories/**"],
+              message: "禁止直接匯入 data 內部 repository；請改由 dataApi facade 存取。",
+            },
+            {
+              regex: "(?:^|/)data/repositories/?$",
+              message: "禁止直接匯入 data 內部 repository；請改由 dataApi facade 存取。",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression[source.value=/(?:^|\\/)supabaseClient(?:\\.|$)|(?:^|\\/)data\\/(?:mappers|repositories)(?:\\/|$)/]",
+          message: "禁止動態匯入資料層內部；請改由 dataApi facade 存取。",
+        },
+        {
+          selector: 'ImportExpression:not([source.type="Literal"])',
+          message: "動態 import 路徑必須使用字串 literal，以便靜態驗證資料邊界。",
+        },
+      ],
+    },
   }
 );
