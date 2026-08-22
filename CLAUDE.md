@@ -3,7 +3,7 @@
 ## 專案定位
 
 這是以 Vite 6 與原生 ES modules 製作的台北市網球公開球局 MVP；React 19 畫面遷移已大致完成，
-頁面與 sheet 主要由 React 呈現。目前進入核心 TypeScript 化、單一 App root 與功能模組拆分階段。
+頁面與 sheet 主要由 React 呈現，單一 App root 已落地（2026-08-21）；目前進行核心 TypeScript 化與功能模組拆分。
 首頁是地圖，
 使用者可瀏覽未來與開打後兩小時內的球局，依球局加入方式申請或直接加入；已接受成員可使用球局群組聊天，
 前端不再提供 LINE 聯絡面。首發公開範圍是 **台北市、網球**；資料庫保留雙北球場目錄，但不可把
@@ -59,7 +59,11 @@
 - `src/sessionController.js`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh。
 - `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions 與群聊。
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
-- `src/dataApi.js`：唯一瀏覽器資料邊界；公開 summary、私有 view 與 RPC mapper。
+- `src/app/`：單一 React root 與 SurfaceHost；頁面與 sheet 內容以 portal 掛進 legacy 容器。
+- `src/features/`：六個 feature 純邏輯模組（chat、discovery、notifications、
+  player-directory、profile-auth、session-lifecycle）。
+- `src/dataApi.js`：唯一瀏覽器資料邊界的 79 行薄 facade；實作在 `src/data/`
+  （`databaseTypes.ts` 生成型別、`repositories/`、`mappers/`、`authApi.ts`），邊界語意不變。
 - `src/domainTypes.ts`：從 data API mapper 反推的共用 domain／surface 型別。
 - React 頁面批的 mount、import、DOM 凍結與焦點／Escape 混用規則見 `.claude/rules/react-migration.md`。
 - `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
@@ -136,8 +140,8 @@ npm run check:production-bundle
 git diff --check
 ```
 
-`.github/workflows/quality-gate.yml` 已設定在 `main` 與目前開發分支執行相同 gates，但尚未
-push；待 REL 讓 `main` 追上後才會在 `main` 生效。frontend 與 Supabase 聚合入口分別是
+`.github/workflows/quality-gate.yml` 已隨目前開發分支 push 到 origin，push／PR 都會在該分支
+執行；`main` 尚未合流，待 REL 讓 `main` 追上後才會在 `main` 生效。frontend 與 Supabase 聚合入口分別是
 `npm run test:ci:frontend`、`npm run test:ci:supabase`；WebKit 是獨立的非阻擋 job。
 
 `npm test` 等同 `npm run test:mock`，**不會**重置資料庫；`npm run test:local` 也不會。
