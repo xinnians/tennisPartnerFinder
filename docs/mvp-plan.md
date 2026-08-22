@@ -99,6 +99,14 @@ git diff --check
 hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA 已完成）；未勾選項仍是
 未完成，不得把本機測試通過解讀成已完成。發布本身尚未進行。
 
+**2026-08-22 純前端 REL 執行紀錄**（arch-hardening 管線，零新 migration）：本機 release
+gate 全綠（pgTAP 799、mock 266、local 42＋6＋2、build＋bundle gate）；
+`supabase migration list` 25/25 local↔remote 對齊零 drift；分支 push 後 preview alias
+（`...git-cla-6f302a...`）經 smoke 確認跑新版（lazy chunks、零 console 錯誤）。本節
+DB／Edge Function／cron 各 [x] 項為 2026-08-04 紀錄，本次無 DB 變更故不重跑；剩餘
+未勾項（穩定 preview 人工 QA、QA 資料清理）仍待負責人完成後才可把 `main` push 上
+production。
+
 - [x] 備份 hosted schema/data，記錄 profiles、sessions、participants、messages、reports、
   notification outbox 與 push subscription 的 migration 前 counts。
   2026-08-04 執行：`supabase db dump`（schema 112KB／data 48KB，存放於執行者本機）；
@@ -159,10 +167,14 @@ hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA
   失敗會殘留半套資料，風險大於驗證價值。首批真實球局封存滿 90 天前，
   若要提前驗證，應在 local 或另建 staging 專案執行。
   90 天目前是暫訂值，變更必須同步隱私政策與 migration。
-- [ ] 退役聯絡面技術債：確認新註冊不蒐集 LINE、`session_contacts` view 前端零 consumer，且
+- [x] 退役聯絡面技術債：確認新註冊不蒐集 LINE、`session_contacts` view 前端零 consumer，且
   `profiles.line_id` 前端不讀、不寫、不渲染；凍結的 `save_my_profile` 因 `p_line_id` 無預設值，
   `src/dataApi.js` 仍須傳 `p_line_id: null`。drop 欄位或改簽名前先處理該呼叫點，再做備份、count
   preflight 與新 migration，不手改已凍結 migration。
+  2026-08-22 前端側查證（arch 管線終驗，見 `docs/arch-reports/final-verdict-2026-08-21.md`）：
+  LINE 聯絡面於 `src/` 零讀寫渲染（`lineProviderId` 僅登入 provider id）、`p_line_id: null`
+  保留於 `src/data/` repository、隱私掃描測試含補償斷言全綠。欄位 drop 與 migration 仍未做，
+  維持凍結。
 - [ ] 穩定 preview 人工 QA：OAuth、Maps referrer、390px 慢網路、鍵盤焦點、支援／隱私連結、
   console/pageerror、球場訂閱可涵蓋全部台北市 active 球場與六個通知偏好。
   2026-08-04 部分完成：於 preview alias（`...-git-cla-6f302a-...`）確認 OAuth 兩帳號登入、
