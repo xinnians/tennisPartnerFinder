@@ -1,4 +1,4 @@
-import { useLayoutEffect, type ChangeEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useState, type ChangeEvent, type MouseEvent } from "react";
 
 import { Avatar } from "../components/Avatar.tsx";
 import type {
@@ -250,14 +250,18 @@ function PresenceSettings({
   presence: NormalizedPresence;
   rootElement: HTMLElement;
 }) {
-  const sharingLabel = presence.sharePresence ? "已開啟" : "已關閉";
+  const [openToGreeting, setOpenToGreeting] = useState(presence.openToGreeting);
+  const [sharePresence, setSharePresence] = useState(presence.sharePresence);
+  useEffect(() => setOpenToGreeting(presence.openToGreeting), [presence.openToGreeting]);
+  useEffect(() => setSharePresence(presence.sharePresence), [presence.sharePresence]);
+  const sharingLabel = sharePresence ? "已開啟" : "已關閉";
   const handleGreetingChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    const previousChecked = !input.checked;
+    const nextOpenToGreeting = event.currentTarget.checked;
+    setOpenToGreeting(nextOpenToGreeting);
     void mePageRuntime
-      .runPresenceSettingAction(rootElement, () => onSetOpenToGreeting(input.checked))
+      .runPresenceSettingAction(rootElement, () => onSetOpenToGreeting(nextOpenToGreeting))
       .then((saved) => {
-        if (!saved) input.checked = previousChecked;
+        if (!saved) setOpenToGreeting(presence.openToGreeting);
       });
   };
   return (
@@ -274,18 +278,24 @@ function PresenceSettings({
         data-set-presence-sharing=""
         data-presence-control=""
         role="switch"
-        aria-checked={presence.sharePresence ? "true" : "false"}
+        aria-checked={sharePresence ? "true" : "false"}
         aria-label={`在線分享：${sharingLabel}`}
         aria-describedby="presence-sharing-hint"
         data-testid="presence-sharing-toggle"
         onClick={() => {
-          void mePageRuntime.runPresenceSettingAction(rootElement, () => onSetPresenceSharing(!presence.sharePresence));
+          const nextSharePresence = !sharePresence;
+          setSharePresence(nextSharePresence);
+          void mePageRuntime
+            .runPresenceSettingAction(rootElement, () => onSetPresenceSharing(nextSharePresence))
+            .then((saved) => {
+              if (!saved) setSharePresence(presence.sharePresence);
+            });
         }}
       >
         {sharingLabel}
       </button>
       <p className="form-hint" data-testid="presence-location-status">
-        {mePageRuntime.presenceLocationHint(presence)}
+        {mePageRuntime.presenceLocationHint({ ...presence, sharePresence })}
       </p>
       <label className="presence-settings__greeting">
         <input
@@ -293,7 +303,7 @@ function PresenceSettings({
           data-open-to-greeting=""
           data-presence-control=""
           data-testid="open-to-greeting-toggle"
-          defaultChecked={presence.openToGreeting}
+          checked={openToGreeting}
           onChange={handleGreetingChange}
         />{" "}
         接受現場問候
@@ -303,16 +313,14 @@ function PresenceSettings({
   );
 }
 
-function notificationPreferencesFrom(rootElement: HTMLElement): NotificationPreferences {
-  const checked = (preference: keyof NotificationPreferences) =>
-    rootElement.querySelector<HTMLInputElement>(`[data-notification-pref="${preference}"]`)?.checked === true;
+function copyNotificationPreferences(preferences: NotificationPreferences): NotificationPreferences {
   return {
-    chatMessageEnabled: checked("chatMessageEnabled"),
-    hostNewRequestEnabled: checked("hostNewRequestEnabled"),
-    guestRequestReviewedEnabled: checked("guestRequestReviewedEnabled"),
-    guestInvitedEnabled: checked("guestInvitedEnabled"),
-    sessionReminderEnabled: checked("sessionReminderEnabled"),
-    sessionUpdatedEnabled: checked("sessionUpdatedEnabled"),
+    chatMessageEnabled: preferences.chatMessageEnabled,
+    hostNewRequestEnabled: preferences.hostNewRequestEnabled,
+    guestRequestReviewedEnabled: preferences.guestRequestReviewedEnabled,
+    guestInvitedEnabled: preferences.guestInvitedEnabled,
+    sessionReminderEnabled: preferences.sessionReminderEnabled,
+    sessionUpdatedEnabled: preferences.sessionUpdatedEnabled,
   };
 }
 
@@ -325,14 +333,18 @@ function NotificationPreferencesFieldset({
   onSaveNotificationPreferences: (preferences: NotificationPreferences) => CallbackResult;
   rootElement: HTMLElement;
 }) {
-  const handlePreferenceChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const input = event.currentTarget;
-    const previousChecked = !input.checked;
-    const preferences = notificationPreferencesFrom(rootElement);
+  const authoritativePreferences = JSON.stringify(notification.prefs);
+  const [preferences, setPreferences] = useState(() => copyNotificationPreferences(notification.prefs));
+  useEffect(() => {
+    setPreferences(JSON.parse(authoritativePreferences) as NotificationPreferences);
+  }, [authoritativePreferences]);
+  const handlePreferenceChange = (key: keyof NotificationPreferences, checked: boolean) => {
+    const nextPreferences = { ...preferences, [key]: checked };
+    setPreferences(nextPreferences);
     void mePageRuntime
-      .runNotificationSettingAction(rootElement, () => onSaveNotificationPreferences(preferences))
+      .runNotificationSettingAction(rootElement, () => onSaveNotificationPreferences(nextPreferences))
       .then((saved) => {
-        if (!saved) input.checked = previousChecked;
+        if (!saved) setPreferences(copyNotificationPreferences(notification.prefs));
       });
   };
   return (
@@ -345,8 +357,8 @@ function NotificationPreferencesFieldset({
             data-notification-pref={key}
             data-notification-control=""
             data-testid={testId}
-            defaultChecked={notification.prefs[key]}
-            onChange={handlePreferenceChange}
+            checked={preferences[key]}
+            onChange={(event) => handlePreferenceChange(key, event.currentTarget.checked)}
           />{" "}
           {label}
         </label>
@@ -367,52 +379,38 @@ function CourtSubscriptions({
   onSaveCourtSubscriptions: (courtIds: number[]) => CallbackResult;
   rootElement: HTMLElement;
 }) {
-  const subscribedCourtCount = notificationCourts.filter((court) => notification.courtIds.has(Number(court.id))).length;
+  const authoritativeCourtIds = notificationCourts
+    .map((court) => Number(court.id))
+    .filter((courtId) => notification.courtIds.has(courtId));
+  const authoritativeCourtSignature = authoritativeCourtIds.join(",");
+  const [selectedCourtIds, setSelectedCourtIds] = useState(() => new Set(authoritativeCourtIds));
+  const [courtPickerExpanded, setCourtPickerExpanded] = useState(
+    () => authoritativeCourtIds.length > 0 && authoritativeCourtIds.length < notificationCourts.length
+  );
+  useEffect(() => {
+    const restoredCourtIds = authoritativeCourtSignature ? authoritativeCourtSignature.split(",").map(Number) : [];
+    setSelectedCourtIds(new Set(restoredCourtIds));
+    setCourtPickerExpanded(restoredCourtIds.length > 0 && restoredCourtIds.length < notificationCourts.length);
+  }, [authoritativeCourtSignature, notificationCourts.length]);
+  const subscribedCourtCount = notificationCourts.filter((court) => selectedCourtIds.has(Number(court.id))).length;
   const subscribedToEveryCourt = notificationCourts.length > 0 && subscribedCourtCount === notificationCourts.length;
-  const courtPickerExpanded = subscribedCourtCount > 0 && !subscribedToEveryCourt;
   const courtSubscriptionSummary = notificationCourts.length ? `已訂閱 ${subscribedCourtCount} 座` : "";
-  const courtBoxes = () => [...rootElement.querySelectorAll<HTMLInputElement>("[data-notification-court]")];
-  const selectedCourtIds = () =>
-    courtBoxes()
-      .filter((box) => box.checked)
-      .map((box) => Number(box.value));
-  const paintCourtSelection = (ids: number[]) => {
-    const chosen = new Set(ids.map(Number));
-    courtBoxes().forEach((box) => {
-      box.checked = chosen.has(Number(box.value));
-    });
-    const subscribeAll = rootElement.querySelector<HTMLInputElement>("[data-subscribe-all-courts]");
-    if (subscribeAll) {
-      subscribeAll.checked = notificationCourts.length > 0 && chosen.size === notificationCourts.length;
-    }
-    const countLabel = rootElement.querySelector<HTMLElement>("[data-court-subscription-count]");
-    if (countLabel) countLabel.textContent = `已訂閱 ${chosen.size} 座`;
-  };
-  const restoreCourtSelection = () => paintCourtSelection([...notification.courtIds]);
   const saveCourtSelection = (courtIds: number[]) => {
-    if (courtIds.length > notificationCourts.length) {
-      restoreCourtSelection();
-      const error = rootElement.querySelector<HTMLElement>("[data-notification-error]");
-      if (error) {
-        error.textContent = "訂閱球場數量超過目前可選的台北市球場。";
-        error.hidden = false;
-        if (mePageRuntime.canReceiveFocus(error)) error.focus({ preventScroll: true });
-      }
-      return;
+    const nextCourtIds = new Set(courtIds);
+    setSelectedCourtIds(nextCourtIds);
+    if (notificationCourts.length > 0 && nextCourtIds.size === notificationCourts.length) {
+      setCourtPickerExpanded(false);
     }
-    paintCourtSelection(courtIds);
     void mePageRuntime
       .runNotificationSettingAction(rootElement, () => onSaveCourtSubscriptions(courtIds))
       .then((saved) => {
-        if (!saved) restoreCourtSelection();
+        if (!saved) {
+          setSelectedCourtIds(new Set(authoritativeCourtIds));
+          setCourtPickerExpanded(
+            authoritativeCourtIds.length > 0 && authoritativeCourtIds.length < notificationCourts.length
+          );
+        }
       });
-  };
-  const handlePickerToggle = (event: MouseEvent<HTMLButtonElement>) => {
-    const picker = rootElement.querySelector<HTMLElement>("[data-notification-courts]");
-    if (!picker) return;
-    const expanded = picker.hidden;
-    picker.hidden = !expanded;
-    event.currentTarget.setAttribute("aria-expanded", expanded ? "true" : "false");
   };
   return (
     <fieldset className="notification-settings__fieldset">
@@ -425,7 +423,7 @@ function CourtSubscriptions({
           data-notification-control=""
           data-notification-authoritative-disabled={notificationCourts.length ? "false" : "true"}
           data-testid="subscribe-all-courts"
-          defaultChecked={subscribedToEveryCourt}
+          checked={subscribedToEveryCourt}
           disabled={!notificationCourts.length}
           onChange={(event) => {
             saveCourtSelection(event.currentTarget.checked ? notificationCourts.map((court) => Number(court.id)) : []);
@@ -443,7 +441,7 @@ function CourtSubscriptions({
         aria-expanded={courtPickerExpanded ? "true" : "false"}
         aria-controls="notification-court-picker"
         disabled={!notificationCourts.length}
-        onClick={handlePickerToggle}
+        onClick={() => setCourtPickerExpanded((expanded) => !expanded)}
       >
         只訂閱特定球場
       </button>
@@ -463,8 +461,18 @@ function CourtSubscriptions({
                 data-notification-control=""
                 value={courtId}
                 data-testid={`notification-court-${courtId}`}
-                defaultChecked={notification.courtIds.has(Number(court.id))}
-                onChange={() => saveCourtSelection(selectedCourtIds())}
+                checked={selectedCourtIds.has(Number(court.id))}
+                onChange={(event) => {
+                  const nextCourtIds = new Set(selectedCourtIds);
+                  const numericCourtId = Number(court.id);
+                  if (event.currentTarget.checked) nextCourtIds.add(numericCourtId);
+                  else nextCourtIds.delete(numericCourtId);
+                  saveCourtSelection(
+                    notificationCourts
+                      .map((listedCourt) => Number(listedCourt.id))
+                      .filter((listedCourtId) => nextCourtIds.has(listedCourtId))
+                  );
+                }}
               />{" "}
               <span>
                 {court.name} · {court.district || "台北市"}
