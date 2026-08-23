@@ -358,7 +358,11 @@ export async function runNotificationSettingAction(
     errorMessage: "通知設定暫時無法更新，請稍後再試。",
     errorFocus: true,
     errorResult: false,
-    resolveControls: () => unlockedDescriptors.map((descriptor) => findNotificationControl(root, descriptor)),
+    resolveControls: () =>
+      unlockedDescriptors.map((descriptor) => {
+        const control = findNotificationControl(root, descriptor);
+        return control?.dataset.notificationAuthoritativeDisabled === "true" ? null : control;
+      }),
     focus: {
       capture: notificationControlDescriptor,
       shouldRestore: ({ completed }) => completed,

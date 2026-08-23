@@ -423,6 +423,7 @@ function CourtSubscriptions({
           type="checkbox"
           data-subscribe-all-courts=""
           data-notification-control=""
+          data-notification-authoritative-disabled={notificationCourts.length ? "false" : "true"}
           data-testid="subscribe-all-courts"
           defaultChecked={subscribedToEveryCourt}
           disabled={!notificationCourts.length}
@@ -437,6 +438,7 @@ function CourtSubscriptions({
         className="session-secondary"
         data-court-picker-toggle=""
         data-notification-control=""
+        data-notification-authoritative-disabled={notificationCourts.length ? "false" : "true"}
         data-testid="toggle-court-picker"
         aria-expanded={courtPickerExpanded ? "true" : "false"}
         aria-controls="notification-court-picker"
@@ -521,6 +523,7 @@ function NotificationSettings({
           className="session-secondary"
           data-enable-push=""
           data-notification-control=""
+          data-notification-authoritative-disabled={enablePushDisabled ? "true" : "false"}
           data-testid="enable-push"
           disabled={enablePushDisabled}
           onClick={() => {

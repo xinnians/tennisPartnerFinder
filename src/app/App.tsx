@@ -10,10 +10,10 @@ import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages
 import { installSurfaceHostRenderer, SurfaceHost, type SurfaceHostSnapshot } from "./SurfaceHost.tsx";
 
 interface PageSlot<Options> {
-  generation: number;
   id: number;
   onCommit?: () => void;
   options: Options;
+  resetKey: number;
   rootElement: HTMLElement;
 }
 
@@ -169,9 +169,9 @@ const MeDestination = memo(function MeDestination({
   } = slot.options;
 
   return (
-    <AppErrorBoundary resetKey={slot.generation} surface="me-page">
+    <AppErrorBoundary resetKey={slot.resetKey} surface="me-page">
       <MePageComponent
-        key={slot.generation}
+        key={slot.id}
         rootElement={slot.rootElement}
         authSession={authSession}
         profile={profile}
@@ -220,8 +220,14 @@ const MessagesDestination = memo(function MessagesDestination({
   if (!MessagesPageComponent) return <PageLoading label={failed ? "訊息載入失敗，請重新整理。" : "正在載入訊息…"} />;
   const { courts = [], groups = EMPTY_MESSAGES_GROUPS, onOpenChat = noop, sessionStore } = slot.options;
   return (
-    <AppErrorBoundary resetKey={slot.generation} surface="messages-page">
-      <MessagesPageComponent courts={courts} groups={groups} onOpenChat={onOpenChat} sessionStore={sessionStore} />
+    <AppErrorBoundary resetKey={slot.resetKey} surface="messages-page">
+      <MessagesPageComponent
+        key={slot.id}
+        courts={courts}
+        groups={groups}
+        onOpenChat={onOpenChat}
+        sessionStore={sessionStore}
+      />
     </AppErrorBoundary>
   );
 });
@@ -242,10 +248,10 @@ const MySessionsDestination = memo(function MySessionsDestination({
     return <PageLoading label={failed ? "我的球局載入失敗，請重新整理。" : "正在載入我的球局…"} />;
   }
   return (
-    <AppErrorBoundary resetKey={slot.generation} surface="my-sessions-page">
+    <AppErrorBoundary resetKey={slot.resetKey} surface="my-sessions-page">
       <MySessionsPageComponent
         {...slot.options}
-        key={slot.generation}
+        key={slot.id}
         rootElement={slot.rootElement}
         onStoreCommit={slot.onCommit}
       />
@@ -259,8 +265,8 @@ const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
   slot: PageSlot<NearbySessionsDrawerOptions>;
 }) {
   return (
-    <AppErrorBoundary resetKey={slot.generation} surface="nearby-sessions-drawer">
-      <NearbySessionsDrawer {...slot.options} key={slot.generation} onStoreCommit={slot.onCommit} />
+    <AppErrorBoundary resetKey={slot.resetKey} surface="nearby-sessions-drawer">
+      <NearbySessionsDrawer {...slot.options} key={slot.id} onStoreCommit={slot.onCommit} />
     </AppErrorBoundary>
   );
 });
@@ -337,12 +343,12 @@ function renderPage<Options>(
   const slots = new Map(snapshot[key] as Map<HTMLElement, PageSlot<Options>>);
   const previous = slots.get(rootElement);
   slots.set(rootElement, {
-    // sessionViews rebinds native listeners after every adapter call. Remounting
-    // gives it fresh nodes and also resets a previously tripped error boundary.
-    generation: (previous?.generation ?? 0) + 1,
     id: previous?.id ?? nextSlotId++,
     onCommit,
     options,
+    // Page identity stays stable so React state and focus survive adapter
+    // updates. Only the boundary observes this explicit recovery key.
+    resetKey: (previous?.resetKey ?? 0) + 1,
     rootElement,
   });
   snapshot = { ...snapshot, [key]: slots };
