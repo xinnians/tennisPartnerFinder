@@ -1,13 +1,18 @@
-import { Fragment } from "react";
+import { Fragment, useLayoutEffect } from "react";
 
 import type {
   ControllerCallbackResult as CallbackResult,
+  ControllerEventName,
   ControllerIdentifier as Identifier,
+  SessionControllerState,
 } from "../controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
+import type { PageViewStore } from "../pageViewStore.ts";
 import { formatNtrp } from "../profile.js";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
 import { mySessionsPageRuntime } from "../sessionPresentation.ts";
+import { selectControllerMySessionsView } from "../sessionSelectors.ts";
+import { useStoreSelector, type Store } from "../sessionStore.ts";
 
 type MySessionsSegment = "hosted" | "joined";
 type MySessionsVenue = ReturnType<typeof mySessionsPageRuntime.sessionVenuePresentation>;
@@ -74,6 +79,9 @@ export interface MySessionsPageOptions {
   onSignIn?: () => CallbackResult;
   onWithdraw?: (sessionId?: string) => CallbackResult;
   status?: string;
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
+  pageViewStore?: PageViewStore;
+  onStoreCommit?: () => void;
 }
 
 export interface MySessionsPageProps extends MySessionsPageOptions {
@@ -550,26 +558,40 @@ function SuccessPushPrompt({ settings }: { settings: NotificationSettingsInput |
   );
 }
 
-export function MySessionsPage({
-  authenticated = false,
-  courts = [],
-  createdSessionId = null,
-  errorMessage = "",
-  groups = EMPTY_GROUPS,
-  highlightSessionId = null,
-  notificationSettings = {},
-  rootElement,
-  status = "idle",
-}: MySessionsPageProps) {
-  const safeGroups = groups ?? EMPTY_GROUPS;
-  const focusSessionId = highlightSessionId ?? createdSessionId;
+export function MySessionsPage(props: MySessionsPageProps) {
+  const controllerView = useStoreSelector(props.sessionStore, "mySessions", selectControllerMySessionsView, null);
+  const subscribedCourts = useStoreSelector(props.sessionStore, "courts", (state) => state.courts, props.courts ?? []);
+  const pageView = useStoreSelector(props.pageViewStore, "mySessions", (state) => state, null);
+  const {
+    authenticated = false,
+    createdSessionId = null,
+    errorMessage = "",
+    groups = EMPTY_GROUPS,
+    highlightSessionId = null,
+    notificationSettings = {},
+    rootElement,
+    status = "idle",
+  } = props;
+  const resolvedGroups = controllerView?.groups ?? groups;
+  const resolvedFocusSessionId = pageView?.createdSessionFocusId ?? highlightSessionId;
+  const resolvedCreatedSessionId = pageView
+    ? pageView.createdSessionFocusReason === "created"
+      ? pageView.createdSessionFocusId
+      : null
+    : createdSessionId;
+  const resolvedNotificationSettings = pageView?.notificationSettings ?? notificationSettings;
+  useLayoutEffect(() => {
+    props.onStoreCommit?.();
+  });
+  const safeGroups = resolvedGroups ?? EMPTY_GROUPS;
+  const focusSessionId = resolvedFocusSessionId ?? resolvedCreatedSessionId;
   const activeSegment = mySessionsPageRuntime.resolveMySessionsSegment(rootElement, safeGroups, focusSessionId);
   const split = mySessionsPageRuntime.mySessionsSplitBySegment(safeGroups);
   const joinedCount = split.joined.needsAction.length + split.joined.upcoming.length;
   const hostedCount = split.hosted.needsAction.length + split.hosted.upcoming.length;
   const active = activeSegment === "hosted" ? split.hosted : split.joined;
   const activeNonHistoryCount = active.needsAction.length + active.upcoming.length;
-  const showEmptyState = authenticated && activeNonHistoryCount === 0;
+  const showEmptyState = (controllerView?.authenticated ?? authenticated) && activeNonHistoryCount === 0;
 
   return (
     <>
@@ -591,22 +613,28 @@ export function MySessionsPage({
         <SegmentedControl activeSegment={activeSegment} hostedCount={hostedCount} joinedCount={joinedCount} />
       </div>
       <p className="surface__copy">
-        {createdSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"}
+        {resolvedCreatedSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"}
       </p>
-      {createdSessionId ? <SuccessPushPrompt settings={notificationSettings} /> : null}
+      {resolvedCreatedSessionId ? <SuccessPushPrompt settings={resolvedNotificationSettings} /> : null}
       <p
         className="my-sessions-message"
         data-my-sessions-status=""
         role="status"
         aria-live="polite"
-        hidden={status !== "loading"}
+        hidden={(controllerView?.status ?? status) !== "loading"}
       >
         正在更新我的球局…
       </p>
-      <p className="form-error" data-my-sessions-error="" role="alert" tabIndex={-1} hidden={!errorMessage}>
-        {errorMessage}
+      <p
+        className="form-error"
+        data-my-sessions-error=""
+        role="alert"
+        tabIndex={-1}
+        hidden={!(controllerView?.error ?? errorMessage)}
+      >
+        {controllerView?.error ?? errorMessage}
       </p>
-      {authenticated ? null : (
+      {(controllerView?.authenticated ?? authenticated) ? null : (
         <section className="my-sessions-empty" aria-label="登入後查看我的球局">
           <h2>登入後查看與管理你的球局</h2>
           <p className="surface__copy">你可以在這裡處理申請、進入球局群組聊天，以及保留過去紀錄。</p>
@@ -616,13 +644,13 @@ export function MySessionsPage({
         </section>
       )}
       <NeedsActionSection
-        courts={courts}
+        courts={subscribedCourts}
         entries={active.needsAction}
         focusSessionId={focusSessionId}
         showChrome={!showEmptyState}
       />
       <UpcomingSection
-        courts={courts}
+        courts={subscribedCourts}
         focusSessionId={focusSessionId}
         segment={activeSegment}
         sessions={active.upcoming}
@@ -630,7 +658,7 @@ export function MySessionsPage({
       />
       {showEmptyState ? <EmptyState segment={activeSegment} /> : null}
       <HistorySection
-        courts={courts}
+        courts={subscribedCourts}
         focusSessionId={focusSessionId}
         segment={activeSegment}
         sessions={active.history}

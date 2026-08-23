@@ -310,6 +310,8 @@ const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
 const drawerScrollPositions = new WeakMap();
 const mySessionsRenderOptions = new WeakMap();
+const mySessionsBindings = new WeakMap();
+const nearbyActionBindings = new WeakMap();
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
@@ -334,7 +336,13 @@ export function renderMePage(root, options = {}) {
   const authSession = options.authSession ?? null;
   if (authSession) preloadAuthenticatedViews();
   setMySessionActionScope(root, authSession?.user?.id ?? null);
-  renderMePageInApp(root, options, () => syncPendingMySessionActions(root));
+  renderMePageInApp(root, options, () => {
+    setMySessionActionScope(
+      root,
+      options.sessionStore?.getState?.().authSession?.user?.id ?? authSession?.user?.id ?? null
+    );
+    syncPendingMySessionActions(root);
+  });
 }
 
 // 新球局不再提供「對拉」（它的語意併入「練球」）。編輯仍須接受四值：DB 的 CHECK 沒變，
@@ -570,7 +578,20 @@ function restoreFocusedSessionCard(root) {
     if (!focusIntent) return;
     const active = document.activeElement;
     const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
-    if (hasNewSurface || (active?.isConnected && active !== document.body && active !== document.documentElement))
+    const activeIsHiddenDrawerControl =
+      active instanceof HTMLElement && root.contains(active) && Boolean(active.closest("[hidden]"));
+    const activeIsLoadingFallback =
+      drawerLoadingFocusFallbacks.has(root) &&
+      active instanceof HTMLElement &&
+      active.matches("[data-nearby-close], [data-testid='drawer-collapse']");
+    if (
+      hasNewSurface ||
+      (active?.isConnected &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !activeIsHiddenDrawerControl &&
+        !activeIsLoadingFallback)
+    )
       return;
     const toggle = root.querySelector("#nearby-sessions-toggle");
     if (focusIntent === DRAWER_TOGGLE_FOCUS) {
@@ -635,44 +656,56 @@ function restoreFocusedSessionCard(root) {
   });
 }
 
-function wireSuccessPushPrompt(root, onEnablePush) {
+function wireSuccessPushPrompt(root, onEnablePush, signal) {
   const prompt = root.querySelector("[data-success-push-prompt]");
   const button = prompt?.querySelector("[data-success-enable-push]");
   const error = prompt?.querySelector("[data-success-push-error]");
-  button?.addEventListener("click", () => {
-    let terminalStatus = false;
-    void runAsyncAction({
-      root,
-      callback: onEnablePush,
-      controls: [button],
-      watchNodes: [prompt],
-      error,
-      errorMessage: "推播暫時無法開啟，請稍後再試。",
-      errorFocus: true,
-      onSuccess: (status) => {
-        if (status === "enabled") {
-          prompt.hidden = true;
-          return;
-        }
-        if (status === "unsupported") {
-          terminalStatus = true;
-          button.textContent = "此瀏覽器不支援推播";
-          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-          error.hidden = false;
-          return;
-        }
-        if (status === "denied") {
-          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-          error.hidden = false;
-          error.focus({ preventScroll: true });
-        }
-      },
-      canRestoreControls: () => !prompt.hidden && !terminalStatus,
-    });
-  });
+  button?.addEventListener(
+    "click",
+    () => {
+      let terminalStatus = false;
+      void runAsyncAction({
+        root,
+        callback: onEnablePush,
+        controls: [button],
+        watchNodes: [prompt],
+        error,
+        errorMessage: "推播暫時無法開啟，請稍後再試。",
+        errorFocus: true,
+        onSuccess: (status) => {
+          if (status === "enabled") {
+            prompt.hidden = true;
+            return;
+          }
+          if (status === "unsupported") {
+            terminalStatus = true;
+            button.textContent = "此瀏覽器不支援推播";
+            error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+            error.hidden = false;
+            return;
+          }
+          if (status === "denied") {
+            error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+            error.hidden = false;
+            error.focus({ preventScroll: true });
+          }
+        },
+        canRestoreControls: () => !prompt.hidden && !terminalStatus,
+      });
+    },
+    { signal }
+  );
 }
 
 function wireMySessionsPage(root, options = {}) {
+  const previousBindings = mySessionsBindings.get(root);
+  if (previousBindings?.marker?.isConnected) previousBindings.controller.abort();
+  const bindings = new AbortController();
+  mySessionsBindings.set(root, {
+    controller: bindings,
+    marker: root.querySelector("[data-my-sessions-heading]"),
+  });
+  const { signal } = bindings;
   const {
     onAccept = () => {},
     onAcceptInvite = () => {},
@@ -695,51 +728,61 @@ function wireMySessionsPage(root, options = {}) {
     onWithdraw = () => {},
   } = options;
 
-  root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack);
-  root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn);
-  wireSuccessPushPrompt(root, onEnablePush);
+  root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack, { signal });
+  root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn, { signal });
+  wireSuccessPushPrompt(root, onEnablePush, signal);
   root
     .querySelector("#my-sessions-refresh")
-    ?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root));
-  root.querySelector("[data-my-sessions-empty-map]")?.addEventListener("click", onBack);
-  root.querySelector("[data-my-sessions-empty-create]")?.addEventListener("click", onCreateSession);
-  root.querySelectorAll("[data-my-sessions-seg]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextSegment = button.dataset.mySessionsSeg;
-      const state = mySessionsSegmentState(root);
-      if (state.segment === nextSegment) return;
-      state.segment = nextSegment;
-      renderMySessionsPage(root, mySessionsRenderOptions.get(root));
-      root.querySelector(`[data-my-sessions-seg="${nextSegment}"]`)?.focus({ preventScroll: true });
+    ?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root), {
+      signal,
     });
+  root.querySelector("[data-my-sessions-empty-map]")?.addEventListener("click", onBack, { signal });
+  root.querySelector("[data-my-sessions-empty-create]")?.addEventListener("click", onCreateSession, { signal });
+  root.querySelectorAll("[data-my-sessions-seg]").forEach((button) => {
+    button.addEventListener(
+      "click",
+      () => {
+        const nextSegment = button.dataset.mySessionsSeg;
+        const state = mySessionsSegmentState(root);
+        if (state.segment === nextSegment) return;
+        state.segment = nextSegment;
+        renderMySessionsPage(root, mySessionsRenderOptions.get(root));
+        root.querySelector(`[data-my-sessions-seg="${nextSegment}"]`)?.focus({ preventScroll: true });
+      },
+      { signal }
+    );
   });
   root.querySelectorAll("[data-open-my-session]").forEach((button) => {
-    button.addEventListener("click", () => onOpenSession(button.dataset.sessionId));
+    button.addEventListener("click", () => onOpenSession(button.dataset.sessionId), { signal });
   });
   root.querySelectorAll("[data-open-chat]").forEach((button) => {
-    button.addEventListener("click", () => onOpenChat(button.dataset.sessionId));
+    button.addEventListener("click", () => onOpenChat(button.dataset.sessionId), { signal });
   });
   root.querySelectorAll("[data-my-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const sessionId = button.dataset.sessionId;
-      const participantId = button.dataset.participantId;
-      const profileId = button.dataset.profileId;
-      const callbacks = {
-        accept: () => onAccept(sessionId, participantId),
-        "accept-invite": () => onAcceptInvite(sessionId),
-        attendance: () => onConfirmAttendance(sessionId),
-        cancel: () => onCancel(sessionId),
-        decline: () => onDecline(sessionId, participantId),
-        "decline-invite": () => onDeclineInvite(sessionId),
-        decide: () => onDecide(sessionId),
-        edit: () => onEdit(sessionId),
-        played: () => onMarkPlayed(sessionId),
-        "report-participant": () => onReportParticipant(sessionId, profileId),
-        "report-session": () => onReportSession(sessionId),
-        withdraw: () => onWithdraw(sessionId),
-      };
-      runMySessionAction(button, callbacks[button.dataset.myAction], root);
-    });
+    button.addEventListener(
+      "click",
+      () => {
+        const sessionId = button.dataset.sessionId;
+        const participantId = button.dataset.participantId;
+        const profileId = button.dataset.profileId;
+        const callbacks = {
+          accept: () => onAccept(sessionId, participantId),
+          "accept-invite": () => onAcceptInvite(sessionId),
+          attendance: () => onConfirmAttendance(sessionId),
+          cancel: () => onCancel(sessionId),
+          decline: () => onDecline(sessionId, participantId),
+          "decline-invite": () => onDeclineInvite(sessionId),
+          decide: () => onDecide(sessionId),
+          edit: () => onEdit(sessionId),
+          played: () => onMarkPlayed(sessionId),
+          "report-participant": () => onReportParticipant(sessionId, profileId),
+          "report-session": () => onReportSession(sessionId),
+          withdraw: () => onWithdraw(sessionId),
+        };
+        runMySessionAction(button, callbacks[button.dataset.myAction], root);
+      },
+      { signal }
+    );
   });
 }
 
@@ -782,15 +825,16 @@ export function renderMySessionsPage(root, options = {}) {
   mySessionsRenderOptions.set(root, options);
   setMySessionActionScope(root, options.actionScopeKey ?? null);
   renderMySessionsPageInApp(root, options, () => {
+    setMySessionActionScope(root, options.sessionStore?.getState?.().authEpoch ?? options.actionScopeKey ?? null);
     wireMySessionsPage(root, options);
     syncPendingMySessionActions(root);
     scheduleMySessionsCreatedFocus(root, options);
   });
 }
 
-function wireSessionCards(root, onOpenSession) {
+function wireSessionCards(root, onOpenSession, signal) {
   root.querySelectorAll("[data-session-id]").forEach((card) => {
-    card.addEventListener("click", () => onOpenSession(card.dataset.sessionId));
+    card.addEventListener("click", () => onOpenSession(card.dataset.sessionId), { signal });
   });
 }
 
@@ -815,7 +859,15 @@ function wireDrawerInteractions(root, { drawerState = "collapsed", onToggle }) {
       // restoration runs. Never steal that newer target (or a newly opened
       // sheet) just to restore the drawer's default opener.
       if (!toggle || toggle.getAttribute("aria-expanded") !== "false" || hasNewSurface) return;
-      if (active?.isConnected && active !== document.body && active !== document.documentElement) return;
+      const activeIsHiddenDrawerControl =
+        active instanceof HTMLElement && root.contains(active) && Boolean(active.closest("[hidden]"));
+      if (
+        active?.isConnected &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !activeIsHiddenDrawerControl
+      )
+        return;
       toggle.focus({ preventScroll: true });
     });
   };
@@ -894,30 +946,59 @@ export function renderNearbySessionsDrawer(
     onOpenCreate = () => {},
     onRetry = () => {},
     onSubscribe = () => {},
+    sessionStore,
   } = {}
 ) {
   rememberFocusedSessionCard(root);
   rememberDrawerScrollTop(root);
   if (!renderNearbySessionsDrawerInApp) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
-  renderNearbySessionsDrawerInApp(root, { courts, drawerState, filters, hasUserLocation, mapStatus, sessions });
-
-  const isOpen = drawerState === "open";
-  root
-    .querySelector("#nearby-sessions-toggle")
-    ?.addEventListener("click", () => onToggle(isOpen ? "collapsed" : "open"));
-  wireSessionCards(root, onOpenSession);
-  root.querySelector("#peek-reset")?.addEventListener("click", onReset);
-  root.querySelector("#peek-create")?.addEventListener("click", onOpenCreate);
-  root.querySelector("#discovery-reset")?.addEventListener("click", onReset);
-  root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds);
-  root.querySelector("#discovery-subscribe")?.addEventListener("click", onSubscribe);
-  root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate);
-  root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry);
-  wireDrawerInteractions(root, { drawerState, onToggle });
-  // Register focus first and scroll second. Both callbacks run after the
-  // flushSync commit, so any focus-induced browser scroll is corrected last.
-  restoreFocusedSessionCard(root);
-  restoreDrawerScrollTop(root, drawerState);
+  renderNearbySessionsDrawerInApp(
+    root,
+    {
+      courts,
+      drawerState,
+      filters,
+      hasUserLocation,
+      mapStatus,
+      onBeforeStoreChange: () => {
+        rememberFocusedSessionCard(root);
+        rememberDrawerScrollTop(root);
+      },
+      sessions,
+      sessionStore,
+    },
+    () => {
+      const previousBindings = nearbyActionBindings.get(root);
+      if (previousBindings?.marker?.isConnected) previousBindings.controller.abort();
+      const bindings = new AbortController();
+      nearbyActionBindings.set(root, {
+        controller: bindings,
+        marker: root.querySelector("#nearby-sessions-toggle"),
+      });
+      const { signal } = bindings;
+      const currentDrawerState = sessionStore?.getState?.().drawerState ?? drawerState;
+      root
+        .querySelector("#nearby-sessions-toggle")
+        ?.addEventListener("click", () => onToggle(currentDrawerState === "open" ? "collapsed" : "open"), { signal });
+      wireSessionCards(root, onOpenSession, signal);
+      const resetFilters = () => {
+        rememberFocusedSessionCard(root);
+        onReset();
+      };
+      root.querySelector("#peek-reset")?.addEventListener("click", resetFilters, { signal });
+      root.querySelector("#peek-create")?.addEventListener("click", onOpenCreate, { signal });
+      root.querySelector("#discovery-reset")?.addEventListener("click", resetFilters, { signal });
+      root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds, { signal });
+      root.querySelector("#discovery-subscribe")?.addEventListener("click", onSubscribe, { signal });
+      root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate, { signal });
+      root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry, { signal });
+      wireDrawerInteractions(root, { drawerState: currentDrawerState, onToggle });
+      // Register focus first and scroll second. Both callbacks run after the
+      // flushSync commit, so any focus-induced browser scroll is corrected last.
+      restoreFocusedSessionCard(root);
+      restoreDrawerScrollTop(root, currentDrawerState);
+    }
+  );
 }
 
 /** Open the accepted-member chat with an event-driven, authority-refreshed feed. */

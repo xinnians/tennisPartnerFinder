@@ -81,6 +81,7 @@ import {
 } from "./dataApi.js";
 import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.ts";
 import { createSessionController } from "./sessionController.js";
+import { createStore } from "./sessionStore.ts";
 import {
   openCourtSessionDrawer,
   openCourtPlayersDrawer,
@@ -159,7 +160,7 @@ let profileRevision = 0;
 let activePage = "map";
 let createdSessionFocusId = null;
 // 批 C3-3:createdSessionFocusId 現在同時服務 create 與 join 兩種來源
-// ("created"|"joined")。reason 只決定 renderMySessionsDestination() 要不要把它
+// ("created"|"joined")。reason 只決定 My Sessions 訂閱 selector 要不要把它
 // 當成 createdSessionId(觸發「球局已建立」文案＋create 專屬推播 prompt)往下傳；
 // 卡片聚焦本身兩種 reason 都要做,見 renderMySessionsPage 的 highlightSessionId。
 let createdSessionFocusReason = null;
@@ -167,12 +168,27 @@ let meRenderGeneration = 0;
 let mySessionsRenderGeneration = 0;
 let messagesRenderGeneration = 0;
 let pendingMeFocus = null;
-// renderMeDestination() 換血 root.innerHTML 期間為 true，讓 focusout 監聽器忽略那次自己
-// 造成的合成事件；細節見 renderMeDestination() 內對應註解。
+// 初次掛載 Me destination 期間為 true，讓 focusout 監聽器忽略那次自己造成的合成事件。
 let suppressMeFocusRelease = false;
 let pendingMySessionsFocus = null;
 let notificationSettings = defaultNotificationSettings();
 let presenceLocationStatus = "idle";
+const pageViewStore = createStore({
+  createdSessionFocusId,
+  createdSessionFocusReason,
+  notificationSettings,
+  presenceLocationStatus,
+});
+
+function publishPageView(...channels) {
+  pageViewStore.setState({
+    createdSessionFocusId,
+    createdSessionFocusReason,
+    notificationSettings,
+    presenceLocationStatus,
+  });
+  for (const channel of channels) pageViewStore.emit(channel);
+}
 let presenceTracker = null;
 let sessionHashRouteGeneration = 0;
 
@@ -271,8 +287,7 @@ function stopPresenceTracking() {
 
 function updatePresenceLocationStatus(status) {
   presenceLocationStatus = status;
-  if (activePage === "my-sessions") renderMySessionsDestination();
-  else if (activePage === "me") renderMeDestination();
+  publishPageView("me");
 }
 
 function reconcilePresenceTracking() {
@@ -295,7 +310,10 @@ function reconcilePresenceTracking() {
     });
   }
   const started = presenceTracker.start();
-  if (started && presenceLocationStatus === "idle") presenceLocationStatus = "requesting";
+  if (started && presenceLocationStatus === "idle") {
+    presenceLocationStatus = "requesting";
+    publishPageView("me");
+  }
   return started;
 }
 
@@ -314,6 +332,7 @@ async function updatePresenceSharing(shared) {
   else {
     stopPresenceTracking();
     presenceLocationStatus = "idle";
+    publishPageView("me");
   }
   rerenderVisibleNotificationSettings();
   toast(shared ? "已開啟在線分享。" : "已隱藏在線狀態。");
@@ -475,7 +494,6 @@ function openProfileCompletion({
       await controller.setAuthState(authSession, currentProfileEligibility());
       // 身分卡顯示暱稱與 NTRP，存檔後要立刻反映新值。
       if (activePage !== "me") return;
-      renderMeDestination();
       // 存檔後還會再連著重繪三次（setAuthState 等），restoreMeFocus 的 generation 守衛會讓
       // 中間那次還原失效，而 focusout 早已清掉 pendingMeFocus，最後一次重繪便無焦點可還原。
       // 所以這裡仍要明確送回入口；captureMeFocus 的 edit-profile 分支負責的是另一件事：
@@ -593,28 +611,26 @@ function renderPlayerLayer(view) {
   );
 }
 
+function mountNearbyDestination() {
+  renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
+    authenticated: Boolean(getAppState().authSession),
+    onExpandBounds: controller.expandBounds,
+    onOpenCreate: controller.openCreateIntent,
+    onOpenSession: controller.openSession,
+    onReset: controller.resetFilters,
+    onRetry: controller.retryDiscovery,
+    onSubscribe: () => showMePage({ focusNotificationSettings: true }),
+    onToggle: controller.setDrawerState,
+    sessionStore: controller.sessionStore,
+  });
+}
+
 function renderDiscovery(view) {
   latestFilters = view.filters;
   renderFilters(view.filters);
   // 篩選 sheet footer 主鈕「看 N 場球局」與 peek/抽屜同一份 view.sessions,
   // 篩選一改就即時跟隨(dc L469)。
   activeFilterSheet?.setResultCount(view.sessions.length);
-  renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
-    sessions: view.sessions,
-    courts: view.courts,
-    drawerState: view.drawerState,
-    hasUserLocation: view.hasUserLocation,
-    mapStatus: view.mapStatus,
-    filters: view.filters,
-    authenticated: Boolean(getAppState().authSession),
-    onToggle: controller.setDrawerState,
-    onOpenSession: controller.openSession,
-    onReset: controller.resetFilters,
-    onExpandBounds: controller.expandBounds,
-    onOpenCreate: controller.openCreateIntent,
-    onRetry: controller.retryDiscovery,
-    onSubscribe: () => showMePage({ focusNotificationSettings: true }),
-  });
   renderMapDataStatus(document.getElementById("map-data-status"), {
     ...view.mapStatus,
     locationMessage: view.locationMessage,
@@ -848,8 +864,7 @@ function captureAuthRequest(isCurrent = () => true) {
 }
 
 function rerenderVisibleNotificationSettings() {
-  if (activePage === "my-sessions") renderMySessionsDestination();
-  else if (activePage === "me") renderMeDestination();
+  publishPageView("me", "mySessions");
 }
 
 const notificationFeature = createNotificationFeature({
@@ -884,7 +899,7 @@ function enablePushNotifications() {
   return notificationFeature.enablePushNotifications();
 }
 
-function renderMySessionsDestination() {
+function mountMySessionsDestination() {
   if (!controller) return;
   const state = controller.getMySessionState();
   // 批 C3-3:createdSessionFocusId 拆成兩個用途——highlightSessionId 給卡片聚焦
@@ -915,6 +930,7 @@ function renderMySessionsDestination() {
       if (createdSessionFocusId !== focusSessionId) return false;
       createdSessionFocusId = null;
       createdSessionFocusReason = null;
+      publishPageView("mySessions");
       return true;
     },
     // 批 D6:「我主揪的」分頁空狀態「開球局」鈕——沿用底部導覽 create-session-tab
@@ -929,14 +945,13 @@ function renderMySessionsDestination() {
     onMarkPlayed: controller.markMySessionPlayed,
     onOpenChat: controller.openSessionChat,
     onOpenSession: controller.openSession,
-    onRefresh: async () => {
-      await controller.refreshMySessions();
-      renderMySessionsDestination();
-    },
+    onRefresh: () => controller.refreshMySessions(),
     onReportParticipant: controller.openRosterParticipantReport,
     onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     notificationSettings,
+    pageViewStore,
+    sessionStore: controller.sessionStore,
     status: state.status,
     onWithdraw: controller.withdrawMySession,
   });
@@ -944,7 +959,7 @@ function renderMySessionsDestination() {
   syncBottomNavigation();
 }
 
-function renderMeDestination() {
+function mountMeDestination() {
   const root = document.getElementById("me-root");
   if (!root) return;
   if (root.dataset.meFocusTracking !== "true") {
@@ -972,7 +987,7 @@ function renderMeDestination() {
   // 同步發出 focusout（relatedTarget=null）。這個訊號在既有 shouldReleasePendingMeFocus
   // 語意裡代表「使用者主動把焦點移出 root」，但這裡其實是本函式自己的 DOM 換血造成，不是
   // 使用者動作——JS 是單執行緒，使用者不可能在這段同步呼叫期間插入真正的焦點操作。放行的話，
-  // 上面剛設好的 pendingMeFocus 會被自己的重繪立刻清空：連續兩個 renderMeDestination()
+  // 上面剛設好的 pendingMeFocus 會被自己的重繪立刻清空：連續兩次 destination commit
   // 在同一顆 rAF 之前接力發生時（例如 showMePage 同時觸發 reloadCurrentProfile 與
   // refreshNotificationSettings，兩者都在本機 Supabase 上快到搶在下一顆 rAF 前完成），
   // 第二次呼叫的 captureMeFocus 會看到 activeElement 已經掉回 body、pendingMeFocus 也被
@@ -1004,6 +1019,8 @@ function renderMeDestination() {
     presence: presenceSettingsForProfile(),
     profile: profile ?? defaultProfile(),
     supportHref: supportContactHref(),
+    pageViewStore,
+    sessionStore: controller?.sessionStore,
   });
   suppressMeFocusRelease = false;
   restoreMeFocus(root, focus, generation);
@@ -1022,7 +1039,7 @@ function captureMessagesFocus(root) {
   return null;
 }
 
-function renderMessagesDestination() {
+function mountMessagesDestination() {
   if (!controller) return;
   const root = document.getElementById("messages-root");
   if (!root) return;
@@ -1033,6 +1050,7 @@ function renderMessagesDestination() {
     courts: getAppState().courts,
     groups: state.groups,
     onOpenChat: (sessionId) => controller.openSessionChat(sessionId),
+    sessionStore: controller.sessionStore,
   });
   if (focus) {
     requestAnimationFrame(() => {
@@ -1063,7 +1081,7 @@ function showMapPage({ focus = false } = {}) {
 }
 
 // 批 C3-3:第一參數泛化為 { sessionId, reason }(或 null/未傳＝無聚焦目標，例如底部
-// 導覽「我的球局」分頁鈕)。reason 只決定 renderMySessionsDestination() 是否顯示
+// 導覽「我的球局」分頁鈕)。reason 只決定 My Sessions 是否顯示
 // create 專屬文案；卡片聚焦本身兩種 reason 都適用，見該函式內的 highlightSessionId。
 function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
   activePage = "my-sessions";
@@ -1071,6 +1089,7 @@ function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
   if (focusTarget?.sessionId != null) {
     createdSessionFocusId = focusTarget.sessionId;
     createdSessionFocusReason = focusTarget.reason ?? null;
+    publishPageView("mySessions");
   }
   controller.setDrawerState("collapsed");
   document.getElementById("tab-map").hidden = true;
@@ -1078,12 +1097,8 @@ function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
   document.getElementById("me-page").hidden = true;
   const page = document.getElementById("my-sessions-page");
   page.hidden = false;
-  renderMySessionsDestination();
-  void controller.refreshMySessions().then(() => {
-    if (activePage === "my-sessions") renderMySessionsDestination();
-    else if (activePage === "messages") renderMessagesDestination();
-    else if (activePage === "me") renderMeDestination();
-  });
+  syncBottomNavigation();
+  void controller.refreshMySessions();
   if (focus) {
     requestAnimationFrame(() => {
       document.querySelector("#my-sessions-root [data-my-sessions-heading]")?.focus({ preventScroll: true });
@@ -1095,7 +1110,7 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   activePage = "me";
   pendingMySessionsFocus = null;
   // reloadCurrentProfile／refreshNotificationSettings 下面都是 fire-and-forget，兩者完成
-  // 時各自呼叫 renderMeDestination()。若在下面那顆 rAF 真的把焦點送進通知設定標題「之前」，
+  // 時各自發布 store。若在下面那顆 rAF 真的把焦點送進通知設定標題「之前」，
   // 這兩個背景重繪其中一個先跑，captureMeFocus 會看到 activeElement 還停在 body（因為
   // rAF 還沒排到），必須有 pendingMeFocus 這個字面種子讓 renderMeDestination 自己的
   // captureMeFocus(root) ?? pendingMeFocus 撿得到意圖，走既有的 restoreMeFocus／世代校驗
@@ -1108,7 +1123,7 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
   document.getElementById("messages-page").hidden = true;
   const page = document.getElementById("me-page");
   page.hidden = false;
-  renderMeDestination();
+  syncBottomNavigation();
   if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
   void refreshNotificationSettings();
   void controller.refreshMyPlayerBlocks();
@@ -1139,7 +1154,7 @@ function showMessagesPage({ focus = false } = {}) {
   document.getElementById("me-page").hidden = true;
   const page = document.getElementById("messages-page");
   page.hidden = false;
-  renderMessagesDestination();
+  syncBottomNavigation();
   if (focus) {
     requestAnimationFrame(() => {
       document.querySelector("#messages-root [data-messages-heading]")?.focus({ preventScroll: true });
@@ -1225,9 +1240,6 @@ async function loadCourtsImmediately() {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
     renderBaseCourtPins();
-    if (activePage === "my-sessions") renderMySessionsDestination();
-    else if (activePage === "messages") renderMessagesDestination();
-    else if (activePage === "me") renderMeDestination();
   } catch {
     courtCatalogueStatus = "error";
     controller.setCourts([], { ready: false });
@@ -1235,9 +1247,6 @@ async function loadCourtsImmediately() {
     if (authSession && profileLoadStatus === "ready") {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
-    if (activePage === "my-sessions") renderMySessionsDestination();
-    else if (activePage === "messages") renderMessagesDestination();
-    else if (activePage === "me") renderMeDestination();
     toast("球場資料暫時無法載入。");
   }
 }
@@ -1277,7 +1286,6 @@ async function reloadCurrentProfile() {
   const { authSession } = getAppState();
   await controller.setAuthState(authSession, currentProfileEligibility());
   reconcilePresenceTracking();
-  renderMeDestination();
   if (bootDeepLinkReopenPending) {
     bootDeepLinkReopenPending = false;
     void openSessionHashRoute();
@@ -1301,6 +1309,7 @@ function applyAuthCandidate(session) {
     controller.setProfile(defaultProfile());
     storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
+    publishPageView("me", "mySessions");
     profileLoadStatus = session ? "loading" : "idle";
     void controller.setAuthState(
       session,
@@ -1313,11 +1322,10 @@ function applyAuthCandidate(session) {
     controller.setProfile(defaultProfile());
     storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
+    publishPageView("me", "mySessions");
     profileLoadStatus = "idle";
-    renderMeDestination();
     return;
   }
-  renderMeDestination();
   void reloadCurrentProfile().catch(() => {});
   if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) resumeLinkReturn();
 }
@@ -1456,13 +1464,14 @@ function init() {
       // Keep the hidden destinations in sync as well. Otherwise an account
       // switch made from the map page could leave a prior account's private
       // roster values (or unread chat rows) in a hidden DOM subtree.
-      renderMySessionsDestination();
-      renderMessagesDestination();
-      if (activePage === "me") renderMeDestination();
+      syncBottomNavigation();
     },
     toast,
   });
-  renderMeDestination();
+  mountNearbyDestination();
+  mountMySessionsDestination();
+  mountMessagesDestination();
+  mountMeDestination();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
   // 批 D3:右下控制直欄縮放;地圖不可用(fallback 模式)時為安全 no-op。

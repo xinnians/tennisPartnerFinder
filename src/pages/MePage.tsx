@@ -1,13 +1,22 @@
-import type { ChangeEvent, MouseEvent } from "react";
+import { useLayoutEffect, type ChangeEvent, type MouseEvent } from "react";
 
 import { Avatar } from "../components/Avatar.tsx";
-import type { ControllerCallbackResult as CallbackResult } from "../controllerContracts.ts";
+import type {
+  ControllerCallbackResult as CallbackResult,
+  ControllerEventName,
+  SessionControllerState,
+} from "../controllerContracts.ts";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
+import type { PageViewStore } from "../pageViewStore.ts";
 import { mePageRuntime } from "../sessionPresentation.ts";
+import { selectControllerMySessionsView } from "../sessionSelectors.ts";
+import { useStoreSelector, type Store } from "../sessionStore.ts";
 
 interface AuthSession {
   user?: {
     id?: string | null;
+    identities?: Array<{ provider?: string }>;
+    user_metadata?: { avatar_url?: string; picture?: string };
   };
 }
 
@@ -67,6 +76,9 @@ export interface MePageOptions {
   playerVisibility?: boolean;
   presence?: PresenceSettingsInput | null;
   supportHref?: string;
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
+  pageViewStore?: PageViewStore;
+  onStoreCommit?: () => void;
 }
 
 export interface MePageProps {
@@ -95,6 +107,9 @@ export interface MePageProps {
   playerVisibility: boolean;
   presence: PresenceSettingsInput | null;
   supportHref: string;
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
+  pageViewStore?: PageViewStore;
+  onStoreCommit?: () => void;
 }
 
 type NormalizedNotification = ReturnType<typeof mePageRuntime.normalizedNotificationSettings>;
@@ -667,10 +682,33 @@ function ServiceLinks({ supportHref }: { supportHref: string }) {
 }
 
 export function MePage(props: MePageProps) {
-  const authenticated = Boolean(props.authSession);
-  const nickname = String(props.profile?.nick ?? "").trim() || "球友";
-  const presence = mePageRuntime.normalizedPresenceSettings(props.presence ?? {});
-  const notification = mePageRuntime.normalizedNotificationSettings(props.notificationSettings ?? {});
+  const controllerState = useStoreSelector(props.sessionStore, "me", (state) => state, null);
+  const controllerView = controllerState ? selectControllerMySessionsView(controllerState) : null;
+  const pageView = useStoreSelector(props.pageViewStore, "me", (state) => state, null);
+  const authSession = (controllerState?.authSession as AuthSession | null | undefined) ?? props.authSession;
+  const profile = (controllerState?.profile as MeProfile | null | undefined) ?? props.profile;
+  const metadata = authSession?.user?.user_metadata ?? {};
+  const avatarUrl = controllerState ? (metadata.avatar_url ?? metadata.picture ?? "") : props.avatarUrl;
+  const linkedProviders = controllerState
+    ? (authSession?.user?.identities ?? []).flatMap((identity) => (identity.provider ? [identity.provider] : []))
+    : props.linkedProviders;
+  const authenticated = Boolean(authSession);
+  const nickname = String(profile?.nick ?? "").trim() || "球友";
+  const presence = mePageRuntime.normalizedPresenceSettings(
+    controllerState
+      ? {
+          locationStatus: pageView?.presenceLocationStatus ?? props.presence?.locationStatus,
+          openToGreeting: profile?.openToGreeting === true,
+          sharePresence: profile?.sharePresence === true,
+        }
+      : (props.presence ?? {})
+  );
+  const notification = mePageRuntime.normalizedNotificationSettings(
+    pageView?.notificationSettings ?? props.notificationSettings ?? {}
+  );
+  useLayoutEffect(() => {
+    props.onStoreCommit?.();
+  });
   return (
     <div className="me-shell">
       <div className="me-page-v2__head">
@@ -681,11 +719,11 @@ export function MePage(props: MePageProps) {
       </div>
       {authenticated ? (
         <AuthenticatedIdentity
-          avatarUrl={props.avatarUrl}
-          courts={props.courts}
+          avatarUrl={avatarUrl}
+          courts={controllerState?.courts ?? props.courts}
           nickname={nickname}
           onEditProfile={props.onEditProfile}
-          profile={props.profile}
+          profile={profile}
         />
       ) : (
         <SignInCard onSignIn={props.onSignIn} />
@@ -694,7 +732,7 @@ export function MePage(props: MePageProps) {
         <>
           <PlayerVisibility
             onTogglePlayerVisibility={props.onTogglePlayerVisibility}
-            playerVisibility={props.playerVisibility}
+            playerVisibility={controllerView?.isPublic ?? props.playerVisibility}
             rootElement={props.rootElement}
           />
           <PresenceSettings
@@ -705,7 +743,7 @@ export function MePage(props: MePageProps) {
           />
           <p className="form-error" data-my-sessions-error="" role="alert" tabIndex={-1} hidden />
           <NotificationSettings
-            courts={props.courts}
+            courts={controllerState?.courts ?? props.courts}
             notification={notification}
             onEnablePush={props.onEnablePush}
             onSaveCourtSubscriptions={props.onSaveCourtSubscriptions}
@@ -713,15 +751,15 @@ export function MePage(props: MePageProps) {
             rootElement={props.rootElement}
           />
           <BlockedPlayerSettings
-            blockedPlayers={props.blockedPlayers}
-            blockedPlayersError={props.blockedPlayersError}
-            blockedPlayersStatus={props.blockedPlayersStatus}
+            blockedPlayers={controllerView?.blockedPlayers ?? props.blockedPlayers}
+            blockedPlayersError={controllerView?.blockedPlayersError ?? props.blockedPlayersError}
+            blockedPlayersStatus={controllerView?.blockedPlayersStatus ?? props.blockedPlayersStatus}
             onUnblockPlayer={props.onUnblockPlayer}
             rootElement={props.rootElement}
           />
           <LoginMethods
             lineProviderId={props.lineProviderId}
-            linkedProviders={props.linkedProviders}
+            linkedProviders={linkedProviders}
             onLinkProvider={props.onLinkProvider}
           />
         </>

@@ -162,6 +162,7 @@ export interface ControllerCourtsViewPayload {
 export interface ControllerStoreEventPayloads {
   courts: Readonly<SessionControllerState>;
   map: Readonly<SessionControllerState>;
+  me: Readonly<SessionControllerState>;
   mySessions: Readonly<SessionControllerState>;
 }
 

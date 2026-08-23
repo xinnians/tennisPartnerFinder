@@ -10,7 +10,6 @@ import {
   boundsContainSession,
   cloneBounds,
   cloneFilters,
-  mapStatusForState,
   representsExpectedViewport,
   selectVisibleSessions,
   validBounds,
@@ -48,6 +47,7 @@ import {
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
+import { selectControllerMapView, selectControllerMySessionsView } from "./sessionSelectors.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -321,25 +321,13 @@ export function createSessionController({
     return groupPlayersByCourt(read().players);
   }
 
-  function mapStatus() {
-    return mapStatusForState(read());
-  }
-
   // 通道 1「map」:球局列表、圖釘與球友圖層。派發一律由 publish() 顯式觸發,不做
   // 變更偵測——既有行為包含「值沒變仍要重畫」(例如 refreshAuthoritativeState 收尾
   // 的那次),偵測式派發會把它吃掉。
   store.subscribe("map", (current) => {
-    const sessions = visibleSessions();
-    render({
-      sessions,
-      drawerState: current.drawerState,
-      hasUserLocation: Boolean(current.userLocation),
-      filters: current.filters,
-      courts: current.courts,
-      mapStatus: mapStatus(),
-      locationMessage: current.locationMessage,
-    });
-    renderPins(sessions);
+    const view = selectControllerMapView(current);
+    render(view);
+    renderPins(view.sessions);
     renderPlayers({
       groups: current.playerLayerOn ? playerGroups() : [],
       message: current.playerLayerMessage,
@@ -380,34 +368,18 @@ export function createSessionController({
     return String(sessionId);
   }
 
-  function mySessionItems() {
-    return read().mySessions.map((session) => ({
-      ...session,
-      pendingRequests: [...(read().mySessionRosters.get(sessionKey(session.sessionId)) ?? [])],
-    }));
-  }
-
   function mySessionGroups() {
-    return groupMySessions(mySessionItems());
+    return selectControllerMySessionsView(read()).groups;
   }
 
   // 通道 2「mySessions」:我的球局頁(含封鎖清單與球友卡公開設定)。
   store.subscribe("mySessions", (current) => {
-    onMySessionsChange({
-      authenticated: Boolean(current.authSession),
-      blockedPlayers: [...current.blockedPlayers],
-      blockedPlayersError: current.blockedPlayersError,
-      blockedPlayersStatus: current.blockedPlayersStatus,
-      error: current.mySessionsError,
-      groups: mySessionGroups(),
-      isPublic: profileIsPublic(current.profileEligibility),
-      status: current.mySessionsStatus,
-      viewGeneration: current.authEpoch,
-    });
+    onMySessionsChange(selectControllerMySessionsView(current));
   });
 
   function notifyMySessions() {
     store.emit("mySessions");
+    store.emit("me");
   }
 
   function replaceMySessions(sessions) {
@@ -788,15 +760,18 @@ export function createSessionController({
   function setCourts(courts, { ready = true } = {}) {
     store.setState({ courts: Array.isArray(courts) ? courts : [], courtsReady: Boolean(ready) });
     store.emit("courts");
+    store.emit("me");
     publish();
   }
 
   function setAuthSession(session) {
     store.setState({ authSession: session ?? null });
+    store.emit("me");
   }
 
   function setProfile(profile) {
     store.setState({ profile: profile ?? null });
+    store.emit("me");
   }
 
   function setDrawerState(value) {
@@ -2101,6 +2076,7 @@ export function createSessionController({
     }
 
     store.setState({ authSession: session ?? null, profileEligibility: profile ?? null });
+    store.emit("me");
     if (identityChanged) {
       replaceMySessions([]);
       blockedPlayerGate.invalidate();
@@ -2157,17 +2133,7 @@ export function createSessionController({
     }),
     getMySessions: () => [...read().mySessions],
     getMySessionGroups: () => mySessionGroups(),
-    getMySessionState: () => ({
-      authenticated: Boolean(read().authSession),
-      blockedPlayers: [...read().blockedPlayers],
-      blockedPlayersError: read().blockedPlayersError,
-      blockedPlayersStatus: read().blockedPlayersStatus,
-      error: read().mySessionsError,
-      groups: mySessionGroups(),
-      isPublic: profileIsPublic(read().profileEligibility),
-      status: read().mySessionsStatus,
-      viewGeneration: read().authEpoch,
-    }),
+    getMySessionState: () => selectControllerMySessionsView(read()),
     getPlayerLayerState: () => ({
       groups: read().playerLayerOn ? playerGroups() : [],
       message: read().playerLayerMessage,
@@ -2203,6 +2169,7 @@ export function createSessionController({
     setFilter,
     setMapUnavailable,
     setProfile,
+    sessionStore: store,
     togglePlayerVisibility,
     togglePlayerLayer,
     unblockPlayer,

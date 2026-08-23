@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect } from "react";
+import { memo, useEffect } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
@@ -50,20 +50,16 @@ let snapshot: AppSnapshot = {
   surfaces: new Map(),
 };
 
-function hasVisiblePageSlot(key: "mePages" | "messagesPages" | "mySessionsPages"): boolean {
-  return [...snapshot[key].values()].some((slot) => !slot.rootElement.closest("[hidden]"));
-}
-
 function loadMePage(): Promise<void> {
   if (MePageComponent) return Promise.resolve();
   mePageRequest ??= import("../pages/MePage.tsx").then(
     ({ MePage }) => {
       MePageComponent = MePage;
-      if (appRoot && hasVisiblePageSlot("mePages")) renderApp();
+      if (appRoot) renderApp();
     },
     (error) => {
       mePageLoadFailed = true;
-      if (appRoot && hasVisiblePageSlot("mePages")) renderApp();
+      if (appRoot) renderApp();
       throw error;
     }
   );
@@ -75,11 +71,11 @@ function loadMessagesPage(): Promise<void> {
   messagesPageRequest ??= import("../pages/MessagesPage.tsx").then(
     ({ MessagesPage }) => {
       MessagesPageComponent = MessagesPage;
-      if (appRoot && hasVisiblePageSlot("messagesPages")) renderApp();
+      if (appRoot) renderApp();
     },
     (error) => {
       messagesPageLoadFailed = true;
-      if (appRoot && hasVisiblePageSlot("messagesPages")) renderApp();
+      if (appRoot) renderApp();
       throw error;
     }
   );
@@ -91,11 +87,11 @@ function loadMySessionsPage(): Promise<void> {
   mySessionsPageRequest ??= import("../pages/MySessionsPage.tsx").then(
     ({ MySessionsPage }) => {
       MySessionsPageComponent = MySessionsPage;
-      if (appRoot && hasVisiblePageSlot("mySessionsPages")) renderApp();
+      if (appRoot) renderApp();
     },
     (error) => {
       mySessionsPageLoadFailed = true;
-      if (appRoot && hasVisiblePageSlot("mySessionsPages")) renderApp();
+      if (appRoot) renderApp();
       throw error;
     }
   );
@@ -142,9 +138,6 @@ const MeDestination = memo(function MeDestination({
   useEffect(() => {
     if (!loaded && !failed) void loadMePage().catch(() => {});
   }, [failed, loaded]);
-  useLayoutEffect(() => {
-    if (loaded) slot.onCommit?.();
-  }, [loaded, slot]);
   if (!MePageComponent) return <PageLoading label={failed ? "「我」載入失敗，請重新整理。" : "正在載入「我」…"} />;
   const {
     authSession = null,
@@ -171,6 +164,8 @@ const MeDestination = memo(function MeDestination({
     playerVisibility = false,
     presence = {},
     supportHref = "",
+    sessionStore,
+    pageViewStore,
   } = slot.options;
 
   return (
@@ -202,6 +197,9 @@ const MeDestination = memo(function MeDestination({
         playerVisibility={playerVisibility}
         presence={presence}
         supportHref={supportHref}
+        sessionStore={sessionStore}
+        pageViewStore={pageViewStore}
+        onStoreCommit={slot.onCommit}
       />
     </AppErrorBoundary>
   );
@@ -219,14 +217,11 @@ const MessagesDestination = memo(function MessagesDestination({
   useEffect(() => {
     if (!loaded && !failed) void loadMessagesPage().catch(() => {});
   }, [failed, loaded]);
-  useLayoutEffect(() => {
-    if (loaded) slot.onCommit?.();
-  }, [loaded, slot]);
   if (!MessagesPageComponent) return <PageLoading label={failed ? "訊息載入失敗，請重新整理。" : "正在載入訊息…"} />;
-  const { courts = [], groups = EMPTY_MESSAGES_GROUPS, onOpenChat = noop } = slot.options;
+  const { courts = [], groups = EMPTY_MESSAGES_GROUPS, onOpenChat = noop, sessionStore } = slot.options;
   return (
     <AppErrorBoundary resetKey={slot.generation} surface="messages-page">
-      <MessagesPageComponent courts={courts} groups={groups} onOpenChat={onOpenChat} />
+      <MessagesPageComponent courts={courts} groups={groups} onOpenChat={onOpenChat} sessionStore={sessionStore} />
     </AppErrorBoundary>
   );
 });
@@ -243,15 +238,17 @@ const MySessionsDestination = memo(function MySessionsDestination({
   useEffect(() => {
     if (!loaded && !failed) void loadMySessionsPage().catch(() => {});
   }, [failed, loaded]);
-  useLayoutEffect(() => {
-    if (loaded) slot.onCommit?.();
-  }, [loaded, slot]);
   if (!MySessionsPageComponent) {
     return <PageLoading label={failed ? "我的球局載入失敗，請重新整理。" : "正在載入我的球局…"} />;
   }
   return (
     <AppErrorBoundary resetKey={slot.generation} surface="my-sessions-page">
-      <MySessionsPageComponent {...slot.options} key={slot.generation} rootElement={slot.rootElement} />
+      <MySessionsPageComponent
+        {...slot.options}
+        key={slot.generation}
+        rootElement={slot.rootElement}
+        onStoreCommit={slot.onCommit}
+      />
     </AppErrorBoundary>
   );
 });
@@ -263,7 +260,7 @@ const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
 }) {
   return (
     <AppErrorBoundary resetKey={slot.generation} surface="nearby-sessions-drawer">
-      <NearbySessionsDrawer {...slot.options} key={slot.generation} />
+      <NearbySessionsDrawer {...slot.options} key={slot.generation} onStoreCommit={slot.onCommit} />
     </AppErrorBoundary>
   );
 });
@@ -374,9 +371,10 @@ export function renderMySessionsPageInApp(
 
 export function renderNearbySessionsDrawerInApp(
   rootElement: HTMLElement,
-  options: NearbySessionsDrawerOptions = {}
+  options: NearbySessionsDrawerOptions = {},
+  onCommit?: () => void
 ): void {
-  renderPage("nearbyDrawers", rootElement, options);
+  renderPage("nearbyDrawers", rootElement, options, onCommit);
 }
 
 installSurfaceHostRenderer((surfaces) => {

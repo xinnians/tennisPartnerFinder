@@ -1,3 +1,4 @@
+import type { ControllerEventName, SessionControllerState } from "../controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import {
   messagesFromGroups,
@@ -5,6 +6,8 @@ import {
   sessionScheduleLabel,
   sessionVenuePresentation,
 } from "../sessionPresentation.ts";
+import { selectControllerMySessionsView } from "../sessionSelectors.ts";
+import { useStoreSelector, type Store } from "../sessionStore.ts";
 
 type MessagesSession = MySessionSummary & Partial<Pick<SessionSummary, "candidateCourtIds">>;
 
@@ -19,12 +22,14 @@ export interface MessagesPageOptions {
   courts?: CourtSummary[] | null;
   groups?: MessagesGroups | null;
   onOpenChat?: (sessionId: string) => void;
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
 }
 
 export interface MessagesPageProps {
   courts: CourtSummary[] | null;
   groups: MessagesGroups | null;
   onOpenChat: (sessionId: string) => void;
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
 }
 
 function sessionCourtLabel(session: MessagesSession, venue: ReturnType<typeof sessionVenuePresentation>): string {
@@ -84,8 +89,11 @@ function MessageRow({
   );
 }
 
-export function MessagesPage({ courts, groups, onOpenChat }: MessagesPageProps) {
-  const rows = messagesFromGroups(groups ?? {}) as MessagesSession[];
+export function MessagesPage({ courts, groups, onOpenChat, sessionStore }: MessagesPageProps) {
+  const subscribed = useStoreSelector(sessionStore, "mySessions", selectControllerMySessionsView, null);
+  const resolvedGroups = subscribed?.groups ?? groups;
+  const resolvedCourts = useStoreSelector(sessionStore, "courts", (state) => state.courts, courts);
+  const rows = messagesFromGroups(resolvedGroups ?? {}) as MessagesSession[];
   return (
     <>
       <div className="messages-page__head">
@@ -97,7 +105,12 @@ export function MessagesPage({ courts, groups, onOpenChat }: MessagesPageProps) 
       <div className="messages-page__list">
         {rows.length ? (
           rows.map((session) => (
-            <MessageRow key={String(session.sessionId)} session={session} courts={courts} onOpenChat={onOpenChat} />
+            <MessageRow
+              key={String(session.sessionId)}
+              session={session}
+              courts={resolvedCourts}
+              onOpenChat={onOpenChat}
+            />
           ))
         ) : (
           <MessagesEmptyState />

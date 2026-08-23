@@ -1,9 +1,12 @@
-import { Fragment } from "react";
+import { Fragment, useLayoutEffect } from "react";
 
 import { SessionCard } from "../components/SessionCard.tsx";
+import type { ControllerEventName, SessionControllerState } from "../controllerContracts.ts";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
 import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionPresentation.ts";
+import { selectControllerMapView } from "../sessionSelectors.ts";
+import { useStoreSelector, type Store } from "../sessionStore.ts";
 import { taipeiClock } from "../taipeiTime.js";
 
 type NearbySession = Partial<SessionSummary>;
@@ -32,6 +35,9 @@ export interface NearbySessionsDrawerOptions {
   hasUserLocation?: boolean;
   mapStatus?: DrawerMapStatus | null;
   sessions?: NearbySession[];
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
+  onStoreCommit?: () => void;
+  onBeforeStoreChange?: () => void;
 }
 
 interface DrawerSessionGroup {
@@ -139,14 +145,25 @@ function DrawerContent({
   return <DiscoveryEmpty filtersActive={filtersActive} />;
 }
 
-export function NearbySessionsDrawer({
-  courts = [],
-  drawerState = "collapsed",
-  filters = null,
-  hasUserLocation = false,
-  mapStatus = { kind: "idle", message: "" },
-  sessions = [],
-}: NearbySessionsDrawerOptions) {
+export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
+  const subscribed = useStoreSelector(
+    options.sessionStore,
+    "map",
+    selectControllerMapView,
+    null,
+    options.onBeforeStoreChange
+  );
+  const {
+    courts = [],
+    drawerState = "collapsed",
+    filters = null,
+    hasUserLocation = false,
+    mapStatus = { kind: "idle", message: "" },
+    sessions = [],
+  } = subscribed ?? options;
+  useLayoutEffect(() => {
+    options.onStoreCommit?.();
+  });
   const resolvedMapStatus = mapStatus ?? { kind: "idle", message: "" };
   const isOpen = drawerState === "open";
   const count = joinableSessionCount(sessions);
