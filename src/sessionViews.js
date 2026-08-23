@@ -19,7 +19,6 @@ import {
 } from "./sessionActions.ts";
 import {
   PROFILE_SLOTS,
-  notificationPushHint,
   padTwo,
   sessionScheduleLabel,
   sessionVenuePresentation,
@@ -920,54 +919,6 @@ export function renderMessagesPage(root, options = {}) {
   renderMessagesPageInApp(root, options);
 }
 
-const JOIN_STAGE_FOCUSABLE_SELECTOR =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-function wireSurfaceSuccessPushPrompt(root, onEnablePush) {
-  const prompt = root.querySelector("[data-success-push-prompt]");
-  const button = prompt?.querySelector("[data-success-enable-push]");
-  const error = prompt?.querySelector("[data-success-push-error]");
-  button?.addEventListener("click", () => {
-    let terminalStatus = false;
-    void runAsyncAction({
-      root,
-      callback: onEnablePush,
-      controls: [button],
-      watchNodes: [prompt],
-      error,
-      errorMessage: "推播暫時無法開啟，請稍後再試。",
-      errorFocus: true,
-      onSuccess: (status) => {
-        if (status === "enabled") {
-          prompt.hidden = true;
-          return;
-        }
-        if (status === "unsupported") {
-          terminalStatus = true;
-          button.textContent = "此瀏覽器不支援推播";
-          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-          error.hidden = false;
-          return;
-        }
-        if (status === "denied") {
-          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-          error.hidden = false;
-          error.focus({ preventScroll: true });
-        }
-      },
-      canRestoreControls: () => !prompt.hidden && !terminalStatus,
-    });
-  });
-}
-
-/** The three OK outcomes plus the accepted branch, unchanged from the retired dialog. */
-function joinSuccessMessage(result) {
-  if (result?.accepted) return "已加入球局！前往我的球局開啟群組聊天。";
-  if (result?.outcome === "OK_NTRP_MISSING") return "已送出申請；你尚未填寫 NTRP，等待主揪回覆。";
-  if (result?.outcome === "OK_NTRP_OUT_OF_RANGE") return "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。";
-  return "已送出申請，等待主揪回覆。";
-}
-
 /**
  * Open a public session detail sheet with the privacy-reviewed field order.
  *
@@ -1008,9 +959,7 @@ export function openSessionSheet(
 ) {
   if (!mountSessionDetailSheetContent) throw new Error("SessionDetailSheet browser mount is unavailable.");
   const venue = sessionVenuePresentation(session, courts);
-  let stage = initialStage;
-  let confirmingExpectedAccepted = Boolean(action?.expectedAccepted);
-  let submitting = false;
+  let content = null;
 
   const mounted = mountSheet({
     id: "session-sheet",
@@ -1020,9 +969,7 @@ export function openSessionSheet(
     onEscape: () => {
       // 假設 1(design spec):confirming 態 Escape 先退一步回 idle,sheet 不關;
       // 其餘四態(idle/submitting/success/error)交回 mountSheet 現行關閉語意。
-      if (stage !== "confirming") return false;
-      setStage("idle");
-      return true;
+      return content?.handleEscape() ?? false;
     },
     html: `
       <span class="session-detail-sheet__grabber"></span>
@@ -1030,7 +977,7 @@ export function openSessionSheet(
   });
 
   const contentRoot = mounted.root.querySelector(".session-detail");
-  const content = mountSessionDetailSheetContent(
+  content = mountSessionDetailSheetContent(
     contentRoot,
     {
       action,
@@ -1046,156 +993,35 @@ export function openSessionSheet(
       venue,
     },
     {
-      expectedAccepted: confirmingExpectedAccepted,
+      expectedAccepted: Boolean(action?.expectedAccepted),
       joinPreview: { participants: [], status: "loading" },
       message: "",
       stage: initialStage,
+    },
+    {
+      onChat,
+      onCloseSurface: () => mounted.close(),
+      onConfirmJoin,
+      onCopyLink,
+      onDecide,
+      onEdit,
+      onEnablePush,
+      onPrimary,
+      onReport,
+      onViewMySessions: (sessionId) => {
+        mounted.close({ reason: "view-my-sessions", restoreFocus: false });
+        onViewMySessions(sessionId);
+      },
+      onWithdraw,
     }
   );
   mounted.registerUnmount(content.unmount);
-  const container = mounted.root.querySelector(".session-detail__actions");
   const setJoinPreview = (state) => {
     if (content.isSurfaceRootLive()) content.setJoinPreview(state);
   };
-  // mountSheet 掛 listener 時 React close button 尚未存在；補線只委派回既有 close，
-  // surface teardown、focus restore 與 onClose 仍完全由 mountSheet 負責。
-  mounted.root.querySelector("[data-surface-close]")?.addEventListener("click", mounted.close);
-  // 候選定案面板不在 actions 容器內,不隨五態切換重繪,掛載時 wire 一次即可。
-  mounted.root.querySelectorAll('[data-session-action="decide"]').forEach((button) => {
-    button.addEventListener("click", onDecide);
-  });
-
-  function focusInStage(preferredSelector = null) {
-    const preferred = preferredSelector ? container.querySelector(preferredSelector) : null;
-    // 批 D4b:「等待」「已額滿」「終局」三態的 primary 位不是可聚焦的互動元素
-    // (非按鈕 div,或原生 disabled 按鈕),排除後 fallback 交給下一個真正可聚焦
-    // 的元素(通常是複製連結鈕),而不是對它們呼叫 focus() 變成無效果的 no-op。
-    const primaryCta = container.querySelector(
-      '[data-session-action="primary"]:not([disabled]):not([aria-disabled="true"])'
-    );
-    const target = preferred ?? primaryCta ?? container.querySelector(JOIN_STAGE_FOCUSABLE_SELECTOR) ?? container;
-    target.focus({ preventScroll: true });
-  }
-
-  function wireIdle() {
-    // 批 D4b:「已送出申請」等待狀態的 primary 位是非按鈕 div(aria-disabled,
-    // 沒有原生 disabled 屬性擋掉點擊),wire 前先排除,避免點擊誤觸 onPrimary。
-    // 候選定案面板的 data-session-action="decide" 鈕已在掛載時 wire 一次
-    // (面板不在這個容器內、不隨五態重繪),這裡不用再處理。
-    const primaryButton = mounted.root.querySelector('[data-session-action="primary"]');
-    if (primaryButton && primaryButton.getAttribute("aria-disabled") !== "true") {
-      primaryButton.addEventListener("click", onPrimary);
-    }
-    mounted.root.querySelector('[data-session-action="edit"]')?.addEventListener("click", onEdit);
-    mounted.root.querySelector('[data-session-action="chat"]')?.addEventListener("click", onChat);
-    const copyLinkButton = mounted.root.querySelector('[data-session-action="copy-link"]');
-    copyLinkButton?.addEventListener("click", async () => {
-      await runAsyncAction({
-        root: mounted.root,
-        callback: onCopyLink,
-        controls: [copyLinkButton],
-        error: mounted.root.querySelector("[data-session-report-error]"),
-        clearError: false,
-        errorMessage: "目前無法複製連結，請手動複製網址。",
-      });
-    });
-    const reportButton = mounted.root.querySelector('[data-session-action="report"]');
-    reportButton?.addEventListener("click", async () => {
-      const error = mounted.root.querySelector("[data-session-report-error]");
-      await runAsyncAction({
-        root: mounted.root,
-        callback: onReport,
-        controls: [reportButton],
-        error,
-        errorMessage: "目前無法開啟檢舉。",
-      });
-    });
-    const secondaryButton = mounted.root.querySelector('[data-session-action="secondary"]');
-    secondaryButton?.addEventListener("click", () => {
-      onWithdraw();
-    });
-  }
-
-  function wireConfirming() {
-    container.querySelector('[data-testid="join-cancel"]')?.addEventListener("click", () => {
-      setStage("idle");
-    });
-    container.querySelector('[data-testid="join-confirm"]')?.addEventListener("click", () => {
-      void submitJoin();
-    });
-  }
-
-  function wireSuccess() {
-    wireSurfaceSuccessPushPrompt(mounted.root, onEnablePush);
-    container.querySelector('[data-testid="join-open-my-sessions"]')?.addEventListener("click", () => {
-      mounted.close({ reason: "view-my-sessions", restoreFocus: false });
-      // 批 C3-3:CTA 現在把剛加入的 sessionId 交回呼叫端,讓 My Sessions 可以聚焦
-      // 這一張新參與卡(而不是只聚焦頁面標題)——見 main.js 的 onViewMySessions 接線。
-      onViewMySessions(session.sessionId);
-    });
-  }
-
-  function wireError() {
-    container.querySelector('[data-testid="join-retry"]')?.addEventListener("click", () => {
-      setStage("confirming");
-    });
-  }
-
-  function renderStage(nextStage, message = "") {
-    if (!content.isSurfaceRootLive()) return false;
-    content.renderStage(nextStage, message, confirmingExpectedAccepted);
-    stage = nextStage;
-    return true;
-  }
-
-  // React state 只改變 `.session-detail__actions` 子樹；memo 化的其餘內容維持同一批
-  // DOM nodes。每次切換後明確把焦點移到新態的第一個可操作元素(或成功卡標題)。
-  function setStage(nextStage, message = "") {
-    if (!renderStage(nextStage, message)) return;
-    if (nextStage === "idle") wireIdle();
-    else if (nextStage === "confirming") wireConfirming();
-    else if (nextStage === "success") wireSuccess();
-    else if (nextStage === "error") wireError();
-    focusInStage(nextStage === "success" ? '[data-testid="join-success-title"]' : null);
-  }
-
-  async function submitJoin() {
-    if (submitting) return;
-    submitting = true;
-    setStage("submitting");
-    try {
-      const result = await onConfirmJoin();
-      if (result?.joinSubmitted) {
-        setStage("success", joinSuccessMessage(result));
-      } else {
-        setStage("error", result?.joinError || "申請失敗，請稍後再試。");
-      }
-    } catch (submitError) {
-      setStage("error", submitError?.message || "申請失敗，請稍後再試。");
-    } finally {
-      submitting = false;
-    }
-  }
 
   function enterConfirming({ expectedAccepted } = {}) {
-    if (expectedAccepted !== undefined) confirmingExpectedAccepted = Boolean(expectedAccepted);
-    setStage("confirming");
-  }
-
-  // Initial React commit never goes through setStage(): a freshly mounted idle
-  // sheet must NOT steal focus here — mountSurface's own generic fallback
-  // (requestAnimationFrame, only if nothing already has focus) puts it on
-  // the × close button, matching every other sheet in this app. Any other
-  // initial stage (only "confirming", from a resumed Join intent) has no
-  // such fallback to lean on and must claim its own focus synchronously,
-  // before that fallback's requestAnimationFrame runs.
-  if (initialStage === "idle") {
-    wireIdle();
-  } else {
-    if (initialStage === "confirming") wireConfirming();
-    else if (initialStage === "success") wireSuccess();
-    else if (initialStage === "error") wireError();
-    focusInStage(initialStage === "success" ? '[data-testid="join-success-title"]' : null);
+    content.enterConfirming(expectedAccepted === undefined ? undefined : Boolean(expectedAccepted));
   }
 
   return { ...mounted, setJoinPreview, enterConfirming };

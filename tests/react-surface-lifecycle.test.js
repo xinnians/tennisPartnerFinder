@@ -63,6 +63,8 @@ test("surface close unmounts React before clearing DOM and remains idempotent", 
 test("Session Detail blocks both direct and async commits after its surface dies", () => {
   const detail = readFileSync(join(SHEETS_DIR, "SessionDetailSheet.tsx"), "utf8");
   assert.match(detail, /if \(!surfaceContent\.isSurfaceRootLive\(\)\) return;/);
-  assert.match(SESSION_VIEWS, /if \(!content\.isSurfaceRootLive\(\)\) return false;/);
-  assert.match(SESSION_VIEWS, /if \(!renderStage\(nextStage, message\)\) return;/);
+  assert.match(detail, /enterConfirming\(expectedAccepted\)[\s\S]*?surfaceContent\.commit\(/);
+  assert.match(detail, /handleEscape\(\)[\s\S]*?surfaceContent\.commit\(/);
+  assert.match(detail, /setJoinPreview\(state\)[\s\S]*?surfaceContent\.commit\(/);
+  assert.doesNotMatch(SESSION_VIEWS, /content\.renderStage|function renderStage/);
 });
