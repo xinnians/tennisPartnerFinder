@@ -26,10 +26,11 @@ interface SessionCardPresentation {
 export interface SessionCardProps {
   compact?: boolean;
   courts?: SessionCardCourt[] | null;
+  onOpenSession?: (sessionId?: string) => unknown;
   session: SessionCardSession;
 }
 
-export function SessionCard({ compact = false, courts = [], session }: SessionCardProps) {
+export function SessionCard({ compact = false, courts = [], onOpenSession, session }: SessionCardProps) {
   const presentation: SessionCardPresentation = sessionCardRuntime.sessionCardPresentation(session, {
     compact,
     courts,
@@ -40,6 +41,7 @@ export function SessionCard({ compact = false, courts = [], session }: SessionCa
       className={presentation.className}
       data-testid="session-card"
       data-session-id={String(session.sessionId)}
+      onClick={() => onOpenSession?.(String(session.sessionId))}
     >
       <span className={presentation.timeTile.className}>
         <span className="time-tile__start">{presentation.timeTile.start}</span>

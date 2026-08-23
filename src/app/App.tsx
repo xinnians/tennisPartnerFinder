@@ -266,7 +266,12 @@ const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
 }) {
   return (
     <AppErrorBoundary resetKey={slot.resetKey} surface="nearby-sessions-drawer">
-      <NearbySessionsDrawer {...slot.options} key={slot.id} onStoreCommit={slot.onCommit} />
+      <NearbySessionsDrawer
+        {...slot.options}
+        key={slot.id}
+        rootElement={slot.rootElement}
+        onStoreCommit={slot.onCommit}
+      />
     </AppErrorBoundary>
   );
 });

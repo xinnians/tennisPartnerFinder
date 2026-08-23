@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect } from "react";
+import { Fragment, useEffect, useLayoutEffect } from "react";
 
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { ControllerEventName, SessionControllerState } from "../controllerContracts.ts";
@@ -34,6 +34,14 @@ export interface NearbySessionsDrawerOptions {
   filters?: DrawerFilters | null;
   hasUserLocation?: boolean;
   mapStatus?: DrawerMapStatus | null;
+  onExpandBounds?: () => unknown;
+  onOpenCreate?: () => unknown;
+  onOpenSession?: (sessionId?: string) => unknown;
+  onReset?: () => unknown;
+  onRetry?: () => unknown;
+  onSubscribe?: () => unknown;
+  onToggle?: (state: string) => unknown;
+  rootElement?: HTMLElement;
   sessions?: NearbySession[];
   sessionStore?: Store<SessionControllerState, ControllerEventName>;
   onStoreCommit?: () => void;
@@ -71,7 +79,15 @@ function PeekArrow() {
   );
 }
 
-function SessionGroups({ courts, sessions }: { courts: NearbyCourt[]; sessions: NearbySession[] }) {
+function SessionGroups({
+  courts,
+  onOpenSession,
+  sessions,
+}: {
+  courts: NearbyCourt[];
+  onOpenSession?: (sessionId?: string) => unknown;
+  sessions: NearbySession[];
+}) {
   const groups: DrawerSessionGroup[] = nearbySessionsDrawerRuntime.drawerSessionGroups(sessions);
   return groups.map((group) => (
     <Fragment key={group.key}>
@@ -85,20 +101,44 @@ function SessionGroups({ courts, sessions }: { courts: NearbyCourt[]; sessions: 
           key={session.sessionId == null ? `${group.key}:${session.startAt}:${index}` : String(session.sessionId)}
           session={session}
           courts={courts}
+          onOpenSession={onOpenSession}
         />
       ))}
     </Fragment>
   ));
 }
 
-function DiscoveryEmpty({ filtersActive }: { filtersActive: boolean }) {
+function DiscoveryEmpty({
+  filtersActive,
+  onExpandBounds,
+  onOpenCreate,
+  onReset,
+  onSubscribe,
+}: {
+  filtersActive: boolean;
+  onExpandBounds?: () => unknown;
+  onOpenCreate?: () => unknown;
+  onReset?: () => unknown;
+  onSubscribe?: () => unknown;
+}) {
   const actions: EmptyAction[] = nearbySessionsDrawerRuntime.discoveryEmptyActions(filtersActive);
   return (
     <div id="discovery-empty" className="discovery-empty">
       <p>這個範圍暫時沒有可加入的球局</p>
       <div className="discovery-empty__actions">
         {actions.map((action) => (
-          <button type="button" id={action.id} className={action.className} key={action.id}>
+          <button
+            type="button"
+            id={action.id}
+            className={action.className}
+            key={action.id}
+            onClick={() => {
+              if (action.id === "discovery-reset") onReset?.();
+              else if (action.id === "discovery-expand") onExpandBounds?.();
+              else if (action.id === "discovery-subscribe") onSubscribe?.();
+              else if (action.id === "discovery-first") onOpenCreate?.();
+            }}
+          >
             {action.label}
           </button>
         ))}
@@ -114,6 +154,12 @@ function DrawerContent({
   filtersActive,
   loading,
   mapStatus,
+  onExpandBounds,
+  onOpenCreate,
+  onOpenSession,
+  onReset,
+  onRetry,
+  onSubscribe,
   sessions,
 }: {
   count: number;
@@ -122,6 +168,12 @@ function DrawerContent({
   filtersActive: boolean;
   loading: boolean;
   mapStatus: DrawerMapStatus;
+  onExpandBounds?: () => unknown;
+  onOpenCreate?: () => unknown;
+  onOpenSession?: (sessionId?: string) => unknown;
+  onReset?: () => unknown;
+  onRetry?: () => unknown;
+  onSubscribe?: () => unknown;
   sessions: NearbySession[];
 }) {
   if (loading) {
@@ -135,14 +187,22 @@ function DrawerContent({
     return (
       <div className="nearby-sessions__status" role="alert">
         <p>{mapStatus.message || "球局資料暫時無法載入。"}</p>
-        <button type="button" id="drawer-map-retry" className="session-secondary">
+        <button type="button" id="drawer-map-retry" className="session-secondary" onClick={() => onRetry?.()}>
           重新載入
         </button>
       </div>
     );
   }
-  if (count) return <SessionGroups sessions={sessions} courts={courts} />;
-  return <DiscoveryEmpty filtersActive={filtersActive} />;
+  if (count) return <SessionGroups sessions={sessions} courts={courts} onOpenSession={onOpenSession} />;
+  return (
+    <DiscoveryEmpty
+      filtersActive={filtersActive}
+      onExpandBounds={onExpandBounds}
+      onOpenCreate={onOpenCreate}
+      onReset={onReset}
+      onSubscribe={onSubscribe}
+    />
+  );
 }
 
 export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
@@ -171,6 +231,58 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
   const filtersActive = !isDefaultFilters(filters);
   const loading = resolvedMapStatus.kind === "loading";
   const error = resolvedMapStatus.kind === "error";
+  const collapse = () => {
+    options.onToggle?.("collapsed");
+    requestAnimationFrame(() => {
+      const root = options.rootElement;
+      const toggle = root?.querySelector<HTMLElement>("#nearby-sessions-toggle");
+      const active = document.activeElement;
+      const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
+      if (!toggle || toggle.getAttribute("aria-expanded") !== "false" || hasNewSurface) return;
+      const activeIsHiddenDrawerControl =
+        active instanceof HTMLElement && Boolean(root?.contains(active)) && Boolean(active.closest("[hidden]"));
+      if (
+        active?.isConnected &&
+        active !== document.body &&
+        active !== document.documentElement &&
+        !activeIsHiddenDrawerControl
+      )
+        return;
+      toggle.focus({ preventScroll: true });
+    });
+  };
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector("#sheet-root .surface, #modal-root .surface") || event.defaultPrevented) return;
+      event.preventDefault();
+      collapse();
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  });
+  useEffect(() => {
+    const root = options.rootElement;
+    if (!root) return;
+    let pointerStart: number | null = null;
+    const handlePointerDown = (event: PointerEvent) => {
+      pointerStart = event.clientY;
+    };
+    const handlePointerUp = (event: PointerEvent) => {
+      if (pointerStart == null) return;
+      const delta = pointerStart - event.clientY;
+      pointerStart = null;
+      if (delta > 44 && !isOpen) options.onToggle?.("open");
+      else if (delta < -44 && isOpen) collapse();
+    };
+    root.addEventListener("pointerdown", handlePointerDown);
+    root.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      root.removeEventListener("pointerdown", handlePointerDown);
+      root.removeEventListener("pointerup", handlePointerUp);
+    };
+  });
   const first = sessions[0];
   const nextLabel = first
     ? `最近 ${nearbySessionsDrawerRuntime.taipeiDayWord(first.startAt)} ${taipeiClock(first.startAt)}`
@@ -186,6 +298,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
           hidden={isOpen}
           aria-expanded={isOpen}
           aria-controls="nearby-sessions-list"
+          onClick={() => options.onToggle?.(isOpen ? "collapsed" : "open")}
         >
           <span id="nearby-sessions-summary" className="visually-hidden">
             {summary}
@@ -207,6 +320,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
             className="nearby-peek__empty-toggle"
             aria-expanded={isOpen}
             aria-controls="nearby-sessions-list"
+            onClick={() => options.onToggle?.(isOpen ? "collapsed" : "open")}
           >
             <span id="nearby-sessions-summary" className="visually-hidden">
               {summary}
@@ -214,11 +328,16 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
             <span aria-hidden="true">沒有符合的球局</span>
           </button>
           {filtersActive ? (
-            <button type="button" id="peek-reset" className="nearby-peek__reset">
+            <button type="button" id="peek-reset" className="nearby-peek__reset" onClick={() => options.onReset?.()}>
               重設篩選
             </button>
           ) : null}
-          <button type="button" id="peek-create" className="nearby-peek__create">
+          <button
+            type="button"
+            id="peek-create"
+            className="nearby-peek__create"
+            onClick={() => options.onOpenCreate?.()}
+          >
             開一場
           </button>
         </div>
@@ -231,7 +350,13 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
         role="region"
         aria-label="附近球局"
       >
-        <button type="button" className="nearby-drawer__handle" data-testid="drawer-collapse" aria-label="收合附近球局">
+        <button
+          type="button"
+          className="nearby-drawer__handle"
+          data-testid="drawer-collapse"
+          aria-label="收合附近球局"
+          onClick={collapse}
+        >
           <span className="nearby-drawer__bar" aria-hidden="true" />
         </button>
         <div className="nearby-drawer__head">
@@ -242,7 +367,13 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
               <span className="nearby-drawer__unit">場可加入</span>
             </div>
           </div>
-          <button type="button" className="nearby-drawer__close" data-nearby-close="" aria-label="關閉附近球局">
+          <button
+            type="button"
+            className="nearby-drawer__close"
+            data-nearby-close=""
+            aria-label="關閉附近球局"
+            onClick={collapse}
+          >
             ✕
           </button>
         </div>
@@ -260,6 +391,12 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
               filtersActive={filtersActive}
               loading={loading}
               mapStatus={resolvedMapStatus}
+              onExpandBounds={options.onExpandBounds}
+              onOpenCreate={options.onOpenCreate}
+              onOpenSession={options.onOpenSession}
+              onReset={options.onReset}
+              onRetry={options.onRetry}
+              onSubscribe={options.onSubscribe}
               sessions={sessions}
             />
           </div>

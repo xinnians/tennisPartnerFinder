@@ -454,6 +454,7 @@ export const mySessionsPageRuntime = Object.freeze({
   mySessionReason,
   mySessionsSplitBySegment,
   normalizedNotificationSettings,
+  notificationPushHint,
   ntrpRange,
   resolveMySessionsSegment,
   runMySessionAction,

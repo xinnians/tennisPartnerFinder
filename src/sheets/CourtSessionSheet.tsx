@@ -12,10 +12,11 @@ interface CourtSessionSheetProps {
   court: CourtSessionCourt;
   courts: CourtSessionCourt[] | null;
   onClose: () => void;
+  onOpenSession: (sessionId?: string) => unknown;
   sessions: Array<Partial<SessionSummary>>;
 }
 
-function CourtSessionSheet({ court, courts, onClose, sessions }: CourtSessionSheetProps) {
+function CourtSessionSheet({ court, courts, onClose, onOpenSession, sessions }: CourtSessionSheetProps) {
   return (
     <>
       <div className="surface__head">
@@ -39,6 +40,7 @@ function CourtSessionSheet({ court, courts, onClose, sessions }: CourtSessionShe
             <SessionCard
               compact
               courts={courts}
+              onOpenSession={onOpenSession}
               session={session}
               key={session.sessionId == null ? `${session.startAt}:${index}` : String(session.sessionId)}
             />

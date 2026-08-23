@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect } from "react";
+import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from "react";
 
 import type {
   ControllerCallbackResult as CallbackResult,
@@ -98,7 +98,31 @@ interface ActionButtonProps {
   testId?: string;
 }
 
+interface MySessionsActions {
+  onAccept?: MySessionsPageOptions["onAccept"];
+  onAcceptInvite?: MySessionsPageOptions["onAcceptInvite"];
+  onBack?: MySessionsPageOptions["onBack"];
+  onCancel?: MySessionsPageOptions["onCancel"];
+  onConfirmAttendance?: MySessionsPageOptions["onConfirmAttendance"];
+  onCreateSession?: MySessionsPageOptions["onCreateSession"];
+  onDecline?: MySessionsPageOptions["onDecline"];
+  onDeclineInvite?: MySessionsPageOptions["onDeclineInvite"];
+  onDecide?: MySessionsPageOptions["onDecide"];
+  onEdit?: MySessionsPageOptions["onEdit"];
+  onEnablePush?: MySessionsPageOptions["onEnablePush"];
+  onMarkPlayed?: MySessionsPageOptions["onMarkPlayed"];
+  onOpenChat?: MySessionsPageOptions["onOpenChat"];
+  onOpenSession?: MySessionsPageOptions["onOpenSession"];
+  onRefresh?: MySessionsPageOptions["onRefresh"];
+  onReportParticipant?: MySessionsPageOptions["onReportParticipant"];
+  onReportSession?: MySessionsPageOptions["onReportSession"];
+  onSignIn?: MySessionsPageOptions["onSignIn"];
+  onWithdraw?: MySessionsPageOptions["onWithdraw"];
+  rootElement: HTMLElement;
+}
+
 const EMPTY_GROUPS: MySessionsGroups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] };
+const MySessionsActionsContext = createContext<MySessionsActions | null>(null);
 
 function dataValue(value: Identifier): string {
   return String(value);
@@ -113,6 +137,28 @@ function ActionButton({
   sessionId,
   testId,
 }: ActionButtonProps) {
+  const actions = useContext(MySessionsActionsContext);
+  const handleClick = (button: HTMLButtonElement) => {
+    if (!actions) return;
+    const resolvedSessionId = dataValue(sessionId);
+    const resolvedParticipantId = participantId === undefined ? undefined : dataValue(participantId);
+    const resolvedProfileId = profileId === undefined ? undefined : dataValue(profileId);
+    const callbacks: Record<string, (() => CallbackResult) | undefined> = {
+      accept: () => actions.onAccept?.(resolvedSessionId, resolvedParticipantId),
+      "accept-invite": () => actions.onAcceptInvite?.(resolvedSessionId),
+      attendance: () => actions.onConfirmAttendance?.(resolvedSessionId),
+      cancel: () => actions.onCancel?.(resolvedSessionId),
+      decline: () => actions.onDecline?.(resolvedSessionId, resolvedParticipantId),
+      "decline-invite": () => actions.onDeclineInvite?.(resolvedSessionId),
+      decide: () => actions.onDecide?.(resolvedSessionId),
+      edit: () => actions.onEdit?.(resolvedSessionId),
+      played: () => actions.onMarkPlayed?.(resolvedSessionId),
+      "report-participant": () => actions.onReportParticipant?.(resolvedSessionId, resolvedProfileId),
+      "report-session": () => actions.onReportSession?.(resolvedSessionId),
+      withdraw: () => actions.onWithdraw?.(resolvedSessionId),
+    };
+    mySessionsPageRuntime.runMySessionAction(button, callbacks[action], actions.rootElement);
+  };
   return (
     <button
       type="button"
@@ -122,6 +168,7 @@ function ActionButton({
       data-participant-id={participantId === undefined ? undefined : dataValue(participantId)}
       data-profile-id={profileId === undefined ? undefined : dataValue(profileId)}
       data-testid={testId}
+      onClick={(event) => handleClick(event.currentTarget)}
     >
       {children}
     </button>
@@ -187,6 +234,7 @@ function SessionBrief({
 }
 
 function ChatButton({ session }: { session: MySessionsSession }) {
+  const actions = useContext(MySessionsActionsContext);
   const sessionId = dataValue(session.sessionId);
   const unreadCount = Math.max(0, Number(session.unreadMessageCount) || 0);
   const label = unreadCount > 0 ? `群組聊天（${unreadCount}）` : "群組聊天";
@@ -198,6 +246,7 @@ function ChatButton({ session }: { session: MySessionsSession }) {
       data-session-id={sessionId}
       data-testid={`open-chat-${sessionId}`}
       aria-label={unreadCount > 0 ? `群組聊天，${unreadCount} 則未讀訊息` : undefined}
+      onClick={() => actions?.onOpenChat?.(sessionId)}
     >
       {label}
     </button>
@@ -215,6 +264,7 @@ function SessionCard({
   segment: MySessionsSegment;
   session: MySessionsSession;
 }) {
+  const actions = useContext(MySessionsActionsContext);
   const sessionId = dataValue(session.sessionId);
   const hostCanManage = String(session.viewerRole) === "host" && Boolean(session.canCancel);
   const canChat = String(session.viewerParticipantStatus).toLowerCase() === "accepted";
@@ -223,7 +273,13 @@ function SessionCard({
     <article className="my-session-card" data-created-session={highlighted ? "true" : undefined}>
       <SessionBrief courts={courts} segment={segment} session={session} />
       <div className="my-session-card__actions">
-        <button type="button" className="session-secondary" data-open-my-session="" data-session-id={sessionId}>
+        <button
+          type="button"
+          className="session-secondary"
+          data-open-my-session=""
+          data-session-id={sessionId}
+          onClick={() => actions?.onOpenSession?.(sessionId)}
+        >
           查看球局
         </button>
         {canChat ? <ChatButton session={session} /> : null}
@@ -381,10 +437,12 @@ function SegmentedControl({
   activeSegment,
   hostedCount,
   joinedCount,
+  onSelect,
 }: {
   activeSegment: MySessionsSegment;
   hostedCount: number;
   joinedCount: number;
+  onSelect: (segment: MySessionsSegment) => void;
 }) {
   const joinedActive = activeSegment !== "hosted";
   return (
@@ -395,6 +453,7 @@ function SegmentedControl({
         data-my-sessions-seg="joined"
         data-testid="my-sessions-seg-joined"
         aria-pressed={joinedActive ? "true" : "false"}
+        onClick={() => onSelect("joined")}
       >
         我報名的 <span className="my-sessions-v2__seg-count">{joinedCount}</span>
       </button>
@@ -404,6 +463,7 @@ function SegmentedControl({
         data-my-sessions-seg="hosted"
         data-testid="my-sessions-seg-hosted"
         aria-pressed={joinedActive ? "false" : "true"}
+        onClick={() => onSelect("hosted")}
       >
         我主揪的 <span className="my-sessions-v2__seg-count">{hostedCount}</span>
       </button>
@@ -412,6 +472,7 @@ function SegmentedControl({
 }
 
 function EmptyState({ segment }: { segment: MySessionsSegment }) {
+  const actions = useContext(MySessionsActionsContext);
   const hosted = segment === "hosted";
   return (
     <div className="my-sessions-v2__empty" data-my-sessions-empty="">
@@ -419,11 +480,21 @@ function EmptyState({ segment }: { segment: MySessionsSegment }) {
         {hosted ? "還沒主揪過球局。開一場，讓球友來找你。" : "還沒報名任何球局。到地圖上找一場程度相近的吧。"}
       </p>
       {hosted ? (
-        <button type="button" className="session-primary my-sessions-v2__empty-btn" data-my-sessions-empty-create="">
+        <button
+          type="button"
+          className="session-primary my-sessions-v2__empty-btn"
+          data-my-sessions-empty-create=""
+          onClick={() => actions?.onCreateSession?.()}
+        >
           開球局
         </button>
       ) : (
-        <button type="button" className="session-primary my-sessions-v2__empty-btn" data-my-sessions-empty-map="">
+        <button
+          type="button"
+          className="session-primary my-sessions-v2__empty-btn"
+          data-my-sessions-empty-map=""
+          onClick={() => actions?.onBack?.()}
+        >
           去逛地圖
         </button>
       )}
@@ -541,19 +612,67 @@ function HistorySection({
 }
 
 function SuccessPushPrompt({ settings }: { settings: NotificationSettingsInput | null }) {
+  const actions = useContext(MySessionsActionsContext);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [hidden, setHidden] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [terminal, setTerminal] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const presentation = mySessionsPageRuntime.successPushPromptPresentation(settings ?? {}, {
     message: "開啟推播，才不會錯過球友的新申請與球局變更。",
     testId: "created-session-enable-push",
   });
-  if (!presentation) return null;
+  if (!presentation || hidden) return null;
+  const enablePush = async () => {
+    if (pending || terminal || !actions?.onEnablePush) return;
+    setPending(true);
+    setErrorMessage("");
+    try {
+      const status = await actions.onEnablePush();
+      if (status === "enabled") {
+        setHidden(true);
+        return;
+      }
+      if (status === "unsupported") {
+        setTerminal(true);
+        setErrorMessage(mySessionsPageRuntime.notificationPushHint({ pushStatus: status, webPushConfigured: true }));
+        return;
+      }
+      if (status === "denied") {
+        setErrorMessage(mySessionsPageRuntime.notificationPushHint({ pushStatus: status, webPushConfigured: true }));
+        requestAnimationFrame(() => errorRef.current?.focus({ preventScroll: true }));
+      }
+    } catch {
+      setErrorMessage("推播暫時無法開啟，請稍後再試。");
+      requestAnimationFrame(() => errorRef.current?.focus({ preventScroll: true }));
+    } finally {
+      setPending(false);
+    }
+  };
   return (
     <section className="success-push-prompt" data-success-push-prompt="">
       <p>{presentation.message}</p>
-      <button type="button" className="session-secondary" data-success-enable-push="" data-testid={presentation.testId}>
-        開啟推播
+      <button
+        type="button"
+        className="session-secondary"
+        data-success-enable-push=""
+        data-testid={presentation.testId}
+        disabled={pending || terminal}
+        onClick={() => void enablePush()}
+      >
+        {terminal ? "此瀏覽器不支援推播" : "開啟推播"}
       </button>
       <p className="form-hint">{presentation.iosHint}</p>
-      <p className="form-error" data-success-push-error="" role="alert" tabIndex={-1} hidden />
+      <p
+        ref={errorRef}
+        className="form-error"
+        data-success-push-error=""
+        role="alert"
+        tabIndex={-1}
+        hidden={!errorMessage}
+      >
+        {errorMessage}
+      </p>
     </section>
   );
 }
@@ -585,16 +704,45 @@ export function MySessionsPage(props: MySessionsPageProps) {
   });
   const safeGroups = resolvedGroups ?? EMPTY_GROUPS;
   const focusSessionId = resolvedFocusSessionId ?? resolvedCreatedSessionId;
-  const activeSegment = mySessionsPageRuntime.resolveMySessionsSegment(rootElement, safeGroups, focusSessionId);
+  const focusKey = focusSessionId == null ? "" : String(focusSessionId);
+  const automaticSegment = mySessionsPageRuntime.resolveMySessionsSegment(rootElement, safeGroups, focusSessionId);
+  const [segmentSelection, setSegmentSelection] = useState(() => ({ focusKey, segment: automaticSegment }));
+  let activeSegment = segmentSelection.segment;
+  if (segmentSelection.focusKey !== focusKey) {
+    activeSegment = automaticSegment;
+    setSegmentSelection({ focusKey, segment: automaticSegment });
+  }
   const split = mySessionsPageRuntime.mySessionsSplitBySegment(safeGroups);
   const joinedCount = split.joined.needsAction.length + split.joined.upcoming.length;
   const hostedCount = split.hosted.needsAction.length + split.hosted.upcoming.length;
   const active = activeSegment === "hosted" ? split.hosted : split.joined;
   const activeNonHistoryCount = active.needsAction.length + active.upcoming.length;
   const showEmptyState = (controllerView?.authenticated ?? authenticated) && activeNonHistoryCount === 0;
+  const actions: MySessionsActions = {
+    onAccept: props.onAccept,
+    onAcceptInvite: props.onAcceptInvite,
+    onBack: props.onBack,
+    onCancel: props.onCancel,
+    onConfirmAttendance: props.onConfirmAttendance,
+    onCreateSession: props.onCreateSession,
+    onDecline: props.onDecline,
+    onDeclineInvite: props.onDeclineInvite,
+    onDecide: props.onDecide,
+    onEdit: props.onEdit,
+    onEnablePush: props.onEnablePush,
+    onMarkPlayed: props.onMarkPlayed,
+    onOpenChat: props.onOpenChat,
+    onOpenSession: props.onOpenSession,
+    onRefresh: props.onRefresh,
+    onReportParticipant: props.onReportParticipant,
+    onReportSession: props.onReportSession,
+    onSignIn: props.onSignIn,
+    onWithdraw: props.onWithdraw,
+    rootElement,
+  };
 
   return (
-    <>
+    <MySessionsActionsContext.Provider value={actions}>
       <div className="my-sessions-v2__head">
         <p className="my-sessions-v2__eyebrow">MY MATCHES</p>
         <div className="my-sessions-v2__head-row">
@@ -602,15 +750,32 @@ export function MySessionsPage(props: MySessionsPageProps) {
             我的球局
           </h1>
           <div className="my-sessions-v2__tools">
-            <button type="button" id="my-sessions-refresh" className="session-secondary my-sessions-v2__tool-btn">
+            <button
+              type="button"
+              id="my-sessions-refresh"
+              className="session-secondary my-sessions-v2__tool-btn"
+              onClick={(event) =>
+                mySessionsPageRuntime.runMySessionAction(event.currentTarget, props.onRefresh, rootElement)
+              }
+            >
               重新整理
             </button>
-            <button type="button" className="session-secondary my-sessions-v2__tool-btn" data-my-sessions-back="">
+            <button
+              type="button"
+              className="session-secondary my-sessions-v2__tool-btn"
+              data-my-sessions-back=""
+              onClick={() => props.onBack?.()}
+            >
               回到地圖
             </button>
           </div>
         </div>
-        <SegmentedControl activeSegment={activeSegment} hostedCount={hostedCount} joinedCount={joinedCount} />
+        <SegmentedControl
+          activeSegment={activeSegment}
+          hostedCount={hostedCount}
+          joinedCount={joinedCount}
+          onSelect={(segment) => setSegmentSelection({ focusKey, segment })}
+        />
       </div>
       <p className="surface__copy">
         {resolvedCreatedSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"}
@@ -638,7 +803,12 @@ export function MySessionsPage(props: MySessionsPageProps) {
         <section className="my-sessions-empty" aria-label="登入後查看我的球局">
           <h2>登入後查看與管理你的球局</h2>
           <p className="surface__copy">你可以在這裡處理申請、進入球局群組聊天，以及保留過去紀錄。</p>
-          <button type="button" className="session-primary" data-my-sessions-sign-in="">
+          <button
+            type="button"
+            className="session-primary"
+            data-my-sessions-sign-in=""
+            onClick={() => props.onSignIn?.()}
+          >
             登入
           </button>
         </section>
@@ -664,6 +834,6 @@ export function MySessionsPage(props: MySessionsPageProps) {
         sessions={active.history}
         showChrome={!showEmptyState}
       />
-    </>
+    </MySessionsActionsContext.Provider>
   );
 }

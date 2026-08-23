@@ -12,7 +12,6 @@ import {
 import { esc } from "./util.js";
 import {
   runAsyncAction,
-  runMySessionAction,
   runNotificationSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   runPresenceSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   setMySessionActionScope,
@@ -20,7 +19,6 @@ import {
 } from "./sessionActions.ts";
 import {
   PROFILE_SLOTS,
-  mySessionsSegmentState,
   notificationPushHint,
   padTwo,
   sessionScheduleLabel,
@@ -305,13 +303,9 @@ if (typeof document !== "undefined") {
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
-const drawerBindings = new WeakMap();
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
 const drawerScrollPositions = new WeakMap();
-const mySessionsRenderOptions = new WeakMap();
-const mySessionsBindings = new WeakMap();
-const nearbyActionBindings = new WeakMap();
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
@@ -656,136 +650,6 @@ function restoreFocusedSessionCard(root) {
   });
 }
 
-function wireSuccessPushPrompt(root, onEnablePush, signal) {
-  const prompt = root.querySelector("[data-success-push-prompt]");
-  const button = prompt?.querySelector("[data-success-enable-push]");
-  const error = prompt?.querySelector("[data-success-push-error]");
-  button?.addEventListener(
-    "click",
-    () => {
-      let terminalStatus = false;
-      void runAsyncAction({
-        root,
-        callback: onEnablePush,
-        controls: [button],
-        watchNodes: [prompt],
-        error,
-        errorMessage: "推播暫時無法開啟，請稍後再試。",
-        errorFocus: true,
-        onSuccess: (status) => {
-          if (status === "enabled") {
-            prompt.hidden = true;
-            return;
-          }
-          if (status === "unsupported") {
-            terminalStatus = true;
-            button.textContent = "此瀏覽器不支援推播";
-            error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-            error.hidden = false;
-            return;
-          }
-          if (status === "denied") {
-            error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
-            error.hidden = false;
-            error.focus({ preventScroll: true });
-          }
-        },
-        canRestoreControls: () => !prompt.hidden && !terminalStatus,
-      });
-    },
-    { signal }
-  );
-}
-
-function wireMySessionsPage(root, options = {}) {
-  const previousBindings = mySessionsBindings.get(root);
-  if (previousBindings?.marker?.isConnected) previousBindings.controller.abort();
-  const bindings = new AbortController();
-  mySessionsBindings.set(root, {
-    controller: bindings,
-    marker: root.querySelector("[data-my-sessions-heading]"),
-  });
-  const { signal } = bindings;
-  const {
-    onAccept = () => {},
-    onAcceptInvite = () => {},
-    onBack = () => {},
-    onCancel = () => {},
-    onConfirmAttendance = () => {},
-    onCreateSession = () => {},
-    onDecline = () => {},
-    onDeclineInvite = () => {},
-    onDecide = () => {},
-    onEdit = () => {},
-    onEnablePush = () => {},
-    onMarkPlayed = () => {},
-    onOpenChat = () => {},
-    onOpenSession = () => {},
-    onRefresh = () => {},
-    onReportParticipant = () => {},
-    onReportSession = () => {},
-    onSignIn = () => {},
-    onWithdraw = () => {},
-  } = options;
-
-  root.querySelector("[data-my-sessions-back]")?.addEventListener("click", onBack, { signal });
-  root.querySelector("[data-my-sessions-sign-in]")?.addEventListener("click", onSignIn, { signal });
-  wireSuccessPushPrompt(root, onEnablePush, signal);
-  root
-    .querySelector("#my-sessions-refresh")
-    ?.addEventListener("click", () => runMySessionAction(root.querySelector("#my-sessions-refresh"), onRefresh, root), {
-      signal,
-    });
-  root.querySelector("[data-my-sessions-empty-map]")?.addEventListener("click", onBack, { signal });
-  root.querySelector("[data-my-sessions-empty-create]")?.addEventListener("click", onCreateSession, { signal });
-  root.querySelectorAll("[data-my-sessions-seg]").forEach((button) => {
-    button.addEventListener(
-      "click",
-      () => {
-        const nextSegment = button.dataset.mySessionsSeg;
-        const state = mySessionsSegmentState(root);
-        if (state.segment === nextSegment) return;
-        state.segment = nextSegment;
-        renderMySessionsPage(root, mySessionsRenderOptions.get(root));
-        root.querySelector(`[data-my-sessions-seg="${nextSegment}"]`)?.focus({ preventScroll: true });
-      },
-      { signal }
-    );
-  });
-  root.querySelectorAll("[data-open-my-session]").forEach((button) => {
-    button.addEventListener("click", () => onOpenSession(button.dataset.sessionId), { signal });
-  });
-  root.querySelectorAll("[data-open-chat]").forEach((button) => {
-    button.addEventListener("click", () => onOpenChat(button.dataset.sessionId), { signal });
-  });
-  root.querySelectorAll("[data-my-action]").forEach((button) => {
-    button.addEventListener(
-      "click",
-      () => {
-        const sessionId = button.dataset.sessionId;
-        const participantId = button.dataset.participantId;
-        const profileId = button.dataset.profileId;
-        const callbacks = {
-          accept: () => onAccept(sessionId, participantId),
-          "accept-invite": () => onAcceptInvite(sessionId),
-          attendance: () => onConfirmAttendance(sessionId),
-          cancel: () => onCancel(sessionId),
-          decline: () => onDecline(sessionId, participantId),
-          "decline-invite": () => onDeclineInvite(sessionId),
-          decide: () => onDecide(sessionId),
-          edit: () => onEdit(sessionId),
-          played: () => onMarkPlayed(sessionId),
-          "report-participant": () => onReportParticipant(sessionId, profileId),
-          "report-session": () => onReportSession(sessionId),
-          withdraw: () => onWithdraw(sessionId),
-        };
-        runMySessionAction(button, callbacks[button.dataset.myAction], root);
-      },
-      { signal }
-    );
-  });
-}
-
 function scheduleMySessionsCreatedFocus(root, options = {}) {
   const {
     createdSessionId = null,
@@ -822,110 +686,12 @@ function scheduleMySessionsCreatedFocus(root, options = {}) {
 /** Mount or update the private, action-first My Sessions destination. */
 export function renderMySessionsPage(root, options = {}) {
   if (!renderMySessionsPageInApp) throw new Error("MySessionsPage browser mount is unavailable.");
-  mySessionsRenderOptions.set(root, options);
   setMySessionActionScope(root, options.actionScopeKey ?? null);
   renderMySessionsPageInApp(root, options, () => {
     setMySessionActionScope(root, options.sessionStore?.getState?.().authEpoch ?? options.actionScopeKey ?? null);
-    wireMySessionsPage(root, options);
     syncPendingMySessionActions(root);
     scheduleMySessionsCreatedFocus(root, options);
   });
-}
-
-function wireSessionCards(root, onOpenSession, signal) {
-  root.querySelectorAll("[data-session-id]").forEach((card) => {
-    card.addEventListener("click", () => onOpenSession(card.dataset.sessionId), { signal });
-  });
-}
-
-// full 才是 modal:push isolation、顯示 backdrop。half 完全不呼叫這裡的 isModal=true
-// 分支——地圖、header、bottom nav 在半開時維持可互動。
-// 批 D2:v2 抽屜是兩態(peek↔open)非 modal(dc L135-176 無 scrim、地圖可互動),
-// full/dialog/isolation 機制隨 v2 退場;collapse 的焦點還原邏輯沿用 C2。
-function wireDrawerInteractions(root, { drawerState = "collapsed", onToggle }) {
-  drawerBindings.get(root)?.abort();
-  const bindings = new AbortController();
-  drawerBindings.set(root, bindings);
-  const { signal } = bindings;
-  // 收合的共用出口:✕/把手/Escape/下滑都收斂到同一個 collapse(),回 collapsed 後
-  // 把焦點還給 peek 列——沿用 C2 的讓位規則(新 surface 或使用者已移動焦點時不搶)。
-  const collapse = () => {
-    onToggle("collapsed");
-    requestAnimationFrame(() => {
-      const toggle = root.querySelector("#nearby-sessions-toggle");
-      const active = document.activeElement;
-      const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
-      // A user can move straight to a map pin before this deferred focus
-      // restoration runs. Never steal that newer target (or a newly opened
-      // sheet) just to restore the drawer's default opener.
-      if (!toggle || toggle.getAttribute("aria-expanded") !== "false" || hasNewSurface) return;
-      const activeIsHiddenDrawerControl =
-        active instanceof HTMLElement && root.contains(active) && Boolean(active.closest("[hidden]"));
-      if (
-        active?.isConnected &&
-        active !== document.body &&
-        active !== document.documentElement &&
-        !activeIsHiddenDrawerControl
-      )
-        return;
-      toggle.focus({ preventScroll: true });
-    });
-  };
-
-  if (drawerState === "open") {
-    root.querySelector("[data-nearby-close]")?.addEventListener("click", collapse, { signal });
-    root.querySelector('[data-testid="drawer-collapse"]')?.addEventListener("click", collapse, { signal });
-    // half 不是 dialog,沒有 focus trap 可以攔 Escape;監聽要掛在 document 上才能不管
-    // 焦點在哪都收得到。掛在 document 上就必須自己防兩件事:(1) 上層還有 sheet/dialog
-    // 開著時不能搶著收合——sheets.js 的 Escape handler 用 capture+stopPropagation,
-    // 正常情況這裡根本收不到事件,但仍加一層明確檢查,不依賴事件相位這種隱性順序；
-    // (2) 只在目前確實是 half 時動作,避免殘留 binding 誤觸發(靠每次重繪都
-    // abort()+重綁,天然滿足)。
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if (event.key !== "Escape") return;
-        if (document.querySelector("#sheet-root .surface, #modal-root .surface")) return;
-        // level popover 的 capture-phase Escape 攔截(main.js wireFilters)關閉它自己時
-        // 一定會呼叫 preventDefault(),不管 stopPropagation 那步有沒有真的擋下這次事件
-        // 往下傳。改看 event.defaultPrevented(「這顆 Escape 已被上層消費」)而不是
-        // popover.hidden 目前的值——popover 那層 handler 在呼叫 stopPropagation 之前
-        // 就已經把 hidden 設成 true,若只查 hidden 狀態,一旦上層的 stopPropagation 失效
-        // 或被移除,這裡讀到的 hidden 早就是 true,guard 反而會誤判「popover 本來就關著」
-        // 而放行收合,防線形同虛設。defaultPrevented 是這次事件物件自帶的旗標,不受
-        // popover 當下狀態或呼叫順序影響,才是真正獨立於第一層的第二道防線。
-        if (event.defaultPrevented) return;
-        event.preventDefault();
-        collapse();
-      },
-      { signal }
-    );
-  }
-
-  let pointerStart = null;
-  root.addEventListener(
-    "pointerdown",
-    (event) => {
-      pointerStart = event.clientY;
-    },
-    { signal }
-  );
-  root.addEventListener(
-    "pointerup",
-    (event) => {
-      if (pointerStart == null) return;
-      const delta = pointerStart - event.clientY;
-      pointerStart = null;
-      // v2 兩態:上滑開、下滑收(dc 原型無手勢,工程保留 C2 的手勢入口),
-      // 閾值沿用既有 44px。狀態取自這次 render 綁定當下的 drawerState closure。
-      if (delta > 44) {
-        if (drawerState === "collapsed") onToggle("open");
-      } else if (delta < -44) {
-        if (drawerState === "open") collapse();
-      }
-    },
-    { signal }
-  );
 }
 
 /** Render the map-bound peek strip and its two-state (collapsed/open) drawer. */
@@ -964,35 +730,18 @@ export function renderNearbySessionsDrawer(
         rememberFocusedSessionCard(root);
         rememberDrawerScrollTop(root);
       },
+      onExpandBounds,
+      onOpenCreate,
+      onOpenSession,
+      onReset,
+      onRetry,
+      onSubscribe,
+      onToggle,
       sessions,
       sessionStore,
     },
     () => {
-      const previousBindings = nearbyActionBindings.get(root);
-      if (previousBindings?.marker?.isConnected) previousBindings.controller.abort();
-      const bindings = new AbortController();
-      nearbyActionBindings.set(root, {
-        controller: bindings,
-        marker: root.querySelector("#nearby-sessions-toggle"),
-      });
-      const { signal } = bindings;
       const currentDrawerState = sessionStore?.getState?.().drawerState ?? drawerState;
-      root
-        .querySelector("#nearby-sessions-toggle")
-        ?.addEventListener("click", () => onToggle(currentDrawerState === "open" ? "collapsed" : "open"), { signal });
-      wireSessionCards(root, onOpenSession, signal);
-      const resetFilters = () => {
-        rememberFocusedSessionCard(root);
-        onReset();
-      };
-      root.querySelector("#peek-reset")?.addEventListener("click", resetFilters, { signal });
-      root.querySelector("#peek-create")?.addEventListener("click", onOpenCreate, { signal });
-      root.querySelector("#discovery-reset")?.addEventListener("click", resetFilters, { signal });
-      root.querySelector("#discovery-expand")?.addEventListener("click", onExpandBounds, { signal });
-      root.querySelector("#discovery-subscribe")?.addEventListener("click", onSubscribe, { signal });
-      root.querySelector("#discovery-first")?.addEventListener("click", onOpenCreate, { signal });
-      root.querySelector("#drawer-map-retry")?.addEventListener("click", onRetry, { signal });
-      wireDrawerInteractions(root, { drawerState: currentDrawerState, onToggle });
       // Register focus first and scroll second. Both callbacks run after the
       // flushSync commit, so any focus-induced browser scroll is corrected last.
       restoreFocusedSessionCard(root);
@@ -1174,6 +923,43 @@ export function renderMessagesPage(root, options = {}) {
 const JOIN_STAGE_FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+function wireSurfaceSuccessPushPrompt(root, onEnablePush) {
+  const prompt = root.querySelector("[data-success-push-prompt]");
+  const button = prompt?.querySelector("[data-success-enable-push]");
+  const error = prompt?.querySelector("[data-success-push-error]");
+  button?.addEventListener("click", () => {
+    let terminalStatus = false;
+    void runAsyncAction({
+      root,
+      callback: onEnablePush,
+      controls: [button],
+      watchNodes: [prompt],
+      error,
+      errorMessage: "推播暫時無法開啟，請稍後再試。",
+      errorFocus: true,
+      onSuccess: (status) => {
+        if (status === "enabled") {
+          prompt.hidden = true;
+          return;
+        }
+        if (status === "unsupported") {
+          terminalStatus = true;
+          button.textContent = "此瀏覽器不支援推播";
+          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+          error.hidden = false;
+          return;
+        }
+        if (status === "denied") {
+          error.textContent = notificationPushHint({ pushStatus: status, webPushConfigured: true });
+          error.hidden = false;
+          error.focus({ preventScroll: true });
+        }
+      },
+      canRestoreControls: () => !prompt.hidden && !terminalStatus,
+    });
+  });
+}
+
 /** The three OK outcomes plus the accepted branch, unchanged from the retired dialog. */
 function joinSuccessMessage(result) {
   if (result?.accepted) return "已加入球局！前往我的球局開啟群組聊天。";
@@ -1340,7 +1126,7 @@ export function openSessionSheet(
   }
 
   function wireSuccess() {
-    wireSuccessPushPrompt(mounted.root, onEnablePush);
+    wireSurfaceSuccessPushPrompt(mounted.root, onEnablePush);
     container.querySelector('[data-testid="join-open-my-sessions"]')?.addEventListener("click", () => {
       mounted.close({ reason: "view-my-sessions", restoreFocus: false });
       // 批 C3-3:CTA 現在把剛加入的 sessionId 交回呼叫端,讓 My Sessions 可以聚焦
@@ -2174,10 +1960,10 @@ export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSes
     court,
     courts,
     onClose: () => mounted.close(),
+    onOpenSession,
     sessions,
   });
   mounted.registerUnmount(content.unmount);
-  wireSessionCards(mounted.root, onOpenSession);
   return mounted;
 }
 
