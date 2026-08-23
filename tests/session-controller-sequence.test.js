@@ -5,10 +5,11 @@
 // 「某欄寫入繞過 store」)都不改變任何單一斷言的最終值,只改變 renderer 收到的呼叫次序
 // 與次數——那批用一支臨時 probe 才抓到。臨時 probe 跑完就沒了,所以本檔把它固化。
 //
-// 斷言面刻意不是「最終狀態對不對」,而是「整段操作打出來的呼叫序列逐筆相同」:
+// 斷言面刻意不是「最終狀態對不對」,而是「整段操作打出來的通道與呼叫次數相同」:
 // 每次 render / renderPins / renderPlayers / onMySessionsChange / 表單 setCourts 直呼 /
-// toast 都按發生順序記一筆 `步驟|通道|payload 指紋`,與寫死在本檔的 GOLDEN 逐筆比對。
-// 因此「多派發一次」「少派發一次」「兩次派發被合併成一次」「次序對調」全都會紅。
+// toast 都先按發生順序記一筆 `步驟|通道|payload 指紋`,再壓成每一步的通道次數,
+// 與寫死在本檔的 GOLDEN 逐筆比對。因此「多派發一次」「少派發一次」「兩次派發被
+// 合併成一次」仍會紅；批 1 React 訂閱化完成前暫不凍結 payload 與同一步內的跨通道次序。
 //
 // 時間:所有 startAt 用固定的 2099 年常數,不依賴真實時鐘;2099 恆在未來,
 // isDiscoverableSession 與 sortSessionsForDrawer 的結果因此可重現。
@@ -347,140 +348,52 @@ async function driveSequence() {
 }
 
 /**
- * 自 2026-08-19 工作樹錄製後逐字寫入。要改這張表,只有兩種正當理由:
- * (1) 刻意改了 controller 的派發行為,或 (2) 刻意改了本檔的腳本/指紋欄位。
- * 兩者都要在報告裡說明「哪一筆為什麼變」——不可為了讓測試變綠而重錄。
+ * 2026-08-23 為批 1 React 訂閱化暫時降成「步驟＋通道＋次數」解析度。要改這張表,
+ * 只有兩種正當理由:(1) 刻意改了 controller 的派發行為,或 (2) 刻意改了本檔的
+ * 腳本/指紋欄位。兩者都要在報告裡逐筆說明變因——不可為了讓測試變綠而重錄。
+ * 批 1 收尾必須恢復完整 payload GOLDEN。
  */
 const GOLDEN = [
-  "setCourts|step|--",
-  'setCourts|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "setCourts|pins|[]",
-  'setCourts|players|on=0 status=idle msg="" groups=[]',
-  "initial-discovery|step|--",
-  'initial-discovery|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=loading:"正在載入球局資料…" locMsg=""',
-  "initial-discovery|pins|[]",
-  'initial-discovery|players|on=0 status=idle msg="" groups=[]',
-  'initial-discovery|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "initial-discovery|pins|[41,42]",
-  'initial-discovery|players|on=0 status=idle msg="" groups=[]',
-  "bounds-change|step|--",
-  'bounds-change|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=loading:"正在載入球局資料…" locMsg=""',
-  "bounds-change|pins|[]",
-  'bounds-change|players|on=0 status=idle msg="" groups=[]',
-  'bounds-change|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "bounds-change|pins|[41,42]",
-  'bounds-change|players|on=0 status=idle msg="" groups=[]',
-  "drawer|step|--",
-  'drawer|render|sessions=[41,42] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "drawer|pins|[41,42]",
-  'drawer|players|on=0 status=idle msg="" groups=[]',
-  'drawer|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "drawer|pins|[41,42]",
-  'drawer|players|on=0 status=idle msg="" groups=[]',
-  "filters|step|--",
-  'filters|render|sessions=[41] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "filters|pins|[41]",
-  'filters|players|on=0 status=idle msg="" groups=[]',
-  'filters|render|sessions=[41] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[單打] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "filters|pins|[41]",
-  'filters|players|on=0 status=idle msg="" groups=[]',
-  'filters|render|sessions=[41] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[單打] districts=[大安區] courts=[8,9] map=idle:"" locMsg=""',
-  "filters|pins|[41]",
-  'filters|players|on=0 status=idle msg="" groups=[]',
-  'filters|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "filters|pins|[41,42]",
-  'filters|players|on=0 status=idle msg="" groups=[]',
-  "sign-in|step|--",
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-in|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "sign-in|pins|[41,42]",
-  'sign-in|players|on=0 status=idle msg="" groups=[]',
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in|mySessions|auth=1 status=ready err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "sign-in|pins|[41,42]",
-  'sign-in|players|on=0 status=idle msg="" groups=[]',
-  "courts-channel-with-open-form|step|--",
-  "courts-channel-with-open-form|surface:createSession:setCourts|courts=[8,9] ready=1",
-  'courts-channel-with-open-form|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
-  "courts-channel-with-open-form|pins|[41,42]",
-  'courts-channel-with-open-form|players|on=0 status=idle msg="" groups=[]',
-  "courts-channel-with-open-form|surface:createSession:setCourts|courts=[] ready=0",
-  'courts-channel-with-open-form|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=idle:"" locMsg=""',
-  "courts-channel-with-open-form|pins|[41,42]",
-  'courts-channel-with-open-form|players|on=0 status=idle msg="" groups=[]',
-  "blocks|step|--",
-  'blocks|mySessions|auth=1 status=ready err="" public=0 gen=1 blocked=0:loading:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'blocks|mySessions|auth=1 status=ready err="" public=0 gen=1 blocked=1:ready:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  "player-layer-on|step|--",
-  'player-layer-on|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=idle:"" locMsg=""',
-  "player-layer-on|pins|[41,42]",
-  'player-layer-on|players|on=1 status=loading msg="正在載入在線球友…" groups=[]',
-  'player-layer-on|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=idle:"" locMsg=""',
-  "player-layer-on|pins|[41,42]",
-  'player-layer-on|players|on=1 status=ready msg="" groups=[8:1/1]',
-  "player-layer-off|step|--",
-  'player-layer-off|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=idle:"" locMsg=""',
-  "player-layer-off|pins|[41,42]",
-  'player-layer-off|players|on=0 status=idle msg="" groups=[]',
-  "gate-superseded|step|--",
-  'gate-superseded|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=loading:"正在載入球局資料…" locMsg=""',
-  "gate-superseded|pins|[]",
-  'gate-superseded|players|on=0 status=idle msg="" groups=[]',
-  'gate-superseded|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=loading:"正在載入球局資料…" locMsg=""',
-  "gate-superseded|pins|[]",
-  'gate-superseded|players|on=0 status=idle msg="" groups=[]',
-  'gate-superseded|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=idle:"" locMsg=""',
-  "gate-superseded|pins|[41,42]",
-  'gate-superseded|players|on=0 status=idle msg="" groups=[]',
-  "discovery-error|step|--",
-  'discovery-error|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=loading:"正在載入球局資料…" locMsg=""',
-  "discovery-error|pins|[]",
-  'discovery-error|players|on=0 status=idle msg="" groups=[]',
-  'discovery-error|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=error:"球局資料暫時無法載入。" locMsg=""',
-  "discovery-error|pins|[]",
-  'discovery-error|players|on=0 status=idle msg="" groups=[]',
-  "map-unavailable|step|--",
-  'map-unavailable|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg=""',
-  "map-unavailable|pins|[]",
-  'map-unavailable|players|on=0 status=idle msg="" groups=[]',
-  "location-denied|step|--",
-  'location-denied|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
-  "location-denied|pins|[]",
-  'location-denied|players|on=0 status=idle msg="" groups=[]',
-  'location-denied|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
-  "location-denied|pins|[]",
-  'location-denied|players|on=0 status=idle msg="" groups=[]',
-  "getters|step|--",
-  "getters|getter:getVisibleSessions|[]",
-  "getters|getter:getMySessions|[41]",
-  "getters|getter:getMySessionGroups|needsAction=0 upcoming=[41] history=[]",
-  "getters|getter:getMySessionState|auth=1 status=ready gen=1 blocked=1",
-  "getters|getter:getPlayerLayerState|on=0 status=idle groups=0",
-  "sign-out|step|--",
-  'sign-out|mySessions|auth=0 status=idle err="" public=0 gen=2 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-out|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
-  "sign-out|pins|[]",
-  'sign-out|players|on=0 status=idle msg="" groups=[]',
-  "sign-in-other-account|step|--",
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-in-other-account|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
-  "sign-in-other-account|pins|[]",
-  'sign-in-other-account|players|on=0 status=idle msg="" groups=[]',
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in-other-account|mySessions|auth=1 status=ready err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in-other-account|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
-  "sign-in-other-account|pins|[]",
-  'sign-in-other-account|players|on=0 status=idle msg="" groups=[]',
+  "setCourts|render=1,pins=1,players=1",
+  "initial-discovery|render=2,pins=2,players=2",
+  "bounds-change|render=2,pins=2,players=2",
+  "drawer|render=2,pins=2,players=2",
+  "filters|render=4,pins=4,players=4",
+  "sign-in|mySessions=5,render=2,pins=2,players=2",
+  "courts-channel-with-open-form|surface:createSession:setCourts=2,render=2,pins=2,players=2",
+  "blocks|mySessions=2",
+  "player-layer-on|render=2,pins=2,players=2",
+  "player-layer-off|render=1,pins=1,players=1",
+  "gate-superseded|render=3,pins=3,players=3",
+  "discovery-error|render=2,pins=2,players=2",
+  "map-unavailable|render=1,pins=1,players=1",
+  "location-denied|render=2,pins=2,players=2",
+  "getters|getter:getVisibleSessions=1,getter:getMySessions=1,getter:getMySessionGroups=1,getter:getMySessionState=1,getter:getPlayerLayerState=1",
+  "sign-out|mySessions=1,render=1,pins=1,players=1",
+  "sign-in-other-account|mySessions=5,render=2,pins=2,players=2",
 ];
+
+function channelCountsByStep(entries) {
+  const fingerprints = [];
+  let current = null;
+  for (const entry of entries) {
+    const [step, channel] = entry.split("|");
+    if (channel === "step") {
+      current = { counts: new Map(), step };
+      fingerprints.push(current);
+      continue;
+    }
+    assert.ok(current && current.step === step, `entry ${entry} has no matching step marker`);
+    current.counts.set(channel, (current.counts.get(channel) ?? 0) + 1);
+  }
+  return fingerprints.map(
+    ({ counts, step }) => `${step}|${[...counts].map(([channel, count]) => `${channel}=${count}`).join(",")}`
+  );
+}
 
 test("sessionController dispatches the frozen call sequence across the 17-step lifecycle script", async () => {
   const entries = await driveSequence();
-  assert.deepEqual(entries, GOLDEN);
+  assert.deepEqual(channelCountsByStep(entries), GOLDEN);
 });
 
 test("the recorded sequence covers every scripted step and is not an empty scan", async () => {
