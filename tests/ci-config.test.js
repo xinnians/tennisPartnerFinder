@@ -78,6 +78,7 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
     const project = config.projects.find((candidate) => candidate.name === name);
     assert.ok(project?.testMatch.test("error-boundary.spec.js"), `${name} silently excludes the boundary gate`);
     assert.ok(project?.testMatch.test("react-unmount.spec.js"), `${name} silently excludes the unmount gate`);
+    assert.ok(project?.testMatch.test("react-page-focus.spec.js"), `${name} silently excludes the page-focus gate`);
   }
 });
 
@@ -164,7 +165,13 @@ test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workfl
   const chromium = config.projects.find(({ name }) => name === "mobile-chromium");
   const webkit = config.projects.find(({ name }) => name === "mobile-webkit");
   assert.ok(chromium && webkit);
-  for (const spec of ["smoke.spec.js", "performance.spec.js", "error-boundary.spec.js", "react-unmount.spec.js"]) {
+  for (const spec of [
+    "smoke.spec.js",
+    "performance.spec.js",
+    "error-boundary.spec.js",
+    "react-unmount.spec.js",
+    "react-page-focus.spec.js",
+  ]) {
     assert.equal(webkit.testMatch.test(spec), chromium.testMatch.test(spec), `WebKit coverage drifted for ${spec}`);
   }
   assert.deepEqual(webkit.use.viewport, { width: 390, height: 844 });
