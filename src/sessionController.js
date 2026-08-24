@@ -44,6 +44,7 @@ import {
   playerDirectoryRows,
   selectInvitableSessions,
 } from "./features/player-directory/playerDirectoryFeature.ts";
+import { DataApiUnavailableError } from "./dataApi.js";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
@@ -1834,8 +1835,8 @@ export function createSessionController({
       toast("球局已發布！");
       return result;
     } catch (error) {
-      if (error?.name === "DataApiUnavailableError") {
-        // eslint-disable-next-line preserve-caught-error -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
+      if (error instanceof DataApiUnavailableError) {
+        // eslint-disable-next-line preserve-caught-error -- 保留既有使用者文案與未附 cause 的錯誤語意。
         throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
       }
       throw error;
