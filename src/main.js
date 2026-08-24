@@ -110,6 +110,7 @@ import {
   createNotificationFeature,
   defaultNotificationSettings,
 } from "./features/notifications/notificationFeature.ts";
+import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
 import { createPresenceTracker } from "./playerPresence.js";
 import { eligibilityFromPrivateProfile } from "./profile.js";
 import { createRequestGate } from "./requestGate.js";
@@ -191,39 +192,7 @@ function toast(message) {
   toast.timer = setTimeout(() => (root.innerHTML = ""), 2000);
 }
 
-function sessionShareLink(sessionId) {
-  const normalizedSessionId = Number(sessionId);
-  if (!Number.isSafeInteger(normalizedSessionId) || normalizedSessionId <= 0) {
-    throw new Error("目前無法產生這個球局的連結。");
-  }
-  return `${globalThis.location.origin}${globalThis.location.pathname}#/session/${normalizedSessionId}`;
-}
-
-function fallbackCopyText(value) {
-  const field = document.createElement("textarea");
-  field.value = value;
-  field.setAttribute("readonly", "");
-  field.style.position = "fixed";
-  field.style.opacity = "0";
-  document.body.append(field);
-  try {
-    field.select();
-    return document.execCommand?.("copy") === true;
-  } finally {
-    field.remove();
-  }
-}
-
-async function copySessionShareLink(sessionId) {
-  const link = sessionShareLink(sessionId);
-  try {
-    if (globalThis.navigator?.clipboard?.writeText) await globalThis.navigator.clipboard.writeText(link);
-    else if (!fallbackCopyText(link)) throw new Error("copy unavailable");
-  } catch {
-    if (!fallbackCopyText(link)) throw new Error("目前無法複製連結，請手動複製網址。");
-  }
-  toast("球局連結已複製。");
-}
+configureShareFeature({ toast });
 
 async function openSessionHashRoute() {
   const sessionId = sessionIdFromHash(globalThis.location?.hash);
