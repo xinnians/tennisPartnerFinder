@@ -9,6 +9,8 @@
 // 每次 render / renderPins / renderPlayers / onMySessionsChange / 表單 setCourts 直呼 /
 // toast 都按發生順序記一筆 `步驟|通道|payload 指紋`,與寫死在本檔的 GOLDEN 逐筆比對。
 // 因此「多派發一次」「少派發一次」「兩次派發被合併成一次」「次序對調」全都會紅。
+// `me` 通道另用第二個陣列與第二張 GOLDEN 表，只錄 `步驟|me`；它守的是 emit 的步驟與
+// 次數，不與上表交錯。重錄同樣只允許刻意改派發或 recorder，且必須逐筆說明變因。
 //
 // 時間:所有 startAt 用固定的 2099 年常數,不依賴真實時鐘;2099 恆在未來,
 // isDiscoverableSession 與 sortSessionsForDrawer 的結果因此可重現。
@@ -138,11 +140,14 @@ function filterPrint(filters) {
  */
 function createRecorder() {
   const entries = [];
+  const meEntries = [];
   let step = "init";
   const push = (channel, print) => entries.push(`${step}|${channel}|${print}`);
   return {
     entries,
+    meEntries,
     push,
+    pushMe: () => meEntries.push(`${step}|me`),
     begin(name) {
       step = name;
       entries.push(`${name}|step|--`);
@@ -231,6 +236,7 @@ function createSequenceHarness() {
     openLogin: () => ({ close: () => {} }),
     toast: (message) => recorder.push("toast", `"${message}"`),
   });
+  controller.sessionStore.subscribe("me", recorder.pushMe);
   return { controller, createSheets, discoveryQueue, recorder };
 }
 
@@ -253,7 +259,7 @@ function withDeniedGeolocation(run) {
  * 17 步腳本。步與步之間沒有共享的隱含狀態重設——每一步都接續前一步的 controller,
  * 因此序列本身也涵蓋「上一步留下的狀態有沒有影響下一步的派發」。
  */
-async function driveSequence() {
+async function driveSequence(result = "entries") {
   const harness = createSequenceHarness();
   const { controller, recorder } = harness;
 
@@ -343,7 +349,7 @@ async function driveSequence() {
   recorder.begin("sign-in-other-account");
   await controller.setAuthState({ user: { id: "sequence-other" } }, NTRP_PROFILE);
 
-  return recorder.entries;
+  return result === "me" ? recorder.meEntries : recorder.entries;
 }
 
 /**
@@ -478,6 +484,33 @@ const GOLDEN = [
   "sign-in-other-account|pins|[]",
   'sign-in-other-account|players|on=0 status=idle msg="" groups=[]',
 ];
+
+const ME_GOLDEN = [
+  "setCourts|me",
+  "sign-in|me",
+  "sign-in|me",
+  "sign-in|me",
+  "sign-in|me",
+  "sign-in|me",
+  "sign-in|me",
+  "courts-channel-with-open-form|me",
+  "courts-channel-with-open-form|me",
+  "blocks|me",
+  "blocks|me",
+  "sign-out|me",
+  "sign-out|me",
+  "sign-in-other-account|me",
+  "sign-in-other-account|me",
+  "sign-in-other-account|me",
+  "sign-in-other-account|me",
+  "sign-in-other-account|me",
+  "sign-in-other-account|me",
+];
+
+test("sessionController dispatches the frozen me-channel sequence independently", async () => {
+  const entries = await driveSequence("me");
+  assert.deepEqual(entries, ME_GOLDEN);
+});
 
 test("sessionController dispatches the frozen call sequence across the 17-step lifecycle script", async () => {
   const entries = await driveSequence();
