@@ -1,4 +1,5 @@
 import { LAUNCH_CITY } from "../../config.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   COURTS,
   MOCK_PLAYER_PRESENCE,
@@ -39,7 +40,7 @@ import {
 } from "../mappers/sessionMappers.ts";
 import { asArray, asNumber, asText, profileValues } from "../mappers/valueMappers.ts";
 import {
-  COURT_COLUMNS,
+  COURT_SELECT,
   COURT_SUBSCRIPTIONS_SELECT,
   MY_PLAYER_BLOCKS_SELECT,
   MY_PROFILE_SELECT,
@@ -54,39 +55,9 @@ import {
 } from "./selects.ts";
 
 type PublicSchema = Database["public"];
+type RpcName = keyof PublicSchema["Functions"];
 type CourtRow = Partial<PublicSchema["Tables"]["courts"]["Row"]>;
-type NotificationPreferencesRow = Partial<PublicSchema["Tables"]["notification_prefs"]["Row"]>;
-type CurrentProfileRow = Partial<PublicSchema["Views"]["my_profile"]["Row"]>;
-type MyPlayerBlockRow = Partial<PublicSchema["Views"]["my_player_blocks"]["Row"]>;
-type MySessionRow = Partial<PublicSchema["Views"]["my_session_participations"]["Row"]>;
-type PlayerDirectoryRow = Partial<PublicSchema["Views"]["player_directory"]["Row"]>;
-type PlayerPresenceDirectoryRow = Partial<PublicSchema["Views"]["player_presence_directory"]["Row"]>;
-type SessionDiscoveryRow = Partial<PublicSchema["Views"]["session_discovery"]["Row"]>;
-type SessionJoinPreviewRow = Partial<PublicSchema["Views"]["session_join_preview"]["Row"]>;
-type SessionMessageRow = Partial<PublicSchema["Views"]["session_message_feed"]["Row"]>;
-type SessionRosterRow = Partial<PublicSchema["Views"]["session_participant_roster"]["Row"]>;
 type MockRow = Record<string, unknown>;
-
-interface QueryResult {
-  data: unknown;
-  error: unknown;
-}
-
-interface QueryBuilder extends PromiseLike<QueryResult> {
-  eq(column: string, value: unknown): QueryBuilder;
-  gt(column: string, value: unknown): QueryBuilder;
-  gte(column: string, value: unknown): QueryBuilder;
-  lt(column: string, value: unknown): QueryBuilder;
-  lte(column: string, value: unknown): QueryBuilder;
-  maybeSingle(): PromiseLike<QueryResult>;
-  order(column: string, options?: { ascending?: boolean }): QueryBuilder;
-  select(columns: string): QueryBuilder;
-}
-
-interface RepositoryClient {
-  from(relation: string): QueryBuilder;
-  rpc(name: string, params: Record<string, unknown>): PromiseLike<QueryResult>;
-}
 
 interface MockDataTestHook {
   consumedCount?: number;
@@ -100,7 +71,7 @@ type TestHookGlobal = typeof globalThis & {
 };
 
 interface RepositoryOptions {
-  client?: RepositoryClient | null;
+  client?: SupabaseClient<Database> | null;
   configured?: boolean;
   mockCourts?: CourtRow[];
   mockPlayerPresence?: MockRow[];
@@ -149,12 +120,8 @@ interface ReportInput {
   sessionId?: unknown;
 }
 
-function rowsAs<Row>(value: unknown): Row[] {
-  return asArray(value) as Row[];
-}
-
-function rowAs<Row>(value: unknown): Row {
-  return (value ?? {}) as Row;
+function rowsOrEmpty<Row>(value: Row[] | null): Row[] {
+  return Array.isArray(value) ? value : [];
 }
 
 async function runMockDataTestHook(name: string): Promise<void> {
@@ -183,7 +150,7 @@ function selectedCourtIds(profile: Partial<Profile> | null | undefined, courts: 
 }
 
 export function createDataApi({
-  client = supabase as unknown as RepositoryClient | null,
+  client = supabase,
   configured = isSupabaseConfigured,
   mockSessions = MOCK_SESSIONS,
   mockPlayers = MOCK_PLAYERS,
@@ -199,14 +166,16 @@ export function createDataApi({
     return client;
   }
 
-  async function callRpc(name: string, params: Record<string, unknown>): Promise<unknown> {
+  async function callRpc(name: RpcName, params: Record<string, unknown>): Promise<unknown> {
     const activeClient = requireClient();
-    const { data, error } = await activeClient.rpc(name, params);
+    // The shared wrapper intentionally accepts heterogeneous RPC argument
+    // records; individual repository methods own their runtime normalization.
+    const { data, error } = await activeClient.rpc(name, params as never);
     if (error) throw asSessionActionError(error);
     return data;
   }
 
-  async function callLifecycleRpc(name: string, params: Record<string, unknown>) {
+  async function callLifecycleRpc(name: RpcName, params: Record<string, unknown>) {
     const outcome = (await callRpc(name, params)) as string;
     if (outcome !== "OK" && outcome !== "SESSION_EXPIRED") {
       throw new SessionActionError("UNKNOWN_ACTION_ERROR");
@@ -225,12 +194,12 @@ export function createDataApi({
     const activeClient = requireClient();
     const { data, error } = await activeClient
       .from("courts")
-      .select(COURT_COLUMNS.join(","))
+      .select(COURT_SELECT)
       .eq("is_active", true)
       .eq("city", city)
       .order("id");
     if (error) throw asDataApiError(error);
-    return rowsAs<CourtRow>(data).map(mapCourt);
+    return rowsOrEmpty(data).map(mapCourt);
   }
 
   async function loadSessionDiscovery(input: DiscoveryQueryInput = {}) {
@@ -255,7 +224,7 @@ export function createDataApi({
       .order("start_at", { ascending: true });
     if (error) throw asDataApiError(error);
     // An empty configured database is a real empty state, never a demo fallback.
-    return rowsAs<SessionDiscoveryRow>(data).map(mapSessionSummary);
+    return rowsOrEmpty(data).map(mapSessionSummary);
   }
 
   async function loadPlayerDirectory({ bounds }: { bounds?: MapBounds | null } = {}) {
@@ -274,7 +243,7 @@ export function createDataApi({
     }
     const { data, error } = await query;
     if (error) throw asDataApiError(error);
-    return rowsAs<PlayerDirectoryRow>(data).map(mapPlayerDirectoryRow);
+    return rowsOrEmpty(data).map(mapPlayerDirectoryRow);
   }
 
   async function loadPlayerPresenceDirectory({ bounds }: { bounds?: MapBounds | null } = {}) {
@@ -293,10 +262,10 @@ export function createDataApi({
     }
     const { data, error } = await query;
     if (error) throw asDataApiError(error);
-    return rowsAs<PlayerPresenceDirectoryRow>(data).map(mapPlayerPresenceDirectoryRow);
+    return rowsOrEmpty(data).map(mapPlayerPresenceDirectoryRow);
   }
 
-  async function loadSessionSummary(sessionId: unknown) {
+  async function loadSessionSummary(sessionId: number) {
     if (!configured) {
       const found = mockSessions.find((session) => String(session.sessionId) === String(sessionId));
       return found ? mapMockSessionSummary(found) : null;
@@ -309,7 +278,7 @@ export function createDataApi({
       .eq("session_id", sessionId)
       .maybeSingle();
     if (error) throw asDataApiError(error);
-    return data ? mapSessionSummary(rowAs<SessionDiscoveryRow>(data)) : null;
+    return data ? mapSessionSummary(data) : null;
   }
 
   async function loadMySessions() {
@@ -320,10 +289,10 @@ export function createDataApi({
       .select(MY_SESSIONS_SELECT)
       .order("updated_at", { ascending: false });
     if (error) throw asDataApiError(error);
-    return rowsAs<MySessionRow>(data).map(mapMySession);
+    return rowsOrEmpty(data).map(mapMySession);
   }
 
-  async function loadSessionRoster(sessionId: unknown) {
+  async function loadSessionRoster(sessionId: number) {
     if (!configured) return [];
     const activeClient = requireClient();
     const { data, error } = await activeClient
@@ -332,11 +301,11 @@ export function createDataApi({
       .eq("session_id", sessionId)
       .order("participant_id");
     if (error) throw asDataApiError(error);
-    return rowsAs<SessionRosterRow>(data).map(mapSessionRosterRow);
+    return rowsOrEmpty(data).map(mapSessionRosterRow);
   }
 
-  async function loadSessionJoinPreview(sessionId: unknown) {
-    const normalizedSessionId = asNumber(sessionId);
+  async function loadSessionJoinPreview(sessionId: number) {
+    const normalizedSessionId = asNumber(sessionId) ?? sessionId;
     if (!configured) {
       return mockSessionJoinPreviews
         .filter((participant) => asNumber(participant.sessionId) === normalizedSessionId)
@@ -348,20 +317,20 @@ export function createDataApi({
       .select(SESSION_JOIN_PREVIEW_SELECT)
       .eq("session_id", normalizedSessionId);
     if (error) throw asDataApiError(error);
-    return rowsAs<SessionJoinPreviewRow>(data).map(mapSessionJoinPreviewRow);
+    return rowsOrEmpty(data).map(mapSessionJoinPreviewRow);
   }
 
-  async function loadSessionMessages(sessionId: unknown) {
+  async function loadSessionMessages(sessionId: number) {
     if (!configured) return [];
     const activeClient = requireClient();
     const { data, error } = await activeClient
       .from("session_message_feed")
       .select(SESSION_MESSAGE_FEED_SELECT)
-      .eq("session_id", asNumber(sessionId))
+      .eq("session_id", asNumber(sessionId) ?? sessionId)
       .order("created_at", { ascending: true })
       .order("message_id", { ascending: true });
     if (error) throw asDataApiError(error);
-    return rowsAs<SessionMessageRow>(data).map(mapSessionMessageRow);
+    return rowsOrEmpty(data).map(mapSessionMessageRow);
   }
 
   async function loadMyPlayerBlocks() {
@@ -372,7 +341,7 @@ export function createDataApi({
       .select(MY_PLAYER_BLOCKS_SELECT)
       .order("created_at", { ascending: false });
     if (error) throw asDataApiError(error);
-    return rowsAs<MyPlayerBlockRow>(data).map(mapMyPlayerBlockRow);
+    return rowsOrEmpty(data).map(mapMyPlayerBlockRow);
   }
 
   async function loadCurrentProfile() {
@@ -382,7 +351,7 @@ export function createDataApi({
     if (error) throw asDataApiError(error);
     if (!data) return null;
     const courts = await loadCourts();
-    return mapCurrentProfile(rowAs<CurrentProfileRow>(data), courts);
+    return mapCurrentProfile(data, courts);
   }
 
   async function loadNotificationPreferences() {
@@ -393,7 +362,7 @@ export function createDataApi({
       .select(NOTIFICATION_PREFS_SELECT)
       .maybeSingle();
     if (error) throw asDataApiError(error);
-    return mapNotificationPreferences(rowAs<NotificationPreferencesRow>(data));
+    return mapNotificationPreferences(data ?? {});
   }
 
   async function loadCourtSubscriptions() {
@@ -404,7 +373,7 @@ export function createDataApi({
       .select(COURT_SUBSCRIPTIONS_SELECT)
       .order("court_id");
     if (error) throw asDataApiError(error);
-    return rowsAs<{ court_id?: unknown }>(data)
+    return rowsOrEmpty(data)
       .map((row) => asNumber(row.court_id))
       .filter((courtId): courtId is number => courtId != null);
   }

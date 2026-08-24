@@ -1,4 +1,6 @@
+import type { Provider, SupabaseClient } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase, SUPABASE_AUTH_STORAGE_KEY } from "../supabaseClient.js";
+import type { Database } from "./databaseTypes.ts";
 import { DataApiUnavailableError, asDataApiError } from "./dataErrors.ts";
 
 interface AuthSessionTokens {
@@ -6,33 +8,11 @@ interface AuthSessionTokens {
   refresh_token: string;
 }
 
-interface AuthResult<Data> {
-  data: Data;
-  error: unknown;
-}
-
-interface AuthClient {
-  auth: {
-    getSession(): PromiseLike<AuthResult<{ session: unknown | null }>>;
-    linkIdentity(input: {
-      options: { redirectTo: string | undefined };
-      provider: string;
-    }): PromiseLike<{ error: unknown }>;
-    onAuthStateChange(callback: (event: string, session: unknown | null) => void): {
-      data: { subscription: { unsubscribe(): void } };
-    };
-    setSession(tokens: AuthSessionTokens): PromiseLike<AuthResult<{ session: unknown | null }>>;
-    signInWithOAuth(input: {
-      options: { redirectTo: string | undefined };
-      provider: string;
-    }): PromiseLike<{ error: unknown }>;
-    signOut(): PromiseLike<{ error: unknown }>;
-  };
-}
+type AuthClient = Pick<SupabaseClient<Database>, "auth">;
 
 function requireDefaultSupabase(): AuthClient {
   if (!isSupabaseConfigured || !supabase) throw new DataApiUnavailableError();
-  return supabase as unknown as AuthClient;
+  return supabase;
 }
 
 /**
@@ -79,7 +59,7 @@ export function onAuthStateChange(callback: (session: unknown | null, event: str
   return () => data.subscription.unsubscribe();
 }
 
-export async function signInWithOAuthProvider(provider: string): Promise<void> {
+export async function signInWithOAuthProvider(provider: Provider): Promise<void> {
   const client = requireDefaultSupabase();
   const { error } = await client.auth.signInWithOAuth({
     provider,
@@ -96,7 +76,7 @@ export async function signOut(): Promise<void> {
 
 // manual identity linking:把另一個登入 provider 掛到「目前已登入」的帳號(整頁 redirect,
 // 需要 Supabase 專案開啟 manual linking)。連結狀態一律讀 session user 的 identities,不另外 fetch。
-export async function linkLoginIdentity(provider: string): Promise<void> {
+export async function linkLoginIdentity(provider: Provider): Promise<void> {
   const client = requireDefaultSupabase();
   const { error } = await client.auth.linkIdentity({
     provider,

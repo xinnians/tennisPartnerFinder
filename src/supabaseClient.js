@@ -8,6 +8,7 @@ const anonKey = env.VITE_SUPABASE_ANON_KEY ?? "";
 
 export const isSupabaseConfigured = Boolean(url && anonKey) && url !== "___" && anonKey !== "___";
 
+/** @type {import("@supabase/supabase-js").SupabaseClient<import("./data/databaseTypes.ts").Database> | null} */
 export const supabase = isSupabaseConfigured
   ? createClient(url, anonKey, {
       auth: {
