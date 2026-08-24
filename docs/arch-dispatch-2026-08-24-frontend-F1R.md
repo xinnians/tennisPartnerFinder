@@ -162,6 +162,10 @@ callback 不會執行，`scheduleMySessionsCreatedFocus` 也就從未觸發。
    都不得復活。
 2. **不得改任何既有 e2e 斷言、testid 或 DOM 結構**。`tests/session.spec.js:532`
    那條斷言一個字都不能改——它是要被修綠的目標，不是要被調整的對象。
+   **（2026-08-24 修訂一）**：`session.spec.js:1948`（every Me control keeps focus
+   through a background rerender）的 oracle 經查證與批 1 已驗收語意互斥，
+   **依 `docs/arch-dispatch-2026-08-24-frontend-F1R-amendment-1.md` 的條件放行**；
+   同根因的其他衝突依該修訂的窄預授權處理，其餘斷言禁令照舊。
 3. 焦點交付的「一次性」語意要保留：`onCreatedSessionFocus()` 現行契約是
    「確認目標仍是同一個 sessionId 才清掉並回 true」（`src/main.js:744-750`），
    不可變成每次重繪都重新搶焦點。
