@@ -166,6 +166,10 @@ callback 不會執行，`scheduleMySessionsCreatedFocus` 也就從未觸發。
    through a background rerender）的 oracle 經查證與批 1 已驗收語意互斥，
    **依 `docs/arch-dispatch-2026-08-24-frontend-F1R-amendment-1.md` 的條件放行**；
    同根因的其他衝突依該修訂的窄預授權處理，其餘斷言禁令照舊。
+   **（2026-08-24 修訂二）**：F1-5 引入的 picker 收合焦點空窗（批 1 第二條迴歸）
+   納入 F1R 修復範圍，production 修法依
+   `docs/arch-dispatch-2026-08-24-frontend-F1R-amendment-2.md` 的條件執行
+   （條件式交棒、取樣 10/10、獨立 commit、測試一字不改）。
 3. 焦點交付的「一次性」語意要保留：`onCreatedSessionFocus()` 現行契約是
    「確認目標仍是同一個 sessionId 才清掉並回 true」（`src/main.js:744-750`），
    不可變成每次重繪都重新搶焦點。
