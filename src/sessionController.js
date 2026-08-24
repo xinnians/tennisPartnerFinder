@@ -30,11 +30,6 @@ import {
   samePendingIntent,
   sessionIdentity,
 } from "./features/profile-auth/profileAuthFeature.ts";
-import {
-  groupPlayersByCourt,
-  playerDirectoryRows,
-  selectInvitableSessions,
-} from "./features/player-directory/playerDirectoryFeature.ts";
 import { DataApiUnavailableError } from "./dataApi.js";
 import { sessionActionMessage } from "./sessionActionMessages.ts";
 import { createRequestGate } from "./requestGate.js";
@@ -44,6 +39,7 @@ import { selectControllerMySessionsView } from "./sessionSelectors.ts";
 import { createSurfaceRegistry } from "./controller/surfaceRegistry.ts";
 import { createChatController } from "./controller/chatController.ts";
 import { createDiscoveryMapController } from "./controller/discoveryMapController.ts";
+import { createPlayerDirectoryController } from "./controller/playerDirectoryController.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -224,9 +220,36 @@ export function createSessionController({
   const resumeInFlight = new Map();
   const inFlightLifecycleActions = new Map();
 
-  function playerGroups() {
-    return groupPlayersByCourt(read().players);
-  }
+  const playerDirectoryController = createPlayerDirectoryController({
+    api,
+    captureAuthSnapshot,
+    isCurrentAuthSnapshot,
+    openCourtDrawer,
+    openCourtPlayersDrawer,
+    openCreateIntent,
+    openPlayerCard,
+    openPlayerDirectoryList,
+    openSessionById,
+    playerCardGate,
+    playerDirectoryGate,
+    playerGate,
+    publish: () => discoveryMapController.publish(),
+    reloadParticipation,
+    requireSessionAction,
+    store,
+    surfaceRegistry,
+    transitionSurfaces,
+    visibleSessions: () => discoveryMapController.getVisibleSessions(),
+  });
+  const {
+    clearPlayerDirectory,
+    clearPlayerLayer,
+    getPlayerGroups: playerGroups,
+    loadPlayers,
+    openCourt,
+    openPlayerCourt,
+    openPlayerDirectory,
+  } = playerDirectoryController;
 
   const discoveryMapController = createDiscoveryMapController({
     api,
@@ -503,101 +526,6 @@ export function createSessionController({
     }
   }
 
-  function clearPlayerDirectory({ closeReason = "player-directory-clear" } = {}) {
-    playerDirectoryGate.invalidate();
-    const options = { reason: closeReason, restoreFocus: false };
-    transitionSurfaces("clearPlayerDirectory", options);
-  }
-
-  function clearPlayerLayer({ turnOff = true, closeReason = "player-layer-clear" } = {}) {
-    playerGate.invalidate();
-    const options = { reason: closeReason, restoreFocus: false };
-    transitionSurfaces("clearPlayerLayer", options);
-    if (turnOff) store.setState({ playerLayerOn: false });
-    store.setState({ players: [], playerLayerStatus: "idle", playerLayerMessage: "" });
-  }
-
-  async function loadPlayers(bounds = read().bounds) {
-    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profileEligibility, "ntrp"))
-      return false;
-    const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
-    const authSnapshot = captureAuthSnapshot();
-    const request = playerGate.issue(
-      () =>
-        read().playerLayerOn &&
-        profileMeetsGate(read().profileEligibility, "ntrp") &&
-        isCurrentAuthSnapshot(authSnapshot)
-    );
-    transitionSurfaces("clearPlayerLayer", { reason: "player-refresh", restoreFocus: false });
-    store.setState({ players: [], playerLayerStatus: "loading", playerLayerMessage: "正在載入在線球友…" });
-    publish();
-    try {
-      const presence =
-        typeof api.loadPlayerPresenceDirectory === "function"
-          ? await api.loadPlayerPresenceDirectory({ bounds: nextBounds })
-          : [];
-      if (request.isStale()) return false;
-      store.setState({
-        players: (Array.isArray(presence) ? presence : []).map((player) => ({ ...player, isPresent: true })),
-        playerLayerStatus: "ready",
-        playerLayerMessage: "",
-      });
-      publish();
-      return true;
-    } catch {
-      if (request.isStale()) return false;
-      store.setState({ players: [], playerLayerStatus: "error", playerLayerMessage: "在線資料暫時無法載入。" });
-      publish();
-      return false;
-    }
-  }
-
-  async function loadPlayerDirectoryList() {
-    if (!read().authSession || !profileMeetsGate(read().profileEligibility, "directory")) return false;
-    const authSnapshot = captureAuthSnapshot();
-    transitionSurfaces("openPlayerDirectory");
-    let directory = null;
-    directory = openPlayerDirectoryList({
-      onClose: () => {
-        surfaceRegistry.release("playerDirectory", directory);
-      },
-      onOpenPlayer: (player) => openPlayer(player, { gateLevel: "directory", requiresLayer: false }),
-      onRetry: () => loadPlayerDirectoryList(),
-    });
-    surfaceRegistry.set("playerDirectory", directory?.close ? directory : null);
-    const request = playerDirectoryGate.issue(
-      () =>
-        surfaceRegistry.is("playerDirectory", directory) &&
-        profileMeetsGate(read().profileEligibility, "directory") &&
-        isCurrentAuthSnapshot(authSnapshot)
-    );
-    directory?.setDirectory?.({ players: [], status: "loading" });
-    try {
-      const [directoryRows, presenceRows] = await Promise.all([
-        api.loadPlayerDirectory(),
-        typeof api.loadPlayerPresenceDirectory === "function" ? api.loadPlayerPresenceDirectory() : [],
-      ]);
-      if (request.isStale()) return false;
-      directory?.setDirectory?.({ players: playerDirectoryRows(directoryRows, presenceRows), status: "ready" });
-      return true;
-    } catch {
-      if (request.isStale()) return false;
-      directory?.setDirectory?.({ players: [], status: "error" });
-      return false;
-    }
-  }
-
-  function openPlayerDirectory() {
-    if (
-      !read().authSession ||
-      !profileIsReady(read().profileEligibility, "directory") ||
-      !profileMeetsGate(read().profileEligibility, "directory")
-    ) {
-      return requireSessionAction({ action: "directory" });
-    }
-    return loadPlayerDirectoryList();
-  }
-
   function setAuthSession(session) {
     store.setState({ authSession: session ?? null });
     store.emit("me");
@@ -719,95 +647,6 @@ export function createSessionController({
     visibilityTarget,
     withdrawMySession,
   });
-
-  function openCourt(court, onlySessions = null) {
-    transitionSurfaces("openCourt");
-    const sessions =
-      onlySessions ?? visibleSessions().filter((session) => String(session.courtId) === String(court.id));
-    const drawer = openCourtDrawer(court, sessions, { courts: read().courts, onOpenSession: openSessionById });
-    surfaceRegistry.set("courtDrawer", drawer?.close ? drawer : null);
-  }
-
-  function invitableSessions(now = Date.now()) {
-    return selectInvitableSessions(read().mySessions, now);
-  }
-
-  function openPlayer(player, { gateLevel = "ntrp", requiresLayer = true } = {}) {
-    if (
-      (requiresLayer && !read().playerLayerOn) ||
-      !read().authSession ||
-      !profileMeetsGate(read().profileEligibility, gateLevel)
-    ) {
-      return null;
-    }
-    transitionSurfaces("openPlayer");
-    const openedAuth = captureAuthSnapshot();
-    let card = null;
-    const request = playerCardGate.capture(
-      () =>
-        surfaceRegistry.is("playerCard", card) &&
-        (!requiresLayer || read().playerLayerOn) &&
-        profileMeetsGate(read().profileEligibility, gateLevel) &&
-        profileMeetsGate(read().profileEligibility, "ntrp") &&
-        isCurrentAuthSnapshot(openedAuth)
-    );
-    card = openPlayerCard(player, {
-      courts: read().courts,
-      myInvitableSessions: invitableSessions(),
-      onClose: () => {
-        surfaceRegistry.release("playerCard", card);
-      },
-      // 批 D8 映射決策 6:「看球友名單」重用既有 openPlayerDirectory 入口(與地圖
-      // #player-directory-open 同一顆),不是新的 controller surface。它內部的
-      // loadPlayerDirectoryList() 一開頭就會關閉 playerCard,所以這張卡
-      // 會被自動關掉、名單接著開啟,不需要在這裡重複 card?.close()。未通過 directory
-      // gate 時 openPlayerDirectory() 會走 requireSessionAction 導去補檔案,不是 no-op。
-      onSeeDirectory: () => openPlayerDirectory(),
-      onCreate: () => {
-        if (surfaceRegistry.is("playerCard", card)) transitionSurfaces("openCreate");
-        openCreateIntent();
-      },
-      onInvite: async (sessionId) => {
-        const target = invitableSessions().find((session) => String(session.sessionId) === String(sessionId));
-        if (request.isStale()) {
-          throw new Error("登入狀態已變更，請重新開啟球友卡。");
-        }
-        if (!target) throw new Error("這個球局目前無法邀請球友。");
-        const result = await api.inviteToSession(target.sessionId, player.profileId);
-        if (request.isStale()) {
-          throw new Error("登入狀態已變更，請重新開啟球友卡。");
-        }
-        if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-          const refreshed = await reloadParticipation(openedAuth.epoch, openedAuth.identity);
-          if (request.isStale()) {
-            throw new Error("登入狀態已變更，請重新開啟球友卡。");
-          }
-          card?.setInvitableSessions?.(invitableSessions());
-          if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請稍後再試。");
-          throw new Error("球局狀態已更新，請重新選擇可邀請的球局。");
-        }
-        return result;
-      },
-    });
-    surfaceRegistry.set("playerCard", card?.close ? card : null, { gate: card?.close ? gateLevel : null });
-    return card;
-  }
-
-  function openPlayerCourt(court, onlyPlayers = null) {
-    if (!read().playerLayerOn || !read().authSession || !profileMeetsGate(read().profileEligibility, "ntrp"))
-      return null;
-    const players = onlyPlayers ?? read().players.filter((player) => String(player.courtId) === String(court.id));
-    transitionSurfaces("openPlayerCourt", { restoreFocus: false });
-    let drawer = null;
-    drawer = openCourtPlayersDrawer(court, players, {
-      onClose: () => {
-        surfaceRegistry.release("playerDrawer", drawer);
-      },
-      onOpenPlayer: (player) => openPlayer(player, { gateLevel: "ntrp", requiresLayer: true }),
-    });
-    surfaceRegistry.set("playerDrawer", drawer?.close ? drawer : null);
-    return drawer;
-  }
 
   function reconcileSuppressed(session) {
     return (
