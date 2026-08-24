@@ -98,7 +98,7 @@ mock/build/bundle gate）全綠，輸出貼進回報。
   訊息頁 UI 文案零變化（Playwright mock 全綠）；不得反向 import `sessionViews.js`
   （session-presentation-boundary 測試會查）。
 
-### F0-4 focusable selector 收斂
+### F0-4 focusable selector 收斂（**ACCEPTED** 2026-08-25，`84a7131`，驗收紀錄 `docs/arch-reports/batch-F0-tail-docsD-acceptance-2026-08-25.md`）
 
 - **目標／動機**：同一 selector 字串三份逐字複本（sheets.js:11、sessionViews.js:319〔死碼，
   F0-2 刪〕、sessionViews.js:1171），調整 focus trap 判準要改三處。
@@ -119,7 +119,7 @@ mock/build/bundle gate）全綠，輸出貼進回報。
   各自使對應檢查變紅，附輸出；`npm run test:ci:frontend` 全綠；`package.json` scripts
   的範圍變更同步 `ci-config.test.js`。
 
-### F0-6 Node 版本前提工具化
+### F0-6 Node 版本前提工具化（**ACCEPTED** 2026-08-25，`4b3ece5`，同上驗收紀錄）
 
 - **目標／動機**：單元測試以 node:test 直載 .ts，依賴 Node 22.18+ type stripping，
   目前無 engines／.nvmrc 護欄。
@@ -430,7 +430,7 @@ lint 與 typecheck 全綠）、兩處 `?? sessionId` 行為變更未揭露。
 
 ---
 
-## 文件批 D（隨時可做）
+## 文件批 D（**ACCEPTED** 2026-08-25，`ee49b74`，索引落地 `docs/architecture-decisions.md`）
 
 - **D-1 架構決策索引**：一頁 ADR 式清單（一行一決策：狀態／日期／出處），收斂
   migration-plan「不在 scope」、00-overview「非派工項」、final-verdict「未盡事項」、
