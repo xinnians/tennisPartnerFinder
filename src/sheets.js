@@ -1,6 +1,7 @@
 import { esc } from "./util.js";
 import { pushSurfaceIsolation } from "./modalIsolation.js";
 import { AUTH_LINE_PROVIDER_ID } from "./config.js";
+import { FOCUSABLE_SELECTOR } from "./focusableSelector.js";
 
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
@@ -8,11 +9,9 @@ const surfaces = new WeakMap();
 const surfaceStack = [];
 
 function focusableNodes(surface) {
-  return [
-    ...surface.querySelectorAll(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    ),
-  ].filter((node) => !node.hasAttribute("hidden") && !node.closest("[hidden]"));
+  return [...surface.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
+    (node) => !node.hasAttribute("hidden") && !node.closest("[hidden]")
+  );
 }
 
 function captureRestoreTarget(node) {

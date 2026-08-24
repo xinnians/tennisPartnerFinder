@@ -12,6 +12,7 @@ import {
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
+import { FOCUSABLE_SELECTOR } from "../focusableSelector.js";
 import { formatNtrp } from "../profile.js";
 import { runAsyncAction } from "../sessionActions.ts";
 import { notificationPushHint, sessionDetailSheetRuntime } from "../sessionPresentation.ts";
@@ -684,9 +685,6 @@ const DetailTail = memo(function DetailTail({ action }: { action?: SessionDetail
   );
 });
 
-const JOIN_STAGE_FOCUSABLE_SELECTOR =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
 function joinSuccessMessage(result: JoinResult) {
   if (result.accepted) return "已加入球局！前往我的球局開啟群組聊天。";
   if (result.outcome === "OK_NTRP_MISSING") return "已送出申請；你尚未填寫 NTRP，等待主揪回覆。";
@@ -767,8 +765,7 @@ const SessionDetailSheet = forwardRef<SessionDetailCommands, SessionDetailSheetP
     const primaryCta = container.querySelector<HTMLElement>(
       '[data-session-action="primary"]:not([disabled]):not([aria-disabled="true"])'
     );
-    const target =
-      preferred ?? primaryCta ?? container.querySelector<HTMLElement>(JOIN_STAGE_FOCUSABLE_SELECTOR) ?? container;
+    const target = preferred ?? primaryCta ?? container.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ?? container;
     target.focus({ preventScroll: true });
   }, [snapshot.actionGeneration, snapshot.stage]);
 
