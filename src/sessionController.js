@@ -1,9 +1,5 @@
 import { CHAT_POLL_INTERVAL_MS, DISCOVERY_POLL_INTERVAL_MS, TAIPEI_CITY_BOUNDS } from "./config.js";
-import {
-  boundsContainSession,
-  cloneBounds,
-  cloneFilters,
-} from "./features/discovery/discoveryFeature.ts";
+import { boundsContainSession, cloneBounds, cloneFilters } from "./features/discovery/discoveryFeature.ts";
 import {
   MY_SESSION_FINAL_STATUSES,
   actionKey,
