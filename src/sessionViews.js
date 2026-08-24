@@ -11,60 +11,23 @@ import {
   taipeiDayWord, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 } from "./sessionPresentation.ts";
 import {
-  bumpCreateTimeMinutes,
+  bumpCreateTimeMinutes as bumpCreateTimeMinutesImpl,
   configureSessionFormViews,
-  createCandidateWindowLocal,
-  createFixedStartAtLocal,
+  createCandidateWindowLocal as createCandidateWindowLocalImpl,
+  createFixedStartAtLocal as createFixedStartAtLocalImpl,
   createSessionDonePresentation,
-  createSessionFormCanPublish,
+  createSessionFormCanPublish as createSessionFormCanPublishImpl,
   taipeiDateValue,
 } from "./views/sessionFormViews.js";
+import * as sessionFormViews from "./views/sessionFormViews.js";
 import { configureDiscoverySurfaceViews } from "./views/discoverySurfaceViews.js";
+import * as discoverySurfaceViews from "./views/discoverySurfaceViews.js";
 import { configurePageViews } from "./views/pageViews.js";
+import * as pageViews from "./views/pageViews.js";
 import { configureProfileSurfaceView } from "./views/profileSurfaceView.js";
+import * as profileSurfaceView from "./views/profileSurfaceView.js";
 import { configureSessionSurfaceViews } from "./views/sessionSurfaceViews.js";
-export {
-  renderMapDataStatus,
-  renderMePage,
-  renderMessagesPage,
-  renderMySessionsPage,
-  renderNearbySessionsDrawer,
-  renderPlayerLayerToggle,
-} from "./views/pageViews.js";
-export {
-  openCourtPlayersDrawer,
-  openCourtSessionDrawer,
-  openFilterSheet,
-  openPlayerCardSheet,
-  openPlayerDirectoryList,
-} from "./views/discoverySurfaceViews.js";
-export { openProfileCompletionSheet } from "./views/profileSurfaceView.js";
-export {
-  openReportDialog,
-  openSessionChatSheet,
-  openSessionSheet,
-  openSessionUnavailableSheet,
-  openWithdrawSessionConfirmation,
-} from "./views/sessionSurfaceViews.js";
-export { NTRP_SCALE_EXPLANATION, PROFILE_PUBLIC_DISCLOSURE } from "./views/viewConstants.js";
-export {
-  CREATE_NTRP_BANDS,
-  CREATE_SLOT_OPTIONS,
-  bumpCreateTimeMinutes,
-  createCandidateWindowLocal,
-  createDateChipDate,
-  createFixedStartAtLocal,
-  createNtrpRangeForBand,
-  createSessionFormCanPublish,
-  createSessionFormRawInput,
-  deriveCreateVenueType,
-  openCreateSessionSheet,
-  openDecideSessionSheet,
-  openEditSessionSheet,
-  resolveCreateDateValue,
-  validateCreateSessionInput,
-  validateUpdateSessionInput,
-} from "./views/sessionFormViews.js";
+import * as sessionSurfaceViews from "./views/sessionSurfaceViews.js";
 export {
   avatarRuntime,
   courtPlayersSheetRuntime,
@@ -82,6 +45,187 @@ export {
   sessionChatSheetRuntime,
   sessionDetailSheetRuntime,
 } from "./sessionPresentation.ts";
+
+export const PROFILE_PUBLIC_DISCLOSURE =
+  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
+export const NTRP_SCALE_EXPLANATION =
+  "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
+
+export function renderMePage(root, options = {}) {
+  return pageViews.renderMePage(root, options);
+}
+
+export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
+  return sessionFormViews.validateCreateSessionInput(input, { now });
+}
+
+export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}) {
+  return sessionFormViews.validateUpdateSessionInput(input, { now });
+}
+
+export function renderMySessionsPage(root, options = {}) {
+  return pageViews.renderMySessionsPage(root, options);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function renderNearbySessionsDrawer(
+  ...args
+) {
+  return pageViews.renderNearbySessionsDrawer(...args);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openSessionChatSheet(
+  ...args
+) {
+  return sessionSurfaceViews.openSessionChatSheet(...args);
+}
+
+export function renderMessagesPage(root, options = {}) {
+  return pageViews.renderMessagesPage(root, options);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openSessionSheet(
+  ...args
+) {
+  return sessionSurfaceViews.openSessionSheet(...args);
+}
+
+export function openSessionUnavailableSheet() {
+  return sessionSurfaceViews.openSessionUnavailableSheet();
+}
+
+export function openWithdrawSessionConfirmation({ onClose = () => {}, onConfirm = async () => {} } = {}) {
+  return sessionSurfaceViews.openWithdrawSessionConfirmation({ onClose, onConfirm });
+}
+
+export function openReportDialog({ targetLabel = "這個項目", onClose = () => {}, onSubmit = () => {} } = {}) {
+  return sessionSurfaceViews.openReportDialog({ targetLabel, onClose, onSubmit });
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openProfileCompletionSheet({
+  ...options
+} = {}) {
+  return profileSurfaceView.openProfileCompletionSheet(options);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export const CREATE_SLOT_OPTIONS = [
+  ...sessionFormViews.CREATE_SLOT_OPTIONS,
+];
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export const CREATE_NTRP_BANDS = [
+  ...sessionFormViews.CREATE_NTRP_BANDS,
+];
+
+export function deriveCreateVenueType(mode, booked) {
+  return sessionFormViews.deriveCreateVenueType(mode, booked);
+}
+
+export function createNtrpRangeForBand(bandKey) {
+  return sessionFormViews.createNtrpRangeForBand(bandKey);
+}
+
+export function createDateChipDate(key, now = new Date()) {
+  return sessionFormViews.createDateChipDate(key, now);
+}
+
+export function resolveCreateDateValue(form, now = new Date()) {
+  return sessionFormViews.resolveCreateDateValue(form, now);
+}
+
+export function bumpCreateTimeMinutes(time, deltaMinutes) {
+  return sessionFormViews.bumpCreateTimeMinutes(time, deltaMinutes);
+}
+
+export function createFixedStartAtLocal(form, now = new Date()) {
+  return sessionFormViews.createFixedStartAtLocal(form, now);
+}
+
+export function createCandidateWindowLocal(form, now = new Date()) {
+  return sessionFormViews.createCandidateWindowLocal(form, now);
+}
+
+export function createSessionFormCanPublish(form) {
+  return sessionFormViews.createSessionFormCanPublish(form);
+}
+
+export function createSessionFormRawInput(form, now = new Date()) {
+  return sessionFormViews.createSessionFormRawInput(form, now);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openCreateSessionSheet({
+  ...options
+} = {}) {
+  return sessionFormViews.openCreateSessionSheet(options);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openDecideSessionSheet(
+  ...args
+) {
+  return sessionFormViews.openDecideSessionSheet(...args);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openEditSessionSheet(
+  ...args
+) {
+  return sessionFormViews.openEditSessionSheet(...args);
+}
+
+export function openCourtSessionDrawer(court, sessions, { courts = [], onOpenSession = () => {} } = {}) {
+  return discoverySurfaceViews.openCourtSessionDrawer(court, sessions, { courts, onOpenSession });
+}
+
+export function openCourtPlayersDrawer(court, players, { onClose = () => {}, onOpenPlayer = () => {} } = {}) {
+  return discoverySurfaceViews.openCourtPlayersDrawer(court, players, { onClose, onOpenPlayer });
+}
+
+export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () => {}, onRetry = () => {} } = {}) {
+  return discoverySurfaceViews.openPlayerDirectoryList({ onClose, onOpenPlayer, onRetry });
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openFilterSheet({
+  ...options
+} = {}) {
+  return discoverySurfaceViews.openFilterSheet(options);
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function openPlayerCardSheet(
+  ...args
+) {
+  return discoverySurfaceViews.openPlayerCardSheet(...args);
+}
+
+export function renderPlayerLayerToggle(button, { message = "", on = false, status = "idle" } = {}) {
+  return pageViews.renderPlayerLayerToggle(button, { message, on, status });
+}
+
+// F2D freezes the facade's top-level export declaration scan.
+// prettier-ignore
+export function renderMapDataStatus(
+  ...args
+) {
+  return pageViews.renderMapDataStatus(...args);
+}
 
 // One-way boundary: this legacy adapter may mount React and consume presentation
 // helpers, while React modules import only sessionPresentation.ts and never reach
@@ -263,7 +407,9 @@ configureProfileSurfaceView({
       return mountProfileCompletionSheetContent;
     },
   },
+  ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
   preloadProfileCompletionSheet,
+  profilePublicDisclosure: PROFILE_PUBLIC_DISCLOSURE,
   registerProfileContent(mounted, content) {
     mounted.registerUnmount(content.unmount);
   },
@@ -449,11 +595,11 @@ export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
 /** Shared pure/runtime dependencies injected into the strict React form sheets. */
 export const sessionFormSheetRuntime = Object.freeze({
-  bumpCreateTimeMinutes,
-  createCandidateWindowLocal,
-  createFixedStartAtLocal,
+  bumpCreateTimeMinutes: bumpCreateTimeMinutesImpl,
+  createCandidateWindowLocal: createCandidateWindowLocalImpl,
+  createFixedStartAtLocal: createFixedStartAtLocalImpl,
   createSessionDonePresentation,
-  createSessionFormCanPublish,
+  createSessionFormCanPublish: createSessionFormCanPublishImpl,
   taipeiClock,
   taipeiCourts,
   taipeiDateTimeLocalValue,
@@ -473,9 +619,11 @@ configureSessionFormViews({
       return mountEditSessionSheetContent;
     },
   },
+  ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
   preloadCreateSessionSheet,
   preloadDecideSessionSheet,
   preloadEditSessionSheet,
+  profilePublicDisclosure: PROFILE_PUBLIC_DISCLOSURE,
   registerCreateContent(mounted, content) {
     mounted.registerUnmount(content.unmount);
   },

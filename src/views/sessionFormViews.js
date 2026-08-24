@@ -4,7 +4,6 @@ import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { taipeiClock, taipeiDateTimeLocalValue, taipeiLocalDateTimeToIso, taipeiParts } from "../taipeiTime.js";
 import { padTwo, taipeiTileDate } from "../sessionPresentation.ts";
-import { NTRP_SCALE_EXPLANATION, PROFILE_PUBLIC_DISCLOSURE } from "./viewConstants.js";
 
 let deferSurfaceOpen;
 let lazyMounts;
@@ -15,15 +14,19 @@ let registerCreateContent;
 let registerDecideContent;
 let registerEditContent;
 let sessionFormSheetRuntime;
+let ntrpScaleExplanation;
+let profilePublicDisclosure;
 
 /** Configure the facade-owned lazy mounts and synchronous surface registration boundary. */
 export function configureSessionFormViews(dependencies) {
   ({
     deferSurfaceOpen,
     lazyMounts,
+    ntrpScaleExplanation,
     preloadCreateSessionSheet,
     preloadDecideSessionSheet,
     preloadEditSessionSheet,
+    profilePublicDisclosure,
     registerCreateContent,
     registerDecideContent,
     registerEditContent,
@@ -383,10 +386,10 @@ export function openCreateSessionSheet({
     config: {
       bands: CREATE_NTRP_BANDS,
       dateChips: CREATE_DATE_CHIP_KEYS.map((key) => ({ key, label: createDateChipLabel(key, now()) })),
-      ntrpExplanation: NTRP_SCALE_EXPLANATION,
+      ntrpExplanation: ntrpScaleExplanation,
       playTypeHint: PLAY_TYPE_HINT,
       playTypes: CREATE_SESSION_PLAY_TYPES,
-      profileDisclosure: PROFILE_PUBLIC_DISCLOSURE,
+      profileDisclosure: profilePublicDisclosure,
       slotOptions: CREATE_SLOT_OPTIONS,
       timeCustomDefault: CREATE_TIME_CUSTOM_DEFAULT,
       timePresets: CREATE_TIME_PRESETS,
@@ -572,7 +575,7 @@ export function openEditSessionSheet(
     courts: sessionFormSheetRuntime.taipeiCourts(courts),
     courtsReady: Boolean(courtsReady),
     hasOptionalValues,
-    ntrpExplanation: NTRP_SCALE_EXPLANATION,
+    ntrpExplanation: ntrpScaleExplanation,
     onClose: () => mounted.close(),
     onSubmit: async ({ error, form, submit }) => {
       if (saving) return;

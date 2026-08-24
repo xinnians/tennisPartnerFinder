@@ -3,16 +3,24 @@ import { mountSheet } from "../sheets.js";
 import { runAsyncAction } from "../sessionActions.ts";
 import { PROFILE_SLOTS } from "../sessionPresentation.ts";
 import { taipeiDateTime } from "../taipeiTime.js";
-import { NTRP_SCALE_EXPLANATION, PROFILE_PUBLIC_DISCLOSURE } from "./viewConstants.js";
 
 let deferSurfaceOpen;
 let lazyMounts;
 let preloadProfileCompletionSheet;
 let registerProfileContent;
+let ntrpScaleExplanation;
+let profilePublicDisclosure;
 
 /** Configure the facade-owned profile mount and surface registration callback. */
 export function configureProfileSurfaceView(dependencies) {
-  ({ deferSurfaceOpen, lazyMounts, preloadProfileCompletionSheet, registerProfileContent } = dependencies);
+  ({
+    deferSurfaceOpen,
+    lazyMounts,
+    ntrpScaleExplanation,
+    preloadProfileCompletionSheet,
+    profilePublicDisclosure,
+    registerProfileContent,
+  } = dependencies);
 }
 
 // 個人檔案的「常打類型」維持四值：既有使用者已勾選的「對拉」不該因為建局表單收斂而消失。
@@ -133,12 +141,12 @@ export function openProfileCompletionSheet({
     compactCreateGate,
     courts,
     courtsReady: Boolean(courtsReady),
-    disclosure: PROFILE_PUBLIC_DISCLOSURE,
+    disclosure: profilePublicDisclosure,
     gateHintText: gateHint && !standalone ? gateHint : "",
     initialSelectedCourts: selectedCourts,
     nickname: String(profile.nick ?? ""),
     ntrpDefaultValue: String(profile.ntrp ?? ""),
-    ntrpExplanation: NTRP_SCALE_EXPLANATION,
+    ntrpExplanation: ntrpScaleExplanation,
     onClose: () => mounted.close(),
     onSubmit: async ({ error, form, submit }) => {
       if (saving) return;
