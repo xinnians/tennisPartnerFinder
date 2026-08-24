@@ -1996,30 +1996,31 @@ test("every Me control keeps focus through a background rerender", async ({ page
   expect(nonCourtTotal, "非球場控件不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(15);
   expect(total, "掃描集不得因 selector 寫錯而縮水").toBeGreaterThanOrEqual(nonCourtTotal);
 
-  const landings = [];
+  const focusFailures = [];
   for (let index = 0; index < total; index += 1) {
     const control = controls.nth(index);
     const testId = (await control.getAttribute("data-testid")) ?? (await control.evaluate((node) => node.tagName));
     await control.focus();
-    // 盯住目前這個節點：重繪會把它換掉，isConnected 轉 false 就是重繪確實發生的直接證據。
-    await control.evaluate((node) => {
-      window.__watchedNode = node;
+    // 停用或收合中的控制項不會接受 focus()；盯住 focus 嘗試後實際持焦的節點。
+    // F1-1 訂閱化後，背景 commit 必須保留這個節點的 identity 與焦點。
+    const focusLanded = await control.evaluate((node) => {
+      window.__watchedNode = document.activeElement;
+      return document.activeElement === node;
     });
     // 每次挪動座標避開 tracker 的 50 公尺／60 秒節流，確保真的觸發重繪。
-    await page.evaluate(([lat, lng]) => window.__emitPosition(lat, lng), [court.lat + index * 0.01, court.lng]);
-    await expect
-      .poll(async () => await page.evaluate(() => window.__watchedNode?.isConnected === false), {
-        message: "背景重繪必須真的發生",
-      })
-      .toBe(true);
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const landedOnBody = await page.evaluate(
-      () => document.activeElement === document.body || document.activeElement == null
+    const presenceUpdateResponse = page.waitForResponse(
+      (response) => response.url().includes("/rest/v1/rpc/update_my_presence") && response.request().method() === "POST"
     );
-    landings.push({ landedOnBody, testId });
+    await page.evaluate(([lat, lng]) => window.__emitPosition(lat, lng), [court.lat + index * 0.01, court.lng]);
+    expect((await presenceUpdateResponse).ok(), "presence 更新必須成功後才驗背景 commit").toBe(true);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const focusState = await page.evaluate(() => ({
+      connected: window.__watchedNode?.isConnected === true,
+      focused: document.activeElement === window.__watchedNode,
+    }));
+    if (!focusState.connected || !focusState.focused) focusFailures.push({ ...focusState, focusLanded, testId });
   }
-  const dropped = landings.filter((entry) => entry.landedOnBody);
-  expect(dropped, `重繪後焦點掉到 body 的控件：${JSON.stringify(dropped)}`).toEqual([]);
+  expect(focusFailures, `背景 commit 後未保留同節點焦點的控件：${JSON.stringify(focusFailures)}`).toEqual([]);
   expect(runtimeErrors).toEqual([]);
 });
 
