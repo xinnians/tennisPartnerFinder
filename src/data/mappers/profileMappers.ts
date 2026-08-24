@@ -1,5 +1,6 @@
 import type { Database } from "../databaseTypes.ts";
 import type { CourtSummary, NotificationPreferences, PlayType, Profile, ProfileSlotCode } from "../../domainTypes.ts";
+import { readPlayTypes, readProfileSlotCodes } from "./literalGuards.ts";
 import { asArray, asBoolean, asNumber, asText } from "./valueMappers.ts";
 
 type PublicSchema = Database["public"];
@@ -89,8 +90,8 @@ export function mapPlayerDirectoryRow(row: PlayerDirectoryRow = {}): PlayerDirec
     profileId: asNumber(row.profile_id),
     nickname: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
-    playTypes: asArray(row.play_types) as PlayType[],
-    slotCodes: asArray(row.slot_codes) as ProfileSlotCode[],
+    playTypes: readPlayTypes(row.play_types),
+    slotCodes: readProfileSlotCodes(row.slot_codes),
     courtId: asNumber(row.court_id),
     courtName: asText(row.court_name),
     courtDistrict: asText(row.court_district),
@@ -138,9 +139,9 @@ export function mapCurrentProfile(row: CurrentProfileRow = {}, courts: CourtSumm
   return {
     nick: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
-    types: new Set(asArray(row.play_types).filter((value) => typeof value === "string") as PlayType[]),
+    types: new Set(readPlayTypes(row.play_types)),
     courts: new Set(selectedCourts),
-    slots: new Set(asArray(row.slot_codes).filter((value) => typeof value === "string") as ProfileSlotCode[]),
+    slots: new Set(readProfileSlotCodes(row.slot_codes)),
     isPublic: asBoolean(row.is_public),
     sharePresence: asBoolean(row.share_presence),
     openToGreeting: asBoolean(row.open_to_greeting),

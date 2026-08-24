@@ -2,14 +2,21 @@ import type { Database } from "../databaseTypes.ts";
 import type {
   ChatMessage,
   MySessionSummary,
-  PlayType,
   SessionJoinPreview,
-  SessionMessageKind,
-  SessionParticipantRole,
-  SessionParticipantStatus,
   SessionRosterEntry,
   SessionSummary,
 } from "../../domainTypes.ts";
+import {
+  readPlayType,
+  readPlayTypes,
+  readSessionJoinMode,
+  readSessionMessageKind,
+  readSessionParticipantRole,
+  readSessionParticipantStatus,
+  readSessionStatus,
+  readSessionVenueType,
+  readSportCode,
+} from "./literalGuards.ts";
 import { asArray, asBoolean, asNumber, asText } from "./valueMappers.ts";
 
 type PublicViews = Database["public"]["Views"];
@@ -24,14 +31,14 @@ type MockRow = Record<string, unknown>;
 function sessionSummaryValues(row: SessionSummaryRow = {}): SessionSummary {
   return {
     sessionId: asNumber(row.session_id),
-    sportCode: asText(row.sport_code) as SessionSummary["sportCode"],
+    sportCode: readSportCode(row.sport_code),
     courtId: asNumber(row.court_id),
     court: asText(row.court),
     courtDistrict: asText(row.court_district),
     courtLat: asNumber(row.court_lat),
     courtLng: asNumber(row.court_lng),
     startAt: asText(row.start_at),
-    playType: asText(row.play_type) as PlayType,
+    playType: readPlayType(row.play_type),
     ntrpMin: asNumber(row.ntrp_min),
     ntrpMax: asNumber(row.ntrp_max),
     slotsTotal: asNumber(row.slots_total),
@@ -40,9 +47,9 @@ function sessionSummaryValues(row: SessionSummaryRow = {}): SessionSummary {
     hostNickname: asText(row.host_nickname),
     hostNtrp: asNumber(row.host_ntrp),
     hostProfileComplete: asBoolean(row.host_profile_complete),
-    status: asText(row.status) as SessionSummary["status"],
-    joinMode: asText(row.join_mode) as SessionSummary["joinMode"],
-    venueType: asText(row.venue_type) as SessionSummary["venueType"],
+    status: readSessionStatus(row.status),
+    joinMode: readSessionJoinMode(row.join_mode),
+    venueType: readSessionVenueType(row.venue_type),
     rangeEnd: asText(row.range_end),
     candidateCourtIds: asArray(row.candidate_court_ids)
       .map(asNumber)
@@ -60,14 +67,14 @@ export function mapSessionSummary(row: SessionSummaryRow): SessionSummary {
 export function mapMockSessionSummary(session: MockRow = {}): SessionSummary {
   return {
     sessionId: asNumber(session.sessionId),
-    sportCode: asText(session.sportCode) as SessionSummary["sportCode"],
+    sportCode: readSportCode(session.sportCode),
     courtId: asNumber(session.courtId),
     court: asText(session.court),
     courtDistrict: asText(session.courtDistrict),
     courtLat: asNumber(session.courtLat),
     courtLng: asNumber(session.courtLng),
     startAt: asText(session.startAt),
-    playType: asText(session.playType) as PlayType,
+    playType: readPlayType(session.playType),
     ntrpMin: asNumber(session.ntrpMin),
     ntrpMax: asNumber(session.ntrpMax),
     slotsTotal: asNumber(session.slotsTotal),
@@ -76,9 +83,9 @@ export function mapMockSessionSummary(session: MockRow = {}): SessionSummary {
     hostNickname: asText(session.hostNickname),
     hostNtrp: asNumber(session.hostNtrp),
     hostProfileComplete: asBoolean(session.hostProfileComplete),
-    status: asText(session.status) as SessionSummary["status"],
-    joinMode: asText(session.joinMode) as SessionSummary["joinMode"],
-    venueType: asText(session.venueType, "booked") as SessionSummary["venueType"],
+    status: readSessionStatus(session.status),
+    joinMode: readSessionJoinMode(session.joinMode),
+    venueType: readSessionVenueType(asText(session.venueType, "booked")),
     rangeEnd: asText(session.rangeEnd),
     candidateCourtIds: asArray(session.candidateCourtIds)
       .map(asNumber)
@@ -115,8 +122,8 @@ export function mapMySession(row: MySessionRow = {}): MySessionSummary {
     rangeEnd: session.rangeEnd,
     decidedAt: asText(row.decided_at),
     feeNote: asText(row.fee_note),
-    viewerRole: asText(row.viewer_role) as SessionParticipantRole,
-    viewerParticipantStatus: asText(row.viewer_participant_status) as SessionParticipantStatus,
+    viewerRole: readSessionParticipantRole(row.viewer_role),
+    viewerParticipantStatus: readSessionParticipantStatus(row.viewer_participant_status),
     viewerPlayedConfirmed: asBoolean(row.viewer_played_confirmed),
     updatedAt: asText(row.updated_at),
     canCancel: asBoolean(row.can_cancel),
@@ -138,10 +145,10 @@ export function mapSessionRosterRow(row: SessionRosterRow = {}): SessionRosterEn
     profileId: asNumber(row.profile_id),
     nickname: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
-    playTypes: asArray(row.play_types).filter((value) => typeof value === "string") as PlayType[],
+    playTypes: readPlayTypes(row.play_types),
     homeCourts: asArray(row.home_courts).filter((value): value is string => typeof value === "string"),
-    role: asText(row.role) as SessionParticipantRole,
-    status: asText(row.status) as SessionParticipantStatus,
+    role: readSessionParticipantRole(row.role),
+    status: readSessionParticipantStatus(row.status),
   };
 }
 
@@ -149,7 +156,7 @@ export function mapSessionRosterRow(row: SessionRosterRow = {}): SessionRosterEn
 export function mapSessionJoinPreviewRow(row: SessionJoinPreviewRow = {}): SessionJoinPreview {
   return {
     sessionId: asNumber(row.session_id),
-    role: asText(row.role) as SessionParticipantRole,
+    role: readSessionParticipantRole(row.role),
     nickname: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
     avatarUrl: asText(row.avatar_url),
@@ -160,7 +167,7 @@ export function mapSessionJoinPreviewRow(row: SessionJoinPreviewRow = {}): Sessi
 export function mapMockSessionJoinPreviewRow(row: MockRow = {}): SessionJoinPreview {
   return {
     sessionId: asNumber(row.sessionId),
-    role: asText(row.role) as SessionParticipantRole,
+    role: readSessionParticipantRole(row.role),
     nickname: asText(row.nickname),
     ntrp: asNumber(row.ntrp),
     avatarUrl: asText(row.avatarUrl),
@@ -175,7 +182,7 @@ export function mapSessionMessageRow(row: SessionMessageRow = {}): ChatMessage {
     sessionId: asNumber(row.session_id),
     senderProfileId: asNumber(row.sender_profile_id),
     senderNickname: asText(row.sender_nickname),
-    kind: asText(row.kind) as SessionMessageKind,
+    kind: readSessionMessageKind(row.kind),
     body: asText(row.body),
     createdAt: asText(row.created_at),
     isSelf: asBoolean(row.is_self),
