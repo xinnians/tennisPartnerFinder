@@ -224,7 +224,7 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 | **2A** 型別鏈地基 | F2-5 (a)(b)(c)(d) | 已發：`docs/arch-dispatch-2026-08-24-frontend-F2A.md` |
 | **2B** 小項打包 | F2-6／F2-7／F2-8／F2-9 ＋ `drawerScrollPositions` 退役 ＋ `me` 通道補進 GOLDEN 指紋 | 已發：`docs/arch-dispatch-2026-08-24-frontend-F2B.md`（F1R 與 2A 均 ACCEPTED 後） |
 | **2C** controller 拆分＋auth 差分 | F2-1 ＋ F2-2 | **ACCEPTED**（2026-08-24，`docs/arch-reports/batch-F2C-acceptance-2026-08-24.md`） |
-| **2D** view 層拆分 | F2-3 ＋ F2-4 ＋ `onBeforeStoreChange` churn ＋ 命名殘留清理 | 待 2C 驗收後發 |
+| **2D** view 層拆分 | F2-3 ＋ F2-4 ＋ `onBeforeStoreChange` churn ＋ 命名殘留清理 | 已發：`docs/arch-dispatch-2026-08-24-frontend-F2D.md` |
 
 **2A 驗收結果（2026-08-24）**：條件式退件三項——RPC 參數被新增的 `as never` 完全跳過
 型別檢查、`src/data/index.ts` barrel 開了 facade 繞路（page 可拿到 `createDataApi`，
