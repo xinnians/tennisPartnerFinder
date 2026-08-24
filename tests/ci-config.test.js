@@ -7,12 +7,27 @@ import createViteConfig from "../vite.config.ts";
 
 const PACKAGE = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const PACKAGE_LOCK = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
+const NVMRC = readFileSync(new URL("../.nvmrc", import.meta.url), "utf8").trim();
 const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", import.meta.url), "utf8");
 const PERFORMANCE_SPEC = readFileSync(new URL("./performance.spec.js", import.meta.url), "utf8");
 const FAKE_MAPS = readFileSync(new URL("./fixtures/fakeMaps.js", import.meta.url), "utf8");
 const DEVELOPMENT_BRANCH = "claude/tennis-partner-finder-proto-xfrr6g";
+const REQUIRED_NODE_VERSION = [22, 18, 0];
 
 const scriptCommands = (name) => PACKAGE.scripts[name].split("&&").map((command) => command.trim());
+
+function parseMinimumNodeVersion(range) {
+  const match = /^>=(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(range);
+  assert.ok(match, `Node engine must be a single inclusive lower bound, received: ${range}`);
+  return match.slice(1).map((part) => Number(part ?? 0));
+}
+
+function compareVersions(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] - right[index];
+  }
+  return 0;
+}
 
 function workflowJob(name) {
   const marker = `\n  ${name}:\n`;
@@ -23,6 +38,14 @@ function workflowJob(name) {
   const nextJob = tail.search(/\n  [a-z][\w-]*:\n/);
   return nextJob < 0 ? tail : tail.slice(0, nextJob);
 }
+
+test("Node runtime declarations require 22.18 or newer and stay semantically aligned", () => {
+  const minimum = parseMinimumNodeVersion(PACKAGE.engines?.node);
+  assert.ok(compareVersions(minimum, REQUIRED_NODE_VERSION) >= 0, "Node engine minimum must be at least 22.18");
+  assert.match(NVMRC, /^\d+$/u, ".nvmrc must select one maintained Node major");
+  assert.equal(Number(NVMRC), minimum[0], ".nvmrc major must match the package engine lower bound");
+  assert.equal(PACKAGE_LOCK.packages[""].engines?.node, PACKAGE.engines.node);
+});
 
 test("quality workflow runs for main and the current development branch", () => {
   assert.ok(WORKFLOW.length > 1_000, "quality workflow is unexpectedly small");
