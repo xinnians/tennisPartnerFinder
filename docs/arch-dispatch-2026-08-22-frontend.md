@@ -215,6 +215,34 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 
 ## 批 2：拆檔＋TS 化（沿既有縫線）
 
+### 批 2 切分與順序（2026-08-24 使用者拍板）
+
+批 2 拆成**四張派工單依序執行**，每張獨立驗收後才發下一張（避免 ground truth 過時）：
+
+| 派工單 | 範圍 | 狀態 |
+| --- | --- | --- |
+| **2A** 型別鏈地基 | F2-5 (a)(b)(c)(d) | 已發：`docs/arch-dispatch-2026-08-24-frontend-F2A.md` |
+| **2B** 小項打包 | F2-6／F2-7／F2-8／F2-9 ＋ `drawerScrollPositions` 退役 ＋ `me` 通道補進 GOLDEN 指紋 | 待 2A 驗收後發 |
+| **2C** controller 拆分＋auth 差分 | F2-1 ＋ F2-2 | 待 2B 驗收後發 |
+| **2D** view 層拆分 | F2-3 ＋ F2-4 ＋ `onBeforeStoreChange` churn ＋ 命名殘留清理 | 待 2C 驗收後發 |
+
+**F2-1 的形狀（拍板）**：保持單一 `createSessionController` 工廠，**公開簽名與 19 個
+公開方法完全凍結**，只拆內部模組。114 個 controller 測試與 3 個 e2e 白箱直呼點零改動，
+124 筆 GOLDEN 逐字不變為一票否決條件。是否進一步拆成多個獨立 controller，
+留到批 3 與 AppShell 一起談。
+
+**`controller.sessionStore` 公開 API**（批 1 引入）：因公開 API 凍結，2C **不收窄它**，
+只需在報告中說明現狀；真要收窄留到批 3。
+
+**2026-08-24 實測的 ground truth 修正**（本檔 08-22 的數字多項已過時）：
+`sessionController.js` 2,149→**2,178**、`sessionViews.js` 2,382→**1,998**、
+`main.js` 1,483→**1,242**、e2e 白箱直呼 `sessionViews` 107→**115**、
+`as unknown as` 剩 **4 處**（其中 2 處與 supabase 型別無關）、
+`error?.name ===` 剩 **1 處**、`defaultNotificationPreferences()` 單一來源
+**已存在**於 `src/data/mappers/profileMappers.ts:55`（另兩層沒用它）。
+各張派工單以自己發出當下的實測值為準。
+
+
 ### F2-1 sessionController 拆分
 
 - **目標／動機**：2,149 行單一 closure god-module；features/ 六模組縫線已存在。
