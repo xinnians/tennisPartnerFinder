@@ -15,6 +15,30 @@
 另在複驗時**加驗出一項不阻擋的事實更正**（`drawerScrollPositions` 已成冗餘，
 codex 的保留理由不成立），列為批 2 的具體待辦，見 §六.3。
 
+> ## ⚠️ 後註（2026-08-24，批 2A 驗收時發現）：本紀錄的 ACCEPTED 判定漏檢一項迴歸
+>
+> 本批驗收時 Docker 未啟動，`npm run test:local` 未執行，我把它記成「REL 前必補跑」
+> （見 §四）就給了 ACCEPTED。批 2A 驗收時 Docker 可用，發現
+> `tests/session.spec.js:488`（建立球局後鍵盤焦點落到新卡片）是紅的，
+> **二分確認引入點是本批的 `a27b91f`（F1-1 store 訂閱化）**：
+>
+> ```text
+> 0be31a2  批 1 之前                             → 1 passed
+> 7c1d1bc  test(arch-F1-7) lower dispatch golden → 1 passed
+> a27b91f  feat(arch-F1-1) subscribe React pages → 1 failed   ← 引入點
+> 7112d6d  批 1 收尾                              → 1 failed
+> ```
+>
+> `--repeat-each=3` 為 3/3 紅（非 flaky）；`CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test`
+> 後仍紅（非 fixture 污染）。該紅燈另使 **31 個 `test:local` 測試從不執行**。
+>
+> 完整證據見 `docs/arch-reports/batch-F2A-acceptance-2026-08-24.md` §四；
+> 修補派工單 `docs/arch-dispatch-2026-08-24-frontend-F1R.md`（2026-08-24 已發，優先度最高）。
+>
+> **本批其餘 ACCEPTED 結論不受影響**——F1-1〜F1-7 的功能目標、GOLDEN 逐字復位、
+> testid 凍結、mock gate 全綠都經獨立重跑確認。受影響的只有「批 1 沒有引入迴歸」
+> 這個隱含判斷，而它當初就沒有 `test:local` 的證據支撐。
+
 ### 初驗退件三項與結案狀態
 
 | 事項 | 類別 | 結案 |

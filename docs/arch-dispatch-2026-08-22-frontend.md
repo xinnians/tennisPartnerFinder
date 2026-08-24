@@ -222,9 +222,24 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 | 派工單 | 範圍 | 狀態 |
 | --- | --- | --- |
 | **2A** 型別鏈地基 | F2-5 (a)(b)(c)(d) | 已發：`docs/arch-dispatch-2026-08-24-frontend-F2A.md` |
-| **2B** 小項打包 | F2-6／F2-7／F2-8／F2-9 ＋ `drawerScrollPositions` 退役 ＋ `me` 通道補進 GOLDEN 指紋 | 待 2A 驗收後發 |
+| **2B** 小項打包 | F2-6／F2-7／F2-8／F2-9 ＋ `drawerScrollPositions` 退役 ＋ `me` 通道補進 GOLDEN 指紋 | 待 F1R 與 2A 補件驗收後發 |
 | **2C** controller 拆分＋auth 差分 | F2-1 ＋ F2-2 | 待 2B 驗收後發 |
 | **2D** view 層拆分 | F2-3 ＋ F2-4 ＋ `onBeforeStoreChange` churn ＋ 命名殘留清理 | 待 2C 驗收後發 |
+
+**2A 驗收結果（2026-08-24）**：條件式退件三項——RPC 參數被新增的 `as never` 完全跳過
+型別檢查、`src/data/index.ts` barrel 開了 facade 繞路（page 可拿到 `createDataApi`，
+lint 與 typecheck 全綠）、兩處 `?? sessionId` 行為變更未揭露。
+補件單 `docs/arch-dispatch-2026-08-24-frontend-F2A-followup.md`，
+驗收紀錄 `docs/arch-reports/batch-F2A-acceptance-2026-08-24.md`。
+
+**F1R 插隊在 2A 補件之前（2026-08-24 拍板）**：2A 驗收時查出
+`npm run test:local` 的紅燈是**批 1 `a27b91f`（F1-1）引入的迴歸**
+（建立球局後鍵盤焦點不落到新卡片），二分確認、非 flaky、非 fixture 污染，
+且該紅燈使 31 個 `test:local` 測試從不執行。
+派工單 `docs/arch-dispatch-2026-08-24-frontend-F1R.md`。
+執行順序改為 **F1R → 2A 補件 → 2B → 2C → 2D**：2C／2D 要動的正是 controller 與 view
+的 render／focus 路徑，而唯一會跑真 RPC 的安全網（也是唯一能抓 2A 那個 RPC 參數洞的
+測試套件）在 F1R 修好之前是死的。
 
 **F2-1 的形狀（拍板）**：保持單一 `createSessionController` 工廠，**公開簽名與 19 個
 公開方法完全凍結**，只拆內部模組。114 個 controller 測試與 3 個 e2e 白箱直呼點零改動，
