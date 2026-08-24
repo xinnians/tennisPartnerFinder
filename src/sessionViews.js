@@ -304,7 +304,6 @@ export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
 
 const drawerFocusIntents = new WeakMap();
 const drawerLoadingFocusFallbacks = new WeakSet();
-const drawerScrollPositions = new WeakMap();
 const DRAWER_TOGGLE_FOCUS = "__drawer-toggle__";
 const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
@@ -482,28 +481,6 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
 function activeDrawerPanel(root) {
   const panel = root.querySelector("#nearby-sessions-list");
   return panel && !panel.hidden ? panel : null;
-}
-
-// Batch 18 deliberately overturns Batch 8's redraw-parity decision: an open
-// drawer keeps its reading position across the 60-second quiet refresh. A
-// collapsed redraw must not replace the last useful position with zero.
-function rememberDrawerScrollTop(root) {
-  const panel = activeDrawerPanel(root);
-  if (panel?.dataset.drawerState !== "open") return;
-  const scroll = panel.querySelector(".nearby-drawer__scroll");
-  if (!(scroll instanceof HTMLElement) || scroll.clientHeight === 0) return;
-  drawerScrollPositions.set(root, scroll.scrollTop);
-}
-
-function restoreDrawerScrollTop(root, drawerState) {
-  if (drawerState !== "open" || !drawerScrollPositions.has(root)) return;
-  const savedScrollTop = drawerScrollPositions.get(root);
-  requestAnimationFrame(() => {
-    const scroll = activeDrawerPanel(root)?.querySelector(".nearby-drawer__scroll");
-    if (!(scroll instanceof HTMLElement)) return;
-    const maxScrollTop = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-    scroll.scrollTop = Math.min(savedScrollTop, maxScrollTop);
-  });
 }
 
 function rememberFocusedSessionCard(root) {
@@ -721,7 +698,6 @@ export function renderNearbySessionsDrawer(
   } = {}
 ) {
   rememberFocusedSessionCard(root);
-  rememberDrawerScrollTop(root);
   if (!renderNearbySessionsDrawerInApp) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
   renderNearbySessionsDrawerInApp(
     root,
@@ -733,7 +709,6 @@ export function renderNearbySessionsDrawer(
       mapStatus,
       onBeforeStoreChange: () => {
         rememberFocusedSessionCard(root);
-        rememberDrawerScrollTop(root);
       },
       onExpandBounds,
       onOpenCreate,
@@ -746,11 +721,9 @@ export function renderNearbySessionsDrawer(
       sessionStore,
     },
     () => {
-      const currentDrawerState = sessionStore?.getState?.().drawerState ?? drawerState;
-      // Register focus first and scroll second. Both callbacks run after the
-      // synchronous commit, so any focus-induced browser scroll is corrected last.
+      // Batch 18 invariant: the stable React drawer slot keeps the native
+      // scrollTop across quiet refreshes; only focus needs an explicit restore.
       restoreFocusedSessionCard(root);
-      restoreDrawerScrollTop(root, currentDrawerState);
     }
   );
 }
