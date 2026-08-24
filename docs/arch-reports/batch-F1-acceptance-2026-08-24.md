@@ -38,6 +38,12 @@ codex 的保留理由不成立），列為批 2 的具體待辦，見 §六.3。
 > **本批其餘 ACCEPTED 結論不受影響**——F1-1〜F1-7 的功能目標、GOLDEN 逐字復位、
 > testid 凍結、mock gate 全綠都經獨立重跑確認。受影響的只有「批 1 沒有引入迴歸」
 > 這個隱含判斷，而它當初就沒有 `test:local` 的證據支撐。
+>
+> **後註補記（同日，F1R 驗收時）**：本批共查出**兩條**迴歸，第二條是 F1-5
+> （`4be7a53`，MePage controlled 化）讓勾滿球場時 picker optimistic 收合產生
+> 焦點掉 body 的 race（`4be7a53` 取樣 8/2、後續 HEAD 5/5）。兩條均已由 F1R
+> （`e3a638f`／`d59e72a`／`0f57c1b`）修復並驗收 ACCEPTED，
+> 見 `docs/arch-reports/batch-F1R-acceptance-2026-08-24.md`。
 
 ### 初驗退件三項與結案狀態
 
