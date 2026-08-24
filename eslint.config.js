@@ -9,10 +9,20 @@ const flushSyncImportRestriction = {
   message: "禁止直接匯入 flushSync；請改由 syncCommit.ts 的單一同步 commit 邊界呼叫。",
 };
 
-const reactDomNamespaceImportRestriction = {
-  selector: 'ImportDeclaration[source.value="react-dom"] ImportNamespaceSpecifier',
-  message: "禁止 namespace 匯入 react-dom；請使用核可的具名匯入，並由 syncCommit.ts 呼叫同步 commit。",
-};
+const reactDomSyntaxRestrictions = [
+  {
+    selector: 'ImportDeclaration[source.value="react-dom"] ImportNamespaceSpecifier',
+    message: "禁止 namespace 匯入 react-dom；請使用核可的具名匯入，並由 syncCommit.ts 呼叫同步 commit。",
+  },
+  {
+    selector: 'ImportDeclaration[source.value="react-dom"] ImportDefaultSpecifier',
+    message: "禁止 default 匯入 react-dom；請使用核可的具名匯入，並由 syncCommit.ts 呼叫同步 commit。",
+  },
+  {
+    selector: 'ImportExpression[source.value="react-dom"]',
+    message: "禁止動態匯入 react-dom；請使用核可的靜態具名匯入，並由 syncCommit.ts 呼叫同步 commit。",
+  },
+];
 
 export default tseslint.config(
   {
@@ -127,7 +137,7 @@ export default tseslint.config(
       ],
       "no-restricted-syntax": [
         "error",
-        reactDomNamespaceImportRestriction,
+        ...reactDomSyntaxRestrictions,
         {
           selector:
             "ImportExpression[source.value=/(?:^|\\/)supabaseClient(?:\\.|$)|(?:^|\\/)data\\/(?:mappers|repositories)(?:\\/|$)/]",
@@ -145,7 +155,7 @@ export default tseslint.config(
     files: ["src/data/**/*.{js,ts,tsx}", "src/dataApi.js"],
     rules: {
       "no-restricted-imports": ["error", { paths: [flushSyncImportRestriction] }],
-      "no-restricted-syntax": ["error", reactDomNamespaceImportRestriction],
+      "no-restricted-syntax": ["error", ...reactDomSyntaxRestrictions],
     },
   }
 );
