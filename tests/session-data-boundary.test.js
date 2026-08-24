@@ -1229,6 +1229,7 @@ test("mock discovery keeps both undecided and decided candidate timestamps", asy
 
 test("nickname-only profile save normalizes optional fields for the RPC", async () => {
   const calls = [];
+  const tableCalls = [];
   const api = createDataApi({
     configured: true,
     client: {
@@ -1237,6 +1238,7 @@ test("nickname-only profile save normalizes optional fields for the RPC", async 
         return { data: 7, error: null };
       },
       from(table) {
+        tableCalls.push(table);
         if (table === "courts") {
           return {
             select() {
@@ -1275,6 +1277,7 @@ test("nickname-only profile save normalizes optional fields for the RPC", async 
       },
     ],
   ]);
+  assert.deepEqual(tableCalls, ["courts", "my_profile"], "profile save must query courts exactly once");
 });
 
 test("configured player directory uses only its allowlist and four bounds predicates", async () => {

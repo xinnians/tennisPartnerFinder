@@ -361,14 +361,17 @@ export function createDataApi({
     return rowsOrEmpty(data).map(mapMyPlayerBlockRow);
   }
 
-  async function loadCurrentProfile() {
-    if (!configured) return null;
+  async function loadCurrentProfileWithCourts(courts?: DataCourt[]) {
     const activeClient = requireClient();
     const { data, error } = await activeClient.from("my_profile").select(MY_PROFILE_SELECT).maybeSingle();
     if (error) throw asDataApiError(error);
     if (!data) return null;
-    const courts = await loadCourts();
-    return mapCurrentProfile(data, courts);
+    return mapCurrentProfile(data, courts ?? (await loadCourts()));
+  }
+
+  async function loadCurrentProfile() {
+    if (!configured) return null;
+    return loadCurrentProfileWithCourts();
   }
 
   async function loadNotificationPreferences() {
@@ -408,7 +411,7 @@ export function createDataApi({
       p_play_types: profileValues(profile?.types).filter((value) => typeof value === "string"),
       p_slot_codes: profileValues(profile?.slots).filter((value) => typeof value === "string"),
     });
-    return loadCurrentProfile();
+    return loadCurrentProfileWithCourts(courts);
   }
 
   async function savePushSubscription(subscription: PushSubscriptionInput | null | undefined) {
