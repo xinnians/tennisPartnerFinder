@@ -397,20 +397,34 @@ function CourtSubscriptions({
   const courtSubscriptionSummary = notificationCourts.length ? `已訂閱 ${subscribedCourtCount} 座` : "";
   const saveCourtSelection = (courtIds: number[]) => {
     const nextCourtIds = new Set(courtIds);
+    const collapsesPicker = notificationCourts.length > 0 && nextCourtIds.size === notificationCourts.length;
+    const active = document.activeElement;
+    const picker = rootElement.querySelector<HTMLElement>("[data-notification-courts]");
+    const handOffPickerFocus =
+      collapsesPicker &&
+      active instanceof HTMLElement &&
+      (picker?.contains(active) || active.matches("[data-notification-court]"));
     setSelectedCourtIds(nextCourtIds);
-    if (notificationCourts.length > 0 && nextCourtIds.size === notificationCourts.length) {
-      setCourtPickerExpanded(false);
+    if (collapsesPicker) setCourtPickerExpanded(false);
+    const saveAction = mePageRuntime.runNotificationSettingAction(rootElement, () =>
+      onSaveCourtSubscriptions(courtIds)
+    );
+    if (handOffPickerFocus) {
+      const toggle = rootElement.querySelector<HTMLButtonElement>("[data-court-picker-toggle]");
+      // The async action disables every notification control synchronously. This
+      // toggle only changes local disclosure state, so keep it available as the
+      // focus landing before React hides the checkbox that initiated the save.
+      if (toggle) toggle.disabled = false;
+      if (mePageRuntime.canReceiveFocus(toggle)) toggle?.focus({ preventScroll: true });
     }
-    void mePageRuntime
-      .runNotificationSettingAction(rootElement, () => onSaveCourtSubscriptions(courtIds))
-      .then((saved) => {
-        if (!saved) {
-          setSelectedCourtIds(new Set(authoritativeCourtIds));
-          setCourtPickerExpanded(
-            authoritativeCourtIds.length > 0 && authoritativeCourtIds.length < notificationCourts.length
-          );
-        }
-      });
+    void saveAction.then((saved) => {
+      if (!saved) {
+        setSelectedCourtIds(new Set(authoritativeCourtIds));
+        setCourtPickerExpanded(
+          authoritativeCourtIds.length > 0 && authoritativeCourtIds.length < notificationCourts.length
+        );
+      }
+    });
   };
   return (
     <fieldset className="notification-settings__fieldset">
