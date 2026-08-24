@@ -1,4 +1,5 @@
 import { canReceiveFocus } from "./meFocus.js";
+import { sessionActionMessage } from "./sessionActionMessages.ts";
 
 // DOM-backed async state is intentionally separate from pure presentation. Both
 // sessionViews.js and React runtime facades consume this one shared action owner.
@@ -238,7 +239,7 @@ export async function runAsyncAction<Result, ErrorResult = undefined, FocusInten
       if (onError) {
         await onError(actionError, context);
       } else if (error) {
-        error.textContent = (actionError as { message?: string } | null | undefined)?.message || errorMessage;
+        error.textContent = sessionActionMessage(actionError, errorMessage);
         error.hidden = false;
         if (errorFocus) error.focus({ preventScroll: true });
       }
@@ -285,7 +286,7 @@ export function runMySessionAction(
     onError: (actionError) => {
       showMySessionActionError(
         root,
-        (actionError as { message?: string } | null | undefined)?.message || "操作暫時無法完成，請稍後再試。"
+        sessionActionMessage(actionError, "操作暫時無法完成，請稍後再試。")
       );
       // reloadParticipation can replace the original button before an error
       // arrives. Resolve the semantic action again in the current DOM so the

@@ -1711,30 +1711,22 @@ test("lifecycle wrappers preserve BLOCKED instead of replacing it with UNKNOWN_A
   );
 });
 
-test("neutral block-unavailable action codes use their terminal non-disclosing messages", () => {
-  assert.equal(new SessionActionError("SESSION_UNAVAILABLE").message, "這個球局目前無法加入。");
-  assert.equal(new SessionActionError("GUEST_UNAVAILABLE").message, "這位球友目前無法加入這個球局。");
-  assert.equal(new SessionActionError("ALREADY_DECIDED").message, "你先前已退出或未通過這一局，無法再次申請。");
-  assert.notEqual(
-    new SessionActionError("SESSION_UNAVAILABLE").message,
-    new SessionActionError("UNKNOWN_ACTION_ERROR").message
-  );
-  assert.notEqual(
-    new SessionActionError("GUEST_UNAVAILABLE").message,
-    new SessionActionError("UNKNOWN_ACTION_ERROR").message
-  );
+test("session action errors expose only their stable data-layer codes", () => {
+  for (const code of ["SESSION_UNAVAILABLE", "GUEST_UNAVAILABLE", "ALREADY_DECIDED", "UNKNOWN_ACTION_ERROR"]) {
+    const error = new SessionActionError(code);
+    assert.equal(error.code, code);
+    assert.equal(error.message, "");
+  }
 });
 
-test("every supported session action code has its own user-facing message", () => {
-  const unknownMessage = new SessionActionError("UNKNOWN_ACTION_ERROR").message;
-
+test("every supported session action error remains code-only", () => {
   assert.ok(SESSION_ACTION_CODES.length > 0, "the action-code parity scan must not be vacuous");
   // Known pre-Stage-2 notification-only DB codes intentionally remain outside this frontend action whitelist:
   // INVALID_NOTIFICATION_DISTRICT, INVALID_NOTIFICATION_PREFS, INVALID_PUSH_SUBSCRIPTION, NOT_AUTHENTICATED, PUSH_ENDPOINT_OWNERSHIP.
   for (const code of SESSION_ACTION_CODES) {
-    const message = new SessionActionError(code).message;
-    assert.notEqual(message, "", `${code} must have a non-empty action message`);
-    assert.notEqual(message, unknownMessage, `${code} must not fall back to UNKNOWN_ACTION_ERROR`);
+    const error = new SessionActionError(code);
+    assert.equal(error.code, code);
+    assert.equal(error.message, "", `${code} must not carry presentation text in the data layer`);
   }
 });
 
@@ -2036,28 +2028,23 @@ test("RPC failures are exposed as documented action codes", async () => {
     (error) => {
       assert.ok(error instanceof SessionActionError);
       assert.equal(error.code, "SESSION_LIMIT");
-      assert.equal(error.message, "你同時開放中的球局已達上限，請先處理現有球局。");
+      assert.equal(error.message, "");
       return true;
     }
   );
 });
 
-test("player invitation RPC failures retain their documented error codes and messages", async () => {
-  const cases = [
-    ["INVITEE_NOT_AVAILABLE", "這位球友目前未開放邀請。"],
-    ["ALREADY_INVITED", "你已邀請過這位球友。"],
-    ["NOT_INVITED", "找不到你的邀請，球局狀態可能已更新。"],
-    ["INVITE_LIMIT", "24 小時內邀請次數已達上限。"],
-  ];
+test("player invitation RPC failures retain their documented error codes", async () => {
+  const cases = ["INVITEE_NOT_AVAILABLE", "ALREADY_INVITED", "NOT_INVITED", "INVITE_LIMIT"];
 
-  for (const [code, message] of cases) {
+  for (const code of cases) {
     const api = createDataApi({
       configured: true,
       client: { rpc: async () => ({ data: null, error: { code: "P0001", message: code } }) },
     });
     await assert.rejects(
       () => api.inviteToSession(44, 91),
-      (error) => error instanceof SessionActionError && error.code === code && error.message === message
+      (error) => error instanceof SessionActionError && error.code === code && error.message === ""
     );
   }
 });

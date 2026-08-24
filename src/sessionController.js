@@ -45,6 +45,7 @@ import {
   selectInvitableSessions,
 } from "./features/player-directory/playerDirectoryFeature.ts";
 import { DataApiUnavailableError } from "./dataApi.js";
+import { sessionActionMessage } from "./sessionActionMessages.ts";
 import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
@@ -1067,7 +1068,7 @@ export function createSessionController({
         isCurrentAuthSnapshot(context.authSnapshot) &&
         error?.code === "SESSION_ARCHIVED"
       ) {
-        context.sheet?.setArchived?.(error.message);
+        context.sheet?.setArchived?.(sessionActionMessage(error, ""));
         await refreshMySessions();
       }
       throw error;
@@ -1436,7 +1437,7 @@ export function createSessionController({
     } catch (error) {
       if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
       await refreshAuthoritativeState(confirmingAuth);
-      const message = error?.message || "申請失敗，請稍後再試。";
+      const message = sessionActionMessage(error, "申請失敗，請稍後再試。");
       // A stale discovery response can legitimately close the underlying
       // detail before its inline error is rendered. Announce that result
       // instead of silently discarding it.
@@ -1476,7 +1477,7 @@ export function createSessionController({
     } catch (error) {
       if (!isCurrentAuthSnapshot(authSnapshot)) return;
       await refreshAuthoritativeState(authSnapshot);
-      toast(error?.message || "撤回失敗，請稍後再試。");
+      toast(sessionActionMessage(error, "撤回失敗，請稍後再試。"));
     } finally {
       finishLifecycleAction(mutation);
     }

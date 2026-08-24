@@ -10,6 +10,7 @@ import {
   taipeiParts,
 } from "./taipeiTime.js";
 import { esc } from "./util.js";
+import { sessionActionMessage } from "./sessionActionMessages.ts";
 import {
   runAsyncAction,
   runNotificationSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
@@ -876,12 +877,12 @@ export function openSessionChatSheet(
       void Promise.resolve()
         .then(() => onReport(reportButton.dataset.chatReport))
         .catch((reportError) => {
-          error.textContent = reportError?.message || "目前無法開啟檢舉。";
+          error.textContent = sessionActionMessage(reportError, "目前無法開啟檢舉。");
           error.hidden = false;
         });
     if (blockButton)
       void Promise.resolve(onBlock(blockButton.dataset.chatBlock)).catch((blockError) => {
-        error.textContent = blockError?.message || "封鎖設定暫時無法更新，請稍後再試。";
+        error.textContent = sessionActionMessage(blockError, "封鎖設定暫時無法更新，請稍後再試。");
         error.hidden = false;
       });
   };
@@ -1645,7 +1646,7 @@ export function openDecideSessionSheet(
       error,
       onError: (decisionError) => {
         if (terminalState) return;
-        error.textContent = decisionError?.message || "定案失敗，請稍後再試。";
+        error.textContent = sessionActionMessage(decisionError, "定案失敗，請稍後再試。");
         error.hidden = false;
       },
       canRestoreControls: () => !terminalState,
