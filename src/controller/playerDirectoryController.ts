@@ -89,6 +89,7 @@ export interface PlayerDirectoryController {
   clearPlayerDirectory(options?: { closeReason?: string }): void;
   clearPlayerLayer(options?: { closeReason?: string; turnOff?: boolean }): void;
   getPlayerGroups(): ControllerPlayerGroup[];
+  loadPlayerDirectoryList(): Promise<boolean>;
   loadPlayers(bounds?: MapBounds): Promise<boolean>;
   openCourt(court: DataCourt, onlySessions?: SessionSummary[] | null): void;
   openPlayerCourt(
@@ -324,6 +325,7 @@ export function createPlayerDirectoryController({
     clearPlayerDirectory,
     clearPlayerLayer,
     getPlayerGroups: playerGroups,
+    loadPlayerDirectoryList,
     loadPlayers,
     openCourt,
     openPlayerCourt,

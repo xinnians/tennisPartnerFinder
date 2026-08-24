@@ -38,6 +38,7 @@ import { createDiscoveryMapController } from "./controller/discoveryMapControlle
 import { createPlayerDirectoryController } from "./controller/playerDirectoryController.ts";
 import { createMySessionsController } from "./controller/mySessionsController.ts";
 import { createLifecycleActionsController } from "./controller/lifecycleActionsController.ts";
+import { createIntentController } from "./controller/intentController.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -206,16 +207,6 @@ export function createSessionController({
     surfaceRegistry.transition(SURFACE_TRANSITIONS[name], options);
   }
 
-  // 批 C3-2:join 單層化——確認/送出中/成功都內嵌同一張 detail sheet,不再是獨立
-  // confirmation surface。join 成功後 refreshAuthoritativeState 會讓 discovery/
-  // participation 都反映剛加入的結果,若不暫停 reconcile,detail 會被自己剛做的
-  // join 判成「資料已變」而被 registry 關掉,蓋掉正要顯示的成功卡。
-  // 用 sessionId 範圍限制暫停,只在「這個 refresh 是為了顯示這個 session 剛完成的
-  // join」這個精確窗口內生效,不影響其他 session 的 reconcile。
-  let suppressReconcileSessionId = null;
-  let intentVersion = 0;
-  const resumeInFlight = new Map();
-
   const mySessionsController = createMySessionsController({
     api,
     blockedPlayerGate,
@@ -251,7 +242,7 @@ export function createSessionController({
     isCurrentAuthSnapshot,
     openCourtDrawer,
     openCourtPlayersDrawer,
-    openCreateIntent,
+    openCreateIntent: () => intentController.openCreateIntent(),
     openPlayerCard,
     openPlayerDirectoryList,
     openSessionById,
@@ -260,7 +251,7 @@ export function createSessionController({
     playerGate,
     publish: () => discoveryMapController.publish(),
     reloadParticipation,
-    requireSessionAction,
+    requireSessionAction: (intent) => intentController.requireSessionAction(intent),
     store,
     surfaceRegistry,
     transitionSurfaces,
@@ -270,6 +261,7 @@ export function createSessionController({
     clearPlayerDirectory,
     clearPlayerLayer,
     getPlayerGroups: playerGroups,
+    loadPlayerDirectoryList,
     loadPlayers,
     openCourt,
     openPlayerCourt,
@@ -306,6 +298,50 @@ export function createSessionController({
     setMapUnavailable,
     startDiscoveryPolling,
   } = discoveryMapController;
+
+  const intentController = createIntentController({
+    actionFor,
+    api,
+    beginLifecycleAction,
+    captureAuthSnapshot,
+    clearPlayerLayer,
+    commitPlayerVisibility,
+    currentParticipation,
+    finishLifecycleAction,
+    intentStore,
+    isCurrentAuthSnapshot,
+    lifecycleActionIsInFlight,
+    loadDiscovery: () => discoveryMapController.loadDiscovery(),
+    loadPlayerDirectoryList,
+    loadPlayers: () => playerDirectoryController.loadPlayers(),
+    locationGate,
+    openCreateSession,
+    openLogin,
+    openSessionChat: (sessionId) => openSessionChat(sessionId),
+    openSessionDetail,
+    profilePrompt: promptProfile,
+    publish,
+    refreshLocationViewport,
+    reloadParticipation,
+    showCreatedSession,
+    store,
+    surfaceRegistry,
+    toast,
+  });
+  const {
+    capturePendingIntentVersion,
+    clearIntent,
+    clearPendingIntentIfUnchanged,
+    isReconcileSuppressed: reconcileSuppressed,
+    openCreateIntent,
+    refreshAuthoritativeState,
+    requestCurrentLocation,
+    requestJoin,
+    requireSessionAction,
+    resumePendingIntent,
+    startPrimaryAction,
+    togglePlayerLayer,
+  } = intentController;
 
   const lifecycleActionsController = createLifecycleActionsController({
     api,
@@ -478,12 +514,6 @@ export function createSessionController({
     withdrawMySession,
   });
 
-  function reconcileSuppressed(session) {
-    return (
-      suppressReconcileSessionId != null && session && String(session.sessionId) === String(suppressReconcileSessionId)
-    );
-  }
-
   function reconcileActiveDetail(bounds = read().bounds) {
     const activeDetail = surfaceRegistry.get("detail");
     const activeDetailSession = surfaceRegistry.meta("detail", "session");
@@ -520,206 +550,6 @@ export function createSessionController({
     }
     activeChat.session = session;
     if (MY_SESSION_FINAL_STATUSES.has(String(session.status).toLowerCase())) activeChat.sheet?.setArchived?.();
-  }
-
-  function readIntent() {
-    try {
-      return intentStore?.read?.() ?? null;
-    } catch {
-      return null;
-    }
-  }
-
-  function saveIntent(intent) {
-    try {
-      const savedIntent = intentStore?.save?.(intent) ?? intent;
-      intentVersion += 1;
-      return savedIntent;
-    } catch {
-      // An unavailable sessionStorage must not block the visible next step.
-      intentVersion += 1;
-      return intent;
-    }
-  }
-
-  function clearIntent(expectedIntent = null) {
-    const currentIntent = readIntent();
-    if (expectedIntent && !samePendingIntent(currentIntent, expectedIntent)) return false;
-    try {
-      intentStore?.clear?.();
-      intentVersion += 1;
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  function closeForStaleIntent(message) {
-    const options = { reason: "stale-intent", restoreFocus: false };
-    surfaceRegistry.close("detail", options);
-    // auto-expand 映射 v2 的 open(非 modal)。
-    store.setState({ drawerState: "open" });
-    publish();
-    toast(message);
-  }
-
-  // 批 C3-2:join 單層化——「進入確認態」不再開第二層 dialog,而是讓 detail sheet
-  // 就地切態。手動點擊路徑已經有開著的 detail,直接呼叫
-  // 它的 enterConfirming;resume 路徑(見 resumePendingIntent)還沒有任何 sheet,
-  // 走 else 分支以 initialStage:"confirming" 開一張新的。兩條路徑共用同一組
-  // lifecycle in-flight 防呆與 confirmingAuth 快照時機。
-  function enterJoinConfirming(session, detail = null) {
-    if (lifecycleActionIsInFlight(session.sessionId)) {
-      toast("這個球局的操作正在處理中。");
-      return;
-    }
-    const expectedAccepted = Boolean(actionFor(session).expectedAccepted);
-    surfaceRegistry.update("detail", { confirmingAuth: captureAuthSnapshot() });
-    if (detail && surfaceRegistry.is("detail", detail)) {
-      detail.enterConfirming?.({ expectedAccepted });
-      return;
-    }
-    openSessionDetail(session, { initialStage: "confirming" });
-  }
-
-  function openProfileForIntent(intent, { returnSession = null } = {}) {
-    if (surfaceRegistry.get("profilePrompt")) return surfaceRegistry.get("profilePrompt");
-    let sheet = null;
-    sheet = promptProfile({
-      courts: read().courts,
-      courtsReady: read().courtsReady,
-      intent,
-      onClose: ({ reason = "dismiss", saved = false } = {}) => {
-        surfaceRegistry.release("profilePrompt", sheet);
-        if (!saved && reason === "dismiss") clearIntent(intent);
-      },
-      returnSession,
-    });
-    return surfaceRegistry.set("profilePrompt", sheet?.close ? sheet : null, {
-      intent: sheet?.close ? intent : null,
-    });
-  }
-
-  function requireReadyProfile(level = null, { silentLoading = false } = {}) {
-    const readiness = profileReadiness(read().profileEligibility, level);
-    if (readiness.state === "ready") return true;
-    if (!(silentLoading && readiness.state === "loading")) toast(profileUnavailableMessage(readiness));
-    return false;
-  }
-
-  function requireSessionAction(intent, { detail = null, session = null } = {}) {
-    const savedIntent = saveIntent(intent);
-    if (!read().authSession) {
-      openLogin({
-        action: intent?.action ?? "",
-        onClose: ({ reason = "dismiss" } = {}) => {
-          if (reason === "dismiss") clearIntent(savedIntent);
-        },
-      });
-      return;
-    }
-    const requiredGate = profileGateForIntent(savedIntent);
-    if (!requireReadyProfile(requiredGate)) return;
-    if (requiredGate && !profileMeetsGate(read().profileEligibility, requiredGate)) {
-      openProfileForIntent(savedIntent, { returnSession: savedIntent.action === "join" ? session : null });
-      return;
-    }
-    if (savedIntent.action === "players") {
-      clearIntent(savedIntent);
-      store.setState({ playerLayerOn: true });
-      return loadPlayers(read().bounds);
-    }
-    if (savedIntent.action === "directory") {
-      clearIntent(savedIntent);
-      return loadPlayerDirectoryList();
-    }
-    if (savedIntent.action === "create") {
-      openCreateSessionForIntent(savedIntent);
-      return;
-    }
-    if (session) enterJoinConfirming(session, detail);
-  }
-
-  function startPrimaryAction(session, detail) {
-    const action = actionFor(session);
-    if (action.disabled) return;
-    const participation = currentParticipation(session.sessionId);
-    if (participation?.viewerParticipantStatus === "accepted") {
-      return openSessionChat(session.sessionId);
-    }
-    requireSessionAction({ action: "join", sessionId: session.sessionId }, { detail, session });
-  }
-
-  async function refreshAuthoritativeState(authSnapshot) {
-    const [participationReady, discoveryReady] = await Promise.all([
-      reloadParticipation(authSnapshot?.epoch, authSnapshot?.identity),
-      loadDiscovery(read().bounds),
-    ]);
-    if (authSnapshot && !isCurrentAuthSnapshot(authSnapshot)) return false;
-    publish();
-    return Boolean(participationReady && discoveryReady);
-  }
-
-  async function requestJoin(session, detail, confirmingAuth) {
-    if (!isCurrentAuthSnapshot(confirmingAuth)) {
-      surfaceRegistry.close("detail", undefined, detail);
-      toast("登入狀態已變更，請重新開啟球局。");
-      return { joinError: "登入狀態已變更，請重新開啟球局。" };
-    }
-    if (!profileMeetsGate(read().profileEligibility, "nickname")) {
-      surfaceRegistry.close("detail", undefined, detail);
-      requireSessionAction({ action: "join", sessionId: session.sessionId }, { session });
-      return { joinError: "請先填寫公開暱稱。" };
-    }
-    const mutation = beginLifecycleAction("join", session.sessionId, confirmingAuth);
-    if (!mutation) {
-      toast("這個球局的操作正在處理中。");
-      return { joinError: "這個球局的操作正在處理中。" };
-    }
-    try {
-      const result = await api.requestToJoinSession(session.sessionId);
-      if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
-      clearIntent({ action: "join", sessionId: session.sessionId });
-      if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-        surfaceRegistry.close("detail", undefined, detail);
-        await refreshAuthoritativeState(confirmingAuth);
-        toast("球局狀態已更新，請重新載入。");
-        return { joinError: "球局狀態已更新，請重新載入。" };
-      }
-      // The detail sheet is itself the success surface now (single-layer
-      // join). Do not close it — instead suppress the reconcile functions
-      // for exactly this session while the refresh below legitimately
-      // changes this session's own slotsRemaining/participation, so they
-      // cannot mistake "my own join just landed" for "stale, close me".
-      suppressReconcileSessionId = session.sessionId;
-      try {
-        if (!(await refreshAuthoritativeState(confirmingAuth))) {
-          return { joinError: "球局狀態暫時無法重新載入，請重新整理後再試。" };
-        }
-      } finally {
-        if (suppressReconcileSessionId === session.sessionId) suppressReconcileSessionId = null;
-      }
-      if (surfaceRegistry.is("detail", detail)) {
-        const freshSession =
-          read().sessions.find((entry) => String(entry.sessionId) === String(session.sessionId)) ?? session;
-        surfaceRegistry.update("detail", {
-          actionKey: actionKey(actionFor(freshSession)),
-          session: freshSession,
-        });
-      }
-      return { ...result, joinSubmitted: true };
-    } catch (error) {
-      if (!isCurrentAuthSnapshot(confirmingAuth)) return { joinError: "登入狀態已變更，請重新開啟球局。" };
-      await refreshAuthoritativeState(confirmingAuth);
-      const message = sessionActionMessage(error, "申請失敗，請稍後再試。");
-      // A stale discovery response can legitimately close the underlying
-      // detail before its inline error is rendered. Announce that result
-      // instead of silently discarding it.
-      if (!surfaceRegistry.is("detail", detail)) toast(message);
-      return { joinError: message };
-    } finally {
-      finishLifecycleAction(mutation);
-    }
   }
 
   async function commitPlayerVisibility() {
@@ -835,217 +665,6 @@ export function createSessionController({
   // 收到 throw 會走 inline error 分支,不會渲染成功頁,滿足「auth 變更時不得渲染
   // 成功頁」的不變量;此為既有「refresh 後 auth 不符就靜默 return」行為的刻意
   // 收斂,回報標注。
-  async function submitCreateSession(input, openedAuthSnapshot = captureAuthSnapshot()) {
-    const authSnapshot = openedAuthSnapshot;
-    if (!isCurrentAuthSnapshot(authSnapshot) || !profileMeetsGate(read().profileEligibility, "ntrp")) {
-      throw new Error("登入或個人檔案狀態已變更，請重新開啟表單。");
-    }
-    try {
-      const result = await api.createSession(input);
-      if (!isCurrentAuthSnapshot(authSnapshot)) {
-        throw new Error("登入狀態已變更，請重新開啟表單。");
-      }
-      clearIntent({ action: "create" });
-      await Promise.all([loadDiscovery(read().bounds), reloadParticipation(authSnapshot.epoch, authSnapshot.identity)]);
-      if (!isCurrentAuthSnapshot(authSnapshot)) {
-        throw new Error("登入狀態已變更，請重新整理後再試。");
-      }
-      toast("球局已發布！");
-      return result;
-    } catch (error) {
-      if (error instanceof DataApiUnavailableError) {
-        // eslint-disable-next-line preserve-caught-error -- 保留既有使用者文案與未附 cause 的錯誤語意。
-        throw new Error("本機示範資料僅供瀏覽；登入、儲存個人檔案與建立球局需在已設定服務的環境使用。");
-      }
-      throw error;
-    }
-  }
-
-  function openCreateSessionForIntent(intent = { action: "create" }) {
-    if (surfaceRegistry.get("createSession")) return surfaceRegistry.get("createSession");
-    const openedAuthSnapshot = captureAuthSnapshot();
-    let sheet = null;
-    sheet = openCreateSession({
-      courts: read().courts,
-      courtsReady: read().courtsReady,
-      onClose: ({ reason = "dismiss" } = {}) => {
-        surfaceRegistry.release("createSession", sheet);
-        if (reason === "dismiss") clearIntent(intent);
-      },
-      onSubmit: (input) => submitCreateSession(input, openedAuthSnapshot),
-      onViewMySessions: (sessionId) => showCreatedSession(sessionId),
-    });
-    return surfaceRegistry.set("createSession", sheet?.close ? sheet : null);
-  }
-
-  function resumePendingIntent() {
-    const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot)) return Promise.resolve(false);
-    const intent = readIntent();
-    if (!intent) return Promise.resolve(false);
-    const resumeKey = JSON.stringify([
-      authSnapshot.epoch,
-      authSnapshot.identity,
-      intent.action,
-      intent.action === "join" ? intent.sessionId : null,
-    ]);
-    if (resumeInFlight.has(resumeKey)) return resumeInFlight.get(resumeKey);
-    const operation = (async () => {
-      if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
-
-      // create/join 靜默等待 profile gate 自動續行；players/directory/visibility 保留目前等待提示。
-
-      if (intent.action === "create") {
-        if (!requireReadyProfile("ntrp", { silentLoading: true })) return false;
-        if (!profileMeetsGate(read().profileEligibility, "ntrp")) {
-          openProfileForIntent(intent);
-          return true;
-        }
-        openCreateSessionForIntent(intent);
-        return true;
-      }
-
-      if (intent.action === "players") {
-        if (!requireReadyProfile("ntrp")) return false;
-        if (!profileMeetsGate(read().profileEligibility, "ntrp")) {
-          openProfileForIntent(intent);
-          return true;
-        }
-        clearIntent(intent);
-        store.setState({ playerLayerOn: true });
-        return loadPlayers(read().bounds);
-      }
-
-      if (intent.action === "directory") {
-        if (!requireReadyProfile("directory")) return false;
-        if (!profileMeetsGate(read().profileEligibility, "directory")) {
-          openProfileForIntent(intent);
-          return true;
-        }
-        clearIntent(intent);
-        return loadPlayerDirectoryList();
-      }
-
-      if (intent.action === "visibility") {
-        if (!requireReadyProfile("directory")) return false;
-        if (!profileMeetsGate(read().profileEligibility, "directory")) {
-          openProfileForIntent(intent);
-          return true;
-        }
-        clearIntent(intent);
-        await commitPlayerVisibility();
-        return true;
-      }
-
-      if (intent.action !== "join" || typeof api?.loadSessionSummary !== "function") return false;
-      // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-      let target = null;
-      try {
-        target = await api.loadSessionSummary(intent.sessionId);
-      } catch {
-        if (isCurrentAuthSnapshot(authSnapshot) && samePendingIntent(readIntent(), intent)) {
-          toast("暫時無法確認這個球局，請稍後再試。");
-        }
-        return false;
-      }
-      if (!isCurrentAuthSnapshot(authSnapshot) || !samePendingIntent(readIntent(), intent)) return false;
-
-      const staleMessage = staleIntentMessage(target);
-      if (staleMessage) {
-        clearIntent(intent);
-        closeForStaleIntent(staleMessage);
-        return false;
-      }
-      if (!requireReadyProfile("nickname", { silentLoading: true })) return false;
-      if (!profileMeetsGate(read().profileEligibility, "nickname")) {
-        openProfileForIntent(intent, { returnSession: target });
-        return true;
-      }
-      // 批 C3-2:resume 過去是直接開獨立 confirmation dialog(見 ground truth 意外
-      // 2),與手動點擊路徑(先開 detail sheet 再進 confirming)不對稱。單層化後
-      // resume 也走 enterJoinConfirming,以 initialStage:"confirming" 直接開一張
-      // 已經是確認態的 detail sheet,gate 完成後一步到確認,不再閃過一層獨立
-      // dialog。main.js 的 hash 深連結開啟跟這裡都不互相 await,可能已經先開好
-      // 同一個 session 的 idle detail(見 openSessionFromLink 的對稱防呆)——這裡
-      // 若發現 activeDetail 剛好就是同一個 session,直接升級那張既有的,不要另開
-      // 一張新的蓋掉它。
-      const activeDetail = surfaceRegistry.get("detail");
-      const activeDetailSession = surfaceRegistry.meta("detail", "session");
-      const existingDetail =
-        activeDetail && activeDetailSession && String(activeDetailSession.sessionId) === String(target.sessionId)
-          ? activeDetail
-          : null;
-      enterJoinConfirming(target, existingDetail);
-      return true;
-    })();
-    resumeInFlight.set(resumeKey, operation);
-    return operation.finally(() => {
-      if (resumeInFlight.get(resumeKey) === operation) resumeInFlight.delete(resumeKey);
-    });
-  }
-
-  function requestCurrentLocation() {
-    if (read().locationBlocked) {
-      store.setState({ locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
-      publish();
-      return;
-    }
-    const request = locationGate.issue();
-    const geolocation = globalThis.navigator?.geolocation;
-    if (!geolocation?.getCurrentPosition) {
-      store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
-      publish();
-      return;
-    }
-    try {
-      geolocation.getCurrentPosition(
-        ({ coords }) => {
-          if (request.isStale()) return;
-          const lat = Number(coords?.latitude);
-          const lng = Number(coords?.longitude);
-          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
-            publish();
-            return;
-          }
-          store.setState({ userLocation: { lat, lng }, locationBlocked: false, locationMessage: "" });
-          refreshLocationViewport({ lat, lng });
-        },
-        () => {
-          if (request.isStale()) return;
-          store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
-          publish();
-        },
-        { enableHighAccuracy: false, maximumAge: 0, timeout: 10_000 }
-      );
-    } catch {
-      if (request.isStale()) return;
-      store.setState({ locationBlocked: true, locationMessage: LOCATION_UNAVAILABLE_MESSAGE });
-      publish();
-    }
-  }
-
-  function openCreateIntent() {
-    requireSessionAction({ action: "create" });
-  }
-
-  function togglePlayerLayer() {
-    if (!read().playerLayerOn) {
-      if (
-        !read().authSession ||
-        !profileIsReady(read().profileEligibility, "ntrp") ||
-        !profileMeetsGate(read().profileEligibility, "ntrp")
-      ) {
-        return requireSessionAction({ action: "players" });
-      }
-      store.setState({ playerLayerOn: true });
-      return loadPlayers(read().bounds);
-    }
-    clearPlayerLayer({ closeReason: "player-layer-off" });
-    publish();
-    return Promise.resolve(true);
-  }
-
   async function setAuthState(session, profile = null) {
     const identity = sessionIdentity(session);
     const previousIdentity = sessionIdentity(read().authSession);
@@ -1123,9 +742,9 @@ export function createSessionController({
   return {
     attachMap,
     cancelMySession,
-    capturePendingIntentVersion: () => intentVersion,
+    capturePendingIntentVersion,
     clearPendingIntent: () => clearIntent(),
-    clearPendingIntentIfUnchanged: (version) => (version === intentVersion ? clearIntent() : false),
+    clearPendingIntentIfUnchanged,
     confirmMySessionAttendance,
     expandBounds,
     getAppState: () => ({
