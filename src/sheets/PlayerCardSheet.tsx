@@ -3,6 +3,7 @@ import { createRef, forwardRef, useCallback, useImperativeHandle, useRef, useSta
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
+import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { playerCardSheetRuntime } from "../sessionPresentation.ts";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
@@ -174,7 +175,7 @@ function PlayerCardSheet({
         await onInvite(selected.value);
         if (!superseded()) setSuccessText("邀請已送出");
       } catch (inviteError) {
-        if (!superseded()) setErrorText((inviteError as Error | null)?.message || "邀請失敗，請稍後再試。");
+        if (!superseded()) setErrorText(sessionActionMessage(inviteError, "邀請失敗，請稍後再試。"));
       } finally {
         if (watched.length && !superseded()) setPending(false);
       }
