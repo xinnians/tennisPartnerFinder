@@ -56,6 +56,20 @@ import {
 
 type PublicSchema = Database["public"];
 type RpcName = keyof PublicSchema["Functions"];
+// The generated function Args omit SQL nullability, while frozen browser
+// contracts intentionally send null (notably p_line_id and candidate venues).
+// Keep generated names and non-null value types, adding only the missing null.
+type RpcFunctions = {
+  [Name in RpcName]: Omit<PublicSchema["Functions"][Name], "Args"> & {
+    Args: {
+      [Key in keyof PublicSchema["Functions"][Name]["Args"]]: PublicSchema["Functions"][Name]["Args"][Key] | null;
+    };
+  };
+};
+type RepositoryDatabase = Omit<Database, "public"> & {
+  public: Omit<PublicSchema, "Functions"> & { Functions: RpcFunctions };
+};
+type RpcArgs<Name extends RpcName> = RpcFunctions[Name]["Args"];
 type CourtRow = Partial<PublicSchema["Tables"]["courts"]["Row"]>;
 type MockRow = Record<string, unknown>;
 
@@ -71,7 +85,7 @@ type TestHookGlobal = typeof globalThis & {
 };
 
 interface RepositoryOptions {
-  client?: SupabaseClient<Database> | null;
+  client?: SupabaseClient<RepositoryDatabase> | null;
   configured?: boolean;
   mockCourts?: CourtRow[];
   mockPlayerPresence?: MockRow[];
@@ -137,16 +151,16 @@ async function runMockDataTestHook(name: string): Promise<void> {
   }
 }
 
-function selectedCourtIds(profile: Partial<Profile> | null | undefined, courts: DataCourt[]): Array<string | number> {
+function selectedCourtIds(profile: Partial<Profile> | null | undefined, courts: DataCourt[]): number[] {
   const selected = profileValues(profile?.courts);
   const ids = selected.map((selection) => {
     const byId = courts.find((court) => String(court.id) === String(selection));
     const byName = courts.find((court) => court.name === selection);
-    return (byId ?? byName)?.id ?? null;
+    return asNumber((byId ?? byName)?.id);
   });
 
   if (ids.some((id) => id == null)) throw new SessionActionError("PROFILE_INCOMPLETE");
-  return [...new Set(ids)] as Array<string | number>;
+  return [...new Set(ids.filter((id): id is number => id != null))];
 }
 
 export function createDataApi({
@@ -166,16 +180,14 @@ export function createDataApi({
     return client;
   }
 
-  async function callRpc(name: RpcName, params: Record<string, unknown>): Promise<unknown> {
+  async function callRpc<Name extends RpcName>(name: Name, params: RpcArgs<Name>): Promise<unknown> {
     const activeClient = requireClient();
-    // The shared wrapper intentionally accepts heterogeneous RPC argument
-    // records; individual repository methods own their runtime normalization.
-    const { data, error } = await activeClient.rpc(name, params as never);
+    const { data, error } = await activeClient.rpc(name, params);
     if (error) throw asSessionActionError(error);
     return data;
   }
 
-  async function callLifecycleRpc(name: RpcName, params: Record<string, unknown>) {
+  async function callLifecycleRpc<Name extends RpcName>(name: Name, params: RpcArgs<Name>) {
     const outcome = (await callRpc(name, params)) as string;
     if (outcome !== "OK" && outcome !== "SESSION_EXPIRED") {
       throw new SessionActionError("UNKNOWN_ACTION_ERROR");
@@ -304,29 +316,32 @@ export function createDataApi({
     return rowsOrEmpty(data).map(mapSessionRosterRow);
   }
 
-  async function loadSessionJoinPreview(sessionId: number) {
-    const normalizedSessionId = asNumber(sessionId) ?? sessionId;
+  async function loadSessionJoinPreview(sessionId: unknown) {
+    const normalizedSessionId = asNumber(sessionId);
     if (!configured) {
       return mockSessionJoinPreviews
         .filter((participant) => asNumber(participant.sessionId) === normalizedSessionId)
         .map(mapMockSessionJoinPreviewRow);
     }
     const activeClient = requireClient();
-    const { data, error } = await activeClient
-      .from("session_join_preview")
-      .select(SESSION_JOIN_PREVIEW_SELECT)
-      .eq("session_id", normalizedSessionId);
+    const previewQuery = activeClient.from("session_join_preview").select(SESSION_JOIN_PREVIEW_SELECT);
+    const { data, error } = await (normalizedSessionId == null
+      ? previewQuery.is("session_id", null)
+      : previewQuery.eq("session_id", normalizedSessionId));
     if (error) throw asDataApiError(error);
     return rowsOrEmpty(data).map(mapSessionJoinPreviewRow);
   }
 
-  async function loadSessionMessages(sessionId: number) {
+  async function loadSessionMessages(sessionId: unknown) {
     if (!configured) return [];
     const activeClient = requireClient();
-    const { data, error } = await activeClient
-      .from("session_message_feed")
-      .select(SESSION_MESSAGE_FEED_SELECT)
-      .eq("session_id", asNumber(sessionId) ?? sessionId)
+    const normalizedSessionId = asNumber(sessionId);
+    const messagesQuery = activeClient.from("session_message_feed").select(SESSION_MESSAGE_FEED_SELECT);
+    const filteredMessagesQuery =
+      normalizedSessionId == null
+        ? messagesQuery.is("session_id", null)
+        : messagesQuery.eq("session_id", normalizedSessionId);
+    const { data, error } = await filteredMessagesQuery
       .order("created_at", { ascending: true })
       .order("message_id", { ascending: true });
     if (error) throw asDataApiError(error);
@@ -451,14 +466,14 @@ export function createDataApi({
   }: CreateSessionInput) {
     const sessionId = await callRpc("create_session", {
       p_court_id: asNumber(courtId),
-      p_play_type: playType,
-      p_start_at: startAt,
+      p_play_type: asText(playType),
+      p_start_at: asText(startAt),
       p_ntrp_min: ntrpMin == null ? null : asNumber(ntrpMin),
       p_ntrp_max: ntrpMax == null ? null : asNumber(ntrpMax),
       p_slots_total: asNumber(slotsTotal),
       p_notes: notes == null ? null : asText(notes),
-      p_join_mode: joinMode,
-      p_venue_type: venueType,
+      p_join_mode: asText(joinMode),
+      p_venue_type: asText(venueType),
       p_candidate_court_ids:
         candidateCourtIds == null
           ? null
@@ -472,7 +487,7 @@ export function createDataApi({
   }
 
   async function requestToJoinSession(sessionId: unknown) {
-    const outcome = (await callRpc("request_to_join_session", { p_session_id: sessionId })) as string;
+    const outcome = (await callRpc("request_to_join_session", { p_session_id: asNumber(sessionId) })) as string;
     if (!["OK", "ACCEPTED", "OK_NTRP_MISSING", "OK_NTRP_OUT_OF_RANGE", "SESSION_EXPIRED"].includes(outcome)) {
       throw new SessionActionError("UNKNOWN_ACTION_ERROR");
     }
@@ -492,12 +507,12 @@ export function createDataApi({
   }: UpdateSessionInput) {
     return callLifecycleRpc("update_session", {
       p_session_id: asNumber(sessionId),
-      p_start_at: startAt,
+      p_start_at: asText(startAt),
       p_court_id: asNumber(courtId),
       p_slots_missing: asNumber(slotsMissing),
       p_ntrp_min: ntrpMin == null ? null : asNumber(ntrpMin),
       p_ntrp_max: ntrpMax == null ? null : asNumber(ntrpMax),
-      p_play_type: playType,
+      p_play_type: asText(playType),
       p_fee_note: feeNote == null ? null : asText(feeNote),
       p_note: notes == null ? null : asText(notes),
     });
@@ -507,16 +522,22 @@ export function createDataApi({
     return callLifecycleRpc("decide_session_court", {
       p_session_id: asNumber(sessionId),
       p_court_id: asNumber(courtId),
-      p_start_at: startAt,
+      p_start_at: asText(startAt),
     });
   }
 
   async function inviteToSession(sessionId: unknown, profileId: unknown) {
-    return callLifecycleRpc("invite_to_session", { p_session_id: sessionId, p_profile_id: asNumber(profileId) });
+    return callLifecycleRpc("invite_to_session", {
+      p_session_id: asNumber(sessionId),
+      p_profile_id: asNumber(profileId),
+    });
   }
 
   async function respondToSessionInvite(sessionId: unknown, decision: unknown) {
-    return callLifecycleRpc("respond_to_session_invite", { p_session_id: sessionId, p_decision: decision });
+    return callLifecycleRpc("respond_to_session_invite", {
+      p_session_id: asNumber(sessionId),
+      p_decision: asText(decision),
+    });
   }
 
   async function setPlayerVisibility(visible: unknown) {
@@ -543,34 +564,34 @@ export function createDataApi({
 
   async function acceptSessionParticipant(sessionId: unknown, participantId: unknown) {
     return callLifecycleRpc("review_join_request", {
-      p_session_id: sessionId,
-      p_participant_id: participantId,
+      p_session_id: asNumber(sessionId),
+      p_participant_id: asNumber(participantId),
       p_decision: "accepted",
     });
   }
 
   async function declineSessionParticipant(sessionId: unknown, participantId: unknown) {
     return callLifecycleRpc("review_join_request", {
-      p_session_id: sessionId,
-      p_participant_id: participantId,
+      p_session_id: asNumber(sessionId),
+      p_participant_id: asNumber(participantId),
       p_decision: "declined",
     });
   }
 
   async function withdrawFromSession(sessionId: unknown) {
-    return callLifecycleRpc("withdraw_from_session", { p_session_id: sessionId });
+    return callLifecycleRpc("withdraw_from_session", { p_session_id: asNumber(sessionId) });
   }
 
   async function cancelSession(sessionId: unknown) {
-    return callLifecycleRpc("cancel_session", { p_session_id: sessionId });
+    return callLifecycleRpc("cancel_session", { p_session_id: asNumber(sessionId) });
   }
 
   async function markSessionPlayed(sessionId: unknown) {
-    return callLifecycleRpc("mark_session_played", { p_session_id: sessionId });
+    return callLifecycleRpc("mark_session_played", { p_session_id: asNumber(sessionId) });
   }
 
   async function confirmSessionAttendance(sessionId: unknown) {
-    return callLifecycleRpc("confirm_session_attendance", { p_session_id: sessionId });
+    return callLifecycleRpc("confirm_session_attendance", { p_session_id: asNumber(sessionId) });
   }
 
   async function postSessionMessage(sessionId: unknown, body: unknown) {
@@ -606,8 +627,8 @@ export function createDataApi({
   async function createReport({ sessionId = null, reportedProfileId = null, reason, messageId = null }: ReportInput) {
     const normalizedMessageId = messageId == null ? null : asNumber(messageId);
     const reportId = await callRpc("create_report", {
-      p_session_id: normalizedMessageId == null ? sessionId : null,
-      p_reported_profile_id: reportedProfileId,
+      p_session_id: normalizedMessageId == null ? asNumber(sessionId) : null,
+      p_reported_profile_id: asNumber(reportedProfileId),
       p_reason: asText(reason).trim(),
       p_message_id: normalizedMessageId,
     });

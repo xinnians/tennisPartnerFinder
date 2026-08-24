@@ -1400,6 +1400,42 @@ test("join preview loads only the six authenticated display fields and maps no i
   );
 });
 
+test("invalid session IDs keep the pre-2A null query semantics for preview and messages", async () => {
+  const calls = [];
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return {
+          select() {
+            return this;
+          },
+          is(column, value) {
+            calls.push(["is", table, column, value]);
+            return this;
+          },
+          order() {
+            return this;
+          },
+          then(resolve) {
+            return Promise.resolve({ data: [], error: null }).then(resolve);
+          },
+        };
+      },
+    },
+  });
+
+  assert.deepEqual(await api.loadSessionJoinPreview("not-a-session-id"), []);
+  assert.deepEqual(await api.loadSessionMessages("not-a-session-id"), []);
+  assert.deepEqual(calls, [
+    ["from", "session_join_preview"],
+    ["is", "session_join_preview", "session_id", null],
+    ["from", "session_message_feed"],
+    ["is", "session_message_feed", "session_id", null],
+  ]);
+});
+
 test("mock join preview uses only fictional display data and has a nonempty demonstration", async () => {
   const mockRows = [
     { sessionId: 9001, role: "guest", nickname: "示範球友", ntrp: null, avatarUrl: "", hostedPlayedCount: 0 },
