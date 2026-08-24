@@ -1,4 +1,4 @@
-/** Core domain shapes returned by the allowlisted mappers in dataApi.js. */
+/** Shared domain and surface shapes produced at the typed data-mapper boundary. */
 
 export type SportCode = "tennis";
 export type PlayType = "單打" | "雙打" | "對拉" | "練球";
