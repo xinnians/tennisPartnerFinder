@@ -50,6 +50,7 @@ import { createForegroundPoller, createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
 import { selectControllerMapView, selectControllerMySessionsView } from "./sessionSelectors.ts";
+import { createSurfaceRegistry } from "./controller/surfaceRegistry.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -64,84 +65,6 @@ export { groupMySessions };
 
 const EXPLICIT_VIEWPORT_IDLE_GRACE_MS = MAP_IDLE_DEBOUNCE_MS * 8;
 const MAX_EXPECTED_EXPLICIT_VIEWPORTS = 6;
-
-function createSurfaceRegistry(definitions) {
-  const entries = Object.fromEntries(
-    Object.entries(definitions).map(([name, definition]) => [
-      name,
-      Object.fromEntries([["handle", null], ...(definition.metadata ?? []).map((key) => [key, null])]),
-    ])
-  );
-
-  function definitionFor(name) {
-    const definition = definitions[name];
-    if (!definition) throw new Error(`Unknown surface: ${name}`);
-    return definition;
-  }
-
-  function entryFor(name) {
-    definitionFor(name);
-    return entries[name];
-  }
-
-  const registry = {
-    close(name, options, expected = registry.get(name)) {
-      const definition = definitionFor(name);
-      const handle = registry.release(name, expected);
-      if (!handle) return false;
-      const closeOptions = options === undefined && definition.emptyOptionsByDefault !== false ? {} : options;
-      (definition.close ?? ((surface, nextOptions) => surface?.close?.(nextOptions)))(handle, closeOptions);
-      return true;
-    },
-    get(name) {
-      return entryFor(name).handle;
-    },
-    is(name, expected) {
-      return Boolean(expected) && registry.get(name) === expected;
-    },
-    meta(name, key) {
-      return entryFor(name)[key];
-    },
-    release(name, expected = registry.get(name)) {
-      const definition = definitionFor(name);
-      const entry = entryFor(name);
-      if (!expected || entry.handle !== expected) return null;
-      const handle = entry.handle;
-      entry.handle = null;
-      for (const key of definition.metadata ?? []) entry[key] = null;
-      definition.onRelease?.(handle);
-      return handle;
-    },
-    set(name, handle, metadata = {}) {
-      const definition = definitionFor(name);
-      const entry = entryFor(name);
-      entry.handle = handle ?? null;
-      for (const key of definition.metadata ?? []) {
-        if (Object.hasOwn(metadata, key)) entry[key] = metadata[key] ?? null;
-      }
-      return entry.handle;
-    },
-    transition(operations, options) {
-      for (const item of operations ?? []) {
-        const operation = typeof item === "string" ? { name: item } : item;
-        if (operation.when && !operation.when(registry)) continue;
-        const action = operation.action ?? "close";
-        const expected = Object.hasOwn(operation, "expected") ? operation.expected : registry.get(operation.name);
-        if (action === "release") registry.release(operation.name, expected);
-        else
-          registry.close(operation.name, Object.hasOwn(operation, "options") ? operation.options : options, expected);
-      }
-    },
-    update(name, metadata) {
-      const definition = definitionFor(name);
-      const entry = entryFor(name);
-      for (const key of definition.metadata ?? []) {
-        if (Object.hasOwn(metadata, key)) entry[key] = metadata[key] ?? null;
-      }
-    },
-  };
-  return registry;
-}
 
 /**
  * State and lifecycle boundary for the public discovery experience. It only
