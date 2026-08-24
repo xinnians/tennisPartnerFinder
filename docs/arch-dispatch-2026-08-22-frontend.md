@@ -145,8 +145,9 @@ mock/build/bundle gate）全綠，輸出貼進回報。
   驗收條件與 canary 要求都在該檔）。
 - **摘要**：三處 `flushSync` 收斂成單一葉子模組＋`no-restricted-imports` 禁越界
   ＋呼叫點允許清單的 fail-closed 靜態守門。純重構，行為零變化。
-- **與 F3-2 的關係**：本項驗收通過後，由驗收方改寫 F3-2 的該條驗收條件
-  （見下方 F3-2 的待修註記）。
+- **狀態**：**ACCEPTED**（2026-08-24，含補件）。實作 `a3dac96`＋補件 `e7f7056`；
+  驗收紀錄 `docs/arch-reports/batch-F0-9-acceptance-2026-08-24.md`。
+- **與 F3-2 的關係**：F3-2 的 flushSync 驗收條件已依本項結果改寫（見下方 F3-2）。
 
 ---
 
@@ -289,19 +290,25 @@ mock/build/bundle gate）全綠，輸出貼進回報。
 ### F3-2 index.html 殼遷入 AppShell
 
 - **目標／動機**：結束 index.html／main.js／React 三方分持 UI；topbar chips、
-  level popover、底部導覽、toast 遷入 React；此時 flushSync 契約與
-  `import.meta.glob` 橋接可退役。**含 openLoginModal 遷 React**（最後一張全內容
-  innerHTML surface；2026-08-22 翻案核可，殼機制不動、只換內容）。
-- **驗收**：~~`grep -rn "flushSync" src/` 僅剩（或少於）現有兩處並附理由~~
-  **（2026-08-24 待修：這條是錯的代理指標，F0-9 驗收通過後由驗收方改寫；
-  在改寫前不得依此條驗收批 3）**；
-  第三套 popover Escape capture listener 刪除；a11y 契約（aria-current、live region、
-  Escape 分層）逐條對照測試。
-- **flushSync 條款的修正方向**（依批 1 驗收 §三.1 與 F0-9）：flushSync 服務的是
-  imperative adapter 相容邊界，而該邊界被 138 個 e2e 白箱直呼點釘死，**批 3 一處也
-  拿不掉**。批 3 實際能退役的相容層是 `import.meta.glob` 橋接
-  （`sessionViews.js:53`／`:63`／`:69`）。新條件將改為「F0-9 建立的同步 commit 呼叫點
-  允許清單在批 3 不得增加」。
+  level popover、底部導覽、toast 遷入 React；此時 `import.meta.glob` 橋接可退役。
+  **含 openLoginModal 遷 React**（最後一張全內容 innerHTML surface；2026-08-22
+  翻案核可，殼機制不動、只換內容）。
+- **驗收**：
+  1. **同步 commit 邊界不得擴張**（2026-08-24 改寫，取代原本的「flushSync 僅剩兩處」）：
+     `grep -rn "flushSync" src/` 仍只有 `src/syncCommit.ts` 一處；
+     `tests/react-surface-lifecycle.test.js` 的
+     `synchronous React commits stay behind one fail-closed helper and three approved callers`
+     維持恰三個核可 caller，**本批不得新增第四個**。要新增必須在批次報告單獨立節論證。
+  2. `import.meta.glob` 橋接（`sessionViews.js:53`／`:63`／`:69`）退役，附反向 grep。
+  3. 第三套 popover Escape capture listener 刪除。
+  4. a11y 契約（aria-current、live region、Escape 分層）逐條對照測試。
+- **為什麼不再用「flushSync 減少」當判準**（依批 1 驗收 §三.1 與 F0-9 驗收紀錄）：
+  flushSync 服務的是 imperative adapter 相容邊界，而該邊界被 **138 個 e2e 白箱直呼點**
+  釘死（總則凍結既有 e2e 斷言、`.claude/rules/react-migration.md:21` 凍結 adapter 同步
+  語意），**批 3 一處也拿不掉**。F0-9 已把它收斂成單一 `src/syncCommit.ts`＋
+  `no-restricted-imports`／`no-restricted-syntax` 守門＋caller 允許清單，
+  因此判準改為「不得擴張」而非「必須減少」。真正的退役前提是改寫那 138 個直呼點，
+  不在批 3 範圍。
 
 ### F3-3 啟動編排顯式化
 
