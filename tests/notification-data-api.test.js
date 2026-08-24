@@ -2,6 +2,34 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDataApi } from "../src/dataApi.js";
+import {
+  defaultNotificationPreferences,
+  notificationPreferencesForRead,
+  notificationPreferencesForWrite,
+} from "../src/notificationPreferences.ts";
+
+test("notification defaults keep read compatibility and explicit-write safety intentionally asymmetric", () => {
+  assert.deepEqual(defaultNotificationPreferences(), {
+    chatMessageEnabled: true,
+    guestInvitedEnabled: true,
+    guestRequestReviewedEnabled: true,
+    hostNewRequestEnabled: true,
+    sessionReminderEnabled: true,
+    sessionUpdatedEnabled: true,
+  });
+  assert.deepEqual(notificationPreferencesForRead({ chatMessageEnabled: false }), {
+    ...defaultNotificationPreferences(),
+    chatMessageEnabled: false,
+  });
+  assert.deepEqual(notificationPreferencesForWrite({ chatMessageEnabled: true }), {
+    chatMessageEnabled: true,
+    guestInvitedEnabled: false,
+    guestRequestReviewedEnabled: false,
+    hostNewRequestEnabled: false,
+    sessionReminderEnabled: false,
+    sessionUpdatedEnabled: false,
+  });
+});
 
 test("notification settings read all six owner-scoped preferences with explicit columns", async () => {
   const calls = [];

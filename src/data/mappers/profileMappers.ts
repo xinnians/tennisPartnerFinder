@@ -1,5 +1,6 @@
 import type { Database } from "../databaseTypes.ts";
 import type { CourtSummary, NotificationPreferences, PlayType, Profile, ProfileSlotCode } from "../../domainTypes.ts";
+import { notificationPreferencesForRead } from "../../notificationPreferences.ts";
 import { readPlayTypes, readProfileSlotCodes } from "./literalGuards.ts";
 import { asArray, asBoolean, asNumber, asText } from "./valueMappers.ts";
 
@@ -53,26 +54,15 @@ export interface DataCourt extends CourtSummary {
   lng: number | null;
 }
 
-export function defaultNotificationPreferences(): NotificationPreferences {
-  return {
-    chatMessageEnabled: true,
-    guestInvitedEnabled: true,
-    guestRequestReviewedEnabled: true,
-    hostNewRequestEnabled: true,
-    sessionReminderEnabled: true,
-    sessionUpdatedEnabled: true,
-  };
-}
-
 export function mapNotificationPreferences(row: NotificationPreferencesRow = {}): NotificationPreferences {
-  return {
-    chatMessageEnabled: row.chat_message_enabled !== false,
-    hostNewRequestEnabled: row.host_new_request_enabled !== false,
-    guestRequestReviewedEnabled: row.guest_request_reviewed_enabled !== false,
-    guestInvitedEnabled: row.guest_invited_enabled !== false,
-    sessionReminderEnabled: row.session_reminder_enabled !== false,
-    sessionUpdatedEnabled: row.session_updated_enabled !== false,
-  };
+  return notificationPreferencesForRead({
+    chatMessageEnabled: row.chat_message_enabled,
+    hostNewRequestEnabled: row.host_new_request_enabled,
+    guestRequestReviewedEnabled: row.guest_request_reviewed_enabled,
+    guestInvitedEnabled: row.guest_invited_enabled,
+    sessionReminderEnabled: row.session_reminder_enabled,
+    sessionUpdatedEnabled: row.session_updated_enabled,
+  });
 }
 
 /** Authenticated block-list mapper: only the blocked profile's safe display fields are exposed. */

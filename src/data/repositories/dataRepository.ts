@@ -9,6 +9,7 @@ import {
 } from "../../mockData.js";
 import { isSupabaseConfigured, supabase } from "../../supabaseClient.js";
 import type { NotificationPreferences, Profile, SessionSummary } from "../../domainTypes.ts";
+import { defaultNotificationPreferences } from "../../notificationPreferences.ts";
 import type { Database } from "../databaseTypes.ts";
 import {
   DataApiUnavailableError,
@@ -18,7 +19,6 @@ import {
   asSessionActionError,
 } from "../dataErrors.ts";
 import {
-  defaultNotificationPreferences,
   mapCourt,
   mapCurrentProfile,
   mapMockPlayerDirectoryRow,

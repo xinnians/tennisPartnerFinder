@@ -7,6 +7,7 @@ import type {
   SessionSummary,
 } from "./domainTypes.ts";
 import { canReceiveFocus } from "./meFocus.js";
+import { notificationPreferencesForRead } from "./notificationPreferences.ts";
 import { formatNtrp, validProfileNtrp } from "./profile.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { runMySessionAction, runNotificationSettingAction, runPresenceSettingAction } from "./sessionActions.ts";
@@ -317,7 +318,6 @@ export function mySessionReason(session: SessionInput): string {
 }
 
 export function normalizedNotificationSettings(settings: NotificationSettingsInput = {}) {
-  const preferences = settings?.prefs ?? {};
   return {
     courtIds: new Set(
       (Array.isArray(settings?.courtIds) ? settings.courtIds : [])
@@ -325,14 +325,7 @@ export function normalizedNotificationSettings(settings: NotificationSettingsInp
         .filter((courtId) => Number.isSafeInteger(courtId) && courtId > 0)
     ),
     errorMessage: typeof settings?.errorMessage === "string" ? settings.errorMessage : "",
-    prefs: {
-      chatMessageEnabled: preferences.chatMessageEnabled !== false,
-      guestInvitedEnabled: preferences.guestInvitedEnabled !== false,
-      guestRequestReviewedEnabled: preferences.guestRequestReviewedEnabled !== false,
-      hostNewRequestEnabled: preferences.hostNewRequestEnabled !== false,
-      sessionReminderEnabled: preferences.sessionReminderEnabled !== false,
-      sessionUpdatedEnabled: preferences.sessionUpdatedEnabled !== false,
-    },
+    prefs: notificationPreferencesForRead(settings?.prefs),
     pushStatus: typeof settings?.pushStatus === "string" ? settings.pushStatus : "idle",
     webPushConfigured: settings?.webPushConfigured === true,
   };

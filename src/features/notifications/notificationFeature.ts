@@ -11,6 +11,10 @@ import {
 // eslint-disable-next-line no-restricted-imports -- 既有通知球場純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { DataCourt } from "../../data/mappers/profileMappers.ts";
 import type { NotificationPreferences } from "../../domainTypes.ts";
+import {
+  defaultNotificationPreferences,
+  notificationPreferencesForWrite,
+} from "../../notificationPreferences.ts";
 import { enableBrowserPush } from "../../notificationPush.js";
 
 export type NotificationPushStatus = "denied" | "enabled" | "idle" | "unsupported";
@@ -58,14 +62,7 @@ export function defaultNotificationSettings(): NotificationSettings {
   return {
     courtIds: [],
     errorMessage: "",
-    prefs: {
-      chatMessageEnabled: true,
-      guestInvitedEnabled: true,
-      guestRequestReviewedEnabled: true,
-      hostNewRequestEnabled: true,
-      sessionReminderEnabled: true,
-      sessionUpdatedEnabled: true,
-    },
+    prefs: defaultNotificationPreferences(),
     pushStatus: "idle",
     webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
   };
@@ -101,14 +98,7 @@ export function createNotificationFeature(options: NotificationFeatureOptions): 
   ): Promise<void> {
     const request = options.captureAuthRequest();
     if (!request.identity || !options.getAuthSession()) throw new Error("請先登入後再調整通知設定。");
-    const nextPreferences: NotificationPreferences = {
-      chatMessageEnabled: preferences?.chatMessageEnabled === true,
-      guestInvitedEnabled: preferences?.guestInvitedEnabled === true,
-      guestRequestReviewedEnabled: preferences?.guestRequestReviewedEnabled === true,
-      hostNewRequestEnabled: preferences?.hostNewRequestEnabled === true,
-      sessionReminderEnabled: preferences?.sessionReminderEnabled === true,
-      sessionUpdatedEnabled: preferences?.sessionUpdatedEnabled === true,
-    };
+    const nextPreferences = notificationPreferencesForWrite(preferences);
     await saveNotificationPreferences(nextPreferences);
     if (request.isStale()) return;
     updateSettings({ errorMessage: "", prefs: nextPreferences });
