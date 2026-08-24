@@ -3,6 +3,17 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
+const flushSyncImportRestriction = {
+  name: "react-dom",
+  importNames: ["flushSync"],
+  message: "禁止直接匯入 flushSync；請改由 syncCommit.ts 的單一同步 commit 邊界呼叫。",
+};
+
+const reactDomNamespaceImportRestriction = {
+  selector: 'ImportDeclaration[source.value="react-dom"] ImportNamespaceSpecifier',
+  message: "禁止 namespace 匯入 react-dom；請使用核可的具名匯入，並由 syncCommit.ts 呼叫同步 commit。",
+};
+
 export default tseslint.config(
   {
     ignores: ["dist/**", "node_modules/**"],
@@ -80,13 +91,16 @@ export default tseslint.config(
       "react-hooks/rules-of-hooks": "error",
     },
   },
+  // Keep these ranges disjoint: flat-config rule arrays replace rather than merge.
+  // Non-data source retains both the data boundary and the synchronous-commit boundary.
   {
     files: ["src/**/*.{js,ts,tsx}"],
-    ignores: ["src/data/**", "src/dataApi.js"],
+    ignores: ["src/data/**", "src/dataApi.js", "src/syncCommit.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
+          paths: [flushSyncImportRestriction],
           patterns: [
             {
               group: ["**/supabaseClient", "**/supabaseClient.*"],
@@ -113,6 +127,7 @@ export default tseslint.config(
       ],
       "no-restricted-syntax": [
         "error",
+        reactDomNamespaceImportRestriction,
         {
           selector:
             "ImportExpression[source.value=/(?:^|\\/)supabaseClient(?:\\.|$)|(?:^|\\/)data\\/(?:mappers|repositories)(?:\\/|$)/]",
@@ -123,6 +138,14 @@ export default tseslint.config(
           message: "動態 import 路徑必須使用字串 literal，以便靜態驗證資料邊界。",
         },
       ],
+    },
+  },
+  // Data internals are exempt only from the facade rule, not from the synchronous-commit boundary.
+  {
+    files: ["src/data/**/*.{js,ts,tsx}", "src/dataApi.js"],
+    rules: {
+      "no-restricted-imports": ["error", { paths: [flushSyncImportRestriction] }],
+      "no-restricted-syntax": ["error", reactDomNamespaceImportRestriction],
     },
   }
 );

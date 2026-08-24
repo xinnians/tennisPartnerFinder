@@ -1,5 +1,7 @@
 import { memo, type ReactNode } from "react";
-import { createPortal, flushSync } from "react-dom";
+import { createPortal } from "react-dom";
+
+import { syncCommit } from "../syncCommit.ts";
 
 export interface SurfaceContentLifecycle {
   isSurfaceRootLive(): boolean;
@@ -54,7 +56,7 @@ function commitSurfaceSlots(): void {
 
 /** Imperative sheet adapters read their portal DOM before returning; React-owned event updates bypass this boundary. */
 function commitSynchronously(update: () => void): void {
-  flushSync(update);
+  syncCommit(update);
 }
 
 /** Register one existing shell content slot with the single App root. */

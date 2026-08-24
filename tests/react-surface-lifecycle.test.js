@@ -4,10 +4,21 @@ import { join } from "node:path";
 import test from "node:test";
 
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
+const SRC_DIR = new URL("../src/", import.meta.url).pathname;
 const APP = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
 const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
 const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
 const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
+const SYNC_COMMIT = readFileSync(new URL("../src/syncCommit.ts", import.meta.url), "utf8");
+
+function readSourceFiles(directory = SRC_DIR, relativeDirectory = "") {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const absolutePath = join(directory, entry.name);
+    const relativePath = join(relativeDirectory, entry.name);
+    if (entry.isDirectory()) return readSourceFiles(absolutePath, relativePath);
+    return /\.(?:js|ts|tsx)$/.test(entry.name) ? [{ relativePath, source: readFileSync(absolutePath, "utf8") }] : [];
+  });
+}
 
 function extractBracedBody(source, marker) {
   const markerIndex = source.indexOf(marker);
@@ -43,11 +54,7 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
     );
   }
   assert.equal((SESSION_VIEWS.match(/mounted\.registerUnmount\(content\.unmount\)/g) ?? []).length, 14);
-  assert.equal(
-    (SURFACE_HOST.match(/flushSync\(/g) ?? []).length,
-    1,
-    "SurfaceHost must centralize synchronous sheet commits"
-  );
+  assert.equal((SYNC_COMMIT.match(/reactDomFlushSync\(/g) ?? []).length, 1);
   assert.match(SURFACE_HOST, /commitSynchronously\(commitSurfaceSlots\)/);
   assert.match(SURFACE_HOST, /commitSynchronously\(update\)/);
 
@@ -55,6 +62,40 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
   assert.equal(imperativeAdapters.length, 8);
   for (const { name, source } of imperativeAdapters) {
     assert.match(source, /surfaceContent\.commit\(/, `${name} loses synchronous imperative update semantics`);
+  }
+});
+
+test("synchronous React commits stay behind one fail-closed helper and three approved callers", () => {
+  const sourceFiles = readSourceFiles();
+  assert.ok(sourceFiles.length > 0, "source scan unexpectedly found no JavaScript or TypeScript files");
+
+  const helper = sourceFiles.find(({ relativePath }) => relativePath === "syncCommit.ts");
+  assert.ok(helper, "missing synchronous commit anchor: src/syncCommit.ts");
+  assert.deepEqual(
+    [...helper.source.matchAll(/from ["']([^"']+)["']/g)].map((match) => match[1]),
+    ["react-dom"],
+    "src/syncCommit.ts must remain a leaf that imports only react-dom"
+  );
+  assert.match(helper.source, /import \{ flushSync as reactDomFlushSync \} from "react-dom";/);
+  assert.match(helper.source, /export function syncCommit\(update: \(\) => void\): void \{/);
+  assert.match(helper.source, /reactDomFlushSync\(update\);/);
+
+  const approvedCallers = ["app/App.tsx", "app/SurfaceHost.tsx", "sessionStore.ts"];
+  const callers = sourceFiles
+    .filter(({ relativePath }) => relativePath !== "syncCommit.ts")
+    .filter(({ source }) => /\bsyncCommit\(/.test(source))
+    .sort(({ relativePath: left }, { relativePath: right }) => left.localeCompare(right));
+  assert.ok(callers.length > 0, "syncCommit caller scan unexpectedly found no call sites");
+  assert.deepEqual(
+    callers.map(({ relativePath }) => relativePath),
+    approvedCallers
+  );
+  for (const { relativePath, source } of callers) {
+    assert.match(
+      source,
+      /import \{ syncCommit \} from "(?:\.\.\/|\.\/)syncCommit\.ts";/,
+      `${relativePath} hides its import`
+    );
   }
 });
 

@@ -742,7 +742,7 @@ export function renderNearbySessionsDrawer(
     () => {
       const currentDrawerState = sessionStore?.getState?.().drawerState ?? drawerState;
       // Register focus first and scroll second. Both callbacks run after the
-      // flushSync commit, so any focus-induced browser scroll is corrected last.
+      // synchronous commit, so any focus-induced browser scroll is corrected last.
       restoreFocusedSessionCard(root);
       restoreDrawerScrollTop(root, currentDrawerState);
     }

@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
-import { flushSync } from "react-dom";
 
 import type { ControllerEventName, SessionControllerState } from "./controllerContracts.ts";
+import { syncCommit } from "./syncCommit.ts";
 
 // 極簡狀態容器:零依賴、單一狀態物件、具名通道訂閱。
 //
@@ -99,7 +99,7 @@ export function useStoreSelector<S extends object, Channel extends string, Selec
             // Public page adapters are synchronous from the e2e caller's
             // perspective. Preserve that contract when an external-store
             // emit happens inside one native event stack.
-            flushSync(listener);
+            syncCommit(listener);
           })
         : () => {},
     [beforeStoreChange, channel, store]

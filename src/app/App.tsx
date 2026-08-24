@@ -1,5 +1,5 @@
 import { memo, useEffect } from "react";
-import { createPortal, flushSync } from "react-dom";
+import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
@@ -7,6 +7,7 @@ import type { MePageOptions } from "../pages/MePage.tsx";
 import type { MessagesPageOptions } from "../pages/MessagesPage.tsx";
 import type { MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
 import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
+import { syncCommit } from "../syncCommit.ts";
 import { installSurfaceHostRenderer, SurfaceHost, type SurfaceHostSnapshot } from "./SurfaceHost.tsx";
 
 interface PageSlot<Options> {
@@ -336,7 +337,7 @@ function renderApp(): void {
  * Internal React updates do not use this path.
  */
 function commitPageAdapterSynchronously(): void {
-  flushSync(renderApp);
+  syncCommit(renderApp);
 }
 
 function renderPage<Options>(
