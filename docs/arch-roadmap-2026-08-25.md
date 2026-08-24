@@ -1,92 +1,132 @@
-# 整體路線圖（2026-08-25 拍板）
+# 整體路線圖（2026-08-25 拍板；同日依對立審查修訂 v2）
 
-- 背景：前端架構優化管線批 0–2 全部 ACCEPTED（收錄至 `04543bf`）；F0-6＋F0-4＋
-  文件批 D 已發（`870a016`，codex 執行中）。qiuka.tw 仍在跑 pre-React 舊版；
-  REL checklist 剩 REL-10（穩定 preview 人工 QA）與 REL-11（QA fixtures 清理）。
-- 本檔記錄 2026-08-25 使用者拍板的整體順序；各批開工時另發派工單，
-  驗收協定沿用 `docs/arch-dispatch-2026-08-22-frontend.md`。
+- 背景：前端架構優化管線批 0–2、F0-9、F1R、F0-6／F0-4／文件批 D 全部 ACCEPTED；
+  本機 HEAD 未 push（origin 工作分支停 `0be31a2`，`main..HEAD` 84 commit）。
+- **production 現況（2026-08-25 實查）**：qiuka.tw 自 **2026-08-22 13:21** 起即為
+  React 版——使用者當日 push `main=76779be`（上一條 arch-hardening 管線的純前端 REL）
+  觸發 Git integration 部署（deployment `fa5xqjq4j`，target=production）。
+  08-25 01:48 的 `last-modified` 是 CDN 快取時間戳，**當晚沒有任何部署**
+ （`vercel ls` 無對應紀錄）。本管線的 84 個 commit 尚未上線。
+- REL checklist 剩兩個未勾項：穩定 preview 人工 QA、QA fixtures 清理。
+- 修訂依據：`docs/arch-dispatch-2026-08-25-roadmap-review-report-codex.md`
+ （對立審查，驗收通過）＋使用者 2026-08-25 三項追加拍板。
 
-## 拍板紀錄（2026-08-25）
+## 拍板紀錄
 
-1. **順序：現在就上線**——先 push＋REL 讓批 0–2 成果上 production，
-   加固項（Sentry 等）上線後第一批補。
-2. **批 3 切兩張**：3A（F3-0 規則修訂＋F3-1 導覽＋F3-3 啟動編排）→
-   3B（F3-2 殼遷入 AppShell＋glob 橋接退役）。
-3. **收尾批全排入**：地圖批、bundle 拆分（批 3 後）、長列表節流（DB 半批另立）、
-   守門收尾。
-4. **種子供給（REL-12）先擱置**，發布時機另議；桌面雙欄維持「先查 analytics 再議」。
+**2026-08-25（初版）**：① 上線先行；② 批 3 切 3A→3B；③ 地圖批、bundle 拆分、
+長列表節流、守門收尾全排入；④ 種子供給擱置。
 
-## 階段 0：上線（使用者執行，非派工）
+**2026-08-25（審查後追加）**：⑤ 「上線」拆兩個 gate——**REL-code**（程式部署，
+照上線先行進行）與 **REL-public**（社群公開宣傳，發布前必須有真實球局供給，
+方案屆時再定）；⑥ **MIG-06 正式翻案**（分頁狀態進 URL 納入 F3-1，翻案理由與
+hash 命名空間設計寫進 F3-0 規則修訂）；⑦ F4-8 由 P2 提級進加固批，理由＝縮短
+test-only 讀取路徑在 production 的暴露期（非母單「隨時可做」項，特此註記）。
 
-依序，**push 後等 CI 綠才 merge main**：
+## 階段 0：REL-code 程式部署（使用者執行，非派工）
 
-1. push 開發分支（origin 目前停 `0be31a2`，之後 60+ commit 首次上 CI——
-   紅了先修再前進）。
-2. REL-10：穩定 preview 人工 QA（390px 慢網路、鍵盤焦點走查、
-   support／privacy 連結實點）。
-3. REL-11：清 QA fixtures；順帶補驗 REL-6 當時未重跑的「取消球局」流程。
-4. merge main → push → qiuka.tw 換版。
-5. 換版後小 QA：OAuth 兩帳號、推播（origin 綁定，換域後需重新授權）、地圖；
-   Supabase Site URL 切 `https://qiuka.tw`（OPS-4）、Maps referrer 實測（OPS-5）。
-6. 雜項核實：`npx supabase migration list` 實查 006–008 對齊
-  （memory 記錄自相矛盾，OPS-10）；hosted 備份檔搬離 scratchpad（OPS-11）。
-7. 回滾路徑：Vercel 可即時 rollback 至前一 deployment。
+依序：
 
-期間 F0-6＋F0-4＋文件批 D（已發）照常驗收，完成即併入後續部署。
+1. **凍結現況（preflight）**：記錄 remote SHA（main `76779be`／工作分支 `0be31a2`）、
+   production deployment（`fa5xqjq4j`，08-22 13:21）；確認 Vercel Analytics 已啟用
+  （桌面雙欄決策與首波成效觀察都依賴它）；讀值確認 Supabase Site URL 與
+   Maps referrer 現值（先讀再決定「改」或「確認」）。
+   migration 對齊已於 2026-08-25 實查 **25/25、零 mismatch**（審查報告 §A6.5）。
+2. **清理前備份**：fresh `supabase db dump`（schema＋data）＋各表 counts＋checksum，
+   存到非暫存目錄（0700/0600）並讀回確認。**必須在任何刪除動作之前。**
+3. push 開發分支 → 等 `frontend`＋`supabase` CI 綠（84 commit 首次上 CI，紅了先修）；
+   WebKit 非阻擋 job 仍對照既有六條基準，不接受新增失敗。
+4. REL-10 穩定 preview 人工 QA（以 immutable preview URL 固定版本）：390px 慢網路、
+   鍵盤焦點走查、support／privacy 連結、OAuth、Maps、push、console 零錯誤；
+   **併入 WebKit 六條的實機 Safari 分類**（四條疑似 focus 差異、兩條測試模型問題，
+   分類即可、不要求全修）。
+5. 在 hosted 完成「取消球局」旅程（REL-6 當時未重跑項）後，執行 REL-11 清
+   QA fixtures；清完驗匿名 discovery 無 QA 資料、目錄無 QA opt-in profile。
+6. merge main（已確認 main 是 HEAD 祖先且 `main..HEAD` 零 migration，可 fast-forward）
+   → git push 觸發 production 部署。
+7. production smoke：核對 asset/SHA、匿名 discovery、OAuth 兩帳號、Maps、push
+  （preview 與 qiuka.tw 的授權與 subscription **不共用**：在 qiuka.tw 查既有
+   subscription，沒有才以使用者手勢申請）、`#/session/:id` 深連結、
+   建立／取消球局最短可逆旅程。
+8. **rollback 目標預先指定**：`fa5xqjq4j`（2026-08-22 production，React＋真實
+   Supabase env）。不可泛稱「前一個 deployment」——回滾到 2026-08-14 前的
+   deployment 會切成 mock 模式、公開假球局（fix-plan:550 既知限制）。
 
-## 階段 1：加固批（上線後第一批派工）
+REL-public（社群發文）**不在階段 0**：受真實種子供給 gate（拍板 ⑤），
+時機與方案由使用者另行拍板。
 
-- F4-6 Sentry 錯誤監控（已拍板廠商；dynamic import、beforeSend 三欄 allowlist）
-- F4-8 拔除 `__tennisE2ETestHooks` 出貨路徑（production define＋bundle canary）
-- F4-2 AdvancedMarker 遷移＋Maps 版本釘選 quarterly（deprecated＋v=weekly 風險）
+## 階段 1：加固批（部署後緊接派工，hot-follow）
 
-三項都直接服務線上穩定性；上線後盡快縮短無監控空窗。
+- F4-6 Sentry（08-22 已拍板廠商；dynamic import、beforeSend 三欄 allowlist；
+  **派工單需顯式處置 D-03**——hidden source map 開或不開要落決策）
+- F4-8 拔除 `__tennisE2ETestHooks` 出貨路徑（P2 提級，理由見拍板 ⑦；
+  現有 6 個字面讀取點）
+- F4-2 AdvancedMarker 遷移＋Maps 版本釘選 quarterly
 
 ## 階段 2：批 3A——導覽與啟動（F3-0 → F3-1 → F3-3）
 
-F3-0 規則修訂先行（嚴守範圍：只放寬 surface stack 歸屬與 AppShell 接管區
-DOM 凍結，**testid 凍結不動**）；F3-1 導覽狀態機＋hash 深連結；
-F3-3 啟動編排顯式化。
+F3-0 規則修訂範圍**新增 MIG-06 正式翻案**（拍板 ⑥）：翻案理由、hash 命名空間、
+與 `#/session/:id` 相容性設計一併落檔；其餘照原範圍（surface stack 歸屬、
+AppShell 接管區 DOM 凍結，testid 凍結不動）。F3-1 導覽狀態機＋hash 深連結；
+F3-3 啟動編排顯式化（與 F3-1 同批鎖冷啟動深連結交界）。
+
+## 階段 2.5：F0-7 計數斷言清單化（排 F3-0 後、3B 前）
+
+原「彈性批」定位修正（審查 §B3）：F0-7 綁 sheet／eager／consumer 集合，
+而 3B 正好會改這些集合——先清單化，3B 只改單一 manifest 並說明變因。
 
 ## 階段 3：批 3B——殼遷入 AppShell（F3-2）
 
-topbar／popover／底部導覽／toast／login modal 遷 React；
-`import.meta.glob` 三橋退役；同步 commit 邊界不得擴張。
+topbar／popover／底部導覽／toast／login modal 遷 React；`import.meta.glob`
+三橋退役；同步 commit 邊界不得擴張。
 
 ## 階段 4：地圖批（F4-1＋F4-9＋F4-4）
 
-marker diff（不再每 60 秒全拆重建）＋map/pins TS 化＋pin 色票單一 token 來源。
-同檔案區域合批省驗收；建立在階段 1 已換的 AdvancedMarker 之上。
+建立在階段 1 已換的 AdvancedMarker 之上；派工單的 F4-1 驗收需以
+AdvancedMarker 形狀改寫（keyed create／update／detach 計數，fakeMaps 替身
+同步改契約——審查 §B2 的具體清單照抄進派工單）。
 
-## 階段 5：bundle 拆分（F4-3，必須在 3B 之後）
+## 階段 5：bundle 拆分（F4-3，**建議**在 3B 後）
 
-visualizer 出報告 → 未登入不載入私人功能 chunk → gate 基線更新。
-排在殼遷移後，避免拆分成果被 3B 攪動。
+軟依賴修正（審查 §A4）：母單硬依賴只有「批 2」（已具備）；排 3B 後是避免
+殼遷移攪動 chunk 基線的重工控制，若 3B 受阻，本項可提前。
 
 ## 階段 6：長列表節流（F4-7，切兩半）
 
-- 前端半批：`content-visibility: auto`＋intrinsic size。
-- DB 半批（另發、獨立驗收）：`session_message_feed` 等四個查詢面的
-  limit／分頁，動 view 契約與 pgTAP。
+前端半批（content-visibility）＋DB 半批（limit／分頁，另發、動 view 契約與 pgTAP）。
 
-## 彈性批：守門收尾（F0-7＋F0-8＋F4-10）
+## 彈性批與測試基建
 
-無依賴，可插在任何階段之間當緩衝批。
+- F0-8 分支名解耦：真彈性，任何階段可插。
+- F4-10 測試基建（smoke 拆檔、mock 平行化）：排 **3A 前或 3B 後**，
+  不夾在 3A／3B 之間（避免與新增 navigation e2e 大面積互改）。
+
+## 明確不排／待使用者（審查 §C3 補入）
+
+| 項目 | 處置 |
+| --- | --- |
+| CSP Report-Only → enforcing | 不排；仍待使用者拍板（OV-03／FV-03）。現況無 violation 收集通道，enforcing 前需先設計收集方式 |
+| `reports.status` 無法結案 | 另立 DB／治理批，**最晚在首個真實檢舉的 90 天 purge 窗前**完成 close/dismiss 流程；否則明文接受無限期保留 |
+| `profiles.line_id` DB 清理 | 不排；屆時需獨立 migration 批（backup preflight＋RPC 簽名＋生成型別），不得與 F4-7 DB 半批合併 |
+| 種子供給（REL-12） | REL-public 的前置 gate，方案待拍板 |
+| 桌面雙欄 | 待 Analytics 裝置比例（階段 0 第 1 步確認 Analytics 已啟用） |
 
 ## 主要失敗風險與預防
 
-1. **CI 首跑紅**（60+ commit 首次上 CI，環境差異如 node 版本）：
-   push→CI 綠→才 merge main 是硬順序；F0-6 落地 engines 後此風險長期收斂。
-2. **換版後 hosted 環境差異**（Site URL、referrer、推播 origin）：
-   階段 0 第 5 步逐項小 QA；rollback 路徑先確認。
-3. **上線初期無錯誤監控**（拍板接受的取捨）：階段 1 排最前縮短空窗。
-4. **批 3 規則解凍削弱驗收武器**：F3-0 範圍限制寫死；3B 獨立成批、
-   GOLDEN／testid 凍結照舊。
-5. **白箱直呼耦合持續增長**（實測已 140 處，文件舊數 138）：批 3 不解此題；
-   終局（改寫直呼點）不在本輪任何批次，列為長期債。
+1. **CI 首跑紅**（84 commit 首次上 CI）：push→CI 綠→才 merge main 硬順序。
+2. **release 基準漂移**：階段 0 第 1 步凍結 SHA／deployment 快照；QA 用
+   immutable preview URL，不用會移動的 alias。
+3. **上線初期無錯誤監控**（拍板接受）：階段 1 定位為 hot-follow，部署後緊接派工。
+4. **批 3 規則解凍削弱驗收武器**：F3-0 範圍寫死（含 MIG-06 翻案儀式）；3B 獨立。
+5. **白箱直呼耦合**（實測 140 個字面呼叫點）：批 3 不解此題，長期債。
+6. **rollback 誤指向 mock 模式 deployment**：目標已釘死 `fa5xqjq4j`。
 
-## 不做／擱置（本輪確認）
+## 不做（本輪確認）
 
-- 種子供給（REL-12）：擱置，發布前另議。
-- TanStack Query／React Router／Redux／CSS @layer／SSR：維持既有「不做」裁決。
-- 桌面雙欄：待 analytics 裝置比例。
+TanStack Query／React Router／Redux／CSS @layer／SSR 維持既有裁決；F4-5 不做。
+
+## 修訂紀錄
+
+- v2（2026-08-25）：依 codex 對立審查（報告 §七的 10 項建議全數採納或依實查修正）
+  ＋使用者追加拍板 ⑤⑥⑦ 改寫。與審查結論的一處差異：審查推定 01:48 發生過
+  deployment，經 `vercel ls`／`inspect` 實查推翻——production 自 08-22 13:21 即為
+  React 版，無不明部署。OPS 臨時編號全數移除，改引 repo 來源。

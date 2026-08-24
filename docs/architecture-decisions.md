@@ -13,23 +13,23 @@
 | MIG-03 | 空狀態統一留在遷移 scope 之外，另開產品 track。 | 生效 | 2026-08-18 | [遷移計劃：明確不在 scope](frontend-migration-plan-2026-08-18.md#明確不在-scope另開-track) |
 | MIG-04 | 86／94 文案清單留在遷移 scope 之外，另開產品 track。 | 生效 | 2026-08-18 | [遷移計劃：明確不在 scope](frontend-migration-plan-2026-08-18.md#明確不在-scope另開-track) |
 | MIG-05 | 列表虛擬化留在遷移 scope 之外，另開產品 track。 | 生效 | 2026-08-18 | [遷移計劃：明確不在 scope](frontend-migration-plan-2026-08-18.md#明確不在-scope另開-track) |
-| MIG-06 | 分頁狀態進 URL 留在遷移 scope 之外，另開產品 track。 | 生效 | 2026-08-18 | [遷移計劃：明確不在 scope](frontend-migration-plan-2026-08-18.md#明確不在-scope另開-track) |
+| MIG-06 | 分頁狀態進 URL 留在遷移 scope 之外，另開產品 track。**2026-08-25 使用者拍板正式翻案**（納入 F3-1，翻案儀式在 F3-0 落檔）。 | 已翻案 | 2026-08-18 → 2026-08-25 | [遷移計劃：明確不在 scope](frontend-migration-plan-2026-08-18.md#明確不在-scope另開-track) |
 | MIG-07 | 多城市／多運動擴充須先有產品與資料權限決策。 | 生效 | 2026-08-18 | [遷移計劃：明確不在 scope](frontend-migration-plan-2026-08-18.md#明確不在-scope另開-track) |
 | OV-01 | 本機 `node_modules/node_modules` symlink 清理與 `npm ci` 不派工。 | 生效 | 2026-08-21 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
 | OV-02 | hosted preview 的 OAuth、Maps、Push、深連結與 390px 慢網路人工 QA 不派工。 | 生效 | 2026-08-21 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
 | OV-03 | CSP 從 Report-Only 切為 enforcing 不派工。 | 生效 | 2026-08-21 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
-| OV-04 | error transport 廠商選擇與接線不派工。 | 生效 | 2026-08-21 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
+| OV-04 | error transport 廠商選擇與接線不派工。**2026-08-22 廠商已拍板 Sentry（母派工單 F4-6）**；接線仍待派工。 | 已翻案 | 2026-08-21 → 2026-08-22 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
 | OV-05 | WebKit 六條差異的實機 Safari 分類不派工。 | 生效 | 2026-08-21 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
 | OV-06 | REL 與任何 push 不派工。 | 生效 | 2026-08-21 | [總覽：非派工項](arch-dispatch-2026-08-21/00-overview.md#非派工項你不做列此避免誤揀) |
 | FV-01 | REL／push 留待使用者執行。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
 | FV-02 | hosted preview 人工 QA 留待使用者執行。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
 | FV-03 | CSP Report-Only→enforcing 留待使用者拍板。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
-| FV-04 | error transport 廠商拍板與接線留待使用者。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
+| FV-04 | error transport 廠商拍板與接線留待使用者。**廠商部分已於 2026-08-22 終結（Sentry）**；接線待 F4-6 派工。 | 已終結 | 2026-08-21 → 2026-08-22 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
 | FV-05 | WebKit 六條差異的實機 Safari 分類留待使用者。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
 | FV-06 | 本機 `node_modules/node_modules` symlink 清理留待使用者。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
 | D-01 | REL 排在 P0 安全網全部完成之後。 | 生效 | 2026-08-20 | [修正計劃：D1](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
-| D-02 | 錯誤上報端點暫時不做。 | 生效 | 2026-08-20 | [修正計劃：D2](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
-| D-03 | production source map 不開，待錯誤上報重啟時再評估 hidden source map。 | 生效 | 2026-08-20 | [修正計劃：D3](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
+| D-02 | 錯誤上報端點暫時不做。**2026-08-22 已翻案：改採 Sentry（F4-6），列入路線圖階段 1**。 | 已翻案 | 2026-08-20 → 2026-08-22 | [修正計劃：D2](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
+| D-03 | production source map 不開，待錯誤上報重啟時再評估 hidden source map。**F4-6 派工單必須顯式處置本項**（路線圖階段 1）。 | 生效 | 2026-08-20 | [修正計劃：D3](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
 | D-04 | focus 外框維持現況、不改色，對比缺口列為已接受例外。 | 生效 | 2026-08-20 | [修正計劃：D4](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
 | D-05 | PWA 不支援離線；不加 fetch handler，但仍處理 `pushsubscriptionchange`。 | 生效 | 2026-08-20 | [修正計劃：D5](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
 | D-06 | 抽屜捲動保存從 P2 升回 P1，翻案批 8 的 parity 決策。 | 已終結 | 2026-08-20 | [修正計劃：D6](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板)；[批 18 完成紀錄](migration-reports/batch-18.md) |
