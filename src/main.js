@@ -116,7 +116,14 @@ import {
   defaultNotificationSettings,
 } from "./features/notifications/notificationFeature.ts";
 import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
-import { createPresenceTracker } from "./playerPresence.js";
+import {
+  configurePresenceFeature,
+  presenceSettingsForProfile,
+  reconcilePresenceTracking,
+  resetPresenceTracking,
+  updateOpenToGreetingSetting,
+  updatePresenceSharing,
+} from "./features/presence/presenceFeature.js";
 import { eligibilityFromPrivateProfile } from "./profile.js";
 import { createRequestGate } from "./requestGate.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
@@ -188,7 +195,6 @@ function publishPageView(...channels) {
   });
   for (const channel of channels) pageViewStore.emit(channel);
 }
-let presenceTracker = null;
 let sessionHashRouteGeneration = 0;
 
 function toast(message) {
@@ -236,88 +242,6 @@ function defaultProfile() {
     sharePresence: false,
     types: new Set(),
   };
-}
-
-function presenceSettingsForProfile() {
-  const profile = getAppState().profile;
-  return {
-    locationStatus: presenceLocationStatus,
-    openToGreeting: profile?.openToGreeting === true,
-    sharePresence: profile?.sharePresence === true,
-  };
-}
-
-function stopPresenceTracking() {
-  presenceTracker?.stop();
-  presenceTracker = null;
-}
-
-function updatePresenceLocationStatus(status) {
-  presenceLocationStatus = status;
-  publishPageView("me");
-}
-
-function reconcilePresenceTracking() {
-  const { authSession, profile } = getAppState();
-  const eligible = currentProfileEligibility();
-  const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && profile?.sharePresence === true);
-  if (!canTrack) {
-    stopPresenceTracking();
-    return false;
-  }
-  if (!presenceTracker) {
-    presenceTracker = createPresenceTracker({
-      onError: updatePresenceLocationStatus,
-      onPosition: async ({ lat, lng }) => {
-        const request = captureAuthRequest();
-        await updateMyPresence({ lat, lng });
-        if (request.isStale()) return;
-        updatePresenceLocationStatus("active");
-      },
-    });
-  }
-  const started = presenceTracker.start();
-  if (started && presenceLocationStatus === "idle") {
-    presenceLocationStatus = "requesting";
-    publishPageView("me");
-  }
-  return started;
-}
-
-async function updatePresenceSharing(shared) {
-  const request = captureAuthRequest();
-  const { authSession, profile } = getAppState();
-  if (!request.identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
-  if (!currentProfileEligibility().ntrp) {
-    openProfileCompletion({ intent: { action: "presence" } });
-    return false;
-  }
-  await setPresenceSharing(shared === true);
-  if (request.isStale()) throw new Error("登入狀態已變更，請重新整理後再試。");
-  controller.setProfile({ ...(profile ?? defaultProfile()), sharePresence: shared === true });
-  if (shared) reconcilePresenceTracking();
-  else {
-    stopPresenceTracking();
-    presenceLocationStatus = "idle";
-    publishPageView("me");
-  }
-  rerenderVisibleNotificationSettings();
-  toast(shared ? "已開啟在線分享。" : "已隱藏在線狀態。");
-}
-
-async function updateOpenToGreetingSetting(open) {
-  const request = captureAuthRequest();
-  const { authSession, profile } = getAppState();
-  if (!request.identity || !authSession || !isSupabaseConfigured) throw new Error("請先登入後再調整在線設定。");
-  if (!currentProfileEligibility().ntrp) {
-    openProfileCompletion({ intent: { action: "presence" } });
-    return false;
-  }
-  await setOpenToGreeting(open === true);
-  if (request.isStale()) throw new Error("登入狀態已變更，請重新整理後再試。");
-  controller.setProfile({ ...(profile ?? defaultProfile()), openToGreeting: open === true });
-  rerenderVisibleNotificationSettings();
-  toast(open ? "已開啟接受現場問候。" : "已關閉接受現場問候。");
 }
 
 function currentAuthAvatarUrl() {
@@ -601,16 +525,32 @@ function captureAuthRequest(isCurrent = () => true) {
   return { identity, isStale: token.isStale };
 }
 
-function rerenderVisibleNotificationSettings() {
+function publishMeSettingsPageView() {
   publishPageView("me", "mySessions");
 }
+
+configurePresenceFeature({
+  captureAuthRequest,
+  currentProfileEligibility,
+  defaultProfile,
+  getAppState,
+  getLocationStatus: () => presenceLocationStatus,
+  openProfileCompletion: (...args) => openProfileCompletion(...args),
+  publishMePageView: () => publishPageView("me"),
+  publishMeSettingsPageView,
+  setLocationStatus: (status) => {
+    presenceLocationStatus = status;
+  },
+  setProfile: (profile) => controller.setProfile(profile),
+  toast,
+});
 
 const notificationFeature = createNotificationFeature({
   captureAuthRequest,
   getAuthSession: () => getAppState().authSession,
   getCourts: () => getAppState().courts,
   getSettings: () => notificationSettings,
-  rerenderVisibleSettings: rerenderVisibleNotificationSettings,
+  rerenderVisibleSettings: publishMeSettingsPageView,
   setSettings: (settings) => {
     notificationSettings = settings;
   },
@@ -895,8 +835,7 @@ async function reloadCurrentProfile() {
 
 function handleAuthIdentityChange({ session }) {
   closeActiveProfileCompletion();
-  stopPresenceTracking();
-  presenceLocationStatus = "idle";
+  resetPresenceTracking();
   profileRevision += 1;
   controller.setProfile(defaultProfile());
   storedProfileExists = false;
@@ -913,8 +852,7 @@ function applyAuthCandidate(session) {
   // open confirmation or temporarily make an eligible profile unavailable.
   controller.setAuthSession(session);
   if (!session) {
-    stopPresenceTracking();
-    presenceLocationStatus = "idle";
+    resetPresenceTracking();
     controller.setProfile(defaultProfile());
     storedProfileExists = false;
     notificationSettings = defaultNotificationSettings();
@@ -1033,8 +971,8 @@ function init() {
         notificationSettings,
         onCopyLink: () => copySessionShareLink(session.sessionId),
         onEnablePush: enablePushNotifications,
-        // 批 C3-3:sheet 把剛加入的 sessionId 交回來(見 sessionViews.js 的
-        // wireSuccess),用 reason:"joined" 聚焦新參與卡,不顯示 create 專屬的
+        // 批 C3-3:sheet 的成功 callback 把剛加入的 sessionId 交回來,
+        // 用 reason:"joined" 聚焦新參與卡,不顯示 create 專屬的
         // 「球局已建立」文案——不再只聚焦頁面標題。
         onViewMySessions: (sessionId) => showMySessionsPage({ sessionId, reason: "joined" }),
       }),
