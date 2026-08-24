@@ -89,6 +89,11 @@ dataApi.js → Supabase／Mock
 
 ### P0：先確認測試資料是否進入正式環境
 
+> **批 16–17 後註（2026-08-20）**：本節把本機 Supabase 的 `host-<時間戳>` fixture
+> 誤當成可能的正式環境污染，該判讀已失效。批 16 保留並納入 CI 的 loopback-only
+> 設定防護，批 17 另把 `mockData.js` 排除出 production bundle；見
+> [批 16](migration-reports/batch-16.md) 與 [批 17](migration-reports/batch-17.md)。
+
 實測目前連線資料時，畫面出現大量名稱像 `host-20260819T...` 的帳號與重複球局。這很像自動測試留下的資料。
 
 如果這是本機專用 Supabase，影響不大；如果它連到正式環境，就要優先處理：
@@ -116,6 +121,10 @@ React 遷移前的主 JavaScript gzip 約 130 KB；現在約增加 54%。主要�
 4. 首頁地圖與附近球局保留在初始 bundle。
 
 ### P1：`sessionViews.js` 與 React 元件互相匯入
+
+> **批 12 後註（2026-08-20）**：本節記載的 `as unknown as` 雙重斷言已由批 12
+> 全數移除，相關型別漂移重新交由 TypeScript 檢查；見
+> [批 12 完成紀錄](migration-reports/batch-12.md)。以下保留原始分析供追溯。
 
 目前是：
 

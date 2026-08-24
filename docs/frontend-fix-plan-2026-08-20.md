@@ -3,6 +3,11 @@
 日期：2026-08-20（2026-08-20 更新：七項決策落檔、批號指派、批 12 完成）
 查證基準：`c9bd71b`　目前 HEAD：`ea076df`（批 12 已完成，見 §9）
 
+> **終結後註（2026-08-21）**：本計劃的批 12–28 已完成並通過
+> [批 24–28 獨立驗收](migration-reports/batch-24-28-acceptance.md)，狀態由進行中改為已終結；
+> 後續未盡事項轉由 [最終裁決](arch-reports/final-verdict-2026-08-21.md) 與
+> [架構決策索引](architecture-decisions.md) 維護。以下保留當時的計劃本文供追溯。
+
 配套文件：
 - 架構審查（含證據）：`docs/frontend-architecture-review-2026-08-20-claude.md`
 - Codex 原始分析：`docs/frontend-architecture-analysis-after-react-migration-2026-08-20.md`
