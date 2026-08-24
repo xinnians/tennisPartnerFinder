@@ -52,12 +52,9 @@ import {
   createSession,
   decideSessionCourt,
   declineSessionParticipant,
-  getInitialSession,
   inviteToSession,
   isSupabaseConfigured,
-  linkLoginIdentity,
   loadCourts,
-  loadCurrentProfile,
   loadMySessions,
   loadMyPlayerBlocks,
   loadPlayerDirectory,
@@ -69,13 +66,9 @@ import {
   loadSessionSummary,
   markSessionChatRead,
   markSessionPlayed,
-  onAuthStateChange,
   postSessionMessage,
   requestToJoinSession,
   respondToSessionInvite,
-  saveCurrentProfile,
-  signInWithOAuthProvider,
-  signOut,
   setPlayerVisibility,
   setOpenToGreeting,
   setPlayerBlock,
@@ -117,6 +110,19 @@ import {
 } from "./features/notifications/notificationFeature.ts";
 import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
 import {
+  authIdentity,
+  configureProfileOrchestrationFeature,
+  currentLinkedProviders,
+  handleAuthIdentityChange,
+  handleLinkProvider,
+  handleSignOut,
+  isProfileReady,
+  openProfileCompletion,
+  openSafeLogin,
+  reloadCurrentProfile,
+  restoreAuth,
+} from "./features/profile/profileOrchestrationFeature.js";
+import {
   configurePresenceFeature,
   presenceSettingsForProfile,
   reconcilePresenceTracking,
@@ -142,14 +148,6 @@ let playerMarkers = [];
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 const authRequestGate = createRequestGate();
-// 資料庫裡是否已經有這個帳號的 profiles 列。
-// 這是「這人有沒有表態過球場訂閱」的唯一可靠訊號:private.ensure_notification_profile()
-// (202607230001:93)在任何通知 RPC 上都會 insert 一列 profiles,所以「沒有列」等價於
-// 「從沒呼叫過 save_my_profile,也從沒呼叫過任何通知 RPC」——不可能表態過。
-// 「零訂閱」本身分不出「從沒選過」與「明確選了零座」,不可拿來當判斷依據。
-let storedProfileExists = false;
-let activeProfileCompletion = null;
-
 function getAppState() {
   return controller?.getAppState?.() ?? { authSession: null, courts: [], courtsReady: false, profile: null };
 }
@@ -168,8 +166,6 @@ function currentProfileEligibility(profile = getAppState().profile) {
     courtsStatus: courtCatalogueStatus,
   });
 }
-let profileLoadStatus = "idle";
-let profileRevision = 0;
 let activePage = "map";
 let createdSessionFocusId = null;
 // 批 C3-3:createdSessionFocusId 現在同時服務 create 與 join 兩種來源
@@ -216,15 +212,6 @@ async function openSessionHashRoute() {
   if (result?.status !== "opened") openSessionUnavailableSheet();
 }
 
-// 冷啟動深連結(推播點擊)與 auth 還原是純競速:sheet 常在 profile 落地前先開,
-// CTA 註記(如「尚未填寫程度」)被記進 actionKey;profile-ready 的 setAuthState 觸發
-// reconcile 時 actionKey 已變,sheet 被 stale-authority 保護收掉且不重開(2026-08-17
-// 探針 4/4 重現,關閉發生在開啟後 300ms 內)。拍板修法「自動重開」:boot 帶深連結時,
-// 首次 profile-ready 的 setAuthState 鏈(含 reloadParticipation 與 resumePendingIntent)
-// 落地後重跑一次 hash route——被收掉就重開、倖存則就地升級(openSessionFromLink 對
-// 已開的同 session 不重開)。一次性,不與使用者之後的手動關閉搶 sheet。
-let bootDeepLinkReopenPending = Boolean(sessionIdFromHash(globalThis.location?.hash));
-
 function supportContactHref() {
   const address = SUPPORT_EMAIL.trim();
   return address ? `mailto:${address}` : "";
@@ -248,157 +235,6 @@ function currentAuthAvatarUrl() {
   const { authSession } = getAppState();
   const metadata = authSession?.user?.user_metadata ?? {};
   return metadata.avatar_url ?? metadata.picture ?? "";
-}
-
-// 連結登入方式(manual identity linking)。回跳意圖走 sessionStorage flag,
-// 不進 sessionIntent 的 action 白名單——那條管線是「登入後接續某個球局操作」,語意不同。
-const LINK_RETURN_KEY = "tennis-link-return";
-
-// linkIdentity 失敗時 GoTrue 只會把 error 參數帶回 redirect URL;supabase-js 初始化後會
-// 清理 URL,所以在模組載入當下同步抓一份,只供連結回報使用。
-const bootAuthParams = (() => {
-  const merged = new URLSearchParams(globalThis.location?.search ?? "");
-  for (const [key, value] of new URLSearchParams((globalThis.location?.hash ?? "").replace(/^#/, "")))
-    merged.set(key, value);
-  return merged;
-})();
-
-function currentLinkedProviders() {
-  const { authSession } = getAppState();
-  return (authSession?.user?.identities ?? []).map((identity) => identity.provider);
-}
-
-async function handleLinkProvider(provider) {
-  try {
-    sessionStorage.setItem(LINK_RETURN_KEY, provider);
-    await linkLoginIdentity(provider);
-  } catch {
-    sessionStorage.removeItem(LINK_RETURN_KEY);
-    toast("連結啟動失敗，請稍後再試。");
-  }
-}
-
-function resumeLinkReturn() {
-  // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-  let provider = null;
-  try {
-    provider = sessionStorage.getItem(LINK_RETURN_KEY);
-    if (provider) sessionStorage.removeItem(LINK_RETURN_KEY);
-  } catch {
-    return;
-  }
-  if (!provider) return;
-  showMePage();
-  if (currentLinkedProviders().includes(provider)) {
-    toast("已連結新的登入方式。");
-  } else if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) {
-    toast("連結未完成：這個帳號可能已綁定其他使用者。");
-  }
-  // 既未成功也無錯誤參數時不回報——token 可能還在換發,以「登入方式」列表狀態為準。
-}
-
-function openSafeLogin({ action = "", onClose = () => {} } = {}) {
-  if (!isSupabaseConfigured) {
-    onClose();
-    toast(LOCAL_DEMO_UNAVAILABLE);
-    return null;
-  }
-  return openLoginModal({
-    action,
-    onClose,
-    onProvider: async (provider) => {
-      await signInWithOAuthProvider(provider);
-    },
-  });
-}
-
-async function handleSignOut() {
-  try {
-    await signOut();
-    toast("已登出。");
-  } catch {
-    toast("登出失敗，請稍後再試。");
-  }
-}
-
-function closeActiveProfileCompletion(options = { reason: "account-change", restoreFocus: false }) {
-  const mounted = activeProfileCompletion;
-  activeProfileCompletion = null;
-  mounted?.close?.(options);
-}
-
-function openProfileCompletion({
-  courts: selectableCourts,
-  courtsReady: formCourtsReady,
-  intent,
-  mode = "gate",
-  onClose = () => {},
-  returnSession,
-} = {}) {
-  const openedIdentity = authIdentity(getAppState().authSession);
-  let mounted = null;
-  // 判斷點取在「存檔前」:存檔本身會建立 profiles 列,存檔後再問就永遠是 true。
-  let seedCourtSubscriptionsAfterSave = false;
-  mounted = openProfileCompletionSheet({
-    avatarUrl: currentAuthAvatarUrl(),
-    courts: selectableCourts ?? getAppState().courts,
-    courtsReady: formCourtsReady ?? getAppState().courtsReady,
-    mode,
-    onClose: (detail) => {
-      if (activeProfileCompletion === mounted) {
-        activeProfileCompletion = null;
-      }
-      onClose(detail);
-    },
-    onSave: async (draft) => {
-      if (!isSupabaseConfigured) throw new Error(LOCAL_DEMO_UNAVAILABLE);
-      if (!openedIdentity || openedIdentity !== authIdentity(getAppState().authSession)) {
-        throw new Error("登入狀態已變更，請重新開啟個人檔案。");
-      }
-      if (profileLoadStatus !== "ready") {
-        throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
-      }
-      const wasFirstStoredProfile = !storedProfileExists;
-      const saved = await saveCurrentProfile(draft);
-      if (openedIdentity !== authIdentity(getAppState().authSession)) {
-        throw new Error("登入狀態已變更，請重新開啟個人檔案。");
-      }
-      profileRevision += 1;
-      profileLoadStatus = "ready";
-      storedProfileExists = true;
-      seedCourtSubscriptionsAfterSave = wasFirstStoredProfile;
-      const profile = saved ?? draft;
-      controller.setProfile(profile);
-      return profile;
-    },
-    onSaved: async (savedProfile) => {
-      if (openedIdentity !== authIdentity(getAppState().authSession)) return;
-      controller.setProfile(savedProfile ?? getAppState().profile ?? defaultProfile());
-      const { authSession } = getAppState();
-      if (!authSession) return;
-      // 種入排在存檔成功之後、重繪之前:存檔結果已經定案,種入失敗影響不到它,
-      // 而重繪能立刻反映訂到全部後的收合態。
-      if (seedCourtSubscriptionsAfterSave) {
-        seedCourtSubscriptionsAfterSave = false;
-        await seedAllTaipeiCourtSubscriptions();
-      }
-      await controller.setAuthState(authSession, currentProfileEligibility());
-      // 身分卡顯示暱稱與 NTRP，存檔後要立刻反映新值。
-      if (activePage !== "me") return;
-      // standalone 編輯完成後明確送回入口；這是 sheet 旅程的完成落點，
-      // 與頁面 store 更新時由 React 自然保留的焦點互不重疊。
-      if (mode === "standalone") {
-        requestAnimationFrame(() => {
-          document.querySelector('#me-root [data-testid="edit-profile"]')?.focus({ preventScroll: true });
-        });
-      }
-    },
-    intent,
-    profile: getAppState().profile ?? defaultProfile(),
-    returnSession: intent?.action === "join" ? returnSession : null,
-  });
-  activeProfileCompletion = mounted;
-  return mounted;
 }
 
 function openCreateSession({
@@ -557,6 +393,33 @@ const notificationFeature = createNotificationFeature({
   toast,
 });
 
+configureProfileOrchestrationFeature({
+  captureAuthGateRequest: () => authRequestGate.capture(),
+  captureAuthRequest,
+  currentAuthAvatarUrl,
+  currentProfileEligibility,
+  defaultProfile,
+  getActivePage: () => activePage,
+  getAppState,
+  getController: () => controller,
+  invalidateAuthRequests: () => authRequestGate.invalidate(),
+  localDemoUnavailable: LOCAL_DEMO_UNAVAILABLE,
+  openLoginModal,
+  openProfileCompletionSheet,
+  openSessionHashRoute,
+  reconcilePresenceTracking,
+  resetNotificationSettings: () => {
+    notificationSettings = defaultNotificationSettings();
+    publishPageView("me", "mySessions");
+  },
+  resetPresenceTracking,
+  seedAllTaipeiCourtSubscriptions: () => notificationFeature.seedAllTaipeiCourtSubscriptions(),
+  setAuthSession: (session) => controller.setAuthSession(session),
+  setProfile: (profile) => controller.setProfile(profile),
+  showMePage,
+  toast,
+});
+
 function refreshNotificationSettings() {
   return notificationFeature.refreshNotificationSettings();
 }
@@ -567,10 +430,6 @@ function updateNotificationPreferences(preferences) {
 
 function updateCourtSubscriptions(courtIds) {
   return notificationFeature.updateCourtSubscriptions(courtIds);
-}
-
-function seedAllTaipeiCourtSubscriptions() {
-  return notificationFeature.seedAllTaipeiCourtSubscriptions();
 }
 
 function enablePushNotifications() {
@@ -776,7 +635,7 @@ async function loadCourtsImmediately() {
     courtCatalogueStatus = "ready";
     controller.setCourts(courts, { ready: true });
     const { authSession } = getAppState();
-    if (authSession && profileLoadStatus === "ready") {
+    if (authSession && isProfileReady()) {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
     renderBaseCourtPins();
@@ -784,114 +643,11 @@ async function loadCourtsImmediately() {
     courtCatalogueStatus = "error";
     controller.setCourts([], { ready: false });
     const { authSession } = getAppState();
-    if (authSession && profileLoadStatus === "ready") {
+    if (authSession && isProfileReady()) {
       await controller.setAuthState(authSession, currentProfileEligibility());
     }
     toast("球場資料暫時無法載入。");
   }
-}
-
-function authIdentity(session) {
-  const value = session?.user?.id ?? session?.access_token ?? null;
-  return value == null ? null : String(value);
-}
-
-async function reloadCurrentProfile() {
-  const profileLoadRevision = profileRevision;
-  const request = captureAuthRequest(() => profileLoadRevision === profileRevision);
-  let profile = null;
-  let loadFailed = false;
-  try {
-    profile = await loadCurrentProfile();
-  } catch {
-    loadFailed = true;
-  }
-  if (request.isStale()) return false;
-  if (loadFailed) {
-    // A refresh failure must never turn a previously known profile into an
-    // editable blank replacement form. Initial failures remain blocked
-    // until the next successful auth/profile load.
-    if (profileLoadStatus !== "ready") {
-      profileLoadStatus = "error";
-      const { authSession } = getAppState();
-      await controller.setAuthState(authSession, { directory: false, nickname: false, ntrp: false, status: "error" });
-    }
-    throw new Error("個人檔案暫時無法載入，請重新整理後再試。");
-  }
-  // loadCurrentProfile 在沒有 my_profile 列時回 null(dataApi.js:757);
-  // store profile 隨即被 defaultProfile() 補齊,所以 null 這個訊號要在這裡就留下來。
-  storedProfileExists = profile !== null;
-  controller.setProfile(profile ?? defaultProfile());
-  profileLoadStatus = "ready";
-  const { authSession } = getAppState();
-  await controller.setAuthState(authSession, currentProfileEligibility());
-  reconcilePresenceTracking();
-  if (bootDeepLinkReopenPending) {
-    bootDeepLinkReopenPending = false;
-    void openSessionHashRoute();
-  }
-  return true;
-}
-
-function handleAuthIdentityChange({ session }) {
-  closeActiveProfileCompletion();
-  resetPresenceTracking();
-  profileRevision += 1;
-  controller.setProfile(defaultProfile());
-  storedProfileExists = false;
-  notificationSettings = defaultNotificationSettings();
-  publishPageView("me", "mySessions");
-  profileLoadStatus = session ? "loading" : "idle";
-  return session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null;
-}
-
-function applyAuthCandidate(session) {
-  authRequestGate.invalidate();
-  // Only a genuinely different account may clear the controller's profile
-  // eligibility state. Auth token refreshes for the same account must not invalidate an
-  // open confirmation or temporarily make an eligible profile unavailable.
-  controller.setAuthSession(session);
-  if (!session) {
-    resetPresenceTracking();
-    controller.setProfile(defaultProfile());
-    storedProfileExists = false;
-    notificationSettings = defaultNotificationSettings();
-    publishPageView("me", "mySessions");
-    profileLoadStatus = "idle";
-    return;
-  }
-  void reloadCurrentProfile().catch(() => {});
-  if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) resumeLinkReturn();
-}
-
-async function restoreAuth() {
-  const bootstrapIntentVersion = controller.capturePendingIntentVersion();
-  onAuthStateChange((session, event) => {
-    if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
-    applyAuthCandidate(session);
-    // 連結成功的回跳一定帶 SIGNED_IN(code 交換後的新 session 才有新 identities);
-    // 失敗路徑沒有 SIGNED_IN,由 applyAuthCandidate 的 error 參數分支處理。
-    if (session && event === "SIGNED_IN") resumeLinkReturn();
-  });
-  const initialRequest = authRequestGate.capture();
-  let initialSession = null;
-  let initialSessionResolved = false;
-  try {
-    initialSession = await getInitialSession();
-    initialSessionResolved = true;
-  } catch {
-    // Preserve a recoverable join/create return intent when a token refresh
-    // or auth transport request is temporarily unavailable. A later auth
-    // event can still complete restoration without pretending this was logout.
-  }
-  // getInitialSession waits for Supabase's URL/session initialization. Clear a
-  // stale intent only after that result is definitively anonymous, so an OAuth
-  // callback cannot lose its return intent during client startup.
-  if (initialSessionResolved && !initialSession && !getAppState().authSession) {
-    controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion);
-  }
-  if (!initialSessionResolved || initialRequest.isStale()) return;
-  applyAuthCandidate(initialSession);
 }
 
 function diagnoseMapFailure(message) {
