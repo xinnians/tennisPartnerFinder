@@ -709,6 +709,42 @@ test("player presence mock fixture is independently bounded and has no LINE fiel
   assert.notEqual(entries[0], MOCK_PLAYER_PRESENCE[0]);
 });
 
+test("player presence mock path normalizes camelCase values and rejects unknown boolean-like input", async () => {
+  const [entry] = await createDataApi({
+    configured: false,
+    mockPlayerPresence: [
+      {
+        profileId: "8004",
+        nickname: "示範雲朵",
+        ntrp: "3.0",
+        openToGreeting: "unknown",
+        courtId: "103",
+        courtName: "古亭河濱公園網球場",
+        courtDistrict: "中正區",
+        courtLat: "25.019024",
+        courtLng: "121.522689",
+        minutesAgo: "7",
+        isSelf: "true",
+        rawGps: "must-not-leak",
+      },
+    ],
+  }).loadPlayerPresenceDirectory();
+
+  assert.deepEqual(entry, {
+    profileId: 8004,
+    nickname: "示範雲朵",
+    ntrp: 3,
+    openToGreeting: false,
+    courtId: 103,
+    courtName: "古亭河濱公園網球場",
+    courtDistrict: "中正區",
+    courtLat: 25.019024,
+    courtLng: 121.522689,
+    minutesAgo: 7,
+    isSelf: true,
+  });
+});
+
 test("player directory mapper keeps its exact public allowlist", () => {
   const directoryRow = {
     profile_id: "8001",
@@ -792,6 +828,44 @@ test("player directory mock data is cloned and constrained to requested bounds",
   );
   assert.notEqual(entries[0], MOCK_PLAYERS[0]);
   assert.equal("lineId" in entries[0], false);
+});
+
+test("player directory mock path applies literal guards to camelCase arrays", async () => {
+  const [entry] = await createDataApi({
+    configured: false,
+    mockPlayers: [
+      {
+        profileId: "8004",
+        nickname: "示範雲朵",
+        ntrp: "3.0",
+        playTypes: ["單打", "未知打法"],
+        slotCodes: ["we-m", "unknown-slot"],
+        courtId: "103",
+        courtName: "古亭河濱公園網球場",
+        courtDistrict: "中正區",
+        courtLat: "25.019024",
+        courtLng: "121.522689",
+        isSelf: "true",
+        playedCount: "4",
+        lineId: "must-not-leak",
+      },
+    ],
+  }).loadPlayerDirectory();
+
+  assert.deepEqual(entry, {
+    profileId: 8004,
+    nickname: "示範雲朵",
+    ntrp: 3,
+    playTypes: ["單打"],
+    slotCodes: ["we-m"],
+    courtId: 103,
+    courtName: "古亭河濱公園網球場",
+    courtDistrict: "中正區",
+    courtLat: 25.019024,
+    courtLng: 121.522689,
+    isSelf: true,
+    playedCount: 4,
+  });
 });
 
 test("mock sessions and discovery payloads include an ongoing local-demo-only SessionSummary", async () => {

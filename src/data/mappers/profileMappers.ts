@@ -102,6 +102,24 @@ export function mapPlayerDirectoryRow(row: PlayerDirectoryRow = {}): PlayerDirec
   };
 }
 
+/** Local-demo directory mapper: camelCase input, identical guarded domain output. */
+export function mapMockPlayerDirectoryRow(row: Record<string, unknown> = {}): PlayerDirectoryEntry {
+  return {
+    profileId: asNumber(row.profileId),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    playTypes: readPlayTypes(row.playTypes),
+    slotCodes: readProfileSlotCodes(row.slotCodes),
+    courtId: asNumber(row.courtId),
+    courtName: asText(row.courtName),
+    courtDistrict: asText(row.courtDistrict),
+    courtLat: asNumber(row.courtLat),
+    courtLng: asNumber(row.courtLng),
+    isSelf: asBoolean(row.isSelf),
+    playedCount: asNumber(row.playedCount) ?? 0,
+  };
+}
+
 /** Presence view mapper: its source is reciprocal-only and excludes contacts. */
 export function mapPlayerPresenceDirectoryRow(row: PlayerPresenceDirectoryRow = {}): PlayerPresenceDirectoryEntry {
   return {
@@ -116,6 +134,23 @@ export function mapPlayerPresenceDirectoryRow(row: PlayerPresenceDirectoryRow = 
     courtLng: asNumber(row.court_lng),
     minutesAgo: asNumber(row.minutes_ago),
     isSelf: asBoolean(row.is_self),
+  };
+}
+
+/** Local-demo presence mapper: camelCase input, identical reciprocal-domain output. */
+export function mapMockPlayerPresenceDirectoryRow(row: Record<string, unknown> = {}): PlayerPresenceDirectoryEntry {
+  return {
+    profileId: asNumber(row.profileId),
+    nickname: asText(row.nickname),
+    ntrp: asNumber(row.ntrp),
+    openToGreeting: asBoolean(row.openToGreeting),
+    courtId: asNumber(row.courtId),
+    courtName: asText(row.courtName),
+    courtDistrict: asText(row.courtDistrict),
+    courtLat: asNumber(row.courtLat),
+    courtLng: asNumber(row.courtLng),
+    minutesAgo: asNumber(row.minutesAgo),
+    isSelf: asBoolean(row.isSelf),
   };
 }
 

@@ -21,6 +21,8 @@ import {
   defaultNotificationPreferences,
   mapCourt,
   mapCurrentProfile,
+  mapMockPlayerDirectoryRow,
+  mapMockPlayerPresenceDirectoryRow,
   mapMyPlayerBlockRow,
   mapNotificationPreferences,
   mapPlayerDirectoryRow,
@@ -241,7 +243,7 @@ export function createDataApi({
 
   async function loadPlayerDirectory({ bounds }: { bounds?: MapBounds | null } = {}) {
     if (!configured) {
-      return mockPlayers.filter((entry) => withinBounds(entry, bounds)).map((entry) => ({ ...entry }));
+      return mockPlayers.filter((entry) => withinBounds(entry, bounds)).map(mapMockPlayerDirectoryRow);
     }
 
     const activeClient = requireClient();
@@ -260,7 +262,7 @@ export function createDataApi({
 
   async function loadPlayerPresenceDirectory({ bounds }: { bounds?: MapBounds | null } = {}) {
     if (!configured) {
-      return mockPlayerPresence.filter((entry) => withinBounds(entry, bounds)).map((entry) => ({ ...entry }));
+      return mockPlayerPresence.filter((entry) => withinBounds(entry, bounds)).map(mapMockPlayerPresenceDirectoryRow);
     }
 
     const activeClient = requireClient();
