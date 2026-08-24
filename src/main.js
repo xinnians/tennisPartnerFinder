@@ -741,8 +741,8 @@ function mountMySessionsDestination() {
     onBack: () => showMapPage({ focus: true }),
     onCancel: controller.cancelMySession,
     onConfirmAttendance: controller.confirmMySessionAttendance,
-    onCreatedSessionFocus: () => {
-      if (createdSessionFocusId !== focusSessionId) return false;
+    onCreatedSessionFocus: (expectedSessionId = focusSessionId) => {
+      if (createdSessionFocusId !== expectedSessionId) return false;
       createdSessionFocusId = null;
       createdSessionFocusReason = null;
       publishPageView("mySessions");

@@ -41,6 +41,12 @@ interface MySessionsGroups {
   upcoming?: MySessionsSession[] | null;
 }
 
+interface MySessionsCreatedFocusCommit {
+  createdSessionId: Identifier;
+  groups: MySessionsGroups;
+  highlightSessionId: Identifier;
+}
+
 interface NotificationSettingsInput {
   courtIds?: Array<number | string>;
   errorMessage?: string;
@@ -63,7 +69,8 @@ export interface MySessionsPageOptions {
   onBack?: () => CallbackResult;
   onCancel?: (sessionId?: string) => CallbackResult;
   onConfirmAttendance?: (sessionId?: string) => CallbackResult;
-  onCreatedSessionFocus?: () => boolean;
+  onCreatedSessionCommit?: (commit: MySessionsCreatedFocusCommit) => void;
+  onCreatedSessionFocus?: (sessionId?: Identifier) => boolean;
   onCreateSession?: () => CallbackResult;
   onDecline?: (sessionId?: string, participantId?: string) => CallbackResult;
   onDeclineInvite?: (sessionId?: string) => CallbackResult;
@@ -699,10 +706,17 @@ export function MySessionsPage(props: MySessionsPageProps) {
       : null
     : createdSessionId;
   const resolvedNotificationSettings = pageView?.notificationSettings ?? notificationSettings;
+  const safeGroups = resolvedGroups ?? EMPTY_GROUPS;
   useLayoutEffect(() => {
+    // Store subscriptions keep this page mounted, so the adapter needs the
+    // values from this commit rather than its one-time mount options.
+    props.onCreatedSessionCommit?.({
+      createdSessionId: resolvedCreatedSessionId,
+      groups: safeGroups,
+      highlightSessionId: resolvedFocusSessionId,
+    });
     props.onStoreCommit?.();
   });
-  const safeGroups = resolvedGroups ?? EMPTY_GROUPS;
   const focusSessionId = resolvedFocusSessionId ?? resolvedCreatedSessionId;
   const focusKey = focusSessionId == null ? "" : String(focusSessionId);
   const automaticSegment = mySessionsPageRuntime.resolveMySessionsSegment(rootElement, safeGroups, focusSessionId);

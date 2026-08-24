@@ -676,7 +676,7 @@ function scheduleMySessionsCreatedFocus(root, options = {}) {
       const target = root.querySelector(
         "[data-created-session] [data-open-my-session], [data-created-session] [data-my-action='withdraw']"
       );
-      if (!target || !onCreatedSessionFocus()) return;
+      if (!target || !onCreatedSessionFocus(focusSessionId)) return;
       target.focus({ preventScroll: true });
     });
   }
@@ -686,11 +686,17 @@ function scheduleMySessionsCreatedFocus(root, options = {}) {
 export function renderMySessionsPage(root, options = {}) {
   if (!renderMySessionsPageInApp) throw new Error("MySessionsPage browser mount is unavailable.");
   setMySessionActionScope(root, options.actionScopeKey ?? null);
-  renderMySessionsPageInApp(root, options, () => {
-    setMySessionActionScope(root, options.sessionStore?.getState?.().authEpoch ?? options.actionScopeKey ?? null);
-    syncPendingMySessionActions(root);
-    scheduleMySessionsCreatedFocus(root, options);
-  });
+  renderMySessionsPageInApp(
+    root,
+    {
+      ...options,
+      onCreatedSessionCommit: (commit) => scheduleMySessionsCreatedFocus(root, { ...options, ...commit }),
+    },
+    () => {
+      setMySessionActionScope(root, options.sessionStore?.getState?.().authEpoch ?? options.actionScopeKey ?? null);
+      syncPendingMySessionActions(root);
+    }
+  );
 }
 
 /** Render the map-bound peek strip and its two-state (collapsed/open) drawer. */
