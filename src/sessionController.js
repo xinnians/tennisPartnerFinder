@@ -7,19 +7,15 @@ import {
 } from "./features/discovery/discoveryFeature.ts";
 import {
   MY_SESSION_FINAL_STATUSES,
-  MY_SESSION_OPEN_STATUSES,
   actionKey,
   groupMySessions,
   hostCanDecideSession,
   hostCanEditSession,
   sameSessionDetail,
   staleIntentMessage,
-  terminalAction,
 } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { chatMemberSession } from "./features/chat/chatFeature.ts";
 import {
-  authSnapshotForState,
-  authSnapshotIsCurrent,
   browserIntentStore,
   profileGateForIntent,
   profileIsPublic,
@@ -33,13 +29,14 @@ import {
 import { DataApiUnavailableError } from "./dataApi.js";
 import { sessionActionMessage } from "./sessionActionMessages.ts";
 import { createRequestGate } from "./requestGate.js";
-import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
+import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
 import { selectControllerMySessionsView } from "./sessionSelectors.ts";
 import { createSurfaceRegistry } from "./controller/surfaceRegistry.ts";
 import { createChatController } from "./controller/chatController.ts";
 import { createDiscoveryMapController } from "./controller/discoveryMapController.ts";
 import { createPlayerDirectoryController } from "./controller/playerDirectoryController.ts";
+import { createMySessionsController } from "./controller/mySessionsController.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -215,10 +212,37 @@ export function createSessionController({
   // 用 sessionId 範圍限制暫停,只在「這個 refresh 是為了顯示這個 session 剛完成的
   // join」這個精確窗口內生效,不影響其他 session 的 reconcile。
   let suppressReconcileSessionId = null;
-  let lifecycleMutationGeneration = 0;
   let intentVersion = 0;
   const resumeInFlight = new Map();
-  const inFlightLifecycleActions = new Map();
+
+  const mySessionsController = createMySessionsController({
+    api,
+    blockedPlayerGate,
+    onMySessionsChange,
+    participationGate,
+    reconcileActiveChatParticipation,
+    reconcileActiveDetailParticipation,
+    rosterGate,
+    store,
+    toast,
+  });
+  const {
+    actionFor,
+    beginLifecycleAction,
+    captureAuthSnapshot,
+    currentParticipation,
+    finishLifecycleAction,
+    isCurrentAuthSnapshot,
+    lifecycleActionIsInFlight,
+    mySessionGroups,
+    notifyMySessions,
+    refreshMyPlayerBlocks,
+    refreshMySessions,
+    reloadParticipation,
+    replaceMySessions,
+    sessionKey,
+    unblockPlayer,
+  } = mySessionsController;
 
   const playerDirectoryController = createPlayerDirectoryController({
     api,
@@ -282,11 +306,6 @@ export function createSessionController({
     startDiscoveryPolling,
   } = discoveryMapController;
 
-  function currentParticipation(sessionId) {
-    if (!read().authSession) return null;
-    return read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId)) ?? null;
-  }
-
   async function hydrateSessionJoinPreview(sessionId, surface, gate, authSnapshot = captureAuthSnapshot()) {
     if (!isCurrentAuthSnapshot(authSnapshot) || typeof api?.loadSessionJoinPreview !== "function") return false;
     const request = gate.issue(() => isCurrentAuthSnapshot(authSnapshot));
@@ -302,226 +321,6 @@ export function createSessionController({
     } catch {
       if (request.isStale()) return false;
       surface?.setJoinPreview?.({ participants: [], status: "error" });
-      return false;
-    }
-  }
-
-  function sessionKey(sessionId) {
-    return String(sessionId);
-  }
-
-  function mySessionGroups() {
-    return selectControllerMySessionsView(read()).groups;
-  }
-
-  // 通道 2「mySessions」:我的球局頁(含封鎖清單與球友卡公開設定)。
-  store.subscribe("mySessions", (current) => {
-    onMySessionsChange(selectControllerMySessionsView(current));
-  });
-
-  function notifyMySessions() {
-    store.emit("mySessions");
-    store.emit("me");
-  }
-
-  function replaceMySessions(sessions) {
-    store.setState({ mySessions: Array.isArray(sessions) ? sessions : [], mySessionRosters: new Map() });
-    mySessionsVersion += 1;
-  }
-
-  function isCurrentMySessionsSnapshot(snapshot) {
-    return isCurrentAuthSnapshot(snapshot) && snapshot?.mySessionsVersion === mySessionsVersion;
-  }
-
-  function hostSessionsNeedingRoster() {
-    return read().mySessions.filter(
-      (session) =>
-        String(session?.viewerRole) === "host" &&
-        Boolean(session?.canCancel) &&
-        MY_SESSION_OPEN_STATUSES.has(String(session?.status ?? "").toLowerCase())
-    );
-  }
-
-  async function hydrateMySessionRosters(authSnapshot = captureAuthSnapshot()) {
-    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
-    if (typeof api?.loadSessionRoster !== "function") return true;
-    const snapshot = { ...authSnapshot, mySessionsVersion };
-    const request = rosterGate.issue(() => isCurrentMySessionsSnapshot(snapshot));
-    const targets = hostSessionsNeedingRoster();
-    const results = await Promise.all(
-      targets.map(async (session) => {
-        try {
-          const roster = await api.loadSessionRoster(session.sessionId);
-          return { roster: Array.isArray(roster) ? roster : [], sessionId: session.sessionId };
-        } catch {
-          return { roster: null, sessionId: session.sessionId };
-        }
-      })
-    );
-    if (request.isStale()) return false;
-    const rosters = new Map();
-    let failed = false;
-    for (const result of results) {
-      if (result.roster) rosters.set(sessionKey(result.sessionId), result.roster);
-      else failed = true;
-    }
-    store.setState({ mySessionRosters: rosters });
-    if (failed) {
-      store.setState({
-        mySessionsError: "待審核申請暫時無法載入，請重新整理後再試。",
-        mySessionsStatus: "error",
-      });
-    }
-    notifyMySessions();
-    return !failed;
-  }
-
-  async function refreshMySessions() {
-    const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
-    return reloadParticipation(authSnapshot.epoch, authSnapshot.identity);
-  }
-
-  async function refreshMyPlayerBlocks(authSnapshot = captureAuthSnapshot()) {
-    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
-    if (typeof api?.loadMyPlayerBlocks !== "function") return true;
-    const request = blockedPlayerGate.issue(() => isCurrentAuthSnapshot(authSnapshot));
-    store.setState({ blockedPlayersStatus: "loading", blockedPlayersError: "" });
-    notifyMySessions();
-    try {
-      const rows = await api.loadMyPlayerBlocks();
-      if (request.isStale()) return false;
-      store.setState({ blockedPlayers: Array.isArray(rows) ? rows : [], blockedPlayersStatus: "ready" });
-      notifyMySessions();
-      return true;
-    } catch {
-      if (request.isStale()) return false;
-      store.setState({ blockedPlayersError: "封鎖清單暫時無法載入。", blockedPlayersStatus: "error" });
-      notifyMySessions();
-      return false;
-    }
-  }
-
-  async function unblockPlayer(profileId) {
-    const authSnapshot = captureAuthSnapshot();
-    const normalizedProfileId = Number(profileId);
-    if (
-      !isCurrentAuthSnapshot(authSnapshot) ||
-      !Number.isSafeInteger(normalizedProfileId) ||
-      normalizedProfileId <= 0
-    ) {
-      throw new Error("封鎖清單已更新，請重新整理後再試。");
-    }
-    if (!read().blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)) {
-      throw new Error("封鎖清單已更新，請重新整理後再試。");
-    }
-    if (typeof api?.setPlayerBlock !== "function") throw new Error("目前無法更新封鎖清單。");
-    await api.setPlayerBlock(normalizedProfileId, false);
-    if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-    if (!(await refreshMyPlayerBlocks(authSnapshot))) {
-      throw new Error("已解除封鎖，但清單暫時無法重新載入。");
-    }
-    toast("已解除封鎖。");
-    return true;
-  }
-
-  function actionFor(session) {
-    const terminal = terminalAction(session);
-    if (terminal) return { label: terminal, disabled: true, kind: "terminal" };
-    const participation = currentParticipation(session.sessionId);
-    if (participation?.viewerParticipantStatus === "accepted") return { label: "群組聊天", kind: "chat" };
-    if (participation?.viewerParticipantStatus === "requested") {
-      return { label: "申請等待中", disabled: true, secondaryLabel: "撤回申請", kind: "waiting" };
-    }
-    if (isSessionFull(session)) {
-      return { label: "已額滿", disabled: true, kind: "full" };
-    }
-    const viewerNtrp = Number(read().profileEligibility?.ntrpValue);
-    const hasViewerNtrp = read().profileEligibility?.ntrpValue != null && Number.isFinite(viewerNtrp);
-    if (read().authSession && !hasViewerNtrp && read().profileEligibility?.ntrp === false) {
-      return {
-        label: "申請加入",
-        note: "尚未填寫程度；補填 NTRP 可先確認是否符合球局範圍，仍可直接送出申請。",
-        kind: "join",
-        expectedAccepted: false,
-      };
-    }
-    const sessionMin = Number(session.ntrpMin);
-    const sessionMax = Number(session.ntrpMax);
-    const hasSessionRange =
-      session.ntrpMin != null && session.ntrpMax != null && Number.isFinite(sessionMin) && Number.isFinite(sessionMax);
-    if (hasViewerNtrp && hasSessionRange && (viewerNtrp < sessionMin || viewerNtrp > sessionMax)) {
-      return {
-        label: "申請加入",
-        note: "你的 NTRP 不在球局設定的 NTRP 範圍內，仍可送出申請由主揪審核。",
-        kind: "join",
-        expectedAccepted: false,
-      };
-    }
-    if (String(session.joinMode) === "instant") return { label: "直接加入", kind: "join", expectedAccepted: true };
-    return { label: "申請加入", kind: "join", expectedAccepted: false };
-  }
-
-  function captureAuthSnapshot() {
-    return authSnapshotForState(read());
-  }
-
-  function isCurrentAuthSnapshot(snapshot) {
-    return authSnapshotIsCurrent(snapshot, read());
-  }
-
-  function lifecycleActionKey(sessionId, identity = sessionIdentity(read().authSession)) {
-    if (!identity) return null;
-    return JSON.stringify([String(identity), String(sessionId)]);
-  }
-
-  function beginLifecycleAction(kind, sessionId, authSnapshot) {
-    const key = lifecycleActionKey(sessionId, authSnapshot?.identity);
-    if (!key || inFlightLifecycleActions.has(key)) return null;
-    const token = { generation: ++lifecycleMutationGeneration, key, kind };
-    inFlightLifecycleActions.set(key, token);
-    return token;
-  }
-
-  function finishLifecycleAction(token) {
-    if (token && inFlightLifecycleActions.get(token.key) === token) inFlightLifecycleActions.delete(token.key);
-  }
-
-  function lifecycleActionIsInFlight(sessionId) {
-    const key = lifecycleActionKey(sessionId);
-    return Boolean(key && inFlightLifecycleActions.has(key));
-  }
-
-  async function reloadParticipation(epoch = read().authEpoch, identity = sessionIdentity(read().authSession)) {
-    if (!read().authSession || !identity || typeof api?.loadMySessions !== "function") return false;
-    const request = participationGate.issue(
-      () =>
-        epoch === read().authEpoch && Boolean(read().authSession) && sessionIdentity(read().authSession) === identity
-    );
-    store.setState({ mySessionsStatus: "loading" });
-    notifyMySessions();
-    try {
-      const sessions = await api.loadMySessions();
-      if (request.isStale()) return false;
-      replaceMySessions(sessions);
-      store.setState({ mySessionsError: "" });
-      // Publish the cleared private cache before awaiting the roster read so
-      // an old roster never survives in the rendered destination.
-      notifyMySessions();
-      const rosterReady = await hydrateMySessionRosters({ epoch, identity });
-      if (!rosterReady || request.isStale()) return false;
-      store.setState({ mySessionsStatus: "ready" });
-      reconcileActiveDetailParticipation();
-      reconcileActiveChatParticipation();
-      notifyMySessions();
-      return true;
-    } catch {
-      if (request.isStale()) return false;
-      // A retryable read failure must not turn a known private list into an
-      // empty state. Keep the last authoritative rows and surface an error to
-      // the My Sessions page instead.
-      store.setState({ mySessionsError: "我的球局暫時無法載入。", mySessionsStatus: "error" });
-      notifyMySessions();
       return false;
     }
   }
