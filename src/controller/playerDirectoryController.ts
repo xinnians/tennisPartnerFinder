@@ -78,7 +78,7 @@ interface PlayerDirectoryControllerDependencies {
   playerGate: ControllerRequestGate;
   publish(): void;
   reloadParticipation(epoch: number, identity: string | null): Promise<boolean>;
-  requireSessionAction(intent: { action: "directory" }): unknown;
+  requireSessionAction(intent: { action: "directory" }): Promise<boolean> | void;
   store: Store<SessionControllerState, ControllerEventName>;
   surfaceRegistry: SurfaceRegistry;
   transitionSurfaces(name: string, options?: SurfaceCloseOptions): void;
@@ -96,7 +96,7 @@ export interface PlayerDirectoryController {
     court: DataCourt,
     onlyPlayers?: ControllerPlayer[] | null
   ): ControllerSurfaceHandle | null | undefined;
-  openPlayerDirectory(): Promise<boolean> | unknown;
+  openPlayerDirectory(): Promise<boolean> | void;
 }
 
 function mutationResult(value: unknown): MutationResult {
@@ -282,7 +282,7 @@ export function createPlayerDirectoryController({
     }
   }
 
-  function openPlayerDirectory(): Promise<boolean> | unknown {
+  function openPlayerDirectory(): Promise<boolean> | void {
     if (
       !read().authSession ||
       !profileIsReady(read().profileEligibility, "directory") ||

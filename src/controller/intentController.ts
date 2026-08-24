@@ -112,7 +112,7 @@ export interface IntentController {
   ): unknown;
   resumePendingIntent(): Promise<boolean>;
   startPrimaryAction(session: SessionSummary, detail: ControllerSurfaceHandle | null | undefined): unknown;
-  togglePlayerLayer(): Promise<boolean> | unknown;
+  togglePlayerLayer(): Promise<boolean> | void;
 }
 
 function mutationResult(value: unknown): MutationResult {
@@ -527,14 +527,14 @@ export function createIntentController({
     requireSessionAction({ action: "create" });
   }
 
-  function togglePlayerLayer(): Promise<boolean> | unknown {
+  function togglePlayerLayer(): Promise<boolean> | void {
     if (!read().playerLayerOn) {
       if (
         !read().authSession ||
         !profileIsReady(read().profileEligibility, "ntrp") ||
         !profileMeetsGate(read().profileEligibility, "ntrp")
       ) {
-        return requireSessionAction({ action: "players" });
+        return requireSessionAction({ action: "players" }) as Promise<boolean> | void;
       }
       store.setState({ playerLayerOn: true });
       return loadPlayers();

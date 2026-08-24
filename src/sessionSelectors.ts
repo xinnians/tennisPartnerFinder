@@ -1,8 +1,10 @@
 import type {
   ControllerMapViewPayload,
   ControllerMySessionsViewState,
+  ControllerPlayerLayerViewState,
   SessionControllerState,
 } from "./controllerContracts.ts";
+import { groupPlayersByCourt } from "./features/player-directory/playerDirectoryFeature.ts";
 import { mapStatusForState, selectVisibleSessions } from "./features/discovery/discoveryFeature.ts";
 import { groupMySessions } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { profileIsPublic } from "./features/profile-auth/profileAuthFeature.ts";
@@ -37,5 +39,16 @@ export function selectControllerMySessionsView(state: Readonly<SessionController
     isPublic: profileIsPublic(state.profileEligibility),
     status: state.mySessionsStatus,
     viewGeneration: state.authEpoch,
+  };
+}
+
+export function selectControllerPlayerLayerView(
+  state: Readonly<SessionControllerState>
+): ControllerPlayerLayerViewState {
+  return {
+    groups: state.playerLayerOn ? groupPlayersByCourt(state.players) : [],
+    message: state.playerLayerMessage,
+    on: state.playerLayerOn,
+    status: state.playerLayerStatus,
   };
 }

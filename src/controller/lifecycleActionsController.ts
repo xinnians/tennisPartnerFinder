@@ -20,6 +20,8 @@ interface MutationResult {
   reloadRequired?: unknown;
 }
 
+type SurfaceResult = ControllerSurfaceHandle | null | undefined | void;
+
 interface LifecycleDataApi {
   acceptSessionParticipant?(sessionId: ControllerIdentifier, participantId: ControllerIdentifier): Promise<unknown>;
   cancelSession?(sessionId: ControllerIdentifier): Promise<unknown>;
@@ -80,8 +82,8 @@ export interface LifecycleActionsController {
   confirmMySessionAttendance(sessionId: ControllerIdentifier): Promise<unknown>;
   markMySessionPlayed(sessionId: ControllerIdentifier): Promise<unknown>;
   mySessionForAction(sessionId: ControllerIdentifier): MySessionSummary;
-  openSessionDecision(sessionId: ControllerIdentifier): Promise<unknown>;
-  openSessionEdit(sessionId: ControllerIdentifier): unknown;
+  openSessionDecision(sessionId: ControllerIdentifier): Promise<SurfaceResult>;
+  openSessionEdit(sessionId: ControllerIdentifier): SurfaceResult;
   requireMySessionAction(
     sessionId: ControllerIdentifier,
     predicate: (session: MySessionSummary) => boolean
@@ -93,7 +95,7 @@ export interface LifecycleActionsController {
     decision: string
   ): Promise<unknown>;
   withdraw(session: SessionSummary, detail: ControllerSurfaceHandle | null | undefined): unknown;
-  withdrawMySession(sessionId: ControllerIdentifier): unknown;
+  withdrawMySession(sessionId: ControllerIdentifier): SurfaceResult;
 }
 
 function mutationResult(value: unknown): MutationResult {
@@ -269,8 +271,8 @@ export function createLifecycleActionsController({
     );
   }
 
-  function withdrawMySession(sessionId: ControllerIdentifier): unknown {
-    return openWithdrawConfirmation({ onConfirm: () => performMySessionWithdrawal(sessionId) });
+  function withdrawMySession(sessionId: ControllerIdentifier): SurfaceResult {
+    return openWithdrawConfirmation({ onConfirm: () => performMySessionWithdrawal(sessionId) }) as SurfaceResult;
   }
 
   async function performMySessionWithdrawal(sessionId: ControllerIdentifier): Promise<unknown> {
@@ -314,7 +316,7 @@ export function createLifecycleActionsController({
     );
   }
 
-  async function openSessionDecision(sessionId: ControllerIdentifier): Promise<unknown> {
+  async function openSessionDecision(sessionId: ControllerIdentifier): Promise<SurfaceResult> {
     const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanDecideSession);
     if (typeof api.loadSessionSummary !== "function" || typeof api.decideSessionCourt !== "function") {
       throw new Error("目前無法定案這個候選球局。");
@@ -362,10 +364,10 @@ export function createLifecycleActionsController({
         }
       },
     });
-    return surfaceRegistry.set("decisionSession", sheet?.close ? sheet : null);
+    return surfaceRegistry.set("decisionSession", sheet?.close ? sheet : null) as SurfaceResult;
   }
 
-  function openSessionEdit(sessionId: ControllerIdentifier): unknown {
+  function openSessionEdit(sessionId: ControllerIdentifier): SurfaceResult {
     const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanEditSession);
     if (typeof api.updateSession !== "function") throw new Error("目前無法編輯這個球局。");
     transitionSurfaces("openEdit");
@@ -388,7 +390,7 @@ export function createLifecycleActionsController({
         return result;
       },
     });
-    return surfaceRegistry.set("editSession", sheet?.close ? sheet : null);
+    return surfaceRegistry.set("editSession", sheet?.close ? sheet : null) as SurfaceResult;
   }
 
   return {

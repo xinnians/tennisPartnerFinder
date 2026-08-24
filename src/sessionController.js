@@ -3,35 +3,24 @@ import {
   boundsContainSession,
   cloneBounds,
   cloneFilters,
-  validBounds,
 } from "./features/discovery/discoveryFeature.ts";
 import {
   MY_SESSION_FINAL_STATUSES,
   actionKey,
   groupMySessions,
-  hostCanDecideSession,
-  hostCanEditSession,
   sameSessionDetail,
-  staleIntentMessage,
 } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { chatMemberSession } from "./features/chat/chatFeature.ts";
 import {
   browserIntentStore,
-  profileGateForIntent,
   profileIsPublic,
   profileIsReady,
   profileMeetsGate,
-  profileReadiness,
-  profileUnavailableMessage,
-  samePendingIntent,
-  sessionIdentity,
 } from "./features/profile-auth/profileAuthFeature.ts";
-import { DataApiUnavailableError } from "./dataApi.js";
-import { sessionActionMessage } from "./sessionActionMessages.ts";
 import { createRequestGate } from "./requestGate.js";
 import { isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
-import { selectControllerMySessionsView } from "./sessionSelectors.ts";
+import { selectControllerMySessionsView, selectControllerPlayerLayerView } from "./sessionSelectors.ts";
 import { createSurfaceRegistry } from "./controller/surfaceRegistry.ts";
 import { createChatController } from "./controller/chatController.ts";
 import { createDiscoveryMapController } from "./controller/discoveryMapController.ts";
@@ -39,10 +28,7 @@ import { createPlayerDirectoryController } from "./controller/playerDirectoryCon
 import { createMySessionsController } from "./controller/mySessionsController.ts";
 import { createLifecycleActionsController } from "./controller/lifecycleActionsController.ts";
 import { createIntentController } from "./controller/intentController.ts";
-
-// 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
-// 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
-const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖或依球場尋找球局。";
+import { createAuthController } from "./controller/authController.ts";
 
 /**
  * Arrange private My Sessions rows around the next safe action. Host request
@@ -77,6 +63,7 @@ export function createSessionController({
   promptProfile = () => {},
   reloadCurrentProfile = async () => {},
   onMySessionsChange = () => {},
+  onAuthIdentityChange = null,
   showCreatedSession = () => {},
   intentStore = browserIntentStore(),
   toast = () => {},
@@ -89,6 +76,7 @@ export function createSessionController({
   // 一併收進來。其餘 let/Map(地圖實例、idle timer、請求 gate、併發與版本守衛)
   // 都不進任何 payload,是純機械資源,留在 closure——收進 store 只會製造沒有訂閱者
   // 關心的假更新。
+  /** @type {import("./sessionStore.ts").Store<import("./controllerContracts.ts").SessionControllerState, import("./controllerContracts.ts").ControllerEventName>} */
   const store = createStore({
     authEpoch: 0,
     bounds: cloneBounds(TAIPEI_CITY_BOUNDS),
@@ -129,7 +117,6 @@ export function createSessionController({
   const playerDirectoryGate = createRequestGate();
   const blockedPlayerGate = createRequestGate();
   const playerCardGate = createRequestGate();
-  let mySessionsVersion = 0;
   const surfaceRegistry = createSurfaceRegistry({
     chat: {
       close: (context, options) => context.sheet?.close?.(options),
@@ -373,6 +360,25 @@ export function createSessionController({
     withdrawMySession,
   } = lifecycleActionsController;
 
+  const { setAuthSession, setAuthState, setProfile } = createAuthController({
+    blockedPlayerGate,
+    clearIntent,
+    clearPlayerDirectory,
+    clearPlayerLayer,
+    isCurrentAuthSnapshot,
+    notifyMySessions,
+    onAuthIdentityChange,
+    publish,
+    reconcileActiveChatParticipation,
+    reconcileActiveDetailParticipation,
+    reloadParticipation,
+    replaceMySessions,
+    resumePendingIntent,
+    store,
+    surfaceRegistry,
+    transitionSurfaces,
+  });
+
   async function hydrateSessionJoinPreview(sessionId, surface, gate, authSnapshot = captureAuthSnapshot()) {
     if (!isCurrentAuthSnapshot(authSnapshot) || typeof api?.loadSessionJoinPreview !== "function") return false;
     const request = gate.issue(() => isCurrentAuthSnapshot(authSnapshot));
@@ -392,16 +398,7 @@ export function createSessionController({
     }
   }
 
-  function setAuthSession(session) {
-    store.setState({ authSession: session ?? null });
-    store.emit("me");
-  }
-
-  function setProfile(profile) {
-    store.setState({ profile: profile ?? null });
-    store.emit("me");
-  }
-
+  /** @returns {import("./controllerContracts.ts").ControllerSurfaceHandle | null | undefined} */
   function openSessionDetail(session, { initialStage = "idle" } = {}) {
     // mountSheet replaces a court drawer in the same root and preserves that
     // drawer's original opener for focus restoration. Forget the controller
@@ -459,6 +456,7 @@ export function createSessionController({
     return registeredDetail;
   }
 
+  /** @returns {import("./controllerContracts.ts").ControllerSurfaceHandle | null | undefined} */
   function openSessionById(sessionId) {
     const session =
       read().sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
@@ -466,6 +464,7 @@ export function createSessionController({
     return openSessionDetail(session);
   }
 
+  /** @returns {Promise<import("./controllerContracts.ts").ControllerOpenSessionResult>} */
   async function openSessionFromLink(sessionId) {
     const normalizedSessionId = Number(sessionId);
     if (
@@ -588,6 +587,7 @@ export function createSessionController({
     if (!reloaded) throw new Error("球友卡設定已更新，但個人檔案同步失敗，請稍後重新整理。");
   }
 
+  /** @returns {Promise<void> | void} */
   function togglePlayerVisibility() {
     if (
       !read().authSession ||
@@ -657,86 +657,6 @@ export function createSessionController({
     });
   }
 
-  // 批 D5:全螢幕流程改由 sheet 自己在同一張表單內切換「已發布」成功頁,
-  // controller 不再自動 close()/showCreatedSession()——那兩個動作現在只在使用者
-  // 點成功頁的「查看我的球局」/「回到地圖」時才由 sheet 觸發(見
-  // openCreateSessionForIntent 的 onViewMySessions)。mutation 成功後若 auth 在
-  // discovery/participation refresh 期間變了,一律 throw(不能悄悄略過)——sheet
-  // 收到 throw 會走 inline error 分支,不會渲染成功頁,滿足「auth 變更時不得渲染
-  // 成功頁」的不變量;此為既有「refresh 後 auth 不符就靜默 return」行為的刻意
-  // 收斂,回報標注。
-  async function setAuthState(session, profile = null) {
-    const identity = sessionIdentity(session);
-    const previousIdentity = sessionIdentity(read().authSession);
-    const identityChanged = previousIdentity !== identity;
-    const signedOut = Boolean(previousIdentity) && !identity;
-    const accountChanged = Boolean(previousIdentity) && Boolean(identity) && previousIdentity !== identity;
-    const gateLevels = ["nickname", "ntrp", "directory"];
-    const previousGates = Object.fromEntries(
-      gateLevels.map((level) => [level, profileMeetsGate(read().profileEligibility, level)])
-    );
-    const nextGates = Object.fromEntries(gateLevels.map((level) => [level, profileMeetsGate(profile, level)]));
-    const previousReadiness = profileReadiness(read().profileEligibility);
-    const nextReadiness = profileReadiness(profile);
-    const gatesChanged = gateLevels.some((level) => previousGates[level] !== nextGates[level]);
-    const nicknameWasLost = previousGates.nickname && !nextGates.nickname;
-    const ntrpWasLost = previousGates.ntrp && !nextGates.ntrp;
-    const directoryWasLost = previousGates.directory && !nextGates.directory;
-    const readinessChanged =
-      previousReadiness.state !== nextReadiness.state || previousReadiness.source !== nextReadiness.source;
-    if (identityChanged || gatesChanged || readinessChanged) store.setState({ authEpoch: read().authEpoch + 1 });
-    const epoch = read().authEpoch;
-
-    if (signedOut || accountChanged) clearIntent();
-    if (signedOut || accountChanged || ntrpWasLost) {
-      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "ntrp-gate-lost" });
-    }
-    if (signedOut || accountChanged || ntrpWasLost || directoryWasLost) {
-      clearPlayerDirectory({ closeReason: signedOut || accountChanged ? "account-change" : "directory-gate-lost" });
-    }
-    if (identityChanged) {
-      const options = { reason: "account-change", restoreFocus: false };
-      transitionSurfaces("authIdentityChanged", options);
-    } else {
-      if (ntrpWasLost) {
-        transitionSurfaces("authNtrpLost", { reason: "ntrp-gate-lost", restoreFocus: false });
-      }
-      // 批 C3-2:join confirmation 已併入 detail sheet,不再是獨立 surface;失去
-      // nickname gate 時改直接關掉 detail(若那張 detail 正代表一次 join 嘗試,
-      // detail close 的 onClose 會一併清掉對應的 pending intent)。
-      if (nicknameWasLost) {
-        transitionSurfaces("authNicknameLost", { reason: "nickname-gate-lost", restoreFocus: false });
-      }
-      const promptGate = profileGateForIntent(surfaceRegistry.meta("profilePrompt", "intent"));
-      if (surfaceRegistry.get("profilePrompt") && promptGate && !previousGates[promptGate] && nextGates[promptGate]) {
-        transitionSurfaces("authProfileResolved", { reason: "profile-gate-resolved", restoreFocus: false });
-      }
-    }
-
-    store.setState({ authSession: session ?? null, profileEligibility: profile ?? null });
-    store.emit("me");
-    if (identityChanged) {
-      replaceMySessions([]);
-      blockedPlayerGate.invalidate();
-      store.setState({
-        blockedPlayers: [],
-        blockedPlayersError: "",
-        blockedPlayersStatus: "idle",
-        mySessionsError: "",
-        mySessionsStatus: identity ? "loading" : "idle",
-      });
-      // The private DOM may currently contain a roster. Push the
-      // empty snapshot synchronously, including on plain sign-out, before any
-      // optional authenticated reload can run.
-      notifyMySessions();
-    }
-    reconcileActiveDetailParticipation();
-    reconcileActiveChatParticipation();
-    publish();
-    if (await reloadParticipation(epoch, identity)) publish();
-    if (epoch === read().authEpoch && isCurrentAuthSnapshot({ epoch, identity })) await resumePendingIntent();
-  }
-
   startDiscoveryPolling();
 
   return {
@@ -756,12 +676,7 @@ export function createSessionController({
     getMySessions: () => [...read().mySessions],
     getMySessionGroups: () => mySessionGroups(),
     getMySessionState: () => selectControllerMySessionsView(read()),
-    getPlayerLayerState: () => ({
-      groups: read().playerLayerOn ? playerGroups() : [],
-      message: read().playerLayerMessage,
-      on: read().playerLayerOn,
-      status: read().playerLayerStatus,
-    }),
+    getPlayerLayerState: () => selectControllerPlayerLayerView(read()),
     getVisibleSessions: visibleSessions,
     loadDiscovery,
     markMySessionPlayed,

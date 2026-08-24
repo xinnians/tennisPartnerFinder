@@ -1031,29 +1031,25 @@ async function reloadCurrentProfile() {
   return true;
 }
 
+function handleAuthIdentityChange({ session }) {
+  closeActiveProfileCompletion();
+  stopPresenceTracking();
+  presenceLocationStatus = "idle";
+  profileRevision += 1;
+  controller.setProfile(defaultProfile());
+  storedProfileExists = false;
+  notificationSettings = defaultNotificationSettings();
+  publishPageView("me", "mySessions");
+  profileLoadStatus = session ? "loading" : "idle";
+  return session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null;
+}
+
 function applyAuthCandidate(session) {
   authRequestGate.invalidate();
-  const identity = authIdentity(session);
-  const previousIdentity = authIdentity(getAppState().authSession);
-  const identityChanged = previousIdentity !== identity;
-  if (identityChanged) closeActiveProfileCompletion();
   // Only a genuinely different account may clear the controller's profile
   // eligibility state. Auth token refreshes for the same account must not invalidate an
   // open confirmation or temporarily make an eligible profile unavailable.
-  if (identityChanged) {
-    stopPresenceTracking();
-    presenceLocationStatus = "idle";
-    profileRevision += 1;
-    controller.setProfile(defaultProfile());
-    storedProfileExists = false;
-    notificationSettings = defaultNotificationSettings();
-    publishPageView("me", "mySessions");
-    profileLoadStatus = session ? "loading" : "idle";
-    void controller.setAuthState(
-      session,
-      session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null
-    );
-  } else controller.setAuthSession(session);
+  controller.setAuthSession(session);
   if (!session) {
     stopPresenceTracking();
     presenceLocationStatus = "idle";
@@ -1197,6 +1193,7 @@ function init() {
     // showCreatedSession(result?.sessionId))；這裡在接線邊界補上 reason:"created"，
     // controller 本身不需要知道 reason 字串這個 view 層概念。
     showCreatedSession: (sessionId) => showMySessionsPage({ sessionId, reason: "created" }),
+    onAuthIdentityChange: handleAuthIdentityChange,
     onMySessionsChange: () => {
       if (!controller) return;
       // Keep the hidden destinations in sync as well. Otherwise an account

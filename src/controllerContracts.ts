@@ -11,6 +11,7 @@ import type {
 import type { DataCourt, MyPlayerBlock, PlayerPresenceDirectoryEntry } from "./data/mappers/profileMappers.ts";
 // eslint-disable-next-line no-restricted-imports -- 既有地圖 bounds 純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { MapBounds } from "./data/mappers/queryMappers.ts";
+import type { Store } from "./sessionStore.ts";
 
 export type ControllerIdentifier = number | string | null | undefined;
 export type ControllerCallbackResult = unknown | Promise<unknown>;
@@ -251,7 +252,7 @@ export interface ControllerOpenSessionResult {
 }
 
 type ControllerDiscoveryResult = Promise<boolean | void>;
-type ControllerSurfaceResult = ControllerSurfaceHandle | null | undefined;
+type ControllerSurfaceResult = ControllerSurfaceHandle | null | undefined | void;
 
 /** `createSessionController()` return object 的公開方法，名稱與同步／非同步邊界照現況。 */
 export interface ControllerApi {
@@ -303,6 +304,7 @@ export interface ControllerApi {
   setFilter<Key extends keyof ControllerFilters>(key: Key, value: ControllerFilters[Key]): void;
   setMapUnavailable(): void;
   setProfile(profile: Partial<Profile> | null): void;
+  sessionStore: Store<SessionControllerState, ControllerEventName>;
   togglePlayerLayer(): Promise<boolean> | void;
   togglePlayerVisibility(): Promise<void> | void;
   unblockPlayer(profileId: ControllerIdentifier): Promise<true>;
