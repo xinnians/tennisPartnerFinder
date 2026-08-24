@@ -9,6 +9,23 @@ const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta
 const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
 const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
 
+function extractBracedBody(source, marker) {
+  const markerIndex = source.indexOf(marker);
+  assert.notEqual(markerIndex, -1, `missing source marker: ${marker}`);
+  const openingBrace = source.indexOf("{", markerIndex + marker.length - 1);
+  assert.notEqual(openingBrace, -1, `missing opening brace after: ${marker}`);
+
+  let depth = 0;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] !== "}") continue;
+    depth -= 1;
+    if (depth === 0) return source.slice(openingBrace + 1, index);
+  }
+
+  assert.fail(`missing closing brace after: ${marker}`);
+}
+
 test("all 14 React sheet adapters register tracked SurfaceHost portal content", () => {
   const sheetSources = readdirSync(SHEETS_DIR)
     .filter((name) => name.endsWith(".tsx"))
@@ -62,9 +79,18 @@ test("surface close unmounts React before clearing DOM and remains idempotent", 
 
 test("Session Detail blocks both direct and async commits after its surface dies", () => {
   const detail = readFileSync(join(SHEETS_DIR, "SessionDetailSheet.tsx"), "utf8");
+  const mountBody = extractBracedBody(detail, "export function mountSessionDetailSheetContent(");
+  const contractBody = extractBracedBody(mountBody, "return {");
+  const imperativeMethodBodies = [
+    extractBracedBody(contractBody, "enterConfirming(expectedAccepted) {"),
+    extractBracedBody(contractBody, "handleEscape() {"),
+    extractBracedBody(contractBody, "setJoinPreview(state) {"),
+  ];
+
   assert.match(detail, /if \(!surfaceContent\.isSurfaceRootLive\(\)\) return;/);
-  assert.match(detail, /enterConfirming\(expectedAccepted\)[\s\S]*?surfaceContent\.commit\(/);
-  assert.match(detail, /handleEscape\(\)[\s\S]*?surfaceContent\.commit\(/);
-  assert.match(detail, /setJoinPreview\(state\)[\s\S]*?surfaceContent\.commit\(/);
+  for (const methodBody of imperativeMethodBodies) {
+    assert.match(methodBody, /surfaceContent\.commit\(/);
+  }
+  assert.equal((contractBody.match(/surfaceContent\.commit\(/g) ?? []).length, 3);
   assert.doesNotMatch(SESSION_VIEWS, /content\.renderStage|function renderStage/);
 });
