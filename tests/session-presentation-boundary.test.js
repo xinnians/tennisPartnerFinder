@@ -93,7 +93,10 @@ test("session action messages stay complete and exact in the UI layer", async ()
   for (const code of Object.keys(expected)) {
     assert.equal(sessionActionMessage(new SessionActionError(code), "fallback"), expected[code]);
   }
-  assert.equal(sessionActionMessage(new SessionActionError("NOT_A_REAL_CODE"), "fallback"), expected.UNKNOWN_ACTION_ERROR);
+  assert.equal(
+    sessionActionMessage(new SessionActionError("NOT_A_REAL_CODE"), "fallback"),
+    expected.UNKNOWN_ACTION_ERROR
+  );
   assert.equal(sessionActionMessage(new Error("原始錯誤"), "fallback"), "原始錯誤");
   assert.equal(sessionActionMessage(null, "fallback"), "fallback");
 });

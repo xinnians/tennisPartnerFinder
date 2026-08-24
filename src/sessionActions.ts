@@ -284,10 +284,7 @@ export function runMySessionAction(
     clearError: !opensConfirmation,
     current: () => pendingMySessionActions(root) === pending,
     onError: (actionError) => {
-      showMySessionActionError(
-        root,
-        sessionActionMessage(actionError, "操作暫時無法完成，請稍後再試。")
-      );
+      showMySessionActionError(root, sessionActionMessage(actionError, "操作暫時無法完成，請稍後再試。"));
       // reloadParticipation can replace the original button before an error
       // arrives. Resolve the semantic action again in the current DOM so the
       // keyboard user stays in the same operational context.
