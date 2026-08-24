@@ -1,17 +1,8 @@
-import {
-  CHAT_POLL_INTERVAL_MS,
-  DISCOVERY_POLL_INTERVAL_MS,
-  LOCATION_INITIAL_RADIUS_METERS,
-  MAP_IDLE_DEBOUNCE_MS,
-  TAIPEI_CITY_BOUNDS,
-} from "./config.js";
-import { DEFAULT_FILTER_STATE } from "./filters.js";
+import { CHAT_POLL_INTERVAL_MS, DISCOVERY_POLL_INTERVAL_MS, TAIPEI_CITY_BOUNDS } from "./config.js";
 import {
   boundsContainSession,
   cloneBounds,
   cloneFilters,
-  representsExpectedViewport,
-  selectVisibleSessions,
   validBounds,
 } from "./features/discovery/discoveryFeature.ts";
 import {
@@ -46,12 +37,13 @@ import {
 } from "./features/player-directory/playerDirectoryFeature.ts";
 import { DataApiUnavailableError } from "./dataApi.js";
 import { sessionActionMessage } from "./sessionActionMessages.ts";
-import { createForegroundPoller, createRequestGate } from "./requestGate.js";
+import { createRequestGate } from "./requestGate.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { createStore } from "./sessionStore.ts";
-import { selectControllerMapView, selectControllerMySessionsView } from "./sessionSelectors.ts";
+import { selectControllerMySessionsView } from "./sessionSelectors.ts";
 import { createSurfaceRegistry } from "./controller/surfaceRegistry.ts";
 import { createChatController } from "./controller/chatController.ts";
+import { createDiscoveryMapController } from "./controller/discoveryMapController.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -63,9 +55,6 @@ const LOCATION_UNAVAILABLE_MESSAGE = "無法取得位置；你仍可移動地圖
  * is never used to infer them.
  */
 export { groupMySessions };
-
-const EXPLICIT_VIEWPORT_IDLE_GRACE_MS = MAP_IDLE_DEBOUNCE_MS * 8;
-const MAX_EXPECTED_EXPLICIT_VIEWPORTS = 6;
 
 /**
  * State and lifecycle boundary for the public discovery experience. It only
@@ -136,8 +125,6 @@ export function createSessionController({
   });
   /** 目前狀態快照。每次寫入都會換新的頂層物件,所以一律現讀,不跨 await 快取。 */
   const read = store.getState;
-  let map = null;
-  let idleTimer = null;
   const discoveryGate = createRequestGate();
   const participationGate = createRequestGate();
   const rosterGate = createRequestGate();
@@ -148,8 +135,6 @@ export function createSessionController({
   const blockedPlayerGate = createRequestGate();
   const playerCardGate = createRequestGate();
   let mySessionsVersion = 0;
-  let explicitViewportGeneration = 0;
-  let expectedExplicitViewports = [];
   const surfaceRegistry = createSurfaceRegistry({
     chat: {
       close: (context, options) => context.sheet?.close?.(options),
@@ -239,32 +224,40 @@ export function createSessionController({
   const resumeInFlight = new Map();
   const inFlightLifecycleActions = new Map();
 
-  function visibleSessions() {
-    return selectVisibleSessions(read());
-  }
-
   function playerGroups() {
     return groupPlayersByCourt(read().players);
   }
 
-  // 通道 1「map」:球局列表、圖釘與球友圖層。派發一律由 publish() 顯式觸發,不做
-  // 變更偵測——既有行為包含「值沒變仍要重畫」(例如 refreshAuthoritativeState 收尾
-  // 的那次),偵測式派發會把它吃掉。
-  store.subscribe("map", (current) => {
-    const view = selectControllerMapView(current);
-    render(view);
-    renderPins(view.sessions);
-    renderPlayers({
-      groups: current.playerLayerOn ? playerGroups() : [],
-      message: current.playerLayerMessage,
-      on: current.playerLayerOn,
-      status: current.playerLayerStatus,
-    });
+  const discoveryMapController = createDiscoveryMapController({
+    api,
+    discoveryGate,
+    discoveryPollIntervalMs,
+    getPlayerGroups: playerGroups,
+    loadPlayers,
+    mapTools,
+    reconcileActiveDetail,
+    render,
+    renderPins,
+    renderPlayers,
+    store,
+    surfaceRegistry,
+    visibilityTarget,
   });
-
-  function publish() {
-    store.emit("map");
-  }
+  const {
+    attachMap,
+    expandBounds,
+    getVisibleSessions: visibleSessions,
+    loadDiscovery,
+    publish,
+    refreshLocationViewport,
+    resetFilters,
+    retryDiscovery,
+    setCourts,
+    setDrawerState,
+    setFilter,
+    setMapUnavailable,
+    startDiscoveryPolling,
+  } = discoveryMapController;
 
   function currentParticipation(sessionId) {
     if (!read().authSession) return null;
@@ -605,91 +598,6 @@ export function createSessionController({
     return loadPlayerDirectoryList();
   }
 
-  async function loadDiscovery(bounds = read().bounds) {
-    const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
-    const request = discoveryGate.issue();
-    // A court drawer is a snapshot of the prior viewport. Remove it before
-    // clearing that snapshot so its cards cannot target now-unresolvable rows.
-    surfaceRegistry.close("courtDrawer");
-    // A viewport has changed, so rows from the previous one must not remain
-    // visible while its authoritative response is still in flight.
-    store.setState({ bounds: nextBounds, sessions: [], discoveryStatus: "loading", discoveryMessage: "" });
-    const playerRefresh = read().playerLayerOn ? loadPlayers(nextBounds) : null;
-    publish();
-    try {
-      const sessions = await api.loadSessionDiscovery({ bounds: nextBounds });
-      if (request.isStale()) return false;
-      store.setState({ sessions: Array.isArray(sessions) ? sessions : [], discoveryStatus: "ready" });
-      reconcileActiveDetail(nextBounds);
-    } catch {
-      if (request.isStale()) return;
-      store.setState({ sessions: [], discoveryStatus: "error", discoveryMessage: "球局資料暫時無法載入。" });
-      // Keeping a stale action open after authority could not be refreshed is
-      // less safe than asking the user to reopen it after a successful retry.
-      surfaceRegistry.close("detail");
-      publish();
-      return false;
-    }
-    publish();
-    if (playerRefresh) await playerRefresh;
-    return true;
-  }
-
-  /** 安靜背景重抓探索資料(60 秒輪詢與回前景時):不清列表、不進 loading、不關
-   *  drawer。任何 surface 開啟時跳過——背景替換資料會把使用者正在看的快照抽走
-   *  (與深連結 sheet 被收掉是同一類 rug-pull),等 surface 關閉後下一 tick 再補。
-   *  失敗靜默:保留現有畫面,由下一次正常載入訂正。 */
-  function discoveryPollIsActive() {
-    if (read().discoveryStatus === "loading") return false;
-    if (
-      surfaceRegistry.get("detail") ||
-      surfaceRegistry.get("courtDrawer") ||
-      surfaceRegistry.get("chat") ||
-      surfaceRegistry.get("createSession") ||
-      surfaceRegistry.get("decisionSession") ||
-      surfaceRegistry.get("editSession")
-    ) {
-      return false;
-    }
-    if (typeof api?.loadSessionDiscovery !== "function") return false;
-    return true;
-  }
-
-  async function quietRefreshDiscovery() {
-    const request = discoveryGate.issue();
-    try {
-      const sessions = await api.loadSessionDiscovery({ bounds: read().bounds });
-      if (request.isStale()) return false;
-      store.setState({
-        sessions: Array.isArray(sessions) ? sessions : [],
-        discoveryStatus: "ready",
-        discoveryMessage: "",
-      });
-      publish();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // 通道 3「courts」:球場目錄鏡射給正開著的表單 surface。這是唯一一個語意上是
-  // 「狀態鏡射」而非「surface 專屬命令」的把手直呼群組,所以收斂成通道;其餘直呼
-  // (setJoinPreview/setDirectory/setState/setArchived/setTerminal/
-  // setInvitableSessions)都是命令或 surface 私有資料,收斂會改變派送時機,維持原樣。
-  store.subscribe("courts", (current) => {
-    surfaceRegistry.get("createSession")?.setCourts?.(current.courts, { ready: current.courtsReady });
-    surfaceRegistry.get("decisionSession")?.setCourts?.(current.courts, { ready: current.courtsReady });
-    surfaceRegistry.get("editSession")?.setCourts?.(current.courts, { ready: current.courtsReady });
-    surfaceRegistry.get("profilePrompt")?.setCourts?.(current.courts, { ready: current.courtsReady });
-  });
-
-  function setCourts(courts, { ready = true } = {}) {
-    store.setState({ courts: Array.isArray(courts) ? courts : [], courtsReady: Boolean(ready) });
-    store.emit("courts");
-    store.emit("me");
-    publish();
-  }
-
   function setAuthSession(session) {
     store.setState({ authSession: session ?? null });
     store.emit("me");
@@ -698,95 +606,6 @@ export function createSessionController({
   function setProfile(profile) {
     store.setState({ profile: profile ?? null });
     store.emit("me");
-  }
-
-  function setDrawerState(value) {
-    if (value !== "collapsed" && value !== "open") return;
-    store.setState({ drawerState: value });
-    publish();
-  }
-
-  function setFilter(key, value) {
-    // filters 物件維持同一個引用(HEAD 就是就地改欄位),換掉會改變 render payload
-    // 的 filters identity;改完仍走 setState 讓寫入留在 store 通道上。
-    const filters = read().filters;
-    if (DEFAULT_FILTER_STATE[key] instanceof Set) {
-      filters[key] = value instanceof Set ? new Set(value) : new Set(value ?? []);
-    } else filters[key] = value;
-    store.setState({ filters });
-    publish();
-  }
-
-  function resetFilters() {
-    store.setState({ filters: cloneFilters() });
-    publish();
-  }
-
-  function setMapUnavailable() {
-    // 地圖不可用時自動展開抽屜(v2 兩態:open 即非 modal,頁面殼維持可互動)。
-    store.setState({ mapUnavailable: true, drawerState: "open" });
-    publish();
-  }
-
-  function pruneExpectedExplicitViewports(now = Date.now()) {
-    expectedExplicitViewports = expectedExplicitViewports.filter((entry) => entry.expiresAt > now);
-  }
-
-  function rememberExplicitViewport(bounds) {
-    pruneExpectedExplicitViewports();
-    expectedExplicitViewports = [
-      ...expectedExplicitViewports,
-      {
-        bounds: cloneBounds(bounds),
-        expiresAt: Date.now() + EXPLICIT_VIEWPORT_IDLE_GRACE_MS,
-        generation: ++explicitViewportGeneration,
-      },
-    ].slice(-MAX_EXPECTED_EXPLICIT_VIEWPORTS);
-  }
-
-  function isExpectedExplicitViewport(bounds) {
-    pruneExpectedExplicitViewports();
-    return expectedExplicitViewports.some((entry) => representsExpectedViewport(bounds, entry.bounds));
-  }
-
-  function refreshExplicitViewport(moveCamera, fallbackBounds = null) {
-    clearTimeout(idleTimer);
-    const movedBounds = moveCamera?.();
-    const bounds = validBounds(movedBounds) ? movedBounds : fallbackBounds;
-    if (!validBounds(bounds)) {
-      publish();
-      return;
-    }
-    // Discovery starts from the known requested bounds immediately. Retain a
-    // short, generation-tagged expected viewport list so any late fitBounds
-    // idle is recognized by its own viewport instead of blindly swallowing
-    // the next map idle (which might be a real user pan).
-    if (map) rememberExplicitViewport(bounds);
-    return loadDiscovery(bounds);
-  }
-
-  function refreshLocationViewport(location) {
-    // Before Maps is ready the runtime safely returns no bounds; the retained
-    // location is then replayed by attachMap() once a camera exists.
-    return refreshExplicitViewport(() => mapTools.setUserLocation?.(location, LOCATION_INITIAL_RADIUS_METERS));
-  }
-
-  function attachMap(nextMap) {
-    map = nextMap;
-    store.setState({ mapUnavailable: false });
-    mapTools.subscribeToMapIdle?.(map, () => {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => {
-        const bounds = mapTools.getMapBounds?.(map);
-        if (!validBounds(bounds) || isExpectedExplicitViewport(bounds)) return;
-        loadDiscovery(bounds);
-      }, MAP_IDLE_DEBOUNCE_MS);
-    });
-    // A location chosen before Maps was ready remains controller-only state.
-    // Subscribe first so both synchronous fakes and Google's later idle event
-    // consume the same explicit-refresh suppression.
-    if (read().userLocation) refreshLocationViewport(read().userLocation);
-    else publish();
   }
 
   function openSessionDetail(session, { initialStage = "idle" } = {}) {
@@ -1887,23 +1706,7 @@ export function createSessionController({
     if (epoch === read().authEpoch && isCurrentAuthSnapshot({ epoch, identity })) await resumePendingIntent();
   }
 
-  function retryDiscovery() {
-    return loadDiscovery(read().bounds);
-  }
-
-  function expandBounds() {
-    return refreshExplicitViewport(() => mapTools.fitTaipei?.(), TAIPEI_CITY_BOUNDS);
-  }
-
-  // 探索資料的 best-effort 更新(2026-08-17 拍板):前景輪詢+回前景即刷。controller
-  // 與 app 同壽命,不需 teardown;unref 讓 node 測試不被 timer 扣住事件圈。
-  createForegroundPoller({
-    intervalMs: discoveryPollIntervalMs,
-    isActive: discoveryPollIsActive,
-    onInterval: () => void quietRefreshDiscovery(),
-    onVisible: () => void quietRefreshDiscovery(),
-    visibilityTarget,
-  });
+  startDiscoveryPolling();
 
   return {
     attachMap,
