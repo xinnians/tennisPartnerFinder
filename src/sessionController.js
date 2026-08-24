@@ -37,6 +37,7 @@ import { createChatController } from "./controller/chatController.ts";
 import { createDiscoveryMapController } from "./controller/discoveryMapController.ts";
 import { createPlayerDirectoryController } from "./controller/playerDirectoryController.ts";
 import { createMySessionsController } from "./controller/mySessionsController.ts";
+import { createLifecycleActionsController } from "./controller/lifecycleActionsController.ts";
 
 // 批 11-C:requestCurrentLocation 的五個失敗分支(已封鎖/無 geolocation/座標非有限值/
 // 使用者拒絕/呼叫拋錯)共用同一句文案,原本五處各寫一次字面。抽成常數只去重,文案逐字不變。
@@ -305,6 +306,36 @@ export function createSessionController({
     setMapUnavailable,
     startDiscoveryPolling,
   } = discoveryMapController;
+
+  const lifecycleActionsController = createLifecycleActionsController({
+    api,
+    beginLifecycleAction,
+    captureAuthSnapshot,
+    finishLifecycleAction,
+    isCurrentAuthSnapshot,
+    openDecideSession,
+    openEditSession,
+    openWithdrawConfirmation,
+    refreshAuthoritativeState,
+    sessionKey,
+    store,
+    surfaceRegistry,
+    toast,
+    transitionSurfaces,
+  });
+  const {
+    cancelMySession,
+    confirmMySessionAttendance,
+    markMySessionPlayed,
+    mySessionForAction,
+    openSessionDecision,
+    openSessionEdit,
+    requireMySessionAction,
+    respondInvite,
+    reviewMySessionParticipant,
+    withdraw,
+    withdrawMySession,
+  } = lifecycleActionsController;
 
   async function hydrateSessionJoinPreview(sessionId, surface, gate, authSnapshot = captureAuthSnapshot()) {
     if (!isCurrentAuthSnapshot(authSnapshot) || typeof api?.loadSessionJoinPreview !== "function") return false;
@@ -689,263 +720,6 @@ export function createSessionController({
     } finally {
       finishLifecycleAction(mutation);
     }
-  }
-
-  function withdraw(session, detail) {
-    return openWithdrawConfirmation({ onConfirm: () => performDetailWithdrawal(session, detail) });
-  }
-
-  async function performDetailWithdrawal(session, detail) {
-    const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot)) return;
-    const mutation = beginLifecycleAction("withdraw", session.sessionId, authSnapshot);
-    if (!mutation) {
-      toast("這個球局的操作正在處理中。");
-      return;
-    }
-    try {
-      const result = await api.withdrawFromSession(session.sessionId);
-      if (!isCurrentAuthSnapshot(authSnapshot)) return;
-      if (!(await refreshAuthoritativeState(authSnapshot))) {
-        if (surfaceRegistry.is("detail", detail)) toast("球局狀態暫時無法重新載入，請重新整理後再試。");
-        return;
-      }
-      if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-        surfaceRegistry.close("detail", undefined, detail);
-        toast("球局狀態已更新，請重新載入。");
-        return;
-      }
-      surfaceRegistry.close("detail", undefined, detail);
-      toast("已撤回申請。");
-    } catch (error) {
-      if (!isCurrentAuthSnapshot(authSnapshot)) return;
-      await refreshAuthoritativeState(authSnapshot);
-      toast(sessionActionMessage(error, "撤回失敗，請稍後再試。"));
-    } finally {
-      finishLifecycleAction(mutation);
-    }
-  }
-
-  function mySessionForAction(sessionId) {
-    const session = read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
-    if (!session) throw new Error("這個球局已更新，請重新整理後再試。");
-    return session;
-  }
-
-  function requireMySessionAction(sessionId, predicate) {
-    const authSnapshot = captureAuthSnapshot();
-    if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profileEligibility)) {
-      throw new Error("登入或個人檔案狀態已變更，請重新整理後再試。");
-    }
-    const session = mySessionForAction(sessionId);
-    if (!predicate(session)) throw new Error("這個球局的狀態已更新，請重新整理後再試。");
-    return { authSnapshot, session };
-  }
-
-  async function runMySessionMutation(kind, session, authSnapshot, execute, successMessage) {
-    const mutation = beginLifecycleAction(kind, session.sessionId, authSnapshot);
-    if (!mutation) throw new Error("這個球局的操作正在處理中。");
-    let refreshed = false;
-    try {
-      const result = await execute();
-      if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-      refreshed = await refreshAuthoritativeState(authSnapshot);
-      if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
-      if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-        throw new Error("球局狀態已更新，請重新載入。");
-      }
-      toast(successMessage);
-      return result;
-    } catch (error) {
-      // Re-read authority even after a server-side rejection so a full,
-      // cancelled, expired, or already-decided race never leaves stale actions.
-      if (isCurrentAuthSnapshot(authSnapshot) && !refreshed) {
-        await refreshAuthoritativeState(authSnapshot);
-      }
-      throw error;
-    } finally {
-      finishLifecycleAction(mutation);
-    }
-  }
-
-  async function reviewMySessionParticipant(sessionId, participantId, decision) {
-    const { authSnapshot, session } = requireMySessionAction(
-      sessionId,
-      (candidate) => String(candidate.viewerRole) === "host" && Boolean(candidate.canCancel)
-    );
-    const participant = (read().mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
-      (candidate) =>
-        String(candidate.participantId) === String(participantId) &&
-        candidate.role === "guest" &&
-        candidate.status === "requested"
-    );
-    if (!participant || !["accepted", "declined"].includes(decision)) {
-      throw new Error("這筆申請已更新，請重新整理後再試。");
-    }
-    const apiAction = decision === "accepted" ? api?.acceptSessionParticipant : api?.declineSessionParticipant;
-    if (typeof apiAction !== "function") throw new Error("目前無法處理這筆申請。");
-    return runMySessionMutation(
-      decision === "accepted" ? "accept" : "decline",
-      session,
-      authSnapshot,
-      () => apiAction(session.sessionId, participant.participantId),
-      decision === "accepted" ? "已接受申請。" : "已婉拒申請。"
-    );
-  }
-
-  async function respondInvite(sessionId, decision) {
-    const { authSnapshot, session } = requireMySessionAction(
-      sessionId,
-      (candidate) =>
-        String(candidate.viewerRole) === "guest" &&
-        String(candidate.viewerParticipantStatus) === "invited" &&
-        Boolean(candidate.canRespondInvite)
-    );
-    if (!["accepted", "declined"].includes(decision)) {
-      throw new Error("這筆邀請已更新，請重新整理後再試。");
-    }
-    if (typeof api?.respondToSessionInvite !== "function") throw new Error("目前無法回覆這筆邀請。");
-    return runMySessionMutation(
-      decision === "accepted" ? "accept-invite" : "decline-invite",
-      session,
-      authSnapshot,
-      () => api.respondToSessionInvite(session.sessionId, decision),
-      decision === "accepted" ? "已接受邀請。" : "已婉拒邀請。"
-    );
-  }
-
-  async function cancelMySession(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canCancel));
-    if (typeof api?.cancelSession !== "function") throw new Error("目前無法取消這個球局。");
-    return runMySessionMutation(
-      "cancel",
-      session,
-      authSnapshot,
-      () => api.cancelSession(session.sessionId),
-      "已取消球局。"
-    );
-  }
-
-  function withdrawMySession(sessionId) {
-    return openWithdrawConfirmation({ onConfirm: () => performMySessionWithdrawal(sessionId) });
-  }
-
-  async function performMySessionWithdrawal(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) => Boolean(candidate.canWithdraw));
-    if (typeof api?.withdrawFromSession !== "function") throw new Error("目前無法退出這個球局。");
-    return runMySessionMutation(
-      "withdraw",
-      session,
-      authSnapshot,
-      () => api.withdrawFromSession(session.sessionId),
-      "已退出球局。"
-    );
-  }
-
-  async function markMySessionPlayed(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(sessionId, (candidate) =>
-      Boolean(candidate.canConfirmPlayed)
-    );
-    if (typeof api?.markSessionPlayed !== "function") throw new Error("目前無法回報這個球局。");
-    return runMySessionMutation(
-      "played",
-      session,
-      authSnapshot,
-      () => api.markSessionPlayed(session.sessionId),
-      "已回報打成。"
-    );
-  }
-
-  async function confirmMySessionAttendance(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(
-      sessionId,
-      (candidate) => Boolean(candidate.canConfirmAttendance) && !candidate.viewerPlayedConfirmed
-    );
-    if (typeof api?.confirmSessionAttendance !== "function") throw new Error("目前無法確認到場。");
-    return runMySessionMutation(
-      "attendance",
-      session,
-      authSnapshot,
-      () => api.confirmSessionAttendance(session.sessionId),
-      "已確認到場。"
-    );
-  }
-
-  async function openSessionDecision(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanDecideSession);
-    if (typeof api?.loadSessionSummary !== "function" || typeof api?.decideSessionCourt !== "function") {
-      throw new Error("目前無法定案這個候選球局。");
-    }
-    // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-    let summary = null;
-    try {
-      summary = await api.loadSessionSummary(session.sessionId);
-    } catch {
-      throw new Error("候選球局暫時無法載入，請稍後再試。");
-    }
-    if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-    transitionSurfaces("openDecision");
-    let sheet = null;
-    const decisionSummary = isUndecidedCandidate(summary) ? summary : null;
-    sheet = openDecideSession(decisionSummary, {
-      courts: read().courts,
-      courtsReady: read().courtsReady,
-      onClose: () => {
-        surfaceRegistry.release("decisionSession", sheet);
-      },
-      onDecide: async (courtId, startAt) => {
-        if (!decisionSummary) return { outcome: "SESSION_EXPIRED", reloadRequired: true };
-        if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-        const mutation = beginLifecycleAction("decide", session.sessionId, authSnapshot);
-        if (!mutation) throw new Error("這個球局的操作正在處理中。");
-        let refreshed = false;
-        try {
-          const result = await api.decideSessionCourt(session.sessionId, courtId, startAt);
-          if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-          refreshed = await refreshAuthoritativeState(authSnapshot);
-          if (result?.reloadRequired || result?.outcome === "SESSION_EXPIRED") {
-            sheet?.setTerminal?.("候選球局已逾期或下架，無法再定案。");
-            return result;
-          }
-          if (!refreshed) throw new Error("球局狀態暫時無法重新載入，請重新整理後再試。");
-          surfaceRegistry.close("decisionSession", { reason: "complete" });
-          toast("候選球局已定案。");
-          return result;
-        } catch (error) {
-          if (isCurrentAuthSnapshot(authSnapshot) && !refreshed) await refreshAuthoritativeState(authSnapshot);
-          throw error;
-        } finally {
-          finishLifecycleAction(mutation);
-        }
-      },
-    });
-    return surfaceRegistry.set("decisionSession", sheet?.close ? sheet : null);
-  }
-
-  function openSessionEdit(sessionId) {
-    const { authSnapshot, session } = requireMySessionAction(sessionId, hostCanEditSession);
-    if (typeof api?.updateSession !== "function") throw new Error("目前無法編輯這個球局。");
-    transitionSurfaces("openEdit");
-    let sheet = null;
-    sheet = openEditSession(session, {
-      courts: read().courts,
-      courtsReady: read().courtsReady,
-      onClose: () => {
-        surfaceRegistry.release("editSession", sheet);
-      },
-      onSubmit: async (input) => {
-        const result = await runMySessionMutation(
-          "update",
-          session,
-          authSnapshot,
-          () => api.updateSession({ sessionId: session.sessionId, ...input }),
-          "已更新球局資訊。"
-        );
-        surfaceRegistry.close("editSession", { reason: "complete" });
-        return result;
-      },
-    });
-    return surfaceRegistry.set("editSession", sheet?.close ? sheet : null);
   }
 
   async function commitPlayerVisibility() {
