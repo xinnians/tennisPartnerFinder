@@ -576,7 +576,8 @@ function setActivePage(page, { historyMode = "push" } = {}) {
   syncBottomNavigation();
   const hash = PAGE_ROUTES[page].hash;
   if (historyMode !== "none" && globalThis.location?.hash !== hash) {
-    globalThis.history?.[historyMode === "replace" ? "replaceState" : "pushState"]?.(null, "", hash);
+    const state = { pageOwnerIdentity: authIdentity(getAppState().authSession) };
+    globalThis.history?.[historyMode === "replace" ? "replaceState" : "pushState"]?.(state, "", hash);
   }
 }
 
@@ -716,7 +717,16 @@ async function boot() {
   // router awaits this promise before opening that session exactly once.
   bootAuthReady = restoreAuth();
   const routeStartup = routeCurrentHash();
-  await Promise.all([bootAuthReady, publicStartup, routeStartup]);
+  await bootAuthReady;
+  const pageOwnerIdentity = globalThis.history?.state?.pageOwnerIdentity;
+  if (
+    pageFromHash(globalThis.location?.hash) &&
+    pageOwnerIdentity &&
+    pageOwnerIdentity !== authIdentity(getAppState().authSession)
+  ) {
+    showMapPage({ historyMode: "replace" });
+  }
+  await Promise.all([publicStartup, routeStartup]);
 }
 
 function init() {
