@@ -56,20 +56,21 @@
 ## 程式結構
 
 - `src/main.js`：應用程式入口、頁面切換、Maps/Auth 接線。
-- `src/sessionController.js`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh。
-- `src/sessionViews.js`：抽屜、球局、建立／編輯／定案表單、My Sessions 與群聊。
+- `src/sessionController.js`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh；
+  `src/controller/`：七個子 controller、surfaceRegistry 與 controllerApiContract（strict TS）。
+- `src/sessionViews.js` 與 `src/views/`：頁面、抽屜、表單與 surface 的遷移期 legacy adapter。
 - `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
-- `src/app/`：單一 React root 與 SurfaceHost；頁面與 sheet 內容以 portal 掛進 legacy 容器。
-- `src/features/`：六個 feature 純邏輯模組（chat、discovery、notifications、
-  player-directory、profile-auth、session-lifecycle）。
-- `src/dataApi.js`：唯一瀏覽器資料邊界的 79 行薄 facade；實作在 `src/data/`
+- `src/app/`：單一 React root 與 SurfaceHost；`src/pages/`（4 頁面級元件）、`src/sheets/`
+  （14 個 sheet/dialog）與 `src/components/` 的內容以 portal 掛進 legacy 容器。
+- `src/features/`：十個 feature 純邏輯模組（chat、discovery、filters、notifications、
+  player-directory、presence、profile、profile-auth、session-lifecycle、share）。
+- `src/dataApi.js`：唯一瀏覽器資料邊界的 80 行薄 facade；實作在 `src/data/`
   （`databaseTypes.ts` 生成型別、`repositories/`、`mappers/`、`authApi.ts`），邊界語意不變。
 - `src/domainTypes.ts`：從 data API mapper 反推的共用 domain／surface 型別。
 - React 頁面批的 mount、import、DOM 凍結與焦點／Escape 混用規則見 `.claude/rules/react-migration.md`。
-- `src/map.js` / `src/pins.js`：Google Maps 與球局／球場圖釘。
-- `src/mockData.js`：安全的本機 demo `SessionSummary`。
-- production build 以 Vite alias 改讀 `src/mockData.empty.js`；`npm run check:production-bundle`
-  會阻止示範暱稱進入 `dist`，mock dev／測試仍使用完整 fixture。
+- `src/map.ts`／`src/pins.ts`：Google Maps 與球局／球場圖釘。`src/mockData.js`：安全的本機
+  demo `SessionSummary`；production build 以 Vite alias 改讀 `src/mockData.empty.js`，
+  `npm run check:production-bundle` 阻止示範暱稱進入 `dist`，mock dev／測試仍用完整 fixture。
 - `data/courts.json`：球場目錄單一來源；產生 migration／pgTAP fixture 的來源。
 
 既有頁面以 `innerHTML` 產生 DOM 時，所有動態內容都必須使用 `esc()`。新 `.ts/.tsx` 走

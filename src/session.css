@@ -4,18 +4,13 @@
    **層疊位置 8 / 13**——本專案未使用 @layer(理由見
    docs/migration-reports/batch-10.md §3),檔間勝負由 src/main.js 的 import 次序決定。
 
-   **本檔為何是這個組合**:tests/contrast-tokens.test.js 以正則「直讀本檔字面內容」
-   驗三件事,而 tests/** 是批 10 凍結面(零修改零新增):
-     1. 全部 --color-* token 的字面值;
-     2. .chat-session-summary span / .chat-archived-note / .chat-message__meta
-        三條規則的單行形狀(正則要求選擇器頂格、規則體同一行);
-     3. 本檔長度 > 10000 字元(該測試用來確認「檔案有讀到」的下限)。
-   因此 token 層與群聊區塊都不能搬走,且本檔必須保有足量實質內容。詳情 sheet 在
-   原始 session.css 中緊鄰群聊區塊之前(第 899–1033 行對第 1034–1106 行),兩者
-   併在本檔可同時滿足長度下限與「零重排」——它們本來就相鄰,順序未動。
-   token 區塊則由全域第 1 位移到第 8 位:custom property 全庫只有這一處 :root 宣告、
-   無競爭宣告、JS 也沒有 setProperty 寫入,位移對計算值為零影響(證明見
-   docs/migration-reports/batch-10.md §2.2)。
+   歷史註記:本檔的「token + 詳情 + 群聊」三塊組合,源自批 10 當時
+   tests/contrast-tokens.test.js 直讀本檔字面形狀的凍結約束。該測試現已泛化:
+   遞迴掃描 src/ 全部 CSS(至少 13 檔、每檔 >100 字元、去註解合併內容 >70,000 字元),
+   對比實算與三條群聊 selector 的 token 斷言都驗合併掃描集,不再綁定本檔的組合、
+   選擇器排版或單檔長度。日後拆分本檔已無測試阻礙,惟屬 CSS 結構變更,須另立批次評估。
+   token 區塊仍是全庫唯一的 :root 宣告:無競爭宣告、JS 也沒有 setProperty 寫入,
+   位於層疊第 8 位對計算值零影響(證明見 docs/migration-reports/batch-10.md §2.2)。
    ============================================================ */
 
 :root {

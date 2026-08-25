@@ -1,7 +1,7 @@
-# 球局｜台北市網球
+# 球咖｜台北網球
 
-一個以地圖為起點的公開球局 MVP：想打球的人可找到附近、尚未開始的網球球局；
-有場地但缺球伴的人可開局。主揪接受申請後，雙方才在「我的球局」看到彼此的 LINE。
+一個以地圖為起點的公開球局 MVP：想打球的人可找到附近、未開打或開打兩小時內的網球
+球局；缺球伴的人可開局。主揪接受後，成員以球局群組聊天協調當天細節。
 
 首發範圍是 **台北市、網球**。球場目錄保留雙北資料，並不代表新北市球場已開放建局或
 公開探索。
@@ -12,8 +12,9 @@
 2. 瀏覽者可移動地圖、篩選行政區／球場／日期／程度／打法，或明確點選「使用我的位置」。
    初次進站不會自動要求定位；位置只留在記憶體，使用後約以 5 km 範圍調整視野。
 3. 展開抽屜、點選球局卡，先看到球場、時間、打法、程度、缺額與主揪公開暱稱／NTRP。
-4. 申請加入需 Google 登入與完成基本檔案。主揪在「我的球局」審核申請；可接受或婉拒。
-5. 接受後，主揪與該 guest 才能在「我的球局」互看對方 LINE；guest 不會看到其他 guest。
+4. 加入需登入並完成基本檔案。球局分審核制與直接加入兩種；審核制申請由主揪在
+   「我的球局」接受或婉拒。
+5. 成局後，主揪與已接受的參加者在「我的球局」使用該局群組聊天；球局封存後聊天唯讀。
 
 本機 mock 模式使用安全的假球局，僅供瀏覽與測試；已設定 Supabase 時才會讀取主揪建立的
 真實球局。
@@ -24,9 +25,10 @@
 `host_nickname`、`host_ntrp`、`host_profile_complete`。它不包含 profile ID、LINE、
 電話、email、真名、常打球場、roster 或 profile URL。
 
-LINE 的 disclosure 由資料庫 `session_contacts` 強制：同一球局的 host 與 guest 都是
-`accepted` 才能讀取對方；這不是前端藏欄位。完整 RLS／RPC 契約見
-[supabase/README.md](supabase/README.md)。
+前端不提供任何 LINE／私人聯絡資訊交換面；成局後的協調走球局群組聊天。聊天成員資格
+（主揪與已接受參加者）由資料庫強制：讀走 `session_message_feed`、寫走
+`post_session_message`；這不是前端藏欄位。roster 對 guest 只顯示自己與主揪。
+完整 RLS／RPC 契約見 [supabase/README.md](supabase/README.md)。
 
 請勿把私人 LINE／Facebook 社群貼文、名單或傳聞匯入本站；本站只承載主揪自行建立的球局。
 
@@ -63,7 +65,8 @@ https://<stable-preview-domain>/*
 https://<production-domain>/*
 ```
 
-不要為每一個 immutable deployment URL 新增 allowlist。登入採 Google OAuth；hosted QA
+不要為每一個 immutable deployment URL 新增 allowlist。登入採 Google OAuth（可另依環境
+設定啟用 LINE 登入，僅作身分驗證，不蒐集 LINE 聯絡資料）；hosted QA
 需檢查 Supabase callback、redirect allowlist，以及登入後的未完成檔案流程。這些是人工
 release gate，並非本 README 宣稱已完成的 hosted 驗證。
 
@@ -96,19 +99,24 @@ git diff --check
 2. 備份並記錄現有 sessions／participants count，執行 `npx supabase migration list`，
    要求每個 local migration stamp 與 remote 一致後才可套用 migration。
 3. 以匿名 REST 驗證 discovery allowlist 與 raw table denial；用兩個 QA 帳號驗證
-   accepted-only contact；確認 `expire-stale-tennis-sessions` cron job。
+   球局群組聊天僅限主揪與已接受成員；確認 `expire-stale-tennis-sessions` cron job。
 4. 在穩定 preview 手動驗證 OAuth、390px 慢網路的地圖／抽屜、位置權限、建立／申請／
-   審核／聯絡、取消／打成／檢舉、support link 與經核可的 privacy link。
+   審核／群聊、取消／打成／檢舉、support link 與經核可的 privacy link。
 5. 設定 production `VITE_SUPPORT_EMAIL`、驗證 rendered `mailto:`，且所有 gate 成功後才可
    對台北網球社群分享連結。QA 建立的球局要先清除，不能當作公開冷啟動內容。
 
 ## 專案地圖
 
 ```text
-src/main.js                 入口、Auth/Maps/page 接線
+src/main.js                 入口、路由、Auth/Maps/page 接線（組合根）
+src/app/                    單一 React root（App.tsx）與 SurfaceHost
+src/pages/ src/sheets/      React 頁面與 sheet/dialog 元件
+src/components/             共用 React 元件（AppErrorBoundary 等）
 src/sessionController.js    探索、定位、狀態與 lifecycle orchestration
-src/sessionViews.js         抽屜、sheet、My Sessions、contact UI
-src/dataApi.js              唯一 browser data API
+src/controller/             七個子 controller 與 surfaceRegistry（strict TS）
+src/features/               十個 feature 純邏輯模組
+src/sessionViews.js src/views/  遷移期 legacy adapter 接線
+src/dataApi.js              唯一 browser data API；實作在 src/data/
 supabase/migrations/        schema、view、RPC、cron
 supabase/tests/             pgTAP privacy/RLS/lifecycle contracts
 tests/                      mock、local Supabase、mobile、performance journeys
