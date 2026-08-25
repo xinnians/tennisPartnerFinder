@@ -6,6 +6,9 @@
 const env = import.meta.env ?? {};
 
 export const GOOGLE_MAPS_API_KEY = env.VITE_GOOGLE_MAPS_API_KEY ?? "___";
+// AdvancedMarkerElement requires a Cloud Maps map ID. Empty keeps the
+// production-safe legacy Marker fallback until hosted configuration is ready.
+export const GOOGLE_MAPS_MAP_ID = env.VITE_GOOGLE_MAPS_MAP_ID ?? "";
 
 // 首發只開放台北市;雙北目錄仍完整保留在資料庫中。
 export const LAUNCH_CITY = "台北市";

@@ -112,6 +112,14 @@ test("browser fixtures intercept every Google-hosted avatar without bypassing fa
   assert.match(readFileSync(new URL(".\/smoke.spec.js", import.meta.url), "utf8"), /dispatchEvent\("error"\)/);
 });
 
+test("browser Maps fixtures exercise the AdvancedMarker property contract", () => {
+  assert.match(FAKE_MAPS, /class AdvancedMarkerElement/);
+  assert.match(FAKE_MAPS, /this\.content = content/);
+  assert.match(FAKE_MAPS, /set map\(map\)/);
+  assert.match(FAKE_MAPS, /set position\(position\)/);
+  assert.equal(createPlaywrightConfig().webServer.env.VITE_GOOGLE_MAPS_MAP_ID, "DEMO_MAP_ID");
+});
+
 test("production alias excludes mockData through every relative import shape", () => {
   assert.equal(typeof createViteConfig, "function");
   const production = createViteConfig({ command: "build", mode: "production" });

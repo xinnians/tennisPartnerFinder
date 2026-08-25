@@ -80,6 +80,46 @@ function markerIcon(google, url, width, height, anchorX, anchorY, labelX, labelY
   };
 }
 
+/** Reproduce the legacy icon + label geometry as AdvancedMarker DOM content. */
+export function advancedMarkerContent(pin, documentRoot = globalThis.document) {
+  const icon = pin?.icon;
+  if (!icon || !documentRoot?.createElement) return null;
+
+  const content = documentRoot.createElement("div");
+  content.className = "map-pin-visual";
+  content.style.position = "relative";
+  content.style.width = `${icon.scaledSize.width}px`;
+  content.style.height = `${icon.scaledSize.height}px`;
+  content.style.pointerEvents = "none";
+
+  const image = documentRoot.createElement("img");
+  image.alt = "";
+  image.draggable = false;
+  image.src = icon.url;
+  image.style.display = "block";
+  image.style.width = "100%";
+  image.style.height = "100%";
+  content.append(image);
+
+  if (pin.label?.text) {
+    const label = documentRoot.createElement("span");
+    label.textContent = pin.label.text;
+    label.style.position = "absolute";
+    label.style.left = `${icon.labelOrigin.x}px`;
+    label.style.top = `${icon.labelOrigin.y}px`;
+    label.style.transform = "translate(-50%, -50%)";
+    label.style.color = pin.label.color;
+    label.style.fontFamily = pin.label.fontFamily;
+    label.style.fontSize = pin.label.fontSize;
+    label.style.fontWeight = pin.label.fontWeight;
+    label.style.lineHeight = "1";
+    label.style.whiteSpace = "nowrap";
+    content.append(label);
+  }
+
+  return content;
+}
+
 // presenceCount 樣式差異沿用現行語意(批 D8 派工單決策 7):基底釘已經是 ink+signal
 // (見上方 PLAYER_PIN_URL),這裡疊加既有的右上角「線N」signal 徽章,標出這個聚合
 // count 裡有幾位「當下」在分享在場狀態,不是 dc 原型的概念。

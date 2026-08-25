@@ -70,6 +70,7 @@ const fakeMapsScript = `
       this.el = el;
       this.center = options.center;
       this.zoom = options.zoom;
+      this.mapId = options.mapId;
       this.bounds = boundsFromTestValue({ south: 24.9, west: 121.4, north: 25.2, east: 121.7 });
       this.listeners = {};
       maps.push(this);
@@ -164,6 +165,60 @@ const fakeMapsScript = `
     }
   }
 
+  class AdvancedMarkerElement {
+    constructor({ content, gmpClickable, map, position, title, zIndex }) {
+      this.content = content;
+      this.gmpClickable = gmpClickable;
+      this._map = null;
+      this._position = position;
+      this.title = title;
+      this.zIndex = zIndex;
+      this.el = document.createElement("button");
+      this.el.type = "button";
+      this.el.className = "test-marker";
+      this.el.setAttribute("aria-label", "地圖圖釘 " + (title || "marker"));
+      this.el.setAttribute("title", title || "");
+      this.el.style.position = "absolute";
+      const i = testMarkers.length;
+      this.el.style.left = 8 + (i % 5) * 72 + "px";
+      this.el.style.top = "calc(45% + " + Math.floor(i / 5) * 48 + "px)";
+      this.el.style.width = content?.style.width || "28px";
+      this.el.style.height = content?.style.height || "28px";
+      this.el.style.border = "0";
+      this.el.style.background = "transparent";
+      this.el.style.overflow = "visible";
+      this.el.style.padding = "0";
+      this.el.style.zIndex = String(zIndex || 1);
+      if (content) this.el.appendChild(content);
+      if (title === "你") userMarkerCreates += 1;
+      testMarkers.push(this);
+      this.map = map;
+    }
+
+    addEventListener(event, callback) {
+      this.el.addEventListener(event === "gmp-click" ? "click" : event, callback);
+    }
+
+    get map() {
+      return this._map;
+    }
+
+    set map(map) {
+      this.el.remove();
+      this._map = map;
+      this._map?.el?.appendChild(this.el);
+    }
+
+    get position() {
+      return this._position;
+    }
+
+    set position(position) {
+      this._position = position;
+      if (this.title === "你") userMarkerUpdates += 1;
+    }
+  }
+
   function boundsSummary(bounds, index) {
     const southWest = bounds.getSouthWest();
     const northEast = bounds.getNorthEast();
@@ -189,14 +244,26 @@ const fakeMapsScript = `
   window.__fakeMapsSnapshot = () => ({
     fitBoundsCalls: fitBoundsCalls.map(boundsSummary),
     setCenterCalls: setCenterCalls.map(() => ({})),
-    userMarkers: testMarkers.filter((marker) => marker.options.title === "你").map(() => ({ title: "你" })),
+    userMarkers: testMarkers
+      .filter((marker) => (marker.title ?? marker.options?.title) === "你")
+      .map(() => ({ title: "你" })),
     userMarkerCreates,
     userMarkerUpdates,
     visibleMarkerOptions: testMarkers
       .filter((marker) => marker.map)
-      .map((marker) => ({ iconUrl: marker.options.icon?.url ?? "", optimized: marker.options.optimized, title: marker.options.title })),
+      .map((marker) => ({
+        iconUrl: marker.content?.querySelector("img")?.getAttribute("src") ?? marker.options?.icon?.url ?? "",
+        optimized: marker.options?.optimized ?? false,
+        title: marker.title ?? marker.options?.title,
+      })),
   });
-  window.google = { maps: { LatLng, LatLngBounds, Map, Marker, Point, Size } };
+  const importLibrary = async (name) => {
+    if (name === "marker") return { AdvancedMarkerElement };
+    throw new Error("Unsupported fake Maps library: " + name);
+  };
+  window.google = {
+    maps: { importLibrary, LatLng, LatLngBounds, Map, Marker, marker: { AdvancedMarkerElement }, Point, Size },
+  };
   window.__onGoogleMapsReady?.();
 })();
 `;

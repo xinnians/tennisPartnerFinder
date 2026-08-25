@@ -1,5 +1,13 @@
-import { MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
-import { candidateSessionPin, courtPin, playerPin, sessionClusterPin, sessionPin, userLocationPin } from "./pins.js";
+import { GOOGLE_MAPS_MAP_ID, MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
+import {
+  advancedMarkerContent,
+  candidateSessionPin,
+  courtPin,
+  playerPin,
+  sessionClusterPin,
+  sessionPin,
+  userLocationPin,
+} from "./pins.js";
 import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
 import { taipeiClock, taipeiHourRange } from "./taipeiTime.js";
 
@@ -7,6 +15,8 @@ let loadPromise = null;
 let runtimeGoogle = null;
 let runtimeMap = null;
 let userMarker = null;
+let AdvancedMarkerElement = null;
+const advancedMarkerMaps = new WeakSet();
 
 const SAGE_STYLES = [
   { elementType: "geometry", stylers: [{ color: "#edf1ec" }] },
@@ -23,18 +33,34 @@ export function loadGoogleMaps(apiKey, onAuthFailure = () => {}) {
   window.gm_authFailure = onAuthFailure;
   if (loadPromise) return loadPromise;
   loadPromise = new Promise((resolve, reject) => {
+    const resolveWithMarkerLibrary = () => {
+      const google = window.google;
+      if (!GOOGLE_MAPS_MAP_ID || typeof google?.maps?.importLibrary !== "function") {
+        resolve(google);
+        return;
+      }
+      Promise.resolve(google.maps.importLibrary("marker"))
+        .then((library) => {
+          AdvancedMarkerElement = library?.AdvancedMarkerElement ?? null;
+          resolve(google);
+        })
+        .catch(() => {
+          AdvancedMarkerElement = null;
+          resolve(google);
+        });
+    };
     if (window.google?.maps) {
-      resolve(window.google);
+      resolveWithMarkerLibrary();
       return;
     }
     window.__onGoogleMapsReady = () => {
       delete window.__onGoogleMapsReady;
-      resolve(window.google);
+      resolveWithMarkerLibrary();
     };
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?${new URLSearchParams({
       key: apiKey,
-      v: "weekly",
+      v: "quarterly",
       loading: "async",
       language: "zh-TW",
       region: "TW",
@@ -57,9 +83,46 @@ export function createMap(google, element) {
     zoom: MAP_ZOOM,
     disableDefaultUI: true,
     clickableIcons: false,
-    styles: SAGE_STYLES,
+    ...(GOOGLE_MAPS_MAP_ID ? { mapId: GOOGLE_MAPS_MAP_ID } : { styles: SAGE_STYLES }),
   });
+  if (GOOGLE_MAPS_MAP_ID && AdvancedMarkerElement) advancedMarkerMaps.add(runtimeMap);
   return runtimeMap;
+}
+
+function detachMarkers(markers) {
+  markers.forEach((marker) => {
+    if (typeof marker?.setMap === "function") marker.setMap(null);
+    else if (marker) marker.map = null;
+  });
+}
+
+function createMarker(google, map, { onClick, pin, position, title, zIndex }) {
+  if (AdvancedMarkerElement && advancedMarkerMaps.has(map)) {
+    const marker = new AdvancedMarkerElement({
+      content: advancedMarkerContent(pin),
+      gmpClickable: Boolean(onClick),
+      map,
+      position,
+      title,
+      zIndex,
+    });
+    marker.anchorLeft = `${-pin.icon.anchor.x}px`;
+    marker.anchorTop = `${-pin.icon.anchor.y}px`;
+    if (onClick) marker.addEventListener("gmp-click", onClick);
+    return marker;
+  }
+
+  const marker = new google.maps.Marker({
+    map,
+    position,
+    icon: pin.icon,
+    label: pin.label,
+    title,
+    zIndex,
+    optimized: false,
+  });
+  if (onClick) marker.addListener("click", onClick);
+  return marker;
 }
 
 function plainBounds(bounds) {
@@ -122,7 +185,7 @@ export function renderSessionPins(
   { onSession = () => {}, onCluster = () => {} } = {},
   oldMarkers = []
 ) {
-  oldMarkers.forEach((marker) => marker.setMap(null));
+  detachMarkers(oldMarkers);
   return groups.map(({ court, sessions, undecidedCandidateSessionIds = [] }) => {
     const multiple = sessions.length >= 2;
     const undecided =
@@ -141,57 +204,45 @@ export function renderSessionPins(
             ongoing,
             full,
           });
-    const marker = new google.maps.Marker({
-      map,
+    return createMarker(google, map, {
+      onClick: () => (multiple ? onCluster(court, sessions) : onSession(sessions[0].sessionId)),
+      pin,
       position: { lat: court.lat, lng: court.lng },
-      icon: pin.icon,
-      label: pin.label,
       title: multiple
         ? `球局 · ${court.name} · ${sessions.length} 場`
         : `球局 · ${court.name}${undecided ? " · 未定" : ""}`,
       zIndex: multiple ? 40 : 30,
-      // Legacy Marker needs a DOM-backed marker for reliable keyboard access.
-      optimized: false,
     });
-    marker.addListener("click", () => (multiple ? onCluster(court, sessions) : onSession(sessions[0].sessionId)));
-    return marker;
   });
 }
 
 /** Render stable base-court pins beneath session pins. */
 export function renderCourtBasePins(google, map, courts = [], onCourt = () => {}, oldMarkers = []) {
-  oldMarkers.forEach((marker) => marker.setMap(null));
+  detachMarkers(oldMarkers);
   return courts.map((court) => {
     const pin = courtPin(google);
-    const marker = new google.maps.Marker({
-      map,
+    return createMarker(google, map, {
+      onClick: () => onCourt(court),
+      pin,
       position: { lat: court.lat, lng: court.lng },
-      icon: pin.icon,
       title: `球場 ${court.name}`,
       zIndex: 10,
-      optimized: false,
     });
-    marker.addListener("click", () => onCourt(court));
-    return marker;
   });
 }
 
 /** Replace only reciprocal online markers, leaving session and base-court layers untouched. */
 export function renderPlayerPins(google, map, groups = [], onCourtPlayers = () => {}, oldMarkers = []) {
-  oldMarkers.forEach((marker) => marker.setMap(null));
+  detachMarkers(oldMarkers);
   return groups.map(({ court, players, presenceCount = 0 }) => {
     const pin = playerPin(google, players.length, presenceCount);
-    const marker = new google.maps.Marker({
-      map,
+    return createMarker(google, map, {
+      onClick: () => onCourtPlayers(court, players),
+      pin,
       position: { lat: court.lat, lng: court.lng },
-      icon: pin.icon,
-      label: pin.label,
       title: `在線 · ${court.name} · ${players.length} 人`,
       zIndex: 20,
-      optimized: false,
     });
-    marker.addListener("click", () => onCourtPlayers(court, players));
-    return marker;
   });
 }
 
@@ -229,17 +280,18 @@ export function setUserLocation({ lat, lng }, radiusMeters) {
   runtimeMap.fitBounds(new runtimeGoogle.maps.LatLngBounds(sw, ne));
   if (!userMarker) {
     const pin = userLocationPin(runtimeGoogle);
-    userMarker = new runtimeGoogle.maps.Marker({
-      map: runtimeMap,
+    userMarker = createMarker(runtimeGoogle, runtimeMap, {
+      pin,
       position: { lat: latitude, lng: longitude },
-      icon: pin.icon,
       title: "你",
       zIndex: 50,
-      optimized: false,
     });
   } else {
-    userMarker.setPosition?.({ lat: latitude, lng: longitude });
-    userMarker.setMap?.(runtimeMap);
+    const position = { lat: latitude, lng: longitude };
+    if (typeof userMarker.setPosition === "function") userMarker.setPosition(position);
+    else userMarker.position = position;
+    if (typeof userMarker.setMap === "function") userMarker.setMap(runtimeMap);
+    else userMarker.map = runtimeMap;
   }
   return bounds;
 }
