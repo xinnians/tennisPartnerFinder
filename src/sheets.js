@@ -179,14 +179,11 @@ export function closeModal() {
   closeSurface(modalRoot());
 }
 
-const LOGIN_TITLES = {
-  join: "登入以申請加入球局",
-  create: "登入以開球局",
-  players: "登入以查看在線球友",
-  directory: "登入以查看球友名單",
-  "my-sessions": "登入以查看你的球局",
-  me: "登入以管理你的檔案與設定",
-};
+let mountLoginModalContent = null;
+
+export function configureLoginModalContent(renderer) {
+  mountLoginModalContent = renderer;
+}
 
 // lineProviderId 是 Supabase custom provider 識別符;空值時不渲染 LINE 按鈕,
 // 部署端未設好 provider 前保持既有單一 Google 入口。
@@ -196,40 +193,14 @@ export function openLoginModal({ action = "", onProvider, onClose, lineProviderI
     label: "登入後繼續",
     className: "auth-dialog",
     onClose,
-    html: `
-      <div class="surface__head">
-        <div>
-          <p class="surface__eyebrow">登入後繼續</p>
-          <h2>${esc(LOGIN_TITLES[action] ?? "登入以繼續")}</h2>
-        </div>
-        <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
-      </div>
-      <p class="surface__copy">登入只用於繼續目前操作；已接受的球局成員可使用群組聊天。</p>${
-        lineProviderId
-          ? `
-      <p class="surface__copy">Google 與 LINE 是各自獨立的帳號；登入後可在「我」頁把兩種登入方式連結成同一帳號。</p>`
-          : ""
-      }
-      <p class="surface__message" data-login-message role="status" aria-live="polite" aria-atomic="true"></p>
-      <button type="button" class="session-primary" data-provider="google">使用 Google 登入</button>${
-        lineProviderId
-          ? `
-      <button type="button" class="session-primary" data-provider="${esc(lineProviderId)}">使用 LINE 登入</button>`
-          : ""
-      }`,
+    html: "",
   });
-
-  for (const button of mounted.root.querySelectorAll("[data-provider]")) {
-    button.addEventListener("click", async () => {
-      const message = mounted.root.querySelector("[data-login-message]");
-      button.disabled = true;
-      try {
-        await onProvider(button.dataset.provider);
-        message.textContent = "正在前往登入頁…";
-      } catch {
-        message.textContent = "登入啟動失敗，請稍後再試。";
-        button.disabled = false;
-      }
-    });
-  }
+  if (!mountLoginModalContent) throw new Error("Login modal React content is unavailable.");
+  const content = mountLoginModalContent(mounted.surface, {
+    action: String(action),
+    lineProviderId: String(lineProviderId),
+    onClose: () => mounted.close(),
+    onProvider,
+  });
+  mounted.registerUnmount(content.unmount);
 }

@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
@@ -9,7 +9,13 @@ import type { MessagesPageOptions } from "../pages/MessagesPage.tsx";
 import type { MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
 import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
 import { syncCommit } from "../syncCommit.ts";
-import { installSurfaceHostRenderer, SurfaceHost, type SurfaceHostSnapshot } from "./SurfaceHost.tsx";
+import {
+  installSurfaceHostRenderer,
+  mountSurfaceContent,
+  SurfaceHost,
+  type SurfaceContentLifecycle,
+  type SurfaceHostSnapshot,
+} from "./SurfaceHost.tsx";
 
 interface PageSlot<Options> {
   id: number;
@@ -47,6 +53,13 @@ interface FilterSnapshot {
 interface FilterToolbarHandlers {
   onOpenFilter(): void;
   onSetFilter(field: "band" | "dateKey" | "instantOnly", value: boolean | string | null): void;
+}
+
+interface LoginModalOptions {
+  action?: string;
+  lineProviderId?: string;
+  onClose(): void;
+  onProvider?(provider: string): Promise<unknown> | unknown;
 }
 
 interface AppProps {
@@ -689,6 +702,90 @@ function BottomNavigation({ navigation }: { navigation: NavigationSnapshot }) {
       </span>
     </>
   );
+}
+
+const LOGIN_TITLES: Readonly<Record<string, string>> = {
+  join: "登入以申請加入球局",
+  create: "登入以開球局",
+  players: "登入以查看在線球友",
+  directory: "登入以查看球友名單",
+  "my-sessions": "登入以查看你的球局",
+  me: "登入以管理你的檔案與設定",
+};
+
+function LoginModalContent({ action = "", lineProviderId = "", onClose, onProvider }: LoginModalOptions) {
+  const [message, setMessage] = useState("");
+  const pendingProvider = useRef<string | null>(null);
+
+  const startProvider = async (provider: string) => {
+    if (pendingProvider.current) return;
+    pendingProvider.current = provider;
+    setMessage("");
+    try {
+      if (!onProvider) throw new TypeError("Login provider callback is unavailable.");
+      await onProvider(provider);
+      setMessage("正在前往登入頁…");
+    } catch {
+      pendingProvider.current = null;
+      setMessage("登入啟動失敗，請稍後再試。");
+    }
+  };
+
+  return (
+    <>
+      <div className="surface__head">
+        <div>
+          <p className="surface__eyebrow">登入後繼續</p>
+          <h2>{LOGIN_TITLES[action] ?? "登入以繼續"}</h2>
+        </div>
+        <button type="button" className="surface__close" data-surface-close="" aria-label="關閉" onClick={onClose}>
+          ×
+        </button>
+      </div>
+      <p className="surface__copy">登入只用於繼續目前操作；已接受的球局成員可使用群組聊天。</p>
+      {lineProviderId ? (
+        <p className="surface__copy">
+          Google 與 LINE 是各自獨立的帳號；登入後可在「我」頁把兩種登入方式連結成同一帳號。
+        </p>
+      ) : null}
+      <p className="surface__message" data-login-message="" role="status" aria-live="polite" aria-atomic="true">
+        {message}
+      </p>
+      <button
+        type="button"
+        className="session-primary"
+        data-provider="google"
+        disabled={pendingProvider.current === "google"}
+        onClick={() => void startProvider("google")}
+      >
+        使用 Google 登入
+      </button>
+      {lineProviderId ? (
+        <button
+          type="button"
+          className="session-primary"
+          data-provider={lineProviderId}
+          disabled={pendingProvider.current === lineProviderId}
+          onClick={() => void startProvider(lineProviderId)}
+        >
+          使用 LINE 登入
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+export function mountLoginModalContentInApp(
+  rootElement: HTMLElement,
+  options: LoginModalOptions
+): SurfaceContentLifecycle {
+  const surfaceContent = mountSurfaceContent(rootElement);
+  surfaceContent.render(
+    <AppErrorBoundary rootElement={rootElement} surface="login-dialog">
+      <LoginModalContent {...options} />
+    </AppErrorBoundary>
+  );
+  return surfaceContent;
 }
 
 /** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */

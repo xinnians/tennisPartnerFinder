@@ -1,5 +1,6 @@
 export const APP_ERROR_SURFACES = [
   "global",
+  "login-dialog",
   "me-page",
   "messages-page",
   "my-sessions-page",

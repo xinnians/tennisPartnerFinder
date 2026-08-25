@@ -1,5 +1,5 @@
 import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-import { mountDialog, mountSheet } from "./sheets.js";
+import { configureLoginModalContent, mountDialog, mountSheet } from "./sheets.js";
 import { taipeiClock, taipeiDateTimeLocalValue } from "./taipeiTime.js";
 import { esc } from "./util.js";
 import {
@@ -246,10 +246,12 @@ const showToastInApp = appModule?.showToastInApp;
 const configureFilterToolbarInApp = appModule?.configureFilterToolbarInApp;
 const syncFilterToolbarInApp = appModule?.syncFilterToolbarInApp;
 const syncBottomNavigationInApp = appModule?.syncBottomNavigationInApp;
+const mountLoginModalContentInApp = appModule?.mountLoginModalContentInApp;
 const sessionDetailSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
 const mountSessionDetailSheetContent =
   sessionDetailSheetModules["./sheets/SessionDetailSheet.tsx"]?.mountSessionDetailSheetContent;
+if (mountLoginModalContentInApp) configureLoginModalContent(mountLoginModalContentInApp);
 const nonHomeSheetModules =
   typeof document === "undefined"
     ? {}

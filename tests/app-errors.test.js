@@ -87,12 +87,12 @@ test("global error and rejection listeners are idempotent, removable, and transp
   restoreTransport();
 });
 
-test("the single App root retains all 18 isolated error surfaces", () => {
+test("the single App root retains all 19 isolated error surfaces", () => {
   const rootFiles = sourceFiles(ROOT.pathname).filter(
     (path) => extname(path) === ".tsx" && /create(?:Root|SurfaceRoot)\(/.test(readFileSync(path, "utf8"))
   );
   assert.equal(rootFiles.length, 1);
-  assert.equal(APP_ERROR_SURFACES.length, 19, "18 isolated surfaces plus the global channel must stay named");
+  assert.equal(APP_ERROR_SURFACES.length, 20, "19 isolated surfaces plus the global channel must stay named");
 
   for (const path of rootFiles) {
     const source = readFileSync(path, "utf8");
