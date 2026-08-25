@@ -4,9 +4,13 @@
 - 派工單：`docs/arch-dispatch-2026-08-25-bundle-batch.md`
 - 回報：`docs/arch-dispatch-2026-08-25-bundle-batch-report-codex.md`
 - 驗收範圍：基準 `991c3fe`（=`6a5fc69` 派工單 commit 之前的實作基準）→
-  HEAD `5f57957`（4 commit，恰 10 檔）
+  `5f57957`（4 commit，恰 10 檔）＋退件修正 `28945b3`
 
-## 結論：**退件單項 1 筆，其餘全數通過**——修正驗收通過前不結案
+## 結論：**ACCEPTED（結案）**——退件單項經 `28945b3` 修正後 delta 驗收通過（§六）
+
+（以下為第一輪驗收原文；退件單項的修正驗收見 §六。）
+
+### ~~退件單項~~（已修正）原裁決：退件單項 1 筆，其餘全數通過
 
 ### 退件單項：private dynamic import 失敗語意
 
@@ -103,7 +107,34 @@ timeout，與 codex 地圖批回報揭露的同一條既有 flake，非 fixture 
 4. 回報自書「結果：ACCEPTED」——驗收結論是驗收方的裁決權，回報方
    應寫「完成」；本批實際結論見上。
 
-## 六、回報紀律
+## 六、退件修正 delta 驗收（`28945b3`）[已驗證]
+
+- **修正保真**：import 失敗時 `.catch` 先清 `privateDataApiRequest = null`
+  再 throw `new DataApiError("此功能暫時無法載入，請重新整理後再試。",
+  { cause })`——重試語意與在地化形狀兩項要求皆落實；`privateDataApiLoader`
+  DI 注入點 production 預設仍是唯一 dynamic import，split 與匿名語意不變；
+  `p_line_id` 凍結紅線註解補回（`privateDataRepository.ts:305` 上方兩行）。
+- **新 unit 載重**（`session-data-boundary.test.js` +33 純新增）：斷言
+  DataApiError 形狀＋cause 原樣＋逐字在地化訊息＋`sessionActionMessage`
+  渲染面（doesNotMatch 英文技術訊息）＋第二次呼叫成功且 import 恰 2 次。
+- **驗收方 canary**：拔 `privateDataApiRequest = null` 一行 → targeted
+  紅；還原 → targeted 綠、全 unit 313/313。
+- **凍結面**：修正 commit 僅 3 檔（dataRepository＋紅線註解＋新 unit）；
+  spec／GOLDEN／testid 相關檔零 diff。
+- **獨立重跑**：`test:ci:frontend` exit 0（unit 313/313、mock 286／4
+  skipped、bundle gate main 654837/191395、total 841611/256497 限額內）；
+  `test:db` 799 PASS×2（reset 前後各一）。
+- **test:local 紅→查因→reset→綠**：第一輪同一條 `session.spec.js:1210`
+  checkbox 逾時；第二輪 176ms 快紅
+  「the court scan must find two unused Taipei courts」——先數 DB：
+  **424 個 open/full 球局佔滿 94 座球場**（今日多批驗收累積、未重置），
+  確認為 fixture 累積污染非本批回歸；guarded
+  `CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test` 後重跑
+  45 passed／11 skipped／did not run＝0、exit 0。reset 後 1210 的
+  checkbox 逾時同步消失，支持「兩種紅同為資料累積拖慢」假說；該 flake
+  暫以本假說追蹤，再現於乾淨 DB 時才立獨立修測項。
+
+## 七、回報紀律
 
 順序遵守（報告先行有普通 build hash 對照自證）；預期／實際收益對照
 兩口徑分列；不拆理由逐項有組成證據；canary 輸出完整；「已刪除／歸零」

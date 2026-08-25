@@ -136,6 +136,15 @@ AdvancedMarker 形狀改寫（keyed create／update／detach 計數，fakeMaps �
 軟依賴修正（審查 §A4）：母單硬依賴只有「批 2」（已具備）；排 3B 後是避免
 殼遷移攪動 chunk 基線的重工控制，若 3B 受阻，本項可提前。
 
+**ACCEPTED（2026-08-25，一輪退件後結案）**：`2822ac4`..`5f57957`＋修正
+`28945b3`。組成報告先行（84% attribution 為 Supabase＋React 合法 eager，
+可拆上限 ~20k）；private repository 拆分（主 chunk -0.95%、匿名首屏零
+private 請求 e2e）；棘輪 gate（main 658,867/192,420、per-chunk、total 1%、
+private marker 恰 1）；地圖批 fail-closed 覆蓋債清償。退件單項＝private
+import 失敗語意（rejected promise 永久快取＋TypeError 直出 UI），修正後
+delta 驗收通過。驗收紀錄
+`docs/arch-reports/bundle-batch-acceptance-2026-08-25.md`。
+
 ## 階段 6：長列表節流（F4-7，切兩半）
 
 前端半批（content-visibility）＋DB 半批（limit／分頁，另發、動 view 契約與 pgTAP）。

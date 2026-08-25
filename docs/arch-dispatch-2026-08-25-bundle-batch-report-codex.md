@@ -3,7 +3,7 @@
 - 日期：2026-08-25
 - 開工基準：`991c3fe`（`origin/main`）
 - 派工單：`docs/arch-dispatch-2026-08-25-bundle-batch.md`
-- 結果：**ACCEPTED**。組成報告、依報告拆分、gate 擴充、附帶 unit 均依指定順序完成並各自 commit；收尾三套標準矩陣全綠，`did not run = 0`。
+- 結果：**完成，待驗收方裁決**。組成報告、依報告拆分、gate 擴充、附帶 unit 均依指定順序完成並各自 commit；收尾三套標準矩陣全綠，`did not run = 0`。
 - 本回報依派工要求不列入實作 commit；未 push。
 
 ## 1. Commit 與順序
@@ -194,3 +194,41 @@ Playwright 全程序列執行，未與另一套 Playwright 並發。沒有執行
 - 未修改 CSP、Service Worker、Sentry wiring、error transport、controller、`dataApi.js` 或 13 surface loading semantics。
 - 未 push。
 - 本回報檔刻意保持 uncommitted；其餘實作工作樹乾淨。
+
+## 9. 驗收退件修正（2026-08-25）
+
+驗收紀錄 `docs/arch-reports/bundle-batch-acceptance-2026-08-25.md` 退件一項：private dynamic import 的 rejected promise 會永久快取，且 native `TypeError` 可能直出 UI。已以獨立 commit `28945b3`（`fix(bundle): retry failed private module loads`）修正：
+
+- private module load 失敗時先把 `privateDataApiRequest` 清回 `null`，下一個私人操作會重新 import；成功後仍共用同一 fulfilled promise。
+- native import error 包成既有 `DataApiError`，保留原 error 為 `cause`，使用者面固定顯示「此功能暫時無法載入，請重新整理後再試。」；不再顯示英文 dynamic-import 技術訊息。
+- `createDataApi` 增加只供依賴注入的 `privateDataApiLoader` option，production 預設仍是唯一的 `import("./privateDataRepository.ts")`，因此 split 與匿名首屏語意不變。
+- 補回搬移時遺失的兩行 `p_line_id: null` 凍結紅線註解。
+- 新增 unit：第一次 loader reject，斷言 `DataApiError`／cause／localized `sessionActionMessage`；第二次呼叫成功且 import attempt 恰為 2。
+
+### 修正 canary
+
+1. 暫時移除 `privateDataApiRequest = null`，targeted test 紅；第二次呼叫再次收到同一個 `DataApiError`，loader 沒有重試。還原後 1/1 綠。
+2. 暫時把 localized wrapper 改回 `asDataApiError(error)`，targeted test 紅：
+
+```text
+actual:   Failed to fetch dynamically imported module
+expected: 此功能暫時無法載入，請重新整理後再試。
+```
+
+還原後 targeted 1/1、完整 unit 313/313 綠。
+
+### 修正後 production 與完整矩陣
+
+```text
+production bundle check passed: main 654837/191395 within 658867/192420;
+total JS 841611/256497 within 849961/259062;
+private repository: privateDataRepository-Wtx9hpeI.js;
+Sentry: sentryBrowserSdk-Czz5dmkg.js
+```
+
+- anonymous discovery request targeted e2e：1/1 pass，private module request 仍為 0。
+- `npm run test:ci:frontend`：exit 0；313/313 unit、286 browser passed／4 expected skipped、build／bundle gate 全綠。
+- `npm run test:db`：exit 0；7 files／799 tests。
+- `npm run test:local`：exit 0；local API 2/2、local browser 45 passed／11 expected skipped，`did not run = 0`。
+- `git diff --check`：exit 0。
+- 未 push；本 §9 回報更新保持 uncommitted，等待驗收方重驗。
