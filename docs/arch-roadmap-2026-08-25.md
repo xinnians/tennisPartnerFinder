@@ -169,6 +169,12 @@ fail-closed（新增未分類查詢即紅）。零 migration。驗收紀錄
 - F4-10 測試基建（smoke 拆檔、mock 平行化）：排 **3A 前或 3B 後**，
   不夾在 3A／3B 之間（避免與新增 navigation e2e 大面積互改）。
 
+**ACCEPTED（2026-08-25，一次通過）——路線圖全案完結**：`d6fc10a`（F0-8
+推導式分支守門，換分支 3 處/2 檔）＋`3c066f5`（smoke 6,034 行拆 7 檔、
+126 test 搬移零改寫經驗收方行級比對獨立證實、mock 4 workers、
+wall-clock -64%、testMatch 逐字不變）。WebKit 由驗收方補跑 136/6/3 符合
+基準。驗收紀錄 `docs/arch-reports/flex-batch-acceptance-2026-08-25.md`。
+
 ## 明確不排／待使用者（審查 §C3 補入）
 
 | 項目 | 處置 |
