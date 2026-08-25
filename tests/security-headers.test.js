@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const CONFIG = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+const SENTRY_INGEST_ORIGIN = "https://o4511969009074176.ingest.us.sentry.io";
 
 function headerMap(rule) {
   return new Map(rule.headers.map(({ key, value }) => [key.toLowerCase(), value]));
@@ -46,9 +47,25 @@ test("report-only CSP covers the React build's current external resources withou
     "https://fonts.gstatic.com",
     "https://*.supabase.co",
     "wss://*.supabase.co",
+    SENTRY_INGEST_ORIGIN,
   ]) {
     assert.ok(policy.includes(origin), `CSP misses a current app resource: ${origin}`);
   }
+  const connectSource = policy
+    .split(";")
+    .map((directive) => directive.trim())
+    .find((directive) => directive.startsWith("connect-src "));
+  assert.ok(connectSource, "connect-src directive is missing");
+  assert.equal(
+    connectSource.split(SENTRY_INGEST_ORIGIN).length - 1,
+    1,
+    "Sentry ingest origin must appear exactly once"
+  );
+  assert.doesNotMatch(
+    connectSource,
+    /https:\/\/\*\.ingest(?:\.[a-z]+)?\.sentry\.io/i,
+    "Sentry CSP must not use a wildcard ingest host"
+  );
   assert.doesNotMatch(policy, /report-uri|report-to/i, "no CSP reporting endpoint was approved");
 });
 

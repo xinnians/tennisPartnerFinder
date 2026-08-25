@@ -61,6 +61,15 @@ assert.deepEqual(entryScripts.length, 1, `expected one production entry script, 
 const [mainChunkPath] = entryScripts;
 const mainChunk = readFileSync(new URL(`../dist/${mainChunkPath}`, import.meta.url));
 const mainChunkGzipBytes = gzipSync(mainChunk).length;
+const sentryMarker = "sentry_version";
+assert.ok(!mainChunk.includes(sentryMarker), `Sentry SDK leaked into the production main chunk: ${mainChunkPath}`);
+const sentryChunks = outputFiles.filter(
+  (file) =>
+    file.endsWith(".js") &&
+    file !== `${DIST_DIR.pathname}${mainChunkPath}` &&
+    readFileSync(file, "utf8").includes(sentryMarker)
+);
+assert.ok(sentryChunks.length > 0, "production build did not retain a separate lazy Sentry SDK chunk");
 assert.ok(
   mainChunk.length <= MAIN_CHUNK_RAW_LIMIT_BYTES,
   `production main chunk raw size ${mainChunk.length} bytes exceeds ${MAIN_CHUNK_RAW_LIMIT_BYTES} bytes: ${mainChunkPath}`
@@ -71,5 +80,5 @@ assert.ok(
 );
 
 console.log(
-  `production bundle check passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; main chunk ${mainChunk.length}/${mainChunkGzipBytes} bytes within ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}`
+  `production bundle check passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; main chunk ${mainChunk.length}/${mainChunkGzipBytes} bytes within ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}; Sentry lazy chunk: ${sentryChunks.map((file) => file.split("/").at(-1)).join(", ")}`
 );

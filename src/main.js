@@ -1,3 +1,4 @@
+/* global __TENNIS_DEPLOY_ENVIRONMENT__ */
 /* 批 10 CSS 收整:src/session.css(1429 行)依既有實體邊界切成下列各檔,宣告順序逐行保存。
    **這串 import 的次序就是層疊次序**(本專案未用 @layer,理由見
    docs/migration-reports/batch-10.md §3):同特異性時後 import 的檔勝出,
@@ -78,6 +79,7 @@ import {
   withdrawFromSession,
 } from "./dataApi.js";
 import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.ts";
+import { configureSentryErrorTransport } from "./sentryErrorTransport.ts";
 import { createSessionController } from "./sessionController.js";
 import { createStore } from "./sessionStore.ts";
 import {
@@ -135,9 +137,19 @@ import { createRequestGate } from "./requestGate.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 import { esc } from "./util.js";
 
-installGlobalErrorHandlers(globalThis.window, {
+const configuredErrorTransport = configureSentryErrorTransport({
+  dsn: import.meta.env.VITE_SENTRY_DSN ?? "",
+  environment: __TENNIS_DEPLOY_ENVIRONMENT__,
+});
+const restoreGlobalErrorHandlers = installGlobalErrorHandlers(globalThis.window, {
   onCaptured: () => showGlobalErrorNotice(document),
 });
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    restoreGlobalErrorHandlers();
+    configuredErrorTransport.restore();
+  });
+}
 
 let google = null;
 let map = null;

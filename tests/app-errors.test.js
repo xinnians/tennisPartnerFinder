@@ -41,18 +41,24 @@ test("error transport receives only the fixed privacy allowlist", () => {
   assert.ok(Object.isFrozen(report));
 });
 
-test("production leaves the sole error transport registration point uncalled", () => {
+test("production has one Sentry registration before global handlers and keeps its restore", () => {
   const references = sourceFiles(ROOT.pathname).flatMap((path) => {
     if (![".js", ".ts", ".tsx"].includes(extname(path))) return [];
-    const matches = readFileSync(path, "utf8").match(/configureAppErrorTransport/g) ?? [];
+    const matches = readFileSync(path, "utf8").match(/configureAppErrorTransport\(adapter\)/g) ?? [];
     return matches.map(() => relative(ROOT.pathname, path));
   });
 
-  assert.deepEqual(references, ["appErrors.ts"]);
+  assert.deepEqual(references, ["sentryErrorTransport.ts"]);
   assert.match(
     readFileSync(new URL("../src/appErrors.ts", import.meta.url), "utf8"),
     /let transport: AppErrorTransport = NOOP_TRANSPORT/
   );
+  const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.ok(
+    mainSource.indexOf("configureSentryErrorTransport({") < mainSource.indexOf("installGlobalErrorHandlers("),
+    "Sentry transport must be configured before global handlers"
+  );
+  assert.match(mainSource, /configuredErrorTransport\.restore\(\)/);
 });
 
 test("global error and rejection listeners are idempotent, removable, and transport-safe", () => {
