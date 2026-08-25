@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 
 const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
 const EXPLICIT_ANY = /:\s*any\b|\bas\s+any\b|\bany\s*\[\s*\]|<\s*any\s*>/;
@@ -16,23 +17,6 @@ function readTsxTree(directory = SRC_DIR, prefix = "src") {
 }
 
 const ALL_TSX = readTsxTree().sort();
-
-const REACT_CONSUMERS = [
-  "src/components/Avatar.tsx",
-  "src/components/SessionCard.tsx",
-  "src/pages/MePage.tsx",
-  "src/pages/MessagesPage.tsx",
-  "src/pages/MySessionsPage.tsx",
-  "src/pages/NearbySessionsDrawer.tsx",
-  "src/sheets/CourtPlayersSheet.tsx",
-  "src/sheets/DecideSessionSheet.tsx",
-  "src/sheets/PlayerCardSheet.tsx",
-  "src/sheets/PlayerDirectorySheet.tsx",
-  "src/sheets/ProfileCompletionSheet.tsx",
-  "src/sheets/ReportDialog.tsx",
-  "src/sheets/SessionChatSheet.tsx",
-  "src/sheets/SessionDetailSheet.tsx",
-];
 
 const RUNTIME_EXPORTS = [
   "avatarRuntime",
@@ -51,6 +35,12 @@ const RUNTIME_EXPORTS = [
 ];
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+function assertExactNamedScan(actual, expected, label) {
+  assert.ok(actual.length > 0, `${label} scan unexpectedly found no matches`);
+  assert.equal(new Set(actual).size, actual.length, `${label} scan contains duplicate names`);
+  assert.deepEqual([...actual].sort(), [...expected].sort(), `${label} differs from the surface manifest`);
+}
 
 test("session action messages stay complete and exact in the UI layer", async () => {
   const { SESSION_ACTION_CODES, SessionActionError } = await import("../src/dataApi.js");
@@ -108,9 +98,10 @@ test("every TSX module stays outside the legacy sessionViews dependency edge", (
   }
 });
 
-test("all 14 presentation consumers depend on the TypeScript boundary", () => {
-  assert.equal(REACT_CONSUMERS.length, 14);
-  for (const path of REACT_CONSUMERS) {
+test("all presentation consumers depend on the TypeScript boundary", () => {
+  const reactConsumers = ALL_TSX.filter((path) => /from ["'][^"']*sessionPresentation\.ts["'];/.test(source(path)));
+  assertExactNamedScan(reactConsumers, SURFACE_MANIFEST.presentationConsumers, "sessionPresentation consumer");
+  for (const path of reactConsumers) {
     const content = source(path);
     assert.match(content, /from "\.\.\/sessionPresentation\.ts";/, `${path} misses the presentation boundary`);
   }

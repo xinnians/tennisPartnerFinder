@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
 const SRC_DIR = new URL("../src/", import.meta.url).pathname;
@@ -37,13 +38,27 @@ function extractBracedBody(source, marker) {
   assert.fail(`missing closing brace after: ${marker}`);
 }
 
-test("all 14 React sheet adapters register tracked SurfaceHost portal content", () => {
+function assertExactNamedScan(actual, expected, label) {
+  assert.ok(actual.length > 0, `${label} scan unexpectedly found no matches`);
+  assert.equal(new Set(actual).size, actual.length, `${label} scan contains duplicate names`);
+  assert.deepEqual([...actual].sort(), [...expected].sort(), `${label} differs from the surface manifest`);
+}
+
+function sourcePath(modulePath) {
+  return `src/${modulePath.replace(/^\.\//, "")}`;
+}
+
+test("all React sheet adapters register tracked SurfaceHost portal content", () => {
   const sheetSources = readdirSync(SHEETS_DIR)
     .filter((name) => name.endsWith(".tsx"))
     .map((name) => ({ name, source: readFileSync(join(SHEETS_DIR, name), "utf8") }))
     .filter(({ source }) => source.includes("mountSurfaceContent("));
 
-  assert.equal(sheetSources.length, 14);
+  assertExactNamedScan(
+    sheetSources.map(({ name }) => `src/sheets/${name}`),
+    SURFACE_MANIFEST.sheetAdapters,
+    "React sheet adapter"
+  );
   for (const { name, source } of sheetSources) {
     assert.doesNotMatch(source, /create(?:Root|SurfaceRoot)\(/, `${name} creates an independent React root`);
     assert.doesNotMatch(source, /flushSync/, `${name} bypasses SurfaceHost's centralized synchronous adapter`);
@@ -53,13 +68,22 @@ test("all 14 React sheet adapters register tracked SurfaceHost portal content", 
       `${name} hides its unmount contract`
     );
   }
-  assert.equal((SESSION_VIEWS.match(/mounted\.registerUnmount\(content\.unmount\)/g) ?? []).length, 14);
+  const unmountRegistrations = [
+    ...SESSION_VIEWS.matchAll(
+      /\b(register\w+Content)\(mounted, content\) \{\s*mounted\.registerUnmount\(content\.unmount\);\s*\}/g
+    ),
+  ].map((match) => match[1]);
+  assertExactNamedScan(unmountRegistrations, SURFACE_MANIFEST.unmountRegistrations, "SurfaceHost unmount registration");
   assert.equal((SYNC_COMMIT.match(/reactDomFlushSync\(/g) ?? []).length, 1);
   assert.match(SURFACE_HOST, /commitSynchronously\(commitSurfaceSlots\)/);
   assert.match(SURFACE_HOST, /commitSynchronously\(update\)/);
 
   const imperativeAdapters = sheetSources.filter(({ source }) => source.includes("contentRef.current"));
-  assert.equal(imperativeAdapters.length, 8);
+  assertExactNamedScan(
+    imperativeAdapters.map(({ name }) => `src/sheets/${name}`),
+    SURFACE_MANIFEST.imperativeAdapters,
+    "imperative sheet adapter"
+  );
   for (const { name, source } of imperativeAdapters) {
     assert.match(source, /surfaceContent\.commit\(/, `${name} loses synchronous imperative update semantics`);
   }
@@ -100,9 +124,13 @@ test("synchronous React commits stay behind one fail-closed helper and three app
 });
 
 test("non-home pages and sheets stay behind explicit preloadable module boundaries", () => {
-  assert.equal((SESSION_VIEWS.match(/eager: true/g) ?? []).length, 2, "only App and Session Detail stay eager");
+  const eagerModules = [...SESSION_VIEWS.matchAll(/import\.meta\.glob\("([^"]+)", \{ eager: true \}\)/g)].map((match) =>
+    sourcePath(match[1])
+  );
+  assertExactNamedScan(eagerModules, SURFACE_MANIFEST.eagerModules, "eager surface module");
   const lazySheetList = SESSION_VIEWS.match(/import\.meta\.glob\(\[([\s\S]*?)\]\)/)?.[1] ?? "";
-  assert.equal((lazySheetList.match(/\.\/sheets\/.+?\.tsx/g) ?? []).length, 13);
+  const lazySheets = (lazySheetList.match(/\.\/sheets\/.+?\.tsx/g) ?? []).map(sourcePath);
+  assertExactNamedScan(lazySheets, SURFACE_MANIFEST.lazySheets, "lazy sheet module");
   assert.doesNotMatch(lazySheetList, /eager:/);
   assert.equal((APP.match(/Request \?\?= import\("\.\.\/pages\//g) ?? []).length, 3);
   assert.match(SESSION_VIEWS, /pointerover[\s\S]*focusin/);
