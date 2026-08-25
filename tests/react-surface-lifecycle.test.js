@@ -7,6 +7,7 @@ import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
 const SRC_DIR = new URL("../src/", import.meta.url).pathname;
 const APP = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+const INDEX = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const MAIN = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
 const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
@@ -138,6 +139,18 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
   assert.equal((APP.match(/Request \?\?= import\("\.\.\/pages\//g) ?? []).length, 3);
   assert.match(SESSION_VIEWS, /pointerover[\s\S]*focusin/);
   assert.match(SESSION_VIEWS, /if \(authSession\) preloadAuthenticatedViews\(\)/);
+});
+
+test("AppShell preserves navigation, toast, popover, and Escape accessibility contracts", () => {
+  assert.equal(
+    (APP.match(/aria-current=\{activePage === ".+?" \? "page" : undefined\}/g) ?? []).length,
+    4,
+    "all four destination tabs must derive aria-current from React navigation state"
+  );
+  assert.match(APP, /aria-expanded=\{popoverOpen\}/);
+  assert.match(APP, /aria-controls="level-popover"/);
+  assert.match(APP, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*setPopoverOpen\(false\);/);
+  assert.match(INDEX, /<div id="toast-root" aria-live="polite" aria-atomic="true"><\/div>/);
 });
 
 test("surface close unmounts React before clearing DOM and remains idempotent", () => {
