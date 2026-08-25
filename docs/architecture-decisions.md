@@ -29,7 +29,7 @@
 | FV-06 | 本機 `node_modules/node_modules` symlink 清理留待使用者。 | 生效 | 2026-08-21 | [最終裁決：未盡事項](arch-reports/final-verdict-2026-08-21.md#未盡事項全屬非派工項待使用者) |
 | D-01 | REL 排在 P0 安全網全部完成之後。 | 生效 | 2026-08-20 | [修正計劃：D1](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
 | D-02 | 錯誤上報端點暫時不做。**2026-08-22 已翻案：改採 Sentry（F4-6），列入路線圖階段 1**。 | 已翻案 | 2026-08-20 → 2026-08-22 | [修正計劃：D2](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
-| D-03 | production source map 不開，待錯誤上報重啟時再評估 hidden source map。**F4-6 派工單必須顯式處置本項**（路線圖階段 1）。 | 生效 | 2026-08-20 | [修正計劃：D3](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
+| D-03 | production source map 不開。**2026-08-25 F4-6 重評提案：維持不開 hidden source map**；現行 allowlist 禁止外送 exception／message／stack，沒有可供 source map 解析的 stack，建立與上傳 map 只會增加供應鏈與 hosted credential 面。若日後要外送 stack，必須先另案翻修隱私契約再重評。 | 生效 | 2026-08-20 → 2026-08-25 | [修正計劃：D3](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板)；[階段 1 加固派工單：H-1](arch-dispatch-2026-08-25-hardening.md#h-1f4-6sentry-錯誤監控接線) |
 | D-04 | focus 外框維持現況、不改色，對比缺口列為已接受例外。 | 生效 | 2026-08-20 | [修正計劃：D4](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
 | D-05 | PWA 不支援離線；不加 fetch handler，但仍處理 `pushsubscriptionchange`。 | 生效 | 2026-08-20 | [修正計劃：D5](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板) |
 | D-06 | 抽屜捲動保存從 P2 升回 P1，翻案批 8 的 parity 決策。 | 已終結 | 2026-08-20 | [修正計劃：D6](frontend-fix-plan-2026-08-20.md#05決策紀錄2026-08-20-維護者拍板)；[批 18 完成紀錄](migration-reports/batch-18.md) |
