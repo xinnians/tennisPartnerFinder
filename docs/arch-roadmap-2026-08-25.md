@@ -24,7 +24,21 @@ test-only 讀取路徑在 production 的暴露期（非母單「隨時可做」�
 
 ## 階段 0：REL-code 程式部署（使用者執行，非派工）
 
-依序：
+**執行紀錄（2026-08-25）**：
+- 步驟 2 備份：使用者拍板**跳過**（無真實使用者，待刪資料即 QA fixtures）。
+- 步驟 3 CI：84 commit 首推全綠（run 32797465716）；WebKit 134 passed／0 failed——
+  六條歷史失敗全數消失，優於基準，REL-10 的實機分類負擔解除。
+- 步驟 4 REL-10：使用者人工 QA 完成。
+- 步驟 5 REL-11：**已執行**（Claude 經 linked hosted DB）：刪 16 個 QA 球局
+ （級聯 26 參與、25 訊息、7 候選場）、清空 notification_outbox 50 筆；
+  court_subscriptions／push_subscriptions／三個 profile 保留（使用者拍板）；
+  Test3 目錄 opt-in 下架（QA測試B 原本就未上架，Ian 維持）。
+  反向驗證：七表歸零計數；production 匿名 REST `session_discovery` 回 `[]`、
+  `player_directory` 與 raw `sessions` 對匿名 401。
+- 步驟 6 merge：本機 main 已 fast-forward 至 `1bb7335`（origin/main 是祖先、
+  區間零 migration 已驗），待使用者 `git push origin main`。
+
+原步驟清單：
 
 1. **凍結現況（preflight）**：記錄 remote SHA（main `76779be`／工作分支 `0be31a2`）、
    production deployment（`fa5xqjq4j`，08-22 13:21）；確認 Vercel Analytics 已啟用
