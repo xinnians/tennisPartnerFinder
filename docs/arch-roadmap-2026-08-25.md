@@ -88,6 +88,14 @@ H-3 的 hosted Map ID 設定與走查待使用者執行（步驟見回報）。
 
 ## 階段 2：批 3A——導覽與啟動（F3-0 → F3-1 → F3-3）
 
+**ACCEPTED（2026-08-25，一次通過）**：`a15d37e`..`bded000` 六 commit。規則解凍
+恰七行含 MIG-06 翻案儀式；hidden 矩陣 9→0、router 10 行、`#tab-*` 接管既有
+anchor；`bootDeepLinkReopenPending` 退役、session 深連結結構性等待 auth；
+新增 8 條導覽／冷啟動 e2e（mock+local）。交界新設計＝page history entry 帶
+`pageOwnerIdentity` 防跨帳號冷啟動還原私人分頁。
+驗收紀錄 `docs/arch-reports/batch-3A-acceptance-2026-08-25.md`。
+
+
 F3-0 規則修訂範圍**新增 MIG-06 正式翻案**（拍板 ⑥）：翻案理由、hash 命名空間、
 與 `#/session/:id` 相容性設計一併落檔；其餘照原範圍（surface stack 歸屬、
 AppShell 接管區 DOM 凍結，testid 凍結不動）。F3-1 導覽狀態機＋hash 深連結；
