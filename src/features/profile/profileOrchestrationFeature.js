@@ -212,11 +212,11 @@ export function handleAuthIdentityChange({ session }) {
   return session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null;
 }
 
-async function applyAuthCandidate(session) {
+async function applyAuthCandidate(session, { reconcilePageOwner = false } = {}) {
   dependencies.invalidateAuthRequests();
   // Account classification belongs to the controller; same-account token refreshes stay light.
   dependencies.setAuthSession(session);
-  dependencies.reconcilePageRouteOwner?.();
+  if (reconcilePageOwner) dependencies.reconcilePageRouteOwner?.();
   if (!session) {
     dependencies.resetPresenceTracking();
     dependencies.setProfile(dependencies.defaultProfile());
@@ -232,10 +232,11 @@ async function applyAuthCandidate(session) {
 export async function restoreAuth() {
   const controller = dependencies.getController();
   const bootstrapIntentVersion = controller.capturePendingIntentVersion();
+  let bootRestoring = true;
   let latestAuthCandidate = Promise.resolve();
   onAuthStateChange((session, event) => {
     if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
-    latestAuthCandidate = applyAuthCandidate(session);
+    latestAuthCandidate = applyAuthCandidate(session, { reconcilePageOwner: bootRestoring });
     if (session && event === "SIGNED_IN") resumeLinkReturn();
   });
   const initialRequest = dependencies.captureAuthGateRequest();
@@ -252,7 +253,9 @@ export async function restoreAuth() {
   }
   if (!initialSessionResolved || initialRequest.isStale()) {
     await latestAuthCandidate;
+    bootRestoring = false;
     return;
   }
-  await applyAuthCandidate(initialSession);
+  await applyAuthCandidate(initialSession, { reconcilePageOwner: true });
+  bootRestoring = false;
 }
