@@ -39,6 +39,21 @@ function workflowJob(name) {
   return nextJob < 0 ? tail : tail.slice(0, nextJob);
 }
 
+function assertWorkflowDevelopmentBranchFilters(workflow) {
+  const branchFilters = [...workflow.matchAll(/^ {4}branches: \[(.+)]$/gm)].map((match) =>
+    match[1].split(",").map((branch) => branch.trim())
+  );
+  assert.equal(branchFilters.length, 2, "workflow must keep exactly the push and pull-request branch filters");
+  for (const branches of branchFilters) {
+    assert.deepEqual(branches, ["main", DEVELOPMENT_BRANCH]);
+  }
+  assert.equal(
+    workflow.split(DEVELOPMENT_BRANCH).length - 1,
+    branchFilters.length,
+    "development branch may appear only in the guarded branch filters"
+  );
+}
+
 test("Node runtime declarations require 22.18 or newer and stay semantically aligned", () => {
   const minimum = parseMinimumNodeVersion(PACKAGE.engines?.node);
   assert.ok(compareVersions(minimum, REQUIRED_NODE_VERSION) >= 0, "Node engine minimum must be at least 22.18");
@@ -49,12 +64,14 @@ test("Node runtime declarations require 22.18 or newer and stay semantically ali
 
 test("quality workflow runs for main and the current development branch", () => {
   assert.ok(WORKFLOW.length > 1_000, "quality workflow is unexpectedly small");
-  // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-  assert.match(WORKFLOW, /pull_request:\n    branches: \[main, claude\/tennis-partner-finder-proto-xfrr6g\]/);
-  // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-  assert.match(WORKFLOW, /push:\n    branches: \[main, claude\/tennis-partner-finder-proto-xfrr6g\]/);
+  assertWorkflowDevelopmentBranchFilters(WORKFLOW);
   assert.match(WORKFLOW, /workflow_dispatch:/);
-  assert.ok(WORKFLOW.includes(DEVELOPMENT_BRANCH));
+});
+
+test("quality workflow branch guard fails closed when one filter drifts", () => {
+  const driftedWorkflow = WORKFLOW.replace(DEVELOPMENT_BRANCH, "canary/branch-filter-drift");
+  assert.throws(() => assertWorkflowDevelopmentBranchFilters(driftedWorkflow));
+  assert.doesNotThrow(() => assertWorkflowDevelopmentBranchFilters(WORKFLOW));
 });
 
 test("frontend CI script contains every current non-database gate in order", () => {
