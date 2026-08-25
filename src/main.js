@@ -179,6 +179,17 @@ function currentProfileEligibility(profile = getAppState().profile) {
   });
 }
 let activePage = "map";
+const PAGE_ROUTES = Object.freeze({
+  map: { elementId: "tab-map", hash: "#tab-map" },
+  "my-sessions": { elementId: "my-sessions-page", hash: "#tab-my-sessions" },
+  messages: { elementId: "messages-page", hash: "#tab-messages" },
+  me: { elementId: "me-page", hash: "#tab-me" },
+});
+
+function pageFromHash(hash = "") {
+  return Object.entries(PAGE_ROUTES).find(([, route]) => route.hash === hash)?.[0] ?? null;
+}
+
 let createdSessionFocusId = null;
 // 批 C3-3:createdSessionFocusId 現在同時服務 create 與 join 兩種來源
 // ("created"|"joined")。reason 只決定 My Sessions 訂閱 selector 要不要把它
@@ -218,7 +229,7 @@ async function openSessionHashRoute() {
   const sessionId = sessionIdFromHash(globalThis.location?.hash);
   if (!sessionId || !controller) return;
   const generation = ++sessionHashRouteGeneration;
-  showMapPage();
+  showMapPage({ historyMode: "none" });
   const result = await controller.openSessionFromLink(sessionId);
   if (generation !== sessionHashRouteGeneration || sessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
   if (result?.status !== "opened") openSessionUnavailableSheet();
@@ -553,33 +564,34 @@ function mountMessagesDestination() {
   syncBottomNavigation();
 }
 
-function showMapPage({ focus = false } = {}) {
-  activePage = "map";
-  document.getElementById("tab-map").hidden = false;
-  document.getElementById("my-sessions-page").hidden = true;
-  document.getElementById("messages-page").hidden = true;
-  document.getElementById("me-page").hidden = true;
+function setActivePage(page, { historyMode = "push" } = {}) {
+  activePage = page;
+  for (const [candidate, { elementId }] of Object.entries(PAGE_ROUTES)) {
+    document.getElementById(elementId).hidden = candidate !== page;
+  }
   syncBottomNavigation();
+  const hash = PAGE_ROUTES[page].hash;
+  if (historyMode !== "none" && globalThis.location?.hash !== hash) {
+    globalThis.history?.[historyMode === "replace" ? "replaceState" : "pushState"]?.(null, "", hash);
+  }
+}
+
+function showMapPage({ focus = false, historyMode = "push" } = {}) {
+  setActivePage("map", { historyMode });
   if (focus) requestAnimationFrame(() => document.getElementById("map-tab")?.focus({ preventScroll: true }));
 }
 
 // 批 C3-3:第一參數泛化為 { sessionId, reason }(或 null/未傳＝無聚焦目標，例如底部
 // 導覽「我的球局」分頁鈕)。reason 只決定 My Sessions 是否顯示
 // create 專屬文案；卡片聚焦本身兩種 reason 都適用，見該函式內的 highlightSessionId。
-function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
-  activePage = "my-sessions";
+function showMySessionsPage(focusTarget = null, { focus = false, historyMode = "push" } = {}) {
   if (focusTarget?.sessionId != null) {
     createdSessionFocusId = focusTarget.sessionId;
     createdSessionFocusReason = focusTarget.reason ?? null;
     publishPageView("mySessions");
   }
   controller.setDrawerState("collapsed");
-  document.getElementById("tab-map").hidden = true;
-  document.getElementById("messages-page").hidden = true;
-  document.getElementById("me-page").hidden = true;
-  const page = document.getElementById("my-sessions-page");
-  page.hidden = false;
-  syncBottomNavigation();
+  setActivePage("my-sessions", { historyMode });
   void controller.refreshMySessions();
   if (focus) {
     requestAnimationFrame(() => {
@@ -588,15 +600,9 @@ function showMySessionsPage(focusTarget = null, { focus = false } = {}) {
   }
 }
 
-function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
-  activePage = "me";
+function showMePage({ focus = false, focusNotificationSettings = false, historyMode = "push" } = {}) {
   controller.setDrawerState("collapsed");
-  document.getElementById("tab-map").hidden = true;
-  document.getElementById("my-sessions-page").hidden = true;
-  document.getElementById("messages-page").hidden = true;
-  const page = document.getElementById("me-page");
-  page.hidden = false;
-  syncBottomNavigation();
+  setActivePage("me", { historyMode });
   if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
   void refreshNotificationSettings();
   void controller.refreshMyPlayerBlocks();
@@ -614,20 +620,24 @@ function showMePage({ focus = false, focusNotificationSettings = false } = {}) {
 // void controller.refreshMySessions()。setAuthState() 在登入/還原 session 時已經
 // 觸發過 reloadParticipation(見 sessionController.js),訊息頁只讀那份既有 state,
 // 不重複打 RPC。
-function showMessagesPage({ focus = false } = {}) {
-  activePage = "messages";
+function showMessagesPage({ focus = false, historyMode = "push" } = {}) {
   controller.setDrawerState("collapsed");
-  document.getElementById("tab-map").hidden = true;
-  document.getElementById("my-sessions-page").hidden = true;
-  document.getElementById("me-page").hidden = true;
-  const page = document.getElementById("messages-page");
-  page.hidden = false;
-  syncBottomNavigation();
+  setActivePage("messages", { historyMode });
   if (focus) {
     requestAnimationFrame(() => {
       document.querySelector("#messages-root [data-messages-heading]")?.focus({ preventScroll: true });
     });
   }
+}
+
+function routeCurrentHash() {
+  const hash = globalThis.location?.hash ?? "";
+  if (sessionIdFromHash(hash)) return void openSessionHashRoute();
+  const page = pageFromHash(hash) ?? (hash ? null : "map");
+  if (page === "map") return showMapPage({ historyMode: "none" });
+  if (page === "my-sessions") return showMySessionsPage(null, { historyMode: "none" });
+  if (page === "messages") return showMessagesPage({ historyMode: "none" });
+  if (page === "me") showMePage({ historyMode: "none" });
 }
 
 function renderBaseCourtPins() {
@@ -792,7 +802,7 @@ function init() {
   document.getElementById("messages-tab").addEventListener("click", () => showMessagesPage());
   document.getElementById("me-tab").addEventListener("click", () => showMePage());
   globalThis.addEventListener("hashchange", () => {
-    void openSessionHashRoute();
+    routeCurrentHash();
   });
   syncBottomNavigation();
 
@@ -801,7 +811,7 @@ function init() {
   controller.loadDiscovery();
   restoreAuth();
   startMap();
-  void openSessionHashRoute();
+  routeCurrentHash();
 }
 
 init();

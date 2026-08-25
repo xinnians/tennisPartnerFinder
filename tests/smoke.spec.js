@@ -512,6 +512,58 @@ test("a hash session link opens its detail, copies a stable share link, and give
   expect(runtimeErrors).toEqual([]);
 });
 
+test("each main page opens directly from its tab hash", async ({ page }) => {
+  await installFakeMaps(page);
+  const routes = [
+    ["#tab-map", "#tab-map"],
+    ["#tab-my-sessions", "#my-sessions-page"],
+    ["#tab-messages", "#messages-page"],
+    ["#tab-me", "#me-page"],
+  ];
+
+  for (const [hash, selector] of routes) {
+    await page.goto(`/${hash}`);
+    await expect(page.locator(selector)).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${hash}$`));
+  }
+});
+
+test("a main page hash keeps its page active across reload", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/#tab-map");
+  await page.getByTestId("me-tab").click();
+  await expect(page).toHaveURL(/#tab-me$/);
+  await expect(page.locator("#me-page")).toBeVisible();
+
+  await page.reload();
+  await expect(page).toHaveURL(/#tab-me$/);
+  await expect(page.locator("#me-page")).toBeVisible();
+});
+
+test("browser Back returns to the previous main page", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/#tab-map");
+  await page.getByTestId("messages-tab").click();
+  await expect(page).toHaveURL(/#tab-messages$/);
+  await page.getByTestId("me-tab").click();
+  await expect(page).toHaveURL(/#tab-me$/);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/#tab-messages$/);
+  await expect(page.locator("#messages-page")).toBeVisible();
+});
+
+test("the existing home logo anchor routes to the map page", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/#tab-me");
+  await expect(page.locator("#me-page")).toBeVisible();
+
+  await page.locator(".app-brand").dispatchEvent("click");
+  await expect(page).toHaveURL(/#tab-map$/);
+  await expect(page.locator("#tab-map")).toBeVisible();
+  await expect(page.getByTestId("map-tab")).toBeFocused();
+});
+
 test("instant join session 9002 shows its badge and direct CTA on card and detail", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
