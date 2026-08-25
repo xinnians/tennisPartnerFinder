@@ -242,6 +242,7 @@ const renderNearbySessionsDrawerInApp = appModule?.renderNearbySessionsDrawerInA
 const preloadMePageInApp = appModule?.preloadMePageInApp;
 const preloadMessagesPageInApp = appModule?.preloadMessagesPageInApp;
 const preloadMySessionsPageInApp = appModule?.preloadMySessionsPageInApp;
+const showToastInApp = appModule?.showToastInApp;
 const sessionDetailSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
 const mountSessionDetailSheetContent =
@@ -548,6 +549,10 @@ const namedViewPreloads = {
 export function preloadNonHomeViews(viewNames = Object.keys(namedViewPreloads)) {
   const names = Array.isArray(viewNames) ? viewNames : [viewNames];
   return Promise.all(names.map((name) => namedViewPreloads[name]?.()).filter(Boolean)).then(() => undefined);
+}
+
+export function renderToast(message) {
+  showToastInApp?.(String(message));
 }
 
 function warmView(preload) {

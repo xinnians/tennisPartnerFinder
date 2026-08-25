@@ -103,6 +103,7 @@ import {
   renderMessagesPage,
   renderMySessionsPage,
   renderNearbySessionsDrawer,
+  renderToast,
   nearbySessionsSummaryText,
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.js";
@@ -135,7 +136,6 @@ import {
 import { eligibilityFromPrivateProfile } from "./profile.js";
 import { createRequestGate } from "./requestGate.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
-import { esc } from "./util.js";
 
 const configuredErrorTransport = configureSentryErrorTransport({
   dsn: import.meta.env.VITE_SENTRY_DSN ?? "",
@@ -217,10 +217,7 @@ function publishPageView(...channels) {
 let bootAuthReady = Promise.resolve();
 
 function toast(message) {
-  const root = document.getElementById("toast-root");
-  root.innerHTML = `<div class="toast"><svg class="toast__check" width="15" height="15" viewBox="0 0 15 15" aria-hidden="true"><path d="M2.5 8l3.2 3.2L12.5 4" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>${esc(message)}</div>`;
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => (root.innerHTML = ""), 2000);
+  renderToast(message);
 }
 
 configureShareFeature({ toast });

@@ -24,6 +24,7 @@ interface AppSnapshot {
   mySessionsPages: Map<HTMLElement, PageSlot<MySessionsPageOptions>>;
   nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
   surfaces: SurfaceHostSnapshot;
+  toastMessage: string;
 }
 
 interface AppProps {
@@ -49,7 +50,10 @@ let snapshot: AppSnapshot = {
   mySessionsPages: new Map(),
   nearbyDrawers: new Map(),
   surfaces: new Map(),
+  toastMessage: "",
 };
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 function loadMePage(): Promise<void> {
   if (MePageComponent) return Promise.resolve();
@@ -279,6 +283,7 @@ const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
 
 /** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */
 export function App({ snapshot: current }: AppProps) {
+  const toastRoot = document.getElementById("toast-root");
   return (
     <>
       {renderPortals(
@@ -314,6 +319,26 @@ export function App({ snapshot: current }: AppProps) {
         "nearby"
       )}
       <SurfaceHost slots={current.surfaces} />
+      {toastRoot
+        ? createPortal(
+            current.toastMessage ? (
+              <div className="toast">
+                <svg className="toast__check" width="15" height="15" viewBox="0 0 15 15" aria-hidden="true">
+                  <path
+                    d="M2.5 8l3.2 3.2L12.5 4"
+                    fill="none"
+                    stroke="var(--color-signal)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {current.toastMessage}
+              </div>
+            ) : null,
+            toastRoot
+          )
+        : null}
     </>
   );
 }
@@ -329,6 +354,18 @@ function ensureAppRoot(): Root {
 
 function renderApp(): void {
   ensureAppRoot().render(<App snapshot={snapshot} />);
+}
+
+/** Preserve main.js's fire-and-forget toast adapter while React owns its content and timer. */
+export function showToastInApp(message: string): void {
+  snapshot = { ...snapshot, toastMessage: message };
+  renderApp();
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastTimer = null;
+    snapshot = { ...snapshot, toastMessage: "" };
+    renderApp();
+  }, 2000);
 }
 
 /**
