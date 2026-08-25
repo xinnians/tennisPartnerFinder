@@ -103,8 +103,9 @@ F3-3 啟動編排顯式化（與 F3-1 同批鎖冷啟動深連結交界）。
 
 ## 階段 2.5：F0-7 計數斷言清單化（排 F3-0 後、3B 前）
 
-原「彈性批」定位修正（審查 §B3）：F0-7 綁 sheet／eager／consumer 集合，
-而 3B 正好會改這些集合——先清單化，3B 只改單一 manifest 並說明變因。
+**ACCEPTED（2026-08-25）**：`e4dfc70`。六組計數改單一 `SURFACE_MANIFEST` 具名
+清單逐元素比對，雙向 canary 皆點名漂移檔案。3B 屆時只改 manifest 並說明變因。
+驗收紀錄 `docs/arch-reports/batch-F0-7-acceptance-2026-08-25.md`。
 
 ## 階段 3：批 3B——殼遷入 AppShell（F3-2）
 
