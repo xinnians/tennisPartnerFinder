@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
@@ -78,6 +79,17 @@ function withSessionStorage(storage, run) {
     });
 }
 
+function withWindow(value, run) {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { configurable: true, value });
+  return Promise.resolve()
+    .then(run)
+    .finally(() => {
+      if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
+      else delete globalThis.window;
+    });
+}
+
 class MemorySessionStorage {
   values = new Map();
 
@@ -145,6 +157,53 @@ function createSurface(onClose = () => {}) {
     },
   };
 }
+
+test("configured Advanced Marker import failures reject and drive the map-unavailable fallback", async () => {
+  const importFailure = new Error("forced marker library failure");
+  const importLibraryCalls = [];
+  let unavailableCalls = 0;
+  const controller = {
+    setMapUnavailable() {
+      unavailableCalls += 1;
+    },
+  };
+
+  const outcome = await withWindow(
+    {
+      google: {
+        maps: {
+          async importLibrary(name) {
+            importLibraryCalls.push(name);
+            throw importFailure;
+          },
+        },
+      },
+    },
+    () =>
+      mapModule
+        .loadGoogleMaps("test-key", () => {}, "TEST_MAP_ID")
+        .then(
+          () => "resolved",
+          (error) => {
+            assert.equal(error.message, "Google Maps Advanced Marker library 載入失敗");
+            assert.equal(error.cause, importFailure);
+            controller.setMapUnavailable();
+            return "rejected";
+          }
+        )
+  );
+
+  assert.equal(outcome, "rejected");
+  assert.deepEqual(importLibraryCalls, ["marker"]);
+  assert.equal(unavailableCalls, 1);
+
+  const mainSource = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  const startMapSource = mainSource.slice(
+    mainSource.indexOf("async function startMap()"),
+    mainSource.indexOf("async function boot()")
+  );
+  assert.match(startMapSource, /\.catch\(\(\) => \{[\s\S]*controller\.setMapUnavailable\(\);[\s\S]*\}\);/u);
+});
 
 test("authenticated detail and join confirmation load the accepted preview while anonymous detail stays silent", async () => {
   const previewLoads = [];

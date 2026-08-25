@@ -175,14 +175,15 @@ const SAGE_STYLES = [
 /** Load Maps once. Authentication failures intentionally leave discovery usable. */
 export function loadGoogleMaps(
   apiKey: string,
-  onAuthFailure: () => void = () => {}
+  onAuthFailure: () => void = () => {},
+  mapId: string = GOOGLE_MAPS_MAP_ID
 ): Promise<GoogleMapsRuntime | undefined> {
   window.gm_authFailure = onAuthFailure;
   if (loadPromise) return loadPromise;
   loadPromise = new Promise((resolve, reject) => {
     const resolveWithMarkerLibrary = () => {
       const google = window.google;
-      if (!GOOGLE_MAPS_MAP_ID) {
+      if (!mapId) {
         resolve(google);
         return;
       }
