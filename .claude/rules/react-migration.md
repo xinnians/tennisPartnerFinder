@@ -29,6 +29,13 @@ paths:
 - 重繪前若既有流程已 capture 焦點，React commit 後仍依 generation、active page 與 overlay 狀態還原；同 key reconciliation 不能取代「列已消失時的 fallback」或「overlay 開啟時不搶焦」規則。
 - Escape 由當下最上層 sheet/dialog 的 capture listener 優先處理；頁面級 handler 看到已開 surface 或已取消事件時不得再執行。關閉 surface 的焦點回復仍回到開啟它的 React 控制項。
 
+## 批 3 解凍（2026-08-25）
+
+1. surface stack、focus trap、Escape 與關閉焦點回復允許遷入 React，但只限批 3B 實施；批 3A 不得變更 `sheets.js` 殼。
+2. DOM 結構凍結只對批 3B 實際由 AppShell 接管的 topbar、底部導覽、toast、login modal 解除；其餘頁面與 surface 的 DOM 結構仍凍結。
+3. MIG-06 正式翻案：四主分頁狀態納入 URL／history，理由是支援深連結、重整保位與返回鍵語意。`#/session/:id` 命名空間逐字保留且優先於分頁 route；四主分頁使用與既有首頁 anchor 相容的 `#tab-map`、`#tab-my-sessions`、`#tab-messages`、`#tab-me`，由應用程式明確接管。
+4. 本次不解凍 `data-testid`、既有 e2e 斷言、文案、同步 commit 邊界與 `dataApi` 邊界；這些契約仍是一票否決。
+
 ## Sheet 批固定模式
 
 1. factory 的公開簽名、預設值與 imperative handle 方法集合／payload／同步語意凍結；handle 推 React state 時以 `flushSync` commit，呼叫返回前 DOM 必須已更新。
