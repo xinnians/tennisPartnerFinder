@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
-import * as mapModule from "../src/map.js";
-import * as pinModule from "../src/pins.js";
+import * as mapModule from "../src/map.ts";
+import * as pinModule from "../src/pins.ts";
 import * as sessionController from "../src/sessionController.js";
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
 

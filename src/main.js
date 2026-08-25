@@ -44,7 +44,7 @@ import {
   setUserLocation,
   subscribeToMapIdle,
   zoomMapBy,
-} from "./map.js";
+} from "./map.ts";
 import {
   acceptSessionParticipant,
   cancelSession,
@@ -162,9 +162,6 @@ if (import.meta.hot) {
 let google = null;
 let map = null;
 let courtCatalogueStatus = "loading";
-let sessionMarkers = [];
-let courtMarkers = [];
-let playerMarkers = [];
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 const authRequestGate = createRequestGate();
@@ -293,28 +290,18 @@ function openCreateSession({
 function renderSessionMarkers(sessions) {
   if (!google || !map) return;
   const groups = groupSessionsByCourt(getAppState().courts, sessions);
-  sessionMarkers = renderSessionPins(
-    google,
-    map,
-    groups,
-    {
-      onSession: (sessionId) => controller.openSession(sessionId),
-      onCluster: (court, groupedSessions) => controller.openCourt(court, groupedSessions),
-    },
-    sessionMarkers
-  );
+  renderSessionPins(google, map, groups, {
+    onSession: (sessionId) => controller.openSession(sessionId),
+    onCluster: (court, groupedSessions) => controller.openCourt(court, groupedSessions),
+  });
 }
 
 function renderPlayerLayer(view) {
   latestPlayerLayerView = view;
   renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), view);
   if (!google || !map) return;
-  playerMarkers = renderPlayerPins(
-    google,
-    map,
-    view.on ? view.groups : [],
-    (court, players) => controller.openPlayerCourt(court, players),
-    playerMarkers
+  renderPlayerPins(google, map, view.on ? view.groups : [], (court, players) =>
+    controller.openPlayerCourt(court, players)
   );
 }
 
@@ -643,13 +630,7 @@ function reconcilePageRouteOwner() {
 
 function renderBaseCourtPins() {
   if (!google || !map) return;
-  courtMarkers = renderCourtBasePins(
-    google,
-    map,
-    getAppState().courts,
-    (court) => controller.openCourt(court),
-    courtMarkers
-  );
+  renderCourtBasePins(google, map, getAppState().courts, (court) => controller.openCourt(court));
 }
 
 async function loadCourtsImmediately() {

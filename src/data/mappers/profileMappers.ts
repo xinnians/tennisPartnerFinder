@@ -1,5 +1,12 @@
 import type { Database } from "../databaseTypes.ts";
-import type { CourtSummary, NotificationPreferences, PlayType, Profile, ProfileSlotCode } from "../../domainTypes.ts";
+import type {
+  CourtSummary,
+  MapCourtSummary,
+  NotificationPreferences,
+  PlayType,
+  Profile,
+  ProfileSlotCode,
+} from "../../domainTypes.ts";
 import { notificationPreferencesForRead } from "../../notificationPreferences.ts";
 import { readPlayTypes, readProfileSlotCodes } from "./literalGuards.ts";
 import { asArray, asBoolean, asNumber, asText } from "./valueMappers.ts";
@@ -47,7 +54,7 @@ export interface PlayerPresenceDirectoryEntry {
   profileId: number | null;
 }
 
-export interface DataCourt extends CourtSummary {
+export interface DataCourt extends MapCourtSummary {
   city: string;
   district: string;
   lat: number | null;

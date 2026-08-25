@@ -125,7 +125,7 @@ test("三個套用點都改用 --color-text-secondary(批 A-8 已把 .chat-sessi
 });
 
 test("球場圖釘的描邊與內點都達非文字元素的 3:1", () => {
-  const pins = readFileSync(new URL("../src/pins.js", import.meta.url), "utf8");
+  const pins = readFileSync(new URL("../src/pins.ts", import.meta.url), "utf8");
   const courtPin = pins.match(/const COURT_PIN_URL = svgToDataUri\(`([\s\S]*?)`\);/);
   assert.ok(courtPin, "讀不到 COURT_PIN_URL");
   // 3 碼與 6 碼 hex 都要收:圖釘的白底寫成 #fff,只收 6 碼會讓掃描集少一項。

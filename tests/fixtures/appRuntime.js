@@ -1,5 +1,5 @@
 const APP_MODULE_BASE_URL = "/src/";
-const APP_MODULE_EXTENSIONS = Object.freeze({ districts: ".ts" });
+const APP_MODULE_EXTENSIONS = Object.freeze({ districts: ".ts", map: ".ts", pins: ".ts" });
 
 export function installAppModuleImporter(page) {
   return page.addInitScript(

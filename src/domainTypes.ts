@@ -57,6 +57,12 @@ export interface CourtSummary {
   name: string;
 }
 
+/** Court geometry consumed by the map-view boundary. */
+export interface MapCourtSummary extends CourtSummary {
+  lat: number | null;
+  lng: number | null;
+}
+
 export interface Profile {
   nick: string;
   ntrp: number | null;

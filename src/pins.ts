@@ -1,9 +1,47 @@
 const NAVY = "#12291c"; // 計分板 --color-ink;pins.js 無法讀 CSS 變數,值與 session.css 同步
-const BLUE = "#1c5c3c"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- F4-4 同源 gate 涵蓋四個具名色票；court 目前不直接著色 pin。
+const BLUE = "#1c5c3c";
 const LIME = "#ddf53c"; // --color-signal
 const SOFT_BLUE = "#e8f2e3"; // --color-success-bg(聚合底)
 
-function svgToDataUri(svg) {
+interface MapsGeometryFactory {
+  maps: {
+    Point: new (x: number, y: number) => MapPoint;
+    Size: new (width: number, height: number) => MapSize;
+  };
+}
+
+export interface MapPoint {
+  x: number;
+  y: number;
+}
+
+export interface MapSize {
+  height: number;
+  width: number;
+}
+
+export interface MapPinIcon {
+  anchor: MapPoint;
+  labelOrigin: MapPoint;
+  scaledSize: MapSize;
+  url: string;
+}
+
+export interface MapPinLabel {
+  color: string;
+  fontFamily: string;
+  fontSize: string;
+  fontWeight: string;
+  text: string;
+}
+
+export interface MapPin {
+  icon: MapPinIcon;
+  label?: MapPinLabel;
+}
+
+function svgToDataUri(svg: string): string {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg.trim())}`;
 }
 
@@ -71,7 +109,16 @@ const PLAYER_PIN_URL = svgToDataUri(`
 const font = "'Noto Sans TC', sans-serif";
 const monoFont = "'IBM Plex Mono', 'Noto Sans TC', monospace";
 
-function markerIcon(google, url, width, height, anchorX, anchorY, labelX, labelY) {
+function markerIcon(
+  google: MapsGeometryFactory,
+  url: string,
+  width: number,
+  height: number,
+  anchorX: number,
+  anchorY: number,
+  labelX: number,
+  labelY: number
+): MapPinIcon {
   return {
     url,
     scaledSize: new google.maps.Size(width, height),
@@ -81,7 +128,10 @@ function markerIcon(google, url, width, height, anchorX, anchorY, labelX, labelY
 }
 
 /** Reproduce the legacy icon + label geometry as AdvancedMarker DOM content. */
-export function advancedMarkerContent(pin, documentRoot = globalThis.document) {
+export function advancedMarkerContent(
+  pin: MapPin,
+  documentRoot: Pick<Document, "createElement"> = globalThis.document
+): HTMLDivElement | null {
   const icon = pin?.icon;
   if (!icon || !documentRoot?.createElement) return null;
 
@@ -123,7 +173,7 @@ export function advancedMarkerContent(pin, documentRoot = globalThis.document) {
 // presenceCount 樣式差異沿用現行語意(批 D8 派工單決策 7):基底釘已經是 ink+signal
 // (見上方 PLAYER_PIN_URL),這裡疊加既有的右上角「線N」signal 徽章,標出這個聚合
 // count 裡有幾位「當下」在分享在場狀態,不是 dc 原型的概念。
-function playerPresencePinUrl(presenceCount) {
+function playerPresencePinUrl(presenceCount: number): string {
   const safePresenceCount = Number.isFinite(Number(presenceCount)) ? Math.max(0, Math.trunc(Number(presenceCount))) : 0;
   return svgToDataUri(`
     <svg xmlns="http://www.w3.org/2000/svg" width="86" height="55" viewBox="0 0 86 55">
@@ -138,7 +188,20 @@ function playerPresencePinUrl(presenceCount) {
 /** A public session pin never derives a label from a person or profile.
  *  批 D3:label 改為開始時間(dc L39 mono 14px);進行中=ink 底 signal 字(L47-49)、
  *  直接加入=右上 signal 方點(L40)。時間值由呼叫端提供,pins.js 不碰 session 物件。 */
-export function sessionPin(google, { time = "", instant = false, ongoing = false, full = false } = {}) {
+export function sessionPin(
+  google: MapsGeometryFactory,
+  {
+    time = "",
+    instant = false,
+    ongoing = false,
+    full = false,
+  }: {
+    time?: string;
+    instant?: boolean;
+    ongoing?: boolean;
+    full?: boolean;
+  } = {}
+): MapPin {
   if (full) {
     return {
       icon: markerIcon(google, FULL_SESSION_PIN_URL, 64, 40, 32, 39, 32, 18),
@@ -159,7 +222,7 @@ export function sessionPin(google, { time = "", instant = false, ongoing = false
 
 /** An undecided candidate placement is distinct from a confirmed session pin.
  *  批 D3:dashed 磚+時段範圍 label+「候選」小字燒在 icon(dc L63-69)。 */
-export function candidateSessionPin(google, { range = "" } = {}) {
+export function candidateSessionPin(google: MapsGeometryFactory, { range = "" }: { range?: string } = {}): MapPin {
   return {
     icon: markerIcon(google, CANDIDATE_SESSION_PIN_URL, 78, 40, 39, 39, 27, 18),
     label: { text: range || "未定", color: NAVY, fontFamily: monoFont, fontSize: "13px", fontWeight: "600" },
@@ -168,19 +231,19 @@ export function candidateSessionPin(google, { range = "" } = {}) {
 
 /** A count pin is used only where two or more public sessions share one court.
  *  批 D3:ink 磚 signal 框+mono 數字,「場」字燒在 icon(dc L54-60)。 */
-export function sessionClusterPin(google, count) {
+export function sessionClusterPin(google: MapsGeometryFactory, count: number): MapPin {
   return {
     icon: markerIcon(google, CLUSTER_PIN_URL, 56, 42, 28, 41, 26, 16),
     label: { text: String(count), color: LIME, fontFamily: monoFont, fontSize: "17px", fontWeight: "600" },
   };
 }
 
-export function courtPin(google) {
+export function courtPin(google: MapsGeometryFactory): MapPin {
   return { icon: markerIcon(google, COURT_PIN_URL, 25, 25, 12.5, 12.5, 12.5, 12.5) };
 }
 
 /** An online pin exposes only the reciprocal on-court count without location detail. */
-export function playerPin(google, count, presenceCount = 0) {
+export function playerPin(google: MapsGeometryFactory, count: number, presenceCount = 0): MapPin {
   const hasPresence = Number(presenceCount) > 0;
   return {
     // The connector begins at the court coordinate while the full-size player
@@ -192,7 +255,7 @@ export function playerPin(google, count, presenceCount = 0) {
   };
 }
 
-export function userLocationPin(google) {
+export function userLocationPin(google: MapsGeometryFactory): MapPin {
   return { icon: markerIcon(google, USER_PIN_URL, 28, 28, 14, 14, 14, 14) };
 }
 
