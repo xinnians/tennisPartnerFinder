@@ -176,6 +176,9 @@
 .my-sessions-section__head h2 { margin: 0; color: var(--color-ink); font-size: var(--text-xl); }
 .my-sessions-section__head span { color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: 700; }
 .my-sessions-list { display: grid; gap: var(--space-2); }
+.my-sessions-list > .my-action-card { content-visibility: auto; contain-intrinsic-size: auto 156px; }
+.my-sessions-list > .my-session-card { content-visibility: auto; contain-intrinsic-size: auto 107px; }
+.my-sessions-list > :is(.my-action-card, .my-session-card):first-child { content-visibility: visible; }
 .my-sessions-empty { display: grid; gap: var(--space-2); margin-top: var(--space-5); padding: var(--space-4); border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); }
 .my-sessions-empty h2 { margin: 0; font-size: var(--text-lg); }
 .my-session-card,

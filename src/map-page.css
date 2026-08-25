@@ -141,6 +141,7 @@
 .presence-settings__greeting { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-weight: 700; }
 .player-presence, .player-greeting { color: var(--color-success); font-weight: 700; }
 .player-directory-list { display: grid; gap: var(--space-2); margin-top: var(--space-2); }
+.player-directory-list > .player-directory-row { content-visibility: auto; contain-intrinsic-size: auto 58px; }
 /* 批 D8:列改 dc §2 逐字結構——44px avatar+名/磚/在線·這是你徽章一行+副行+chevron
   (原本是縱向堆疊四行純段落,汰換不是疊加,理由同 D4b 檔頭同款註記)。 */
 .player-directory-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: var(--space-3); border: var(--border-thin); border-radius: 12px; background: var(--color-surface-card); color: var(--color-ink); text-align: left; transition: transform 0.12s; }

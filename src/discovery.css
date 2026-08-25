@@ -94,6 +94,7 @@
 
 .surface__close { display: grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-2xl); line-height: 1; }
 .nearby-sessions__cards { display: block; }
+.nearby-sessions__cards > .session-card { content-visibility: auto; contain-intrinsic-size: auto 92px; }
 .nearby-sessions__status { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .nearby-sessions__status p { margin: 0; overflow-wrap: anywhere; }
 .nearby-sessions__status .session-secondary { margin-top: var(--space-2); }
