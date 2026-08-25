@@ -48,10 +48,20 @@ interface MapsMarker {
   addListener?(event: string, callback: () => void): MapsEventListener | void;
   anchorLeft?: string;
   anchorTop?: string;
+  content?: HTMLElement | null;
+  icon?: MapPin["icon"];
+  label?: MapPin["label"];
   map?: MapsMap | null;
+  options?: Partial<LegacyMarkerOptions>;
   position?: LatLngLiteral;
+  setIcon?(icon: MapPin["icon"]): void;
+  setLabel?(label: MapPin["label"]): void;
   setMap?(map: MapsMap | null): void;
   setPosition?(position: LatLngLiteral): void;
+  setTitle?(title: string): void;
+  setZIndex?(zIndex: number): void;
+  title?: string;
+  zIndex?: number;
 }
 
 interface MarkerOptions {
@@ -96,6 +106,35 @@ interface SessionPinHandlers {
   onSession?(sessionId: SessionSummary["sessionId"]): void;
 }
 
+interface MarkerSpec {
+  fingerprint: string;
+  key: string;
+  map: MapsMap;
+  onClick?: () => void;
+  pin: MapPin;
+  position: MarkerOptions["position"];
+  title: string;
+  zIndex: number;
+}
+
+interface MarkerView {
+  map: MapsMap;
+  pinFingerprint: string;
+  position: MarkerOptions["position"];
+  title: string;
+  zIndex: number;
+}
+
+interface MarkerEntry {
+  activate?: () => void;
+  fingerprint: string;
+  kind: "advanced" | "legacy";
+  marker: MapsMarker;
+  view: MarkerView;
+}
+
+type MarkerLayerName = "court" | "player" | "session";
+
 declare global {
   interface Window {
     __onGoogleMapsReady?: () => void;
@@ -110,11 +149,18 @@ let runtimeMap: MapsMap | null = null;
 let AdvancedMarkerElement: AdvancedMarkerConstructor | null = null;
 const advancedMarkerMaps = new WeakSet<MapsMap>();
 const markerState: {
-  court: MapsMarker[];
-  player: MapsMarker[];
-  session: MapsMarker[];
+  court: Map<string, MarkerEntry>;
+  layerMaps: Record<MarkerLayerName, MapsMap | null>;
+  player: Map<string, MarkerEntry>;
+  session: Map<string, MarkerEntry>;
   user: MapsMarker | null;
-} = { court: [], player: [], session: [], user: null };
+} = {
+  court: new Map(),
+  layerMaps: { court: null, player: null, session: null },
+  player: new Map(),
+  session: new Map(),
+  user: null,
+};
 
 const SAGE_STYLES = [
   { elementType: "geometry", stylers: [{ color: "#edf1ec" }] },
@@ -193,31 +239,54 @@ export function createMap(google: GoogleMapsRuntime, element: HTMLElement): Maps
   return runtimeMap;
 }
 
-function detachMarkers(markers: MapsMarker[]): void {
-  markers.forEach((marker) => {
+function detachMarkers(markers: Iterable<MapsMarker>): void {
+  for (const marker of markers) {
     if (typeof marker?.setMap === "function") marker.setMap(null);
     else if (marker) marker.map = null;
+  }
+}
+
+function samePosition(left: MarkerOptions["position"], right: MarkerOptions["position"]): boolean {
+  return left.lat === right.lat && left.lng === right.lng;
+}
+
+function pinFingerprint(pin: MapPin): string {
+  return JSON.stringify({
+    anchor: pin.icon.anchor,
+    label: pin.label ?? null,
+    labelOrigin: pin.icon.labelOrigin,
+    scaledSize: pin.icon.scaledSize,
+    url: pin.icon.url,
   });
 }
 
-function createMarker(
-  google: GoogleMapsRuntime,
-  map: MapsMap,
-  {
-    onClick,
-    pin,
-    position,
-    title,
-    zIndex,
-  }: {
-    onClick?: () => void;
-    pin: MapPin;
-    position: MarkerOptions["position"];
-    title: string;
-    zIndex: number;
-  }
-): MapsMarker {
-  if (AdvancedMarkerElement && advancedMarkerMaps.has(map)) {
+function markerView(spec: MarkerSpec): MarkerView {
+  return {
+    map: spec.map,
+    pinFingerprint: pinFingerprint(spec.pin),
+    position: spec.position,
+    title: spec.title,
+    zIndex: spec.zIndex,
+  };
+}
+
+function buildMarkerSpec(spec: Omit<MarkerSpec, "fingerprint">, dataFingerprint: unknown): MarkerSpec {
+  return {
+    ...spec,
+    fingerprint: JSON.stringify({
+      data: dataFingerprint,
+      pin: pinFingerprint(spec.pin),
+      position: spec.position,
+      title: spec.title,
+      zIndex: spec.zIndex,
+    }),
+  };
+}
+
+function createMarkerEntry(google: GoogleMapsRuntime, spec: MarkerSpec): MarkerEntry {
+  const { map, onClick, pin, position, title, zIndex } = spec;
+  let entry: MarkerEntry;
+  if (AdvancedMarkerElement && advancedMarkerMaps.has(spec.map)) {
     const marker = new AdvancedMarkerElement({
       content: advancedMarkerContent(pin),
       gmpClickable: Boolean(onClick),
@@ -228,8 +297,15 @@ function createMarker(
     });
     marker.anchorLeft = `${-pin.icon.anchor.x}px`;
     marker.anchorTop = `${-pin.icon.anchor.y}px`;
-    if (onClick) marker.addEventListener?.("gmp-click", onClick);
-    return marker;
+    entry = {
+      activate: onClick,
+      fingerprint: spec.fingerprint,
+      kind: "advanced",
+      marker,
+      view: markerView(spec),
+    };
+    if (onClick) marker.addEventListener?.("gmp-click", () => entry.activate?.());
+    return entry;
   }
 
   const marker = new google.maps.Marker({
@@ -241,8 +317,85 @@ function createMarker(
     zIndex,
     optimized: false,
   });
-  if (onClick) marker.addListener?.("click", onClick);
-  return marker;
+  entry = {
+    activate: onClick,
+    fingerprint: spec.fingerprint,
+    kind: "legacy",
+    marker,
+    view: markerView(spec),
+  };
+  if (onClick) marker.addListener?.("click", () => entry.activate?.());
+  return entry;
+}
+
+function updateMarkerEntry(entry: MarkerEntry, spec: MarkerSpec): void {
+  const { marker, view } = entry;
+  if (view.map !== spec.map) {
+    if (typeof marker.setMap === "function") marker.setMap(spec.map);
+    else marker.map = spec.map;
+  }
+  if (!samePosition(view.position, spec.position)) {
+    if (typeof marker.setPosition === "function") marker.setPosition(spec.position as LatLngLiteral);
+    else marker.position = spec.position as LatLngLiteral;
+    if (marker.options) marker.options.position = spec.position;
+  }
+  const nextPinFingerprint = pinFingerprint(spec.pin);
+  if (view.pinFingerprint !== nextPinFingerprint) {
+    if (entry.kind === "advanced") marker.content = advancedMarkerContent(spec.pin);
+    else {
+      if (typeof marker.setIcon === "function") marker.setIcon(spec.pin.icon);
+      else marker.icon = spec.pin.icon;
+      if (typeof marker.setLabel === "function") marker.setLabel(spec.pin.label);
+      else marker.label = spec.pin.label;
+      if (marker.options) {
+        marker.options.icon = spec.pin.icon;
+        marker.options.label = spec.pin.label;
+      }
+    }
+  }
+  if (view.title !== spec.title) {
+    if (entry.kind === "legacy" && typeof marker.setTitle === "function") marker.setTitle(spec.title);
+    else marker.title = spec.title;
+    if (marker.options) marker.options.title = spec.title;
+  }
+  if (view.zIndex !== spec.zIndex) {
+    if (entry.kind === "legacy" && typeof marker.setZIndex === "function") marker.setZIndex(spec.zIndex);
+    else marker.zIndex = spec.zIndex;
+    if (marker.options) marker.options.zIndex = spec.zIndex;
+  }
+  entry.activate = spec.onClick;
+  entry.fingerprint = spec.fingerprint;
+  entry.view = { ...markerView(spec), pinFingerprint: nextPinFingerprint };
+}
+
+function reconcileMarkerLayer(
+  google: GoogleMapsRuntime,
+  map: MapsMap,
+  layer: MarkerLayerName,
+  specs: MarkerSpec[]
+): MapsMarker[] {
+  let current = markerState[layer];
+  if (markerState.layerMaps[layer] && markerState.layerMaps[layer] !== map) {
+    detachMarkers([...current.values()].map((entry) => entry.marker));
+    current = new Map();
+  }
+  const next = new Map<string, MarkerEntry>();
+  for (const spec of specs) {
+    if (next.has(spec.key)) throw new Error(`Duplicate ${layer} marker key: ${spec.key}`);
+    const existing = current.get(spec.key);
+    if (!existing) {
+      next.set(spec.key, createMarkerEntry(google, spec));
+      continue;
+    }
+    if (existing.fingerprint !== spec.fingerprint) updateMarkerEntry(existing, spec);
+    next.set(spec.key, existing);
+  }
+  for (const [key, entry] of current) {
+    if (!next.has(key)) detachMarkers([entry.marker]);
+  }
+  markerState[layer] = next;
+  markerState.layerMaps[layer] = map;
+  return [...next.values()].map((entry) => entry.marker);
 }
 
 function plainBounds(bounds: MapsBounds | null | undefined): MapBoundsLiteral | null {
@@ -307,8 +460,7 @@ export function renderSessionPins(
   groups: SessionPinGroup[],
   { onSession = () => {}, onCluster = () => {} }: SessionPinHandlers = {}
 ): MapsMarker[] {
-  detachMarkers(markerState.session);
-  markerState.session = groups.map(({ court, sessions, undecidedCandidateSessionIds = [] }) => {
+  const specs = groups.map(({ court, sessions, undecidedCandidateSessionIds = [] }) => {
     const multiple = sessions.length >= 2;
     const undecided =
       !multiple && undecidedCandidateSessionIds.some((id) => String(id) === String(sessions[0]?.sessionId));
@@ -326,17 +478,35 @@ export function renderSessionPins(
             ongoing,
             full,
           });
-    return createMarker(google, map, {
-      onClick: () => (multiple ? onCluster(court, sessions) : onSession(sessions[0].sessionId)),
-      pin,
-      position: { lat: court.lat, lng: court.lng },
-      title: multiple
-        ? `球局 · ${court.name} · ${sessions.length} 場`
-        : `球局 · ${court.name}${undecided ? " · 未定" : ""}`,
-      zIndex: multiple ? 40 : 30,
-    });
+    const sessionId = single?.sessionId;
+    const key = multiple
+      ? `cluster:${String(court.id)}`
+      : undecided
+        ? `session:${String(sessionId)}:court:${String(court.id)}`
+        : `session:${String(sessionId)}`;
+    const memberFingerprint = sessions
+      .map((session) => String(session.sessionId))
+      .sort()
+      .join(",");
+    return buildMarkerSpec(
+      {
+        key,
+        map,
+        onClick: () => (multiple ? onCluster(court, sessions) : onSession(sessions[0].sessionId)),
+        pin,
+        position: { lat: court.lat, lng: court.lng },
+        title: multiple
+          ? `球局 · ${court.name} · ${sessions.length} 場`
+          : `球局 · ${court.name}${undecided ? " · 未定" : ""}`,
+        zIndex: multiple ? 40 : 30,
+      },
+      {
+        memberFingerprint,
+        sessions,
+      }
+    );
   });
-  return markerState.session;
+  return reconcileMarkerLayer(google, map, "session", specs);
 }
 
 /** Render stable base-court pins beneath session pins. */
@@ -346,18 +516,22 @@ export function renderCourtBasePins(
   courts: MapCourtSummary[] = [],
   onCourt: (court: MapCourtSummary) => void = () => {}
 ): MapsMarker[] {
-  detachMarkers(markerState.court);
-  markerState.court = courts.map((court) => {
+  const specs = courts.map((court) => {
     const pin = courtPin(google);
-    return createMarker(google, map, {
-      onClick: () => onCourt(court),
-      pin,
-      position: { lat: court.lat, lng: court.lng },
-      title: `球場 ${court.name}`,
-      zIndex: 10,
-    });
+    return buildMarkerSpec(
+      {
+        key: `court:${String(court.id)}`,
+        map,
+        onClick: () => onCourt(court),
+        pin,
+        position: { lat: court.lat, lng: court.lng },
+        title: `球場 ${court.name}`,
+        zIndex: 10,
+      },
+      court
+    );
   });
-  return markerState.court;
+  return reconcileMarkerLayer(google, map, "court", specs);
 }
 
 /** Replace only reciprocal online markers, leaving session and base-court layers untouched. */
@@ -367,18 +541,22 @@ export function renderPlayerPins(
   groups: ControllerPlayerGroup[] = [],
   onCourtPlayers: (court: ControllerPlayerGroup["court"], players: ControllerPlayerGroup["players"]) => void = () => {}
 ): MapsMarker[] {
-  detachMarkers(markerState.player);
-  markerState.player = groups.map(({ court, players, presenceCount = 0 }) => {
+  const specs = groups.map(({ court, players, presenceCount = 0 }) => {
     const pin = playerPin(google, players.length, presenceCount);
-    return createMarker(google, map, {
-      onClick: () => onCourtPlayers(court, players),
-      pin,
-      position: { lat: court.lat, lng: court.lng },
-      title: `在線 · ${court.name} · ${players.length} 人`,
-      zIndex: 20,
-    });
+    return buildMarkerSpec(
+      {
+        key: `player:${String(court.id)}`,
+        map,
+        onClick: () => onCourtPlayers(court, players),
+        pin,
+        position: { lat: court.lat, lng: court.lng },
+        title: `在線 · ${court.name} · ${players.length} 人`,
+        zIndex: 20,
+      },
+      { players, presenceCount }
+    );
   });
-  return markerState.player;
+  return reconcileMarkerLayer(google, map, "player", specs);
 }
 
 function boundsAround({ lat, lng }: LatLngLiteral, radiusMeters: number): MapBoundsLiteral {
@@ -415,12 +593,20 @@ export function setUserLocation({ lat, lng }: ControllerCoordinates, radiusMeter
   runtimeMap.fitBounds(new runtimeGoogle.maps.LatLngBounds(sw, ne));
   if (!markerState.user) {
     const pin = userLocationPin(runtimeGoogle);
-    markerState.user = createMarker(runtimeGoogle, runtimeMap, {
-      pin,
-      position: { lat: latitude, lng: longitude },
-      title: "你",
-      zIndex: 50,
-    });
+    markerState.user = createMarkerEntry(
+      runtimeGoogle,
+      buildMarkerSpec(
+        {
+          key: "user",
+          map: runtimeMap,
+          pin,
+          position: { lat: latitude, lng: longitude },
+          title: "你",
+          zIndex: 50,
+        },
+        "user"
+      )
+    ).marker;
   } else {
     const position = { lat: latitude, lng: longitude };
     if (typeof markerState.user.setPosition === "function") markerState.user.setPosition(position);

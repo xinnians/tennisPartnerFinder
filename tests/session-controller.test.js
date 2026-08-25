@@ -3018,7 +3018,7 @@ test("online presence latest bounds wins and off, signout, and API errors cannot
   assert.match(harness.playerRenders.at(-1)?.message ?? "", /無法載入/);
 });
 
-test("same-court session and player pins have separate clickable anchors and player replacement preserves other layers", () => {
+test("same-court session and player pins have separate clickable anchors and unchanged player reconciliation preserves every layer", () => {
   const created = [];
   class Marker {
     constructor(options) {
@@ -3089,8 +3089,9 @@ test("same-court session and player pins have separate clickable anchors and pla
   assert.deepEqual(opened.sessionIds, [41]);
   assert.deepEqual(opened.playerIds, [1, 2]);
 
-  mapModule.renderPlayerPins(google, map, playerGroups, () => {}, playerMarkers);
-  assert.deepEqual(playerMarker.setMapCalls, [null]);
+  const reconciledPlayerMarkers = mapModule.renderPlayerPins(google, map, playerGroups, () => {}, playerMarkers);
+  assert.equal(reconciledPlayerMarkers[0], playerMarker, "unchanged player marker keeps its instance");
+  assert.deepEqual(playerMarker.setMapCalls, []);
   assert.deepEqual(sessionMarker.setMapCalls, [], "session markers are not detached when player markers refresh");
   assert.deepEqual(baseMarkers[0].setMapCalls, [], "base-court markers are not detached when player markers refresh");
 
@@ -3105,6 +3106,89 @@ test("same-court session and player pins have separate clickable anchors and pla
     /線1/,
     "a separate online badge carries the on-court count"
   );
+});
+
+test("legacy marker keyed diff makes a repeated poll a zero-op and updates exactly one changed court", () => {
+  const created = [];
+  const ops = { create: 0, detach: 0, update: 0 };
+  const updated = new Set();
+  function recordUpdate(marker) {
+    if (updated.has(marker)) return;
+    updated.add(marker);
+    ops.update += 1;
+  }
+  class Marker {
+    constructor(options) {
+      this.options = options;
+      created.push(this);
+      ops.create += 1;
+    }
+    addListener(event, callback) {
+      this.listener = { callback, event };
+    }
+    setIcon(icon) {
+      recordUpdate(this);
+      this.options.icon = icon;
+    }
+    setLabel(label) {
+      recordUpdate(this);
+      this.options.label = label;
+    }
+    setMap(value) {
+      if (value === null) ops.detach += 1;
+      else recordUpdate(this);
+      this.options.map = value;
+    }
+    setPosition(position) {
+      recordUpdate(this);
+      this.options.position = position;
+    }
+    setTitle(title) {
+      recordUpdate(this);
+      this.options.title = title;
+    }
+    setZIndex(zIndex) {
+      recordUpdate(this);
+      this.options.zIndex = zIndex;
+    }
+  }
+  class Point {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+    }
+  }
+  class Size {
+    constructor(width, height) {
+      this.width = width;
+      this.height = height;
+    }
+  }
+  const google = { maps: { Marker, Point, Size } };
+  const map = {};
+  const courts = [
+    { id: 8, name: "甲球場", lat: 25.03, lng: 121.54 },
+    { id: 9, name: "乙球場", lat: 25.04, lng: 121.55 },
+  ];
+  const first = mapModule.renderCourtBasePins(google, map, courts);
+  assert.equal(created.length, 2, "scan set is nonempty");
+
+  Object.assign(ops, { create: 0, detach: 0, update: 0 });
+  updated.clear();
+  const unchanged = mapModule.renderCourtBasePins(
+    google,
+    map,
+    courts.map((court) => ({ ...court }))
+  );
+  assert.deepEqual(ops, { create: 0, detach: 0, update: 0 });
+  assert.deepEqual(unchanged, first, "60-second equivalent data keeps both instances");
+
+  Object.assign(ops, { create: 0, detach: 0, update: 0 });
+  updated.clear();
+  const changed = mapModule.renderCourtBasePins(google, map, [{ ...courts[0], lat: 25.031 }, courts[1]]);
+  assert.deepEqual(ops, { create: 0, detach: 0, update: 1 });
+  assert.deepEqual(changed, first, "one data change updates in place without rebuilding");
+  assert.deepEqual(changed[0].options.position, { lat: 25.031, lng: 121.54 });
 });
 
 test("undecided candidate sessions fan out to valid candidate courts and collapse to the decided court", () => {

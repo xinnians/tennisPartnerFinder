@@ -374,6 +374,55 @@ test("an undecided candidate session renders two dashed map pins from the court 
   expect(mockCandidateOverlap).toBe(false);
 });
 
+test("advanced marker diff makes an equivalent 60-second poll a zero-op and updates one changed row in place", async ({
+  page,
+}) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
+
+  const result = await page.evaluate(async () => {
+    const { createMap, renderCourtBasePins } = await window.__importAppModule("map");
+    const host = document.createElement("div");
+    document.body.append(host);
+    const map = createMap(window.google, host);
+    const courts = [
+      { city: "台北市", district: "大安區", id: 8801, lat: 25.03, lng: 121.54, name: "Diff 甲球場" },
+      { city: "台北市", district: "內湖區", id: 8802, lat: 25.04, lng: 121.55, name: "Diff 乙球場" },
+    ];
+    const first = renderCourtBasePins(window.google, map, courts);
+    const firstContents = first.map((marker) => marker.content);
+
+    window.__resetFakeMapsOps();
+    const afterPoll = renderCourtBasePins(
+      window.google,
+      map,
+      courts.map((court) => ({ ...court }))
+    );
+    const unchangedOps = window.__fakeMapsSnapshot().markerOps;
+
+    window.__resetFakeMapsOps();
+    const afterChange = renderCourtBasePins(window.google, map, [{ ...courts[0], lat: 25.031 }, courts[1]]);
+    const changedOps = window.__fakeMapsSnapshot().markerOps;
+    host.remove();
+    return {
+      changedOps,
+      contentNodesStable: afterPoll.every((marker, index) => marker.content === firstContents[index]),
+      instancesStable: afterPoll.every((marker, index) => marker === first[index]),
+      updatedInstancesStable: afterChange.every((marker, index) => marker === first[index]),
+      unchangedOps,
+    };
+  });
+
+  expect(result.unchangedOps).toEqual({ contentReplace: 0, create: 0, detach: 0, update: 0 });
+  expect(result.instancesStable).toBe(true);
+  expect(result.contentNodesStable).toBe(true);
+  expect(result.changedOps).toEqual({ contentReplace: 0, create: 0, detach: 0, update: 1 });
+  expect(result.updatedInstancesStable).toBe(true);
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("decision sheet waits for the court catalogue and renders candidate buttons after refill", async ({ page }) => {
   await installFakeMaps(page);
   await page.goto("/");

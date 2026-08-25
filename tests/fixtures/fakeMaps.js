@@ -13,6 +13,14 @@ const fakeMapsScript = `
   const setCenterCalls = [];
   let userMarkerCreates = 0;
   let userMarkerUpdates = 0;
+  let updatedMarkers = new WeakSet();
+  const markerOps = { contentReplace: 0, create: 0, detach: 0, update: 0 };
+
+  function recordMarkerUpdate(marker) {
+    if (updatedMarkers.has(marker)) return;
+    updatedMarkers.add(marker);
+    markerOps.update += 1;
+  }
 
   class Size {
     constructor(width, height) {
@@ -146,6 +154,7 @@ const fakeMapsScript = `
       if (options.title === "你") userMarkerCreates += 1;
       testMarkers.push(this);
       this.map?.el?.appendChild(this.el);
+      markerOps.create += 1;
     }
 
     addListener(event, callback) {
@@ -154,14 +163,41 @@ const fakeMapsScript = `
     }
 
     setMap(map) {
+      if (this.map && !map) markerOps.detach += 1;
+      else if (this.map !== map) recordMarkerUpdate(this);
       this.el.remove();
       this.map = map;
       this.map?.el?.appendChild(this.el);
     }
 
     setPosition(position) {
+      recordMarkerUpdate(this);
       this.options.position = position;
       if (this.options.title === "你") userMarkerUpdates += 1;
+    }
+
+    setIcon(icon) {
+      recordMarkerUpdate(this);
+      this.options.icon = icon;
+    }
+
+    setLabel(label) {
+      recordMarkerUpdate(this);
+      this.options.label = label;
+      this.el.textContent = typeof label === "string" ? label : label?.text || this.options.title || "marker";
+    }
+
+    setTitle(title) {
+      recordMarkerUpdate(this);
+      this.options.title = title;
+      this.el.setAttribute("aria-label", "地圖圖釘 " + (title || "marker"));
+      this.el.setAttribute("title", title || "");
+    }
+
+    setZIndex(zIndex) {
+      recordMarkerUpdate(this);
+      this.options.zIndex = zIndex;
+      this.el.style.zIndex = String(zIndex || 1);
     }
   }
 
@@ -171,8 +207,8 @@ const fakeMapsScript = `
       this.gmpClickable = gmpClickable;
       this._map = null;
       this._position = position;
-      this.title = title;
-      this.zIndex = zIndex;
+      this._title = title;
+      this._zIndex = zIndex;
       this.el = document.createElement("button");
       this.el.type = "button";
       this.el.className = "test-marker";
@@ -193,6 +229,7 @@ const fakeMapsScript = `
       if (title === "你") userMarkerCreates += 1;
       testMarkers.push(this);
       this.map = map;
+      markerOps.create += 1;
     }
 
     addEventListener(event, callback) {
@@ -204,6 +241,8 @@ const fakeMapsScript = `
     }
 
     set map(map) {
+      if (this._map && !map) markerOps.detach += 1;
+      else if (this._map && this._map !== map) recordMarkerUpdate(this);
       this.el.remove();
       this._map = map;
       this._map?.el?.appendChild(this.el);
@@ -214,8 +253,48 @@ const fakeMapsScript = `
     }
 
     set position(position) {
+      recordMarkerUpdate(this);
       this._position = position;
       if (this.title === "你") userMarkerUpdates += 1;
+    }
+
+    get content() {
+      return this._content;
+    }
+
+    set content(content) {
+      if (!this.el) {
+        this._content = content;
+        return;
+      }
+      recordMarkerUpdate(this);
+      markerOps.contentReplace += 1;
+      this._content = content;
+      this.el.replaceChildren();
+      if (content) this.el.appendChild(content);
+      this.el.style.width = content?.style.width || "28px";
+      this.el.style.height = content?.style.height || "28px";
+    }
+
+    get title() {
+      return this._title;
+    }
+
+    set title(title) {
+      recordMarkerUpdate(this);
+      this._title = title;
+      this.el.setAttribute("aria-label", "地圖圖釘 " + (title || "marker"));
+      this.el.setAttribute("title", title || "");
+    }
+
+    get zIndex() {
+      return this._zIndex;
+    }
+
+    set zIndex(zIndex) {
+      recordMarkerUpdate(this);
+      this._zIndex = zIndex;
+      this.el.style.zIndex = String(zIndex || 1);
     }
   }
 
@@ -241,6 +320,13 @@ const fakeMapsScript = `
   window.__setFakeGoogleMapsBoundsBurst = (boundsList) => {
     for (const bounds of boundsList) maps.forEach((map) => map.setTestBounds(bounds));
   };
+  window.__resetFakeMapsOps = () => {
+    markerOps.contentReplace = 0;
+    markerOps.create = 0;
+    markerOps.detach = 0;
+    markerOps.update = 0;
+    updatedMarkers = new WeakSet();
+  };
   window.__fakeMapsSnapshot = () => ({
     fitBoundsCalls: fitBoundsCalls.map(boundsSummary),
     setCenterCalls: setCenterCalls.map(() => ({})),
@@ -249,6 +335,7 @@ const fakeMapsScript = `
       .map(() => ({ title: "你" })),
     userMarkerCreates,
     userMarkerUpdates,
+    markerOps: { ...markerOps },
     visibleMarkerOptions: testMarkers
       .filter((marker) => marker.map)
       .map((marker) => ({
