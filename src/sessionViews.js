@@ -231,45 +231,51 @@ export function renderMapDataStatus(
 // helpers, while React modules import only sessionPresentation.ts and never reach
 // back into this file.
 
-// App shell、首頁附近抽屜與詳情 sheet 留在主 chunk；Node 22 unit tests 沒有
-// document，會短路而不解析其不支援的 .tsx 副檔名。
-const appModules = typeof document === "undefined" ? {} : import.meta.glob("./app/App.tsx", { eager: true });
-const appModule = appModules["./app/App.tsx"];
-const renderMePageInApp = appModule?.renderMePageInApp;
-const renderMessagesPageInApp = appModule?.renderMessagesPageInApp;
-const renderMySessionsPageInApp = appModule?.renderMySessionsPageInApp;
-const renderNearbySessionsDrawerInApp = appModule?.renderNearbySessionsDrawerInApp;
-const preloadMePageInApp = appModule?.preloadMePageInApp;
-const preloadMessagesPageInApp = appModule?.preloadMessagesPageInApp;
-const preloadMySessionsPageInApp = appModule?.preloadMySessionsPageInApp;
-const showToastInApp = appModule?.showToastInApp;
-const configureFilterToolbarInApp = appModule?.configureFilterToolbarInApp;
-const syncFilterToolbarInApp = appModule?.syncFilterToolbarInApp;
-const syncBottomNavigationInApp = appModule?.syncBottomNavigationInApp;
-const mountLoginModalContentInApp = appModule?.mountLoginModalContentInApp;
-const sessionDetailSheetModules =
-  typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
-const mountSessionDetailSheetContent =
-  sessionDetailSheetModules["./sheets/SessionDetailSheet.tsx"]?.mountSessionDetailSheetContent;
-if (mountLoginModalContentInApp) configureLoginModalContent(mountLoginModalContentInApp);
-const nonHomeSheetModules =
-  typeof document === "undefined"
-    ? {}
-    : import.meta.glob([
-        "./sheets/CourtPlayersSheet.tsx",
-        "./sheets/CourtSessionSheet.tsx",
-        "./sheets/CreateSessionSheet.tsx",
-        "./sheets/DecideSessionSheet.tsx",
-        "./sheets/EditSessionSheet.tsx",
-        "./sheets/FilterSheet.tsx",
-        "./sheets/PlayerCardSheet.tsx",
-        "./sheets/PlayerDirectorySheet.tsx",
-        "./sheets/ProfileCompletionSheet.tsx",
-        "./sheets/ReportDialog.tsx",
-        "./sheets/SessionChatSheet.tsx",
-        "./sheets/SessionUnavailableSheet.tsx",
-        "./sheets/WithdrawSessionConfirmationDialog.tsx",
-      ]);
+// main.js owns the browser-only eager TSX imports. This legacy facade receives
+// them explicitly so Node unit tests can still import sessionViews.js without
+// teaching Node to execute TSX.
+let appModule = null;
+let mountSessionDetailSheetContent;
+
+export function configureSessionViewModules(modules) {
+  appModule = modules.appModule;
+  mountSessionDetailSheetContent = modules.mountSessionDetailSheetContent;
+  configureLoginModalContent(appModule.mountLoginModalContentInApp);
+}
+
+function requireAppExport(name) {
+  const value = appModule?.[name];
+  if (typeof value !== "function") throw new Error(`App module export is unavailable: ${name}`);
+  return value;
+}
+
+const renderMePageInApp = (...args) => requireAppExport("renderMePageInApp")(...args);
+const renderMessagesPageInApp = (...args) => requireAppExport("renderMessagesPageInApp")(...args);
+const renderMySessionsPageInApp = (...args) => requireAppExport("renderMySessionsPageInApp")(...args);
+const renderNearbySessionsDrawerInApp = (...args) => requireAppExport("renderNearbySessionsDrawerInApp")(...args);
+const preloadMePageInApp = () => requireAppExport("preloadMePageInApp")();
+const preloadMessagesPageInApp = () => requireAppExport("preloadMessagesPageInApp")();
+const preloadMySessionsPageInApp = () => requireAppExport("preloadMySessionsPageInApp")();
+const showToastInApp = (...args) => requireAppExport("showToastInApp")(...args);
+const configureFilterToolbarInApp = (...args) => requireAppExport("configureFilterToolbarInApp")(...args);
+const syncFilterToolbarInApp = (...args) => requireAppExport("syncFilterToolbarInApp")(...args);
+const syncBottomNavigationInApp = (...args) => requireAppExport("syncBottomNavigationInApp")(...args);
+
+const lazySurfaceLoaders = {
+  "./sheets/CourtPlayersSheet.tsx": () => import("./sheets/CourtPlayersSheet.tsx"),
+  "./sheets/CourtSessionSheet.tsx": () => import("./sheets/CourtSessionSheet.tsx"),
+  "./sheets/CreateSessionSheet.tsx": () => import("./sheets/CreateSessionSheet.tsx"),
+  "./sheets/DecideSessionSheet.tsx": () => import("./sheets/DecideSessionSheet.tsx"),
+  "./sheets/EditSessionSheet.tsx": () => import("./sheets/EditSessionSheet.tsx"),
+  "./sheets/FilterSheet.tsx": () => import("./sheets/FilterSheet.tsx"),
+  "./sheets/PlayerCardSheet.tsx": () => import("./sheets/PlayerCardSheet.tsx"),
+  "./sheets/PlayerDirectorySheet.tsx": () => import("./sheets/PlayerDirectorySheet.tsx"),
+  "./sheets/ProfileCompletionSheet.tsx": () => import("./sheets/ProfileCompletionSheet.tsx"),
+  "./sheets/ReportDialog.tsx": () => import("./sheets/ReportDialog.tsx"),
+  "./sheets/SessionChatSheet.tsx": () => import("./sheets/SessionChatSheet.tsx"),
+  "./sheets/SessionUnavailableSheet.tsx": () => import("./sheets/SessionUnavailableSheet.tsx"),
+  "./sheets/WithdrawSessionConfirmationDialog.tsx": () => import("./sheets/WithdrawSessionConfirmationDialog.tsx"),
+};
 
 let mountCreateSessionSheetContent;
 let mountEditSessionSheetContent;
@@ -289,7 +295,7 @@ function createMountPreloader(modulePath, exportName, assign) {
   let request = null;
   return () => {
     if (request) return request;
-    const load = nonHomeSheetModules[modulePath];
+    const load = lazySurfaceLoaders[modulePath];
     if (!load) return Promise.reject(new Error(`Lazy surface module is unavailable: ${modulePath}`));
     request = load().then((module) => {
       const mount = module?.[exportName];

@@ -82,7 +82,12 @@ import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.t
 import { configureSentryErrorTransport } from "./sentryErrorTransport.ts";
 import { createSessionController } from "./sessionController.js";
 import { createStore } from "./sessionStore.ts";
+// Eager React surface boundaries: react-surface-lifecycle.test.js scans this
+// explicit browser-entry list while sessionViews.js remains Node-importable.
+import * as appModule from "./app/App.tsx";
+import { mountSessionDetailSheetContent } from "./sheets/SessionDetailSheet.tsx";
 import {
+  configureSessionViewModules,
   openCourtSessionDrawer,
   openCourtPlayersDrawer,
   openCreateSessionSheet,
@@ -163,6 +168,7 @@ let playerMarkers = [];
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 const authRequestGate = createRequestGate();
+configureSessionViewModules({ appModule, mountSessionDetailSheetContent });
 function getAppState() {
   return controller?.getAppState?.() ?? { authSession: null, courts: [], courtsReady: false, profile: null };
 }

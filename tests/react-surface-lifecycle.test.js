@@ -7,6 +7,7 @@ import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
 const SRC_DIR = new URL("../src/", import.meta.url).pathname;
 const APP = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+const MAIN = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
 const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
 const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
@@ -124,14 +125,16 @@ test("synchronous React commits stay behind one fail-closed helper and three app
 });
 
 test("non-home pages and sheets stay behind explicit preloadable module boundaries", () => {
-  const eagerModules = [...SESSION_VIEWS.matchAll(/import\.meta\.glob\("([^"]+)", \{ eager: true \}\)/g)].map((match) =>
+  const eagerModules = [
+    ...MAIN.matchAll(/^import .* from "(\.\/(?:app\/App|sheets\/SessionDetailSheet)\.tsx)";$/gm),
+  ].map((match) => sourcePath(match[1]));
+  assertExactNamedScan(eagerModules, SURFACE_MANIFEST.eagerModules, "eager surface module");
+  const lazySheetMap = extractBracedBody(SESSION_VIEWS, "const lazySurfaceLoaders = {");
+  const lazySheets = [...lazySheetMap.matchAll(/"(\.\/sheets\/.+?\.tsx)":\s*\(\) =>\s*import\("\1"\)/g)].map((match) =>
     sourcePath(match[1])
   );
-  assertExactNamedScan(eagerModules, SURFACE_MANIFEST.eagerModules, "eager surface module");
-  const lazySheetList = SESSION_VIEWS.match(/import\.meta\.glob\(\[([\s\S]*?)\]\)/)?.[1] ?? "";
-  const lazySheets = (lazySheetList.match(/\.\/sheets\/.+?\.tsx/g) ?? []).map(sourcePath);
   assertExactNamedScan(lazySheets, SURFACE_MANIFEST.lazySheets, "lazy sheet module");
-  assert.doesNotMatch(lazySheetList, /eager:/);
+  assert.doesNotMatch(lazySheetMap, /eager:/);
   assert.equal((APP.match(/Request \?\?= import\("\.\.\/pages\//g) ?? []).length, 3);
   assert.match(SESSION_VIEWS, /pointerover[\s\S]*focusin/);
   assert.match(SESSION_VIEWS, /if \(authSession\) preloadAuthenticatedViews\(\)/);
