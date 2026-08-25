@@ -154,8 +154,14 @@ containment（intrinsic 值 390px 實測）＋My Sessions first-child eager 豁�
 （Playwright `innerText` 相容）；群聊 feed 明文緩辦（置底／未讀語意脆）；
 新增 fail-closed CSS 契約測試（集合精確比對＋TSX 錨點）。CDP 量測 Layout
 -77%〜-97%（synthetic、指示性）。過程插曲：Docker daemon 掛死由驗收方
-恢復（僅 supabase 容器、零損害）。**後半（DB limit／分頁）待另發**。
-驗收紀錄 `docs/arch-reports/longlist-batch-acceptance-2026-08-25.md`。
+恢復（僅 supabase 容器、零損害）。驗收紀錄 `docs/arch-reports/longlist-batch-acceptance-2026-08-25.md`。
+
+**後半 ACCEPTED（2026-08-25，一次通過）——F4-7 全案完結**：`08e359f`。
+四查詢補「order＋tie-break＋limit」三件組（200/200/100/200，常數集中）；
+`player_directory` 零定序缺陷同時修復；chat 改最新 200 則（desc＋反轉，
+呈現仍舊→新）；pgTAP +5 定序契約（804）；前端 13 站點固定集合掃描
+fail-closed（新增未分類查詢即紅）。零 migration。驗收紀錄
+`docs/arch-reports/listcap-batch-acceptance-2026-08-25.md`。
 
 ## 彈性批與測試基建
 
