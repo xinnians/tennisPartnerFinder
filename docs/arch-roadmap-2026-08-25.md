@@ -123,6 +123,14 @@ F3-3 啟動編排顯式化（與 F3-1 同批鎖冷啟動深連結交界）。
 AdvancedMarker 形狀改寫（keyed create／update／detach 計數，fakeMaps 替身
 同步改契約——審查 §B2 的具體清單照抄進派工單）。
 
+**ACCEPTED（2026-08-25，一次通過）**：`64b0c4b`..`203b37b` 五 commit。
+`map.js`／`pins.js` strict TS 化＋marker 狀態收斂為 `map.ts` 單一持有者；
+三層 keyed diff（unchanged → 零 Maps 操作，fakeMaps op 計數字面斷言）；
+四個 pin 色票與 CSS token 雙向 fail-closed gate；production 謎題定位為
+設 Map ID 時 AdvancedMarker 取得失敗的 fail-open 路徑，已改 fail closed。
+覆蓋債一筆：fail-closed 行為翻轉無測試釘住，下批補一條 unit。
+驗收紀錄 `docs/arch-reports/map-batch-acceptance-2026-08-25.md`。
+
 ## 階段 5：bundle 拆分（F4-3，**建議**在 3B 後）
 
 軟依賴修正（審查 §A4）：母單硬依賴只有「批 2」（已具備）；排 3B 後是避免
