@@ -35,8 +35,11 @@ test-only 讀取路徑在 production 的暴露期（非母單「隨時可做」�
   Test3 目錄 opt-in 下架（QA測試B 原本就未上架，Ian 維持）。
   反向驗證：七表歸零計數；production 匿名 REST `session_discovery` 回 `[]`、
   `player_directory` 與 raw `sessions` 對匿名 401。
-- 步驟 6 merge：本機 main 已 fast-forward 至 `1bb7335`（origin/main 是祖先、
-  區間零 migration 已驗），待使用者 `git push origin main`。
+- 步驟 6 merge＋部署：main push 至 `322da94`，production `fm4t1mjdn` 部署完成。
+- 步驟 7 smoke：自動驗項全過（新 bundle、mock 排除、安全標頭、64 圖釘、匿名
+  discovery `[]`、深連結 empty sheet、console 零錯誤）；main CI 三 job 全綠。
+  三項登入檢查（OAuth 兩帳號、qiuka.tw 推播授權、建立→取消旅程）由使用者
+  完成（2026-08-25）。**階段 0 REL-code 全案結案。**
 
 原步驟清單：
 
