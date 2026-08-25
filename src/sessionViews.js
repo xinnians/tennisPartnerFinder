@@ -245,6 +245,7 @@ const preloadMySessionsPageInApp = appModule?.preloadMySessionsPageInApp;
 const showToastInApp = appModule?.showToastInApp;
 const configureFilterToolbarInApp = appModule?.configureFilterToolbarInApp;
 const syncFilterToolbarInApp = appModule?.syncFilterToolbarInApp;
+const syncBottomNavigationInApp = appModule?.syncBottomNavigationInApp;
 const sessionDetailSheetModules =
   typeof document === "undefined" ? {} : import.meta.glob("./sheets/SessionDetailSheet.tsx", { eager: true });
 const mountSessionDetailSheetContent =
@@ -563,6 +564,10 @@ export function configureMapFilterToolbar(handlers) {
 
 export function renderMapFilterToolbar(filters) {
   syncFilterToolbarInApp?.(filters);
+}
+
+export function renderBottomNavigation(navigation) {
+  syncBottomNavigationInApp?.(navigation);
 }
 
 function warmView(preload) {

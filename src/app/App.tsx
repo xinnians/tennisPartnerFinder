@@ -24,9 +24,16 @@ interface AppSnapshot {
   mePages: Map<HTMLElement, PageSlot<MePageOptions>>;
   messagesPages: Map<HTMLElement, PageSlot<MessagesPageOptions>>;
   mySessionsPages: Map<HTMLElement, PageSlot<MySessionsPageOptions>>;
+  navigation: NavigationSnapshot;
   nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
   surfaces: SurfaceHostSnapshot;
   toastMessage: string;
+}
+
+interface NavigationSnapshot {
+  activePage: "map" | "me" | "messages" | "my-sessions";
+  hasUnread: boolean;
+  needsActionCount: number;
 }
 
 interface FilterSnapshot {
@@ -64,6 +71,7 @@ let snapshot: AppSnapshot = {
   mePages: new Map(),
   messagesPages: new Map(),
   mySessionsPages: new Map(),
+  navigation: { activePage: "map", hasUnread: false, needsActionCount: 0 },
   nearbyDrawers: new Map(),
   surfaces: new Map(),
   toastMessage: "",
@@ -505,10 +513,189 @@ function MapTopbar({ filters }: { filters: FilterSnapshot }) {
   );
 }
 
+function NavigationIcon({ destination }: { destination: NavigationSnapshot["activePage"] }) {
+  if (destination === "map") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" />
+        <circle cx="12" cy="10" r="2.4" />
+      </svg>
+    );
+  }
+  if (destination === "my-sessions") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="4" y="5" width="16" height="16" rx="3" />
+        <path d="M8 3v4M16 3v4M4 11h16" />
+      </svg>
+    );
+  }
+  if (destination === "messages") {
+    return (
+      <svg
+        width="23"
+        height="23"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.6 0-3.1-.4-4.4-1.2L3 20l1.2-5.1A8.5 8.5 0 1 1 21 11.5z" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      width="23"
+      height="23"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 4-6.2 8-6.2s8 2.2 8 6.2" />
+    </svg>
+  );
+}
+
+function BottomNavigation({ navigation }: { navigation: NavigationSnapshot }) {
+  const { activePage, hasUnread, needsActionCount } = navigation;
+  return (
+    <>
+      <nav className="bottom-navigation" aria-label="主要導覽">
+        <button
+          type="button"
+          id="map-tab"
+          data-testid="map-tab"
+          className="bottom-navigation__item"
+          aria-controls="tab-map"
+          aria-current={activePage === "map" ? "page" : undefined}
+        >
+          <span className="bottom-navigation__icon" aria-hidden="true">
+            <NavigationIcon destination="map" />
+          </span>
+          <span>找球局</span>
+        </button>
+        <button
+          type="button"
+          id="my-sessions-tab"
+          data-testid="my-sessions-tab"
+          className="bottom-navigation__item"
+          aria-controls="my-sessions-page"
+          aria-current={activePage === "my-sessions" ? "page" : undefined}
+          aria-label={`我的球局${needsActionCount > 0 ? `，${needsActionCount} 項待處理` : ""}`}
+        >
+          <span className="bottom-navigation__icon" aria-hidden="true">
+            <NavigationIcon destination="my-sessions" />
+            <span
+              id="my-sessions-badge"
+              className="my-sessions-badge"
+              aria-hidden="true"
+              hidden={needsActionCount <= 0}
+            >
+              {needsActionCount > 0 ? needsActionCount : null}
+            </span>
+          </span>
+          <span>我的球局</span>
+        </button>
+        <button
+          type="button"
+          id="create-session-tab"
+          data-testid="create-session-tab"
+          className="bottom-navigation__create"
+          aria-controls="sheet-root"
+          aria-haspopup="dialog"
+        >
+          <span className="bottom-navigation__create-badge" aria-hidden="true">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.8"
+              strokeLinecap="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
+          <span className="bottom-navigation__create-label">開球局</span>
+        </button>
+        <button
+          type="button"
+          id="messages-tab"
+          data-testid="messages-tab"
+          className="bottom-navigation__item"
+          aria-controls="messages-page"
+          aria-current={activePage === "messages" ? "page" : undefined}
+          aria-label={`訊息${hasUnread ? "，有未讀訊息" : ""}`}
+        >
+          <span className="bottom-navigation__icon" aria-hidden="true">
+            <NavigationIcon destination="messages" />
+            <span
+              id="my-sessions-unread-dot"
+              className="my-sessions-unread-dot"
+              aria-hidden="true"
+              hidden={!hasUnread}
+            />
+          </span>
+          <span>訊息</span>
+        </button>
+        <button
+          type="button"
+          id="me-tab"
+          data-testid="me-tab"
+          className="bottom-navigation__item"
+          aria-controls="me-page"
+          aria-current={activePage === "me" ? "page" : undefined}
+        >
+          <span className="bottom-navigation__icon" aria-hidden="true">
+            <NavigationIcon destination="me" />
+          </span>
+          <span>我</span>
+        </button>
+      </nav>
+      <span
+        id="my-sessions-badge-status"
+        className="visually-hidden"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {needsActionCount > 0 ? `${needsActionCount} 項待處理` : "沒有待處理事項"}
+      </span>
+    </>
+  );
+}
+
 /** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */
 export function App({ snapshot: current }: AppProps) {
   const toastRoot = document.getElementById("toast-root");
   const topbarRoot = document.getElementById("map-topbar-root");
+  const navigationRoot = document.getElementById("bottom-navigation-root");
   return (
     <>
       {renderPortals(
@@ -545,6 +732,7 @@ export function App({ snapshot: current }: AppProps) {
       )}
       <SurfaceHost slots={current.surfaces} />
       {topbarRoot ? createPortal(<MapTopbar filters={current.filters} />, topbarRoot) : null}
+      {navigationRoot ? createPortal(<BottomNavigation navigation={current.navigation} />, navigationRoot) : null}
       {toastRoot
         ? createPortal(
             current.toastMessage ? (
@@ -600,6 +788,11 @@ export function configureFilterToolbarInApp(handlers: FilterToolbarHandlers): vo
 
 export function syncFilterToolbarInApp(filters: FilterSnapshot): void {
   snapshot = { ...snapshot, filters };
+  renderApp();
+}
+
+export function syncBottomNavigationInApp(navigation: NavigationSnapshot): void {
+  snapshot = { ...snapshot, navigation };
   renderApp();
 }
 

@@ -445,13 +445,15 @@ test("the notification feature owns every notification data API capability", asy
 });
 
 test("main's bottom navigation sync reads the unread aggregate into an independent nav dot", async () => {
-  const source = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
-  const syncBlock = source.match(/function syncBottomNavigation\(\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+  const mainSource = await readFile(new URL("../src/main.js", import.meta.url), "utf8");
+  const appSource = await readFile(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+  const syncBlock = mainSource.match(/function syncBottomNavigation\(\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
 
   assert.notEqual(syncBlock, "", "bottom navigation sync source scan must inspect a nonempty block");
   assert.match(syncBlock, /groups\?\.hasUnread/, "the sync reads groups.hasUnread, not just needsActionCount");
-  assert.match(syncBlock, /my-sessions-unread-dot/, "the sync targets a dedicated unread dot element");
-  assert.match(syncBlock, /有未讀訊息/, "the unread state is folded into the tab's aria-label announcement");
+  assert.match(syncBlock, /renderBottomNavigation\(/, "the legacy owner forwards one navigation snapshot to React");
+  assert.match(appSource, /id="my-sessions-unread-dot"/, "React renders a dedicated unread dot element");
+  assert.match(appSource, /訊息\$\{hasUnread \? "，有未讀訊息"/, "React folds unread state into the tab label");
 });
 
 // 批 D7:訊息頁列表資料源——過濾規則見 sessionViews.js messagesFromGroups 的

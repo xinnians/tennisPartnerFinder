@@ -100,6 +100,7 @@ import {
   configureMapFilterToolbar,
   renderMapDataStatus,
   renderMapFilterToolbar,
+  renderBottomNavigation,
   renderMePage,
   renderPlayerLayerToggle,
   renderMessagesPage,
@@ -345,26 +346,8 @@ function renderDiscovery(view) {
 }
 
 function syncBottomNavigation() {
-  const mapTab = document.getElementById("map-tab");
-  const mySessionsTab = document.getElementById("my-sessions-tab");
-  const messagesTab = document.getElementById("messages-tab");
-  const meTab = document.getElementById("me-tab");
-  if (activePage === "map") mapTab?.setAttribute("aria-current", "page");
-  else mapTab?.removeAttribute("aria-current");
-  if (activePage === "my-sessions") mySessionsTab?.setAttribute("aria-current", "page");
-  else mySessionsTab?.removeAttribute("aria-current");
-  if (activePage === "messages") messagesTab?.setAttribute("aria-current", "page");
-  else messagesTab?.removeAttribute("aria-current");
-  if (activePage === "me") meTab?.setAttribute("aria-current", "page");
-  else meTab?.removeAttribute("aria-current");
-  const badge = document.getElementById("my-sessions-badge");
   const mySessionState = controller?.getMySessionState?.();
   const count = mySessionState?.groups?.needsActionCount ?? 0;
-  if (badge) {
-    badge.hidden = count <= 0;
-    badge.textContent = count > 0 ? String(count) : "";
-    badge.setAttribute("aria-hidden", "true");
-  }
   // 批 C4-2 起:未讀圓點是獨立於 needsActionCount 的第二個聚合信號(任一局
   // unread>0),不取代、也不合併進數字徽章本身——兩者可同時出現。圓點對 AT 一律
   // 靜默(aria-hidden,比照數字徽章)。批 D7 起圓點與其播報改隸屬「訊息」格
@@ -372,14 +355,7 @@ function syncBottomNavigation() {
   // 改由 messages-tab 承載,跟既有 #my-sessions-badge-status live region 的分工
   // 模式一致(各自 tab 自己的 aria-label 負責播報自己的聚合信號)。
   const hasUnread = mySessionState?.groups?.hasUnread === true;
-  const unreadDot = document.getElementById("my-sessions-unread-dot");
-  if (unreadDot) unreadDot.hidden = !hasUnread;
-  const badgeLabel = `我的球局${count > 0 ? `，${count} 項待處理` : ""}`;
-  mySessionsTab?.setAttribute("aria-label", badgeLabel);
-  const badgeStatus = document.getElementById("my-sessions-badge-status");
-  if (badgeStatus) badgeStatus.textContent = count > 0 ? `${count} 項待處理` : "沒有待處理事項";
-  const messagesLabel = `訊息${hasUnread ? "，有未讀訊息" : ""}`;
-  messagesTab?.setAttribute("aria-label", messagesLabel);
+  renderBottomNavigation({ activePage, hasUnread, needsActionCount: count });
 }
 
 function captureAuthRequest(isCurrent = () => true) {
