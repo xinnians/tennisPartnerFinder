@@ -1,4 +1,6 @@
-const NAVY = "#12291c"; // 計分板 --color-ink;pins.js 無法讀 CSS 變數,值與 session.css 同步
+// SVG data URIs cannot resolve document CSS variables. session.css remains canonical;
+// contrast-tokens.test.js fail-closes if either side of these four mappings drifts.
+const NAVY = "#12291c"; // --color-ink
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- F4-4 同源 gate 涵蓋四個具名色票；court 目前不直接著色 pin。
 const BLUE = "#1c5c3c";
 const LIME = "#ddf53c"; // --color-signal

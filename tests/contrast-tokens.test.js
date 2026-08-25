@@ -69,6 +69,26 @@ const COLOR_SUCCESS = cssValue(/--color-success:\s*(#[0-9a-f]{6})/i, "--color-su
 const COLOR_SUCCESS_BG = cssValue(/--color-success-bg:\s*(#[0-9a-f]{6})/i, "--color-success-bg");
 const COLOR_INFO_BG = cssValue(/--color-info-bg:\s*(#[0-9a-f]{6})/i, "--color-info-bg");
 
+test("地圖 pin 四個具名色票與 canonical CSS token 雙向同源", () => {
+  const pins = readFileSync(new URL("../src/pins.ts", import.meta.url), "utf8");
+  const declarations = [...pins.matchAll(/const\s+(NAVY|BLUE|LIME|SOFT_BLUE)\s*=\s*"(#[0-9a-f]{6})"/gi)].map(
+    ([, name, value]) => [name, value.toLowerCase()]
+  );
+  assert.equal(declarations.length, 4, "pin 色票掃描集必須恰好涵蓋四個具名常數");
+  assert.equal(new Set(declarations.map(([name]) => name)).size, 4, "四個 pin 色票名稱不可重複或缺漏");
+
+  const actual = Object.fromEntries(declarations);
+  const expected = {
+    BLUE: COLOR_COURT,
+    LIME: COLOR_SIGNAL,
+    NAVY: COLOR_INK,
+    SOFT_BLUE: COLOR_SUCCESS_BG,
+  };
+  for (const [name, cssTokenValue] of Object.entries(expected)) {
+    assert.equal(actual[name], cssTokenValue, `${name}=${actual[name]} 與 CSS token=${cssTokenValue} 不同源`);
+  }
+});
+
 test("計分板 token:文字組合全數達 AA 4.5:1", () => {
   const PAIRS = [
     ["主文字 on 頁底", COLOR_INK, COLOR_SURFACE_PAGE],
