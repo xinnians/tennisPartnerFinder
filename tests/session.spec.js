@@ -1621,6 +1621,57 @@ test("a session deep link survives the auth restore that lands after the sheet o
   expect(runtimeErrors).toEqual([]);
 });
 
+test("cold boot retains an authenticated page hash after auth settles", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const actor = await createCompleteActor(context.guest);
+  await installFakeMaps(page);
+  await setBrowserSession(page, actor.session);
+  const profileResponse = page.waitForResponse(
+    (response) => response.url().includes("/rest/v1/my_profile") && response.request().method() === "GET"
+  );
+
+  await page.goto("/#tab-me");
+  await profileResponse;
+  await expect(page.locator("#me-page")).toBeVisible();
+  await expect(page).toHaveURL(/#tab-me$/);
+  await expect(page.getByTestId("me-identity-card")).toContainText(context.guest.nickname);
+});
+
+test("cold boot opens an authenticated session hash once after auth settles", async ({ page }) => {
+  const context = createSessionTestContext({ suffix: randomUUID() });
+  const host = await createCompleteActor(context.host);
+  const guest = await createCompleteActor(context.guest);
+  const courtId = await courtIdByName(host.client, context.host.courts[0]);
+  const sessionId = await createSessionViaRpc(
+    host.client,
+    createFutureSessionInput({ courtId, notes: `boot-deeplink-${context.runId}` })
+  );
+  const summaryRequests = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname.endsWith("/rest/v1/session_discovery") &&
+      url.searchParams.get("session_id") === `eq.${sessionId}`
+    ) {
+      summaryRequests.push(url.toString());
+    }
+  });
+  await installFakeMaps(page);
+  await setBrowserSession(page, guest.session);
+  const profileResponse = page.waitForResponse(
+    (response) => response.url().includes("/rest/v1/my_profile") && response.request().method() === "GET"
+  );
+
+  await page.goto(`/#/session/${sessionId}`);
+  await profileResponse;
+  const detail = page.locator("#session-sheet");
+  await expect(detail).toBeVisible();
+  await expect(detail.locator("[data-session-action='primary']")).toHaveText("申請加入");
+  await expect.poll(() => summaryRequests.length).toBe(1);
+  await page.waitForTimeout(1000);
+  expect(summaryRequests).toHaveLength(1);
+});
+
 test("accepted members exchange escaped chat, manage blocks, and retain archived read-only history", async ({
   page,
 }) => {

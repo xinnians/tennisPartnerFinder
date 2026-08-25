@@ -8,7 +8,6 @@ import {
   signInWithOAuthProvider,
   signOut,
 } from "../../dataApi.js";
-import { sessionIdFromHash } from "../../sessionRoute.js";
 
 const LINK_RETURN_KEY = "tennis-link-return";
 
@@ -27,7 +26,6 @@ let storedProfileExists = false;
 let activeProfileCompletion = null;
 let profileLoadStatus = "idle";
 let profileRevision = 0;
-let bootDeepLinkReopenPending = Boolean(sessionIdFromHash(globalThis.location?.hash));
 
 export function configureProfileOrchestrationFeature(options) {
   dependencies = options;
@@ -200,10 +198,6 @@ export async function reloadCurrentProfile() {
   const { authSession } = dependencies.getAppState();
   await dependencies.getController().setAuthState(authSession, dependencies.currentProfileEligibility());
   dependencies.reconcilePresenceTracking();
-  if (bootDeepLinkReopenPending) {
-    bootDeepLinkReopenPending = false;
-    void dependencies.openSessionHashRoute();
-  }
   return true;
 }
 
@@ -218,7 +212,7 @@ export function handleAuthIdentityChange({ session }) {
   return session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null;
 }
 
-function applyAuthCandidate(session) {
+async function applyAuthCandidate(session) {
   dependencies.invalidateAuthRequests();
   // Account classification belongs to the controller; same-account token refreshes stay light.
   dependencies.setAuthSession(session);
@@ -230,16 +224,17 @@ function applyAuthCandidate(session) {
     profileLoadStatus = "idle";
     return;
   }
-  void reloadCurrentProfile().catch(() => {});
+  await reloadCurrentProfile().catch(() => {});
   if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) resumeLinkReturn();
 }
 
 export async function restoreAuth() {
   const controller = dependencies.getController();
   const bootstrapIntentVersion = controller.capturePendingIntentVersion();
+  let latestAuthCandidate = Promise.resolve();
   onAuthStateChange((session, event) => {
     if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
-    applyAuthCandidate(session);
+    latestAuthCandidate = applyAuthCandidate(session);
     if (session && event === "SIGNED_IN") resumeLinkReturn();
   });
   const initialRequest = dependencies.captureAuthGateRequest();
@@ -254,6 +249,9 @@ export async function restoreAuth() {
   if (initialSessionResolved && !initialSession && !dependencies.getAppState().authSession) {
     controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion);
   }
-  if (!initialSessionResolved || initialRequest.isStale()) return;
-  applyAuthCandidate(initialSession);
+  if (!initialSessionResolved || initialRequest.isStale()) {
+    await latestAuthCandidate;
+    return;
+  }
+  await applyAuthCandidate(initialSession);
 }

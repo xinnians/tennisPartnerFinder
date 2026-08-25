@@ -564,6 +564,24 @@ test("the existing home logo anchor routes to the map page", async ({ page }) =>
   await expect(page.getByTestId("map-tab")).toBeFocused();
 });
 
+test("cold boot routes an anonymous page hash", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/#tab-messages");
+
+  await expect(page.locator("#messages-page")).toBeVisible();
+  await expect(page).toHaveURL(/#tab-messages$/);
+  await expect(page.locator("#session-sheet")).toHaveCount(0);
+});
+
+test("cold boot opens an anonymous session hash", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/#/session/9001");
+
+  await expect(page.locator("#session-sheet")).toBeVisible();
+  await expect(page.locator("#session-sheet")).toContainText("台北網球中心");
+  await expect(page).toHaveURL(/#\/session\/9001$/);
+});
+
 test("instant join session 9002 shows its badge and direct CTA on card and detail", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);

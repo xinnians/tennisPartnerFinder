@@ -214,7 +214,7 @@ function publishPageView(...channels) {
   });
   for (const channel of channels) pageViewStore.emit(channel);
 }
-let sessionHashRouteGeneration = 0;
+let bootAuthReady = Promise.resolve();
 
 function toast(message) {
   const root = document.getElementById("toast-root");
@@ -228,11 +228,16 @@ configureShareFeature({ toast });
 async function openSessionHashRoute() {
   const sessionId = sessionIdFromHash(globalThis.location?.hash);
   if (!sessionId || !controller) return;
-  const generation = ++sessionHashRouteGeneration;
   showMapPage({ historyMode: "none" });
   const result = await controller.openSessionFromLink(sessionId);
-  if (generation !== sessionHashRouteGeneration || sessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
+  if (sessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
   if (result?.status !== "opened") openSessionUnavailableSheet();
+}
+
+async function openAuthReadySessionHashRoute(expectedSessionId) {
+  await bootAuthReady;
+  if (expectedSessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
+  await openSessionHashRoute();
 }
 
 function supportContactHref() {
@@ -429,7 +434,6 @@ configureProfileOrchestrationFeature({
   localDemoUnavailable: LOCAL_DEMO_UNAVAILABLE,
   openLoginModal,
   openProfileCompletionSheet,
-  openSessionHashRoute,
   reconcilePresenceTracking,
   resetNotificationSettings: () => {
     notificationSettings = defaultNotificationSettings();
@@ -632,7 +636,8 @@ function showMessagesPage({ focus = false, historyMode = "push" } = {}) {
 
 function routeCurrentHash() {
   const hash = globalThis.location?.hash ?? "";
-  if (sessionIdFromHash(hash)) return void openSessionHashRoute();
+  const sessionId = sessionIdFromHash(hash);
+  if (sessionId) return openAuthReadySessionHashRoute(sessionId);
   const page = pageFromHash(hash) ?? (hash ? null : "map");
   if (page === "map") return showMapPage({ historyMode: "none" });
   if (page === "my-sessions") return showMySessionsPage(null, { historyMode: "none" });
@@ -676,13 +681,13 @@ function diagnoseMapFailure(message) {
   if (import.meta.env?.DEV) console.warn(message);
 }
 
-function startMap() {
+async function startMap() {
   if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "___") {
     controller.setMapUnavailable();
     return;
   }
   let authFailed = false;
-  loadGoogleMaps(GOOGLE_MAPS_API_KEY, () => {
+  await loadGoogleMaps(GOOGLE_MAPS_API_KEY, () => {
     authFailed = true;
     // Keep this deliberately diagnostic-only: the public UI has a list fallback.
     diagnoseMapFailure("Google Maps 驗證失敗；已切換為球局清單。");
@@ -701,6 +706,17 @@ function startMap() {
       diagnoseMapFailure("Google Maps 載入失敗；已切換為球局清單。");
       controller.setMapUnavailable();
     });
+}
+
+async function boot() {
+  // Court data, public discovery, and Maps are intentionally auth-independent
+  // and start together. Each path owns its existing fallback UI.
+  const publicStartup = Promise.allSettled([loadCourtsImmediately(), controller.loadDiscovery(), startMap()]);
+  // A session hash alone depends on the initial auth/profile candidate. The
+  // router awaits this promise before opening that session exactly once.
+  bootAuthReady = restoreAuth();
+  const routeStartup = routeCurrentHash();
+  await Promise.all([bootAuthReady, publicStartup, routeStartup]);
 }
 
 function init() {
@@ -802,16 +818,11 @@ function init() {
   document.getElementById("messages-tab").addEventListener("click", () => showMessagesPage());
   document.getElementById("me-tab").addEventListener("click", () => showMePage());
   globalThis.addEventListener("hashchange", () => {
-    routeCurrentHash();
+    void routeCurrentHash();
   });
   syncBottomNavigation();
 
-  // None of these awaits the others: court pins and discovery work before auth.
-  loadCourtsImmediately();
-  controller.loadDiscovery();
-  restoreAuth();
-  startMap();
-  routeCurrentHash();
+  void boot();
 }
 
 init();
