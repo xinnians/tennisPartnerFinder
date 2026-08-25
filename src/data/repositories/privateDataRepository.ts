@@ -57,6 +57,7 @@ export type RepositoryDatabase = Omit<Database, "public"> & {
 };
 type RpcArgs<Name extends RpcName> = RpcFunctions[Name]["Args"];
 type MockRow = Record<string, unknown>;
+const PRIVATE_DATA_CHUNK_MARKER = "tennis_private_data_repository_v1";
 
 interface PushSubscriptionInput {
   endpoint?: unknown;
@@ -130,6 +131,10 @@ export function createPrivateDataApi({
   mockPlayers,
   mockSessionJoinPreviews,
 }: PrivateDataRepositoryOptions) {
+  if (![mockPlayerPresence, mockPlayers, mockSessionJoinPreviews].every(Array.isArray)) {
+    throw new Error(`${PRIVATE_DATA_CHUNK_MARKER}: invalid mock repository inputs`);
+  }
+
   function requireClient() {
     if (!configured || !client) throw new DataApiUnavailableError();
     return client;

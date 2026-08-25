@@ -56,6 +56,24 @@ async function failFirstMockDiscovery(page) {
   });
 }
 
+test("anonymous discovery does not request the authenticated repository module", async ({ page }) => {
+  const privateModuleRequests = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/src/data/repositories/privateDataRepository.ts")) {
+      privateModuleRequests.push(request.url());
+    }
+  });
+  await installFakeMaps(page);
+
+  await page.goto("/");
+  await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
+  await expect(page.locator("#map-data-status")).toBeHidden();
+  await expect(page.getByTestId("me-sign-in")).toHaveCount(1);
+  await page.waitForLoadState("networkidle");
+
+  expect(privateModuleRequests).toEqual([]);
+});
+
 test("slow discovery keeps the map shell, base courts, and status usable before session rows arrive", async ({
   page,
 }) => {
