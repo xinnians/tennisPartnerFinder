@@ -3,6 +3,7 @@ import { loadLocalSupabaseConfig } from "./tests/fixtures/localSupabaseConfig.js
 
 export function createPlaywrightConfig({
   mode = "mock",
+  mockWorkers = 4,
   loadLocalSupabaseConfig: readLocalSupabaseConfig = loadLocalSupabaseConfig,
 } = {}) {
   if (mode !== "mock" && mode !== "local") {
@@ -15,8 +16,9 @@ export function createPlaywrightConfig({
 
   return {
     testDir: "./tests",
-    // The two local-Supabase projects share one mutable database.
-    workers: 1,
+    // Mock specs are file-isolated and can fan out; both local-Supabase projects
+    // share one mutable database and must remain single-worker.
+    workers: isLocal ? 1 : mockWorkers,
     timeout: 30_000,
     expect: { timeout: 5_000 },
     use: {
@@ -82,4 +84,12 @@ export function createPlaywrightConfig({
   };
 }
 
-export default defineConfig(createPlaywrightConfig({ mode: process.env.TENNIS_TEST_HARNESS_MODE ?? "mock" }));
+const harnessMode = process.env.TENNIS_TEST_HARNESS_MODE ?? "mock";
+export default defineConfig(
+  createPlaywrightConfig({
+    mode: harnessMode,
+    // Keep a bare config import compatible with the serialized legacy default;
+    // the public mock commands opt in explicitly through the harness mode.
+    mockWorkers: process.env.TENNIS_TEST_HARNESS_MODE === "mock" ? 4 : 1,
+  })
+);

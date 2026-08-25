@@ -49,6 +49,7 @@ export default tseslint.config(
       "tests/fixtures/appRuntime.js",
       "tests/fixtures/fakeMaps.js",
       "tests/fixtures/localSupabase.js",
+      "tests/fixtures/smoke.js",
     ],
     languageOptions: {
       globals: {

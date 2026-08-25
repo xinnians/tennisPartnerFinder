@@ -11,6 +11,10 @@ const NVMRC = readFileSync(new URL("../.nvmrc", import.meta.url), "utf8").trim()
 const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", import.meta.url), "utf8");
 const PERFORMANCE_SPEC = readFileSync(new URL("./performance.spec.js", import.meta.url), "utf8");
 const FAKE_MAPS = readFileSync(new URL("./fixtures/fakeMaps.js", import.meta.url), "utf8");
+const SMOKE_SPECS = readdirSync(new URL("./", import.meta.url))
+  .filter((name) => name.endsWith("-smoke.spec.js"))
+  .map((name) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8"))
+  .join("\n");
 const DEVELOPMENT_BRANCH = "claude/tennis-partner-finder-proto-xfrr6g";
 const REQUIRED_NODE_VERSION = [22, 18, 0];
 
@@ -122,11 +126,19 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
   }
 });
 
+test("mock projects use bounded parallelism while local projects remain single-worker", () => {
+  assert.equal(createPlaywrightConfig({ mode: "mock" }).workers, 4);
+  const local = createPlaywrightConfig({
+    mode: "local",
+    loadLocalSupabaseConfig: () => ({ apiUrl: "http://127.0.0.1:54321", publicKey: "test-key" }),
+  });
+  assert.equal(local.workers, 1);
+});
+
 test("browser fixtures intercept every Google-hosted avatar without bypassing fallback assertions", () => {
   assert.match(FAKE_MAPS, /page\.route\("https:\/\/lh\*\.googleusercontent\.com\/\*\*"/);
   assert.match(FAKE_MAPS, /contentType: "image\/png"/);
-  // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-  assert.match(readFileSync(new URL(".\/smoke.spec.js", import.meta.url), "utf8"), /dispatchEvent\("error"\)/);
+  assert.match(SMOKE_SPECS, /dispatchEvent\("error"\)/);
 });
 
 test("browser Maps fixtures exercise the AdvancedMarker property contract", () => {
