@@ -109,8 +109,13 @@ F3-3 啟動編排顯式化（與 F3-1 同批鎖冷啟動深連結交界）。
 
 ## 階段 3：批 3B——殼遷入 AppShell（F3-2）
 
-topbar／popover／底部導覽／toast／login modal 遷 React；`import.meta.glob`
-三橋退役；同步 commit 邊界不得擴張。
+**ACCEPTED（2026-08-25，一次通過）——批 3 全案完結**：`b9c84df`..`3af51e6`
+六 commit。toast／topbar chips＋popover／底部導覽／login modal 內容遷 React
+（殼機制不動）；`import.meta.glob` 三橋退役（改顯式 import map，src 反掃歸零）；
+第三套 Escape listener 刪除；flushSync 恰三 caller 未擴張；testid 聯集對
+`0be31a2` 逐值相同；新增 AppShell a11y 靜態守門。三處凍結測試調整依總則
+單獨列節（掃描基準跟隨機制、計數 19→20、boundary 掃描跟隨所有權）。
+驗收紀錄 `docs/arch-reports/batch-3B-acceptance-2026-08-25.md`。
 
 ## 階段 4：地圖批（F4-1＋F4-9＋F4-4）
 
