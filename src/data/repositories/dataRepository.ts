@@ -12,7 +12,7 @@ import {
 } from "../../mockData.js";
 import { isSupabaseConfigured, supabase } from "../../supabaseClient.js";
 import type { Database } from "../databaseTypes.ts";
-import { DataApiUnavailableError, asDataApiError } from "../dataErrors.ts";
+import { DataApiError, DataApiUnavailableError, asDataApiError } from "../dataErrors.ts";
 import { mapCourt } from "../mappers/profileMappers.ts";
 import { discoveryQuery, withinDiscoveryQuery } from "../mappers/queryMappers.ts";
 import type { DiscoveryQueryInput } from "../mappers/queryMappers.ts";
@@ -40,6 +40,9 @@ interface RepositoryOptions {
   mockSessionJoinPreviews?: MockRow[];
   mockSessions?: MockRow[];
   now?: unknown;
+  privateDataApiLoader?: () => Promise<{
+    createPrivateDataApi: (options: PrivateDataRepositoryOptions) => PrivateDataApi;
+  }>;
 }
 
 function rowsOrEmpty<Row>(value: Row[] | null): Row[] {
@@ -68,6 +71,7 @@ export function createDataApi({
   mockSessionJoinPreviews = MOCK_SESSION_JOIN_PREVIEWS,
   mockCourts = COURTS,
   now = () => new Date(),
+  privateDataApiLoader = () => import("./privateDataRepository.ts"),
 }: RepositoryOptions = {}) {
   const currentTime = () => (typeof now === "function" ? now() : now);
 
@@ -144,9 +148,12 @@ export function createDataApi({
       mockPlayers,
       mockSessionJoinPreviews,
     };
-    privateDataApiRequest = import("./privateDataRepository.ts").then(({ createPrivateDataApi }) =>
-      createPrivateDataApi(options)
-    );
+    privateDataApiRequest = privateDataApiLoader()
+      .then(({ createPrivateDataApi }) => createPrivateDataApi(options))
+      .catch((error: unknown) => {
+        privateDataApiRequest = null;
+        throw new DataApiError("此功能暫時無法載入，請重新整理後再試。", { cause: error });
+      });
     return privateDataApiRequest;
   }
 

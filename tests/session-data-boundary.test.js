@@ -11,6 +11,7 @@ import {
   SESSION_JOIN_PREVIEW_SELECT,
   SESSION_ROSTER_SELECT,
   SESSION_ACTION_CODES,
+  DataApiError,
   DataApiUnavailableError,
   SessionActionError,
   createDataApi,
@@ -38,6 +39,7 @@ import {
   readPendingIntent,
   savePendingIntent,
 } from "../src/sessionIntent.js";
+import { sessionActionMessage } from "../src/sessionActionMessages.ts";
 
 const SESSION_SUMMARY_KEYS = [
   "sessionId",
@@ -1203,6 +1205,37 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.ok(client.calls.some((call) => call[0] === "lte" && call[1] === "court_lng" && call[2] === 121.7));
   assert.ok(client.calls.some((call) => call[0] === "gt" && call[1] === "start_at"));
   assert.ok(client.calls.some((call) => call[0] === "lt" && call[1] === "start_at"));
+});
+
+test("private repository import failures stay localized and a later call retries the import", async () => {
+  const importFailure = new TypeError("Failed to fetch dynamically imported module");
+  let importAttempts = 0;
+  const api = createDataApi({
+    privateDataApiLoader: async () => {
+      importAttempts += 1;
+      if (importAttempts === 1) throw importFailure;
+      return {
+        createPrivateDataApi: () => ({
+          requestToJoinSession: async (sessionId) => ({ outcome: "ACCEPTED", sessionId }),
+        }),
+      };
+    },
+  });
+
+  await assert.rejects(
+    () => api.requestToJoinSession(81),
+    (error) => {
+      assert.ok(error instanceof DataApiError);
+      assert.equal(error.cause, importFailure);
+      assert.equal(error.message, "此功能暫時無法載入，請重新整理後再試。");
+      assert.equal(sessionActionMessage(error, "fallback should not render"), error.message);
+      assert.doesNotMatch(sessionActionMessage(error, "fallback should not render"), /dynamically imported module/u);
+      return true;
+    }
+  );
+
+  assert.deepEqual(await api.requestToJoinSession(81), { outcome: "ACCEPTED", sessionId: 81 });
+  assert.equal(importAttempts, 2);
 });
 
 test("discovery mapper exposes the Stage 4A venue decision contract without extra fields", () => {

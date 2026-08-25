@@ -302,6 +302,8 @@ export function createPrivateDataApi({
     await callRpc("save_my_profile", {
       p_nickname: asText(profile?.nick).trim(),
       p_ntrp: asNumber(profile?.ntrp),
+      // save_my_profile 的簽名已凍結(202607270006:9),p_line_id 無預設值,呼叫端必須傳。
+      // 這是 src/ 唯一允許出現 line_id 的位置;drop 該欄位前必須先改簽名或給預設值。
       p_line_id: null,
       p_court_ids: courtIds,
       p_play_types: profileValues(profile?.types).filter((value) => typeof value === "string"),
