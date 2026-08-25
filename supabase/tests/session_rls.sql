@@ -191,7 +191,7 @@ begin
 end;
 $$;
 
-select plan(472);
+select plan(475);
 
 -- Stage 2 aged-candidate fixtures are built before this file creates any
 -- deferred session events.  They model a legitimate host plus accepted guest.
@@ -698,6 +698,16 @@ select is(
   'true',
   'opted-in complete target appears at its expected active Taipei court'
 );
+select ok(
+  (
+    select count(*) > 0
+      and count(*) = count(profile_id)
+      and count(*) = count(court_id)
+      and count(*) = count(distinct (profile_id, court_id))
+    from public.player_directory
+  ),
+  'player_directory scan is nonempty and (profile_id, court_id) is a unique deterministic row tie-break'
+);
 reset role;
 
 set local role authenticated;
@@ -768,6 +778,15 @@ select is(
   1::bigint,
   'anon can discover the safe future session summary'
 );
+select ok(
+  (
+    select count(*) > 0
+      and count(*) = count(session_id)
+      and count(*) = count(distinct session_id)
+    from public.session_discovery
+  ),
+  'session_discovery scan is nonempty and session_id is a unique deterministic tie-break'
+);
 select throws_ok($$select * from public.sessions$$, '42501', null, 'anon cannot select raw sessions');
 select throws_ok($$select * from public.session_participants$$, '42501', null, 'anon cannot select raw participants');
 select throws_ok($$select * from public.sports$$, '42501', null, 'anon cannot select raw sports');
@@ -780,6 +799,15 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000001001', true);
+select ok(
+  (
+    select count(*) > 0
+      and count(*) = count(session_id)
+      and count(*) = count(distinct session_id)
+    from public.my_session_participations
+  ),
+  'my_session_participations scan is nonempty and session_id is a unique deterministic tie-break'
+);
 select throws_ok($$select * from public.public_profile_discovery$$, '42P01', null, 'authenticated users have no retired profile discovery route');
 select throws_ok($$update public.profiles set nickname = 'bypassed' where id = current_setting('pgtap.host_profile_id')::bigint$$, '42501', null, 'direct profile updates are denied');
 select throws_ok(

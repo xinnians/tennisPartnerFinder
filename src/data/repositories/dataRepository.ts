@@ -18,6 +18,7 @@ import { discoveryQuery, withinDiscoveryQuery } from "../mappers/queryMappers.ts
 import type { DiscoveryQueryInput } from "../mappers/queryMappers.ts";
 import { mapMockSessionSummary, mapSessionSummary } from "../mappers/sessionMappers.ts";
 import type { PrivateDataApi, PrivateDataRepositoryOptions, RepositoryDatabase } from "./privateDataRepository.ts";
+import { SESSION_DISCOVERY_LIMIT } from "./listQueryLimits.ts";
 import { COURT_SELECT, SESSION_DISCOVERY_SELECT } from "./selects.ts";
 
 type PublicSchema = Database["public"];
@@ -47,6 +48,12 @@ interface RepositoryOptions {
 
 function rowsOrEmpty<Row>(value: Row[] | null): Row[] {
   return Array.isArray(value) ? value : [];
+}
+
+function warnIfDiscoveryIsCapped(rowCount: number): void {
+  if (import.meta.env?.DEV && rowCount === SESSION_DISCOVERY_LIMIT) {
+    console.warn(`[data] session discovery reached its ${SESSION_DISCOVERY_LIMIT}-row safety cap`);
+  }
 }
 
 async function runMockDataTestHook(name: string): Promise<void> {
@@ -101,9 +108,15 @@ export function createDataApi({
     const query = discoveryQuery(input, currentTime());
     if (!configured) {
       await runMockDataTestHook("loadSessionDiscovery");
-      return mockSessions
+      const sessions = mockSessions
         .filter((session) => withinDiscoveryQuery(session as Partial<SessionSummary>, query))
-        .map(mapMockSessionSummary);
+        .map(mapMockSessionSummary)
+        .sort(
+          (left, right) => left.startAt.localeCompare(right.startAt) || Number(left.sessionId) - Number(right.sessionId)
+        )
+        .slice(0, SESSION_DISCOVERY_LIMIT);
+      warnIfDiscoveryIsCapped(sessions.length);
+      return sessions;
     }
 
     const activeClient = requireClient();
@@ -116,9 +129,13 @@ export function createDataApi({
       .lte("court_lng", query.bounds.east)
       .gt("start_at", query.startAfter)
       .lt("start_at", query.startBefore)
-      .order("start_at", { ascending: true });
+      .order("start_at", { ascending: true })
+      .order("session_id", { ascending: true })
+      .limit(SESSION_DISCOVERY_LIMIT);
     if (error) throw asDataApiError(error);
-    return rowsOrEmpty(data).map(mapSessionSummary);
+    const sessions = rowsOrEmpty(data).map(mapSessionSummary);
+    warnIfDiscoveryIsCapped(sessions.length);
+    return sessions;
   }
 
   async function loadSessionSummary(sessionId: number) {

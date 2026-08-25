@@ -1,0 +1,4 @@
+export const SESSION_DISCOVERY_LIMIT = 200;
+export const PLAYER_DIRECTORY_LIMIT = 200;
+export const MY_SESSIONS_LIMIT = 100;
+export const SESSION_MESSAGES_LIMIT = 200;

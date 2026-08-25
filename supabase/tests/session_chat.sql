@@ -7,7 +7,7 @@ begin;
 -- against the real view, RPCs, constraints, and lifecycle triggers.
 -- Batch C4-1 extends this same conditional-skip contract to the read-cursor
 -- table added in 202608080001_chat_read_cursors.sql.
-select plan(193);
+select plan(195);
 
 select has_table('public', 'session_messages', 'session messages table exists');
 select has_view('public', 'session_message_feed', 'session message feed view exists');
@@ -177,7 +177,7 @@ begin
     or to_regclass('public.session_message_feed') is null
     or to_regclass('public.my_player_blocks') is null
     or to_regclass('public.session_chat_read_cursors') is null then
-    return query select * from skip('Stage 3 session-chat schema is not installed yet', 189);
+    return query select * from skip('Stage 3 session-chat schema is not installed yet', 191);
     return;
   end if;
 
@@ -405,6 +405,26 @@ begin
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id), 'host sees a non-empty session message feed');
   perform set_config('request.jwt.claim.sub', accepted_user::text, true);
   return next ok((select count(*) > 0 from public.session_message_feed where session_id = main_session_id), 'Stage 3 three-beat canary: accepted member feed gate returns rows');
+  return next ok(
+    (
+      select count(*) > 0
+        and count(*) = count(message_id)
+        and count(*) = count(distinct message_id)
+      from public.session_message_feed
+      where session_id = main_session_id
+    ),
+    'session_message_feed scan is nonempty and message_id is a unique deterministic tie-break'
+  );
+  return next ok(
+    (
+      select count(*) > 0
+        and count(*) = count(created_at)
+        and count(*) = count(distinct (created_at, message_id))
+      from public.session_message_feed
+      where session_id = main_session_id
+    ),
+    'session_message_feed (created_at, message_id) defines a total order on a nonempty scan'
+  );
   perform set_config('request.jwt.claim.sub', requested_user::text, true);
   return next is((select count(*) from public.session_message_feed where session_id = main_session_id), 0::bigint, 'requested guest sees zero session message feed rows');
   return next throws_ok(

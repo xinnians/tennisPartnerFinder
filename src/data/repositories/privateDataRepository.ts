@@ -30,6 +30,7 @@ import {
   mapSessionRosterRow,
 } from "../mappers/sessionMappers.ts";
 import { asArray, asNumber, asText, profileValues } from "../mappers/valueMappers.ts";
+import { MY_SESSIONS_LIMIT, PLAYER_DIRECTORY_LIMIT, SESSION_MESSAGES_LIMIT } from "./listQueryLimits.ts";
 import {
   COURT_SUBSCRIPTIONS_SELECT,
   MY_PLAYER_BLOCKS_SELECT,
@@ -157,7 +158,16 @@ export function createPrivateDataApi({
 
   async function loadPlayerDirectory({ bounds }: { bounds?: MapBounds | null } = {}) {
     if (!configured) {
-      return mockPlayers.filter((entry) => withinBounds(entry, bounds)).map(mapMockPlayerDirectoryRow);
+      return mockPlayers
+        .filter((entry) => withinBounds(entry, bounds))
+        .map(mapMockPlayerDirectoryRow)
+        .sort(
+          (left, right) =>
+            left.nickname.localeCompare(right.nickname) ||
+            Number(left.profileId) - Number(right.profileId) ||
+            Number(left.courtId) - Number(right.courtId)
+        )
+        .slice(0, PLAYER_DIRECTORY_LIMIT);
     }
 
     const activeClient = requireClient();
@@ -169,7 +179,11 @@ export function createPrivateDataApi({
         .gte("court_lng", bounds.west)
         .lte("court_lng", bounds.east);
     }
-    const { data, error } = await query;
+    const { data, error } = await query
+      .order("nickname", { ascending: true })
+      .order("profile_id", { ascending: true })
+      .order("court_id", { ascending: true })
+      .limit(PLAYER_DIRECTORY_LIMIT);
     if (error) throw asDataApiError(error);
     return rowsOrEmpty(data).map(mapPlayerDirectoryRow);
   }
@@ -199,7 +213,9 @@ export function createPrivateDataApi({
     const { data, error } = await activeClient
       .from("my_session_participations")
       .select(MY_SESSIONS_SELECT)
-      .order("updated_at", { ascending: false });
+      .order("updated_at", { ascending: false })
+      .order("session_id", { ascending: false })
+      .limit(MY_SESSIONS_LIMIT);
     if (error) throw asDataApiError(error);
     return rowsOrEmpty(data).map(mapMySession);
   }
@@ -242,10 +258,11 @@ export function createPrivateDataApi({
         ? messagesQuery.is("session_id", null)
         : messagesQuery.eq("session_id", normalizedSessionId);
     const { data, error } = await filteredMessagesQuery
-      .order("created_at", { ascending: true })
-      .order("message_id", { ascending: true });
+      .order("created_at", { ascending: false })
+      .order("message_id", { ascending: false })
+      .limit(SESSION_MESSAGES_LIMIT);
     if (error) throw asDataApiError(error);
-    return rowsOrEmpty(data).map(mapSessionMessageRow);
+    return rowsOrEmpty(data).map(mapSessionMessageRow).reverse();
   }
 
   async function loadMyPlayerBlocks() {

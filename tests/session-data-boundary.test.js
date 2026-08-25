@@ -1166,6 +1166,10 @@ function configuredDiscoveryClient(result) {
     },
     order(column, options) {
       calls.push(["order", column, options]);
+      return this;
+    },
+    limit(value) {
+      calls.push(["limit", value]);
       return Promise.resolve(result);
     },
   };
@@ -1205,6 +1209,11 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.ok(client.calls.some((call) => call[0] === "lte" && call[1] === "court_lng" && call[2] === 121.7));
   assert.ok(client.calls.some((call) => call[0] === "gt" && call[1] === "start_at"));
   assert.ok(client.calls.some((call) => call[0] === "lt" && call[1] === "start_at"));
+  assert.deepEqual(client.calls.slice(-3), [
+    ["order", "start_at", { ascending: true }],
+    ["order", "session_id", { ascending: true }],
+    ["limit", 200],
+  ]);
 });
 
 test("private repository import failures stay localized and a later call retries the import", async () => {
@@ -1260,6 +1269,26 @@ test("mock discovery keeps both undecided and decided candidate timestamps", asy
 
   assert.ok(candidates.some((summary) => summary.decidedAt === ""));
   assert.ok(candidates.some((summary) => !Number.isNaN(Date.parse(summary.decidedAt))));
+});
+
+test("mock discovery applies the same stable 200-row cap as the configured query", async () => {
+  const mockSessions = Array.from({ length: 205 }, (_, index) => {
+    const sessionId = 205 - index;
+    return session({ sessionId, startAt: "2026-07-18T01:30:00.000Z" });
+  });
+  const api = createDataApi({
+    configured: false,
+    mockSessions,
+    now: new Date("2026-07-17T00:00:00.000Z"),
+  });
+
+  const discovery = await api.loadSessionDiscovery({
+    startAfter: "2026-07-17T00:00:00.000Z",
+    startBefore: "2026-07-31T00:00:00.000Z",
+  });
+  assert.equal(discovery.length, 200);
+  assert.equal(discovery[0].sessionId, 1);
+  assert.equal(discovery.at(-1).sessionId, 200);
 });
 
 test("nickname-only profile save normalizes optional fields for the RPC", async () => {
@@ -1330,6 +1359,14 @@ test("configured player directory uses only its allowlist and four bounds predic
       calls.push(["lte", column, value]);
       return this;
     },
+    order(column, options) {
+      calls.push(["order", column, options]);
+      return this;
+    },
+    limit(value) {
+      calls.push(["limit", value]);
+      return this;
+    },
     then(resolve) {
       return Promise.resolve({
         data: [
@@ -1376,6 +1413,70 @@ test("configured player directory uses only its allowlist and four bounds predic
     ["lte", "court_lat", 25.1],
     ["gte", "court_lng", 121.5],
     ["lte", "court_lng", 121.7],
+    ["order", "nickname", { ascending: true }],
+    ["order", "profile_id", { ascending: true }],
+    ["order", "court_id", { ascending: true }],
+    ["limit", 200],
+  ]);
+});
+
+test("mock player directory applies the same stable 200-row cap as the configured query", async () => {
+  const mockPlayers = Array.from({ length: 205 }, (_, index) => {
+    const profileId = 205 - index;
+    return {
+      profileId,
+      nickname: `示範球友${String(profileId).padStart(3, "0")}`,
+      courtId: 101,
+      courtName: "台北網球中心",
+      courtDistrict: "內湖區",
+      courtLat: 25.067446,
+      courtLng: 121.596648,
+    };
+  });
+  const api = createDataApi({ configured: false, mockPlayers });
+
+  const directory = await api.loadPlayerDirectory();
+  assert.equal(directory.length, 200);
+  assert.equal(directory[0].profileId, 1);
+  assert.equal(directory.at(-1).profileId, 200);
+});
+
+test("My Sessions keeps newest updates first with a stable capped query", async () => {
+  const calls = [];
+  const query = {
+    select(value) {
+      calls.push(["select", value]);
+      return this;
+    },
+    order(column, options) {
+      calls.push(["order", column, options]);
+      return this;
+    },
+    limit(value) {
+      calls.push(["limit", value]);
+      return this;
+    },
+    then(resolve) {
+      return Promise.resolve({ data: [], error: null }).then(resolve);
+    },
+  };
+  const api = createDataApi({
+    configured: true,
+    client: {
+      from(table) {
+        calls.push(["from", table]);
+        return query;
+      },
+    },
+  });
+
+  assert.deepEqual(await api.loadMySessions(), []);
+  assert.deepEqual(calls, [
+    ["from", "my_session_participations"],
+    ["select", MY_SESSIONS_SELECT],
+    ["order", "updated_at", { ascending: false }],
+    ["order", "session_id", { ascending: false }],
+    ["limit", 100],
   ]);
 });
 
@@ -1394,9 +1495,23 @@ test("session messages load only from the ordered safe feed and map its allowlis
       calls.push(["order", column, options]);
       return this;
     },
+    limit(value) {
+      calls.push(["limit", value]);
+      return this;
+    },
     then(resolve) {
       return Promise.resolve({
         data: [
+          {
+            message_id: "902",
+            session_id: "81",
+            sender_profile_id: "93",
+            sender_nickname: "示範海風",
+            kind: "user",
+            body: "晚點見。",
+            created_at: "2026-07-27T01:31:00.000Z",
+            is_self: true,
+          },
           {
             message_id: "901",
             session_id: "81",
@@ -1434,13 +1549,24 @@ test("session messages load only from the ordered safe feed and map its allowlis
       createdAt: "2026-07-27T01:30:00.000Z",
       isSelf: false,
     },
+    {
+      messageId: 902,
+      sessionId: 81,
+      senderProfileId: 93,
+      senderNickname: "示範海風",
+      kind: "user",
+      body: "晚點見。",
+      createdAt: "2026-07-27T01:31:00.000Z",
+      isSelf: true,
+    },
   ]);
   assert.deepEqual(calls, [
     ["from", "session_message_feed"],
     ["select", "message_id,session_id,sender_profile_id,sender_nickname,kind,body,created_at,is_self"],
     ["eq", "session_id", 81],
-    ["order", "created_at", { ascending: true }],
-    ["order", "message_id", { ascending: true }],
+    ["order", "created_at", { ascending: false }],
+    ["order", "message_id", { ascending: false }],
+    ["limit", 200],
   ]);
   assert.deepEqual(await createDataApi({ configured: false }).loadSessionMessages(81), []);
 });
@@ -1528,6 +1654,9 @@ test("invalid session IDs keep the pre-2A null query semantics for preview and m
             return this;
           },
           order() {
+            return this;
+          },
+          limit() {
             return this;
           },
           then(resolve) {
