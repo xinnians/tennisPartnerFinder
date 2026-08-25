@@ -1,8 +1,9 @@
-import { memo, useEffect } from "react";
+import { memo, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
+import { BANDS } from "../filters.js";
 import type { MePageOptions } from "../pages/MePage.tsx";
 import type { MessagesPageOptions } from "../pages/MessagesPage.tsx";
 import type { MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
@@ -19,12 +20,26 @@ interface PageSlot<Options> {
 }
 
 interface AppSnapshot {
+  filters: FilterSnapshot;
   mePages: Map<HTMLElement, PageSlot<MePageOptions>>;
   messagesPages: Map<HTMLElement, PageSlot<MessagesPageOptions>>;
   mySessionsPages: Map<HTMLElement, PageSlot<MySessionsPageOptions>>;
   nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
   surfaces: SurfaceHostSnapshot;
   toastMessage: string;
+}
+
+interface FilterSnapshot {
+  band: string;
+  dateKey: string | null;
+  districts: Set<string>;
+  instantOnly: boolean;
+  types: Set<string>;
+}
+
+interface FilterToolbarHandlers {
+  onOpenFilter(): void;
+  onSetFilter(field: "band" | "dateKey" | "instantOnly", value: boolean | string | null): void;
 }
 
 interface AppProps {
@@ -45,6 +60,7 @@ let mePageLoadFailed = false;
 let messagesPageLoadFailed = false;
 let mySessionsPageLoadFailed = false;
 let snapshot: AppSnapshot = {
+  filters: { band: "all", dateKey: null, districts: new Set(), instantOnly: false, types: new Set() },
   mePages: new Map(),
   messagesPages: new Map(),
   mySessionsPages: new Map(),
@@ -54,6 +70,10 @@ let snapshot: AppSnapshot = {
 };
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let filterToolbarHandlers: FilterToolbarHandlers = {
+  onOpenFilter: noop,
+  onSetFilter: noop,
+};
 
 function loadMePage(): Promise<void> {
   if (MePageComponent) return Promise.resolve();
@@ -281,9 +301,214 @@ const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
   );
 });
 
+function FilterIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 6h16M7 12h10M10 18h4" />
+    </svg>
+  );
+}
+
+function MapTopbar({ filters }: { filters: FilterSnapshot }) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const filterCount = filters.types.size + filters.districts.size;
+  const bandLabel = BANDS.find((band) => band.key === filters.band)?.label ?? "全部";
+
+  useEffect(() => {
+    if (!popoverOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setPopoverOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => document.removeEventListener("keydown", closeOnEscape, true);
+  }, [popoverOpen]);
+
+  return (
+    <>
+      <div className="map-topbar">
+        <div className="map-topbar__row">
+          <a className="app-brand" href="#tab-map" aria-label="球咖首頁">
+            <span className="app-brand__dot" aria-hidden="true" />
+            <span className="app-brand__name">球咖</span>
+            <span className="app-brand__code" aria-hidden="true">
+              TPE
+            </span>
+          </a>
+          <div className="city-chip" aria-label="目前城市：台北市">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z" />
+            </svg>
+            <span>台北市</span>
+          </div>
+          <button
+            type="button"
+            id="player-directory-open"
+            data-testid="player-directory-open"
+            className="topbar-icon-button"
+            aria-label="球友名單"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9.5" cy="8" r="3.6" />
+              <path d="M22 21v-1.8a4 4 0 0 0-3-3.85M16.2 4.3a3.6 3.6 0 0 1 0 7.1" />
+            </svg>
+          </button>
+        </div>
+
+        <section className="map-toolbar" aria-label="尋找球局篩選">
+          {[
+            ["today", "今天"],
+            ["tomorrow", "明天"],
+            ["weekend", "週末"],
+          ].map(([key, label]) => {
+            const selected = filters.dateKey === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`chip${selected ? " is-selected" : ""}`}
+                data-date-chip={key}
+                aria-pressed={selected}
+                onClick={() => filterToolbarHandlers.onSetFilter("dateKey", selected ? null : key)}
+              >
+                {label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            id="level-chip"
+            className={`chip level-chip${filters.band !== "all" ? " is-selected" : ""}`}
+            aria-expanded={popoverOpen}
+            aria-haspopup="true"
+            aria-controls="level-popover"
+            onClick={() => setPopoverOpen((open) => !open)}
+          >
+            <span>程度</span>
+            <span id="band-label" className="level-chip__value">
+              {bandLabel}
+            </span>
+            <svg
+              className="level-chip__caret"
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            id="instant-only-chip"
+            className={`chip instant-chip${filters.instantOnly ? " is-selected" : ""}`}
+            aria-pressed={filters.instantOnly}
+            onClick={() => filterToolbarHandlers.onSetFilter("instantOnly", !filters.instantOnly)}
+          >
+            <span className="instant-chip__dot" aria-hidden="true" />
+            <span>直接加入</span>
+          </button>
+          <button
+            type="button"
+            id="filter-sheet-open"
+            className="chip filter-chip"
+            aria-label={filterCount > 0 ? `篩選，已套用 ${filterCount} 組條件` : "篩選"}
+            onClick={filterToolbarHandlers.onOpenFilter}
+          >
+            <FilterIcon />
+            <span>篩選</span>
+            {filterCount > 0 ? (
+              <>
+                {" "}
+                <span className="filter-chip__badge">⋅{filterCount}</span>
+              </>
+            ) : null}
+          </button>
+        </section>
+      </div>
+
+      <div id="level-popover" className="level-popover" hidden={!popoverOpen}>
+        <p>NTRP 程度篩選</p>
+        <div id="band-options">
+          {BANDS.map((band) => {
+            const selected = band.key === filters.band;
+            return (
+              <button
+                key={band.key}
+                type="button"
+                className={`band-option${selected ? " is-active" : ""}`}
+                data-band={band.key}
+                aria-pressed={selected}
+                onClick={() => {
+                  filterToolbarHandlers.onSetFilter("band", band.key);
+                  setPopoverOpen(false);
+                }}
+              >
+                <span>{band.label}</span>
+                <svg
+                  className="band-option__check"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--color-signal)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */
 export function App({ snapshot: current }: AppProps) {
   const toastRoot = document.getElementById("toast-root");
+  const topbarRoot = document.getElementById("map-topbar-root");
   return (
     <>
       {renderPortals(
@@ -319,6 +544,7 @@ export function App({ snapshot: current }: AppProps) {
         "nearby"
       )}
       <SurfaceHost slots={current.surfaces} />
+      {topbarRoot ? createPortal(<MapTopbar filters={current.filters} />, topbarRoot) : null}
       {toastRoot
         ? createPortal(
             current.toastMessage ? (
@@ -366,6 +592,15 @@ export function showToastInApp(message: string): void {
     snapshot = { ...snapshot, toastMessage: "" };
     renderApp();
   }, 2000);
+}
+
+export function configureFilterToolbarInApp(handlers: FilterToolbarHandlers): void {
+  filterToolbarHandlers = handlers;
+}
+
+export function syncFilterToolbarInApp(filters: FilterSnapshot): void {
+  snapshot = { ...snapshot, filters };
+  renderApp();
 }
 
 /**

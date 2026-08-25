@@ -97,7 +97,9 @@ import {
   openSessionSheet,
   openSessionUnavailableSheet,
   openWithdrawSessionConfirmation,
+  configureMapFilterToolbar,
   renderMapDataStatus,
+  renderMapFilterToolbar,
   renderMePage,
   renderPlayerLayerToggle,
   renderMessagesPage,
@@ -165,9 +167,11 @@ function getAppState() {
 }
 
 configureFilterToolbarFeature({
+  configureMapFilterToolbar,
   getAppState,
   getController: () => controller,
   openFilterSheet,
+  renderMapFilterToolbar,
 });
 
 function currentProfileEligibility(profile = getAppState().profile) {
