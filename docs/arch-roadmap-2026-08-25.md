@@ -149,6 +149,14 @@ delta 驗收通過。驗收紀錄
 
 前端半批（content-visibility）＋DB 半批（limit／分頁，另發、動 view 契約與 pgTAP）。
 
+**前半 ACCEPTED（2026-08-25，一次通過）**：`8e138a3`。三清單面 item-level
+containment（intrinsic 值 390px 實測）＋My Sessions first-child eager 豁免
+（Playwright `innerText` 相容）；群聊 feed 明文緩辦（置底／未讀語意脆）；
+新增 fail-closed CSS 契約測試（集合精確比對＋TSX 錨點）。CDP 量測 Layout
+-77%〜-97%（synthetic、指示性）。過程插曲：Docker daemon 掛死由驗收方
+恢復（僅 supabase 容器、零損害）。**後半（DB limit／分頁）待另發**。
+驗收紀錄 `docs/arch-reports/longlist-batch-acceptance-2026-08-25.md`。
+
 ## 彈性批與測試基建
 
 - F0-8 分支名解耦：真彈性，任何階段可插。
