@@ -75,7 +75,7 @@ REL-public（社群發文）**不在階段 0**：受真實種子供給 gate（�
 
 **執行紀錄（2026-08-25）**：H-2／H-3 ACCEPTED（`57c5a33`／`6ac9914`＋D-03 落檔
 `58c5d5c`）；H-1 Sentry **BLOCKED**——SDK on-wire 必帶 protocol metadata，無法符合
-「精確三鍵」契約，依派工條款停手。後續走向（放寬契約 vs 暫無監控）待使用者拍板。
+「精確三鍵」契約，依派工條款停手。後續走向 2026-08-25 拍板＝放寬契約後接線；**H-1R ACCEPTED**（`bf89206`，wire 層 8 欄枚舉容忍＋三 tags 精確＋PII 反向鎖；使用者已設 `VITE_SENTRY_DSN`，push 部署後生效）。
 H-3 的 hosted Map ID 設定與走查待使用者執行（步驟見回報）。
 驗收紀錄 `docs/arch-reports/batch-hardening-acceptance-2026-08-25.md`。
 
