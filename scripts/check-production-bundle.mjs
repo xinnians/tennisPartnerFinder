@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
+import { build } from "vite";
 
 const DIST_DIR = new URL("../dist/", import.meta.url);
 // E1 final entry chunk was 639,896 raw bytes / 184,705 gzip bytes.
@@ -21,6 +22,24 @@ const DEMO_IDENTIFIERS = [
   "示範琥珀",
   "示範雲朵",
 ];
+const E2E_TEST_HOOK_IDENTIFIER = "__tennisE2ETestHooks";
+
+const developmentBuild = await build({
+  build: { write: false },
+  logLevel: "silent",
+  mode: "development",
+});
+const developmentOutputs = (Array.isArray(developmentBuild) ? developmentBuild : [developmentBuild]).flatMap(
+  ({ output }) => output
+);
+const developmentJavaScript = developmentOutputs
+  .filter((output) => output.type === "chunk")
+  .map(({ code }) => code)
+  .join("\n");
+assert.ok(
+  developmentJavaScript.includes(E2E_TEST_HOOK_IDENTIFIER),
+  "development bundle must retain the E2E hook before production absence can be trusted"
+);
 
 const outputFiles = readdirSync(DIST_DIR, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile())
@@ -32,6 +51,7 @@ assert.ok(output.length > 100_000, `production bundle scan read only ${output.le
 for (const identifier of DEMO_IDENTIFIERS) {
   assert.ok(!output.includes(identifier), `production bundle still contains demo identifier: ${identifier}`);
 }
+assert.ok(!output.includes(E2E_TEST_HOOK_IDENTIFIER), "production bundle still contains the E2E test hook");
 
 const indexHtml = readFileSync(new URL("../dist/index.html", import.meta.url), "utf8");
 const entryScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="\/([^"]+\.js)"[^>]*><\/script>/g)].map(
@@ -51,5 +71,5 @@ assert.ok(
 );
 
 console.log(
-  `production bundle check passed: ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; main chunk ${mainChunk.length}/${mainChunkGzipBytes} bytes within ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}`
+  `production bundle check passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; main chunk ${mainChunk.length}/${mainChunkGzipBytes} bytes within ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}`
 );

@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 
 import { captureAppError, type AppErrorSurface } from "../appErrors.ts";
+import { getE2ETestHooks } from "../e2eTestHooks.ts";
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -20,7 +21,7 @@ interface ErrorInjectionHooks {
 }
 
 function shouldInjectRenderError(surface: AppErrorSurface): boolean {
-  const hooks = (globalThis as typeof globalThis & { __tennisE2ETestHooks?: ErrorInjectionHooks }).__tennisE2ETestHooks;
+  const hooks = getE2ETestHooks<ErrorInjectionHooks>();
   return hooks?.reactRenderError?.surface === surface;
 }
 

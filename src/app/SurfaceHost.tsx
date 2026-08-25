@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { getE2ETestHooks } from "../e2eTestHooks.ts";
 import { syncCommit } from "../syncCommit.ts";
 
 export interface SurfaceContentLifecycle {
@@ -84,8 +85,7 @@ export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHan
           commitSynchronously(commitSurfaceSlots);
         }
       } finally {
-        const hooks = (globalThis as typeof globalThis & { __tennisE2ETestHooks?: SurfaceContentTestHooks })
-          .__tennisE2ETestHooks;
+        const hooks = getE2ETestHooks<SurfaceContentTestHooks>();
         hooks?.surfaceContentLifecycle?.onUnmount?.(rootElement.closest<HTMLElement>(".surface")?.id ?? "");
       }
     },

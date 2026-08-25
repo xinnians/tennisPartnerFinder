@@ -5,6 +5,9 @@ const EMPTY_MOCK_DATA_MODULE = new URL("./src/mockData.empty.js", import.meta.ur
 const MOCK_DATA_IMPORT = /^(?:.*\/)?mockData\.js$/;
 
 export default defineConfig(({ command, mode }) => ({
+  define: {
+    __TENNIS_E2E_TEST_HOOKS__: JSON.stringify(command !== "build" || mode !== "production"),
+  },
   plugins: [react()],
   resolve:
     command === "build" && mode === "production"

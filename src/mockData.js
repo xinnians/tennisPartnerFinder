@@ -301,8 +301,9 @@ export const MOCK_SESSIONS = [
   },
 ];
 
-const sessionTaint = globalThis.__tennisE2ETestHooks?.mockData?.sessionTaint;
+const sessionTaint = getE2ETestHooks()?.mockData?.sessionTaint;
 if (sessionTaint && typeof sessionTaint === "object") {
   MOCK_SESSIONS.forEach((session) => Object.assign(session, sessionTaint));
   sessionTaint.appliedCount = MOCK_SESSIONS.length;
 }
+import { getE2ETestHooks } from "./e2eTestHooks.ts";

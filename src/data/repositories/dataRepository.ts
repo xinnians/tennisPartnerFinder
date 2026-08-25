@@ -1,5 +1,7 @@
 import { LAUNCH_CITY } from "../../config.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { getE2ETestHooks } from "../../e2eTestHooks.ts";
 import {
   COURTS,
   MOCK_PLAYER_PRESENCE,
@@ -82,10 +84,6 @@ interface MockDataTestHook {
   failuresRemaining?: number;
 }
 
-type TestHookGlobal = typeof globalThis & {
-  __tennisE2ETestHooks?: { dataApi?: Record<string, MockDataTestHook> };
-};
-
 interface RepositoryOptions {
   client?: SupabaseClient<RepositoryDatabase> | null;
   configured?: boolean;
@@ -141,7 +139,7 @@ function rowsOrEmpty<Row>(value: Row[] | null): Row[] {
 }
 
 async function runMockDataTestHook(name: string): Promise<void> {
-  const hook = (globalThis as TestHookGlobal).__tennisE2ETestHooks?.dataApi?.[name];
+  const hook = getE2ETestHooks<{ dataApi?: Record<string, MockDataTestHook> }>()?.dataApi?.[name];
   if (!hook) return;
   hook.consumedCount = (hook.consumedCount ?? 0) + 1;
   const delayMs = Number(hook.delayMs);

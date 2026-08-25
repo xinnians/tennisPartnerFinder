@@ -115,6 +115,7 @@ test("browser fixtures intercept every Google-hosted avatar without bypassing fa
 test("production alias excludes mockData through every relative import shape", () => {
   assert.equal(typeof createViteConfig, "function");
   const production = createViteConfig({ command: "build", mode: "production" });
+  assert.equal(production.define?.__TENNIS_E2E_TEST_HOOKS__, "false");
   const aliases = production.resolve?.alias;
   assert.equal(aliases?.length, 1);
   const [{ find, replacement }] = aliases;
@@ -131,6 +132,7 @@ test("production alias excludes mockData through every relative import shape", (
   assert.match(replacement, /\/src\/mockData\.empty\.js$/);
 
   const development = createViteConfig({ command: "serve", mode: "development" });
+  assert.equal(development.define?.__TENNIS_E2E_TEST_HOOKS__, "true");
   assert.equal(development.resolve, undefined, "development and mock harness must retain the full fixture");
 });
 
