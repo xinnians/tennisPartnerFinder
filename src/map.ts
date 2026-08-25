@@ -182,21 +182,29 @@ export function loadGoogleMaps(
   loadPromise = new Promise((resolve, reject) => {
     const resolveWithMarkerLibrary = () => {
       const google = window.google;
-      if (!GOOGLE_MAPS_MAP_ID || typeof google?.maps?.importLibrary !== "function") {
+      if (!GOOGLE_MAPS_MAP_ID) {
         resolve(google);
+        return;
+      }
+      if (typeof google?.maps?.importLibrary !== "function") {
+        loadPromise = null;
+        reject(new Error("Google Maps Advanced Marker library 不可用"));
         return;
       }
       Promise.resolve(google.maps.importLibrary("marker"))
         .then((library) => {
-          AdvancedMarkerElement =
+          const markerConstructor =
             typeof library === "object" && library !== null && "AdvancedMarkerElement" in library
               ? ((library as { AdvancedMarkerElement?: AdvancedMarkerConstructor }).AdvancedMarkerElement ?? null)
               : null;
+          if (!markerConstructor) throw new Error("AdvancedMarkerElement 未提供");
+          AdvancedMarkerElement = markerConstructor;
           resolve(google);
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           AdvancedMarkerElement = null;
-          resolve(google);
+          loadPromise = null;
+          reject(new Error("Google Maps Advanced Marker library 載入失敗", { cause: error }));
         });
     };
     if (window.google?.maps) {
