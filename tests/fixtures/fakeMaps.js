@@ -236,6 +236,24 @@ const fakeMapsScript = `
       this.el.addEventListener(event === "gmp-click" ? "click" : event, callback);
     }
 
+    get anchorLeft() {
+      return this._anchorLeft;
+    }
+
+    set anchorLeft(value) {
+      this._anchorLeft = value;
+      this.el.style.marginLeft = value;
+    }
+
+    get anchorTop() {
+      return this._anchorTop;
+    }
+
+    set anchorTop(value) {
+      this._anchorTop = value;
+      this.el.style.marginTop = value;
+    }
+
     get map() {
       return this._map;
     }
