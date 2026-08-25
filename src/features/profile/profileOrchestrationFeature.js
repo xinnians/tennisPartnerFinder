@@ -216,6 +216,7 @@ async function applyAuthCandidate(session) {
   dependencies.invalidateAuthRequests();
   // Account classification belongs to the controller; same-account token refreshes stay light.
   dependencies.setAuthSession(session);
+  dependencies.reconcilePageRouteOwner?.();
   if (!session) {
     dependencies.resetPresenceTracking();
     dependencies.setProfile(dependencies.defaultProfile());

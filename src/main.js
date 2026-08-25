@@ -434,6 +434,7 @@ configureProfileOrchestrationFeature({
   localDemoUnavailable: LOCAL_DEMO_UNAVAILABLE,
   openLoginModal,
   openProfileCompletionSheet,
+  reconcilePageRouteOwner,
   reconcilePresenceTracking,
   resetNotificationSettings: () => {
     notificationSettings = defaultNotificationSettings();
@@ -646,6 +647,17 @@ function routeCurrentHash() {
   if (page === "me") showMePage({ historyMode: "none" });
 }
 
+function reconcilePageRouteOwner() {
+  const pageOwnerIdentity = globalThis.history?.state?.pageOwnerIdentity;
+  if (
+    pageFromHash(globalThis.location?.hash) &&
+    pageOwnerIdentity &&
+    pageOwnerIdentity !== authIdentity(getAppState().authSession)
+  ) {
+    showMapPage({ historyMode: "replace" });
+  }
+}
+
 function renderBaseCourtPins() {
   if (!google || !map) return;
   courtMarkers = renderCourtBasePins(
@@ -718,14 +730,6 @@ async function boot() {
   bootAuthReady = restoreAuth();
   const routeStartup = routeCurrentHash();
   await bootAuthReady;
-  const pageOwnerIdentity = globalThis.history?.state?.pageOwnerIdentity;
-  if (
-    pageFromHash(globalThis.location?.hash) &&
-    pageOwnerIdentity &&
-    pageOwnerIdentity !== authIdentity(getAppState().authSession)
-  ) {
-    showMapPage({ historyMode: "replace" });
-  }
   await Promise.all([publicStartup, routeStartup]);
 }
 
