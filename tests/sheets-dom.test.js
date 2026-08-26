@@ -55,6 +55,7 @@ async function loadSheets(t, vite) {
   const sheets = await import(url.href);
   sheets.configureSurfaceShellRenderer(host.mountSurfaceShell);
   sheets.configureSurfaceKeyboardRegistry(host.surfaceKeyboardRegistry);
+  sheets.configureSurfaceFocusRegistry(host.surfaceFocusRegistry);
   t.after(async () => {
     await act(async () => {
       host.installSurfaceHostRenderer(() => {});
@@ -211,6 +212,25 @@ domTest("零 focusable 時 Tab 由 surface 接住", async (t, vite) => {
   mounted.close({ restoreFocus: false });
 });
 
+domTest("首幀聚焦不覆寫 onMount 內的主動焦點", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  let intentionalTarget;
+  const mounted = mountSheet({
+    id: "intentional-focus-sheet",
+    label: "主動焦點",
+    html: '<button id="automatic-target">預設第一個</button><button id="intentional-target">主動目標</button>',
+    onMount({ surface }) {
+      intentionalTarget = surface.querySelector("#intentional-target");
+      intentionalTarget.focus();
+    },
+  });
+
+  const focusedAfterMount = document.activeElement;
+  mounted.close({ restoreFocus: false });
+
+  assert.equal(focusedAfterMount === intentionalTarget, true);
+});
+
 domTest("surface Escape 阻斷 bubble，全部關閉後不再 consume", async (t, vite) => {
   const { mountSheet } = await loadSheets(t, vite);
   let bubbled = 0;
@@ -320,7 +340,7 @@ domTest("關閉 sheet 依序還原新卡片、抽屜收合按鈕與 toggle 的�
   drawer.append(replacement);
 
   first.close();
-  assert.equal(document.activeElement, replacement);
+  const replacementTarget = document.activeElement;
 
   replacement.focus();
   const second = mountSheet({ id: "fallback-sheet", label: "fallback", html: "<button>關閉</button>" });
@@ -331,7 +351,7 @@ domTest("關閉 sheet 依序還原新卡片、抽屜收合按鈕與 toggle 的�
   drawer.append(collapse);
 
   second.close();
-  assert.equal(document.activeElement, collapse);
+  const collapseTarget = document.activeElement;
 
   collapse.remove();
   const toggleOpener = document.createElement("button");
@@ -348,7 +368,38 @@ domTest("關閉 sheet 依序還原新卡片、抽屜收合按鈕與 toggle 的�
   drawer.append(toggle);
 
   third.close();
-  assert.equal(document.activeElement, toggle);
+  const toggleTarget = document.activeElement;
+
+  assert.equal(replacementTarget === replacement, true);
+  assert.equal(collapseTarget === collapse, true);
+  assert.equal(toggleTarget === toggle, true);
+});
+
+domTest("非抽屜 restore target 消失後不回退到 drawer 控制項", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  const drawer = document.createElement("section");
+  drawer.id = "nearby-sessions-drawer";
+  const collapse = document.createElement("button");
+  collapse.dataset.testid = "drawer-collapse";
+  collapse.textContent = "收合";
+  const toggle = document.createElement("button");
+  toggle.id = "nearby-sessions-toggle";
+  toggle.textContent = "展開或收合附近球局";
+  drawer.append(collapse, toggle);
+  document.getElementById("app").append(drawer);
+
+  const opener = document.createElement("button");
+  opener.dataset.sessionId = "outside-drawer";
+  opener.textContent = "非抽屜卡片";
+  document.getElementById("page-content").append(opener);
+  opener.focus();
+  const mounted = mountSheet({ id: "non-drawer-sheet", label: "非抽屜", html: "<button>關閉</button>" });
+  opener.remove();
+
+  mounted.close();
+
+  assert.equal(document.activeElement === collapse, false);
+  assert.equal(document.activeElement === toggle, false);
 });
 
 domTest("React shell 與舊版 sheet、dialog 序列化 DOM byte-identical", async (t, vite) => {

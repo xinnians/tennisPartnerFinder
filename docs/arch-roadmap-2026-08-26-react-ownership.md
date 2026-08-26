@@ -192,10 +192,20 @@
     註解逐字搬遷;canary ×4 親手複跑;oracle 補洞 ×6（unit 344）;4C-1 三加固項
     交付（shell 錯不跳 cleanup 屬實質改善）。total gzip 餘 **1,517 B**
     （連兩批收緊）。4C-3 必交付：`focusableNodes` 兩份單源化。
-  - **4C-3**（狀態：已派工，`docs/arch-dispatch-2026-08-27-batch4C3-restore.md`）：
-    restore focus 三段 fallback（批 C2-2 修法逐字保真）＋rAF 首焦遷移＋
-    `focusableNodes` 單源化＋收尾——批 4 收官批;total gzip 餘 1,517 B
-    硬約束。
+  - **4C-3**（狀態：**ACCEPTED（2026-08-27）**，驗收紀錄
+    `docs/arch-reports/batch-4C3-restore-acceptance-2026-08-27.md`；對立審查
+    `docs/arch-reports/batch-4C3-adversarial-2026-08-27.md`；派工單
+    `docs/arch-dispatch-2026-08-27-batch4C3-restore.md`）：restore 單元
+    （descriptor 強型別＋`SurfaceFocusRegistry`）＋rAF 首焦（stack liveness
+    等價）＋`focusableNodes` 單源化；C2-2 修法 12 行逐字保真（diff exit 0）；
+    canary ×3 複跑；條件式 canary 指示被正確執行（e2e 不敏感未誤報，補
+    happy-dom 常駐封條）。total gzip 餘 1,465 B。test:local 兩輪紅分類完畢
+    （污染 253 筆＋負載型偶發），皆非本批迴歸。
+- **ACCEPTED 回填：批 4 全案完結**（4A `66c2920`／4B `aaab2c5`／4C-1 `05635c9`
+  ／4C-2 `1645569`／4C-3 本批）。`mountSurface` 五責任機制本體全入 React
+  surface system；`sheets.js` 134 行殘餘＝API facade＋bridge＋編排＋click 綁定
+  ＋`registerUnmount`＋WeakMap＋`openLoginModal`（批 6）。SessionDetailSheet
+  重 lazy 化＋manifest 單源化為附帶收益。
   原有 DOM、aria、testid 與焦點行為是凍結契約；`SurfaceHost` 的 `syncCommit`
   邊界凍結留批 5（A 群 `:80-81` 兩字面不動）。不在此批改 UX、不做「詳情取代
   drawer」。

@@ -3,7 +3,11 @@ import { createPortal } from "react-dom";
 
 import { getE2ETestHooks } from "../e2eTestHooks.ts";
 import { FOCUSABLE_SELECTOR } from "../focusableSelector.js";
-import { configureSurfaceKeyboardRegistry, configureSurfaceShellRenderer } from "../sheets.js";
+import {
+  configureSurfaceFocusRegistry,
+  configureSurfaceKeyboardRegistry,
+  configureSurfaceShellRenderer,
+} from "../sheets.js";
 import { syncCommit } from "../syncCommit.ts";
 
 export interface SurfaceContentLifecycle {
@@ -40,15 +44,27 @@ interface SurfaceShellEntry {
   rootElement: HTMLElement;
 }
 
+interface SurfaceRestoreTarget {
+  drawerId: string | null;
+  node: HTMLElement;
+  sessionId: string | null;
+}
+
 interface SurfaceKeyboardEntry {
   close(options?: { reason?: string; restoreFocus?: boolean }): void;
   onEscape?: () => unknown;
-  restoreFocus: unknown;
+  restoreFocus: SurfaceRestoreTarget | null;
   surface: HTMLElement;
 }
 
 interface SurfaceKeyboardRegistry {
   register(entry: SurfaceKeyboardEntry): () => void;
+}
+
+interface SurfaceFocusRegistry {
+  captureRestoreTarget(node: Element | null): SurfaceRestoreTarget | null;
+  focusInitial(entry: SurfaceKeyboardEntry): void;
+  restoreFocus(target: SurfaceRestoreTarget | null): void;
 }
 
 export interface SurfaceSlot {
@@ -73,6 +89,42 @@ function focusableNodes(surface: HTMLElement): HTMLElement[] {
   return [...surface.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
     (node) => !node.hasAttribute("hidden") && !node.closest("[hidden]")
   );
+}
+
+function captureRestoreTarget(node: Element | null): SurfaceRestoreTarget | null {
+  if (!(node instanceof HTMLElement)) return null;
+  const sessionId = node.dataset?.sessionId ?? null;
+  const drawer = node.closest("#nearby-sessions-drawer");
+  return { drawerId: drawer?.id ?? null, node, sessionId };
+}
+
+function resolveRestoreTarget(target: SurfaceRestoreTarget | null): HTMLElement | null {
+  if (!target) return null;
+  if (target.node?.isConnected) return target.node;
+  if (!target.sessionId) return null;
+  const scope = target.drawerId ? document.getElementById(target.drawerId) : document;
+  if (!scope) return null;
+  const restoredCard = [...scope.querySelectorAll<HTMLElement>("[data-session-id]")].find(
+    (node) => String(node.dataset.sessionId) === String(target.sessionId)
+  );
+  if (restoredCard) return restoredCard;
+  // An authoritative refresh can remove a public card while its detail and
+  // confirmation are still open. Return focus to the persistent drawer
+  // surface so closing those layers never leaves a keyboard user at body.
+  // 批 C2-2 fix round 1(review Important):這個 fallback 鏈原本(改動前)只有
+  // [data-nearby-dialog] [data-nearby-close] 一條,且是無條件套用——resolveRestoreTarget
+  // 是通用函式,任何 mountSheet/mountDialog(My Sessions 卡片開的 report/chat sheet 等,
+  // 完全跟抽屜無關)都會走到這裡。half 沒有 [data-nearby-dialog],批 C2-2 一度把
+  // 「收合」鈕/toggle 也加進同一條無條件 fallback,結果變成任何非抽屜 surface 的卡片
+  // 消失後關閉,焦點都會被無條件送去抽屜 toggle——擴散到抽屜以外、零測試覆蓋的規模。
+  // 修正:「收合」鈕/toggle 只在還原目標原本就屬於抽屜語境時使用(target.drawerId
+  // 有值,即 captureRestoreTarget 當初用 node.closest("#nearby-sessions-drawer")
+  // 命中);非抽屜語境維持修法前行為——只試 full 專屬選擇器,找不到就不移動焦點。
+  const drawerCloseFallback = target.drawerId
+    ? (scope.querySelector<HTMLElement>('[data-testid="drawer-collapse"]') ??
+      scope.querySelector<HTMLElement>("#nearby-sessions-toggle"))
+    : null;
+  return scope.querySelector<HTMLElement>("[data-nearby-dialog] [data-nearby-close]") ?? drawerCloseFallback;
 }
 
 function onSurfaceKeyDown(event: KeyboardEvent): void {
@@ -125,6 +177,23 @@ export const surfaceKeyboardRegistry: SurfaceKeyboardRegistry = {
       if (index >= 0) surfaceKeyboardStack.splice(index, 1);
       if (surfaceKeyboardStack.length === 0) document.removeEventListener("keydown", onSurfaceKeyDown, true);
     };
+  },
+};
+
+export const surfaceFocusRegistry: SurfaceFocusRegistry = {
+  captureRestoreTarget,
+  focusInitial(entry: SurfaceKeyboardEntry): void {
+    requestAnimationFrame(() => {
+      // Do not overwrite an intentional focus move made immediately after a
+      // surface opens (for example, a keyboard action selecting its primary
+      // CTA before the next animation frame).
+      if (surfaceKeyboardStack.includes(entry) && !entry.surface.contains(document.activeElement)) {
+        (focusableNodes(entry.surface)[0] ?? entry.surface).focus({ preventScroll: true });
+      }
+    });
+  },
+  restoreFocus(target: SurfaceRestoreTarget | null): void {
+    resolveRestoreTarget(target)?.focus({ preventScroll: true });
   },
 };
 
@@ -260,3 +329,4 @@ export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHan
 // sheets.js stays directly importable in Node; the eager browser SurfaceHost installs this bridge once.
 configureSurfaceShellRenderer(mountSurfaceShell);
 configureSurfaceKeyboardRegistry(surfaceKeyboardRegistry);
+configureSurfaceFocusRegistry(surfaceFocusRegistry);
