@@ -58,6 +58,8 @@
 
 ## 批 1：Messages-only 容器化試點（開工條件：批 0.5 生效）
 
+- 狀態：已派工（2026-08-26，派工單 `docs/arch-dispatch-2026-08-26-batch1-messages.md`；
+  開工條件已於同日達成）。
 - 目標：建立「React 頁面直接訂閱 store＋feature 限定 typed action hook」可複製樣板，
   證明接線真的變少。範圍明細以覆核文件 §5「批 1」為底（接線鏈已逐檔驗證），
   派工單開單時以當日 HEAD 重驗行號。
