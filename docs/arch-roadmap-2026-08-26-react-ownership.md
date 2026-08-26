@@ -161,7 +161,8 @@
   lazyPages／navDestinations named scan、`:179` 引檔內清單）；manifest 欄位 6→8；
   四組 canary 三拍驗收方全數獨立複跑。navDestinations 結構弱化由
   `performance.spec.js:207-214` 行為 oracle 承接（驗收註記）。
-- **4B**：SessionDetailSheet（835 行，`main.js:88` eager import）重 lazy 化。eager 的
+- **4B**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch4B-detail-lazy.md`）：
+  SessionDetailSheet（835 行，`main.js:88` eager import）重 lazy 化。eager 的
   原始理由（`00d016e`：讓 sessionViews.js 保持 Node-importable 的 import 拓撲）已隨
   adapter 退役失效；阻礙＝`openSessionSheet` 是唯一未走 `deferSurfaceOpen` 的 open，
   且 `mountSheet({ onEscape })` 需要同步取得 `content?.handleEscape()`。對齊其餘
