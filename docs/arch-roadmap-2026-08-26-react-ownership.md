@@ -81,10 +81,19 @@
   模式可複製性判斷留給批 2 選頁。
 - ACCEPTED 回填：（待）
 
-## 批 2：選第二頁（開工條件：批 1 ACCEPTED；三選一由批 1 驗收報告決定）
+## 批 2：MySessions（2026-08-26 拍板；切 2A／2B）
 
-- 候選：Me（高 callback、高設定密度）／NearbyDrawer（focus intent、高頻 store 更新）／
-  MySessions（最大 action surface 與生命週期）。一次只加一種新複雜度。
+- 選頁拍板：**MySessions**（同 `mySessions` channel 樣板複製最直接、刪最大 options bag
+  對 bundle 最有利）。因同時涉及兩種新複雜度，切子批：
+- **批 2A**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch2A-mysessions.md`）：
+  資料 7 欄＋16 個 action 欄（14 個 controller 方法）單源化（hooks 自 `ControllerApi`
+  切片）、options bag 31→8、28 個白箱直呼點改寫；pageViewStore 與 adapter 不動。
+  新複雜度＝最大 action surface。
+- **批 2B**（2A ACCEPTED 後開單）：pageViewStore／app 層服務的 provider 承載設計、
+  焦點意圖管道（`scheduleMySessionsCreatedFocus` rAF）重落地、adapter 退役。
+  新複雜度＝第二 store 與命令式焦點管道。
+- 風險註記：MySessionsPage lazy chunk gzip 僅餘 566 B（全庫最緊）、main 餘 748 B；
+  hooks 放 provider（main chunk），並以刪除 21 欄接線碼對沖。
 - ACCEPTED 回填：（待）
 
 ## 批 3：頁面 ownership 收斂
