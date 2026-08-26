@@ -171,10 +171,20 @@
   （code-splitting 固有成本，如實記錄）。eagerModules 2→1、lazySheets 13→14。
   hosted QA 待辦：真機驗證 map pin hover 是否觸發 chunk 預熱
   （AdvancedMarker title 事件路徑 [不確定]）。
-- **4C**：殼五責任遷入 React surface system；一次一類 surface；原有 DOM、aria、testid
-  與焦點行為是凍結契約；`SurfaceHost.tsx:60` 的 `syncCommit` 邊界凍結留批 5
-  （A 群 `:80-81` 兩個 `commitSynchronously` 字面不動）。不在此批改 UX、不做
-  「詳情取代 drawer」。死 export 隨 4C 刪。
+- **4C**（切三段，2026-08-27 拍板：一次一責任、全 14 surface 共用碼徑同步移轉，
+  不採雙殼並存——殼是單一 `mountSurface`＋單一 stack，雙殼會生暫態雙 keydown／
+  雙 isolation 協調問題；遷移順序採 4B 回報 §9.5）：
+  - **4C-1**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch4C1-shell.md`）：
+    殼 DOM 進 React（SurfaceHost 渲染、`commitSynchronously` 同步 commit、DOM
+    byte-identical parity 為驗收條件）＋close／replacement／unmount 時序＋
+    isolation＋死 export 刪＋E 群改寫＋`react-migration.md` 舊條文修正；keydown
+    ／restore／rAF 聚焦留 imperative 零語意變更。
+  - **4C-2**：surface stack＋topmost Escape＋Tab focus trap 遷 React（同屬
+    keydown listener，一批處理避免兩批動同一 listener）。
+  - **4C-3**：restore focus 三段 fallback（批 C2-2 修法不可退步）＋收尾。
+  原有 DOM、aria、testid 與焦點行為是凍結契約；`SurfaceHost` 的 `syncCommit`
+  邊界凍結留批 5（A 群 `:80-81` 兩字面不動）。不在此批改 UX、不做「詳情取代
+  drawer」。
 - 已知髒點（批 5 處理，批 4 不動）：`react-surface-lifecycle.test.js:94` 標題
   `"three approved callers"` 與 `:109` 現值 2 元素不一致。
 - ACCEPTED 回填：（待）
