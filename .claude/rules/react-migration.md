@@ -36,6 +36,15 @@ paths:
 3. MIG-06 正式翻案：四主分頁狀態納入 URL／history，理由是支援深連結、重整保位與返回鍵語意。`#/session/:id` 命名空間逐字保留且優先於分頁 route；四主分頁使用與既有首頁 anchor 相容的 `#tab-map`、`#tab-my-sessions`、`#tab-messages`、`#tab-me`，由應用程式明確接管。
 4. 本次不解凍 `data-testid`、既有 e2e 斷言、文案、同步 commit 邊界與 `dataApi` 邊界；這些契約仍是一票否決。
 
+## React ownership 分批解凍（2026-08-26）
+
+1. adapter 簽名與 e2e 直呼點的凍結改為依批解凍：僅當某批派工單明列該 adapter 於解凍清單時，該 adapter 的簽名、直呼點與對應白箱斷言才解凍；未到指定批次前仍視為凍結。
+2. 批 1（Messages）先行解凍 `mountMessagesDestination` options bag、`pageViews.js` 的 `renderMessagesPage` bridge、`App.tsx` 的 `renderMessagesPageInApp` 與 MessagesPage props fallback 雙源；其餘頁面與 sheet 的 adapter 仍凍結。
+3. 允許把「以 adapter 為 harness」的既有 e2e 測試改寫為 UI 驅動，但行為 oracle（焦點還原、Escape、可見性等斷言語意）不得弱化或刪除。
+4. 批 4 才解凍 `mountSheet` 專有 surface 殼：backdrop、focus trap、Escape、surface stack、關閉與焦點回復允許遷入 React surface system；批 4 之前仍凍結。
+5. 批 5 才解凍 imperative handle 的 `flushSync`／同步 commit 契約並允許逐 caller 退役；每移除一個須以原始 race／focus 測試驗證，留存者需書面理由。
+6. 本次不解凍 `data-testid`、id、class、aria、文案與既有 e2e 斷言 oracle 語意、`dataApi` 邊界與隱私 allowlist；production bundle gate 不得任意放寬。這些契約仍是一票否決，任何批不得變更。
+
 ## Sheet 批固定模式
 
 1. factory 的公開簽名、預設值與 imperative handle 方法集合／payload／同步語意凍結；handle 推 React state 時以 `flushSync` commit，呼叫返回前 DOM 必須已更新。

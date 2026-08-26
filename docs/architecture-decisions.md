@@ -1,6 +1,6 @@
 # 前端架構決策索引
 
-更新日期：2026-08-24
+更新日期：2026-08-26
 
 本頁把五份歷史文件的 32 個決策條目收斂成可追溯索引。為保留原始脈絡，跨來源重複的
 未盡事項仍各列一行；狀態只使用「生效」、「已翻案」、「已終結」。日期是原決策日期，
@@ -40,6 +40,10 @@
 | NP-04 | CSS `@layer` 裁決不翻案。 | 生效 | 2026-08-22 | [母派工單：不派工](arch-dispatch-2026-08-22-frontend.md#不派工需使用者先拍板或明確不做) |
 | NP-05 | 桌面雙欄版面先查 analytics 裝置比例再決定。 | 生效 | 2026-08-22 | [母派工單：不派工](arch-dispatch-2026-08-22-frontend.md#不派工需使用者先拍板或明確不做) |
 | NP-06 | 不做 Next.js、SSR 或一次重寫。 | 生效 | 2026-08-22 | [母派工單：不派工](arch-dispatch-2026-08-22-frontend.md#不派工需使用者先拍板或明確不做) |
+| RO-01 | 不新增 React-to-legacy portal adapter；存量 adapter 以逐批退役為方向。 | 生效 | 2026-08-26 | [React ownership 路線圖：批 0.5](arch-roadmap-2026-08-26-react-ownership.md#批-05新碼邊界-adr分批解凍) |
+| RO-02 | 不新增依賴同步 DOM commit 才能工作的公開 adapter；現有 3 個 `syncCommit` caller 屬存量，依批 5 逐個退役、允許有書面理由的殘留。 | 生效 | 2026-08-26 | [React ownership 路線圖：批 0.5](arch-roadmap-2026-08-26-react-ownership.md#批-05新碼邊界-adr分批解凍) |
+| RO-03 | 不新增未受 strict TypeScript 檢查的核心 controller 模組。 | 生效 | 2026-08-26 | [React ownership 路線圖：批 0.5](arch-roadmap-2026-08-26-react-ownership.md#批-05新碼邊界-adr分批解凍) |
+| RO-04 | native browser／Maps event listener 仍可使用；禁止的是為 legacy DOM bridge 新增的 listener。 | 生效 | 2026-08-26 | [React ownership 路線圖：批 0.5](arch-roadmap-2026-08-26-react-ownership.md#批-05新碼邊界-adr分批解凍) |
 
 ## 狀態判讀
 

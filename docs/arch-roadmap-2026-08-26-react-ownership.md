@@ -41,8 +41,11 @@
 - 批次嚴格依序、不平行；退件走補件派工單（`-followup` 後綴）；每批 ACCEPTED 後回填本檔狀態欄。
 - 派工單必含：Ground truth（開單時實測）、作法要求、不在範圍、收尾標準矩陣、回報合約、BLOCKED 判準。
 
-## 批 0.5：新碼邊界 ADR＋分批解凍（狀態：已派工，派工單 `docs/arch-dispatch-2026-08-26-batch0.5.md`）
+## 批 0.5：新碼邊界 ADR＋分批解凍
 
+- 狀態：**ACCEPTED（2026-08-26）**，負責人同日核准條文生效；驗收紀錄
+  `docs/arch-reports/batch-0.5-acceptance-2026-08-26.md`（派工單
+  `docs/arch-dispatch-2026-08-26-batch0.5.md`）。
 - 純文件批，只動 `docs/architecture-decisions.md`（新增 RO 系列 ADR）與
   `.claude/rules/react-migration.md`（追加分批解凍節）。零 `src/`／`tests/` 變更。
 - 新碼邊界四條：不新增 React-to-legacy portal adapter；不新增依賴同步 DOM commit 的公開
