@@ -1,4 +1,3 @@
-import { esc } from "./util.js";
 import { pushSurfaceIsolation } from "./modalIsolation.js";
 import { AUTH_LINE_PROVIDER_ID } from "./config.js";
 import { FOCUSABLE_SELECTOR } from "./focusableSelector.js";
@@ -7,6 +6,11 @@ const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
 const surfaces = new WeakMap();
 const surfaceStack = [];
+let mountReactSurfaceShell = null;
+
+export function configureSurfaceShellRenderer(renderer) {
+  mountReactSurfaceShell = renderer;
+}
 
 function focusableNodes(surface) {
   return [...surface.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
@@ -55,15 +59,9 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
   // opener rather than the card about to be removed with the old surface.
   const previousFocus = active?.restoreFocus ?? captureRestoreTarget(document.activeElement);
   closeSurface(root, { reason: "replace", restoreFocus: false });
-  root.innerHTML = `
-    <div class="surface-backdrop" data-surface-dismiss></div>
-    <section id="${esc(id)}" data-testid="${esc(id)}" class="surface ${esc(className)}" role="dialog" aria-modal="true" aria-label="${esc(
-      label
-    )}" tabindex="-1">
-      ${html}
-    </section>`;
-
-  const surface = root.querySelector(".surface");
+  if (!mountReactSurfaceShell) throw new Error("Surface shell React renderer is unavailable.");
+  const shell = mountReactSurfaceShell(root, { className, html, id, label });
+  const { surface } = shell;
   const releaseIsolation = pushSurfaceIsolation(root);
   let closed = false;
   let unmountContent = null;
@@ -90,7 +88,7 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
       unmountError = error;
     }
     unmountContent = null;
-    root.innerHTML = "";
+    shell.unmount();
     surfaces.delete(root);
     onClose?.({ reason });
     if (restoreFocus) resolveRestoreTarget(previousFocus)?.focus({ preventScroll: true });
@@ -169,14 +167,6 @@ export function mountSheet(options) {
 /** Mount a focus-trapped confirmation or sign-in dialog. */
 export function mountDialog(options) {
   return mountSurface(modalRoot(), { ...options, className: `surface--dialog ${options.className ?? ""}`.trim() });
-}
-
-export function closeSheet() {
-  closeSurface(sheetRoot());
-}
-
-export function closeModal() {
-  closeSurface(modalRoot());
 }
 
 let mountLoginModalContent = null;

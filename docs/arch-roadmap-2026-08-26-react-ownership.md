@@ -174,11 +174,16 @@
 - **4C**（切三段，2026-08-27 拍板：一次一責任、全 14 surface 共用碼徑同步移轉，
   不採雙殼並存——殼是單一 `mountSurface`＋單一 stack，雙殼會生暫態雙 keydown／
   雙 isolation 協調問題；遷移順序採 4B 回報 §9.5）：
-  - **4C-1**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch4C1-shell.md`）：
-    殼 DOM 進 React（SurfaceHost 渲染、`commitSynchronously` 同步 commit、DOM
-    byte-identical parity 為驗收條件）＋close／replacement／unmount 時序＋
-    isolation＋死 export 刪＋E 群改寫＋`react-migration.md` 舊條文修正；keydown
-    ／restore／rAF 聚焦留 imperative 零語意變更。
+  - **4C-1**（狀態：**ACCEPTED（2026-08-27）**，驗收紀錄
+    `docs/arch-reports/batch-4C1-shell-acceptance-2026-08-27.md`；對立審查
+    `docs/arch-reports/batch-4C1-adversarial-2026-08-27.md`；派工單
+    `docs/arch-dispatch-2026-08-26-batch4C1-shell.md`）：殼 DOM 進 React
+    （SurfaceHost、DOM parity 硬編基線經 probe 實證）＋生命週期時序（canary ×3）
+    ＋isolation 平衡 oracle＋死 export 刪＋E 群改寫。React 19 leaf 例外核准
+    （dev-only console.error 但 zero-console-error oracle 會紅，15 portal 路徑
+    枚舉成立）。main gzip +352 餘 5,206 B；**total gzip 餘 1,703 B 現為最緊
+    gate，4C-2 硬約束**。4C-2 加固項：shell.unmount 拋錯 try/finally、
+    dangerous/leaf 規則入 react-migration.md。
   - **4C-2**：surface stack＋topmost Escape＋Tab focus trap 遷 React（同屬
     keydown listener，一批處理避免兩批動同一 listener）。
   - **4C-3**：restore focus 三段 fallback（批 C2-2 修法不可退步）＋收尾。

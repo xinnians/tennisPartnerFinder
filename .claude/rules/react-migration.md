@@ -48,6 +48,6 @@ paths:
 ## Sheet 批固定模式
 
 1. factory 的公開簽名、預設值與 imperative handle 方法集合／payload／同步語意凍結；handle 推 React state 時以 `flushSync` commit，呼叫返回前 DOM 必須已更新。
-2. `mountSheet` 專有 surface 殼：backdrop、focus trap、Escape、surface stack、關閉與焦點回復都不搬進 React；React 只掛進殼內既有的內容槽，且不得跨界改寫 sheet root。
+2. （2026-08-27，批 4 起）殼依「React ownership 分批解凍」第 4 條遷入 React surface system；React content 不得跨界改寫 sheet root 的原則保留。
 3. sheet 元件放在 `src/sheets/<SheetName>.tsx`。adapter 留在原 factory 模組，負責把 legacy callbacks 接到 React 內容與既有 surface handle；格式化／presentation helper 保持單一來源。
 4. 局部狀態切換只更新有關子樹；其餘內容以穩定 props、memo 或等價方式維持 DOM identity，避免抹掉非目標區域的焦點與選字。DOM、全域 class、文案及 aria 契約仍依頁面批規則凍結。

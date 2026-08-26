@@ -153,11 +153,11 @@ test("AppShell preserves navigation, toast, popover, and Escape accessibility co
   assert.match(INDEX, /<div id="toast-root" aria-live="polite" aria-atomic="true"><\/div>/);
 });
 
-test("surface close unmounts React before clearing DOM and remains idempotent", () => {
+test("surface close unmounts content before destroying its React shell and remains idempotent", () => {
   const unmount = SURFACES.indexOf("unmountContent?.();");
-  const clearDom = SURFACES.indexOf('root.innerHTML = "";', unmount);
+  const destroyShell = SURFACES.indexOf("shell.unmount();", unmount);
   assert.ok(unmount >= 0, "surface close never calls its registered React unmount");
-  assert.ok(clearDom > unmount, "surface close clears DOM before React can clean up");
+  assert.ok(destroyShell > unmount, "surface close destroys its React shell before content can clean up");
   assert.match(SURFACES, /if \(closed\) return;/);
   assert.match(SURFACES, /return \{ root, surface, close, registerUnmount \};/);
 });
