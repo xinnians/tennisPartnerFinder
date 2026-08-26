@@ -92,9 +92,10 @@
   資料 7 欄＋16 個 action 欄（14 個 controller 方法）單源化（hooks 自 `ControllerApi`
   切片）、options bag 31→8、28 個白箱直呼點改寫；pageViewStore 與 adapter 不動。
   新複雜度＝最大 action surface。
-- **批 2B**（2A ACCEPTED 後開單）：pageViewStore／app 層服務的 provider 承載設計、
-  焦點意圖管道（`scheduleMySessionsCreatedFocus` rAF）重落地、adapter 退役。
-  新複雜度＝第二 store 與命令式焦點管道。
+- **批 2B**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch2B-mysessions.md`）：
+  AppServices 擴充承載 `pageViewStore`＋4 個 app callback、焦點 rAF 管道 React 化
+  收斂單源、MySessions adapter 全鏈退役（含 2A 三個移交觀察）。
+  新複雜度＝第二 store 與命令式焦點管道。MePage 的 pageViewStore 路徑不動。
 - 風險註記：MySessionsPage lazy chunk gzip 僅餘 566 B（全庫最緊）、main 餘 748 B；
   hooks 放 provider（main chunk），並以刪除 21 欄接線碼對沖。
 - ACCEPTED 回填：（待）
