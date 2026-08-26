@@ -304,17 +304,7 @@ function renderPlayerLayer(view) {
 }
 
 function mountNearbyDestination() {
-  renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
-    authenticated: Boolean(getAppState().authSession),
-    onExpandBounds: controller.expandBounds,
-    onOpenCreate: controller.openCreateIntent,
-    onOpenSession: controller.openSession,
-    onReset: controller.resetFilters,
-    onRetry: controller.retryDiscovery,
-    onSubscribe: () => showMePage({ focusNotificationSettings: true }),
-    onToggle: controller.setDrawerState,
-    sessionStore: controller.sessionStore,
-  });
+  renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"));
 }
 
 function renderDiscovery(view) {
@@ -717,6 +707,9 @@ function init() {
       },
       onEnablePush: enablePushNotifications,
       onSignIn: () => openSafeLogin({ action: "my-sessions" }),
+    },
+    nearbyDrawerApp: {
+      onSubscribe: () => showMePage({ focusNotificationSettings: true }),
     },
     pageViewStore,
   });

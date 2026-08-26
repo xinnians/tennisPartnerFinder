@@ -1,12 +1,14 @@
 import { Fragment, useEffect, useLayoutEffect } from "react";
 
+import {
+  useNearbyDrawerActions,
+  useNearbyDrawerAppActions,
+  useNearbyDrawerState,
+} from "../app/AppServicesProvider.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
-import type { ControllerEventName, SessionControllerState } from "../controllerContracts.ts";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
 import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionPresentation.ts";
-import { selectControllerMapView } from "../sessionSelectors.ts";
-import { useStoreSelector, type Store } from "../sessionStore.ts";
 import { taipeiClock } from "../taipeiTime.js";
 
 type NearbySession = Partial<SessionSummary>;
@@ -15,35 +17,13 @@ interface NearbyCourt extends CourtSummary {
   district?: string;
 }
 
-interface DrawerFilters {
-  band?: string;
-  dateKey?: string | null;
-  districts?: Set<string> | string[];
-  instantOnly?: boolean;
-  types?: Set<string> | string[];
-}
-
 interface DrawerMapStatus {
   kind?: string;
   message?: string;
 }
 
 export interface NearbySessionsDrawerOptions {
-  courts?: NearbyCourt[];
-  drawerState?: string;
-  filters?: DrawerFilters | null;
-  hasUserLocation?: boolean;
-  mapStatus?: DrawerMapStatus | null;
-  onExpandBounds?: () => unknown;
-  onOpenCreate?: () => unknown;
-  onOpenSession?: (sessionId?: string) => unknown;
-  onReset?: () => unknown;
-  onRetry?: () => unknown;
-  onSubscribe?: () => unknown;
-  onToggle?: (state: string) => unknown;
   rootElement?: HTMLElement;
-  sessions?: NearbySession[];
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
   onStoreCommit?: () => void;
   onBeforeStoreChange?: () => void;
 }
@@ -206,21 +186,11 @@ function DrawerContent({
 }
 
 export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
-  const subscribed = useStoreSelector(
-    options.sessionStore,
-    "map",
-    selectControllerMapView,
-    null,
+  const { courts, drawerState, filters, hasUserLocation, mapStatus, sessions } = useNearbyDrawerState(
     options.onBeforeStoreChange
   );
-  const {
-    courts = [],
-    drawerState = "collapsed",
-    filters = null,
-    hasUserLocation = false,
-    mapStatus = { kind: "idle", message: "" },
-    sessions = [],
-  } = subscribed ?? options;
+  const { onExpandBounds, onOpenCreate, onOpenSession, onReset, onRetry, onToggle } = useNearbyDrawerActions();
+  const { onSubscribe } = useNearbyDrawerAppActions();
   useLayoutEffect(() => {
     options.onStoreCommit?.();
   });
@@ -232,7 +202,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
   const loading = resolvedMapStatus.kind === "loading";
   const error = resolvedMapStatus.kind === "error";
   const collapse = () => {
-    options.onToggle?.("collapsed");
+    onToggle("collapsed");
     requestAnimationFrame(() => {
       const root = options.rootElement;
       const toggle = root?.querySelector<HTMLElement>("#nearby-sessions-toggle");
@@ -273,7 +243,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
       if (pointerStart == null) return;
       const delta = pointerStart - event.clientY;
       pointerStart = null;
-      if (delta > 44 && !isOpen) options.onToggle?.("open");
+      if (delta > 44 && !isOpen) onToggle("open");
       else if (delta < -44 && isOpen) collapse();
     };
     root.addEventListener("pointerdown", handlePointerDown);
@@ -298,7 +268,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
           hidden={isOpen}
           aria-expanded={isOpen}
           aria-controls="nearby-sessions-list"
-          onClick={() => options.onToggle?.(isOpen ? "collapsed" : "open")}
+          onClick={() => onToggle(isOpen ? "collapsed" : "open")}
         >
           <span id="nearby-sessions-summary" className="visually-hidden">
             {summary}
@@ -320,7 +290,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
             className="nearby-peek__empty-toggle"
             aria-expanded={isOpen}
             aria-controls="nearby-sessions-list"
-            onClick={() => options.onToggle?.(isOpen ? "collapsed" : "open")}
+            onClick={() => onToggle(isOpen ? "collapsed" : "open")}
           >
             <span id="nearby-sessions-summary" className="visually-hidden">
               {summary}
@@ -328,16 +298,11 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
             <span aria-hidden="true">沒有符合的球局</span>
           </button>
           {filtersActive ? (
-            <button type="button" id="peek-reset" className="nearby-peek__reset" onClick={() => options.onReset?.()}>
+            <button type="button" id="peek-reset" className="nearby-peek__reset" onClick={() => onReset()}>
               重設篩選
             </button>
           ) : null}
-          <button
-            type="button"
-            id="peek-create"
-            className="nearby-peek__create"
-            onClick={() => options.onOpenCreate?.()}
-          >
+          <button type="button" id="peek-create" className="nearby-peek__create" onClick={() => onOpenCreate()}>
             開一場
           </button>
         </div>
@@ -391,12 +356,12 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
               filtersActive={filtersActive}
               loading={loading}
               mapStatus={resolvedMapStatus}
-              onExpandBounds={options.onExpandBounds}
-              onOpenCreate={options.onOpenCreate}
-              onOpenSession={options.onOpenSession}
-              onReset={options.onReset}
-              onRetry={options.onRetry}
-              onSubscribe={options.onSubscribe}
+              onExpandBounds={onExpandBounds}
+              onOpenCreate={onOpenCreate}
+              onOpenSession={onOpenSession}
+              onReset={onReset}
+              onRetry={onRetry}
+              onSubscribe={onSubscribe}
               sessions={sessions}
             />
           </div>

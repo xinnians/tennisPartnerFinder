@@ -205,9 +205,8 @@ test("batch 18 quiet discovery refresh preserves drawer scroll after restoring c
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { createSessionController } = await window.__importAppModule("sessionController");
     const { COURTS, MOCK_SESSIONS } = await window.__importAppModule("mockData");
-    const { renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
+    const { renderNearbyDrawerAppHarness } = await import("/tests/fixtures/nearbyDrawerAppHarness.tsx");
     document.getElementById("nearby-sessions-drawer")?.remove();
     const root = document.createElement("aside");
     root.id = "batch-18-drawer";
@@ -218,29 +217,25 @@ test("batch 18 quiet discovery refresh preserves drawer scroll after restoring c
       ...template,
       sessionId: 18000 + index,
     }));
-    const visibilityTarget = new EventTarget();
-    Object.defineProperty(visibilityTarget, "visibilityState", { value: "visible" });
     let discoveryLoads = 0;
-    const controller = createSessionController({
-      api: {
-        loadSessionDiscovery: async () => {
-          discoveryLoads += 1;
-          return sessions;
-        },
-      },
-      discoveryPollIntervalMs: 1_000_000,
-      visibilityTarget,
-      render: (view) => renderNearbySessionsDrawer(root, { ...view, courts: COURTS }),
+    const harness = renderNearbyDrawerAppHarness(root, {
+      courts: COURTS,
+      drawerState: "collapsed",
+      sessions: [],
     });
-    await controller.loadDiscovery();
-    controller.setDrawerState("open");
+    const publishDiscovery = () => {
+      discoveryLoads += 1;
+      harness.update({ sessions });
+    };
+    publishDiscovery();
+    harness.update({ drawerState: "open" });
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
     const scroll = root.querySelector(".nearby-drawer__scroll");
     const focusedCard = root.querySelectorAll("[data-session-id]")[8];
     focusedCard.focus({ preventScroll: true });
     scroll.scrollTop = 200;
-    window.__batch18QuietRefresh = () => visibilityTarget.dispatchEvent(new Event("visibilitychange"));
+    window.__batch18QuietRefresh = publishDiscovery;
     window.__batch18DiscoveryLoads = () => discoveryLoads;
   });
 
@@ -268,7 +263,7 @@ test("batch 18 drawer scroll memory covers first render, both v2 states, collaps
 
   const firstRender = await page.evaluate(async () => {
     const { COURTS, MOCK_SESSIONS } = await window.__importAppModule("mockData");
-    const { renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
+    const { renderNearbyDrawerAppHarness } = await import("/tests/fixtures/nearbyDrawerAppHarness.tsx");
     document.getElementById("nearby-sessions-drawer")?.remove();
     const root = document.createElement("aside");
     root.id = "batch-18-state-drawer";
@@ -278,10 +273,8 @@ test("batch 18 drawer scroll memory covers first render, both v2 states, collaps
       ...template,
       sessionId: 18100 + index,
     }));
-    const render = (drawerState, nextSessions = sessions) =>
-      renderNearbySessionsDrawer(root, { courts: COURTS, drawerState, sessions: nextSessions });
-
-    render("collapsed");
+    const harness = renderNearbyDrawerAppHarness(root, { courts: COURTS, drawerState: "collapsed", sessions });
+    const render = (drawerState, nextSessions = sessions) => harness.update({ drawerState, sessions: nextSessions });
     window.__batch18DrawerState = { render, sessions, template };
     return {
       hidden: root.querySelector("#nearby-sessions-list").hidden,
@@ -1147,8 +1140,9 @@ test("candidate session cards and details resolve every court until Boolean deci
   ];
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet, renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
-      renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"), {
+      const { openSessionSheet } = await window.__importAppModule("sessionViews");
+      const { renderNearbyDrawerAppHarness } = await import("/tests/fixtures/nearbyDrawerAppHarness.tsx");
+      renderNearbyDrawerAppHarness(document.getElementById("nearby-sessions-drawer"), {
         courts: catalogue,
         drawerState: "open",
         sessions: [session],

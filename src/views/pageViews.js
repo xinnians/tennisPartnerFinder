@@ -205,46 +205,13 @@ function restoreFocusedSessionCard(root) {
 }
 
 /** Render the map-bound peek strip and its two-state (collapsed/open) drawer. */
-export function renderNearbySessionsDrawer(
-  root,
-  {
-    sessions = [],
-    courts = [],
-    drawerState = "collapsed",
-    hasUserLocation = false,
-    mapStatus = { kind: "idle", message: "" },
-    filters = null,
-    authenticated = false, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-    onToggle = () => {},
-    onOpenSession = () => {},
-    onReset = () => {},
-    onExpandBounds = () => {},
-    onOpenCreate = () => {},
-    onRetry = () => {},
-    onSubscribe = () => {},
-    sessionStore,
-  } = {}
-) {
+export function renderNearbySessionsDrawer(root) {
   rememberFocusedSessionCard(root);
   if (!renderNearbySessionsDrawerInApp) throw new Error("NearbySessionsDrawer browser mount is unavailable.");
   renderNearbySessionsDrawerInApp(
     root,
     {
-      courts,
-      drawerState,
-      filters,
-      hasUserLocation,
-      mapStatus,
       onBeforeStoreChange: beforeDrawerStoreChange(root),
-      onExpandBounds,
-      onOpenCreate,
-      onOpenSession,
-      onReset,
-      onRetry,
-      onSubscribe,
-      onToggle,
-      sessions,
-      sessionStore,
     },
     () => {
       // Batch 18 invariant: the stable React drawer slot keeps the native

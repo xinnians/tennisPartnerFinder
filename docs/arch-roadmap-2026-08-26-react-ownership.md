@@ -106,7 +106,11 @@
 
 - 逐頁退役 page slot、snapshot options 與 `renderXInApp` adapter；React AppShell 直接擁有
   主頁面；controller／store 仍是 server state 權威。各頁 adapter 解凍由該頁派工單明列清單。
-- **批 3A**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3A-nearby.md`）：
+- **批 3A**（狀態：**ACCEPTED（2026-08-26，一次通過）**，驗收紀錄
+  `docs/arch-reports/batch-3A-nearby-acceptance-2026-08-26.md`；`__importAppModule`
+  新基準 119；main gzip −178 B 餘 1,109 B；焦點管道 canary 實證
+  `performance.spec.js:325/:342` 為載重測試——3B 搬管道前不得先改寫；派工單
+  `docs/arch-dispatch-2026-08-26-batch3A-nearby.md`）：
   NearbyDrawer 資料 6 欄＋action 7 欄 hooks 單源化（`"map"` channel＋
   `selectControllerMapView` 現成，零新 selector）、4 個測試直呼點改寫、
   補 `nearby-drawer-dom` 安全網；焦點管道（約 145 行 WeakMap 機制）與 adapter 不動。

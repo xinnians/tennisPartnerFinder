@@ -510,9 +510,10 @@ test("the filter sheet applies a district change immediately to the background d
   await page.goto("/");
 
   const firstSummary = await page.evaluate(async () => {
-    const { openFilterSheet, renderNearbySessionsDrawer } = await window.__importAppModule("sessionViews");
+    const { openFilterSheet } = await window.__importAppModule("sessionViews");
     const { MOCK_SESSIONS, COURTS } = await window.__importAppModule("mockData");
     const { filterSessions, DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
+    const { renderNearbyDrawerAppHarness } = await import("/tests/fixtures/nearbyDrawerAppHarness.tsx");
 
     // 獨立、脫離真實 controller publish 週期的抽屜節點：避免 mock 2.5 秒 discovery
     // delay 之後真實 controller 重繪蓋掉這裡的斷言，見 task-2-report concerns。
@@ -522,10 +523,15 @@ test("the filter sheet applies a district change immediately to the background d
 
     let testFilters = { ...DEFAULT_FILTER_STATE, types: new Set(), districts: new Set() };
     window.__filterSheetSummaries = [];
+    const drawerHarness = renderNearbyDrawerAppHarness(drawerRoot, {
+      courts: COURTS,
+      filters: testFilters,
+      sessions: filterSessions(MOCK_SESSIONS, testFilters),
+    });
     const renderDrawer = () => {
-      renderNearbySessionsDrawer(drawerRoot, {
+      drawerHarness.update({
         sessions: filterSessions(MOCK_SESSIONS, testFilters),
-        courts: COURTS,
+        filters: testFilters,
       });
       window.__filterSheetSummaries.push(drawerRoot.querySelector("#nearby-sessions-summary").textContent);
     };

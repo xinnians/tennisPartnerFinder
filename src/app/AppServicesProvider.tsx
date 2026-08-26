@@ -3,11 +3,12 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type {
   ControllerApi,
   ControllerIdentifier,
+  ControllerMapViewPayload,
   ControllerMySessionGroups,
   SessionControllerState,
 } from "../controllerContracts.ts";
 import type { PageNotificationSettings, PageViewState, PageViewStore } from "../pageViewStore.ts";
-import { selectControllerMySessionsView } from "../sessionSelectors.ts";
+import { selectControllerMapView, selectControllerMySessionsView } from "../sessionSelectors.ts";
 import { useStoreSelector } from "../sessionStore.ts";
 
 type MessagesServices = Pick<ControllerApi, "openSessionChat" | "sessionStore">;
@@ -19,9 +20,14 @@ export interface MySessionsAppActions {
   onSignIn(): unknown;
 }
 
+export interface NearbyDrawerAppActions {
+  onSubscribe(): unknown;
+}
+
 export interface AppServices {
   controller: ControllerApi;
   mySessionsApp: MySessionsAppActions;
+  nearbyDrawerApp: NearbyDrawerAppActions;
   pageViewStore: PageViewStore;
 }
 
@@ -36,6 +42,25 @@ export type MessagesState = Pick<SessionControllerState, "courts"> & {
 };
 
 export type MessagesActions = Pick<MessagesServices, "openSessionChat">;
+
+type NearbyDrawerServices = Pick<
+  ControllerApi,
+  "expandBounds" | "openCreateIntent" | "openSession" | "resetFilters" | "retryDiscovery" | "setDrawerState"
+>;
+
+export type NearbyDrawerState = Pick<
+  ControllerMapViewPayload,
+  "courts" | "drawerState" | "filters" | "hasUserLocation" | "mapStatus" | "sessions"
+>;
+
+export interface NearbyDrawerActions {
+  onExpandBounds: NearbyDrawerServices["expandBounds"];
+  onOpenCreate: NearbyDrawerServices["openCreateIntent"];
+  onOpenSession: NearbyDrawerServices["openSession"];
+  onReset: NearbyDrawerServices["resetFilters"];
+  onRetry: NearbyDrawerServices["retryDiscovery"];
+  onToggle: NearbyDrawerServices["setDrawerState"];
+}
 
 type MySessionsServices = Pick<
   ControllerApi,
@@ -93,6 +118,7 @@ export interface MySessionsActions {
 interface AppServicesContextValue {
   controller: ControllerApi;
   mySessionsApp?: MySessionsAppActions;
+  nearbyDrawerApp?: NearbyDrawerAppActions;
   pageViewStore?: PageViewStore;
 }
 
@@ -123,6 +149,11 @@ function selectMySessionsState(state: Readonly<SessionControllerState>): Omit<My
   };
 }
 
+function selectNearbyDrawerState(state: Readonly<SessionControllerState>): NearbyDrawerState {
+  const { courts, drawerState, filters, hasUserLocation, mapStatus, sessions } = selectControllerMapView(state);
+  return { courts, drawerState, filters, hasUserLocation, mapStatus, sessions };
+}
+
 function selectMySessionsPageView(state: Readonly<PageViewState>): MySessionsPageView {
   return {
     createdSessionFocusId: state.createdSessionFocusId,
@@ -135,16 +166,18 @@ export function AppServicesProvider({
   children,
   controller,
   mySessionsApp,
+  nearbyDrawerApp,
   pageViewStore,
 }: {
   children: ReactNode;
   controller: ControllerApi;
   mySessionsApp?: MySessionsAppActions;
+  nearbyDrawerApp?: NearbyDrawerAppActions;
   pageViewStore?: PageViewStore;
 }) {
   const services = useMemo(
-    () => ({ controller, mySessionsApp, pageViewStore }),
-    [controller, mySessionsApp, pageViewStore]
+    () => ({ controller, mySessionsApp, nearbyDrawerApp, pageViewStore }),
+    [controller, mySessionsApp, nearbyDrawerApp, pageViewStore]
   );
   return <AppServicesContext.Provider value={services}>{children}</AppServicesContext.Provider>;
 }
@@ -160,6 +193,43 @@ export function useMessagesState(): MessagesState {
 export function useMessagesActions(): MessagesActions {
   const { controller } = useAppServices();
   return useMemo(() => ({ openSessionChat: controller.openSessionChat }), [controller]);
+}
+
+/**
+ * `beforeStoreChange` temporarily preserves the legacy drawer focus pipeline.
+ * Batch 3B removes this pass-through when that pipeline moves behind the provider.
+ */
+export function useNearbyDrawerState(beforeStoreChange?: () => void): NearbyDrawerState {
+  const { sessionStore } = useAppServices().controller;
+  const current = sessionStore.getState();
+  return useStoreSelector(
+    sessionStore,
+    "map",
+    selectNearbyDrawerState,
+    selectNearbyDrawerState(current),
+    beforeStoreChange
+  );
+}
+
+export function useNearbyDrawerActions(): NearbyDrawerActions {
+  const { controller } = useAppServices();
+  return useMemo(
+    () => ({
+      onExpandBounds: controller.expandBounds,
+      onOpenCreate: controller.openCreateIntent,
+      onOpenSession: controller.openSession,
+      onReset: controller.resetFilters,
+      onRetry: controller.retryDiscovery,
+      onToggle: controller.setDrawerState,
+    }),
+    [controller]
+  );
+}
+
+export function useNearbyDrawerAppActions(): NearbyDrawerAppActions {
+  const { nearbyDrawerApp } = useAppServices();
+  if (!nearbyDrawerApp) throw new Error("NearbyDrawer app actions are unavailable.");
+  return nearbyDrawerApp;
 }
 
 export function useMySessionsState(): MySessionsState {
