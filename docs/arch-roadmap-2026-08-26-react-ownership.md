@@ -102,11 +102,17 @@
   hooks 放 provider（main chunk），並以刪除 21 欄接線碼對沖。
 - ACCEPTED 回填：（待）
 
-## 批 3：頁面 ownership 收斂
+## 批 3：頁面 ownership 收斂（NearbyDrawer 先、Me 後；Q3 前提已達成）
 
 - 逐頁退役 page slot、snapshot options 與 `renderXInApp` adapter；React AppShell 直接擁有
   主頁面；controller／store 仍是 server state 權威。各頁 adapter 解凍由該頁派工單明列清單。
-- 開工前：Q3 白箱測試治理底線彙總一次。
+- **批 3A**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3A-nearby.md`）：
+  NearbyDrawer 資料 6 欄＋action 7 欄 hooks 單源化（`"map"` channel＋
+  `selectControllerMapView` 現成，零新 selector）、4 個測試直呼點改寫、
+  補 `nearby-drawer-dom` 安全網；焦點管道（約 145 行 WeakMap 機制）與 adapter 不動。
+- **批 3B**（3A ACCEPTED 後開單）：drawer 焦點管道搬 strict TS＋adapter 退役＋
+  直接 portal 化。
+- **批 3C**（Me，壓軸）：800 行最高設定密度頁，複製前四頁樣板。
 - ACCEPTED 回填：（待）
 
 ## 批 4：Sheet 殼 React 化
