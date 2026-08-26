@@ -218,6 +218,10 @@
 - 逐個移除 `syncCommit` 剩餘兩個 caller（`sessionStore.ts`、`SurfaceHost.tsx`；
   `App.tsx` caller 已隨批 3C-2 slot 退役收掉），
   每移除一個都用原始 race／focus 測試驗證；允許「有書面理由的殘留」，不硬壓歸零。
+- （狀態：已派工，`docs/arch-dispatch-2026-08-27-batch5-synccommit.md`）審計
+  先行、條件式退役：殘留必須「移除即紅」實證、移除必須原始矩陣全綠；矩陣無
+  判別力時 BLOCKED 交裁決不強制移除;`:94` 標題髒點本批必修;全歸零分支連動
+  lifecycle `:15`／B 群改寫／三個 harness fixture import。
 - ACCEPTED 回填：（待）
 
 ## 批 6：核心 TypeScript 化＋大檔拆分
