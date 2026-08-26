@@ -114,8 +114,10 @@
   NearbyDrawer 資料 6 欄＋action 7 欄 hooks 單源化（`"map"` channel＋
   `selectControllerMapView` 現成，零新 selector）、4 個測試直呼點改寫、
   補 `nearby-drawer-dom` 安全網；焦點管道（約 145 行 WeakMap 機制）與 adapter 不動。
-- **批 3B**（3A ACCEPTED 後開單）：drawer 焦點管道搬 strict TS＋adapter 退役＋
-  直接 portal 化。
+- **批 3B**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3B-nearby.md`）：
+  drawer 焦點管道（約 150 行 WeakMap 機制）搬 strict TS 單一來源＋adapter 全鏈退役＋
+  直接 portal 化＋收 3A 三個移交觀察；`performance.spec.js:325/:342` 是遷移紅綠對照
+  的載重測試，凍結不得先改寫。
 - **批 3C**（Me，壓軸）：800 行最高設定密度頁，複製前四頁樣板。
 - ACCEPTED 回填：（待）
 
