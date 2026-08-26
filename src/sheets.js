@@ -5,11 +5,15 @@ import { FOCUSABLE_SELECTOR } from "./focusableSelector.js";
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
 const surfaces = new WeakMap();
-const surfaceStack = [];
 let mountReactSurfaceShell = null;
+let surfaceKeyboardRegistry = null;
 
 export function configureSurfaceShellRenderer(renderer) {
   mountReactSurfaceShell = renderer;
+}
+
+export function configureSurfaceKeyboardRegistry(registry) {
+  surfaceKeyboardRegistry = registry;
 }
 
 function focusableNodes(surface) {
@@ -60,12 +64,14 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
   const previousFocus = active?.restoreFocus ?? captureRestoreTarget(document.activeElement);
   closeSurface(root, { reason: "replace", restoreFocus: false });
   if (!mountReactSurfaceShell) throw new Error("Surface shell React renderer is unavailable.");
+  if (!surfaceKeyboardRegistry) throw new Error("Surface keyboard registry is unavailable.");
   const shell = mountReactSurfaceShell(root, { className, html, id, label });
   const { surface } = shell;
   const releaseIsolation = pushSurfaceIsolation(root);
   let closed = false;
   let unmountContent = null;
-  let surfaceEntry = null;
+  let unregisterSurfaceKeyboard = null;
+  let surfaceEntry;
   const registerUnmount = (unmount) => {
     if (typeof unmount !== "function") throw new TypeError("Surface unmount callback must be a function.");
     if (closed) {
@@ -77,9 +83,8 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
   const close = ({ reason = "dismiss", restoreFocus = true } = {}) => {
     if (closed) return;
     closed = true;
-    document.removeEventListener("keydown", onKeyDown, true);
-    const stackIndex = surfaceStack.indexOf(surfaceEntry);
-    if (stackIndex >= 0) surfaceStack.splice(stackIndex, 1);
+    unregisterSurfaceKeyboard?.();
+    unregisterSurfaceKeyboard = null;
     releaseIsolation();
     let unmountError = null;
     try {
@@ -88,52 +93,25 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
       unmountError = error;
     }
     unmountContent = null;
-    shell.unmount();
-    surfaces.delete(root);
-    onClose?.({ reason });
-    if (restoreFocus) resolveRestoreTarget(previousFocus)?.focus({ preventScroll: true });
+    let shellUnmountError = null;
+    try {
+      shell.unmount();
+    } catch (error) {
+      shellUnmountError = error;
+    } finally {
+      surfaces.delete(root);
+      onClose?.({ reason });
+      if (restoreFocus) resolveRestoreTarget(previousFocus)?.focus({ preventScroll: true });
+    }
+    if (unmountError && shellUnmountError) {
+      throw new AggregateError([unmountError, shellUnmountError], "Surface content and shell unmount failed.");
+    }
     if (unmountError) throw unmountError;
+    if (shellUnmountError) throw shellUnmountError;
   };
 
-  const onKeyDown = (event) => {
-    if (surfaceStack.at(-1) !== surfaceEntry) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      // The opener can still own focus until this surface's first animation
-      // frame. Consume Escape here so that same event cannot close an
-      // underlying drawer after this top surface restores its opener.
-      event.stopPropagation();
-      // 批 C3-2:join 單層化——sheet 內部可以有自己的「先退一步」語意(例如
-      // confirming 態的 Escape 應該退回 idle,而不是整張 sheet 關掉)。onEscape
-      // 若回傳 true 代表呼叫端已經自行處理過這次 Escape,這裡就不再呼叫 close()。
-      if (onEscape?.()) return;
-      close();
-      return;
-    }
-    if (event.key !== "Tab") return;
-
-    const nodes = focusableNodes(surface);
-    if (nodes.length === 0) {
-      event.preventDefault();
-      surface.focus();
-      return;
-    }
-    const first = nodes[0];
-    const last = nodes[nodes.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
-  surfaceEntry = { close, restoreFocus: previousFocus };
-  surfaceStack.push(surfaceEntry);
-  // Keep Escape and the tab loop scoped to the topmost surface even if a
-  // browser extension or an async state update moves focus to document.body.
-  document.addEventListener("keydown", onKeyDown, true);
+  surfaceEntry = { close, onEscape, restoreFocus: previousFocus, surface };
+  unregisterSurfaceKeyboard = surfaceKeyboardRegistry.register(surfaceEntry);
   root.querySelector("[data-surface-dismiss]")?.addEventListener("click", close);
   root.querySelectorAll("[data-surface-close]").forEach((button) => button.addEventListener("click", close));
   surfaces.set(root, surfaceEntry);
@@ -155,6 +133,8 @@ function closeSurface(root, { reason = "dismiss", restoreFocus = true } = {}) {
   if (active) {
     active.close({ reason, restoreFocus });
   } else {
+    // A registered React shell always has a surfaces entry. Reaching this
+    // branch means there is no live shell; clear only defensive stale DOM.
     root.innerHTML = "";
   }
 }

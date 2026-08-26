@@ -48,11 +48,13 @@ async function loadSheets(t, vite) {
   const sequence = ++sheetsModuleSequence;
   const host = await vite.ssrLoadModule(`/src/app/SurfaceHost.tsx?dom-test=${sequence}`);
   const reactRoot = createRoot(document.getElementById("react-test-root"));
-  host.installSurfaceHostRenderer((slots) => reactRoot.render(createElement(host.SurfaceHost, { slots })));
+  const renderSurfaceHost = (slots) => reactRoot.render(createElement(host.SurfaceHost, { slots }));
+  host.installSurfaceHostRenderer(renderSurfaceHost);
   const url = new URL("../src/sheets.js", import.meta.url);
   url.searchParams.set("dom-test", String(sequence));
   const sheets = await import(url.href);
   sheets.configureSurfaceShellRenderer(host.mountSurfaceShell);
+  sheets.configureSurfaceKeyboardRegistry(host.surfaceKeyboardRegistry);
   t.after(async () => {
     await act(async () => {
       host.installSurfaceHostRenderer(() => {});
@@ -60,11 +62,13 @@ async function loadSheets(t, vite) {
     });
     restoreDom();
   });
-  return sheets;
+  return { ...sheets, __surfaceHost: host };
 }
 
-function dispatchKey(key, options = {}) {
-  document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, ...options }));
+function dispatchKey(key, options = {}, target = document) {
+  const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key, ...options });
+  target.dispatchEvent(event);
+  return event;
 }
 
 function createViteHarness() {
@@ -106,13 +110,38 @@ domTest("Escape 只關閉最上層 surface", async (t, vite) => {
   const { mountDialog, mountSheet } = await loadSheets(t, vite);
   const sheet = mountSheet({ id: "底層-sheet", label: "底層", html: "<button>底層</button>" });
   const dialog = mountDialog({ id: "上層-dialog", label: "上層", html: "<button>上層</button>" });
+  try {
+    dispatchKey("Escape");
 
-  dispatchKey("Escape");
+    assert.equal(dialog.root.innerHTML, "");
+    assert.notEqual(sheet.root.innerHTML, "");
+    dispatchKey("Escape");
+    assert.equal(sheet.root.innerHTML, "");
+  } finally {
+    dialog.close({ restoreFocus: false });
+    sheet.close({ restoreFocus: false });
+  }
+});
 
-  assert.equal(dialog.root.innerHTML, "");
-  assert.notEqual(sheet.root.innerHTML, "");
-  dispatchKey("Escape");
-  assert.equal(sheet.root.innerHTML, "");
+domTest("onEscape 同步短路後保留 topmost surface", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  let escapeCalls = 0;
+  const mounted = mountSheet({
+    id: "escape-short-circuit-sheet",
+    label: "Escape 短路",
+    html: "<button>保留</button>",
+    onEscape() {
+      escapeCalls += 1;
+      return true;
+    },
+  });
+
+  const event = dispatchKey("Escape");
+
+  assert.equal(escapeCalls, 1);
+  assert.equal(event.defaultPrevented, true);
+  assert.notEqual(mounted.root.innerHTML, "");
+  mounted.close({ restoreFocus: false });
 });
 
 domTest("sheet 將 Tab 焦點限制在第一個與最後一個可互動控制項", async (t, vite) => {
@@ -125,13 +154,154 @@ domTest("sheet 將 Tab 焦點限制在第一個與最後一個可互動控制項
   const first = mounted.surface.querySelector("#first");
   const last = mounted.surface.querySelector("#last");
 
-  last.focus();
-  dispatchKey("Tab");
-  assert.equal(document.activeElement, first);
-  first.focus();
-  dispatchKey("Tab", { shiftKey: true });
-  assert.equal(document.activeElement, last);
-  mounted.close();
+  let forwardTarget;
+  let backwardTarget;
+  try {
+    last.focus();
+    dispatchKey("Tab");
+    forwardTarget = document.activeElement;
+    first.focus();
+    dispatchKey("Tab", { shiftKey: true });
+    backwardTarget = document.activeElement;
+  } finally {
+    mounted.close({ restoreFocus: false });
+  }
+  assert.equal(forwardTarget, first);
+  assert.equal(backwardTarget, last);
+});
+
+domTest("Tab trap 排除自身與祖先帶 hidden 的控制項", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  const mounted = mountSheet({
+    id: "hidden-focus-sheet",
+    label: "hidden focus",
+    html: `
+      <button id="visible-first">第一個</button>
+      <button id="visible-last">最後一個</button>
+      <button id="direct-hidden" hidden>直接隱藏</button>
+      <div hidden><button id="nested-hidden">祖先隱藏</button></div>`,
+  });
+  const first = mounted.surface.querySelector("#visible-first");
+  const last = mounted.surface.querySelector("#visible-last");
+
+  let forwardTarget;
+  let backwardTarget;
+  try {
+    last.focus();
+    dispatchKey("Tab");
+    forwardTarget = document.activeElement;
+    first.focus();
+    dispatchKey("Tab", { shiftKey: true });
+    backwardTarget = document.activeElement;
+  } finally {
+    mounted.close({ restoreFocus: false });
+  }
+  assert.equal(forwardTarget, first);
+  assert.equal(backwardTarget, last);
+});
+
+domTest("零 focusable 時 Tab 由 surface 接住", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  const mounted = mountSheet({ id: "empty-focus-sheet", label: "空焦點", html: "<p>沒有控制項</p>" });
+
+  const event = dispatchKey("Tab");
+
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(document.activeElement, mounted.surface);
+  mounted.close({ restoreFocus: false });
+});
+
+domTest("surface Escape 阻斷 bubble，全部關閉後不再 consume", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  let bubbled = 0;
+  const probe = () => {
+    bubbled += 1;
+  };
+  document.addEventListener("keydown", probe);
+  try {
+    const mounted = mountSheet({ id: "bubble-sheet", label: "bubble", html: "<button>關閉</button>" });
+    const consumed = dispatchKey("Escape", {}, mounted.surface);
+    assert.equal(consumed.defaultPrevented, true);
+    assert.equal(bubbled, 0);
+
+    const afterClose = dispatchKey("Escape", {}, document.body);
+    assert.equal(afterClose.defaultPrevented, false);
+    assert.equal(bubbled, 1);
+  } finally {
+    document.removeEventListener("keydown", probe);
+  }
+});
+
+domTest("replace 後單一 keydown listener 安裝與移除保持平衡", async (t, vite) => {
+  const { mountSheet } = await loadSheets(t, vite);
+  const addEventListener = document.addEventListener;
+  const removeEventListener = document.removeEventListener;
+  let captureAdds = 0;
+  let captureRemoves = 0;
+  document.addEventListener = function trackedAdd(type, listener, options) {
+    if (type === "keydown" && options === true) captureAdds += 1;
+    return addEventListener.call(this, type, listener, options);
+  };
+  document.removeEventListener = function trackedRemove(type, listener, options) {
+    if (type === "keydown" && options === true) captureRemoves += 1;
+    return removeEventListener.call(this, type, listener, options);
+  };
+  try {
+    mountSheet({ id: "before-replace-sheet", label: "替換前", html: "<button>舊</button>" });
+    const replacement = mountSheet({ id: "after-replace-sheet", label: "替換後", html: "<button>新</button>" });
+    replacement.close({ restoreFocus: false });
+
+    assert.equal(captureAdds, 2);
+    assert.equal(captureRemoves, 2);
+    assert.equal(dispatchKey("Escape", {}, document.body).defaultPrevented, false);
+  } finally {
+    document.addEventListener = addEventListener;
+    document.removeEventListener = removeEventListener;
+  }
+});
+
+domTest("shell 與 content 同時卸載失敗仍完成 close cleanup", async (t, vite) => {
+  const { __surfaceHost, configureSurfaceShellRenderer, mountSheet } = await loadSheets(t, vite);
+  configureSurfaceShellRenderer((root, options) => {
+    const shell = __surfaceHost.mountSurfaceShell(root, options);
+    return {
+      surface: shell.surface,
+      unmount() {
+        shell.unmount();
+        throw new Error("shell unmount failed");
+      },
+    };
+  });
+  const opener = document.createElement("button");
+  opener.textContent = "開啟者";
+  document.getElementById("page-content").append(opener);
+  opener.focus();
+  let closeCalls = 0;
+  const mounted = mountSheet({
+    id: "shell-error-sheet",
+    label: "卸載錯誤",
+    html: "<p>內容</p>",
+    onClose() {
+      closeCalls += 1;
+    },
+  });
+  mounted.registerUnmount(() => {
+    throw new Error("content unmount failed");
+  });
+
+  assert.throws(
+    () => mounted.close(),
+    (error) =>
+      error instanceof AggregateError &&
+      error.errors.map((entry) => entry.message).join("|") === "content unmount failed|shell unmount failed"
+  );
+  assert.equal(closeCalls, 1);
+  assert.equal(document.activeElement, opener);
+
+  configureSurfaceShellRenderer(__surfaceHost.mountSurfaceShell);
+  const replacement = mountSheet({ id: "after-error-sheet", label: "錯誤後", html: "<p>新殼</p>" });
+  assert.equal(replacement.surface.id, "after-error-sheet");
+  replacement.close({ restoreFocus: false });
 });
 
 domTest("關閉 sheet 依序還原新卡片、抽屜收合按鈕與 toggle 的焦點", async (t, vite) => {

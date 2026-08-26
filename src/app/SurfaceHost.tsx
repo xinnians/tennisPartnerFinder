@@ -2,7 +2,8 @@ import { memo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { getE2ETestHooks } from "../e2eTestHooks.ts";
-import { configureSurfaceShellRenderer } from "../sheets.js";
+import { FOCUSABLE_SELECTOR } from "../focusableSelector.js";
+import { configureSurfaceKeyboardRegistry, configureSurfaceShellRenderer } from "../sheets.js";
 import { syncCommit } from "../syncCommit.ts";
 
 export interface SurfaceContentLifecycle {
@@ -39,6 +40,17 @@ interface SurfaceShellEntry {
   rootElement: HTMLElement;
 }
 
+interface SurfaceKeyboardEntry {
+  close(options?: { reason?: string; restoreFocus?: boolean }): void;
+  onEscape?: () => unknown;
+  restoreFocus: unknown;
+  surface: HTMLElement;
+}
+
+interface SurfaceKeyboardRegistry {
+  register(entry: SurfaceKeyboardEntry): () => void;
+}
+
 export interface SurfaceSlot {
   children: ReactNode;
   id: number;
@@ -55,6 +67,66 @@ let nextSurfaceSlotId = 1;
 let renderSurfaceHost: ((slots: SurfaceHostSnapshot) => void) | null = null;
 const slots = new Map<HTMLElement, SurfaceSlot>();
 const shellRegistry = new Map<HTMLElement, SurfaceShellEntry>();
+const surfaceKeyboardStack: SurfaceKeyboardEntry[] = [];
+
+function focusableNodes(surface: HTMLElement): HTMLElement[] {
+  return [...surface.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)].filter(
+    (node) => !node.hasAttribute("hidden") && !node.closest("[hidden]")
+  );
+}
+
+function onSurfaceKeyDown(event: KeyboardEvent): void {
+  const entry = surfaceKeyboardStack.at(-1);
+  if (!entry) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    // The opener can still own focus until this surface's first animation
+    // frame. Consume Escape here so that same event cannot close an
+    // underlying drawer after this top surface restores its opener.
+    event.stopPropagation();
+    // 批 C3-2:join 單層化——sheet 內部可以有自己的「先退一步」語意(例如
+    // confirming 態的 Escape 應該退回 idle,而不是整張 sheet 關掉)。onEscape
+    // 若回傳 true 代表呼叫端已經自行處理過這次 Escape,這裡就不再呼叫 close()。
+    if (entry.onEscape?.()) return;
+    entry.close();
+    return;
+  }
+  if (event.key !== "Tab") return;
+
+  const nodes = focusableNodes(entry.surface);
+  if (nodes.length === 0) {
+    event.preventDefault();
+    entry.surface.focus();
+    return;
+  }
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+export const surfaceKeyboardRegistry: SurfaceKeyboardRegistry = {
+  register(entry) {
+    const installListener = surfaceKeyboardStack.length === 0;
+    surfaceKeyboardStack.push(entry);
+    // Keep Escape and the tab loop scoped to the topmost surface even if a
+    // browser extension or an async state update moves focus to document.body.
+    if (installListener) document.addEventListener("keydown", onSurfaceKeyDown, true);
+    let registered = true;
+    return () => {
+      if (!registered) return;
+      registered = false;
+      const index = surfaceKeyboardStack.indexOf(entry);
+      if (index >= 0) surfaceKeyboardStack.splice(index, 1);
+      if (surfaceKeyboardStack.length === 0) document.removeEventListener("keydown", onSurfaceKeyDown, true);
+    };
+  },
+};
 
 function preserveEmptyTemplateWhitespace(surface: HTMLElement | null): void {
   if (surface && surface.childNodes.length === 0) surface.append("\n      \n    ");
@@ -187,3 +259,4 @@ export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHan
 
 // sheets.js stays directly importable in Node; the eager browser SurfaceHost installs this bridge once.
 configureSurfaceShellRenderer(mountSurfaceShell);
+configureSurfaceKeyboardRegistry(surfaceKeyboardRegistry);

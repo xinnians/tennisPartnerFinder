@@ -184,10 +184,14 @@
     枚舉成立）。main gzip +352 餘 5,206 B；**total gzip 餘 1,703 B 現為最緊
     gate，4C-2 硬約束**。4C-2 加固項：shell.unmount 拋錯 try/finally、
     dangerous/leaf 規則入 react-migration.md。
-  - **4C-2**（狀態：已派工，`docs/arch-dispatch-2026-08-27-batch4C2-keyboard.md`）：
-    surface stack＋topmost Escape＋Tab focus trap 遷 React（同屬 keydown
-    listener，一批處理避免兩批動同一 listener）;附帶 4C-1 三加固項;
-    total gzip 餘 1,703 B 硬約束。
+  - **4C-2**（狀態：**ACCEPTED（2026-08-27）**，驗收紀錄
+    `docs/arch-reports/batch-4C2-keyboard-acceptance-2026-08-27.md`；對立審查
+    `docs/arch-reports/batch-4C2-adversarial-2026-08-27.md`；派工單
+    `docs/arch-dispatch-2026-08-27-batch4C2-keyboard.md`）：stack＋Escape＋trap
+    單一 owner 化入 SurfaceHost（keydown 全庫反掃只剩兩行）;Escape 字面序與
+    註解逐字搬遷;canary ×4 親手複跑;oracle 補洞 ×6（unit 344）;4C-1 三加固項
+    交付（shell 錯不跳 cleanup 屬實質改善）。total gzip 餘 **1,517 B**
+    （連兩批收緊）。4C-3 必交付：`focusableNodes` 兩份單源化。
   - **4C-3**：restore focus 三段 fallback（批 C2-2 修法不可退步）＋收尾。
   原有 DOM、aria、testid 與焦點行為是凍結契約；`SurfaceHost` 的 `syncCommit`
   邊界凍結留批 5（A 群 `:80-81` 兩字面不動）。不在此批改 UX、不做「詳情取代
