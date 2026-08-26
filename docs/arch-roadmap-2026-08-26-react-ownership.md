@@ -121,7 +121,18 @@
   adapter 全鏈歸零、直接 portal、pageViews.js 259→62 行、3A 三移交觀察全收。
   main gzip −288 B（餘 1,397 B）、total −312 B。**NearbyDrawer 全案完結**，
   與 Messages／MySessions 同級。
-- **批 3C**（Me，壓軸）：800 行最高設定密度頁，複製前四頁樣板。
+- **批 3C**（Me，壓軸；切兩段）：
+  - **3C-1**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3C1-me.md`）：
+    sessionStore 權威資料 9 欄＋11 action（僅 2 個在 ControllerApi，9 欄＋2 常數建
+    `meApp`）hooks 單源化、14 個測試直呼點處置（三條唯一 oracle 特別點名）、
+    補 `me-page-dom` 安全網。風險註記：MePage lazy chunk gzip 餘 ≈380 B 全庫最緊，
+    hooks 嚴禁放頁面 chunk。
+  - **3C-2**（3C-1 後開單）：`useMePageView()` 切片（notificationSettings／
+    presenceLocationStatus）、scope／rAF 管道收斂進 MePage（scope key 是 user id
+    非 authEpoch，不可照抄 MySessions）、adapter 退役＋**整套 slot 機制歸零**
+    （`PageSlot`／`renderPortals`／`renderPage`／`commitPageAdapterSynchronously`——
+    附帶提前收掉一個 `syncCommit` caller）、`pageViews.js` 刪檔評估。
+    既有覆蓋缺口：Me 的帳號切換 scope 無測試，3C-2 補。
 - ACCEPTED 回填：（待）
 
 ## 批 4：Sheet 殼 React 化
