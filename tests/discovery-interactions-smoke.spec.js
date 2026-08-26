@@ -267,25 +267,21 @@ test("the empty-state subscribe shortcut opens Me and can focus the notification
   await expect(subscribeButton).toHaveText("有新球局時通知我");
   await expect(subscribeButton).toHaveClass(/session-secondary/);
 
+  // Mock auth stays signed out, so seed the real #me-root through the provider-backed Me harness.
+  // The click below still drives the production drawer callback, showMePage, and its rAF focus query.
+  await page.evaluate(async () => {
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
+    renderMeAppHarness(document.getElementById("me-root"), {
+      authSession: { user: { id: "discovery-subscribe-focus-test" } },
+      profile: { nick: "測試球友", ntrp: 3.5 },
+    });
+  });
+
   await subscribeButton.click();
   await expect(page.locator("#tab-map")).toBeHidden();
   await expect(page.locator("#my-sessions-page")).toBeHidden();
   await expect(page.locator("#me-page")).toBeVisible();
 
-  // Mock 模式沒有真登入（VITE_SUPABASE_URL 固定為 "___"，main.js 的 authSession
-  // 永遠是 null），通知設定區只在 authenticated 才渲染，showMePage 的真實點擊路徑
-  // 無法在這個 harness 走到已登入內容。這裡改用既有的 renderMePage 直接渲染慣例
-  // （比照本檔 "Me notification settings save six preferences" 測試）驗證
-  // sessionViews.js 承諾的掛點契約：標題確實可以是 document.activeElement。
-  await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
-    const root = document.getElementById("me-root");
-    renderMePage(root, {
-      authSession: { user: { id: "discovery-subscribe-focus-test" } },
-      profile: { nick: "測試球友", ntrp: 3.5 },
-    });
-    document.querySelector("[data-notification-settings-heading]")?.focus({ preventScroll: false });
-  });
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.hasAttribute("data-notification-settings-heading")))
     .toBe(true);
@@ -432,12 +428,12 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 我頁 profile 卡:NTRP 已填正例 ───────────────────────────────
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
     window.__d8EditProfileCalls = 0;
-    renderMePage(root, {
+    renderMeAppHarness(root, {
       authSession: { user: { id: "d8-me-brick" } },
       courts: [{ id: 8, name: "示範球場", district: "大安區", city: "台北市", isActive: true }],
       onEditProfile: () => {
@@ -456,9 +452,9 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 我頁 profile 卡:NTRP 未填反例 → 磚顯示「—」 ───────────────────
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
-    renderMePage(root, {
+    renderMeAppHarness(root, {
       authSession: { user: { id: "d8-me-brick" } },
       profile: { nick: "無程度球友", ntrp: null },
     });

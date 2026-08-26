@@ -120,7 +120,6 @@ import { configureShareFeature, copySessionShareLink } from "./features/share/sh
 import {
   authIdentity,
   configureProfileOrchestrationFeature,
-  currentLinkedProviders,
   handleAuthIdentityChange,
   handleLinkProvider,
   handleSignOut,
@@ -420,34 +419,15 @@ function enablePushNotifications() {
 function mountMeDestination() {
   const root = document.getElementById("me-root");
   if (!root) return;
-  const state = controller?.getMySessionState?.() ?? {};
-  const { authSession, courts, profile } = getAppState();
+  const { authSession } = getAppState();
   renderMePage(root, {
+    // Frozen pageViews bridge still owns the pending-action account scope until 3C-2.
     authSession,
-    avatarUrl: currentAuthAvatarUrl(),
-    blockedPlayers: state.blockedPlayers,
-    blockedPlayersError: state.blockedPlayersError,
-    blockedPlayersStatus: state.blockedPlayersStatus,
-    courts,
-    lineProviderId: AUTH_LINE_PROVIDER_ID,
-    linkedProviders: currentLinkedProviders(),
     notificationSettings,
-    onEditProfile: () => openProfileCompletion({ mode: "standalone" }),
-    onEnablePush: enablePushNotifications,
-    onLinkProvider: handleLinkProvider,
-    onSaveCourtSubscriptions: updateCourtSubscriptions,
-    onSaveNotificationPreferences: updateNotificationPreferences,
-    onSetOpenToGreeting: updateOpenToGreetingSetting,
-    onSetPresenceSharing: updatePresenceSharing,
-    onSignIn: () => openSafeLogin({ action: "me" }),
-    onSignOut: handleSignOut,
-    onTogglePlayerVisibility: controller?.togglePlayerVisibility,
-    onUnblockPlayer: controller?.unblockPlayer,
-    playerVisibility: state.isPublic === true,
     presence: presenceSettingsForProfile(),
-    profile: profile ?? defaultProfile(),
-    supportHref: supportContactHref(),
     pageViewStore,
+    // bridge-scope-only：凍結 bridge 的 commit callback 需要 live 讀 user id 做跨帳號 pending 隔離
+    // （mount-once 下 closure 捕捉的 authSession 恆為登入前快照）；3C-2 隨 adapter 退役時以 scope 搬進 MePage 根治。
     sessionStore: controller?.sessionStore,
   });
   syncBottomNavigation();
@@ -691,6 +671,19 @@ function init() {
   });
   appModule.configureAppServicesInApp({
     controller,
+    meApp: {
+      lineProviderId: AUTH_LINE_PROVIDER_ID,
+      onEditProfile: () => openProfileCompletion({ mode: "standalone" }),
+      onEnablePush: enablePushNotifications,
+      onLinkProvider: handleLinkProvider,
+      onSaveCourtSubscriptions: updateCourtSubscriptions,
+      onSaveNotificationPreferences: updateNotificationPreferences,
+      onSetOpenToGreeting: updateOpenToGreetingSetting,
+      onSetPresenceSharing: updatePresenceSharing,
+      onSignIn: () => openSafeLogin({ action: "me" }),
+      onSignOut: handleSignOut,
+      supportHref: supportContactHref(),
+    },
     mySessionsApp: {
       onBack: () => showMapPage({ focus: true }),
       onCreatedSessionFocus: (expectedSessionId = createdSessionFocusId) => {

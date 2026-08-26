@@ -10,6 +10,7 @@ import type {
 import type { PageNotificationSettings, PageViewState, PageViewStore } from "../pageViewStore.ts";
 import { useBeforeNearbyDrawerStoreChange } from "../nearbyDrawerFocus.ts";
 import { selectControllerMapView, selectControllerMySessionsView } from "../sessionSelectors.ts";
+import { selectMeState } from "../sessionSelectors.ts";
 import { useStoreSelector } from "../sessionStore.ts";
 
 type MessagesServices = Pick<ControllerApi, "openSessionChat" | "sessionStore">;
@@ -25,8 +26,23 @@ export interface NearbyDrawerAppActions {
   onSubscribe(): unknown;
 }
 
+export interface MeAppActions {
+  lineProviderId: string;
+  onEditProfile(): unknown;
+  onEnablePush(): unknown;
+  onLinkProvider(provider: string): unknown;
+  onSaveCourtSubscriptions(courtIds: number[]): unknown;
+  onSaveNotificationPreferences(preferences: import("../domainTypes.ts").NotificationPreferences): unknown;
+  onSetOpenToGreeting(enabled: boolean): unknown;
+  onSetPresenceSharing(enabled: boolean): unknown;
+  onSignIn(): unknown;
+  onSignOut(): unknown;
+  supportHref: string;
+}
+
 export interface AppServices {
   controller: ControllerApi;
+  meApp: MeAppActions;
   mySessionsApp: MySessionsAppActions;
   nearbyDrawerApp: NearbyDrawerAppActions;
   pageViewStore: PageViewStore;
@@ -118,6 +134,7 @@ export interface MySessionsActions {
 
 interface AppServicesContextValue {
   controller: ControllerApi;
+  meApp?: MeAppActions;
   mySessionsApp?: MySessionsAppActions;
   nearbyDrawerApp?: NearbyDrawerAppActions;
   pageViewStore?: PageViewStore;
@@ -166,19 +183,21 @@ function selectMySessionsPageView(state: Readonly<PageViewState>): MySessionsPag
 export function AppServicesProvider({
   children,
   controller,
+  meApp,
   mySessionsApp,
   nearbyDrawerApp,
   pageViewStore,
 }: {
   children: ReactNode;
   controller: ControllerApi;
+  meApp?: MeAppActions;
   mySessionsApp?: MySessionsAppActions;
   nearbyDrawerApp?: NearbyDrawerAppActions;
   pageViewStore?: PageViewStore;
 }) {
   const services = useMemo(
-    () => ({ controller, mySessionsApp, nearbyDrawerApp, pageViewStore }),
-    [controller, mySessionsApp, nearbyDrawerApp, pageViewStore]
+    () => ({ controller, meApp, mySessionsApp, nearbyDrawerApp, pageViewStore }),
+    [controller, meApp, mySessionsApp, nearbyDrawerApp, pageViewStore]
   );
   return <AppServicesContext.Provider value={services}>{children}</AppServicesContext.Provider>;
 }
@@ -189,6 +208,29 @@ export function useMessagesState(): MessagesState {
   const groups = useStoreSelector(sessionStore, "mySessions", selectMessagesGroups, selectMessagesGroups(current));
   const courts = useStoreSelector(sessionStore, "courts", selectMessagesCourts, selectMessagesCourts(current));
   return { courts, groups };
+}
+
+export function useMeState() {
+  const { sessionStore } = useAppServices().controller;
+  const current = sessionStore.getState();
+  return useStoreSelector(sessionStore, "me", selectMeState, selectMeState(current));
+}
+
+export function useMeActions() {
+  const { controller } = useAppServices();
+  return useMemo(
+    () => ({
+      onTogglePlayerVisibility: controller.togglePlayerVisibility,
+      onUnblockPlayer: controller.unblockPlayer,
+    }),
+    [controller]
+  );
+}
+
+export function useMeAppActions(): MeAppActions {
+  const { meApp } = useAppServices();
+  if (!meApp) throw new Error("Me app actions are unavailable.");
+  return meApp;
 }
 
 export function useMessagesActions(): MessagesActions {

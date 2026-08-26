@@ -1,5 +1,6 @@
 import type {
   ControllerMapViewPayload,
+  ControllerMeViewState,
   ControllerMySessionsViewState,
   ControllerPlayerLayerViewState,
   SessionControllerState,
@@ -39,6 +40,24 @@ export function selectControllerMySessionsView(state: Readonly<SessionController
     isPublic: profileIsPublic(state.profileEligibility),
     status: state.mySessionsStatus,
     viewGeneration: state.authEpoch,
+  };
+}
+
+export function selectMeState(state: Readonly<SessionControllerState>): ControllerMeViewState {
+  const mySessionsView = selectControllerMySessionsView(state);
+  const metadata = state.authSession?.user?.user_metadata ?? {};
+  return {
+    authSession: state.authSession,
+    avatarUrl: metadata.avatar_url ?? metadata.picture ?? "",
+    blockedPlayers: mySessionsView.blockedPlayers,
+    blockedPlayersError: mySessionsView.blockedPlayersError,
+    blockedPlayersStatus: mySessionsView.blockedPlayersStatus,
+    courts: state.courts,
+    linkedProviders: (state.authSession?.user?.identities ?? []).flatMap((identity) =>
+      identity.provider ? [identity.provider] : []
+    ),
+    playerVisibility: mySessionsView.isPublic,
+    profile: state.profile,
   };
 }
 

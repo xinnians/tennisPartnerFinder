@@ -33,7 +33,11 @@ export interface ControllerFilters {
 
 export interface ControllerAuthSession {
   access_token?: string | null;
-  user?: { id?: string | null } | null;
+  user?: {
+    id?: string | null;
+    identities?: Array<{ provider?: string | null }> | null;
+    user_metadata?: { avatar_url?: string | null; picture?: string | null } | null;
+  } | null;
 }
 
 /** `main.js/currentProfileEligibility()` 的實際輸出，不是完整私人 Profile。 */
@@ -115,6 +119,18 @@ export interface ControllerMySessionsViewState {
   isPublic: boolean;
   status: SurfaceLoadStatus;
   viewGeneration: number;
+}
+
+export interface ControllerMeViewState {
+  authSession: ControllerAuthSession | null;
+  avatarUrl: string;
+  blockedPlayers: MyPlayerBlock[];
+  blockedPlayersError: string;
+  blockedPlayersStatus: SurfaceLoadStatus;
+  courts: DataCourt[];
+  linkedProviders: string[];
+  playerVisibility: boolean;
+  profile: Partial<Profile> | null;
 }
 
 export interface ControllerPlayerGroup {

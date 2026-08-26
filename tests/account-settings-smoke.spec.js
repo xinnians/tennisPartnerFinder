@@ -5,10 +5,10 @@ test("a failed presence setting keeps focus on the control instead of jumping to
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
-    renderMePage(document.getElementById("me-root"), {
+    renderMeAppHarness(document.getElementById("me-root"), {
       authSession: { user: { id: "presence-failure-test" } },
       onSetPresenceSharing: async () => {
         throw new Error("在線設定暫時無法更新。");
@@ -39,7 +39,8 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMePage } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["me", "mySessions"]);
     const root = document.getElementById("me-root");
@@ -53,8 +54,9 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
     const pending = new Promise((resolve) => {
       release = resolve;
     });
-    const render = () =>
-      renderMePage(root, {
+    let meHarness;
+    const render = () => {
+      const options = {
         authSession: { user: { id: "me-settings-test" } },
         onTogglePlayerVisibility: async () => {
           window.__visibilityToggleCalls = (window.__visibilityToggleCalls ?? 0) + 1;
@@ -64,7 +66,9 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
         playerVisibility: false,
         presence: { locationStatus: "idle", openToGreeting: false, sharePresence: false },
         profile: { nick: "測試球友", ntrp: 3.5 },
-      });
+      };
+      meHarness = meHarness ? (meHarness.update(options), meHarness) : renderMeAppHarness(root, options);
+    };
     window.__rerenderVisibility = render;
     window.__releaseVisibility = release;
     render();
@@ -155,11 +159,11 @@ test("Me presence settings explain reciprocal visibility, request sharing, and o
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
-    renderMePage(root, {
+    renderMeAppHarness(root, {
       authSession: { user: { id: "me-presence-test" } },
       onSetOpenToGreeting: async (open) => {
         window.__greetingValue = open;
@@ -189,11 +193,11 @@ test("Me notification settings save six preferences and Taipei court subscriptio
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
-    renderMePage(root, {
+    renderMeAppHarness(root, {
       authSession: { user: { id: "notification-settings-test" } },
       courts: [
         { city: "台北市", district: "大安區", id: 8, name: "示範球場" },
@@ -280,7 +284,7 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -290,7 +294,7 @@ test("Me notification settings allow every listed Taipei court", async ({ page }
       id: index + 1,
       name: `測試球場${index + 1}`,
     }));
-    renderMePage(root, {
+    renderMeAppHarness(root, {
       authSession: { user: { id: "notification-courts-test" } },
       courts,
       notificationSettings: { courtIds: courts.slice(0, 10).map((court) => court.id) },
@@ -357,15 +361,16 @@ test("a rerender inside a notification action stays authoritative over the disab
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
     // 模擬 enablePushNotifications 的真實形狀：回呼在自己的 await 之內同步重繪，
     // 新 markup 依 pushStatus 決定 disabled，回呼結束後動作 helper 的 finally 才跑。
     let current = { courtIds: [], prefs: {}, pushStatus: "idle", webPushConfigured: true };
-    const render = () =>
-      renderMePage(root, {
+    let meHarness;
+    const render = () => {
+      const options = {
         authSession: { user: { id: "push-rerender-test" } },
         notificationSettings: current,
         onEnablePush: async () => {
@@ -373,7 +378,9 @@ test("a rerender inside a notification action stays authoritative over the disab
           current = { ...current, pushStatus: "enabled" };
           render();
         },
-      });
+      };
+      meHarness = meHarness ? (meHarness.update(options), meHarness) : renderMeAppHarness(root, options);
+    };
     render();
   });
 

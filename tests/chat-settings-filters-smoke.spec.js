@@ -149,7 +149,7 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("my-sessions-page").hidden = false;
@@ -170,7 +170,7 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
       viewerRole: "guest",
     };
     window.__myChatActions = [];
-    renderMePage(document.getElementById("me-root"), {
+    renderMeAppHarness(document.getElementById("me-root"), {
       authSession: { user: { id: "block-list-test" } },
       blockedPlayers: [{ blockedNickname: "已封鎖球友 <b>", blockedProfileId: 92, createdAt: "2026-08-03T01:00:00Z" }],
       blockedPlayersStatus: "ready",
@@ -402,7 +402,7 @@ test("subscribing to every Taipei court collapses the picker and reopens on dema
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
@@ -411,7 +411,7 @@ test("subscribing to every Taipei court collapses the picker and reopens on dema
       { city: "台北市", district: "中山區", id: 9, name: "第二球場" },
       { city: "台北市", district: "萬華區", id: 10, name: "第三球場" },
     ];
-    renderMePage(root, {
+    renderMeAppHarness(root, {
       authSession: { user: { id: "court-subscription-test" } },
       courts,
       // 已訂閱全部：重載後主控應為勾選、清單收合。
@@ -447,12 +447,12 @@ test("an unloaded court catalogue shows no subscription count", async ({ page })
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
     // 球場目錄還沒載入：交集必然是 0，但那不代表使用者「訂閱了 0 座」。
-    renderMePage(root, { authSession: { user: { id: "empty-courts-test" } }, courts: [] });
+    renderMeAppHarness(root, { authSession: { user: { id: "empty-courts-test" } }, courts: [] });
   });
 
   // 正向前提：通知區塊有渲染，下面的 count(0) 才不是掃到空頁面。

@@ -181,65 +181,15 @@ const MeDestination = memo(function MeDestination({
     if (!loaded && !failed) void loadMePage().catch(() => {});
   }, [failed, loaded]);
   if (!MePageComponent) return <PageLoading label={failed ? "「我」載入失敗，請重新整理。" : "正在載入「我」…"} />;
-  const {
-    authSession = null,
-    profile = {},
-    avatarUrl = "",
-    blockedPlayers = [],
-    blockedPlayersError = "",
-    blockedPlayersStatus = "idle",
-    courts = [],
-    lineProviderId = "",
-    linkedProviders = [],
-    notificationSettings = {},
-    onEditProfile = noop,
-    onEnablePush = noop,
-    onLinkProvider = noop,
-    onSaveCourtSubscriptions = noop,
-    onSaveNotificationPreferences = noop,
-    onSetOpenToGreeting = noop,
-    onSetPresenceSharing = noop,
-    onSignIn = noop,
-    onSignOut = noop,
-    onTogglePlayerVisibility = noop,
-    onUnblockPlayer = noop,
-    playerVisibility = false,
-    presence = {},
-    supportHref = "",
-    sessionStore,
-    pageViewStore,
-  } = slot.options;
+  const { notificationSettings = {}, presence = {}, pageViewStore } = slot.options;
 
   return (
     <AppErrorBoundary resetKey={slot.resetKey} surface="me-page">
       <MePageComponent
         key={slot.id}
         rootElement={slot.rootElement}
-        authSession={authSession}
-        profile={profile}
-        avatarUrl={avatarUrl}
-        blockedPlayers={blockedPlayers}
-        blockedPlayersError={blockedPlayersError}
-        blockedPlayersStatus={blockedPlayersStatus}
-        courts={courts}
-        lineProviderId={lineProviderId}
-        linkedProviders={linkedProviders}
         notificationSettings={notificationSettings}
-        onEditProfile={onEditProfile}
-        onEnablePush={onEnablePush}
-        onLinkProvider={onLinkProvider}
-        onSaveCourtSubscriptions={onSaveCourtSubscriptions}
-        onSaveNotificationPreferences={onSaveNotificationPreferences}
-        onSetOpenToGreeting={onSetOpenToGreeting}
-        onSetPresenceSharing={onSetPresenceSharing}
-        onSignIn={onSignIn}
-        onSignOut={onSignOut}
-        onTogglePlayerVisibility={onTogglePlayerVisibility}
-        onUnblockPlayer={onUnblockPlayer}
-        playerVisibility={playerVisibility}
         presence={presence}
-        supportHref={supportHref}
-        sessionStore={sessionStore}
         pageViewStore={pageViewStore}
         onStoreCommit={slot.onCommit}
       />

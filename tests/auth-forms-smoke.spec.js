@@ -81,11 +81,11 @@ test("the Me page login methods list hides LINE without a provider id and wires 
 
   const renderLoginMethods = async (options) => {
     await page.evaluate(async ({ linkedProviders, lineProviderId }) => {
-      const { renderMePage } = await window.__importAppModule("sessionViews");
+      const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
       document.getElementById("tab-map").hidden = true;
       document.getElementById("me-page").hidden = false;
       window.__linkCalls = window.__linkCalls ?? [];
-      renderMePage(document.getElementById("me-root"), {
+      renderMeAppHarness(document.getElementById("me-root"), {
         authSession: { user: { id: "login-methods-test" } },
         profile: { nick: "測試球友", ntrp: 3.5 },
         linkedProviders,

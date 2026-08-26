@@ -9,16 +9,8 @@ import type {
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
 import type { PageViewStore } from "../pageViewStore.ts";
 import { mePageRuntime } from "../sessionPresentation.ts";
-import { selectControllerMySessionsView } from "../sessionSelectors.ts";
 import { useStoreSelector, type Store } from "../sessionStore.ts";
-
-interface AuthSession {
-  user?: {
-    id?: string | null;
-    identities?: Array<{ provider?: string }>;
-    user_metadata?: { avatar_url?: string; picture?: string };
-  };
-}
+import { useMeActions, useMeAppActions, useMeState } from "../app/AppServicesProvider.tsx";
 
 interface MeProfile extends Omit<Partial<Profile>, "courts" | "slots"> {
   courts?: Set<string> | string[];
@@ -52,62 +44,18 @@ interface PresenceSettingsInput {
 }
 
 export interface MePageOptions {
-  authSession?: AuthSession | null;
-  profile?: MeProfile | null;
-  avatarUrl?: string;
-  blockedPlayers?: BlockedPlayer[] | null;
-  blockedPlayersError?: string;
-  blockedPlayersStatus?: string;
-  courts?: MeCourt[] | null;
-  lineProviderId?: string;
-  linkedProviders?: string[] | null;
   notificationSettings?: NotificationSettingsInput | null;
-  onEditProfile?: () => CallbackResult;
-  onEnablePush?: () => CallbackResult;
-  onLinkProvider?: (provider: string) => CallbackResult;
-  onSaveCourtSubscriptions?: (courtIds: number[]) => CallbackResult;
-  onSaveNotificationPreferences?: (preferences: NotificationPreferences) => CallbackResult;
-  onSetOpenToGreeting?: (enabled: boolean) => CallbackResult;
-  onSetPresenceSharing?: (enabled: boolean) => CallbackResult;
-  onSignIn?: () => CallbackResult;
-  onSignOut?: () => CallbackResult;
-  onTogglePlayerVisibility?: () => CallbackResult;
-  onUnblockPlayer?: (profileId: string) => CallbackResult;
-  playerVisibility?: boolean;
   presence?: PresenceSettingsInput | null;
-  supportHref?: string;
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
   pageViewStore?: PageViewStore;
+  // bridge-scope-only：凍結 bridge commit callback live 讀 user id；MePage 本體不得消費，3C-2 隨 adapter 退役搬入 owner。
+  sessionStore?: Store<SessionControllerState, ControllerEventName>;
   onStoreCommit?: () => void;
 }
 
 export interface MePageProps {
   rootElement: HTMLElement;
-  authSession: AuthSession | null;
-  profile: MeProfile | null;
-  avatarUrl: string;
-  blockedPlayers: BlockedPlayer[] | null;
-  blockedPlayersError: string;
-  blockedPlayersStatus: string;
-  courts: MeCourt[] | null;
-  lineProviderId: string;
-  linkedProviders: string[] | null;
   notificationSettings: NotificationSettingsInput | null;
-  onEditProfile: () => CallbackResult;
-  onEnablePush: () => CallbackResult;
-  onLinkProvider: (provider: string) => CallbackResult;
-  onSaveCourtSubscriptions: (courtIds: number[]) => CallbackResult;
-  onSaveNotificationPreferences: (preferences: NotificationPreferences) => CallbackResult;
-  onSetOpenToGreeting: (enabled: boolean) => CallbackResult;
-  onSetPresenceSharing: (enabled: boolean) => CallbackResult;
-  onSignIn: () => CallbackResult;
-  onSignOut: () => CallbackResult;
-  onTogglePlayerVisibility: () => CallbackResult;
-  onUnblockPlayer: (profileId: string) => CallbackResult;
-  playerVisibility: boolean;
   presence: PresenceSettingsInput | null;
-  supportHref: string;
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
   pageViewStore?: PageViewStore;
   onStoreCommit?: () => void;
 }
@@ -707,27 +655,39 @@ function ServiceLinks({ supportHref }: { supportHref: string }) {
 }
 
 export function MePage(props: MePageProps) {
-  const controllerState = useStoreSelector(props.sessionStore, "me", (state) => state, null);
-  const controllerView = controllerState ? selectControllerMySessionsView(controllerState) : null;
+  const {
+    authSession,
+    avatarUrl,
+    blockedPlayers,
+    blockedPlayersError,
+    blockedPlayersStatus,
+    courts,
+    linkedProviders,
+    playerVisibility,
+    profile,
+  } = useMeState();
+  const { onTogglePlayerVisibility, onUnblockPlayer } = useMeActions();
+  const {
+    lineProviderId,
+    onEditProfile,
+    onEnablePush,
+    onLinkProvider,
+    onSaveCourtSubscriptions,
+    onSaveNotificationPreferences,
+    onSetOpenToGreeting,
+    onSetPresenceSharing,
+    onSignIn,
+    onSignOut,
+    supportHref,
+  } = useMeAppActions();
   const pageView = useStoreSelector(props.pageViewStore, "me", (state) => state, null);
-  const authSession = (controllerState?.authSession as AuthSession | null | undefined) ?? props.authSession;
-  const profile = (controllerState?.profile as MeProfile | null | undefined) ?? props.profile;
-  const metadata = authSession?.user?.user_metadata ?? {};
-  const avatarUrl = controllerState ? (metadata.avatar_url ?? metadata.picture ?? "") : props.avatarUrl;
-  const linkedProviders = controllerState
-    ? (authSession?.user?.identities ?? []).flatMap((identity) => (identity.provider ? [identity.provider] : []))
-    : props.linkedProviders;
   const authenticated = Boolean(authSession);
   const nickname = String(profile?.nick ?? "").trim() || "球友";
-  const presence = mePageRuntime.normalizedPresenceSettings(
-    controllerState
-      ? {
-          locationStatus: pageView?.presenceLocationStatus ?? props.presence?.locationStatus,
-          openToGreeting: profile?.openToGreeting === true,
-          sharePresence: profile?.sharePresence === true,
-        }
-      : (props.presence ?? {})
-  );
+  const presence = mePageRuntime.normalizedPresenceSettings({
+    locationStatus: pageView?.presenceLocationStatus ?? props.presence?.locationStatus,
+    openToGreeting: profile?.openToGreeting === true,
+    sharePresence: profile?.sharePresence === true,
+  });
   const notification = mePageRuntime.normalizedNotificationSettings(
     pageView?.notificationSettings ?? props.notificationSettings ?? {}
   );
@@ -745,53 +705,53 @@ export function MePage(props: MePageProps) {
       {authenticated ? (
         <AuthenticatedIdentity
           avatarUrl={avatarUrl}
-          courts={controllerState?.courts ?? props.courts}
+          courts={courts}
           nickname={nickname}
-          onEditProfile={props.onEditProfile}
+          onEditProfile={onEditProfile}
           profile={profile}
         />
       ) : (
-        <SignInCard onSignIn={props.onSignIn} />
+        <SignInCard onSignIn={onSignIn} />
       )}
       {authenticated ? (
         <>
           <PlayerVisibility
-            onTogglePlayerVisibility={props.onTogglePlayerVisibility}
-            playerVisibility={controllerView?.isPublic ?? props.playerVisibility}
+            onTogglePlayerVisibility={onTogglePlayerVisibility}
+            playerVisibility={playerVisibility}
             rootElement={props.rootElement}
           />
           <PresenceSettings
-            onSetOpenToGreeting={props.onSetOpenToGreeting}
-            onSetPresenceSharing={props.onSetPresenceSharing}
+            onSetOpenToGreeting={onSetOpenToGreeting}
+            onSetPresenceSharing={onSetPresenceSharing}
             presence={presence}
             rootElement={props.rootElement}
           />
           <p className="form-error" data-my-sessions-error="" role="alert" tabIndex={-1} hidden />
           <NotificationSettings
-            courts={controllerState?.courts ?? props.courts}
+            courts={courts}
             notification={notification}
-            onEnablePush={props.onEnablePush}
-            onSaveCourtSubscriptions={props.onSaveCourtSubscriptions}
-            onSaveNotificationPreferences={props.onSaveNotificationPreferences}
+            onEnablePush={onEnablePush}
+            onSaveCourtSubscriptions={onSaveCourtSubscriptions}
+            onSaveNotificationPreferences={onSaveNotificationPreferences}
             rootElement={props.rootElement}
           />
           <BlockedPlayerSettings
-            blockedPlayers={controllerView?.blockedPlayers ?? props.blockedPlayers}
-            blockedPlayersError={controllerView?.blockedPlayersError ?? props.blockedPlayersError}
-            blockedPlayersStatus={controllerView?.blockedPlayersStatus ?? props.blockedPlayersStatus}
-            onUnblockPlayer={props.onUnblockPlayer}
+            blockedPlayers={blockedPlayers}
+            blockedPlayersError={blockedPlayersError}
+            blockedPlayersStatus={blockedPlayersStatus}
+            onUnblockPlayer={onUnblockPlayer}
             rootElement={props.rootElement}
           />
           <LoginMethods
-            lineProviderId={props.lineProviderId}
+            lineProviderId={lineProviderId}
             linkedProviders={linkedProviders}
-            onLinkProvider={props.onLinkProvider}
+            onLinkProvider={onLinkProvider}
           />
         </>
       ) : null}
-      <ServiceLinks supportHref={props.supportHref} />
+      <ServiceLinks supportHref={supportHref} />
       {authenticated ? (
-        <button type="button" className="me-sign-out-action" data-testid="me-sign-out" onClick={props.onSignOut}>
+        <button type="button" className="me-sign-out-action" data-testid="me-sign-out" onClick={onSignOut}>
           登出
         </button>
       ) : null}

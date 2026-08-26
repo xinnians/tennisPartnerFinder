@@ -122,7 +122,12 @@
   main gzip −288 B（餘 1,397 B）、total −312 B。**NearbyDrawer 全案完結**，
   與 Messages／MySessions 同級。
 - **批 3C**（Me，壓軸；切兩段）：
-  - **3C-1**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3C1-me.md`）：
+  - **3C-1**（狀態：**ACCEPTED（2026-08-26，含同日補件）**，驗收紀錄
+    `docs/arch-reports/batch-3C1-me-acceptance-2026-08-26.md`；`__importAppModule`
+    新基準 107；MePage chunk gzip 餘 380→503 B、main 餘 1,568 B；退件補正=恢復
+    bridge-scope-only `sessionStore` 欄（mount-once 時序教訓）；重要證偽=
+    `account-settings:141-146` 在 HEAD 即不咬 bridge sync，**3C-2 canary 須用
+    node-replacement 情境**。派工單 `docs/arch-dispatch-2026-08-26-batch3C1-me.md`）：
     sessionStore 權威資料 9 欄＋11 action（僅 2 個在 ControllerApi，9 欄＋2 常數建
     `meApp`）hooks 單源化、14 個測試直呼點處置（三條唯一 oracle 特別點名）、
     補 `me-page-dom` 安全網。風險註記：MePage lazy chunk gzip 餘 ≈380 B 全庫最緊，

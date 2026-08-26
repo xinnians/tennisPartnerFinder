@@ -18,21 +18,25 @@ test("page adapter updates preserve focused React controls without main.js resto
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMePage } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["me", "messages", "mySessions"]);
 
     const meRoot = document.getElementById("me-root");
     document.getElementById("me-page").hidden = false;
-    const renderMe = (playerVisibility) =>
-      renderMePage(meRoot, {
+    let meHarness;
+    const renderMe = (playerVisibility) => {
+      const options = {
         authSession: { user: { id: "focus-me" } },
         playerVisibility,
         presence: { locationStatus: "idle", openToGreeting: false, sharePresence: false },
         profile: { nick: "焦點球友", ntrp: 3.5 },
-      });
+      };
+      meHarness = meHarness ? (meHarness.update(options), meHarness) : renderMeAppHarness(meRoot, options);
+    };
     renderMe(false);
-    const meControl = meRoot.querySelector('[data-testid="player-visibility-toggle"]');
+    const meControl = meHarness.rootElement.querySelector('[data-testid="player-visibility-toggle"]');
     meControl.focus();
     renderMe(true);
     const meFocused = meControl === document.activeElement && meControl.isConnected;
