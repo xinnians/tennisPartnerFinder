@@ -18,8 +18,8 @@ test("page adapter updates preserve focused React controls without main.js resto
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMePage, renderMySessionsPage } =
-      await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews, renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["me", "messages", "mySessions"]);
 
     const meRoot = document.getElementById("me-root");
@@ -44,10 +44,10 @@ test("page adapter updates preserve focused React controls without main.js resto
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     };
-    renderMySessionsPage(mySessionsRoot, mySessionsOptions);
-    const mySessionsControl = mySessionsRoot.querySelector('[data-testid="my-sessions-seg-hosted"]');
+    const mySessionsHarness = renderMySessionsAppHarness(mySessionsRoot, mySessionsOptions);
+    const mySessionsControl = mySessionsHarness.rootElement.querySelector('[data-testid="my-sessions-seg-hosted"]');
     mySessionsControl.focus();
-    renderMySessionsPage(mySessionsRoot, mySessionsOptions);
+    renderMySessionsAppHarness(mySessionsRoot, mySessionsOptions);
     const mySessionsFocused = mySessionsControl === document.activeElement && mySessionsControl.isConnected;
 
     globalThis.__pageFocusIdentity = {
@@ -141,8 +141,8 @@ test("created-session focus follows the subscribed store path after the one-time
   await page.evaluate(async () => {
     const { createSessionController } = await window.__importAppModule("sessionController");
     const { createStore } = await import("/src/sessionStore.ts");
-    const { openCreateSessionSheet, preloadNonHomeViews, renderMySessionsPage } =
-      await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet, preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["mySessions"]);
 
     const sessionId = 8842;
@@ -207,7 +207,7 @@ test("created-session focus follows the subscribed store path after the one-time
     // focus through showMySessionsPage -> store emit, without another mount.
     const state = controller.getMySessionState();
     const focusSessionId = createdSessionFocusId;
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       actionScopeKey: state.viewGeneration,
       authenticated: state.authenticated,
       courts: [court],

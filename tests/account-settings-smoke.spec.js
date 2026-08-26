@@ -39,12 +39,13 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMePage, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews, renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["me", "mySessions"]);
     const root = document.getElementById("me-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("me-page").hidden = false;
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     });
@@ -393,7 +394,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -423,7 +424,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
     };
     const groupsAfterReview = { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] };
     const render = ({ groups, onAccept = async () => {}, scopeKey }) =>
-      renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onAccept });
+      renderMySessionsAppHarness(root, { actionScopeKey: scopeKey, authenticated: true, groups, onAccept });
 
     window.__renderAfterReview = () => render({ groups: groupsAfterReview, scopeKey: "account-a" });
     render({
@@ -442,7 +443,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await expect(page.locator("[data-open-my-session][data-session-id='732']")).toBeFocused();
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     const session = {
       canWithdraw: true,
@@ -466,7 +467,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
       release = resolve;
     });
     const render = (scopeKey, groups, onWithdraw) =>
-      renderMySessionsPage(root, { actionScopeKey: scopeKey, authenticated: true, groups, onWithdraw });
+      renderMySessionsAppHarness(root, { actionScopeKey: scopeKey, authenticated: true, groups, onWithdraw });
     window.__releaseAccountAAction = release;
     render("account-a", { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] }, async () => {
       await pending;
@@ -479,7 +480,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
   await page.getByTestId("my-sessions-seg-joined").click();
   await page.locator("[data-my-action='withdraw'][data-session-id='733']").click();
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     const session = {
       canWithdraw: true,
@@ -498,7 +499,7 @@ test("My Sessions moves focus to an updated card and scopes pending actions to t
       viewerParticipantStatus: "accepted",
       viewerRole: "guest",
     };
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       actionScopeKey: "account-b",
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
@@ -568,10 +569,10 @@ test("closing a non-drawer report dialog after its trigger card disappears does 
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: {
         history: [],
@@ -610,8 +611,8 @@ test("closing a non-drawer report dialog after its trigger card disappears does 
 
   // 模擬背景重繪把這張卡從清單移除(球局已被取消/使用者離開等)——觸發它的按鈕連帶消失。
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     });
@@ -642,10 +643,10 @@ test("the non-drawer report dialog renders its full content and keeps it after t
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: {
         history: [],
@@ -700,8 +701,8 @@ test("the non-drawer report dialog renders its full content and keeps it after t
 
   // 背景重繪把觸發卡片抽走(與上面那條同一個情境),dialog 內容必須原封不動。
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
     });

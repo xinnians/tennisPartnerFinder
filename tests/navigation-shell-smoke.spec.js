@@ -312,11 +312,11 @@ test("My Sessions empty state shows one dc box instead of stacking three placeho
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     window.__renderEmptyCase = (groups) =>
-      renderMySessionsPage(document.getElementById("my-sessions-root"), { authenticated: true, groups });
+      renderMySessionsAppHarness(document.getElementById("my-sessions-root"), { authenticated: true, groups });
   });
 
   const root = page.locator("#my-sessions-root");

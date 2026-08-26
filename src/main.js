@@ -435,7 +435,6 @@ function enablePushNotifications() {
 
 function mountMySessionsDestination() {
   if (!controller) return;
-  const state = controller.getMySessionState();
   // 批 C3-3:createdSessionFocusId 拆成兩個用途——highlightSessionId 給卡片聚焦
   // (create/joined 都要),createdSessionId 只在 reason==="created" 時才往下傳,
   // 避免 join 使用者看到 create 專屬的「球局已建立」文案與推播 prompt
@@ -444,18 +443,9 @@ function mountMySessionsDestination() {
   const createdSessionId = createdSessionFocusReason === "created" ? focusSessionId : null;
   const root = document.getElementById("my-sessions-root");
   renderMySessionsPage(root, {
-    actionScopeKey: state.viewGeneration,
-    authenticated: state.authenticated,
-    courts: getAppState().courts,
     createdSessionId,
     highlightSessionId: focusSessionId,
-    errorMessage: state.error,
-    groups: state.groups,
-    onAccept: (sessionId, participantId) => controller.reviewMySessionParticipant(sessionId, participantId, "accepted"),
-    onAcceptInvite: (sessionId) => controller.respondInvite(sessionId, "accepted"),
     onBack: () => showMapPage({ focus: true }),
-    onCancel: controller.cancelMySession,
-    onConfirmAttendance: controller.confirmMySessionAttendance,
     onCreatedSessionFocus: (expectedSessionId = focusSessionId) => {
       if (createdSessionFocusId !== expectedSessionId) return false;
       createdSessionFocusId = null;
@@ -463,27 +453,10 @@ function mountMySessionsDestination() {
       publishPageView("mySessions");
       return true;
     },
-    // 批 D6:「我主揪的」分頁空狀態「開球局」鈕——沿用底部導覽 create-session-tab
-    // 同一個入口(controller.openCreateIntent 已含 auth/profile gate),不重新實作。
-    onCreateSession: () => controller.openCreateIntent(),
-    onDecline: (sessionId, participantId) =>
-      controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
-    onDeclineInvite: (sessionId) => controller.respondInvite(sessionId, "declined"),
-    onDecide: controller.openSessionDecision,
-    onEdit: controller.openSessionEdit,
     onEnablePush: enablePushNotifications,
-    onMarkPlayed: controller.markMySessionPlayed,
-    onOpenChat: controller.openSessionChat,
-    onOpenSession: controller.openSession,
-    onRefresh: () => controller.refreshMySessions(),
-    onReportParticipant: controller.openRosterParticipantReport,
-    onReportSession: controller.openSessionReport,
     onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     notificationSettings,
     pageViewStore,
-    sessionStore: controller.sessionStore,
-    status: state.status,
-    onWithdraw: controller.withdrawMySession,
   });
   syncBottomNavigation();
 }

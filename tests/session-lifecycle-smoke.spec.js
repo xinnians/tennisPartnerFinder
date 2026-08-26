@@ -546,12 +546,13 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openWithdrawSessionConfirmation, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     window.__mySessionWithdrawConfirmationCount = 0;
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: {
         history: [],
@@ -694,10 +695,10 @@ test("an accepted joined session focuses its own upcoming card without the creat
   };
 
   await page.evaluate(async (session) => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
       highlightSessionId: session.sessionId,
@@ -737,10 +738,10 @@ test("a pending guest request focuses its own withdraw button, not the page head
   };
 
   await page.evaluate(async (session) => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(document.getElementById("my-sessions-root"), {
+    renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
       authenticated: true,
       groups: {
         history: [],
@@ -786,7 +787,8 @@ test("join and create success moments offer push only when the device can enable
   // 批 C3-2:join 成功卡併進同一張 detail sheet,不再開獨立 dialog——直接以
   // initialStage:"confirming" 開 sheet,點 join-confirm 進成功態。
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     window.__successPushCalls = [];
     openSessionSheet(sessionInput, {
       action: { label: "申請加入", kind: "join", expectedAccepted: false },
@@ -800,7 +802,7 @@ test("join and create success moments offer push only when the device can enable
     });
     window.__renderCreatedPush = (settings) => {
       document.getElementById("my-sessions-page").hidden = false;
-      renderMySessionsPage(document.getElementById("my-sessions-root"), {
+      renderMySessionsAppHarness(document.getElementById("my-sessions-root"), {
         authenticated: true,
         createdSessionId: sessionInput.sessionId,
         groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [sessionInput] },
@@ -1226,11 +1228,12 @@ test("undecided candidate sessions keep their court list and time range across p
   ];
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionChatSheet, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+      const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
+      const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
       document.getElementById("my-sessions-page").hidden = false;
-      renderMySessionsPage(root, {
+      renderMySessionsAppHarness(root, {
         authenticated: true,
         courts: catalogue,
         groups: {
@@ -1245,10 +1248,21 @@ test("undecided candidate sessions keep their court list and time range across p
                 role: "guest",
                 status: "requested",
               },
-              session,
+              session: {
+                ...session,
+                canCancel: true,
+                sessionId: 8812,
+                viewerRole: "host",
+              },
             },
-            { kind: "invite", session },
-            { kind: "guest-request", session },
+            {
+              kind: "invite",
+              session: { ...session, canRespondInvite: true, sessionId: 8822, viewerParticipantStatus: "invited" },
+            },
+            {
+              kind: "guest-request",
+              session: { ...session, canWithdraw: true, sessionId: 8832, viewerParticipantStatus: "requested" },
+            },
           ],
           needsActionCount: 3,
           upcoming: [session],
@@ -1267,7 +1281,7 @@ test("undecided candidate sessions keep their court list and time range across p
   const joinedSurfaces = [
     page.locator("#my-upcoming-sessions .my-session-card"),
     page.getByTestId("invite-row"),
-    page.locator("[data-guest-request-session='8802']"),
+    page.locator("[data-guest-request-session='8832']"),
   ];
   for (const surface of joinedSurfaces) {
     const text = await surface.innerText();
@@ -1365,16 +1379,22 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
   ];
   await page.evaluate(
     async ({ decidedSession: session, courts: catalogue }) => {
-      const { openSessionChatSheet, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+      const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
+      const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
       document.getElementById("my-sessions-page").hidden = false;
-      renderMySessionsPage(root, {
+      renderMySessionsAppHarness(root, {
         authenticated: true,
         courts: catalogue,
         groups: {
           history: [],
-          needsAction: [{ kind: "invite", session }],
+          needsAction: [
+            {
+              kind: "invite",
+              session: { ...session, canRespondInvite: true, sessionId: 8813, viewerParticipantStatus: "invited" },
+            },
+          ],
           needsActionCount: 1,
           upcoming: [session],
         },
@@ -1412,7 +1432,7 @@ test("My Sessions preserves the initiating action and its error across a private
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -1438,7 +1458,7 @@ test("My Sessions preserves the initiating action and its error across a private
       release = resolve;
     });
     const render = () =>
-      renderMySessionsPage(root, {
+      renderMySessionsAppHarness(root, {
         authenticated: true,
         groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
         onCancel: async () => {
@@ -1471,7 +1491,7 @@ test("My Sessions renders an escaped invite card with stable response testids", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -1486,12 +1506,12 @@ test("My Sessions renders an escaped invite card with stable response testids", 
       playType: payload,
       sessionId: payload,
       slotsRemaining: payload,
-      startAt: payload,
+      startAt: "2099-07-19T01:00:00.000Z",
       status: "open",
       viewerParticipantStatus: "invited",
       viewerRole: "guest",
     };
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: { history: [], needsAction: [{ kind: "invite", session }], needsActionCount: 1, upcoming: [] },
     });
@@ -1519,7 +1539,7 @@ test("invite response buttons dispatch, stay pending across replacement, and foc
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -1543,7 +1563,7 @@ test("invite response buttons dispatch, stay pending across replacement, and foc
     });
     const groups = { history: [], needsAction: [{ kind: "invite", session }], needsActionCount: 1, upcoming: [] };
     const render = () =>
-      renderMySessionsPage(root, {
+      renderMySessionsAppHarness(root, {
         actionScopeKey: "account-a",
         authenticated: true,
         groups,
@@ -1581,11 +1601,11 @@ test("declined My Sessions history uses neutral participation wording", async ({
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: {
         history: [

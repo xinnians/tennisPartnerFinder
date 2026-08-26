@@ -242,7 +242,8 @@ function scheduleMySessionsCreatedFocus(root, options = {}) {
 /** Mount or update the private, action-first My Sessions destination. */
 export function renderMySessionsPage(root, options = {}) {
   if (!renderMySessionsPageInApp) throw new Error("MySessionsPage browser mount is unavailable.");
-  setMySessionActionScope(root, options.actionScopeKey ?? null);
+  const hasAdapterActionScope = "actionScopeKey" in options || "sessionStore" in options;
+  if (hasAdapterActionScope) setMySessionActionScope(root, options.actionScopeKey ?? null);
   renderMySessionsPageInApp(
     root,
     {
@@ -250,7 +251,9 @@ export function renderMySessionsPage(root, options = {}) {
       onCreatedSessionCommit: (commit) => scheduleMySessionsCreatedFocus(root, { ...options, ...commit }),
     },
     () => {
-      setMySessionActionScope(root, options.sessionStore?.getState?.().authEpoch ?? options.actionScopeKey ?? null);
+      if (hasAdapterActionScope) {
+        setMySessionActionScope(root, options.sessionStore?.getState?.().authEpoch ?? options.actionScopeKey ?? null);
+      }
       syncPendingMySessionActions(root);
     }
   );

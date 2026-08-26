@@ -28,7 +28,8 @@ test("My Sessions segment switching redraws from the latest rendered snapshot", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews("mySessions");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
@@ -54,12 +55,12 @@ test("My Sessions segment switching redraws from the latest rendered snapshot", 
       needsActionCount: 0,
       upcoming: [session(8800, "目前報名場", "guest"), hostedSession],
     });
-    renderMySessionsPage(root, {
+    const harness = renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: groups(session(8801, "過期主揪場", "host")),
     });
-    const queuedHostedSegmentClick = root.querySelector("[data-my-sessions-seg='hosted']");
-    renderMySessionsPage(root, {
+    const queuedHostedSegmentClick = harness.rootElement.querySelector("[data-my-sessions-seg='hosted']");
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: groups(session(8802, "最新主揪場", "host")),
     });

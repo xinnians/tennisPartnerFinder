@@ -85,7 +85,10 @@
 
 - 選頁拍板：**MySessions**（同 `mySessions` channel 樣板複製最直接、刪最大 options bag
   對 bundle 最有利）。因同時涉及兩種新複雜度，切子批：
-- **批 2A**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch2A-mysessions.md`）：
+- **批 2A**（狀態：**ACCEPTED（2026-08-26，一次通過）**，驗收紀錄
+  `docs/arch-reports/batch-2A-acceptance-2026-08-26.md`；`__importAppModule` 新基準
+  122；MySessions lazy chunk −143 B gzip、total −72 B、main ＋91 B 餘 657 B；
+  三個非阻擋觀察移交 2B，見驗收紀錄尾節）：
   資料 7 欄＋16 個 action 欄（14 個 controller 方法）單源化（hooks 自 `ControllerApi`
   切片）、options bag 31→8、28 個白箱直呼點改寫；pageViewStore 與 adapter 不動。
   新複雜度＝最大 action surface。

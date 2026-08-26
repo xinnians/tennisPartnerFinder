@@ -149,7 +149,8 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMePage, renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMePage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("my-sessions-page").hidden = false;
     document.getElementById("me-page").hidden = false;
@@ -175,7 +176,7 @@ test("My Sessions exposes chat only to accepted members while Me owns the author
       blockedPlayersStatus: "ready",
       onUnblockPlayer: (profileId) => window.__myChatActions.push(["unblock", profileId]),
     });
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: {
         history: [],

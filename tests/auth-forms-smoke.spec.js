@@ -298,7 +298,7 @@ test("My Sessions gives accepted members chat access without rendering retired c
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -317,7 +317,7 @@ test("My Sessions gives accepted members chat access without rendering retired c
       viewerParticipantStatus: "accepted",
       viewerRole: "host",
     };
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [session] },
     });
@@ -336,7 +336,7 @@ test("My Sessions chat button surfaces an unread count without disturbing the ze
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
@@ -354,7 +354,7 @@ test("My Sessions chat button surfaces an unread count without disturbing the ze
       viewerParticipantStatus: "accepted",
       viewerRole: "host",
     };
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: {
         history: [],
@@ -385,11 +385,11 @@ test("a host request card names an absent NTRP instead of displaying NTRP 0.0", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { renderMySessionsPage } = await window.__importAppModule("sessionViews");
+    const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
-    renderMySessionsPage(root, {
+    renderMySessionsAppHarness(root, {
       authenticated: true,
       groups: {
         history: [],

@@ -1,18 +1,17 @@
 import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from "react";
 
+import { useMySessionsActions, useMySessionsState } from "../app/AppServicesProvider.tsx";
 import type {
   ControllerCallbackResult as CallbackResult,
-  ControllerEventName,
   ControllerIdentifier as Identifier,
-  SessionControllerState,
 } from "../controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import type { PageViewStore } from "../pageViewStore.ts";
 import { formatNtrp } from "../profile.js";
+import { setMySessionActionScope, syncPendingMySessionActions } from "../sessionActions.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
 import { mySessionsPageRuntime } from "../sessionPresentation.ts";
-import { selectControllerMySessionsView } from "../sessionSelectors.ts";
-import { useStoreSelector, type Store } from "../sessionStore.ts";
+import { useStoreSelector } from "../sessionStore.ts";
 
 type MySessionsSegment = "hosted" | "joined";
 type MySessionsVenue = ReturnType<typeof mySessionsPageRuntime.sessionVenuePresentation>;
@@ -56,37 +55,14 @@ interface NotificationSettingsInput {
 }
 
 export interface MySessionsPageOptions {
-  actionScopeKey?: unknown;
-  authenticated?: boolean;
-  courts?: CourtSummary[] | null;
   createdSessionId?: Identifier;
-  errorMessage?: string;
-  groups?: MySessionsGroups | null;
   highlightSessionId?: Identifier;
   notificationSettings?: NotificationSettingsInput | null;
-  onAccept?: (sessionId?: string, participantId?: string) => CallbackResult;
-  onAcceptInvite?: (sessionId?: string) => CallbackResult;
   onBack?: () => CallbackResult;
-  onCancel?: (sessionId?: string) => CallbackResult;
-  onConfirmAttendance?: (sessionId?: string) => CallbackResult;
   onCreatedSessionCommit?: (commit: MySessionsCreatedFocusCommit) => void;
   onCreatedSessionFocus?: (sessionId?: Identifier) => boolean;
-  onCreateSession?: () => CallbackResult;
-  onDecline?: (sessionId?: string, participantId?: string) => CallbackResult;
-  onDeclineInvite?: (sessionId?: string) => CallbackResult;
-  onDecide?: (sessionId?: string) => CallbackResult;
-  onEdit?: (sessionId?: string) => CallbackResult;
   onEnablePush?: () => CallbackResult;
-  onMarkPlayed?: (sessionId?: string) => CallbackResult;
-  onOpenChat?: (sessionId?: string) => CallbackResult;
-  onOpenSession?: (sessionId?: string) => CallbackResult;
-  onRefresh?: () => CallbackResult;
-  onReportParticipant?: (sessionId?: string, profileId?: string) => CallbackResult;
-  onReportSession?: (sessionId?: string) => CallbackResult;
   onSignIn?: () => CallbackResult;
-  onWithdraw?: (sessionId?: string) => CallbackResult;
-  status?: string;
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
   pageViewStore?: PageViewStore;
   onStoreCommit?: () => void;
 }
@@ -105,31 +81,15 @@ interface ActionButtonProps {
   testId?: string;
 }
 
-interface MySessionsActions {
-  onAccept?: MySessionsPageOptions["onAccept"];
-  onAcceptInvite?: MySessionsPageOptions["onAcceptInvite"];
+interface MySessionsPageActions extends ReturnType<typeof useMySessionsActions> {
   onBack?: MySessionsPageOptions["onBack"];
-  onCancel?: MySessionsPageOptions["onCancel"];
-  onConfirmAttendance?: MySessionsPageOptions["onConfirmAttendance"];
-  onCreateSession?: MySessionsPageOptions["onCreateSession"];
-  onDecline?: MySessionsPageOptions["onDecline"];
-  onDeclineInvite?: MySessionsPageOptions["onDeclineInvite"];
-  onDecide?: MySessionsPageOptions["onDecide"];
-  onEdit?: MySessionsPageOptions["onEdit"];
   onEnablePush?: MySessionsPageOptions["onEnablePush"];
-  onMarkPlayed?: MySessionsPageOptions["onMarkPlayed"];
-  onOpenChat?: MySessionsPageOptions["onOpenChat"];
-  onOpenSession?: MySessionsPageOptions["onOpenSession"];
-  onRefresh?: MySessionsPageOptions["onRefresh"];
-  onReportParticipant?: MySessionsPageOptions["onReportParticipant"];
-  onReportSession?: MySessionsPageOptions["onReportSession"];
   onSignIn?: MySessionsPageOptions["onSignIn"];
-  onWithdraw?: MySessionsPageOptions["onWithdraw"];
   rootElement: HTMLElement;
 }
 
 const EMPTY_GROUPS: MySessionsGroups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] };
-const MySessionsActionsContext = createContext<MySessionsActions | null>(null);
+const MySessionsActionsContext = createContext<MySessionsPageActions | null>(null);
 
 function dataValue(value: Identifier): string {
   return String(value);
@@ -685,20 +645,11 @@ function SuccessPushPrompt({ settings }: { settings: NotificationSettingsInput |
 }
 
 export function MySessionsPage(props: MySessionsPageProps) {
-  const controllerView = useStoreSelector(props.sessionStore, "mySessions", selectControllerMySessionsView, null);
-  const subscribedCourts = useStoreSelector(props.sessionStore, "courts", (state) => state.courts, props.courts ?? []);
+  const controllerView = useMySessionsState();
+  const controllerActions = useMySessionsActions();
   const pageView = useStoreSelector(props.pageViewStore, "mySessions", (state) => state, null);
-  const {
-    authenticated = false,
-    createdSessionId = null,
-    errorMessage = "",
-    groups = EMPTY_GROUPS,
-    highlightSessionId = null,
-    notificationSettings = {},
-    rootElement,
-    status = "idle",
-  } = props;
-  const resolvedGroups = controllerView?.groups ?? groups;
+  const { createdSessionId = null, highlightSessionId = null, notificationSettings = {}, rootElement } = props;
+  const resolvedGroups = controllerView.groups;
   const resolvedFocusSessionId = pageView?.createdSessionFocusId ?? highlightSessionId;
   const resolvedCreatedSessionId = pageView
     ? pageView.createdSessionFocusReason === "created"
@@ -716,6 +667,8 @@ export function MySessionsPage(props: MySessionsPageProps) {
       highlightSessionId: resolvedFocusSessionId,
     });
     props.onStoreCommit?.();
+    setMySessionActionScope(rootElement, controllerView.actionScopeKey);
+    syncPendingMySessionActions(rootElement);
   });
   const focusSessionId = resolvedFocusSessionId ?? resolvedCreatedSessionId;
   const focusKey = focusSessionId == null ? "" : String(focusSessionId);
@@ -731,27 +684,12 @@ export function MySessionsPage(props: MySessionsPageProps) {
   const hostedCount = split.hosted.needsAction.length + split.hosted.upcoming.length;
   const active = activeSegment === "hosted" ? split.hosted : split.joined;
   const activeNonHistoryCount = active.needsAction.length + active.upcoming.length;
-  const showEmptyState = (controllerView?.authenticated ?? authenticated) && activeNonHistoryCount === 0;
-  const actions: MySessionsActions = {
-    onAccept: props.onAccept,
-    onAcceptInvite: props.onAcceptInvite,
+  const showEmptyState = controllerView.authenticated && activeNonHistoryCount === 0;
+  const actions: MySessionsPageActions = {
+    ...controllerActions,
     onBack: props.onBack,
-    onCancel: props.onCancel,
-    onConfirmAttendance: props.onConfirmAttendance,
-    onCreateSession: props.onCreateSession,
-    onDecline: props.onDecline,
-    onDeclineInvite: props.onDeclineInvite,
-    onDecide: props.onDecide,
-    onEdit: props.onEdit,
     onEnablePush: props.onEnablePush,
-    onMarkPlayed: props.onMarkPlayed,
-    onOpenChat: props.onOpenChat,
-    onOpenSession: props.onOpenSession,
-    onRefresh: props.onRefresh,
-    onReportParticipant: props.onReportParticipant,
-    onReportSession: props.onReportSession,
     onSignIn: props.onSignIn,
-    onWithdraw: props.onWithdraw,
     rootElement,
   };
 
@@ -769,7 +707,7 @@ export function MySessionsPage(props: MySessionsPageProps) {
               id="my-sessions-refresh"
               className="session-secondary my-sessions-v2__tool-btn"
               onClick={(event) =>
-                mySessionsPageRuntime.runMySessionAction(event.currentTarget, props.onRefresh, rootElement)
+                mySessionsPageRuntime.runMySessionAction(event.currentTarget, controllerActions.onRefresh, rootElement)
               }
             >
               重新整理
@@ -800,7 +738,7 @@ export function MySessionsPage(props: MySessionsPageProps) {
         data-my-sessions-status=""
         role="status"
         aria-live="polite"
-        hidden={(controllerView?.status ?? status) !== "loading"}
+        hidden={controllerView.status !== "loading"}
       >
         正在更新我的球局…
       </p>
@@ -809,11 +747,11 @@ export function MySessionsPage(props: MySessionsPageProps) {
         data-my-sessions-error=""
         role="alert"
         tabIndex={-1}
-        hidden={!(controllerView?.error ?? errorMessage)}
+        hidden={!controllerView.errorMessage}
       >
-        {controllerView?.error ?? errorMessage}
+        {controllerView.errorMessage}
       </p>
-      {(controllerView?.authenticated ?? authenticated) ? null : (
+      {controllerView.authenticated ? null : (
         <section className="my-sessions-empty" aria-label="登入後查看我的球局">
           <h2>登入後查看與管理你的球局</h2>
           <p className="surface__copy">你可以在這裡處理申請、進入球局群組聊天，以及保留過去紀錄。</p>
@@ -828,13 +766,13 @@ export function MySessionsPage(props: MySessionsPageProps) {
         </section>
       )}
       <NeedsActionSection
-        courts={subscribedCourts}
+        courts={controllerView.courts}
         entries={active.needsAction}
         focusSessionId={focusSessionId}
         showChrome={!showEmptyState}
       />
       <UpcomingSection
-        courts={subscribedCourts}
+        courts={controllerView.courts}
         focusSessionId={focusSessionId}
         segment={activeSegment}
         sessions={active.upcoming}
@@ -842,7 +780,7 @@ export function MySessionsPage(props: MySessionsPageProps) {
       />
       {showEmptyState ? <EmptyState segment={activeSegment} /> : null}
       <HistorySection
-        courts={subscribedCourts}
+        courts={controllerView.courts}
         focusSessionId={focusSessionId}
         segment={activeSegment}
         sessions={active.history}
