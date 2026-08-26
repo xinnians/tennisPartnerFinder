@@ -132,12 +132,12 @@
     `meApp`）hooks 單源化、14 個測試直呼點處置（三條唯一 oracle 特別點名）、
     補 `me-page-dom` 安全網。風險註記：MePage lazy chunk gzip 餘 ≈380 B 全庫最緊，
     hooks 嚴禁放頁面 chunk。
-  - **3C-2**（3C-1 後開單）：`useMePageView()` 切片（notificationSettings／
-    presenceLocationStatus）、scope／rAF 管道收斂進 MePage（scope key 是 user id
-    非 authEpoch，不可照抄 MySessions）、adapter 退役＋**整套 slot 機制歸零**
-    （`PageSlot`／`renderPortals`／`renderPage`／`commitPageAdapterSynchronously`——
-    附帶提前收掉一個 `syncCommit` caller）、`pageViews.js` 刪檔評估。
-    既有覆蓋缺口：Me 的帳號切換 scope 無測試，3C-2 補。
+  - **3C-2**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3C2-me.md`）：
+    `useMePageView()` 切片＋presence 組裝、scope 遷入 MePage（key＝live user id
+    非 authEpoch）＋node-replacement 帳號切換 oracle（canary 三拍必附）、
+    adapter 退役＋**整套 slot 機制歸零**（附帶收掉 `syncCommit` caller 3→2，
+    `react-surface-lifecycle:109` 白名單同步一行）、auth 差分 preload 等價落點、
+    `pageViews.js` 刪檔評估。兩顆 rAF 判定與 adapter 無關，凍結不動。
 - ACCEPTED 回填：（待）
 
 ## 批 4：Sheet 殼 React 化
