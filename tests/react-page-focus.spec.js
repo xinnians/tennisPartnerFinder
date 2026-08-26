@@ -18,7 +18,7 @@ test("page adapter updates preserve focused React controls without main.js resto
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews, renderMePage, renderMessagesPage, renderMySessionsPage } =
+    const { preloadNonHomeViews, renderMePage, renderMySessionsPage } =
       await window.__importAppModule("sessionViews");
     await preloadNonHomeViews(["me", "messages", "mySessions"]);
 
@@ -37,30 +37,8 @@ test("page adapter updates preserve focused React controls without main.js resto
     renderMe(true);
     const meFocused = meControl === document.activeElement && meControl.isConnected;
 
-    const messageRoot = document.getElementById("messages-root");
     document.getElementById("me-page").hidden = true;
-    document.getElementById("messages-page").hidden = false;
-    const messageGroups = {
-      upcoming: [
-        {
-          court: "大安運動中心",
-          sessionId: 42,
-          startAt: "2026-08-25T10:00:00+08:00",
-          unreadMessageCount: 1,
-          viewerParticipantStatus: "accepted",
-        },
-      ],
-    };
-    renderMessagesPage(messageRoot, { groups: messageGroups });
-    const messageControl = messageRoot.querySelector('[data-testid="messages-row-42"]');
-    messageControl.focus();
-    renderMessagesPage(messageRoot, {
-      groups: { upcoming: [{ ...messageGroups.upcoming[0], unreadMessageCount: 2 }] },
-    });
-    const messagesFocused = messageControl === document.activeElement && messageControl.isConnected;
-
     const mySessionsRoot = document.getElementById("my-sessions-root");
-    document.getElementById("messages-page").hidden = true;
     document.getElementById("my-sessions-page").hidden = false;
     const mySessionsOptions = {
       authenticated: true,
@@ -74,10 +52,78 @@ test("page adapter updates preserve focused React controls without main.js resto
 
     globalThis.__pageFocusIdentity = {
       me: meFocused,
-      messages: messagesFocused,
+      messages: false,
       mySessions: mySessionsFocused,
     };
   });
+
+  await page.evaluate(async () => {
+    const { mountMessagesAppHarness } = await import("/tests/fixtures/messagesAppHarness.tsx");
+    const host = document.createElement("div");
+    host.id = "messages-focus-harness";
+    Object.assign(host.style, {
+      background: "white",
+      inset: "16px 16px auto",
+      position: "fixed",
+      zIndex: "10000",
+    });
+    document.body.append(host);
+    globalThis.__messagesFocusHost = host;
+    globalThis.__messagesFocusHarness = mountMessagesAppHarness(host, {
+      mySessions: [
+        {
+          court: "大安運動中心",
+          sessionId: 42,
+          startAt: "2026-08-25T10:00:00+08:00",
+          unreadMessageCount: 1,
+          viewerParticipantStatus: "accepted",
+          viewerRole: "guest",
+        },
+      ],
+      onOpenChat: (_sessionId, sessionStore) => {
+        sessionStore.setState((state) => ({
+          mySessions: state.mySessions.map((session) => ({ ...session, unreadMessageCount: 2 })),
+        }));
+        sessionStore.emit("mySessions");
+      },
+    });
+  });
+  const messageControl = page.locator('#messages-focus-harness [data-testid="messages-row-42"]');
+  await expect(messageControl).toBeVisible();
+  await messageControl.focus();
+  await page.evaluate(() => {
+    globalThis.__messagesFocusNode = document.querySelector('#messages-focus-harness [data-testid="messages-row-42"]');
+  });
+  await messageControl.click();
+  await expect(messageControl).toHaveAttribute("aria-label", /2 則未讀訊息/);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => globalThis.__messagesFocusNode === document.activeElement && globalThis.__messagesFocusNode?.isConnected
+      )
+    )
+    .toBe(true);
+  await page.evaluate(() => {
+    globalThis.__pageFocusIdentity.messages = true;
+  });
+
+  await page.evaluate(() => {
+    globalThis.__messagesFocusHarness.sessionStore.setState({ mySessions: [] });
+    globalThis.__messagesFocusHarness.sessionStore.emit("mySessions");
+  });
+  const messagesHarness = page.locator("#messages-focus-harness");
+  await expect(messagesHarness.locator(".messages-row")).toHaveCount(0);
+  await expect(messagesHarness.locator(".messages-page__empty")).toBeVisible();
+  await expect(messagesHarness.locator(".messages-page__empty")).toContainText("成局後群組聊天會出現在這裡");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          globalThis.__messagesFocusHost === document.getElementById("messages-focus-harness") &&
+          globalThis.__messagesFocusHost?.isConnected
+      )
+    )
+    .toBe(true);
 
   await expect
     .poll(() => page.evaluate(() => globalThis.__pageFocusIdentity))

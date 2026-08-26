@@ -3,12 +3,13 @@ import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
+import type { ControllerApi } from "../controllerContracts.ts";
 import { BANDS } from "../filters.js";
 import type { MePageOptions } from "../pages/MePage.tsx";
-import type { MessagesPageOptions } from "../pages/MessagesPage.tsx";
 import type { MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
 import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
 import { syncCommit } from "../syncCommit.ts";
+import { AppServicesProvider } from "./AppServicesProvider.tsx";
 import {
   installSurfaceHostRenderer,
   mountSurfaceContent,
@@ -28,7 +29,6 @@ interface PageSlot<Options> {
 interface AppSnapshot {
   filters: FilterSnapshot;
   mePages: Map<HTMLElement, PageSlot<MePageOptions>>;
-  messagesPages: Map<HTMLElement, PageSlot<MessagesPageOptions>>;
   mySessionsPages: Map<HTMLElement, PageSlot<MySessionsPageOptions>>;
   navigation: NavigationSnapshot;
   nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
@@ -66,9 +66,9 @@ interface AppProps {
   snapshot: AppSnapshot;
 }
 
-const EMPTY_MESSAGES_GROUPS = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] };
 const noop = () => {};
 let appRoot: Root | null = null;
+let appServices: ControllerApi | null = null;
 let nextSlotId = 1;
 let MePageComponent: typeof import("../pages/MePage.tsx").MePage | null = null;
 let MessagesPageComponent: typeof import("../pages/MessagesPage.tsx").MessagesPage | null = null;
@@ -82,7 +82,6 @@ let mySessionsPageLoadFailed = false;
 let snapshot: AppSnapshot = {
   filters: { band: "all", dateKey: null, districts: new Set(), instantOnly: false, types: new Set() },
   mePages: new Map(),
-  messagesPages: new Map(),
   mySessionsPages: new Map(),
   navigation: { activePage: "map", hasUnread: false, needsActionCount: 0 },
   nearbyDrawers: new Map(),
@@ -254,26 +253,17 @@ const MeDestination = memo(function MeDestination({
 const MessagesDestination = memo(function MessagesDestination({
   failed,
   loaded,
-  slot,
 }: {
   failed: boolean;
   loaded: boolean;
-  slot: PageSlot<MessagesPageOptions>;
 }) {
   useEffect(() => {
     if (!loaded && !failed) void loadMessagesPage().catch(() => {});
   }, [failed, loaded]);
   if (!MessagesPageComponent) return <PageLoading label={failed ? "訊息載入失敗，請重新整理。" : "正在載入訊息…"} />;
-  const { courts = [], groups = EMPTY_MESSAGES_GROUPS, onOpenChat = noop, sessionStore } = slot.options;
   return (
-    <AppErrorBoundary resetKey={slot.resetKey} surface="messages-page">
-      <MessagesPageComponent
-        key={slot.id}
-        courts={courts}
-        groups={groups}
-        onOpenChat={onOpenChat}
-        sessionStore={sessionStore}
-      />
+    <AppErrorBoundary resetKey={0} surface="messages-page">
+      <MessagesPageComponent />
     </AppErrorBoundary>
   );
 });
@@ -790,6 +780,7 @@ export function mountLoginModalContentInApp(
 
 /** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */
 export function App({ snapshot: current }: AppProps) {
+  const messagesRoot = document.getElementById("messages-root");
   const toastRoot = document.getElementById("toast-root");
   const topbarRoot = document.getElementById("map-topbar-root");
   const navigationRoot = document.getElementById("bottom-navigation-root");
@@ -802,13 +793,13 @@ export function App({ snapshot: current }: AppProps) {
         ),
         "me"
       )}
-      {renderPortals(
-        current.messagesPages,
-        (slot) => (
-          <MessagesDestination failed={messagesPageLoadFailed} loaded={Boolean(MessagesPageComponent)} slot={slot} />
-        ),
-        "messages"
-      )}
+      {messagesRoot
+        ? createPortal(
+            <MessagesDestination failed={messagesPageLoadFailed} loaded={Boolean(MessagesPageComponent)} />,
+            messagesRoot,
+            "messages"
+          )
+        : null}
       {renderPortals(
         current.mySessionsPages,
         (slot) => (
@@ -864,7 +855,17 @@ function ensureAppRoot(): Root {
 }
 
 function renderApp(): void {
-  ensureAppRoot().render(<App snapshot={snapshot} />);
+  if (!appServices) throw new Error("App services must be configured before the React root renders.");
+  ensureAppRoot().render(
+    <AppServicesProvider controller={appServices}>
+      <App snapshot={snapshot} />
+    </AppServicesProvider>
+  );
+}
+
+export function configureAppServicesInApp(controller: ControllerApi): void {
+  if (appServices && appServices !== controller) throw new Error("App services cannot be replaced after setup.");
+  appServices = controller;
 }
 
 /** Preserve main.js's fire-and-forget toast adapter while React owns its content and timer. */
@@ -925,14 +926,6 @@ function renderPage<Options>(
 
 export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}, onCommit?: () => void): void {
   renderPage("mePages", rootElement, options, onCommit);
-}
-
-export function renderMessagesPageInApp(
-  rootElement: HTMLElement,
-  options: MessagesPageOptions = {},
-  onCommit?: () => void
-): void {
-  renderPage("messagesPages", rootElement, options, onCommit);
 }
 
 export function renderMySessionsPageInApp(

@@ -3,19 +3,13 @@ import { esc } from "../util.js";
 
 let preloadAuthenticatedViewsForAuth;
 let renderMePageInApp;
-let renderMessagesPageInApp;
 let renderMySessionsPageInApp;
 let renderNearbySessionsDrawerInApp;
 
 /** Configure facade-owned App mounts while keeping page adapters independently testable. */
 export function configurePageViews(dependencies) {
-  ({
-    preloadAuthenticatedViewsForAuth,
-    renderMePageInApp,
-    renderMessagesPageInApp,
-    renderMySessionsPageInApp,
-    renderNearbySessionsDrawerInApp,
-  } = dependencies);
+  ({ preloadAuthenticatedViewsForAuth, renderMePageInApp, renderMySessionsPageInApp, renderNearbySessionsDrawerInApp } =
+    dependencies);
 }
 
 const drawerFocusIntents = new WeakMap();
@@ -310,12 +304,6 @@ export function renderNearbySessionsDrawer(
       restoreFocusedSessionCard(root);
     }
   );
-}
-
-/** Mount or update the React CHATS destination without changing its public adapter. */
-export function renderMessagesPage(root, options = {}) {
-  if (!renderMessagesPageInApp) throw new Error("MessagesPage browser mount is unavailable.");
-  renderMessagesPageInApp(root, options);
 }
 
 /** Keep the persistent map chip synchronized with controller-owned layer state. */

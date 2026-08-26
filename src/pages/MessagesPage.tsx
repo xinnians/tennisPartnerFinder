@@ -1,4 +1,4 @@
-import type { ControllerEventName, SessionControllerState } from "../controllerContracts.ts";
+import { useMessagesActions, useMessagesState } from "../app/AppServicesProvider.tsx";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import {
   messagesFromGroups,
@@ -6,31 +6,8 @@ import {
   sessionScheduleLabel,
   sessionVenuePresentation,
 } from "../sessionPresentation.ts";
-import { selectControllerMySessionsView } from "../sessionSelectors.ts";
-import { useStoreSelector, type Store } from "../sessionStore.ts";
 
 type MessagesSession = MySessionSummary & Partial<Pick<SessionSummary, "candidateCourtIds">>;
-
-interface MessagesGroups {
-  history?: MessagesSession[];
-  needsAction?: unknown[];
-  needsActionCount?: number;
-  upcoming?: MessagesSession[];
-}
-
-export interface MessagesPageOptions {
-  courts?: CourtSummary[] | null;
-  groups?: MessagesGroups | null;
-  onOpenChat?: (sessionId: string) => void;
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
-}
-
-export interface MessagesPageProps {
-  courts: CourtSummary[] | null;
-  groups: MessagesGroups | null;
-  onOpenChat: (sessionId: string) => void;
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
-}
 
 function sessionCourtLabel(session: MessagesSession, venue: ReturnType<typeof sessionVenuePresentation>): string {
   const candidateNames = venue.candidateNames ?? [];
@@ -89,11 +66,10 @@ function MessageRow({
   );
 }
 
-export function MessagesPage({ courts, groups, onOpenChat, sessionStore }: MessagesPageProps) {
-  const subscribed = useStoreSelector(sessionStore, "mySessions", selectControllerMySessionsView, null);
-  const resolvedGroups = subscribed?.groups ?? groups;
-  const resolvedCourts = useStoreSelector(sessionStore, "courts", (state) => state.courts, courts);
-  const rows = messagesFromGroups(resolvedGroups ?? {}) as MessagesSession[];
+export function MessagesPage() {
+  const { courts, groups } = useMessagesState();
+  const { openSessionChat } = useMessagesActions();
+  const rows = messagesFromGroups(groups) as MessagesSession[];
   return (
     <>
       <div className="messages-page__head">
@@ -108,8 +84,8 @@ export function MessagesPage({ courts, groups, onOpenChat, sessionStore }: Messa
             <MessageRow
               key={String(session.sessionId)}
               session={session}
-              courts={resolvedCourts}
-              onOpenChat={onOpenChat}
+              courts={courts}
+              onOpenChat={openSessionChat}
             />
           ))
         ) : (

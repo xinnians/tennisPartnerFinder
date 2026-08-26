@@ -108,7 +108,6 @@ import {
   renderBottomNavigation,
   renderMePage,
   renderPlayerLayerToggle,
-  renderMessagesPage,
   renderMySessionsPage,
   renderNearbySessionsDrawer,
   renderToast,
@@ -525,20 +524,6 @@ function mountMeDestination() {
   syncBottomNavigation();
 }
 
-function mountMessagesDestination() {
-  if (!controller) return;
-  const root = document.getElementById("messages-root");
-  if (!root) return;
-  const state = controller.getMySessionState();
-  renderMessagesPage(root, {
-    courts: getAppState().courts,
-    groups: state.groups,
-    onOpenChat: (sessionId) => controller.openSessionChat(sessionId),
-    sessionStore: controller.sessionStore,
-  });
-  syncBottomNavigation();
-}
-
 function setActivePage(page, { historyMode = "push" } = {}) {
   activePage = page;
   for (const [candidate, { elementId }] of Object.entries(PAGE_ROUTES)) {
@@ -775,9 +760,9 @@ function init() {
     },
     toast,
   });
+  appModule.configureAppServicesInApp(controller);
   mountNearbyDestination();
   mountMySessionsDestination();
-  mountMessagesDestination();
   mountMeDestination();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());

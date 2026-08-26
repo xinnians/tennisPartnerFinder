@@ -239,68 +239,65 @@ test("messages page marks only the unread row, wires row clicks to onOpenChat, a
   await installFakeMaps(page);
   await page.goto("/");
 
+  await page.getByTestId("messages-tab").click();
+  await expect(page.locator("#messages-root .messages-page__empty")).toBeVisible();
+  await expect(page.locator("#messages-root .messages-page__empty")).toContainText("成局後群組聊天會出現在這裡");
+
   await page.evaluate(async () => {
-    const { renderMessagesPage } = await window.__importAppModule("sessionViews");
-    const root = document.getElementById("messages-root");
-    document.getElementById("tab-map").hidden = true;
-    document.getElementById("messages-page").hidden = false;
-    window.__messagesOpened = [];
-    renderMessagesPage(root, {
-      groups: {
-        history: [],
-        needsAction: [],
-        needsActionCount: 0,
-        upcoming: [
-          {
-            court: "青年公園網球場",
-            hostNickname: "示範主揪",
-            playType: "單打",
-            sessionId: 601,
-            startAt: "2099-07-19T01:00:00.000Z",
-            status: "open",
-            unreadMessageCount: 2,
-            viewerParticipantStatus: "accepted",
-            viewerRole: "guest",
-          },
-          {
-            court: "中山運動中心",
-            hostNickname: "另一位主揪",
-            playType: "雙打",
-            sessionId: 602,
-            startAt: "2099-07-20T01:00:00.000Z",
-            status: "open",
-            unreadMessageCount: 0,
-            viewerParticipantStatus: "accepted",
-            viewerRole: "host",
-          },
-        ],
-      },
-      onOpenChat: (sessionId) => window.__messagesOpened.push(sessionId),
+    const { mountMessagesAppHarness } = await import("/tests/fixtures/messagesAppHarness.tsx");
+    const root = document.createElement("div");
+    root.id = "messages-behavior-harness";
+    document.body.append(root);
+    globalThis.__messagesOpened = [];
+    globalThis.__messagesHarness = mountMessagesAppHarness(root, {
+      mySessions: [
+        {
+          court: "青年公園網球場",
+          hostNickname: "示範主揪",
+          playType: "單打",
+          sessionId: 601,
+          startAt: "2099-07-19T01:00:00.000Z",
+          status: "open",
+          unreadMessageCount: 2,
+          viewerParticipantStatus: "accepted",
+          viewerRole: "guest",
+        },
+        {
+          court: "中山運動中心",
+          hostNickname: "另一位主揪",
+          playType: "雙打",
+          sessionId: 602,
+          startAt: "2099-07-20T01:00:00.000Z",
+          status: "open",
+          unreadMessageCount: 0,
+          viewerParticipantStatus: "accepted",
+          viewerRole: "host",
+        },
+      ],
+      onOpenChat: (sessionId) => globalThis.__messagesOpened.push(sessionId),
     });
   });
 
-  const unreadRow = page.getByTestId("messages-row-601");
-  const readRow = page.getByTestId("messages-row-602");
-  await expect(page.locator(".messages-row__unread")).toHaveCount(1);
+  const harness = page.locator("#messages-behavior-harness");
+  const unreadRow = harness.getByTestId("messages-row-601");
+  const readRow = harness.getByTestId("messages-row-602");
+  await expect(harness.locator(".messages-row__unread")).toHaveCount(1);
   await expect(unreadRow.locator(".messages-row__unread")).toHaveCount(1);
   await expect(readRow.locator(".messages-row__unread")).toHaveCount(0);
   // host 視角看自己主揪頭像字顯示「我」,guest 視角顯示主揪暱稱首字(dc §3)。
   await expect(readRow.locator(".messages-row__avatar")).toHaveText("我");
   await expect(unreadRow.locator(".messages-row__avatar")).toHaveText("示");
-  await expect(page.locator(".messages-page__empty")).toHaveCount(0);
+  await expect(harness.locator(".messages-page__empty")).toHaveCount(0);
 
   await unreadRow.click();
   await expect.poll(() => page.evaluate(() => window.__messagesOpened)).toEqual(["601"]);
 
-  await page.evaluate(async () => {
-    const { renderMessagesPage } = await window.__importAppModule("sessionViews");
-    renderMessagesPage(document.getElementById("messages-root"), {
-      groups: { history: [], needsAction: [], needsActionCount: 0, upcoming: [] },
-    });
+  await page.evaluate(() => {
+    globalThis.__messagesHarness.unmount();
+    document.getElementById("messages-behavior-harness").remove();
   });
   await expect(page.locator(".messages-row")).toHaveCount(0);
-  await expect(page.locator(".messages-page__empty")).toBeVisible();
-  await expect(page.locator(".messages-page__empty")).toContainText("成局後群組聊天會出現在這裡");
+  await expect(page.locator("#messages-root .messages-page__empty")).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 

@@ -83,10 +83,6 @@ export function openSessionChatSheet(
   return sessionSurfaceViews.openSessionChatSheet(...args);
 }
 
-export function renderMessagesPage(root, options = {}) {
-  return pageViews.renderMessagesPage(root, options);
-}
-
 // F2D freezes the facade's top-level export declaration scan.
 // prettier-ignore
 export function openSessionSheet(
@@ -250,7 +246,6 @@ function requireAppExport(name) {
 }
 
 const renderMePageInApp = (...args) => requireAppExport("renderMePageInApp")(...args);
-const renderMessagesPageInApp = (...args) => requireAppExport("renderMessagesPageInApp")(...args);
 const renderMySessionsPageInApp = (...args) => requireAppExport("renderMySessionsPageInApp")(...args);
 const renderNearbySessionsDrawerInApp = (...args) => requireAppExport("renderNearbySessionsDrawerInApp")(...args);
 const preloadMePageInApp = () => requireAppExport("preloadMePageInApp")();
@@ -593,7 +588,6 @@ function preloadAuthenticatedViewsForAuth(authSession) {
 configurePageViews({
   preloadAuthenticatedViewsForAuth,
   renderMePageInApp,
-  renderMessagesPageInApp,
   renderMySessionsPageInApp,
   renderNearbySessionsDrawerInApp,
 });
