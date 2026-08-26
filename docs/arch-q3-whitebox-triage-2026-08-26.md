@@ -47,11 +47,14 @@
 
 其餘 C 類：
 
-- `surfaceManifest.js` 五組 frozen 清單：批 3 動 `presentationConsumers`、批 4 動
+- `surfaceManifest.js` 六組 frozen 清單（原文誤植五組，2026-08-26 勘誤）：批 3 動
+  `presentationConsumers`、批 4 動
   `sheetAdapters/lazySheets/imperativeAdapters/unmountRegistrations`（8 個 imperative
   全退時撞非空斷言，批 5 一併處理）。
-- **三份互不引用的重複計數**（`surfaceManifest` 14/13/8、`app-errors.test.js:106,124`
+- **三份互不引用的重複計數**（`surfaceManifest` 14/13/8、`app-errors.test.js:121,129`
   14/8、`react-surface-lifecycle` 3/4/3）：**批 4 開工前先收斂為引用單一 manifest**。
+  （2026-08-26 勘誤：app-errors 行號原誤植 :106,124，實測 :121,:129，該檔自
+  c5291cd 起零變更，屬本文件抄錄錯誤。）
 - `session-presentation-boundary.test.js`：鏡像＋`Object.freeze` 計數 `=13`＋docs 措辭
   逐字比對——隨批 3／4 改寫；docs 措辭比對段建議退役。
 - `__importAppModule` 直呼（現 122：smoke 五檔佔 103）：隨批 3 遞減，僅觀察指標。

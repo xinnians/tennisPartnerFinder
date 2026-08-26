@@ -148,17 +148,33 @@
   四頁（Messages／MySessions／NearbyDrawer／Me）全同級：hooks 單源＋直接 portal＋
   main.js 零頁面 mount 鏈；slot 機制歸零。
 
-## 批 4：Sheet 殼 React 化
+## 批 4：Sheet 殼 React 化（切三段，2026-08-26 盤點後拍板）
 
-- focus trap、Escape、stack、restore metadata 遷入 React surface system；一次一類 surface；
-  原有 DOM、aria、testid 與焦點行為是凍結契約。不在此批改 UX、不做「詳情取代 drawer」。
-- 附帶收益：SessionDetailSheet（835 行，`main.js` eager import）在 adapter 退役後重新
-  lazy 化評估，可望釋回 main-bundle 餘裕（現僅 1,088 B gzip）。
+- 盤點依據：批 3 完結後 Explore 全面盤點（殼本體 `src/sheets.js` 206 行、私有
+  `mountSurface` 一函式承擔背景／focus trap／Escape stack／restore／unmount 時序五責任；
+  `closeSheet`／`closeModal` 是全庫零 caller 死 export；14 sheet 已 100% React portal，
+  殼是唯一 imperative 遺留；open 入口只在 4 個 `src/views/*.js`）。
+- **4A（前置，test＋docs only）**：三份互不引用重複計數收斂為引用單一
+  `tests/fixtures/surfaceManifest.js`（Q3 拍板；`app-errors.test.js:121,:129` 的 14/8、
+  `react-surface-lifecycle` 的 3/4/3 裸數字）；長度斷言升級為名冊集合比對。
+- **4B**：SessionDetailSheet（835 行，`main.js:88` eager import）重 lazy 化。eager 的
+  原始理由（`00d016e`：讓 sessionViews.js 保持 Node-importable 的 import 拓撲）已隨
+  adapter 退役失效；阻礙＝`openSessionSheet` 是唯一未走 `deferSurfaceOpen` 的 open，
+  且 `mountSheet({ onEscape })` 需要同步取得 `content?.handleEscape()`。對齊其餘
+  13 個的 `deferSurfaceOpen` 樣板；`surfaceManifest` eagerModules 2→1、lazySheets
+  13→14（4A 收斂後單點改）。
+- **4C**：殼五責任遷入 React surface system；一次一類 surface；原有 DOM、aria、testid
+  與焦點行為是凍結契約；`SurfaceHost.tsx:60` 的 `syncCommit` 邊界凍結留批 5
+  （A 群 `:80-81` 兩個 `commitSynchronously` 字面不動）。不在此批改 UX、不做
+  「詳情取代 drawer」。死 export 隨 4C 刪。
+- 已知髒點（批 5 處理，批 4 不動）：`react-surface-lifecycle.test.js:94` 標題
+  `"three approved callers"` 與 `:109` 現值 2 元素不一致。
 - ACCEPTED 回填：（待）
 
-## 批 5：同步 commit 降級（3→0）
+## 批 5：同步 commit 降級（2→0）
 
-- 逐個移除 `syncCommit` 三個 caller（`sessionStore.ts`、`SurfaceHost.tsx`、`App.tsx`），
+- 逐個移除 `syncCommit` 剩餘兩個 caller（`sessionStore.ts`、`SurfaceHost.tsx`；
+  `App.tsx` caller 已隨批 3C-2 slot 退役收掉），
   每移除一個都用原始 race／focus 測試驗證；允許「有書面理由的殘留」，不硬壓歸零。
 - ACCEPTED 回填：（待）
 
