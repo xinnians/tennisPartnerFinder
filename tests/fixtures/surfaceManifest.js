@@ -34,6 +34,8 @@ export const SURFACE_MANIFEST = Object.freeze({
     "registerWithdrawContent",
   ]),
   eagerModules: namedList(["src/app/App.tsx", "src/sheets/SessionDetailSheet.tsx"]),
+  lazyPages: namedList(["src/pages/MePage.tsx", "src/pages/MessagesPage.tsx", "src/pages/MySessionsPage.tsx"]),
+  navDestinations: namedList(["map", "my-sessions", "messages", "me"]),
   lazySheets: namedList([
     "src/sheets/CourtPlayersSheet.tsx",
     "src/sheets/CourtSessionSheet.tsx",

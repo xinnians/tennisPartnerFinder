@@ -10,6 +10,7 @@ import {
   configureAppErrorTransport,
   installGlobalErrorHandlers,
 } from "../src/appErrors.ts";
+import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 
 const ROOT = new URL("../src/", import.meta.url);
 
@@ -118,7 +119,11 @@ test("the single App root retains all 19 isolated error surfaces", () => {
     assert.match(appSource, new RegExp(`surface=["']${surface}["']`), `${surface} lost its isolated boundary`);
   }
 
-  assert.equal(sheetFiles.length, 14, "all sheet contents must register with SurfaceHost");
+  assert.deepStrictEqual(
+    sheetFiles.map((path) => relative(new URL("../", import.meta.url).pathname, path).replaceAll("\\", "/")).sort(),
+    [...SURFACE_MANIFEST.sheetAdapters].sort(),
+    "all sheet contents must register with SurfaceHost"
+  );
   for (const path of sheetFiles) {
     const source = readFileSync(path, "utf8");
     assert.match(source, /import \{ AppErrorBoundary \}/, `${relative(ROOT.pathname, path)} lost its boundary`);
@@ -126,7 +131,10 @@ test("the single App root retains all 19 isolated error surfaces", () => {
   }
 
   const refAdapters = sheetFiles.filter((path) => readFileSync(path, "utf8").includes("content did not mount"));
-  assert.equal(refAdapters.length, 8);
+  assert.deepStrictEqual(
+    refAdapters.map((path) => relative(new URL("../", import.meta.url).pathname, path).replaceAll("\\", "/")).sort(),
+    [...SURFACE_MANIFEST.imperativeAdapters].sort()
+  );
   for (const path of refAdapters) {
     assert.match(
       readFileSync(path, "utf8"),

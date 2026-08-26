@@ -136,17 +136,17 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
   );
   assertExactNamedScan(lazySheets, SURFACE_MANIFEST.lazySheets, "lazy sheet module");
   assert.doesNotMatch(lazySheetMap, /eager:/);
-  assert.equal((APP.match(/Request \?\?= import\("\.\.\/pages\//g) ?? []).length, 3);
+  const lazyPages = [...APP.matchAll(/\w+Request \?\?= import\("\.\.\/pages\/([^"/]+)\.tsx"\)/g)].map(
+    (match) => `src/pages/${match[1]}.tsx`
+  );
+  assertExactNamedScan(lazyPages, SURFACE_MANIFEST.lazyPages, "lazy page module");
   assert.match(SESSION_VIEWS, /pointerover[\s\S]*focusin/);
   assert.match(SESSION_VIEWS, /if \(authSession\) preloadAuthenticatedViews\(\)/);
 });
 
 test("AppShell preserves navigation, toast, popover, and Escape accessibility contracts", () => {
-  assert.equal(
-    (APP.match(/aria-current=\{activePage === ".+?" \? "page" : undefined\}/g) ?? []).length,
-    4,
-    "all four destination tabs must derive aria-current from React navigation state"
-  );
+  const navDestinations = [...APP.matchAll(/activePage === "([^"]+)"/g)].map((match) => match[1]);
+  assertExactNamedScan(navDestinations, SURFACE_MANIFEST.navDestinations, "React navigation destination");
   assert.match(APP, /aria-expanded=\{popoverOpen\}/);
   assert.match(APP, /aria-controls="level-popover"/);
   assert.match(APP, /event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*setPopoverOpen\(false\);/);
@@ -176,6 +176,6 @@ test("Session Detail blocks both direct and async commits after its surface dies
   for (const methodBody of imperativeMethodBodies) {
     assert.match(methodBody, /surfaceContent\.commit\(/);
   }
-  assert.equal((contractBody.match(/surfaceContent\.commit\(/g) ?? []).length, 3);
+  assert.equal((contractBody.match(/surfaceContent\.commit\(/g) ?? []).length, imperativeMethodBodies.length);
   assert.doesNotMatch(SESSION_VIEWS, /content\.renderStage|function renderStage/);
 });

@@ -154,9 +154,13 @@
   `mountSurface` 一函式承擔背景／focus trap／Escape stack／restore／unmount 時序五責任；
   `closeSheet`／`closeModal` 是全庫零 caller 死 export；14 sheet 已 100% React portal，
   殼是唯一 imperative 遺留；open 入口只在 4 個 `src/views/*.js`）。
-- **4A（前置，test＋docs only）**：三份互不引用重複計數收斂為引用單一
-  `tests/fixtures/surfaceManifest.js`（Q3 拍板；`app-errors.test.js:121,:129` 的 14/8、
-  `react-surface-lifecycle` 的 3/4/3 裸數字）；長度斷言升級為名冊集合比對。
+- **4A（前置，test＋docs only）**（狀態：**ACCEPTED（2026-08-26）**，驗收紀錄
+  `docs/arch-reports/batch-4A-manifest-acceptance-2026-08-26.md`；派工單
+  `docs/arch-dispatch-2026-08-26-batch4A-manifest.md`）：三份互不引用重複計數收斂為
+  引用單一 `tests/fixtures/surfaceManifest.js`（`app-errors` 14/8 名冊化、
+  lazyPages／navDestinations named scan、`:179` 引檔內清單）；manifest 欄位 6→8；
+  四組 canary 三拍驗收方全數獨立複跑。navDestinations 結構弱化由
+  `performance.spec.js:207-214` 行為 oracle 承接（驗收註記）。
 - **4B**：SessionDetailSheet（835 行，`main.js:88` eager import）重 lazy 化。eager 的
   原始理由（`00d016e`：讓 sessionViews.js 保持 Node-importable 的 import 拓撲）已隨
   adapter 退役失效；阻礙＝`openSessionSheet` 是唯一未走 `deferSurfaceOpen` 的 open，
