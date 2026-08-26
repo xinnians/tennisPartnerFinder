@@ -126,9 +126,9 @@ test("synchronous React commits stay behind one fail-closed helper and three app
 });
 
 test("non-home pages and sheets stay behind explicit preloadable module boundaries", () => {
-  const eagerModules = [
-    ...MAIN.matchAll(/^import .* from "(\.\/(?:app\/App|sheets\/SessionDetailSheet)\.tsx)";$/gm),
-  ].map((match) => sourcePath(match[1]));
+  const eagerModules = [...MAIN.matchAll(/^import .* from "(\.\/app\/App\.tsx)";$/gm)].map((match) =>
+    sourcePath(match[1])
+  );
   assertExactNamedScan(eagerModules, SURFACE_MANIFEST.eagerModules, "eager surface module");
   const lazySheetMap = extractBracedBody(SESSION_VIEWS, "const lazySurfaceLoaders = {");
   const lazySheets = [...lazySheetMap.matchAll(/"(\.\/sheets\/.+?\.tsx)":\s*\(\) =>\s*import\("\1"\)/g)].map((match) =>

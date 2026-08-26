@@ -236,12 +236,10 @@ export function renderMapDataStatus(
 // them explicitly so Node unit tests can still import sessionViews.js without
 // teaching Node to execute TSX.
 let appModule = null;
-let mountSessionDetailSheetContent;
 let preloadMePageInApp = null;
 
 export function configureSessionViewModules(modules) {
   appModule = modules.appModule;
-  mountSessionDetailSheetContent = modules.mountSessionDetailSheetContent;
   configureLoginModalContent(appModule.mountLoginModalContentInApp);
   preloadMePageInApp = appModule.preloadMePageInApp;
   if (typeof preloadMePageInApp !== "function") {
@@ -276,6 +274,7 @@ const lazySurfaceLoaders = {
   "./sheets/ProfileCompletionSheet.tsx": () => import("./sheets/ProfileCompletionSheet.tsx"),
   "./sheets/ReportDialog.tsx": () => import("./sheets/ReportDialog.tsx"),
   "./sheets/SessionChatSheet.tsx": () => import("./sheets/SessionChatSheet.tsx"),
+  "./sheets/SessionDetailSheet.tsx": () => import("./sheets/SessionDetailSheet.tsx"),
   "./sheets/SessionUnavailableSheet.tsx": () => import("./sheets/SessionUnavailableSheet.tsx"),
   "./sheets/WithdrawSessionConfirmationDialog.tsx": () => import("./sheets/WithdrawSessionConfirmationDialog.tsx"),
 };
@@ -291,6 +290,7 @@ let mountPlayerCardSheetContent;
 let mountProfileCompletionSheetContent;
 let mountDecideSessionSheetContent;
 let mountSessionChatSheetContent;
+let mountSessionDetailSheetContent;
 let mountWithdrawSessionConfirmationDialogContent;
 let mountReportDialogContent;
 
@@ -364,6 +364,11 @@ const preloadSessionChatSheet = createMountPreloader(
   "mountSessionChatSheetContent",
   (mount) => (mountSessionChatSheetContent = mount)
 );
+const preloadSessionDetailSheet = createMountPreloader(
+  "./sheets/SessionDetailSheet.tsx",
+  "mountSessionDetailSheetContent",
+  (mount) => (mountSessionDetailSheetContent = mount)
+);
 const preloadWithdrawSessionConfirmationDialog = createMountPreloader(
   "./sheets/WithdrawSessionConfirmationDialog.tsx",
   "mountWithdrawSessionConfirmationDialogContent",
@@ -396,6 +401,7 @@ configureSessionSurfaceViews({
   },
   preloadReportDialog,
   preloadSessionChatSheet,
+  preloadSessionDetailSheet,
   preloadSessionUnavailableSheet,
   preloadWithdrawSessionConfirmationDialog,
   registerChatContent(mounted, content) {
@@ -603,6 +609,8 @@ function preloadForIntent(target) {
   if (target.closest("#my-sessions-tab")) warmView(preloadMySessionsPageInApp);
   if (target.closest("#create-session-tab")) warmView(preloadCreateSessionSheet);
   if (target.closest("#filter-sheet-open")) warmView(preloadFilterSheet);
+  if (target.closest('[data-testid="session-card"], [data-open-my-session], [title^="球局 · "]'))
+    warmView(preloadSessionDetailSheet);
   if (target.closest("#player-directory-open")) {
     warmView(preloadPlayerDirectorySheet);
     warmView(preloadPlayerCardSheet);

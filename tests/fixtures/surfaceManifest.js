@@ -33,7 +33,7 @@ export const SURFACE_MANIFEST = Object.freeze({
     "registerUnavailableContent",
     "registerWithdrawContent",
   ]),
-  eagerModules: namedList(["src/app/App.tsx", "src/sheets/SessionDetailSheet.tsx"]),
+  eagerModules: namedList(["src/app/App.tsx"]),
   lazyPages: namedList(["src/pages/MePage.tsx", "src/pages/MessagesPage.tsx", "src/pages/MySessionsPage.tsx"]),
   navDestinations: namedList(["map", "my-sessions", "messages", "me"]),
   lazySheets: namedList([
@@ -48,6 +48,7 @@ export const SURFACE_MANIFEST = Object.freeze({
     "src/sheets/ProfileCompletionSheet.tsx",
     "src/sheets/ReportDialog.tsx",
     "src/sheets/SessionChatSheet.tsx",
+    "src/sheets/SessionDetailSheet.tsx",
     "src/sheets/SessionUnavailableSheet.tsx",
     "src/sheets/WithdrawSessionConfirmationDialog.tsx",
   ]),

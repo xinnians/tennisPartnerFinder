@@ -161,13 +161,16 @@
   lazyPages／navDestinations named scan、`:179` 引檔內清單）；manifest 欄位 6→8；
   四組 canary 三拍驗收方全數獨立複跑。navDestinations 結構弱化由
   `performance.spec.js:207-214` 行為 oracle 承接（驗收註記）。
-- **4B**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch4B-detail-lazy.md`）：
-  SessionDetailSheet（835 行，`main.js:88` eager import）重 lazy 化。eager 的
-  原始理由（`00d016e`：讓 sessionViews.js 保持 Node-importable 的 import 拓撲）已隨
-  adapter 退役失效；阻礙＝`openSessionSheet` 是唯一未走 `deferSurfaceOpen` 的 open，
-  且 `mountSheet({ onEscape })` 需要同步取得 `content?.handleEscape()`。對齊其餘
-  13 個的 `deferSurfaceOpen` 樣板；`surfaceManifest` eagerModules 2→1、lazySheets
-  13→14（4A 收斂後單點改）。
+- **4B**（狀態：**ACCEPTED（2026-08-26）**，驗收紀錄
+  `docs/arch-reports/batch-4B-detail-lazy-acceptance-2026-08-26.md`；對立審查
+  `docs/arch-reports/batch-4B-adversarial-2026-08-26.md`；派工單
+  `docs/arch-dispatch-2026-08-26-batch4B-detail-lazy.md`）：SessionDetailSheet
+  重 lazy 化完成——defer 分支對齊其餘 13 個樣板（Escape 同步、methods FIFO
+  replay）、五條 race oracle＋canary ×2、匿名 intent 預熱、本體零 diff。
+  main gzip −3,652 B 餘 5,558 B；新 chunk 4,850 落 gate；total gzip +1,597 B
+  （code-splitting 固有成本，如實記錄）。eagerModules 2→1、lazySheets 13→14。
+  hosted QA 待辦：真機驗證 map pin hover 是否觸發 chunk 預熱
+  （AdvancedMarker title 事件路徑 [不確定]）。
 - **4C**：殼五責任遷入 React surface system；一次一類 surface；原有 DOM、aria、testid
   與焦點行為是凍結契約；`SurfaceHost.tsx:60` 的 `syncCommit` 邊界凍結留批 5
   （A 群 `:80-81` 兩個 `commitSynchronously` 字面不動）。不在此批改 UX、不做

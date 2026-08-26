@@ -7,6 +7,7 @@ let deferSurfaceOpen;
 let lazyMounts;
 let preloadReportDialog;
 let preloadSessionChatSheet;
+let preloadSessionDetailSheet;
 let preloadSessionUnavailableSheet;
 let preloadWithdrawSessionConfirmationDialog;
 let registerChatContent;
@@ -22,6 +23,7 @@ export function configureSessionSurfaceViews(dependencies) {
     lazyMounts,
     preloadReportDialog,
     preloadSessionChatSheet,
+    preloadSessionDetailSheet,
     preloadSessionUnavailableSheet,
     preloadWithdrawSessionConfirmationDialog,
     registerChatContent,
@@ -234,7 +236,40 @@ export function openSessionSheet(
     onClose = () => {},
   } = {}
 ) {
-  if (!lazyMounts.sessionDetail) throw new Error("SessionDetailSheet browser mount is unavailable.");
+  if (!lazyMounts.sessionDetail) {
+    return deferSurfaceOpen({
+      id: "session-sheet",
+      label: "球局詳情",
+      className: "session-detail-sheet",
+      load: preloadSessionDetailSheet,
+      methods: ["setJoinPreview", "enterConfirming"],
+      onClose,
+      open: () =>
+        openSessionSheet(session, {
+          action,
+          canDecide,
+          canEdit,
+          canChat,
+          canReport,
+          isMine,
+          showJoinPreview,
+          courts,
+          notificationSettings,
+          initialStage,
+          onCopyLink,
+          onDecide,
+          onEdit,
+          onChat,
+          onPrimary,
+          onConfirmJoin,
+          onEnablePush,
+          onViewMySessions,
+          onReport,
+          onWithdraw,
+          onClose,
+        }),
+    });
+  }
   const venue = sessionVenuePresentation(session, courts);
   let content = null;
 
