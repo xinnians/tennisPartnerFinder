@@ -3,21 +3,24 @@ import { createRoot, type Root } from "react-dom/client";
 import { AppServicesProvider } from "../../src/app/AppServicesProvider.tsx";
 import type {
   ControllerApi,
+  ControllerIdentifier,
   ControllerMySessionGroups,
   SessionControllerState,
 } from "../../src/controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionRosterEntry } from "../../src/domainTypes.ts";
-import { MySessionsPage, type MySessionsPageOptions } from "../../src/pages/MySessionsPage.tsx";
-import type { PageViewStore } from "../../src/pageViewStore.ts";
+import { MySessionsPage } from "../../src/pages/MySessionsPage.tsx";
+import type { PageNotificationSettings, PageViewState, PageViewStore } from "../../src/pageViewStore.ts";
 import { createStore } from "../../src/sessionStore.ts";
 import { syncCommit } from "../../src/syncCommit.ts";
 
-interface MySessionsHarnessOptions extends MySessionsPageOptions {
+interface MySessionsHarnessOptions {
   actionScopeKey?: unknown;
   authenticated?: boolean;
   courts?: CourtSummary[] | null;
+  createdSessionId?: ControllerIdentifier;
   errorMessage?: string;
   groups?: Partial<ControllerMySessionGroups> | null;
+  highlightSessionId?: ControllerIdentifier;
   onAccept?(sessionId?: string, participantId?: string): unknown;
   onAcceptInvite?(sessionId?: string): unknown;
   onCancel?(sessionId?: string): unknown;
@@ -34,6 +37,11 @@ interface MySessionsHarnessOptions extends MySessionsPageOptions {
   onReportParticipant?(sessionId?: string, profileId?: string): unknown;
   onReportSession?(sessionId?: string): unknown;
   onWithdraw?(sessionId?: string): unknown;
+  notificationSettings?: PageNotificationSettings | null;
+  onBack?(): unknown;
+  onCreatedSessionFocus?(sessionId?: ControllerIdentifier): boolean;
+  onEnablePush?(): unknown;
+  onSignIn?(): unknown;
   pageViewStore?: PageViewStore;
   status?: string;
   sessionStore?: ControllerApi["sessionStore"];
@@ -42,6 +50,7 @@ interface MySessionsHarnessOptions extends MySessionsPageOptions {
 export interface MySessionsAppHarness {
   root: Root;
   rootElement: HTMLElement;
+  pageViewStore: PageViewStore;
   sessionStore: ControllerApi["sessionStore"];
   unmount(): void;
   update(options?: MySessionsHarnessOptions): void;
@@ -135,41 +144,18 @@ function createMySessionsHarnessState(options: MySessionsHarnessOptions): Sessio
   };
 }
 
-function scheduleCreatedSessionFocus(
-  rootElement: HTMLElement,
-  options: MySessionsHarnessOptions,
-  commit: Parameters<NonNullable<MySessionsPageOptions["onCreatedSessionCommit"]>>[0]
-): void {
-  const focusSessionId = commit.highlightSessionId ?? commit.createdSessionId;
-  const focusInUpcoming = commit.groups.upcoming?.some(
-    (session) => String(session.sessionId) === String(focusSessionId)
-  );
-  const focusInNeedsAction = commit.groups.needsAction?.some(
-    (entry) => entry.kind === "guest-request" && String(entry.session.sessionId) === String(focusSessionId)
-  );
-  if (!focusSessionId || (!focusInUpcoming && !focusInNeedsAction)) return;
-  requestAnimationFrame(() => {
-    const target = rootElement.querySelector<HTMLElement>(
-      "[data-created-session] [data-open-my-session], [data-created-session] [data-my-action='withdraw']"
-    );
-    if (!target || options.onCreatedSessionFocus?.(focusSessionId) === false) return;
-    target.focus({ preventScroll: true });
-  });
-}
-
-function remainingPageOptions(options: MySessionsHarnessOptions, rootElement: HTMLElement): MySessionsPageOptions {
+function createMySessionsPageViewState(options: MySessionsHarnessOptions): PageViewState {
+  const createdSessionFocusId = options.highlightSessionId ?? options.createdSessionId ?? null;
   return {
-    createdSessionId: options.createdSessionId,
-    highlightSessionId: options.highlightSessionId,
-    notificationSettings: options.notificationSettings,
-    onBack: options.onBack,
-    onCreatedSessionCommit:
-      options.onCreatedSessionCommit ?? ((commit) => scheduleCreatedSessionFocus(rootElement, options, commit)),
-    onCreatedSessionFocus: options.onCreatedSessionFocus,
-    onEnablePush: options.onEnablePush,
-    onSignIn: options.onSignIn,
-    onStoreCommit: options.onStoreCommit,
-    pageViewStore: options.pageViewStore,
+    createdSessionFocusId,
+    createdSessionFocusReason:
+      options.createdSessionId != null && String(options.createdSessionId) === String(createdSessionFocusId)
+        ? "created"
+        : createdSessionFocusId == null
+          ? null
+          : "joined",
+    notificationSettings: options.notificationSettings ?? {},
+    presenceLocationStatus: "idle",
   };
 }
 
@@ -193,7 +179,10 @@ export function mountMySessionsAppHarness(
   const rootElement = replaceAppOwnedRoot(requestedRoot);
   let options = initialOptions;
   const ownsSessionStore = !options.sessionStore;
+  const ownsPageViewStore = !options.pageViewStore;
   const sessionStore = options.sessionStore ?? createStore(createMySessionsHarnessState(options));
+  const pageViewStore =
+    options.pageViewStore ?? createStore<PageViewState, "me" | "mySessions">(createMySessionsPageViewState(options));
   const controller = {
     cancelMySession: (sessionId: string) => options.onCancel?.(sessionId),
     confirmMySessionAttendance: (sessionId: string) => options.onConfirmAttendance?.(sessionId),
@@ -214,14 +203,19 @@ export function mountMySessionsAppHarness(
     sessionStore,
     withdrawMySession: (sessionId: string) => options.onWithdraw?.(sessionId),
   } as unknown as ControllerApi;
+  const mySessionsApp = {
+    onBack: () => options.onBack?.(),
+    onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => options.onCreatedSessionFocus?.(sessionId) ?? true,
+    onEnablePush: () => options.onEnablePush?.(),
+    onSignIn: () => options.onSignIn?.(),
+  };
   const root = createRoot(rootElement);
 
   const render = () => {
-    const pageOptions = remainingPageOptions(options, rootElement);
     syncCommit(() => {
       root.render(
-        <AppServicesProvider controller={controller}>
-          <MySessionsPage {...pageOptions} rootElement={rootElement} />
+        <AppServicesProvider controller={controller} mySessionsApp={mySessionsApp} pageViewStore={pageViewStore}>
+          <MySessionsPage rootElement={rootElement} />
         </AppServicesProvider>
       );
     });
@@ -230,16 +224,19 @@ export function mountMySessionsAppHarness(
   const harness: MySessionsAppHarness = {
     root,
     rootElement,
+    pageViewStore,
     sessionStore,
     unmount: () => root.unmount(),
     update(nextOptions = {}) {
       options = nextOptions;
       if (ownsSessionStore) sessionStore.setState(createMySessionsHarnessState(options));
+      if (ownsPageViewStore) pageViewStore.setState(createMySessionsPageViewState(options));
       render();
       if (ownsSessionStore) {
         sessionStore.emit("mySessions");
         sessionStore.emit("courts");
       }
+      if (ownsPageViewStore) pageViewStore.emit("mySessions");
     },
   };
   harnesses.set(requestedRoot, harness);

@@ -1,17 +1,22 @@
 import { createContext, Fragment, useContext, useLayoutEffect, useRef, useState } from "react";
 
-import { useMySessionsActions, useMySessionsState } from "../app/AppServicesProvider.tsx";
+import {
+  useMySessionsActions,
+  useMySessionsAppActions,
+  useMySessionsPageView,
+  useMySessionsState,
+} from "../app/AppServicesProvider.tsx";
 import type {
   ControllerCallbackResult as CallbackResult,
   ControllerIdentifier as Identifier,
 } from "../controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
-import type { PageViewStore } from "../pageViewStore.ts";
+import type { PageNotificationSettings } from "../pageViewStore.ts";
 import { formatNtrp } from "../profile.js";
+import { scheduleMySessionsCreatedFocus } from "../mySessionsCreatedFocus.ts";
 import { setMySessionActionScope, syncPendingMySessionActions } from "../sessionActions.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.js";
 import { mySessionsPageRuntime } from "../sessionPresentation.ts";
-import { useStoreSelector } from "../sessionStore.ts";
 
 type MySessionsSegment = "hosted" | "joined";
 type MySessionsVenue = ReturnType<typeof mySessionsPageRuntime.sessionVenuePresentation>;
@@ -33,41 +38,7 @@ interface MySessionsActionEntry {
   session: MySessionsSession;
 }
 
-interface MySessionsGroups {
-  history?: MySessionsSession[] | null;
-  needsAction?: MySessionsActionEntry[] | null;
-  needsActionCount?: number;
-  upcoming?: MySessionsSession[] | null;
-}
-
-interface MySessionsCreatedFocusCommit {
-  createdSessionId: Identifier;
-  groups: MySessionsGroups;
-  highlightSessionId: Identifier;
-}
-
-interface NotificationSettingsInput {
-  courtIds?: Array<number | string>;
-  errorMessage?: string;
-  prefs?: Record<string, boolean>;
-  pushStatus?: string;
-  webPushConfigured?: boolean;
-}
-
-export interface MySessionsPageOptions {
-  createdSessionId?: Identifier;
-  highlightSessionId?: Identifier;
-  notificationSettings?: NotificationSettingsInput | null;
-  onBack?: () => CallbackResult;
-  onCreatedSessionCommit?: (commit: MySessionsCreatedFocusCommit) => void;
-  onCreatedSessionFocus?: (sessionId?: Identifier) => boolean;
-  onEnablePush?: () => CallbackResult;
-  onSignIn?: () => CallbackResult;
-  pageViewStore?: PageViewStore;
-  onStoreCommit?: () => void;
-}
-
-export interface MySessionsPageProps extends MySessionsPageOptions {
+export interface MySessionsPageProps {
   rootElement: HTMLElement;
 }
 
@@ -82,13 +53,12 @@ interface ActionButtonProps {
 }
 
 interface MySessionsPageActions extends ReturnType<typeof useMySessionsActions> {
-  onBack?: MySessionsPageOptions["onBack"];
-  onEnablePush?: MySessionsPageOptions["onEnablePush"];
-  onSignIn?: MySessionsPageOptions["onSignIn"];
+  onBack: () => unknown;
+  onEnablePush: () => unknown;
+  onSignIn: () => unknown;
   rootElement: HTMLElement;
 }
 
-const EMPTY_GROUPS: MySessionsGroups = { history: [], needsAction: [], needsActionCount: 0, upcoming: [] };
 const MySessionsActionsContext = createContext<MySessionsPageActions | null>(null);
 
 function dataValue(value: Identifier): string {
@@ -578,7 +548,7 @@ function HistorySection({
   );
 }
 
-function SuccessPushPrompt({ settings }: { settings: NotificationSettingsInput | null }) {
+function SuccessPushPrompt({ settings }: { settings: PageNotificationSettings | null }) {
   const actions = useContext(MySessionsActionsContext);
   const [errorMessage, setErrorMessage] = useState("");
   const [hidden, setHidden] = useState(false);
@@ -644,29 +614,23 @@ function SuccessPushPrompt({ settings }: { settings: NotificationSettingsInput |
   );
 }
 
-export function MySessionsPage(props: MySessionsPageProps) {
+export function MySessionsPage({ rootElement }: MySessionsPageProps) {
   const controllerView = useMySessionsState();
   const controllerActions = useMySessionsActions();
-  const pageView = useStoreSelector(props.pageViewStore, "mySessions", (state) => state, null);
-  const { createdSessionId = null, highlightSessionId = null, notificationSettings = {}, rootElement } = props;
-  const resolvedGroups = controllerView.groups;
-  const resolvedFocusSessionId = pageView?.createdSessionFocusId ?? highlightSessionId;
-  const resolvedCreatedSessionId = pageView
-    ? pageView.createdSessionFocusReason === "created"
-      ? pageView.createdSessionFocusId
-      : null
-    : createdSessionId;
-  const resolvedNotificationSettings = pageView?.notificationSettings ?? notificationSettings;
-  const safeGroups = resolvedGroups ?? EMPTY_GROUPS;
+  const appActions = useMySessionsAppActions();
+  const pageView = useMySessionsPageView();
+  const resolvedFocusSessionId = pageView.createdSessionFocusId;
+  const resolvedCreatedSessionId =
+    pageView.createdSessionFocusReason === "created" ? pageView.createdSessionFocusId : null;
+  const safeGroups = controllerView.groups;
   useLayoutEffect(() => {
-    // Store subscriptions keep this page mounted, so the adapter needs the
-    // values from this commit rather than its one-time mount options.
-    props.onCreatedSessionCommit?.({
+    scheduleMySessionsCreatedFocus({
       createdSessionId: resolvedCreatedSessionId,
       groups: safeGroups,
       highlightSessionId: resolvedFocusSessionId,
+      onCreatedSessionFocus: appActions.onCreatedSessionFocus,
+      rootElement,
     });
-    props.onStoreCommit?.();
     setMySessionActionScope(rootElement, controllerView.actionScopeKey);
     syncPendingMySessionActions(rootElement);
   });
@@ -687,9 +651,9 @@ export function MySessionsPage(props: MySessionsPageProps) {
   const showEmptyState = controllerView.authenticated && activeNonHistoryCount === 0;
   const actions: MySessionsPageActions = {
     ...controllerActions,
-    onBack: props.onBack,
-    onEnablePush: props.onEnablePush,
-    onSignIn: props.onSignIn,
+    onBack: appActions.onBack,
+    onEnablePush: appActions.onEnablePush,
+    onSignIn: appActions.onSignIn,
     rootElement,
   };
 
@@ -716,7 +680,7 @@ export function MySessionsPage(props: MySessionsPageProps) {
               type="button"
               className="session-secondary my-sessions-v2__tool-btn"
               data-my-sessions-back=""
-              onClick={() => props.onBack?.()}
+              onClick={() => appActions.onBack()}
             >
               回到地圖
             </button>
@@ -732,7 +696,7 @@ export function MySessionsPage(props: MySessionsPageProps) {
       <p className="surface__copy">
         {resolvedCreatedSessionId ? "球局已建立；主揪身分已加入這一局。" : "依目前需要處理的事項與球局時間排序。"}
       </p>
-      {resolvedCreatedSessionId ? <SuccessPushPrompt settings={resolvedNotificationSettings} /> : null}
+      {resolvedCreatedSessionId ? <SuccessPushPrompt settings={pageView.notificationSettings} /> : null}
       <p
         className="my-sessions-message"
         data-my-sessions-status=""
@@ -759,7 +723,7 @@ export function MySessionsPage(props: MySessionsPageProps) {
             type="button"
             className="session-primary"
             data-my-sessions-sign-in=""
-            onClick={() => props.onSignIn?.()}
+            onClick={() => appActions.onSignIn()}
           >
             登入
           </button>

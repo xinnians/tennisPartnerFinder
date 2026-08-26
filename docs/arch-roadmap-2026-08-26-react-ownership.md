@@ -92,10 +92,12 @@
   資料 7 欄＋16 個 action 欄（14 個 controller 方法）單源化（hooks 自 `ControllerApi`
   切片）、options bag 31→8、28 個白箱直呼點改寫；pageViewStore 與 adapter 不動。
   新複雜度＝最大 action surface。
-- **批 2B**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch2B-mysessions.md`）：
-  AppServices 擴充承載 `pageViewStore`＋4 個 app callback、焦點 rAF 管道 React 化
-  收斂單源、MySessions adapter 全鏈退役（含 2A 三個移交觀察）。
-  新複雜度＝第二 store 與命令式焦點管道。MePage 的 pageViewStore 路徑不動。
+- **批 2B**（狀態：**ACCEPTED（2026-08-26）**，驗收紀錄
+  `docs/arch-reports/batch-2B-acceptance-2026-08-26.md`；派工單
+  `docs/arch-dispatch-2026-08-26-batch2B-mysessions.md`）：AppServices typed bundle
+  承載 `pageViewStore`＋4 app callback、焦點管道收斂 `src/mySessionsCreatedFocus.ts`
+  單源（canary 實證）、adapter 全鏈歸零、2A 三移交觀察收畢。main gzip −274 B
+  （餘 931 B）、total −225 B。**批 2 全案完結**——MySessions 與 Messages 同級。
 - 風險註記：MySessionsPage lazy chunk gzip 僅餘 566 B（全庫最緊）、main 餘 748 B；
   hooks 放 provider（main chunk），並以刪除 21 欄接線碼對沖。
 - ACCEPTED 回填：（待）
@@ -132,6 +134,10 @@
 - 手機 chips：固定完整「篩選」入口，其餘 quick filters 橫向捲動。
 - 匿名 My Sessions 只顯示單一登入引導。
 - session card 的 screen-reader accessible name 精簡。
+- `tests/*.tsx` harness fixture 納入靜態 gate（typecheck／lint／prettier 目前都不含
+  `tests/` 的 `.tsx`；批 2A 引入 harness 後的缺口，2B 驗收勘誤記錄）。
+- `chat-settings-filters-smoke.spec.js:468` filter sheet 一次性斷言 flake
+  （4／10 存量紅，已立獨立會話任務 task_d6de363e）。
 
 ## 等觸發／不排
 

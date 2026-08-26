@@ -6,10 +6,30 @@ import type {
   ControllerMySessionGroups,
   SessionControllerState,
 } from "../controllerContracts.ts";
+import type { PageNotificationSettings, PageViewState, PageViewStore } from "../pageViewStore.ts";
 import { selectControllerMySessionsView } from "../sessionSelectors.ts";
 import { useStoreSelector } from "../sessionStore.ts";
 
 type MessagesServices = Pick<ControllerApi, "openSessionChat" | "sessionStore">;
+
+export interface MySessionsAppActions {
+  onBack(): unknown;
+  onCreatedSessionFocus(sessionId?: ControllerIdentifier): boolean;
+  onEnablePush(): unknown;
+  onSignIn(): unknown;
+}
+
+export interface AppServices {
+  controller: ControllerApi;
+  mySessionsApp: MySessionsAppActions;
+  pageViewStore: PageViewStore;
+}
+
+export interface MySessionsPageView {
+  createdSessionFocusId: PageViewState["createdSessionFocusId"];
+  createdSessionFocusReason: PageViewState["createdSessionFocusReason"];
+  notificationSettings: PageNotificationSettings;
+}
 
 export type MessagesState = Pick<SessionControllerState, "courts"> & {
   groups: ControllerMySessionGroups;
@@ -70,12 +90,18 @@ export interface MySessionsActions {
   onWithdraw: MySessionsServices["withdrawMySession"];
 }
 
-const AppServicesContext = createContext<ControllerApi | null>(null);
+interface AppServicesContextValue {
+  controller: ControllerApi;
+  mySessionsApp?: MySessionsAppActions;
+  pageViewStore?: PageViewStore;
+}
 
-function useAppServices(): ControllerApi {
-  const controller = useContext(AppServicesContext);
-  if (!controller) throw new Error("App services are unavailable outside AppServicesProvider.");
-  return controller;
+const AppServicesContext = createContext<AppServicesContextValue | null>(null);
+
+function useAppServices(): AppServicesContextValue {
+  const services = useContext(AppServicesContext);
+  if (!services) throw new Error("App services are unavailable outside AppServicesProvider.");
+  return services;
 }
 
 function selectMessagesGroups(state: Readonly<SessionControllerState>): ControllerMySessionGroups {
@@ -97,12 +123,34 @@ function selectMySessionsState(state: Readonly<SessionControllerState>): Omit<My
   };
 }
 
-export function AppServicesProvider({ children, controller }: { children: ReactNode; controller: ControllerApi }) {
-  return <AppServicesContext.Provider value={controller}>{children}</AppServicesContext.Provider>;
+function selectMySessionsPageView(state: Readonly<PageViewState>): MySessionsPageView {
+  return {
+    createdSessionFocusId: state.createdSessionFocusId,
+    createdSessionFocusReason: state.createdSessionFocusReason,
+    notificationSettings: state.notificationSettings,
+  };
+}
+
+export function AppServicesProvider({
+  children,
+  controller,
+  mySessionsApp,
+  pageViewStore,
+}: {
+  children: ReactNode;
+  controller: ControllerApi;
+  mySessionsApp?: MySessionsAppActions;
+  pageViewStore?: PageViewStore;
+}) {
+  const services = useMemo(
+    () => ({ controller, mySessionsApp, pageViewStore }),
+    [controller, mySessionsApp, pageViewStore]
+  );
+  return <AppServicesContext.Provider value={services}>{children}</AppServicesContext.Provider>;
 }
 
 export function useMessagesState(): MessagesState {
-  const { sessionStore } = useAppServices();
+  const { sessionStore } = useAppServices().controller;
   const current = sessionStore.getState();
   const groups = useStoreSelector(sessionStore, "mySessions", selectMessagesGroups, selectMessagesGroups(current));
   const courts = useStoreSelector(sessionStore, "courts", selectMessagesCourts, selectMessagesCourts(current));
@@ -110,12 +158,12 @@ export function useMessagesState(): MessagesState {
 }
 
 export function useMessagesActions(): MessagesActions {
-  const controller = useAppServices();
+  const { controller } = useAppServices();
   return useMemo(() => ({ openSessionChat: controller.openSessionChat }), [controller]);
 }
 
 export function useMySessionsState(): MySessionsState {
-  const { sessionStore } = useAppServices();
+  const { sessionStore } = useAppServices().controller;
   const current = sessionStore.getState();
   const view = useStoreSelector(sessionStore, "mySessions", selectMySessionsState, selectMySessionsState(current));
   const courts = useStoreSelector(sessionStore, "courts", selectMessagesCourts, selectMessagesCourts(current));
@@ -123,7 +171,7 @@ export function useMySessionsState(): MySessionsState {
 }
 
 export function useMySessionsActions(): MySessionsActions {
-  const controller = useAppServices();
+  const { controller } = useAppServices();
   return useMemo(
     () => ({
       onAccept: (sessionId, participantId) =>
@@ -147,4 +195,17 @@ export function useMySessionsActions(): MySessionsActions {
     }),
     [controller]
   );
+}
+
+export function useMySessionsPageView(): MySessionsPageView {
+  const { pageViewStore } = useAppServices();
+  if (!pageViewStore) throw new Error("MySessions page-view service is unavailable.");
+  const current = pageViewStore.getState();
+  return useStoreSelector(pageViewStore, "mySessions", selectMySessionsPageView, selectMySessionsPageView(current));
+}
+
+export function useMySessionsAppActions(): MySessionsAppActions {
+  const { mySessionsApp } = useAppServices();
+  if (!mySessionsApp) throw new Error("MySessions app actions are unavailable.");
+  return mySessionsApp;
 }

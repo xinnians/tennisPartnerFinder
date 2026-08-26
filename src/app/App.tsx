@@ -3,13 +3,11 @@ import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
-import type { ControllerApi } from "../controllerContracts.ts";
 import { BANDS } from "../filters.js";
 import type { MePageOptions } from "../pages/MePage.tsx";
-import type { MySessionsPageOptions } from "../pages/MySessionsPage.tsx";
 import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
 import { syncCommit } from "../syncCommit.ts";
-import { AppServicesProvider } from "./AppServicesProvider.tsx";
+import { AppServicesProvider, type AppServices } from "./AppServicesProvider.tsx";
 import {
   installSurfaceHostRenderer,
   mountSurfaceContent,
@@ -29,7 +27,6 @@ interface PageSlot<Options> {
 interface AppSnapshot {
   filters: FilterSnapshot;
   mePages: Map<HTMLElement, PageSlot<MePageOptions>>;
-  mySessionsPages: Map<HTMLElement, PageSlot<MySessionsPageOptions>>;
   navigation: NavigationSnapshot;
   nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
   surfaces: SurfaceHostSnapshot;
@@ -68,7 +65,8 @@ interface AppProps {
 
 const noop = () => {};
 let appRoot: Root | null = null;
-let appServices: ControllerApi | null = null;
+let appServices: AppServices | null = null;
+let mySessionsPortalRoot: HTMLElement | null = null;
 let nextSlotId = 1;
 let MePageComponent: typeof import("../pages/MePage.tsx").MePage | null = null;
 let MessagesPageComponent: typeof import("../pages/MessagesPage.tsx").MessagesPage | null = null;
@@ -82,7 +80,6 @@ let mySessionsPageLoadFailed = false;
 let snapshot: AppSnapshot = {
   filters: { band: "all", dateKey: null, districts: new Set(), instantOnly: false, types: new Set() },
   mePages: new Map(),
-  mySessionsPages: new Map(),
   navigation: { activePage: "map", hasUnread: false, needsActionCount: 0 },
   nearbyDrawers: new Map(),
   surfaces: new Map(),
@@ -271,11 +268,11 @@ const MessagesDestination = memo(function MessagesDestination({
 const MySessionsDestination = memo(function MySessionsDestination({
   failed,
   loaded,
-  slot,
+  rootElement,
 }: {
   failed: boolean;
   loaded: boolean;
-  slot: PageSlot<MySessionsPageOptions>;
+  rootElement: HTMLElement;
 }) {
   useEffect(() => {
     if (!loaded && !failed) void loadMySessionsPage().catch(() => {});
@@ -284,13 +281,8 @@ const MySessionsDestination = memo(function MySessionsDestination({
     return <PageLoading label={failed ? "我的球局載入失敗，請重新整理。" : "正在載入我的球局…"} />;
   }
   return (
-    <AppErrorBoundary resetKey={slot.resetKey} surface="my-sessions-page">
-      <MySessionsPageComponent
-        {...slot.options}
-        key={slot.id}
-        rootElement={slot.rootElement}
-        onStoreCommit={slot.onCommit}
-      />
+    <AppErrorBoundary resetKey={0} surface="my-sessions-page">
+      <MySessionsPageComponent rootElement={rootElement} />
     </AppErrorBoundary>
   );
 });
@@ -800,17 +792,17 @@ export function App({ snapshot: current }: AppProps) {
             "messages"
           )
         : null}
-      {renderPortals(
-        current.mySessionsPages,
-        (slot) => (
-          <MySessionsDestination
-            failed={mySessionsPageLoadFailed}
-            loaded={Boolean(MySessionsPageComponent)}
-            slot={slot}
-          />
-        ),
-        "my-sessions"
-      )}
+      {mySessionsPortalRoot
+        ? createPortal(
+            <MySessionsDestination
+              failed={mySessionsPageLoadFailed}
+              loaded={Boolean(MySessionsPageComponent)}
+              rootElement={mySessionsPortalRoot}
+            />,
+            mySessionsPortalRoot,
+            "my-sessions"
+          )
+        : null}
       {renderPortals(
         current.nearbyDrawers,
         (slot) => (
@@ -846,6 +838,7 @@ export function App({ snapshot: current }: AppProps) {
 }
 
 function ensureAppRoot(): Root {
+  mySessionsPortalRoot ??= document.getElementById("my-sessions-root");
   if (appRoot) return appRoot;
   const host = document.createElement("div");
   host.id = "react-app-root";
@@ -857,15 +850,15 @@ function ensureAppRoot(): Root {
 function renderApp(): void {
   if (!appServices) throw new Error("App services must be configured before the React root renders.");
   ensureAppRoot().render(
-    <AppServicesProvider controller={appServices}>
+    <AppServicesProvider {...appServices}>
       <App snapshot={snapshot} />
     </AppServicesProvider>
   );
 }
 
-export function configureAppServicesInApp(controller: ControllerApi): void {
-  if (appServices && appServices !== controller) throw new Error("App services cannot be replaced after setup.");
-  appServices = controller;
+export function configureAppServicesInApp(services: AppServices): void {
+  if (appServices && appServices !== services) throw new Error("App services cannot be replaced after setup.");
+  appServices = services;
 }
 
 /** Preserve main.js's fire-and-forget toast adapter while React owns its content and timer. */
@@ -926,14 +919,6 @@ function renderPage<Options>(
 
 export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}, onCommit?: () => void): void {
   renderPage("mePages", rootElement, options, onCommit);
-}
-
-export function renderMySessionsPageInApp(
-  rootElement: HTMLElement,
-  options: MySessionsPageOptions = {},
-  onCommit?: () => void
-): void {
-  renderPage("mySessionsPages", rootElement, options, onCommit);
 }
 
 export function renderNearbySessionsDrawerInApp(

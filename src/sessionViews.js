@@ -63,10 +63,6 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
   return sessionFormViews.validateUpdateSessionInput(input, { now });
 }
 
-export function renderMySessionsPage(root, options = {}) {
-  return pageViews.renderMySessionsPage(root, options);
-}
-
 // F2D freezes the facade's top-level export declaration scan.
 // prettier-ignore
 export function renderNearbySessionsDrawer(
@@ -246,7 +242,6 @@ function requireAppExport(name) {
 }
 
 const renderMePageInApp = (...args) => requireAppExport("renderMePageInApp")(...args);
-const renderMySessionsPageInApp = (...args) => requireAppExport("renderMySessionsPageInApp")(...args);
 const renderNearbySessionsDrawerInApp = (...args) => requireAppExport("renderNearbySessionsDrawerInApp")(...args);
 const preloadMePageInApp = () => requireAppExport("preloadMePageInApp")();
 const preloadMessagesPageInApp = () => requireAppExport("preloadMessagesPageInApp")();
@@ -588,7 +583,6 @@ function preloadAuthenticatedViewsForAuth(authSession) {
 configurePageViews({
   preloadAuthenticatedViewsForAuth,
   renderMePageInApp,
-  renderMySessionsPageInApp,
   renderNearbySessionsDrawerInApp,
 });
 

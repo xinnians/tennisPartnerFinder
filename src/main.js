@@ -108,7 +108,6 @@ import {
   renderBottomNavigation,
   renderMePage,
   renderPlayerLayerToggle,
-  renderMySessionsPage,
   renderNearbySessionsDrawer,
   renderToast,
   nearbySessionsSummaryText,
@@ -201,7 +200,7 @@ let createdSessionFocusId = null;
 // 批 C3-3:createdSessionFocusId 現在同時服務 create 與 join 兩種來源
 // ("created"|"joined")。reason 只決定 My Sessions 訂閱 selector 要不要把它
 // 當成 createdSessionId(觸發「球局已建立」文案＋create 專屬推播 prompt)往下傳；
-// 卡片聚焦本身兩種 reason 都要做,見 renderMySessionsPage 的 highlightSessionId。
+// 卡片聚焦本身兩種 reason 都要做,見 MySessionsPage 的 page-view focus 切片。
 let createdSessionFocusReason = null;
 let notificationSettings = defaultNotificationSettings();
 let presenceLocationStatus = "idle";
@@ -431,34 +430,6 @@ function updateCourtSubscriptions(courtIds) {
 
 function enablePushNotifications() {
   return notificationFeature.enablePushNotifications();
-}
-
-function mountMySessionsDestination() {
-  if (!controller) return;
-  // 批 C3-3:createdSessionFocusId 拆成兩個用途——highlightSessionId 給卡片聚焦
-  // (create/joined 都要),createdSessionId 只在 reason==="created" 時才往下傳,
-  // 避免 join 使用者看到 create 專屬的「球局已建立」文案與推播 prompt
-  // (renderMySessionsPage 內兩處分支,見 ground truth 意外 3)。
-  const focusSessionId = createdSessionFocusId;
-  const createdSessionId = createdSessionFocusReason === "created" ? focusSessionId : null;
-  const root = document.getElementById("my-sessions-root");
-  renderMySessionsPage(root, {
-    createdSessionId,
-    highlightSessionId: focusSessionId,
-    onBack: () => showMapPage({ focus: true }),
-    onCreatedSessionFocus: (expectedSessionId = focusSessionId) => {
-      if (createdSessionFocusId !== expectedSessionId) return false;
-      createdSessionFocusId = null;
-      createdSessionFocusReason = null;
-      publishPageView("mySessions");
-      return true;
-    },
-    onEnablePush: enablePushNotifications,
-    onSignIn: () => openSafeLogin({ action: "my-sessions" }),
-    notificationSettings,
-    pageViewStore,
-  });
-  syncBottomNavigation();
 }
 
 function mountMeDestination() {
@@ -733,9 +704,23 @@ function init() {
     },
     toast,
   });
-  appModule.configureAppServicesInApp(controller);
+  appModule.configureAppServicesInApp({
+    controller,
+    mySessionsApp: {
+      onBack: () => showMapPage({ focus: true }),
+      onCreatedSessionFocus: (expectedSessionId = createdSessionFocusId) => {
+        if (createdSessionFocusId !== expectedSessionId) return false;
+        createdSessionFocusId = null;
+        createdSessionFocusReason = null;
+        publishPageView("mySessions");
+        return true;
+      },
+      onEnablePush: enablePushNotifications,
+      onSignIn: () => openSafeLogin({ action: "my-sessions" }),
+    },
+    pageViewStore,
+  });
   mountNearbyDestination();
-  mountMySessionsDestination();
   mountMeDestination();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());

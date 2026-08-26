@@ -46,7 +46,7 @@ async function loadMySessionsTestModules(t) {
   });
   t.after(() => vite.close());
   const [
-    { AppServicesProvider, useMySessionsActions, useMySessionsState },
+    { AppServicesProvider, useMySessionsActions, useMySessionsAppActions, useMySessionsPageView, useMySessionsState },
     { MySessionsPage },
     { createStore },
     selectors,
@@ -62,6 +62,8 @@ async function loadMySessionsTestModules(t) {
     MySessionsPage,
     selectControllerMySessionsView: selectors.selectControllerMySessionsView,
     useMySessionsActions,
+    useMySessionsAppActions,
+    useMySessionsPageView,
     useMySessionsState,
   };
 }
@@ -88,6 +90,25 @@ function createController(sessionStore, overrides = {}) {
   };
 }
 
+function createMySessionsProviderProps(controller, createStore, overrides = {}) {
+  return {
+    controller,
+    mySessionsApp: {
+      onBack: () => {},
+      onCreatedSessionFocus: () => true,
+      onEnablePush: () => {},
+      onSignIn: () => {},
+    },
+    pageViewStore: createStore({
+      createdSessionFocusId: null,
+      createdSessionFocusReason: null,
+      notificationSettings: {},
+      presenceLocationStatus: "idle",
+    }),
+    ...overrides,
+  };
+}
+
 test("MySessionsPage 輸出標題、分段控制與可開啟的球局卡", async (t) => {
   const { AppServicesProvider, createStore, MySessionsPage } = await loadMySessionsTestModules(t);
   const sessionStore = createStore(
@@ -110,7 +131,7 @@ test("MySessionsPage 輸出標題、分段控制與可開啟的球局卡", async
   const html = renderToStaticMarkup(
     createElement(
       AppServicesProvider,
-      { controller: createController(sessionStore) },
+      createMySessionsProviderProps(createController(sessionStore), createStore),
       createElement(MySessionsPage, { rootElement })
     )
   );
@@ -232,4 +253,51 @@ test("useMySessionsActions 轉呼 14 個 controller 方法並綁定四個 decisi
       ["withdrawMySession", "17"],
     ]);
   });
+});
+
+test("MySessions app hooks 單源提供 page-view 切片與四個 app callbacks", async (t) => {
+  const { AppServicesProvider, createStore, useMySessionsAppActions, useMySessionsPageView } =
+    await loadMySessionsTestModules(t);
+  const sessionStore = createStore(createMySessionsStoreState());
+  const controller = createController(sessionStore);
+  const calls = [];
+  const mySessionsApp = {
+    onBack: () => calls.push(["back"]),
+    onCreatedSessionFocus: (sessionId) => {
+      calls.push(["focus", sessionId]);
+      return true;
+    },
+    onEnablePush: () => calls.push(["push"]),
+    onSignIn: () => calls.push(["sign-in"]),
+  };
+  const pageViewStore = createStore({
+    createdSessionFocusId: 8842,
+    createdSessionFocusReason: "created",
+    notificationSettings: { pushStatus: "default", webPushConfigured: true },
+    presenceLocationStatus: "idle",
+  });
+  let observedActions;
+  let observedPageView;
+  function AppProbe() {
+    observedActions = useMySessionsAppActions();
+    observedPageView = useMySessionsPageView();
+    return null;
+  }
+
+  renderToStaticMarkup(
+    createElement(AppServicesProvider, { controller, mySessionsApp, pageViewStore }, createElement(AppProbe))
+  );
+  await retryAssertion(() => {
+    assert.deepStrictEqual(observedPageView, {
+      createdSessionFocusId: 8842,
+      createdSessionFocusReason: "created",
+      notificationSettings: { pushStatus: "default", webPushConfigured: true },
+    });
+    assert.equal(observedActions, mySessionsApp);
+  });
+  observedActions.onBack();
+  observedActions.onCreatedSessionFocus(8842);
+  observedActions.onEnablePush();
+  observedActions.onSignIn();
+  assert.deepStrictEqual(calls, [["back"], ["focus", 8842], ["push"], ["sign-in"]]);
 });
