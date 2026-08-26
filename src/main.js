@@ -108,7 +108,6 @@ import {
   renderBottomNavigation,
   renderMePage,
   renderPlayerLayerToggle,
-  renderNearbySessionsDrawer,
   renderToast,
   nearbySessionsSummaryText,
 } from "./sessionViews.js";
@@ -303,10 +302,6 @@ function renderPlayerLayer(view) {
   );
 }
 
-function mountNearbyDestination() {
-  renderNearbySessionsDrawer(document.getElementById("nearby-sessions-drawer"));
-}
-
 function renderDiscovery(view) {
   syncFilterToolbar(view.filters, view.sessions.length);
   // 篩選 sheet footer 主鈕「看 N 場球局」與 peek/抽屜同一份 view.sessions,
@@ -317,7 +312,7 @@ function renderDiscovery(view) {
     onRetry: controller.retryDiscovery,
   });
   // #nearby-sessions-count-status 是 index.html 裡固定不動的持久節點,不在
-  // renderNearbySessionsDrawer 每次 innerHTML 整段重建的範圍內——比照
+  // React 抽屜內容每次更新的範圍內——比照
   // #my-sessions-badge-status(見 syncBottomNavigation)的模式,只在原地更新
   // textContent,螢幕閱讀器才能可靠收到這顆 live region 的計數變動播報;掛在會被
   // 摧毀重建的節點上,新節點帶著 aria-live 屬性一起被建立時,AT 不保證會註冊到它。
@@ -713,7 +708,6 @@ function init() {
     },
     pageViewStore,
   });
-  mountNearbyDestination();
   mountMeDestination();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());

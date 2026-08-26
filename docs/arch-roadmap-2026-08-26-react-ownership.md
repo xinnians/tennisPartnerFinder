@@ -114,10 +114,13 @@
   NearbyDrawer 資料 6 欄＋action 7 欄 hooks 單源化（`"map"` channel＋
   `selectControllerMapView` 現成，零新 selector）、4 個測試直呼點改寫、
   補 `nearby-drawer-dom` 安全網；焦點管道（約 145 行 WeakMap 機制）與 adapter 不動。
-- **批 3B**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3B-nearby.md`）：
-  drawer 焦點管道（約 150 行 WeakMap 機制）搬 strict TS 單一來源＋adapter 全鏈退役＋
-  直接 portal 化＋收 3A 三個移交觀察；`performance.spec.js:325/:342` 是遷移紅綠對照
-  的載重測試，凍結不得先改寫。
+- **批 3B**（狀態：**ACCEPTED（2026-08-26）**，驗收紀錄
+  `docs/arch-reports/batch-3B-nearby-acceptance-2026-08-26.md`；派工單
+  `docs/arch-dispatch-2026-08-26-batch3B-nearby.md`）：焦點管道收斂
+  `src/nearbyDrawerFocus.ts` 單一來源（機械 diff 唯一差=Prettier 格式；canary 三拍）、
+  adapter 全鏈歸零、直接 portal、pageViews.js 259→62 行、3A 三移交觀察全收。
+  main gzip −288 B（餘 1,397 B）、total −312 B。**NearbyDrawer 全案完結**，
+  與 Messages／MySessions 同級。
 - **批 3C**（Me，壓軸）：800 行最高設定密度頁，複製前四頁樣板。
 - ACCEPTED 回填：（待）
 

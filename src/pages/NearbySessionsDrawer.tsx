@@ -8,6 +8,7 @@ import {
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
+import { restoreNearbyDrawerFocus, useNearbyDrawerRoot } from "../nearbyDrawerFocus.ts";
 import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionPresentation.ts";
 import { taipeiClock } from "../taipeiTime.js";
 
@@ -20,12 +21,6 @@ interface NearbyCourt extends CourtSummary {
 interface DrawerMapStatus {
   kind?: string;
   message?: string;
-}
-
-export interface NearbySessionsDrawerOptions {
-  rootElement?: HTMLElement;
-  onStoreCommit?: () => void;
-  onBeforeStoreChange?: () => void;
 }
 
 interface DrawerSessionGroup {
@@ -185,14 +180,13 @@ function DrawerContent({
   );
 }
 
-export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
-  const { courts, drawerState, filters, hasUserLocation, mapStatus, sessions } = useNearbyDrawerState(
-    options.onBeforeStoreChange
-  );
+export function NearbySessionsDrawer() {
+  const rootElement = useNearbyDrawerRoot();
+  const { courts, drawerState, filters, hasUserLocation, mapStatus, sessions } = useNearbyDrawerState();
   const { onExpandBounds, onOpenCreate, onOpenSession, onReset, onRetry, onToggle } = useNearbyDrawerActions();
   const { onSubscribe } = useNearbyDrawerAppActions();
   useLayoutEffect(() => {
-    options.onStoreCommit?.();
+    restoreNearbyDrawerFocus(rootElement);
   });
   const resolvedMapStatus = mapStatus ?? { kind: "idle", message: "" };
   const isOpen = drawerState === "open";
@@ -204,7 +198,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
   const collapse = () => {
     onToggle("collapsed");
     requestAnimationFrame(() => {
-      const root = options.rootElement;
+      const root = rootElement;
       const toggle = root?.querySelector<HTMLElement>("#nearby-sessions-toggle");
       const active = document.activeElement;
       const hasNewSurface = Boolean(document.querySelector("#sheet-root .surface, #modal-root .surface"));
@@ -233,7 +227,7 @@ export function NearbySessionsDrawer(options: NearbySessionsDrawerOptions) {
     return () => document.removeEventListener("keydown", handleEscape);
   });
   useEffect(() => {
-    const root = options.rootElement;
+    const root = rootElement;
     if (!root) return;
     let pointerStart: number | null = null;
     const handlePointerDown = (event: PointerEvent) => {

@@ -99,33 +99,49 @@ async function loadNearbyDrawerTestModules(t) {
     server: { middlewareMode: true },
   });
   t.after(() => vite.close());
-  const [services, { NearbySessionsDrawer }, { createStore }, selectors] = await Promise.all([
-    vite.ssrLoadModule("/src/app/AppServicesProvider.tsx"),
-    vite.ssrLoadModule("/src/pages/NearbySessionsDrawer.tsx"),
-    vite.ssrLoadModule("/src/sessionStore.ts"),
-    vite.ssrLoadModule("/src/sessionSelectors.ts"),
-  ]);
-  return { ...services, createStore, NearbySessionsDrawer, selectControllerMapView: selectors.selectControllerMapView };
+  const [services, { NearbyDrawerFocusProvider }, { NearbySessionsDrawer }, { createStore }, selectors] =
+    await Promise.all([
+      vite.ssrLoadModule("/src/app/AppServicesProvider.tsx"),
+      vite.ssrLoadModule("/src/nearbyDrawerFocus.ts"),
+      vite.ssrLoadModule("/src/pages/NearbySessionsDrawer.tsx"),
+      vite.ssrLoadModule("/src/sessionStore.ts"),
+      vite.ssrLoadModule("/src/sessionSelectors.ts"),
+    ]);
+  return {
+    ...services,
+    createStore,
+    NearbyDrawerFocusProvider,
+    NearbySessionsDrawer,
+    selectControllerMapView: selectors.selectControllerMapView,
+  };
 }
 
-function renderDrawer({ AppServicesProvider, NearbySessionsDrawer, controller, nearbyDrawerApp }) {
+function renderDrawer({
+  AppServicesProvider,
+  NearbyDrawerFocusProvider,
+  NearbySessionsDrawer,
+  controller,
+  nearbyDrawerApp,
+}) {
+  const rootElement = {};
   return renderToStaticMarkup(
     createElement(
       AppServicesProvider,
       { controller, nearbyDrawerApp },
-      createElement(NearbySessionsDrawer, { rootElement: { querySelector: () => null } })
+      createElement(NearbyDrawerFocusProvider, { rootElement }, createElement(NearbySessionsDrawer))
     )
   );
 }
 
 test("NearbySessionsDrawer renders the peek row, session card, and empty state from provider state", async (t) => {
   const modules = await loadNearbyDrawerTestModules(t);
-  const { AppServicesProvider, NearbySessionsDrawer, createStore } = modules;
+  const { AppServicesProvider, NearbyDrawerFocusProvider, NearbySessionsDrawer, createStore } = modules;
   assert.ok(SESSIONS.length > 0, "nearby drawer fixture must contain at least one session");
   const nearbyDrawerApp = { onSubscribe: () => {} };
   const sessionStore = createStore(createNearbyStoreState());
   const html = renderDrawer({
     AppServicesProvider,
+    NearbyDrawerFocusProvider,
     NearbySessionsDrawer,
     controller: createController(sessionStore),
     nearbyDrawerApp,
@@ -140,6 +156,7 @@ test("NearbySessionsDrawer renders the peek row, session card, and empty state f
   const emptyStore = createStore(createNearbyStoreState({ drawerState: "open", sessions: [] }));
   const emptyHtml = renderDrawer({
     AppServicesProvider,
+    NearbyDrawerFocusProvider,
     NearbySessionsDrawer,
     controller: createController(emptyStore),
     nearbyDrawerApp,
@@ -150,7 +167,7 @@ test("NearbySessionsDrawer renders the peek row, session card, and empty state f
 });
 
 test("useNearbyDrawerState matches the six-field selectControllerMapView slice", async (t) => {
-  const { AppServicesProvider, createStore, selectControllerMapView, useNearbyDrawerState } =
+  const { AppServicesProvider, NearbyDrawerFocusProvider, createStore, selectControllerMapView, useNearbyDrawerState } =
     await loadNearbyDrawerTestModules(t);
   const sessionStore = createStore(
     createNearbyStoreState({
@@ -166,7 +183,11 @@ test("useNearbyDrawerState matches the six-field selectControllerMapView slice",
   }
 
   renderToStaticMarkup(
-    createElement(AppServicesProvider, { controller: createController(sessionStore) }, createElement(StateProbe))
+    createElement(
+      AppServicesProvider,
+      { controller: createController(sessionStore) },
+      createElement(NearbyDrawerFocusProvider, { rootElement: {} }, createElement(StateProbe))
+    )
   );
   const { courts, drawerState, filters, hasUserLocation, mapStatus, sessions } = selectControllerMapView(
     sessionStore.getState()

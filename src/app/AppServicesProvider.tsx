@@ -8,6 +8,7 @@ import type {
   SessionControllerState,
 } from "../controllerContracts.ts";
 import type { PageNotificationSettings, PageViewState, PageViewStore } from "../pageViewStore.ts";
+import { useBeforeNearbyDrawerStoreChange } from "../nearbyDrawerFocus.ts";
 import { selectControllerMapView, selectControllerMySessionsView } from "../sessionSelectors.ts";
 import { useStoreSelector } from "../sessionStore.ts";
 
@@ -195,12 +196,9 @@ export function useMessagesActions(): MessagesActions {
   return useMemo(() => ({ openSessionChat: controller.openSessionChat }), [controller]);
 }
 
-/**
- * `beforeStoreChange` temporarily preserves the legacy drawer focus pipeline.
- * Batch 3B removes this pass-through when that pipeline moves behind the provider.
- */
-export function useNearbyDrawerState(beforeStoreChange?: () => void): NearbyDrawerState {
+export function useNearbyDrawerState(): NearbyDrawerState {
   const { sessionStore } = useAppServices().controller;
+  const beforeStoreChange = useBeforeNearbyDrawerStoreChange();
   const current = sessionStore.getState();
   return useStoreSelector(
     sessionStore,

@@ -9,6 +9,7 @@ import type {
   SessionControllerState,
 } from "../../src/controllerContracts.ts";
 import type { CourtSummary, SessionSummary } from "../../src/domainTypes.ts";
+import { NearbyDrawerFocusProvider } from "../../src/nearbyDrawerFocus.ts";
 import { NearbySessionsDrawer } from "../../src/pages/NearbySessionsDrawer.tsx";
 import { createStore } from "../../src/sessionStore.ts";
 import { syncCommit } from "../../src/syncCommit.ts";
@@ -19,13 +20,11 @@ interface NearbyDrawerHarnessOptions {
   filters?: ControllerFilters | null;
   hasUserLocation?: boolean;
   mapStatus?: ControllerMapStatus | null;
-  onBeforeStoreChange?(): void;
   onExpandBounds?(): unknown;
   onOpenCreate?(): unknown;
   onOpenSession?(sessionId?: string): unknown;
   onReset?(): unknown;
   onRetry?(): unknown;
-  onStoreCommit?(): void;
   onSubscribe?(): unknown;
   onToggle?(state: ControllerDrawerState): unknown;
   sessions?: SessionSummary[] | null;
@@ -129,11 +128,9 @@ export function mountNearbyDrawerAppHarness(
   syncCommit(() => {
     root.render(
       <AppServicesProvider controller={controller} nearbyDrawerApp={nearbyDrawerApp}>
-        <NearbySessionsDrawer
-          rootElement={rootElement}
-          onBeforeStoreChange={() => options.onBeforeStoreChange?.()}
-          onStoreCommit={() => options.onStoreCommit?.()}
-        />
+        <NearbyDrawerFocusProvider rootElement={rootElement}>
+          <NearbySessionsDrawer />
+        </NearbyDrawerFocusProvider>
       </AppServicesProvider>
     );
   });

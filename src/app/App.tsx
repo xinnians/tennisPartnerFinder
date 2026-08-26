@@ -4,8 +4,9 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { BANDS } from "../filters.js";
+import { NearbyDrawerFocusProvider } from "../nearbyDrawerFocus.ts";
 import type { MePageOptions } from "../pages/MePage.tsx";
-import { NearbySessionsDrawer, type NearbySessionsDrawerOptions } from "../pages/NearbySessionsDrawer.tsx";
+import { NearbySessionsDrawer } from "../pages/NearbySessionsDrawer.tsx";
 import { syncCommit } from "../syncCommit.ts";
 import { AppServicesProvider, type AppServices } from "./AppServicesProvider.tsx";
 import {
@@ -28,7 +29,6 @@ interface AppSnapshot {
   filters: FilterSnapshot;
   mePages: Map<HTMLElement, PageSlot<MePageOptions>>;
   navigation: NavigationSnapshot;
-  nearbyDrawers: Map<HTMLElement, PageSlot<NearbySessionsDrawerOptions>>;
   surfaces: SurfaceHostSnapshot;
   toastMessage: string;
 }
@@ -67,6 +67,7 @@ const noop = () => {};
 let appRoot: Root | null = null;
 let appServices: AppServices | null = null;
 let mySessionsPortalRoot: HTMLElement | null = null;
+let nearbyDrawerPortalRoot: HTMLElement | null = null;
 let nextSlotId = 1;
 let MePageComponent: typeof import("../pages/MePage.tsx").MePage | null = null;
 let MessagesPageComponent: typeof import("../pages/MessagesPage.tsx").MessagesPage | null = null;
@@ -81,7 +82,6 @@ let snapshot: AppSnapshot = {
   filters: { band: "all", dateKey: null, districts: new Set(), instantOnly: false, types: new Set() },
   mePages: new Map(),
   navigation: { activePage: "map", hasUnread: false, needsActionCount: 0 },
-  nearbyDrawers: new Map(),
   surfaces: new Map(),
   toastMessage: "",
 };
@@ -287,20 +287,13 @@ const MySessionsDestination = memo(function MySessionsDestination({
   );
 });
 
-const NearbyDrawerDestination = memo(function NearbyDrawerDestination({
-  slot,
-}: {
-  slot: PageSlot<NearbySessionsDrawerOptions>;
-}) {
+const NearbyDrawerDestination = memo(function NearbyDrawerDestination({ rootElement }: { rootElement: HTMLElement }) {
   return (
-    <AppErrorBoundary resetKey={slot.resetKey} surface="nearby-sessions-drawer">
-      <NearbySessionsDrawer
-        {...slot.options}
-        key={slot.id}
-        rootElement={slot.rootElement}
-        onStoreCommit={slot.onCommit}
-      />
-    </AppErrorBoundary>
+    <NearbyDrawerFocusProvider rootElement={rootElement}>
+      <AppErrorBoundary resetKey={0} surface="nearby-sessions-drawer">
+        <NearbySessionsDrawer />
+      </AppErrorBoundary>
+    </NearbyDrawerFocusProvider>
   );
 });
 
@@ -803,13 +796,13 @@ export function App({ snapshot: current }: AppProps) {
             "my-sessions"
           )
         : null}
-      {renderPortals(
-        current.nearbyDrawers,
-        (slot) => (
-          <NearbyDrawerDestination slot={slot} />
-        ),
-        "nearby"
-      )}
+      {nearbyDrawerPortalRoot
+        ? createPortal(
+            <NearbyDrawerDestination rootElement={nearbyDrawerPortalRoot} />,
+            nearbyDrawerPortalRoot,
+            "nearby"
+          )
+        : null}
       <SurfaceHost slots={current.surfaces} />
       {topbarRoot ? createPortal(<MapTopbar filters={current.filters} />, topbarRoot) : null}
       {navigationRoot ? createPortal(<BottomNavigation navigation={current.navigation} />, navigationRoot) : null}
@@ -839,6 +832,7 @@ export function App({ snapshot: current }: AppProps) {
 
 function ensureAppRoot(): Root {
   mySessionsPortalRoot ??= document.getElementById("my-sessions-root");
+  nearbyDrawerPortalRoot ??= document.getElementById("nearby-sessions-drawer");
   if (appRoot) return appRoot;
   const host = document.createElement("div");
   host.id = "react-app-root";
@@ -919,14 +913,6 @@ function renderPage<Options>(
 
 export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}, onCommit?: () => void): void {
   renderPage("mePages", rootElement, options, onCommit);
-}
-
-export function renderNearbySessionsDrawerInApp(
-  rootElement: HTMLElement,
-  options: NearbySessionsDrawerOptions = {},
-  onCommit?: () => void
-): void {
-  renderPage("nearbyDrawers", rootElement, options, onCommit);
 }
 
 installSurfaceHostRenderer((surfaces) => {

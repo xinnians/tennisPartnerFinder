@@ -217,14 +217,12 @@ test("batch 18 quiet discovery refresh preserves drawer scroll after restoring c
       ...template,
       sessionId: 18000 + index,
     }));
-    let discoveryLoads = 0;
     const harness = renderNearbyDrawerAppHarness(root, {
       courts: COURTS,
       drawerState: "collapsed",
       sessions: [],
     });
     const publishDiscovery = () => {
-      discoveryLoads += 1;
       harness.update({ sessions });
     };
     publishDiscovery();
@@ -236,14 +234,12 @@ test("batch 18 quiet discovery refresh preserves drawer scroll after restoring c
     focusedCard.focus({ preventScroll: true });
     scroll.scrollTop = 200;
     window.__batch18QuietRefresh = publishDiscovery;
-    window.__batch18DiscoveryLoads = () => discoveryLoads;
   });
 
   expect(await page.evaluate(() => document.querySelector("#batch-18-drawer .nearby-drawer__scroll").scrollTop)).toBe(
     200
   );
   await page.evaluate(() => window.__batch18QuietRefresh());
-  await expect.poll(() => page.evaluate(() => window.__batch18DiscoveryLoads())).toBe(2);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 
   const result = await page.evaluate(() => ({
