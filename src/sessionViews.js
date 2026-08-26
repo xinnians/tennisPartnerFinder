@@ -22,8 +22,6 @@ import {
 import * as sessionFormViews from "./views/sessionFormViews.js";
 import { configureDiscoverySurfaceViews } from "./views/discoverySurfaceViews.js";
 import * as discoverySurfaceViews from "./views/discoverySurfaceViews.js";
-import { configurePageViews } from "./views/pageViews.js";
-import * as pageViews from "./views/pageViews.js";
 import { configureProfileSurfaceView } from "./views/profileSurfaceView.js";
 import * as profileSurfaceView from "./views/profileSurfaceView.js";
 import { configureSessionSurfaceViews } from "./views/sessionSurfaceViews.js";
@@ -50,10 +48,6 @@ export const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
 export const NTRP_SCALE_EXPLANATION =
   "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
-
-export function renderMePage(root, options = {}) {
-  return pageViews.renderMePage(root, options);
-}
 
 export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
   return sessionFormViews.validateCreateSessionInput(input, { now });
@@ -200,15 +194,38 @@ export function openPlayerCardSheet(
 }
 
 export function renderPlayerLayerToggle(button, { message = "", on = false, status = "idle" } = {}) {
-  return pageViews.renderPlayerLayerToggle(button, { message, on, status });
+  if (!button) return;
+  button.setAttribute("aria-pressed", String(Boolean(on)));
+  button.classList.toggle("is-active", Boolean(on));
+  // 批 D3:toggle 改為控制直欄的 icon 鈕,可讀文字住在 visually-hidden span
+  //(佈局不吃字寬,測試與 SR 讀到的字不變);找不到 span 時退回整鈕文字。
+  const layerText = on ? "隱藏在線" : "顯示在線";
+  const layerTextNode = button.querySelector("[data-player-layer-text]");
+  if (layerTextNode) layerTextNode.textContent = layerText;
+  else button.textContent = layerText;
+  const statusRoot = document.getElementById("player-layer-status");
+  if (!statusRoot) return;
+  statusRoot.hidden = !message;
+  statusRoot.textContent = message;
+  statusRoot.setAttribute("role", status === "error" ? "alert" : "status");
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
 export function renderMapDataStatus(
-  ...args
+  root,
+  { kind = "idle", message = "", onRetry = () => {}, locationMessage = "" } = {}
 ) {
-  return pageViews.renderMapDataStatus(...args);
+  const visible = kind !== "idle" || Boolean(locationMessage);
+  root.hidden = !visible;
+  if (!visible) {
+    root.innerHTML = "";
+    return;
+  }
+  root.className = `map-data-status map-data-status--${esc(kind)}`;
+  root.innerHTML = `
+    ${message ? `<p>${esc(message)}</p>` : ""}
+    ${kind === "error" ? '<button type="button" id="map-retry" class="session-secondary">重新載入</button>' : ""}
+    ${locationMessage ? `<p id="location-feedback" class="location-feedback">${esc(locationMessage)}</p>` : ""}`;
+  root.querySelector("#map-retry")?.addEventListener("click", onRetry);
 }
 
 // One-way boundary: this legacy adapter may mount React and consume presentation
@@ -220,11 +237,18 @@ export function renderMapDataStatus(
 // teaching Node to execute TSX.
 let appModule = null;
 let mountSessionDetailSheetContent;
+let preloadMePageInApp = null;
 
 export function configureSessionViewModules(modules) {
   appModule = modules.appModule;
   mountSessionDetailSheetContent = modules.mountSessionDetailSheetContent;
   configureLoginModalContent(appModule.mountLoginModalContentInApp);
+  preloadMePageInApp = appModule.preloadMePageInApp;
+  if (typeof preloadMePageInApp !== "function") {
+    throw new Error("App module export is unavailable: preloadMePageInApp");
+  }
+  authenticatedViewPreloads[0] = preloadMePageInApp;
+  namedViewPreloads.me = preloadMePageInApp;
 }
 
 function requireAppExport(name) {
@@ -233,8 +257,6 @@ function requireAppExport(name) {
   return value;
 }
 
-const renderMePageInApp = (...args) => requireAppExport("renderMePageInApp")(...args);
-const preloadMePageInApp = () => requireAppExport("preloadMePageInApp")();
 const preloadMessagesPageInApp = () => requireAppExport("preloadMessagesPageInApp")();
 const preloadMySessionsPageInApp = () => requireAppExport("preloadMySessionsPageInApp")();
 const showToastInApp = (...args) => requireAppExport("showToastInApp")(...args);
@@ -567,14 +589,9 @@ function preloadAuthenticatedViews() {
   for (const preload of authenticatedViewPreloads) warmView(preload);
 }
 
-function preloadAuthenticatedViewsForAuth(authSession) {
+export function preloadAuthenticatedViewsForAuth(authSession) {
   if (authSession) preloadAuthenticatedViews();
 }
-
-configurePageViews({
-  preloadAuthenticatedViewsForAuth,
-  renderMePageInApp,
-});
 
 function preloadForIntent(target) {
   if (!(target instanceof Element)) return;

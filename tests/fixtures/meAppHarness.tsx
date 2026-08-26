@@ -5,7 +5,6 @@ import type { ControllerApi, ControllerIdentifier, SessionControllerState } from
 import type { CourtSummary, NotificationPreferences, Profile } from "../../src/domainTypes.ts";
 import { MePage } from "../../src/pages/MePage.tsx";
 import type { PageNotificationSettings, PageViewState, PageViewStore } from "../../src/pageViewStore.ts";
-import { setMySessionActionScope, syncPendingMySessionActions } from "../../src/sessionActions.ts";
 import { createStore } from "../../src/sessionStore.ts";
 import { syncCommit } from "../../src/syncCommit.ts";
 
@@ -172,16 +171,7 @@ export function mountMeAppHarness(requestedRoot: HTMLElement, initialOptions: Me
     syncCommit(() => {
       root.render(
         <AppServicesProvider controller={controller} meApp={meApp} pageViewStore={pageViewStore}>
-          <MePage
-            rootElement={rootElement}
-            notificationSettings={options.notificationSettings ?? {}}
-            presence={options.presence ?? {}}
-            pageViewStore={pageViewStore}
-            onStoreCommit={() => {
-              setMySessionActionScope(rootElement, sessionStore.getState().authSession?.user?.id ?? null);
-              syncPendingMySessionActions(rootElement);
-            }}
-          />
+          <MePage rootElement={rootElement} />
         </AppServicesProvider>
       );
     });

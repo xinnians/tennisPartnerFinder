@@ -5,9 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { BANDS } from "../filters.js";
 import { NearbyDrawerFocusProvider } from "../nearbyDrawerFocus.ts";
-import type { MePageOptions } from "../pages/MePage.tsx";
 import { NearbySessionsDrawer } from "../pages/NearbySessionsDrawer.tsx";
-import { syncCommit } from "../syncCommit.ts";
 import { AppServicesProvider, type AppServices } from "./AppServicesProvider.tsx";
 import {
   installSurfaceHostRenderer,
@@ -17,17 +15,8 @@ import {
   type SurfaceHostSnapshot,
 } from "./SurfaceHost.tsx";
 
-interface PageSlot<Options> {
-  id: number;
-  onCommit?: () => void;
-  options: Options;
-  resetKey: number;
-  rootElement: HTMLElement;
-}
-
 interface AppSnapshot {
   filters: FilterSnapshot;
-  mePages: Map<HTMLElement, PageSlot<MePageOptions>>;
   navigation: NavigationSnapshot;
   surfaces: SurfaceHostSnapshot;
   toastMessage: string;
@@ -66,9 +55,9 @@ interface AppProps {
 const noop = () => {};
 let appRoot: Root | null = null;
 let appServices: AppServices | null = null;
+let mePortalRoot: HTMLElement | null = null;
 let mySessionsPortalRoot: HTMLElement | null = null;
 let nearbyDrawerPortalRoot: HTMLElement | null = null;
-let nextSlotId = 1;
 let MePageComponent: typeof import("../pages/MePage.tsx").MePage | null = null;
 let MessagesPageComponent: typeof import("../pages/MessagesPage.tsx").MessagesPage | null = null;
 let MySessionsPageComponent: typeof import("../pages/MySessionsPage.tsx").MySessionsPage | null = null;
@@ -80,7 +69,6 @@ let messagesPageLoadFailed = false;
 let mySessionsPageLoadFailed = false;
 let snapshot: AppSnapshot = {
   filters: { band: "all", dateKey: null, districts: new Set(), instantOnly: false, types: new Set() },
-  mePages: new Map(),
   navigation: { activePage: "map", hasUnread: false, needsActionCount: 0 },
   surfaces: new Map(),
   toastMessage: "",
@@ -160,39 +148,22 @@ function PageLoading({ label }: { label: string }) {
   );
 }
 
-function renderPortals<Options>(
-  slots: Map<HTMLElement, PageSlot<Options>>,
-  render: (slot: PageSlot<Options>) => React.ReactNode,
-  prefix: string
-) {
-  return [...slots.values()].map((slot) => createPortal(render(slot), slot.rootElement, `${prefix}:${slot.id}`));
-}
-
 const MeDestination = memo(function MeDestination({
   failed,
   loaded,
-  slot,
+  rootElement,
 }: {
   failed: boolean;
   loaded: boolean;
-  slot: PageSlot<MePageOptions>;
+  rootElement: HTMLElement;
 }) {
   useEffect(() => {
     if (!loaded && !failed) void loadMePage().catch(() => {});
   }, [failed, loaded]);
   if (!MePageComponent) return <PageLoading label={failed ? "「我」載入失敗，請重新整理。" : "正在載入「我」…"} />;
-  const { notificationSettings = {}, presence = {}, pageViewStore } = slot.options;
-
   return (
-    <AppErrorBoundary resetKey={slot.resetKey} surface="me-page">
-      <MePageComponent
-        key={slot.id}
-        rootElement={slot.rootElement}
-        notificationSettings={notificationSettings}
-        presence={presence}
-        pageViewStore={pageViewStore}
-        onStoreCommit={slot.onCommit}
-      />
+    <AppErrorBoundary resetKey={0} surface="me-page">
+      <MePageComponent rootElement={rootElement} />
     </AppErrorBoundary>
   );
 });
@@ -721,13 +692,13 @@ export function App({ snapshot: current }: AppProps) {
   const navigationRoot = document.getElementById("bottom-navigation-root");
   return (
     <>
-      {renderPortals(
-        current.mePages,
-        (slot) => (
-          <MeDestination failed={mePageLoadFailed} loaded={Boolean(MePageComponent)} slot={slot} />
-        ),
-        "me"
-      )}
+      {mePortalRoot
+        ? createPortal(
+            <MeDestination failed={mePageLoadFailed} loaded={Boolean(MePageComponent)} rootElement={mePortalRoot} />,
+            mePortalRoot,
+            "me"
+          )
+        : null}
       {messagesRoot
         ? createPortal(
             <MessagesDestination failed={messagesPageLoadFailed} loaded={Boolean(MessagesPageComponent)} />,
@@ -781,6 +752,7 @@ export function App({ snapshot: current }: AppProps) {
 }
 
 function ensureAppRoot(): Root {
+  mePortalRoot ??= document.getElementById("me-root");
   mySessionsPortalRoot ??= document.getElementById("my-sessions-root");
   nearbyDrawerPortalRoot ??= document.getElementById("nearby-sessions-drawer");
   if (appRoot) return appRoot;
@@ -829,40 +801,6 @@ export function syncFilterToolbarInApp(filters: FilterSnapshot): void {
 export function syncBottomNavigationInApp(navigation: NavigationSnapshot): void {
   snapshot = { ...snapshot, navigation };
   renderApp();
-}
-
-/**
- * sessionViews wires native listeners immediately after each public render call,
- * so this compatibility boundary must expose committed DOM before it returns.
- * Internal React updates do not use this path.
- */
-function commitPageAdapterSynchronously(): void {
-  syncCommit(renderApp);
-}
-
-function renderPage<Options>(
-  key: keyof AppSnapshot,
-  rootElement: HTMLElement,
-  options: Options,
-  onCommit?: () => void
-): void {
-  const slots = new Map(snapshot[key] as Map<HTMLElement, PageSlot<Options>>);
-  const previous = slots.get(rootElement);
-  slots.set(rootElement, {
-    id: previous?.id ?? nextSlotId++,
-    onCommit,
-    options,
-    // Page identity stays stable so React state and focus survive adapter
-    // updates. Only the boundary observes this explicit recovery key.
-    resetKey: (previous?.resetKey ?? 0) + 1,
-    rootElement,
-  });
-  snapshot = { ...snapshot, [key]: slots };
-  commitPageAdapterSynchronously();
-}
-
-export function renderMePageInApp(rootElement: HTMLElement, options: MePageOptions = {}, onCommit?: () => void): void {
-  renderPage("mePages", rootElement, options, onCommit);
 }
 
 installSurfaceHostRenderer((surfaces) => {

@@ -102,11 +102,11 @@ import {
   openSessionSheet,
   openSessionUnavailableSheet,
   openWithdrawSessionConfirmation,
+  preloadAuthenticatedViewsForAuth,
   configureMapFilterToolbar,
   renderMapDataStatus,
   renderMapFilterToolbar,
   renderBottomNavigation,
-  renderMePage,
   renderPlayerLayerToggle,
   renderToast,
   nearbySessionsSummaryText,
@@ -131,7 +131,6 @@ import {
 } from "./features/profile/profileOrchestrationFeature.js";
 import {
   configurePresenceFeature,
-  presenceSettingsForProfile,
   reconcilePresenceTracking,
   resetPresenceTracking,
   updateOpenToGreetingSetting,
@@ -416,23 +415,6 @@ function enablePushNotifications() {
   return notificationFeature.enablePushNotifications();
 }
 
-function mountMeDestination() {
-  const root = document.getElementById("me-root");
-  if (!root) return;
-  const { authSession } = getAppState();
-  renderMePage(root, {
-    // Frozen pageViews bridge still owns the pending-action account scope until 3C-2.
-    authSession,
-    notificationSettings,
-    presence: presenceSettingsForProfile(),
-    pageViewStore,
-    // bridge-scope-only：凍結 bridge 的 commit callback 需要 live 讀 user id 做跨帳號 pending 隔離
-    // （mount-once 下 closure 捕捉的 authSession 恆為登入前快照）；3C-2 隨 adapter 退役時以 scope 搬進 MePage 根治。
-    sessionStore: controller?.sessionStore,
-  });
-  syncBottomNavigation();
-}
-
 function setActivePage(page, { historyMode = "push" } = {}) {
   activePage = page;
   for (const [candidate, { elementId }] of Object.entries(PAGE_ROUTES)) {
@@ -659,7 +641,10 @@ function init() {
     // showCreatedSession(result?.sessionId))；這裡在接線邊界補上 reason:"created"，
     // controller 本身不需要知道 reason 字串這個 view 層概念。
     showCreatedSession: (sessionId) => showMySessionsPage({ sessionId, reason: "created" }),
-    onAuthIdentityChange: handleAuthIdentityChange,
+    onAuthIdentityChange: (context) => {
+      preloadAuthenticatedViewsForAuth(context.session);
+      return handleAuthIdentityChange(context);
+    },
     onMySessionsChange: () => {
       if (!controller) return;
       // Keep the hidden destinations in sync as well. Otherwise an account
@@ -701,23 +686,33 @@ function init() {
     },
     pageViewStore,
   });
-  mountMeDestination();
+  preloadAuthenticatedViewsForAuth(getAppState().authSession);
+  syncBottomNavigation();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
   // 批 D3:右下控制直欄縮放;地圖不可用(fallback 模式)時為安全 no-op。
   document.getElementById("map-zoom-in")?.addEventListener("click", () => zoomMapBy(1));
   document.getElementById("map-zoom-out")?.addEventListener("click", () => zoomMapBy(-1));
   document.getElementById("player-layer-toggle").addEventListener("click", () => controller.togglePlayerLayer());
-  document.getElementById("player-directory-open").addEventListener("click", () => controller.openPlayerDirectory());
-  document.querySelector(".app-brand").addEventListener("click", (event) => {
-    event.preventDefault();
-    showMapPage({ focus: true });
+  // These controls are React portal children now; delegate from stable static hosts so concurrent first render
+  // and later node replacement cannot leave main.js attached to a stale node.
+  document.getElementById("map-topbar-root").addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest("#player-directory-open")) controller.openPlayerDirectory();
+    if (event.target.closest(".app-brand")) {
+      event.preventDefault();
+      showMapPage({ focus: true });
+    }
   });
-  document.getElementById("map-tab").addEventListener("click", () => showMapPage());
-  document.getElementById("create-session-tab").addEventListener("click", () => controller.openCreateIntent());
-  document.getElementById("my-sessions-tab").addEventListener("click", () => showMySessionsPage());
-  document.getElementById("messages-tab").addEventListener("click", () => showMessagesPage());
-  document.getElementById("me-tab").addEventListener("click", () => showMePage());
+  document.getElementById("bottom-navigation-root").addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const destination = event.target.closest("button")?.id;
+    if (destination === "map-tab") showMapPage();
+    if (destination === "create-session-tab") controller.openCreateIntent();
+    if (destination === "my-sessions-tab") showMySessionsPage();
+    if (destination === "messages-tab") showMessagesPage();
+    if (destination === "me-tab") showMePage();
+  });
   globalThis.addEventListener("hashchange", () => {
     void routeCurrentHash();
   });

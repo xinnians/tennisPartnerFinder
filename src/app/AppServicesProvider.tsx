@@ -54,6 +54,11 @@ export interface MySessionsPageView {
   notificationSettings: PageNotificationSettings;
 }
 
+export interface MePageView {
+  notificationSettings: PageNotificationSettings;
+  presenceLocationStatus: PageViewState["presenceLocationStatus"];
+}
+
 export type MessagesState = Pick<SessionControllerState, "courts"> & {
   groups: ControllerMySessionGroups;
 };
@@ -180,6 +185,13 @@ function selectMySessionsPageView(state: Readonly<PageViewState>): MySessionsPag
   };
 }
 
+function selectMePageView(state: Readonly<PageViewState>): MePageView {
+  return {
+    notificationSettings: state.notificationSettings,
+    presenceLocationStatus: state.presenceLocationStatus,
+  };
+}
+
 export function AppServicesProvider({
   children,
   controller,
@@ -231,6 +243,28 @@ export function useMeAppActions(): MeAppActions {
   const { meApp } = useAppServices();
   if (!meApp) throw new Error("Me app actions are unavailable.");
   return meApp;
+}
+
+export function useMePageView(): MePageView {
+  const { pageViewStore } = useAppServices();
+  if (!pageViewStore) throw new Error("Me page-view service is unavailable.");
+  const current = pageViewStore.getState();
+  return useStoreSelector(pageViewStore, "me", selectMePageView, selectMePageView(current));
+}
+
+export function composeMePresence(
+  profile: SessionControllerState["profile"],
+  pageView: MePageView
+): {
+  locationStatus: MePageView["presenceLocationStatus"];
+  openToGreeting: boolean;
+  sharePresence: boolean;
+} {
+  return {
+    locationStatus: pageView.presenceLocationStatus,
+    openToGreeting: profile?.openToGreeting === true,
+    sharePresence: profile?.sharePresence === true,
+  };
 }
 
 export function useMessagesActions(): MessagesActions {

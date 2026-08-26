@@ -1,16 +1,17 @@
 import { useEffect, useLayoutEffect, useState, type ChangeEvent, type MouseEvent } from "react";
 
 import { Avatar } from "../components/Avatar.tsx";
-import type {
-  ControllerCallbackResult as CallbackResult,
-  ControllerEventName,
-  SessionControllerState,
-} from "../controllerContracts.ts";
+import type { ControllerCallbackResult as CallbackResult } from "../controllerContracts.ts";
 import type { CourtSummary, NotificationPreferences, Profile } from "../domainTypes.ts";
-import type { PageViewStore } from "../pageViewStore.ts";
 import { mePageRuntime } from "../sessionPresentation.ts";
-import { useStoreSelector, type Store } from "../sessionStore.ts";
-import { useMeActions, useMeAppActions, useMeState } from "../app/AppServicesProvider.tsx";
+import { setMySessionActionScope, syncPendingMySessionActions } from "../sessionActions.ts";
+import {
+  composeMePresence,
+  useMeActions,
+  useMeAppActions,
+  useMePageView,
+  useMeState,
+} from "../app/AppServicesProvider.tsx";
 
 interface MeProfile extends Omit<Partial<Profile>, "courts" | "slots"> {
   courts?: Set<string> | string[];
@@ -29,35 +30,8 @@ interface BlockedPlayer {
   createdAt?: string;
 }
 
-interface NotificationSettingsInput {
-  courtIds?: Array<number | string>;
-  errorMessage?: string;
-  prefs?: Partial<NotificationPreferences>;
-  pushStatus?: string;
-  webPushConfigured?: boolean;
-}
-
-interface PresenceSettingsInput {
-  locationStatus?: string;
-  openToGreeting?: boolean;
-  sharePresence?: boolean;
-}
-
-export interface MePageOptions {
-  notificationSettings?: NotificationSettingsInput | null;
-  presence?: PresenceSettingsInput | null;
-  pageViewStore?: PageViewStore;
-  // bridge-scope-only：凍結 bridge commit callback live 讀 user id；MePage 本體不得消費，3C-2 隨 adapter 退役搬入 owner。
-  sessionStore?: Store<SessionControllerState, ControllerEventName>;
-  onStoreCommit?: () => void;
-}
-
 export interface MePageProps {
   rootElement: HTMLElement;
-  notificationSettings: NotificationSettingsInput | null;
-  presence: PresenceSettingsInput | null;
-  pageViewStore?: PageViewStore;
-  onStoreCommit?: () => void;
 }
 
 type NormalizedNotification = ReturnType<typeof mePageRuntime.normalizedNotificationSettings>;
@@ -680,19 +654,14 @@ export function MePage(props: MePageProps) {
     onSignOut,
     supportHref,
   } = useMeAppActions();
-  const pageView = useStoreSelector(props.pageViewStore, "me", (state) => state, null);
+  const pageView = useMePageView();
   const authenticated = Boolean(authSession);
   const nickname = String(profile?.nick ?? "").trim() || "球友";
-  const presence = mePageRuntime.normalizedPresenceSettings({
-    locationStatus: pageView?.presenceLocationStatus ?? props.presence?.locationStatus,
-    openToGreeting: profile?.openToGreeting === true,
-    sharePresence: profile?.sharePresence === true,
-  });
-  const notification = mePageRuntime.normalizedNotificationSettings(
-    pageView?.notificationSettings ?? props.notificationSettings ?? {}
-  );
+  const presence = mePageRuntime.normalizedPresenceSettings(composeMePresence(profile, pageView));
+  const notification = mePageRuntime.normalizedNotificationSettings(pageView.notificationSettings);
   useLayoutEffect(() => {
-    props.onStoreCommit?.();
+    setMySessionActionScope(props.rootElement, authSession?.user?.id ?? null);
+    syncPendingMySessionActions(props.rootElement);
   });
   return (
     <div className="me-shell">

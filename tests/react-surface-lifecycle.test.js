@@ -106,7 +106,7 @@ test("synchronous React commits stay behind one fail-closed helper and three app
   assert.match(helper.source, /export function syncCommit\(update: \(\) => void\): void \{/);
   assert.match(helper.source, /reactDomFlushSync\(update\);/);
 
-  const approvedCallers = ["app/App.tsx", "app/SurfaceHost.tsx", "sessionStore.ts"];
+  const approvedCallers = ["app/SurfaceHost.tsx", "sessionStore.ts"];
   const callers = sourceFiles
     .filter(({ relativePath }) => relativePath !== "syncCommit.ts")
     .filter(({ source }) => /\bsyncCommit\(/.test(source))

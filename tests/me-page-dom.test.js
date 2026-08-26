@@ -127,13 +127,7 @@ test("MePage 輸出登入身分、設定區與服務連結", async (t) => {
     createElement(
       AppServicesProvider,
       { controller: createController(sessionStore), meApp: createMeApp(), pageViewStore },
-      createElement(MePage, {
-        notificationSettings: {},
-        onStoreCommit: () => {},
-        pageViewStore,
-        presence: {},
-        rootElement,
-      })
+      createElement(MePage, { rootElement })
     )
   );
 
@@ -143,6 +137,24 @@ test("MePage 輸出登入身分、設定區與服務連結", async (t) => {
   assert.match(html, /data-testid="player-visibility-toggle"/);
   assert.match(html, /data-testid="blocked-player-list"/);
   assert.match(html, /mailto:support@example\.test/);
+});
+
+test("useMePageView 只投影 notificationSettings 與 presenceLocationStatus", async (t) => {
+  const { AppServicesProvider, createStore, useMePageView } = await loadMeTestModules(t);
+  const controller = createController(createStore(createMeStoreState()));
+  const pageViewStore = createPageViewStore(createStore);
+  let observedPageView;
+  function PageViewProbe() {
+    observedPageView = useMePageView();
+    return null;
+  }
+  renderToStaticMarkup(createElement(AppServicesProvider, { controller, pageViewStore }, createElement(PageViewProbe)));
+  await retryAssertion(() =>
+    assert.deepStrictEqual(observedPageView, {
+      notificationSettings: pageViewStore.getState().notificationSettings,
+      presenceLocationStatus: pageViewStore.getState().presenceLocationStatus,
+    })
+  );
 });
 
 test("useMeState 與 selectMeState 產出同一份九欄切片", async (t) => {

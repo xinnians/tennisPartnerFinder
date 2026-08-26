@@ -132,13 +132,21 @@
     `meApp`）hooks 單源化、14 個測試直呼點處置（三條唯一 oracle 特別點名）、
     補 `me-page-dom` 安全網。風險註記：MePage lazy chunk gzip 餘 ≈380 B 全庫最緊，
     hooks 嚴禁放頁面 chunk。
-  - **3C-2**（狀態：已派工，`docs/arch-dispatch-2026-08-26-batch3C2-me.md`）：
-    `useMePageView()` 切片＋presence 組裝、scope 遷入 MePage（key＝live user id
-    非 authEpoch）＋node-replacement 帳號切換 oracle（canary 三拍必附）、
-    adapter 退役＋**整套 slot 機制歸零**（附帶收掉 `syncCommit` caller 3→2，
-    `react-surface-lifecycle:109` 白名單同步一行）、auth 差分 preload 等價落點、
-    `pageViews.js` 刪檔評估。兩顆 rAF 判定與 adapter 無關，凍結不動。
-- ACCEPTED 回填：（待）
+  - **3C-2**（狀態：**ACCEPTED（2026-08-26）**，驗收紀錄
+    `docs/arch-reports/batch-3C2-me-acceptance-2026-08-26.md`；對立審查
+    `docs/arch-reports/batch-3C2-adversarial-2026-08-26.md`；派工單
+    `docs/arch-dispatch-2026-08-26-batch3C2-me.md`）：
+    `useMePageView()` 切片＋presence 組裝、scope 遷入 MePage（key＝live user id，
+    3C-1 退件根治）＋node-replacement 帳號切換 oracle（canary 三拍實證）、
+    adapter 退役＋**整套 slot 機制歸零**（`syncCommit` caller 3→2，
+    `react-surface-lifecycle:109` 白名單同步一行）、`pageViews.js` 刪檔。
+    派工外連帶變更核准：init listener 改靜態 host delegation（反向 canary 證必要
+    ——slot 同步 flush 是 init 直掛的隱性保證；七行為等價）。勘誤：舊 auth 差分
+    preload 是實質死觸發，新 `onAuthIdentityChange` 接線屬行為改善非等價搬移。
+    main gzip −338 餘 1,906 B；total −416；MePage chunk −68 餘 571 B。
+- ACCEPTED 回填：批 3 全案完結（3A `add101d`／3B `5870262`／3C-1 `ec20cdd`／3C-2 本批）。
+  四頁（Messages／MySessions／NearbyDrawer／Me）全同級：hooks 單源＋直接 portal＋
+  main.js 零頁面 mount 鏈；slot 機制歸零。
 
 ## 批 4：Sheet 殼 React 化
 

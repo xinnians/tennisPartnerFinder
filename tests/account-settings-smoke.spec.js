@@ -188,6 +188,54 @@ test("Me presence settings explain reciprocal visibility, request sharing, and o
   expect(runtimeErrors).toEqual([]);
 });
 
+test("a Me account switch clears a replaced node's stale pending and error state", async ({ page }) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
+    document.getElementById("tab-map").hidden = true;
+    document.getElementById("me-page").hidden = false;
+    let rejectAccountA;
+    const pendingAccountA = new Promise((_, reject) => {
+      rejectAccountA = reject;
+    });
+    const harness = renderMeAppHarness(document.getElementById("me-root"), {
+      authSession: { user: { id: "me-account-a" } },
+      onTogglePlayerVisibility: () => pendingAccountA,
+      playerVisibility: false,
+      profile: { nick: "帳號 A", ntrp: 3.5 },
+    });
+    window.__switchMeAccount = () => {
+      const original = harness.rootElement.querySelector('[data-testid="player-visibility-toggle"]');
+      harness.update({ authSession: null });
+      harness.update({
+        authSession: { user: { id: "me-account-b" } },
+        onTogglePlayerVisibility: async () => {},
+        playerVisibility: true,
+        profile: { nick: "帳號 B", ntrp: 4 },
+      });
+      window.__meOriginalToggleConnected = original.isConnected;
+    };
+    window.__rejectMeAccountA = rejectAccountA;
+  });
+
+  const accountAToggle = page.getByTestId("player-visibility-toggle");
+  await accountAToggle.click();
+  await expect(accountAToggle).toBeDisabled();
+  await page.evaluate(() => window.__switchMeAccount());
+  await expect.poll(() => page.evaluate(() => window.__meOriginalToggleConnected)).toBe(false);
+  const accountBToggle = page.getByTestId("player-visibility-toggle");
+  await expect(accountBToggle).toHaveAttribute("aria-checked", "true");
+  await expect(accountBToggle).toBeEnabled();
+  await expect(page.locator("#me-root [data-my-sessions-error]")).toBeHidden();
+
+  await page.evaluate(() => window.__rejectMeAccountA(new Error("帳號 A 的過期失敗")));
+  await expect(accountBToggle).toBeEnabled();
+  await expect(page.locator("#me-root [data-my-sessions-error]")).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});
+
 test("Me notification settings save six preferences and Taipei court subscriptions", async ({ page }) => {
   const runtimeErrors = captureConsoleErrors(page);
   await installFakeMaps(page);
