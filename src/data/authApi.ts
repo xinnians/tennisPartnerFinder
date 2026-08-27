@@ -20,10 +20,7 @@ function requireDefaultSupabase(): AuthClient {
  * Transport/refresh failures reject so callers can retain a recoverable
  * post-login intent instead of treating a temporary auth failure as logout.
  */
-export async function resolveInitialSession(
-  client: AuthClient,
-  storedSession: string | null = null
-): Promise<unknown | null> {
+export async function resolveInitialSession(client: AuthClient, storedSession: string | null = null): Promise<unknown> {
   const { data, error } = await client.auth.getSession();
   if (error) throw asDataApiError(error);
   if (data?.session) return data.session;
@@ -45,14 +42,14 @@ export async function resolveInitialSession(
   return restored?.session ?? null;
 }
 
-export async function getInitialSession(): Promise<unknown | null> {
+export async function getInitialSession(): Promise<unknown> {
   if (!isSupabaseConfigured) return null;
   const client = requireDefaultSupabase();
   const stored = globalThis.localStorage?.getItem(SUPABASE_AUTH_STORAGE_KEY);
   return resolveInitialSession(client, stored);
 }
 
-export function onAuthStateChange(callback: (session: unknown | null, event: string) => void): () => void {
+export function onAuthStateChange(callback: (session: unknown, event: string) => void): () => void {
   if (!isSupabaseConfigured) return () => {};
   const client = requireDefaultSupabase();
   const { data } = client.auth.onAuthStateChange((event, session) => callback(session, event));

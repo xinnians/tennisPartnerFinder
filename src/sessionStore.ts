@@ -45,7 +45,7 @@ export function createStore<S extends object = SessionControllerState, Channel e
 
   const setState = (patch: StorePatch<S>): Readonly<S> => {
     const nextPatch = typeof patch === "function" ? patch(state) : patch;
-    state = Object.assign({}, state, nextPatch) as Readonly<S>;
+    state = Object.assign({}, state, nextPatch);
     return state;
   };
 
@@ -109,5 +109,5 @@ export function useStoreSelector<S extends object, Channel extends string, Selec
     [channel, store]
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  return snapshot.state ? selector(snapshot.state as Readonly<S>) : fallback;
+  return snapshot.state ? selector(snapshot.state) : fallback;
 }

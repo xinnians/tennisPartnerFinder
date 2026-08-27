@@ -82,8 +82,8 @@ export function samePendingIntent(
 export function browserIntentStore(): PendingIntentStore {
   return {
     clear: () => clearPendingIntent(),
-    read: () => readPendingIntent() as ControllerPendingIntent | null,
-    save: (intent) => savePendingIntent(intent) as ControllerPendingIntent,
+    read: () => readPendingIntent(),
+    save: (intent) => savePendingIntent(intent),
   };
 }
 

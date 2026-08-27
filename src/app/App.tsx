@@ -45,7 +45,7 @@ interface LoginModalOptions {
   action?: string;
   lineProviderId?: string;
   onClose(): void;
-  onProvider?(provider: string): Promise<unknown> | unknown;
+  onProvider?(provider: string): unknown;
 }
 
 interface AppProps {

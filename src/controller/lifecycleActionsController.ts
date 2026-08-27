@@ -99,7 +99,7 @@ export interface LifecycleActionsController {
 }
 
 function mutationResult(value: unknown): MutationResult {
-  return typeof value === "object" && value !== null ? (value as MutationResult) : {};
+  return typeof value === "object" && value !== null ? value : {};
 }
 
 /** Owns lifecycle RPC orchestration and host decision/edit surfaces. */

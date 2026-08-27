@@ -100,7 +100,7 @@ export interface PlayerDirectoryController {
 }
 
 function mutationResult(value: unknown): MutationResult {
-  return typeof value === "object" && value !== null ? (value as MutationResult) : {};
+  return typeof value === "object" && value !== null ? value : {};
 }
 
 /** Owns the reciprocal presence layer, player directory, and player surfaces. */

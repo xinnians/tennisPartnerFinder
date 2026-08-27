@@ -14,7 +14,7 @@ import type { MapBounds } from "./data/mappers/queryMappers.ts";
 import type { Store } from "./sessionStore.ts";
 
 export type ControllerIdentifier = number | string | null | undefined;
-export type ControllerCallbackResult = unknown | Promise<unknown>;
+export type ControllerCallbackResult = unknown;
 export type ControllerDrawerState = "collapsed" | "open";
 export type ControllerProfileGate = "directory" | "nickname" | "ntrp";
 

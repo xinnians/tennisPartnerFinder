@@ -57,7 +57,7 @@ export function createForegroundPoller({
   if (intervalMs > 0) {
     timer = setInterval(() => {
       if (visibilityTarget?.visibilityState !== "hidden" && canRun()) onInterval?.();
-    }, intervalMs) as PollTimer;
+    }, intervalMs);
     timer?.unref?.();
   }
 

@@ -60,7 +60,12 @@ assignment 12→4（餘 283 findings）。以下原方案文字保留為歷史�
 - 驗收草案：每條規則各有暫時 canary 打紅→SHA 還原→綠；所有 runtime 檔逐檔
   esbuild token 對帳；unit/mock/local/build/bundle 全矩陣。
 
-### B. redundant constituent／unnecessary assertion 純型別批
+### B. redundant constituent／unnecessary assertion 純型別批——**ACCEPTED（2026-08-28）**
+
+狀態：已完成並驗收（`docs/arch-reports/eslintB-type-purity-acceptance-2026-08-28.md`）。
+兩規則恢復、17 筆清零、零 runtime token；`databaseTypes.ts` 依 §5 方案一
+scoped override 記帳 2 筆。債餘 4 條 off／266 findings（264 待修＋2 記帳）。
+以下原方案文字保留為歷史依據。
 
 - 範圍：9＋10 個 finding。
 - 順序：先 handwritten contracts，再處理 generated `databaseTypes.ts` 的政策項。

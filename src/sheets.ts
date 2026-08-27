@@ -33,7 +33,7 @@ interface SurfaceMountOptions {
 
 interface LoginModalOptions {
   action?: unknown;
-  onProvider?: (provider: string) => Promise<unknown> | unknown;
+  onProvider?: (provider: string) => unknown;
   onClose?: (options: { reason: string }) => void;
   lineProviderId?: unknown;
 }

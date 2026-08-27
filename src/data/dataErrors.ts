@@ -65,7 +65,7 @@ export class DataApiUnavailableError extends DataApiError {
 }
 
 function errorShape(error: unknown): ErrorShape | null {
-  return typeof error === "object" && error !== null ? (error as ErrorShape) : null;
+  return typeof error === "object" && error !== null ? error : null;
 }
 
 function codeFromSupabaseError(error: unknown): string {

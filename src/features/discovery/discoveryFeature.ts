@@ -27,7 +27,7 @@ export function cloneFilters(): ControllerFilters {
     ...DEFAULT_FILTER_STATE,
     types: new Set(DEFAULT_FILTER_STATE.types),
     districts: new Set(DEFAULT_FILTER_STATE.districts),
-  } as ControllerFilters;
+  };
 }
 
 export function cloneBounds(bounds: BoundsInput): MapBounds {

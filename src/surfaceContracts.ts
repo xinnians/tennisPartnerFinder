@@ -39,7 +39,7 @@ export interface LoginModalContentOptions {
   action: string;
   lineProviderId: string;
   onClose(): void;
-  onProvider?: (provider: string) => Promise<unknown> | unknown;
+  onProvider?: (provider: string) => unknown;
 }
 
 export interface LoginModalContentHandle {

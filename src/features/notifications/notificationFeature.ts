@@ -161,9 +161,9 @@ export function createNotificationFeature(options: NotificationFeatureOptions): 
       options.rerenderVisibleSettings();
       return "unsupported";
     }
-    const result = (await enableBrowserPush({
+    const result: BrowserPushResult = await enableBrowserPush({
       vapidPublicKey: WEB_PUSH_VAPID_PUBLIC_KEY,
-    })) as BrowserPushResult;
+    });
     if (request.isStale()) return;
     if (result.status !== "granted" || !result.subscription) {
       const pushStatus =
