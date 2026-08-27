@@ -10,7 +10,7 @@ const APP = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8")
 const INDEX = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const MAIN = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
 const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
-const SURFACES = readFileSync(new URL("../src/sheets.js", import.meta.url), "utf8");
+const SURFACES = readFileSync(new URL("../src/sheets.ts", import.meta.url), "utf8");
 const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
 const SYNC_COMMIT = readFileSync(new URL("../src/syncCommit.ts", import.meta.url), "utf8");
 

@@ -4,7 +4,7 @@ paths:
   - "src/sheets/**"
   - "src/main.js"
   - "src/sessionViews.js"
-  - "src/sheets.js"
+  - "src/sheets.ts"
   - "tests/fixtures/appRuntime.js"
 ---
 

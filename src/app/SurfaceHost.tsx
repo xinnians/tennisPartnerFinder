@@ -7,7 +7,7 @@ import {
   configureSurfaceFocusRegistry,
   configureSurfaceKeyboardRegistry,
   configureSurfaceShellRenderer,
-} from "../sheets.js";
+} from "../sheets.ts";
 import { syncCommit } from "../syncCommit.ts";
 
 export interface SurfaceContentLifecycle {
@@ -326,7 +326,7 @@ export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHan
   };
 }
 
-// sheets.js stays directly importable in Node; the eager browser SurfaceHost installs this bridge once.
+// sheets.ts stays directly importable in Node; the eager browser SurfaceHost installs this bridge once.
 configureSurfaceShellRenderer(mountSurfaceShell);
 configureSurfaceKeyboardRegistry(surfaceKeyboardRegistry);
 configureSurfaceFocusRegistry(surfaceFocusRegistry);

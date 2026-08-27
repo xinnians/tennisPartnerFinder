@@ -50,7 +50,7 @@ async function loadSheets(t, vite) {
   const reactRoot = createRoot(document.getElementById("react-test-root"));
   const renderSurfaceHost = (slots) => reactRoot.render(createElement(host.SurfaceHost, { slots }));
   host.installSurfaceHostRenderer(renderSurfaceHost);
-  const url = new URL("../src/sheets.js", import.meta.url);
+  const url = new URL("../src/sheets.ts", import.meta.url);
   url.searchParams.set("dom-test", String(sequence));
   const sheets = await import(url.href);
   sheets.configureSurfaceShellRenderer(host.mountSurfaceShell);

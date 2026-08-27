@@ -611,7 +611,7 @@ test("report dialog requires a reason, preserves failures, and acknowledges a su
   expect(runtimeErrors).toEqual([]);
 });
 
-// 批 C2-2 fix round 1(review Important):sheets.js 的 resolveRestoreTarget 是通用
+// 批 C2-2 fix round 1(review Important):sheets.ts 的 resolveRestoreTarget 是通用
 // 函式,不是抽屜專屬——這裡驗證非抽屜語境(My Sessions 卡片開的檢舉 dialog)的卡片
 // 在 dialog 開著時消失、關閉 dialog 後,焦點不會被誤導跳去抽屜的摘要條(toggle)。
 // 修法前(無 half/full 新 fallback 前)這裡就是「找不到就不移動」,落在 body——

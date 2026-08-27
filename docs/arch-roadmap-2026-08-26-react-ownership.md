@@ -277,7 +277,15 @@
   後續 canary 一律主動攔截 legacy extension。回報勘誤：唯一 importer 檔數
   17→16（指令複核）。6C 設計輸入＝Codex 回報 §9.5（兩段式、bridge port 落
   contract leaf 防 circular、lifecycle `:13`／sheets-dom 連動）。
-- ACCEPTED 回填（6C–6F）：（待）
+- **6C 狀態：ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-6C-sheets-ts-acceptance-2026-08-27.md`。純型別
+  `surfaceContracts.ts`（四 port，emit 0 B）＋`sheets.ts` annotation-only；
+  唯一核可 runtime token 差異＝`prefer-const` 裁決的 `const surfaceEntry`
+  合併（正規化後逐 byte 全等；bundle −2 raw/−4 gzip main，total gzip 餘
+  1,435 B）。port 4 無 strict 覆蓋、人工核對記入覆蓋債（等 sessionViews
+  TS 化）。6D 設計輸入＝Codex 回報 §9.5（DataApi ReturnType 推導、error
+  contract 先凍、`p_line_id: null` contextual widening）。
+- ACCEPTED 回填（6D–6F）：（待）
 
 ## 隨時可插的獨立小批
 

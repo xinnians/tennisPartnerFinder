@@ -1,4 +1,4 @@
-import { mountDialog, mountSheet } from "../sheets.js";
+import { mountDialog, mountSheet } from "../sheets.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { sessionScheduleLabel, sessionVenuePresentation } from "../sessionPresentation.ts";

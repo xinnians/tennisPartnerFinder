@@ -1,5 +1,5 @@
 import { DEFAULT_FILTER_STATE } from "../filters.ts";
-import { mountSheet } from "../sheets.js";
+import { mountSheet } from "../sheets.ts";
 
 let deferSurfaceOpen;
 let lazyMounts;

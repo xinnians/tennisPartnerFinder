@@ -1,5 +1,5 @@
 import { validProfileNtrp } from "../profile.ts";
-import { mountSheet } from "../sheets.js";
+import { mountSheet } from "../sheets.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { PROFILE_SLOTS } from "../sessionPresentation.ts";
 import { taipeiDateTime } from "../taipeiTime.ts";

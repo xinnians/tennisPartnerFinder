@@ -109,7 +109,7 @@ import {
   renderToast,
   nearbySessionsSummaryText,
 } from "./sessionViews.js";
-import { openLoginModal } from "./sheets.js";
+import { openLoginModal } from "./sheets.ts";
 import {
   createNotificationFeature,
   defaultNotificationSettings,

@@ -1,5 +1,5 @@
 import { isUndecidedCandidate } from "../sessionCriteria.ts";
-import { mountSheet } from "../sheets.js";
+import { mountSheet } from "../sheets.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { taipeiClock, taipeiDateTimeLocalValue, taipeiLocalDateTimeToIso, taipeiParts } from "../taipeiTime.ts";

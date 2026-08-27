@@ -59,7 +59,7 @@
 - `src/sessionController.js`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh；
   `src/controller/`：七個子 controller、surfaceRegistry 與 controllerApiContract（strict TS）。
 - `src/sessionViews.js` 與 `src/views/`：頁面、抽屜、表單與 surface 的遷移期 legacy adapter。
-- `src/sheets.js`：可存取的 sheet/dialog 原語與焦點回復。
+- `src/sheets.ts`：可存取的 sheet/dialog 原語與焦點回復。
 - `src/app/`：單一 React root 與 SurfaceHost；`src/pages/`（4 頁面級元件）、`src/sheets/`
   （14 個 sheet/dialog）與 `src/components/` 的內容以 portal 掛進 legacy 容器。
 - `src/features/`：十個 feature 純邏輯模組（chat、discovery、filters、notifications、

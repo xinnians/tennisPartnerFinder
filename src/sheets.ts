@@ -1,26 +1,66 @@
+import type {
+  LoginModalContentRenderer,
+  SurfaceFocusRegistry,
+  SurfaceKeyboardEntry,
+  SurfaceKeyboardRegistry,
+  SurfaceShellProps,
+  SurfaceShellRenderer,
+} from "./surfaceContracts.ts";
 import { pushSurfaceIsolation } from "./modalIsolation.js";
 import { AUTH_LINE_PROVIDER_ID } from "./config.ts";
 
+interface SurfaceCloseOptions {
+  reason?: string;
+  restoreFocus?: boolean;
+}
+
+interface SurfaceMountHandle {
+  root: HTMLElement;
+  surface: HTMLElement;
+  close(options?: SurfaceCloseOptions): void;
+  registerUnmount(unmount: unknown): void;
+}
+
+interface SurfaceMountOptions {
+  id?: unknown;
+  label?: unknown;
+  className?: unknown;
+  html?: unknown;
+  onClose?: (options: { reason: string }) => void;
+  onMount?: (handle: Pick<SurfaceMountHandle, "root" | "surface" | "close">) => void;
+  onEscape?: () => unknown;
+}
+
+interface LoginModalOptions {
+  action?: unknown;
+  onProvider?: (provider: string) => Promise<unknown> | unknown;
+  onClose?: (options: { reason: string }) => void;
+  lineProviderId?: unknown;
+}
+
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");
-const surfaces = new WeakMap();
-let mountReactSurfaceShell = null;
-let surfaceKeyboardRegistry = null;
-let surfaceFocusRegistry = null;
+const surfaces = new WeakMap<HTMLElement, SurfaceKeyboardEntry>();
+let mountReactSurfaceShell: SurfaceShellRenderer | null = null;
+let surfaceKeyboardRegistry: SurfaceKeyboardRegistry | null = null;
+let surfaceFocusRegistry: SurfaceFocusRegistry | null = null;
 
-export function configureSurfaceShellRenderer(renderer) {
+export function configureSurfaceShellRenderer(renderer: SurfaceShellRenderer) {
   mountReactSurfaceShell = renderer;
 }
 
-export function configureSurfaceKeyboardRegistry(registry) {
+export function configureSurfaceKeyboardRegistry(registry: SurfaceKeyboardRegistry) {
   surfaceKeyboardRegistry = registry;
 }
 
-export function configureSurfaceFocusRegistry(registry) {
+export function configureSurfaceFocusRegistry(registry: SurfaceFocusRegistry) {
   surfaceFocusRegistry = registry;
 }
 
-function mountSurface(root, { id, label, className = "", html, onClose, onMount, onEscape } = {}) {
+function mountSurface(
+  root: HTMLElement,
+  { id, label, className = "", html, onClose, onMount, onEscape }: SurfaceMountOptions = {}
+): SurfaceMountHandle {
   const focusRegistry = surfaceFocusRegistry;
   if (!focusRegistry) throw new Error("Surface focus registry is unavailable.");
   const active = surfaces.get(root);
@@ -30,35 +70,34 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
   closeSurface(root, { reason: "replace", restoreFocus: false });
   if (!mountReactSurfaceShell) throw new Error("Surface shell React renderer is unavailable.");
   if (!surfaceKeyboardRegistry) throw new Error("Surface keyboard registry is unavailable.");
-  const shell = mountReactSurfaceShell(root, { className, html, id, label });
+  const shell = mountReactSurfaceShell(root, { className, html, id, label } as SurfaceShellProps);
   const { surface } = shell;
   const releaseIsolation = pushSurfaceIsolation(root);
   let closed = false;
-  let unmountContent = null;
-  let unregisterSurfaceKeyboard = null;
-  let surfaceEntry;
-  const registerUnmount = (unmount) => {
+  let unmountContent: (() => void) | null = null;
+  let unregisterSurfaceKeyboard: (() => void) | null = null;
+  const registerUnmount = (unmount: unknown) => {
     if (typeof unmount !== "function") throw new TypeError("Surface unmount callback must be a function.");
     if (closed) {
       unmount();
       return;
     }
-    unmountContent = unmount;
+    unmountContent = unmount as () => void;
   };
-  const close = ({ reason = "dismiss", restoreFocus = true } = {}) => {
+  const close = ({ reason = "dismiss", restoreFocus = true }: SurfaceCloseOptions = {}): void => {
     if (closed) return;
     closed = true;
     unregisterSurfaceKeyboard?.();
     unregisterSurfaceKeyboard = null;
     releaseIsolation();
-    let unmountError = null;
+    let unmountError: unknown = null;
     try {
       unmountContent?.();
     } catch (error) {
       unmountError = error;
     }
     unmountContent = null;
-    let shellUnmountError = null;
+    let shellUnmountError: unknown = null;
     try {
       shell.unmount();
     } catch (error) {
@@ -71,14 +110,16 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
     if (unmountError && shellUnmountError) {
       throw new AggregateError([unmountError, shellUnmountError], "Surface content and shell unmount failed.");
     }
-    if (unmountError) throw unmountError;
-    if (shellUnmountError) throw shellUnmountError;
+    if (unmountError) throw unmountError as Error;
+    if (shellUnmountError) throw shellUnmountError as Error;
   };
 
-  surfaceEntry = { close, onEscape, restoreFocus: previousFocus, surface };
+  const surfaceEntry = { close, onEscape, restoreFocus: previousFocus, surface };
   unregisterSurfaceKeyboard = surfaceKeyboardRegistry.register(surfaceEntry);
-  root.querySelector("[data-surface-dismiss]")?.addEventListener("click", close);
-  root.querySelectorAll("[data-surface-close]").forEach((button) => button.addEventListener("click", close));
+  root.querySelector("[data-surface-dismiss]")?.addEventListener("click", close as EventListener);
+  root
+    .querySelectorAll("[data-surface-close]")
+    .forEach((button) => button.addEventListener("click", close as EventListener));
   surfaces.set(root, surfaceEntry);
 
   onMount?.({ root, surface, close });
@@ -86,7 +127,7 @@ function mountSurface(root, { id, label, className = "", html, onClose, onMount,
   return { root, surface, close, registerUnmount };
 }
 
-function closeSurface(root, { reason = "dismiss", restoreFocus = true } = {}) {
+function closeSurface(root: HTMLElement, { reason = "dismiss", restoreFocus = true }: SurfaceCloseOptions = {}) {
   const active = surfaces.get(root);
   if (active) {
     active.close({ reason, restoreFocus });
@@ -98,24 +139,35 @@ function closeSurface(root, { reason = "dismiss", restoreFocus = true } = {}) {
 }
 
 /** Mount a focus-trapped bottom/side sheet for public session information. */
-export function mountSheet(options) {
-  return mountSurface(sheetRoot(), { ...options, className: `surface--sheet ${options.className ?? ""}`.trim() });
+export function mountSheet(options: SurfaceMountOptions) {
+  return mountSurface(sheetRoot()!, {
+    ...options,
+    className: `surface--sheet ${(options.className as string | null | undefined) ?? ""}`.trim(),
+  });
 }
 
 /** Mount a focus-trapped confirmation or sign-in dialog. */
-export function mountDialog(options) {
-  return mountSurface(modalRoot(), { ...options, className: `surface--dialog ${options.className ?? ""}`.trim() });
+export function mountDialog(options: SurfaceMountOptions) {
+  return mountSurface(modalRoot()!, {
+    ...options,
+    className: `surface--dialog ${(options.className as string | null | undefined) ?? ""}`.trim(),
+  });
 }
 
-let mountLoginModalContent = null;
+let mountLoginModalContent: LoginModalContentRenderer | null = null;
 
-export function configureLoginModalContent(renderer) {
+export function configureLoginModalContent(renderer: LoginModalContentRenderer) {
   mountLoginModalContent = renderer;
 }
 
 // lineProviderId 是 Supabase custom provider 識別符;空值時不渲染 LINE 按鈕,
 // 部署端未設好 provider 前保持既有單一 Google 入口。
-export function openLoginModal({ action = "", onProvider, onClose, lineProviderId = AUTH_LINE_PROVIDER_ID } = {}) {
+export function openLoginModal({
+  action = "",
+  onProvider,
+  onClose,
+  lineProviderId = AUTH_LINE_PROVIDER_ID,
+}: LoginModalOptions = {}) {
   const mounted = mountDialog({
     id: "login-dialog",
     label: "登入後繼續",
