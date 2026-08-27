@@ -239,6 +239,22 @@
 - 順序（批 5 回報 §9.5 採納）：contract leaf 先行（防 bridge circular import）→
   `sheets.ts` 機械轉換（不拆 ownership）→按責任逐 edge 拆檔;保留的同步邊界
   不動,改 facade async shape 另立批。
+- **主體切批（2026-08-27 拍板,基礎＝前置小批回報 §5.5 優先序）**：
+  - **6A**：value leaf 四檔 TS 化（`config`／`profile`／`sessionCriteria`／
+    `taipeiTime`,共 227 行;多 TS consumer,消最多隱含 any 邊界）——樣板批,
+    確立「annotation-only 轉換＋importer 副檔名同步＋appRuntime 映射＋strict
+    納入探針」紀律。
+  - **6B**：狀態三檔（`filters`／`requestGate`／`sessionIntent`）。
+  - **6C**：sheets contract leaf＋`sheets.ts` 機械轉換（連動：lifecycle `:13`
+    `SURFACES` readFileSync 路徑、E 群、sheets-dom 動態 import、importers）。
+  - **6D**：`dataApi.ts`（先凍 factory／error code／repository port contract）。
+  - **6E**：`sessionController` TS 化（＋必要時逐 edge 拆分,不為行數而拆）。
+  - **6F**：features 兩檔（`profileOrchestration`／`presence`,等 ports 穩定）＋
+    type-aware ESLint 9 條恢復＋殘餘盤點收尾。
+  - **暫不轉**（§5.5 拍板）：`main.js`（side-effect root,殿後另議）、
+    `sessionViews.js`＋`src/views/*.js`（frozen facade,bridge 收斂前機械 TS 化
+    會把舊契約永久化）、`mockData`（等 repository contract 提供 `satisfies`
+    目標）;極小 helper 隨相鄰批順手。
 - **前置小批**（狀態：**ACCEPTED（2026-08-27）**，驗收紀錄
   `docs/arch-reports/batch-6pre-thresholds-acceptance-2026-08-27.md`；派工單
   `docs/arch-dispatch-2026-08-27-batch6pre-thresholds.md`）：兩處零餘裕測試
