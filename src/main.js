@@ -26,7 +26,7 @@ if (import.meta.env.PROD) {
 }
 
 import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.ts";
-import { joinableSessionCount } from "./filters.js";
+import { joinableSessionCount } from "./filters.ts";
 import {
   configureFilterToolbarFeature,
   syncFilterToolbar,
@@ -135,7 +135,7 @@ import {
   updatePresenceSharing,
 } from "./features/presence/presenceFeature.js";
 import { eligibilityFromPrivateProfile } from "./profile.ts";
-import { createRequestGate } from "./requestGate.js";
+import { createRequestGate } from "./requestGate.ts";
 import { sessionIdFromHash } from "./sessionRoute.js";
 
 const configuredErrorTransport = configureSentryErrorTransport({

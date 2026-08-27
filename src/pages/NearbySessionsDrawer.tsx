@@ -7,7 +7,7 @@ import {
 } from "../app/AppServicesProvider.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
-import { isDefaultFilters, joinableSessionCount } from "../filters.js";
+import { isDefaultFilters, joinableSessionCount } from "../filters.ts";
 import { restoreNearbyDrawerFocus, useNearbyDrawerRoot } from "../nearbyDrawerFocus.ts";
 import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionPresentation.ts";
 import { taipeiClock } from "../taipeiTime.ts";

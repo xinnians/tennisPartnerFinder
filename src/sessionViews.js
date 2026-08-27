@@ -1,4 +1,4 @@
-import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
+import { BANDS, DEFAULT_FILTER_STATE } from "./filters.ts"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 import { configureLoginModalContent, mountDialog, mountSheet } from "./sheets.js";
 import { taipeiClock, taipeiDateTimeLocalValue } from "./taipeiTime.ts";
 import { esc } from "./util.js";

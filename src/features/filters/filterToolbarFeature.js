@@ -1,4 +1,4 @@
-import { DEFAULT_FILTER_STATE } from "../../filters.js";
+import { DEFAULT_FILTER_STATE } from "../../filters.ts";
 
 let getAppState;
 let getController;

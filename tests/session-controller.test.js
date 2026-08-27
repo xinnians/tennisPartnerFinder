@@ -6,7 +6,7 @@ import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.ts";
 import * as mapModule from "../src/map.ts";
 import * as pinModule from "../src/pins.ts";
 import * as sessionController from "../src/sessionController.js";
-import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
+import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.ts";
 
 const { createSessionController, groupMySessions } = sessionController;
 

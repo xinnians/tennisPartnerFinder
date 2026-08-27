@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.js";
+import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.ts";
 import { installAppModuleImporter } from "./fixtures/appRuntime.js";
 import { installFakeMaps, setFakeMapBounds } from "./fixtures/fakeMaps.js";
 import {

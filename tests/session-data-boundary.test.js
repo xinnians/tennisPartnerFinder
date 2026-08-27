@@ -29,7 +29,7 @@ import {
   resolveInitialSession,
   setPlayerBlock,
 } from "../src/dataApi.js";
-import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
+import { filterSessions, sortSessionsForDrawer } from "../src/filters.ts";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
 import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.ts";
 import { messagesFromGroups } from "../src/sessionViews.js";
@@ -38,7 +38,7 @@ import {
   clearPendingIntent,
   readPendingIntent,
   savePendingIntent,
-} from "../src/sessionIntent.js";
+} from "../src/sessionIntent.ts";
 import { sessionActionMessage } from "../src/sessionActionMessages.ts";
 
 const SESSION_SUMMARY_KEYS = [
@@ -932,7 +932,7 @@ test("mock sessions and discovery payloads include an ongoing local-demo-only Se
   }
 });
 
-// 批 D4a:filters.js 篩選模型改版(dateKey 列舉、districts 多選、band 開區間公式)。
+// 批 D4a:filters.ts 篩選模型改版(dateKey 列舉、districts 多選、band 開區間公式)。
 // 這裡改用新欄位重寫同樣的三個情境,並保留原本驗證的核心行為:窄篩選只留一筆、
 // band 開放上界仍會收 ntrpMax 剛過門檻的局與 NTRP 不限的局、無篩選時排除
 // cancelled 與已超過現在 2 小時窗口的過去局。日期 fixture 的 Taipei 星期別已用

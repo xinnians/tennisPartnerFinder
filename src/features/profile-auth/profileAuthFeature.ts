@@ -6,7 +6,7 @@ import type {
   ControllerProfileGate,
   SessionControllerState,
 } from "../../controllerContracts.ts";
-import { clearPendingIntent, readPendingIntent, savePendingIntent } from "../../sessionIntent.js";
+import { clearPendingIntent, readPendingIntent, savePendingIntent } from "../../sessionIntent.ts";
 
 export interface ProfileReadiness {
   source: "courts" | "profile" | null;

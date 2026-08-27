@@ -183,7 +183,7 @@ const PLAY_TYPE_HINT = "單打｜一對一。雙打｜二對二。練球｜餵�
 // ============================================================
 // 批 D5(v2 改版):開球局改全螢幕計分板流程。dc 抽取規格(§0-8)逐字值見批次
 // 派工單;此區塊只放 create 表單專用的純函式(可單元測試),DOM 組裝在
-// openCreateSessionSheet 內。CREATE_NTRP_BANDS 與 D4a 篩選 BANDS(filters.js)
+// openCreateSessionSheet 內。CREATE_NTRP_BANDS 與 D4a 篩選 BANDS(filters.ts)
 // 的 0/9 哨兵無關,兩者刻意不共用——建局表單的「不限」要落地成 ntrpMin/Max
 // 皆 null(既有 validateCreateSessionInput 的「選填」語意),不是字面 1..7,
 // 否則詳情頁與篩選會把「不限」誤顯示成「NTRP 1.0–7.0」。

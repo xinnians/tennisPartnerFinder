@@ -269,7 +269,15 @@
   偏差核可一項（`.ts` 不適用 `no-extra-boolean-cast`,既有 disable 註解移除）;
   覆蓋債三項記入驗收紀錄。6B 設計輸入＝Codex 回報 §9.5：順序 `requestGate`→
   `sessionIntent`→`filters`。
-- ACCEPTED 回填（6B–6F）：（待）
+- **6B 狀態：ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-6B-state-ts-acceptance-2026-08-27.md`。三檔改名＋
+  annotation-only（擦除 token 全等、main chunk hash 不變、bundle 淨 0 B）；
+  appRuntime 補 `filters: ".ts"`。**ground truth 更正**：Vite dev server 對
+  explicit `.js` 有 TS fallback，extensions 映射非自然載重（驗收方實測），
+  後續 canary 一律主動攔截 legacy extension。回報勘誤：唯一 importer 檔數
+  17→16（指令複核）。6C 設計輸入＝Codex 回報 §9.5（兩段式、bridge port 落
+  contract leaf 防 circular、lifecycle `:13`／sheets-dom 連動）。
+- ACCEPTED 回填（6C–6F）：（待）
 
 ## 隨時可插的獨立小批
 

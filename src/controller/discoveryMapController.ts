@@ -4,7 +4,7 @@ import {
   MAP_IDLE_DEBOUNCE_MS,
   TAIPEI_CITY_BOUNDS,
 } from "../config.ts";
-import { DEFAULT_FILTER_STATE } from "../filters.js";
+import { DEFAULT_FILTER_STATE } from "../filters.ts";
 import {
   cloneBounds,
   cloneFilters,
@@ -12,7 +12,7 @@ import {
   selectVisibleSessions,
   validBounds,
 } from "../features/discovery/discoveryFeature.ts";
-import { createForegroundPoller } from "../requestGate.js";
+import { createForegroundPoller } from "../requestGate.ts";
 import { selectControllerMapView } from "../sessionSelectors.ts";
 
 import type {

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
-import { BANDS } from "../filters.js";
+import { BANDS } from "../filters.ts";
 import { NearbyDrawerFocusProvider } from "../nearbyDrawerFocus.ts";
 import { NearbySessionsDrawer } from "../pages/NearbySessionsDrawer.tsx";
 import { AppServicesProvider, type AppServices } from "./AppServicesProvider.tsx";

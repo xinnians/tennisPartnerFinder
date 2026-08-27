@@ -8,7 +8,7 @@ import {
   isJoinableSession,
   joinableSessionCount,
   sortSessionsForDrawer,
-} from "../src/filters.js";
+} from "../src/filters.ts";
 
 test("isDefaultFilters treats the untouched default state as default", () => {
   assert.equal(isDefaultFilters(DEFAULT_FILTER_STATE), true);

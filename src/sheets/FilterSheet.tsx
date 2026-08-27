@@ -2,7 +2,7 @@ import { createRef, forwardRef, memo, useCallback, useImperativeHandle, useRef, 
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { TAIPEI_DISTRICTS } from "../districts.ts";
-import { BANDS, DEFAULT_FILTER_STATE } from "../filters.js";
+import { BANDS, DEFAULT_FILTER_STATE } from "../filters.ts";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 const FILTER_SHEET_PLAY_TYPES = ["單打", "雙打", "練球"] as const;

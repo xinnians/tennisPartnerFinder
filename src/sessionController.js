@@ -13,7 +13,7 @@ import {
   profileIsReady,
   profileMeetsGate,
 } from "./features/profile-auth/profileAuthFeature.ts";
-import { createRequestGate } from "./requestGate.js";
+import { createRequestGate } from "./requestGate.ts";
 import { isUndecidedCandidate } from "./sessionCriteria.ts";
 import { createStore } from "./sessionStore.ts";
 import { selectControllerMySessionsView, selectControllerPlayerLayerView } from "./sessionSelectors.ts";

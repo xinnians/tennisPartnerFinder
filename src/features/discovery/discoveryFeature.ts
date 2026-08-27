@@ -1,7 +1,7 @@
 import { TAIPEI_CITY_BOUNDS } from "../../config.ts";
 import type { ControllerFilters, ControllerMapStatus, SessionControllerState } from "../../controllerContracts.ts";
 import type { SessionSummary } from "../../domainTypes.ts";
-import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "../../filters.js";
+import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "../../filters.ts";
 // eslint-disable-next-line no-restricted-imports -- 既有 discovery bounds 純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { MapBounds } from "../../data/mappers/queryMappers.ts";
 

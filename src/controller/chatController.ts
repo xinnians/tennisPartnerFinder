@@ -1,6 +1,6 @@
 import { chatMemberSession, latestChatMessageId, visibleChatMessage } from "../features/chat/chatFeature.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
-import { createForegroundPoller, createRequestGate } from "../requestGate.js";
+import { createForegroundPoller, createRequestGate } from "../requestGate.ts";
 
 import type {
   ControllerAuthSnapshot,

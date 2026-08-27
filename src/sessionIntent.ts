@@ -1,6 +1,24 @@
 export const PENDING_SESSION_INTENT_KEY = "tennis-partner-finder:pending-session-intent";
 
-function sessionStorageOrNull(storage) {
+type PendingSessionIntent =
+  | { action: "join"; sessionId: number }
+  | { action: "create" }
+  | { action: "players" }
+  | { action: "directory" }
+  | { action: "visibility" };
+
+interface PendingSessionIntentInput {
+  action?: unknown;
+  sessionId: number;
+}
+
+interface SessionStoragePort {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+function sessionStorageOrNull(storage?: SessionStoragePort | null) {
   if (storage) return storage;
   try {
     return globalThis.sessionStorage ?? null;
@@ -9,34 +27,34 @@ function sessionStorageOrNull(storage) {
   }
 }
 
-function normalizedIntent(intent) {
+function normalizedIntent(intent: unknown): PendingSessionIntent | null {
   if (!intent || typeof intent !== "object" || Array.isArray(intent)) return null;
   const keys = Object.keys(intent).sort();
 
   if (
-    intent.action === "join" &&
+    (intent as PendingSessionIntentInput).action === "join" &&
     keys.length === 2 &&
     keys[0] === "action" &&
     keys[1] === "sessionId" &&
-    Number.isSafeInteger(intent.sessionId) &&
-    intent.sessionId > 0
+    Number.isSafeInteger((intent as PendingSessionIntentInput).sessionId) &&
+    (intent as PendingSessionIntentInput).sessionId > 0
   ) {
-    return { action: "join", sessionId: intent.sessionId };
+    return { action: "join", sessionId: (intent as PendingSessionIntentInput).sessionId };
   }
 
-  if (intent.action === "create" && keys.length === 1 && keys[0] === "action") {
+  if ((intent as PendingSessionIntentInput).action === "create" && keys.length === 1 && keys[0] === "action") {
     return { action: "create" };
   }
 
-  if (intent.action === "players" && keys.length === 1 && keys[0] === "action") {
+  if ((intent as PendingSessionIntentInput).action === "players" && keys.length === 1 && keys[0] === "action") {
     return { action: "players" };
   }
 
-  if (intent.action === "directory" && keys.length === 1 && keys[0] === "action") {
+  if ((intent as PendingSessionIntentInput).action === "directory" && keys.length === 1 && keys[0] === "action") {
     return { action: "directory" };
   }
 
-  if (intent.action === "visibility" && keys.length === 1 && keys[0] === "action") {
+  if ((intent as PendingSessionIntentInput).action === "visibility" && keys.length === 1 && keys[0] === "action") {
     return { action: "visibility" };
   }
 
@@ -44,7 +62,7 @@ function normalizedIntent(intent) {
 }
 
 /** Save only an intent to continue after authentication, never a draft. */
-export function savePendingIntent(intent, storage) {
+export function savePendingIntent(intent: unknown, storage?: SessionStoragePort | null) {
   const safeIntent = normalizedIntent(intent);
   if (!safeIntent) throw new Error("Unsupported pending session intent");
 
@@ -55,7 +73,7 @@ export function savePendingIntent(intent, storage) {
 }
 
 /** Read and clear malformed/overbroad values rather than carrying them forward. */
-export function readPendingIntent(storage) {
+export function readPendingIntent(storage?: SessionStoragePort | null) {
   const targetStorage = sessionStorageOrNull(storage);
   if (!targetStorage) return null;
 
@@ -73,6 +91,6 @@ export function readPendingIntent(storage) {
   return null;
 }
 
-export function clearPendingIntent(storage) {
+export function clearPendingIntent(storage?: SessionStoragePort | null) {
   sessionStorageOrNull(storage)?.removeItem(PENDING_SESSION_INTENT_KEY);
 }
