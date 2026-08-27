@@ -106,7 +106,7 @@ export default tseslint.config(
   // Non-data source retains both the data boundary and the synchronous-commit boundary.
   {
     files: ["src/**/*.{js,ts,tsx}"],
-    ignores: ["src/data/**", "src/dataApi.js", "src/syncCommit.ts"],
+    ignores: ["src/data/**", "src/dataApi.ts", "src/syncCommit.ts"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -153,7 +153,7 @@ export default tseslint.config(
   },
   // Data internals are exempt only from the facade rule, not from the synchronous-commit boundary.
   {
-    files: ["src/data/**/*.{js,ts,tsx}", "src/dataApi.js"],
+    files: ["src/data/**/*.{js,ts,tsx}", "src/dataApi.ts"],
     rules: {
       "no-restricted-imports": ["error", { paths: [flushSyncImportRestriction] }],
       "no-restricted-syntax": ["error", ...reactDomSyntaxRestrictions],

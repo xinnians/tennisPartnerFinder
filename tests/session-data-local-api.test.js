@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
-import { createDataApi } from "../src/dataApi.js";
+import { createDataApi } from "../src/dataApi.ts";
 import { makeAdminClient, makeClient, signUpUser } from "./fixtures/localSupabase.js";
 
 const runLocalApiTest = process.env.RUN_LOCAL_SUPABASE_API_TEST === "1";

@@ -43,7 +43,7 @@ function assertExactNamedScan(actual, expected, label) {
 }
 
 test("session action messages stay complete and exact in the UI layer", async () => {
-  const { SESSION_ACTION_CODES, SessionActionError } = await import("../src/dataApi.js");
+  const { SESSION_ACTION_CODES, SessionActionError } = await import("../src/dataApi.ts");
   const { SESSION_ACTION_MESSAGES, sessionActionMessage } = await import("../src/sessionActionMessages.ts");
   const expected = {
     PROFILE_INCOMPLETE: "請先完成個人檔案。",

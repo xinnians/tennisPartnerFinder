@@ -42,7 +42,7 @@
   與派送所需 title；**LINE 永遠不可**進 payload、outbox、browser log、view 或 UI；唯一例外是已凍結的
   `public.session_contacts`（前端零 consumer，待清理）。通知 outbox 是 service-only，browser role 不可讀寫。
 - raw `sessions`、`session_participants`、`profiles` 與私有 legacy tables 不是
-  browser data API。所有前端讀寫都必須經過 `src/dataApi.js` 的 view/RPC 邊界：
+  browser data API。所有前端讀寫都必須經過 `src/dataApi.ts` 的 view/RPC 邊界：
   `session_discovery`、`player_directory`、`my_session_participations`、
   `player_presence_directory`、`session_participant_roster`、`session_join_preview`、
   `session_message_feed`、`my_player_blocks`、`my_profile`
@@ -64,7 +64,7 @@
   （14 個 sheet/dialog）與 `src/components/` 的內容以 portal 掛進 legacy 容器。
 - `src/features/`：十個 feature 純邏輯模組（chat、discovery、filters、notifications、
   player-directory、presence、profile、profile-auth、session-lifecycle、share）。
-- `src/dataApi.js`：唯一瀏覽器資料邊界的 80 行薄 facade；實作在 `src/data/`
+- `src/dataApi.ts`：唯一瀏覽器資料邊界的 80 行薄 facade；實作在 `src/data/`
   （`databaseTypes.ts` 生成型別、`repositories/`、`mappers/`、`authApi.ts`），邊界語意不變。
 - `src/domainTypes.ts`：從 data API mapper 反推的共用 domain／surface 型別。
 - React 頁面批的 mount、import、DOM 凍結與焦點／Escape 混用規則見 `.claude/rules/react-migration.md`。
@@ -105,7 +105,7 @@ strict TypeScript、ESLint flat config 與 Prettier；存量 `.js` 採 `allowJs`
   `public.session_participant_roster` 對 host 顯示該局 roster、對 guest 僅顯示自己與 host，
   但兩者都不含 LINE。群聊由 `session_message_feed` 提供給 host 與 accepted guest；舊
   `session_contacts` view 前端零 consumer，`profiles.line_id` 欄前端不讀、不寫、不渲染，但因
-  `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.js` 仍必須傳 `p_line_id: null`。
+  `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.ts` 仍必須傳 `p_line_id: null`。
   drop 欄位或修改簽名前，必須先處理該呼叫點。
 - `expire-stale-tennis-sessions` pg_cron 每 15 分鐘將開始後超過 24 小時的 open/full
   球局設為 expired；未定案候選局在範圍起點即 expired。每個 lifecycle RPC 也立即檢查，

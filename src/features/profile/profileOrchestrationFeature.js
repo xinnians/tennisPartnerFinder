@@ -7,7 +7,7 @@ import {
   saveCurrentProfile,
   signInWithOAuthProvider,
   signOut,
-} from "../../dataApi.js";
+} from "../../dataApi.ts";
 
 const LINK_RETURN_KEY = "tennis-link-return";
 

@@ -116,7 +116,7 @@ src/sessionController.js    探索、定位、狀態與 lifecycle orchestration
 src/controller/             七個子 controller 與 surfaceRegistry（strict TS）
 src/features/               十個 feature 純邏輯模組
 src/sessionViews.js src/views/  遷移期 legacy adapter 接線
-src/dataApi.js              唯一 browser data API；實作在 src/data/
+src/dataApi.ts              唯一 browser data API；實作在 src/data/
 supabase/migrations/        schema、view、RPC、cron
 supabase/tests/             pgTAP privacy/RLS/lifecycle contracts
 tests/                      mock、local Supabase、mobile、performance journeys

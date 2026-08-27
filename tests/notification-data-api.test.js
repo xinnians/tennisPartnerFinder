@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createDataApi } from "../src/dataApi.js";
+import { createDataApi } from "../src/dataApi.ts";
 import {
   defaultNotificationPreferences,
   notificationPreferencesForRead,

@@ -28,7 +28,7 @@ import {
   postSessionMessage,
   resolveInitialSession,
   setPlayerBlock,
-} from "../src/dataApi.js";
+} from "../src/dataApi.ts";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.ts";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
 import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.ts";
@@ -437,7 +437,7 @@ test("the notification feature owns every notification data API capability", asy
     new URL("../src/features/notifications/notificationFeature.ts", import.meta.url),
     "utf8"
   );
-  const importBlock = source.match(/import \{([\s\S]*?)\} from "\.\.\/\.\.\/dataApi\.js";/)?.[1] ?? "";
+  const importBlock = source.match(/import \{([\s\S]*?)\} from "\.\.\/\.\.\/dataApi\.ts";/)?.[1] ?? "";
 
   assert.notEqual(importBlock, "", "notification data API source scan must inspect a nonempty block");
   for (const key of expectedKeys) {

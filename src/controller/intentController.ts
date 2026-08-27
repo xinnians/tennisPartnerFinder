@@ -1,4 +1,4 @@
-import { DataApiUnavailableError } from "../dataApi.js";
+import { DataApiUnavailableError } from "../dataApi.ts";
 import { actionKey, staleIntentMessage } from "../features/session-lifecycle/sessionLifecycleFeature.ts";
 import {
   profileGateForIntent,

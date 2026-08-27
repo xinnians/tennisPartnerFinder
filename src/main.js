@@ -77,7 +77,7 @@ import {
   updateSession,
   updateMyPresence,
   withdrawFromSession,
-} from "./dataApi.js";
+} from "./dataApi.ts";
 import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.ts";
 import { configureSentryErrorTransport } from "./sentryErrorTransport.ts";
 import { createSessionController } from "./sessionController.js";

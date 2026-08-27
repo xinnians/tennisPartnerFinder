@@ -1,4 +1,4 @@
-// Production-only replacement for mockData.js. Keep every exported collection present so dataApi.js
+// Production-only replacement for mockData.js. Keep every exported collection present so dataApi.ts
 // retains one stable import contract, but never ship fictional sessions, players, courts, or previews.
 export const COURTS = Object.freeze([]);
 export const MOCK_PLAYERS = Object.freeze([]);

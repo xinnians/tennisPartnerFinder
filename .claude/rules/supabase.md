@@ -1,7 +1,7 @@
 ---
 paths:
   - "supabase/**"
-  - "src/dataApi.js"
+  - "src/dataApi.ts"
   - "src/supabaseClient.js"
 ---
 
@@ -44,7 +44,7 @@ role 不可讀寫。
   `save_my_profile`、presence、push、notification 與 court-subscription RPC。
 
 不可讓前端直接 select／insert／update／delete raw `profiles`、`sessions`、
-`session_participants`、`reports` 或 private legacy tables；`src/dataApi.js` 是唯一
+`session_participants`、`reports` 或 private legacy tables；`src/dataApi.ts` 是唯一
 前端資料邊界。
 
 `session_messages`、`player_blocks` 對 browser role revoke all；聊天讀取只能走
@@ -135,7 +135,7 @@ profile_id,nickname,ntrp,open_to_greeting,court_id,court_name,court_district,cou
   申請審核所需的 nickname、NTRP、play types、home courts、role/status；沒有 LINE。
 - LINE 前端面已退役，新註冊流程不再蒐集；群組成員一律使用球局群聊協調。
 - `session_contacts` view 前端零 consumer；`profiles.line_id` 欄前端不讀、不寫、不渲染，但因
-  `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.js` 仍必須傳 `p_line_id: null`。
+  `save_my_profile` 凍結簽名且 `p_line_id` 無預設值，`src/dataApi.ts` 仍必須傳 `p_line_id: null`。
   不得重新加入 browser API 或 UI；drop 欄位或修改簽名前必須先處理該呼叫點；清理前既有
   RLS／definer 限制仍不可弱化。
 

@@ -7,7 +7,7 @@ import {
   saveCourtSubscriptions,
   saveNotificationPreferences,
   savePushSubscription,
-} from "../../dataApi.js";
+} from "../../dataApi.ts";
 // eslint-disable-next-line no-restricted-imports -- 既有通知球場純型別尚無可由 JavaScript facade 匯出的 type barrel。
 import type { DataCourt } from "../../data/mappers/profileMappers.ts";
 import type { NotificationPreferences } from "../../domainTypes.ts";

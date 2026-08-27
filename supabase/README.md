@@ -2,7 +2,7 @@
 
 本專案以 Supabase Auth、Postgres、RLS 與 pg_cron 實作台北市網球公開球局。前端只有在
 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY` 都被設定時才使用 Supabase；否則使用
-安全的 mock sessions。browser code 不可直接讀 raw tables，而是經過 `src/dataApi.js`。
+安全的 mock sessions。browser code 不可直接讀 raw tables，而是經過 `src/dataApi.ts`。
 
 ## 前置條件
 

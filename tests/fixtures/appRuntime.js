@@ -1,5 +1,6 @@
 const APP_MODULE_BASE_URL = "/src/";
 const APP_MODULE_EXTENSIONS = Object.freeze({
+  dataApi: ".ts",
   districts: ".ts",
   filters: ".ts",
   map: ".ts",

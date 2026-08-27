@@ -285,7 +285,15 @@
   1,435 B）。port 4 無 strict 覆蓋、人工核對記入覆蓋債（等 sessionViews
   TS 化）。6D 設計輸入＝Codex 回報 §9.5（DataApi ReturnType 推導、error
   contract 先凍、`p_line_id: null` contextual widening）。
-- ACCEPTED 回填（6D–6F）：（待）
+- **6D 狀態：ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-6D-dataapi-ts-acceptance-2026-08-27.md`。
+  `dataApi.ts` typed forwarding（檔內 `ReturnType`＋`Parameters` 推導）；
+  擦除 raw 全等無例外、chunk hash 不變、export 面 70 零漂移、38 列三向
+  對帳零錯位；method-key 有牙探針成立。read-back 貢獻：`:440` regex 封條
+  與 `eslint.config.js:109/:156` 豁免字面兩個必卡點事前解凍。6E 設計輸入
+  ＝Codex 回報 §9.5（直接機械轉不先拆、四口徑 edge 盤點、contract 橋
+  保留、最小 options port、難點七層順序）。
+- ACCEPTED 回填（6E–6F）：（待）
 
 ## 隨時可插的獨立小批
 

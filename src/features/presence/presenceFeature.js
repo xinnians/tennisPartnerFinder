@@ -1,4 +1,4 @@
-import { isSupabaseConfigured, setOpenToGreeting, setPresenceSharing, updateMyPresence } from "../../dataApi.js";
+import { isSupabaseConfigured, setOpenToGreeting, setPresenceSharing, updateMyPresence } from "../../dataApi.ts";
 import { createPresenceTracker } from "../../playerPresence.js";
 
 let dependencies;
