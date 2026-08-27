@@ -123,7 +123,7 @@ export function profileCourtNames(
 ): string[] {
   const selected = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
   if (!selected.size) return [];
-  return (Array.isArray(courts) ? courts : [])
+  return ((Array.isArray(courts) ? courts : []) as CourtInput[])
     .filter((court) => selected.has(String(court?.id)) || selected.has(court?.name))
     .map((court) => court.name);
 }
@@ -246,10 +246,12 @@ export function sessionVenuePresentation(
     };
   }
 
-  const catalogue = new Map((Array.isArray(courts) ? courts : []).map((court) => [String(court?.id), court]));
+  const catalogue = new Map(
+    ((Array.isArray(courts) ? courts : []) as CourtInput[]).map((court) => [String(court?.id), court])
+  );
   const names = (Array.isArray(session?.candidateCourtIds) ? session.candidateCourtIds : [])
     .map((courtId, index) => catalogue.get(String(courtId))?.name ?? (index === 0 ? session?.court : null))
-    .filter(Boolean);
+    .filter(Boolean) as string[];
   return {
     badge: VENUE_TYPE_LABELS.candidates,
     candidateNames: names,
@@ -497,7 +499,7 @@ export function discoveryEmptyActions(filtersActive: boolean) {
 }
 
 export function acceptedChatRoster(roster: readonly SessionRosterEntry[]): SessionRosterEntry[] {
-  return (Array.isArray(roster) ? roster : []).filter(
+  return ((Array.isArray(roster) ? roster : []) as SessionRosterEntry[]).filter(
     (participant) => String(participant?.status).toLowerCase() === "accepted"
   );
 }
@@ -511,7 +513,7 @@ export function chatRosterPresentation(roster: readonly SessionRosterEntry[]) {
 }
 
 export function chatMessagesPresentation(messages: readonly ChatMessage[]) {
-  const safeMessages = Array.isArray(messages) ? messages : [];
+  const safeMessages = (Array.isArray(messages) ? messages : []) as ChatMessage[];
   return safeMessages.map((message) => {
     const kind = message.kind === "system" ? "system" : "user";
     const isSelf = kind === "user" && message.isSelf === true;
@@ -578,10 +580,12 @@ export function scoreboardVacancyText(session: SessionInput): string {
 }
 
 export function candidateCourtRows(session: SessionInput, courts: readonly CourtInput[] = []): CourtInput[] {
-  const catalogue = new Map((Array.isArray(courts) ? courts : []).map((court) => [String(court?.id), court]));
+  const catalogue = new Map(
+    ((Array.isArray(courts) ? courts : []) as CourtInput[]).map((court) => [String(court?.id), court])
+  );
   return (Array.isArray(session?.candidateCourtIds) ? session.candidateCourtIds : [])
     .map((courtId) => catalogue.get(String(courtId)))
-    .filter(Boolean);
+    .filter(Boolean) as CourtInput[];
 }
 
 export const sessionDetailSheetRuntime = Object.freeze({
@@ -635,7 +639,7 @@ export function playerGreetingLabel(player: PlayerInput = {}): string {
 }
 
 export function taipeiCourts(courts: readonly CourtInput[] | null | undefined): CourtInput[] {
-  return (Array.isArray(courts) ? courts : []).filter((court) => court?.city === "台北市");
+  return ((Array.isArray(courts) ? courts : []) as CourtInput[]).filter((court) => court?.city === "台北市");
 }
 
 export function selectedCourtCheckboxValues(

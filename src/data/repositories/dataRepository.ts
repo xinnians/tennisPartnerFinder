@@ -40,7 +40,7 @@ interface RepositoryOptions {
   mockPlayers?: MockRow[];
   mockSessionJoinPreviews?: MockRow[];
   mockSessions?: MockRow[];
-  now?: unknown;
+  now?: (() => Date) | Date;
   privateDataApiLoader?: () => Promise<{
     createPrivateDataApi: (options: PrivateDataRepositoryOptions) => PrivateDataApi;
   }>;

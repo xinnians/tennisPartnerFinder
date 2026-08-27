@@ -3,12 +3,20 @@
 //  請在 .env.local 設定 VITE_GOOGLE_MAPS_API_KEY。
 //  沒填時,頁面會顯示說明蓋板而不是地圖。
 // ============================================================
-const env: ImportMetaEnv = import.meta.env ?? {};
+interface AppImportMetaEnv extends ImportMetaEnv {
+  readonly VITE_AUTH_LINE_PROVIDER_ID?: string;
+  readonly VITE_GOOGLE_MAPS_API_KEY?: string;
+  readonly VITE_GOOGLE_MAPS_MAP_ID?: string;
+  readonly VITE_SUPPORT_EMAIL?: string;
+  readonly VITE_WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+}
 
-export const GOOGLE_MAPS_API_KEY = env.VITE_GOOGLE_MAPS_API_KEY ?? "___";
+const env: AppImportMetaEnv = import.meta.env ?? {};
+
+export const GOOGLE_MAPS_API_KEY: string = env.VITE_GOOGLE_MAPS_API_KEY ?? "___";
 // AdvancedMarkerElement requires a Cloud Maps map ID. Empty keeps the
 // production-safe legacy Marker fallback until hosted configuration is ready.
-export const GOOGLE_MAPS_MAP_ID = env.VITE_GOOGLE_MAPS_MAP_ID ?? "";
+export const GOOGLE_MAPS_MAP_ID: string = env.VITE_GOOGLE_MAPS_MAP_ID ?? "";
 
 // 首發只開放台北市;雙北目錄仍完整保留在資料庫中。
 export const LAUNCH_CITY = "台北市";
@@ -25,13 +33,13 @@ export const LOCATION_INITIAL_RADIUS_METERS = 5000;
 export const CHAT_POLL_INTERVAL_MS = 10000;
 export const DISCOVERY_POLL_INTERVAL_MS = 60000;
 // 生產環境必須設定;不可提交虛構公開聯絡信箱。
-export const SUPPORT_EMAIL = env.VITE_SUPPORT_EMAIL ?? "";
+export const SUPPORT_EMAIL: string = env.VITE_SUPPORT_EMAIL ?? "";
 // 僅含 VAPID 公鑰；私鑰只存在 Edge Function 的 secrets。
-export const WEB_PUSH_VAPID_PUBLIC_KEY = env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
+export const WEB_PUSH_VAPID_PUBLIC_KEY: string = env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
 // LINE 登入的 Supabase custom provider 識別符(如 "custom:line")。留空(預設)時登入視窗
 // 不顯示 LINE 按鈕;必須等對應 Supabase 專案設好同名 provider 才可設定,避免按鈕指向
 // 不存在的 provider。LINE 登入只作身分驗證,聯絡面退役紅線不變。
-export const AUTH_LINE_PROVIDER_ID = env.VITE_AUTH_LINE_PROVIDER_ID ?? "";
+export const AUTH_LINE_PROVIDER_ID: string = env.VITE_AUTH_LINE_PROVIDER_ID ?? "";
 
 // 地圖初始視野:以台北市為中心,zoom 12 大約可看到整個市區
 export const MAP_CENTER = { lat: 25.03, lng: 121.55 };

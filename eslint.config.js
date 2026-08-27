@@ -85,17 +85,11 @@ export default tseslint.config(
       // 既有 type-aware 型別債，本批不改變既有程式語意。
       "@typescript-eslint/no-unnecessary-type-assertion": "off",
       // 既有 type-aware 型別債，本批不改變既有程式語意。
-      "@typescript-eslint/no-unsafe-return": "off",
-      // 既有 type-aware 型別債，本批不改變既有程式語意。
-      "@typescript-eslint/no-unsafe-call": "off",
-      // 既有 type-aware 型別債，本批不改變既有程式語意。
       "@typescript-eslint/no-unsafe-member-access": "off",
       // 既有 type-aware 型別債，本批不改變既有程式語意。
       "@typescript-eslint/no-unsafe-assignment": "off",
       // 既有 type-aware 型別債，本批不改變既有程式語意。
       "@typescript-eslint/no-base-to-string": "off",
-      // 既有 type-aware 型別債，本批不改變既有程式語意。
-      "@typescript-eslint/no-unsafe-argument": "off",
       // 既有 type-aware 型別債，本批不改變既有程式語意。
       "@typescript-eslint/unbound-method": "off",
       "react-hooks/exhaustive-deps": "error",

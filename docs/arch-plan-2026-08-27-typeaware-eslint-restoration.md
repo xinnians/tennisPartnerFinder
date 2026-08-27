@@ -46,7 +46,11 @@
 
 ## 4. 建議五段批序
 
-### A. 小量 unsafe argument／call／return
+### A. 小量 unsafe argument／call／return——**ACCEPTED（2026-08-28）**
+
+狀態：已完成並驗收（`docs/arch-reports/eslintA-unsafe-boundary-acceptance-2026-08-28.md`）。
+三規則恢復、15 筆清零、零 runtime token；連帶 member-access 25→6、
+assignment 12→4（餘 283 findings）。以下原方案文字保留為歷史依據。
 
 - 範圍：`no-unsafe-argument` 2、`no-unsafe-call` 5、`no-unsafe-return` 8；集中在
   `sessionPresentation.ts`、repository、notification、`sheets.ts`。

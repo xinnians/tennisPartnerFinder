@@ -79,7 +79,7 @@ function mountSurface(
   const registerUnmount = (unmount: unknown) => {
     if (typeof unmount !== "function") throw new TypeError("Surface unmount callback must be a function.");
     if (closed) {
-      unmount();
+      (unmount as () => void)();
       return;
     }
     unmountContent = unmount as () => void;
