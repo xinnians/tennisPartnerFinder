@@ -301,7 +301,15 @@
   **6F 範圍調整輸入**：type-aware 9 條實掃 325 findings（unbound-method
   獨佔 246），不可一次全開——6F 建議縮為兩 feature 檔＋恢復拆批方案落檔，
   規則恢復依五段批序另立批（詳驗收紀錄）。
-- ACCEPTED 回填（6F）：（待）
+- **6F 狀態：ACCEPTED（2026-08-28）——批 6（6A–6F）全案完結**，驗收紀錄
+  `docs/arch-reports/batch-6F-features-ts-acceptance-2026-08-28.md`。兩
+  feature 檔擦除全等零例外（presence 11／profile 21-member port，21 為
+  ground truth，派工單 20 是驗證方計數勘誤）；ESLint 恢復五段方案落檔
+  `docs/arch-plan-2026-08-27-typeaware-eslint-restoration.md`（325 findings，
+  config 零 diff，待拍板後另立批）。批 6 全案：12 檔轉 strict＋1 純型別
+  leaf；runtime token 例外全程僅 6C 一筆；bundle 淨 −7 B。下一條管線建議
+  （待拍板）：ESLint Phase A→鄰接 `.js` 九檔小批→`main.js`／
+  `sessionViews` 收尾；`unbound-method` 恆獨立專批。
 
 ## 隨時可插的獨立小批
 

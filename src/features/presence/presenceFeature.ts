@@ -1,15 +1,53 @@
 import { isSupabaseConfigured, setOpenToGreeting, setPresenceSharing, updateMyPresence } from "../../dataApi.ts";
 import { createPresenceTracker } from "../../playerPresence.js";
 
-let dependencies;
-let presenceTracker = null;
+import type { ControllerAppState, ControllerProfileEligibility } from "../../controllerContracts.ts";
+import type { Profile } from "../../domainTypes.ts";
+
+interface AuthRequestSnapshot {
+  identity: string | null;
+  isStale(): boolean;
+}
+
+interface PresenceFeatureDependencies {
+  captureAuthRequest(): AuthRequestSnapshot;
+  currentProfileEligibility(): ControllerProfileEligibility;
+  defaultProfile(): Partial<Profile>;
+  getAppState(): ControllerAppState;
+  getLocationStatus(): string;
+  openProfileCompletion(options: { intent: { action: "presence" } }): unknown;
+  publishMePageView(): void;
+  publishMeSettingsPageView(): void;
+  setLocationStatus(status: string): void;
+  setProfile(profile: Partial<Profile> | null): void;
+  toast(message: string): void;
+}
+
+interface PresenceSettings {
+  locationStatus: string;
+  openToGreeting: boolean;
+  sharePresence: boolean;
+}
+
+interface PresenceTracker {
+  start(): boolean;
+  stop(): void;
+}
+
+interface PresenceTrackerOptions {
+  onError(status: string): void;
+  onPosition(point: { lat: number; lng: number }): Promise<void>;
+}
+
+let dependencies: PresenceFeatureDependencies;
+let presenceTracker: PresenceTracker | null = null;
 
 /** Keep location tracking orchestration outside the application entrypoint. */
-export function configurePresenceFeature(options) {
+export function configurePresenceFeature(options: PresenceFeatureDependencies): void {
   dependencies = options;
 }
 
-export function presenceSettingsForProfile() {
+export function presenceSettingsForProfile(): PresenceSettings {
   const profile = dependencies.getAppState().profile;
   return {
     locationStatus: dependencies.getLocationStatus(),
@@ -18,22 +56,22 @@ export function presenceSettingsForProfile() {
   };
 }
 
-export function stopPresenceTracking() {
+export function stopPresenceTracking(): void {
   presenceTracker?.stop();
   presenceTracker = null;
 }
 
-export function resetPresenceTracking() {
+export function resetPresenceTracking(): void {
   stopPresenceTracking();
   dependencies.setLocationStatus("idle");
 }
 
-function updatePresenceLocationStatus(status) {
+function updatePresenceLocationStatus(status: string): void {
   dependencies.setLocationStatus(status);
   dependencies.publishMePageView();
 }
 
-export function reconcilePresenceTracking() {
+export function reconcilePresenceTracking(): boolean {
   const { authSession, profile } = dependencies.getAppState();
   const eligible = dependencies.currentProfileEligibility();
   const canTrack = Boolean(isSupabaseConfigured && authSession && eligible.ntrp && profile?.sharePresence === true);
@@ -42,7 +80,7 @@ export function reconcilePresenceTracking() {
     return false;
   }
   if (!presenceTracker) {
-    presenceTracker = createPresenceTracker({
+    presenceTracker = (createPresenceTracker as (options: PresenceTrackerOptions) => PresenceTracker)({
       onError: updatePresenceLocationStatus,
       onPosition: async ({ lat, lng }) => {
         const request = dependencies.captureAuthRequest();
@@ -60,7 +98,7 @@ export function reconcilePresenceTracking() {
   return started;
 }
 
-export async function updatePresenceSharing(shared) {
+export async function updatePresenceSharing(shared: boolean): Promise<boolean | void> {
   const request = dependencies.captureAuthRequest();
   const { authSession, profile } = dependencies.getAppState();
   if (!request.identity || !authSession || !isSupabaseConfigured) {
@@ -83,7 +121,7 @@ export async function updatePresenceSharing(shared) {
   dependencies.toast(shared ? "已開啟在線分享。" : "已隱藏在線狀態。");
 }
 
-export async function updateOpenToGreetingSetting(open) {
+export async function updateOpenToGreetingSetting(open: boolean): Promise<boolean | void> {
   const request = dependencies.captureAuthRequest();
   const { authSession, profile } = dependencies.getAppState();
   if (!request.identity || !authSession || !isSupabaseConfigured) {

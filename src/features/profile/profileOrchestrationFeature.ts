@@ -9,6 +9,90 @@ import {
   signOut,
 } from "../../dataApi.ts";
 
+import type {
+  ControllerApi,
+  ControllerAppState,
+  ControllerAuthSession,
+  ControllerPendingIntent,
+  ControllerProfileEligibility,
+  ControllerSurfaceHandle,
+} from "../../controllerContracts.ts";
+import type { Profile, SessionSummary, SurfaceCloseOptions, SurfaceLoadStatus } from "../../domainTypes.ts";
+
+type AuthProvider = Parameters<typeof signInWithOAuthProvider>[0];
+type ProfileDraft = NonNullable<Parameters<typeof saveCurrentProfile>[0]>;
+type ProfileIntent = ControllerPendingIntent | { action: "presence" };
+
+interface AuthRequestSnapshot {
+  identity: string | null;
+  isStale(): boolean;
+}
+
+interface RequestSnapshot {
+  isStale(): boolean;
+}
+
+interface ProfileCloseDetail extends SurfaceCloseOptions {
+  saved?: boolean;
+}
+
+interface LoginModalOptions {
+  action: string;
+  onClose(): void;
+  onProvider(provider: AuthProvider): Promise<void>;
+}
+
+interface ProfileCompletionSheetOptions {
+  avatarUrl: string;
+  courts: ControllerAppState["courts"];
+  courtsReady: boolean;
+  intent: ProfileIntent | null | undefined;
+  mode: "gate" | "standalone";
+  onClose(detail: ProfileCloseDetail): void;
+  onSave(draft: ProfileDraft): Promise<Partial<Profile>>;
+  onSaved(savedProfile: Partial<Profile> | null | undefined): Promise<void>;
+  profile: Partial<Profile>;
+  returnSession: SessionSummary | null | undefined;
+}
+
+interface ProfileCompletionOptions {
+  courts?: ControllerAppState["courts"];
+  courtsReady?: boolean;
+  intent?: ProfileIntent | null;
+  mode?: "gate" | "standalone";
+  onClose?: (detail: ProfileCloseDetail) => void;
+  returnSession?: SessionSummary | null;
+}
+
+interface SafeLoginOptions {
+  action?: string;
+  onClose?: () => void;
+}
+
+interface ProfileOrchestrationDependencies {
+  captureAuthGateRequest(): RequestSnapshot;
+  captureAuthRequest(isCurrent?: () => boolean): AuthRequestSnapshot;
+  currentAuthAvatarUrl(): string;
+  currentProfileEligibility(): ControllerProfileEligibility;
+  defaultProfile(): Partial<Profile>;
+  getActivePage(): string;
+  getAppState(): ControllerAppState;
+  getController(): ControllerApi;
+  invalidateAuthRequests(): void;
+  localDemoUnavailable: string;
+  openLoginModal(options: LoginModalOptions): unknown;
+  openProfileCompletionSheet(options: ProfileCompletionSheetOptions): ControllerSurfaceHandle | null | undefined;
+  reconcilePageRouteOwner?(): void;
+  reconcilePresenceTracking(): boolean;
+  resetNotificationSettings(): void;
+  resetPresenceTracking(): void;
+  seedAllTaipeiCourtSubscriptions(): Promise<unknown>;
+  setAuthSession(session: ControllerAuthSession | null): void;
+  setProfile(profile: Partial<Profile> | null): void;
+  showMePage(): void;
+  toast(message: string): void;
+}
+
 const LINK_RETURN_KEY = "tennis-link-return";
 
 // Link failures are present only in the initial callback URL and may be removed
@@ -21,31 +105,34 @@ const bootAuthParams = (() => {
   return merged;
 })();
 
-let dependencies;
+let dependencies: ProfileOrchestrationDependencies;
 let storedProfileExists = false;
-let activeProfileCompletion = null;
-let profileLoadStatus = "idle";
+let activeProfileCompletion: ControllerSurfaceHandle | null | undefined = null;
+let profileLoadStatus: SurfaceLoadStatus = "idle";
 let profileRevision = 0;
 
-export function configureProfileOrchestrationFeature(options) {
+export function configureProfileOrchestrationFeature(options: ProfileOrchestrationDependencies): void {
   dependencies = options;
 }
 
-export function authIdentity(session) {
-  const value = session?.user?.id ?? session?.access_token ?? null;
+export function authIdentity(session: unknown): string | null {
+  const value =
+    (session as ControllerAuthSession | null | undefined)?.user?.id ??
+    (session as ControllerAuthSession | null | undefined)?.access_token ??
+    null;
   return value == null ? null : String(value);
 }
 
-export function isProfileReady() {
+export function isProfileReady(): boolean {
   return profileLoadStatus === "ready";
 }
 
-export function currentLinkedProviders() {
+export function currentLinkedProviders(): Array<string | null | undefined> {
   const { authSession } = dependencies.getAppState();
   return (authSession?.user?.identities ?? []).map((identity) => identity.provider);
 }
 
-export async function handleLinkProvider(provider) {
+export async function handleLinkProvider(provider: AuthProvider): Promise<void> {
   try {
     sessionStorage.setItem(LINK_RETURN_KEY, provider);
     await linkLoginIdentity(provider);
@@ -55,9 +142,8 @@ export async function handleLinkProvider(provider) {
   }
 }
 
-function resumeLinkReturn() {
-  // eslint-disable-next-line no-useless-assignment -- inherited JS lint debt; the guarded storage access is intentional.
-  let provider = null;
+function resumeLinkReturn(): void {
+  let provider: string | null = null;
   try {
     provider = sessionStorage.getItem(LINK_RETURN_KEY);
     if (provider) sessionStorage.removeItem(LINK_RETURN_KEY);
@@ -73,7 +159,7 @@ function resumeLinkReturn() {
   }
 }
 
-export function openSafeLogin({ action = "", onClose = () => {} } = {}) {
+export function openSafeLogin({ action = "", onClose = () => {} }: SafeLoginOptions = {}): unknown {
   if (!isSupabaseConfigured) {
     onClose();
     dependencies.toast(dependencies.localDemoUnavailable);
@@ -88,7 +174,7 @@ export function openSafeLogin({ action = "", onClose = () => {} } = {}) {
   });
 }
 
-export async function handleSignOut() {
+export async function handleSignOut(): Promise<void> {
   try {
     await signOut();
     dependencies.toast("已登出。");
@@ -97,7 +183,9 @@ export async function handleSignOut() {
   }
 }
 
-function closeActiveProfileCompletion(options = { reason: "account-change", restoreFocus: false }) {
+function closeActiveProfileCompletion(
+  options: SurfaceCloseOptions = { reason: "account-change", restoreFocus: false }
+): void {
   const mounted = activeProfileCompletion;
   activeProfileCompletion = null;
   mounted?.close?.(options);
@@ -110,9 +198,9 @@ export function openProfileCompletion({
   mode = "gate",
   onClose = () => {},
   returnSession,
-} = {}) {
+}: ProfileCompletionOptions = {}): ControllerSurfaceHandle | null | undefined {
   const openedIdentity = authIdentity(dependencies.getAppState().authSession);
-  let mounted = null;
+  let mounted: ControllerSurfaceHandle | null | undefined = null;
   // Capture this before save: saving itself creates the profiles row.
   let seedCourtSubscriptionsAfterSave = false;
   mounted = dependencies.openProfileCompletionSheet({
@@ -120,11 +208,11 @@ export function openProfileCompletion({
     courts: selectableCourts ?? dependencies.getAppState().courts,
     courtsReady: formCourtsReady ?? dependencies.getAppState().courtsReady,
     mode,
-    onClose: (detail) => {
+    onClose: (detail: ProfileCloseDetail) => {
       if (activeProfileCompletion === mounted) activeProfileCompletion = null;
       onClose(detail);
     },
-    onSave: async (draft) => {
+    onSave: async (draft: ProfileDraft) => {
       if (!isSupabaseConfigured) throw new Error(dependencies.localDemoUnavailable);
       if (!openedIdentity || openedIdentity !== authIdentity(dependencies.getAppState().authSession)) {
         throw new Error("登入狀態已變更，請重新開啟個人檔案。");
@@ -145,7 +233,7 @@ export function openProfileCompletion({
       dependencies.setProfile(profile);
       return profile;
     },
-    onSaved: async (savedProfile) => {
+    onSaved: async (savedProfile: Partial<Profile> | null | undefined) => {
       if (openedIdentity !== authIdentity(dependencies.getAppState().authSession)) return;
       dependencies.setProfile(savedProfile ?? dependencies.getAppState().profile ?? dependencies.defaultProfile());
       const { authSession } = dependencies.getAppState();
@@ -158,7 +246,9 @@ export function openProfileCompletion({
       if (dependencies.getActivePage() !== "me") return;
       if (mode === "standalone") {
         requestAnimationFrame(() => {
-          document.querySelector('#me-root [data-testid="edit-profile"]')?.focus({ preventScroll: true });
+          document.querySelector<HTMLElement>('#me-root [data-testid="edit-profile"]')?.focus({
+            preventScroll: true,
+          });
         });
       }
     },
@@ -170,10 +260,10 @@ export function openProfileCompletion({
   return mounted;
 }
 
-export async function reloadCurrentProfile() {
+export async function reloadCurrentProfile(): Promise<boolean> {
   const profileLoadRevision = profileRevision;
   const request = dependencies.captureAuthRequest(() => profileLoadRevision === profileRevision);
-  let profile = null;
+  let profile: Partial<Profile> | null = null;
   let loadFailed = false;
   try {
     profile = await loadCurrentProfile();
@@ -201,7 +291,11 @@ export async function reloadCurrentProfile() {
   return true;
 }
 
-export function handleAuthIdentityChange({ session }) {
+export function handleAuthIdentityChange({
+  session,
+}: {
+  session: ControllerAuthSession | null;
+}): ControllerProfileEligibility | null {
   closeActiveProfileCompletion();
   dependencies.resetPresenceTracking();
   profileRevision += 1;
@@ -212,7 +306,10 @@ export function handleAuthIdentityChange({ session }) {
   return session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null;
 }
 
-async function applyAuthCandidate(session, { reconcilePageOwner = false } = {}) {
+async function applyAuthCandidate(
+  session: ControllerAuthSession | null,
+  { reconcilePageOwner = false }: { reconcilePageOwner?: boolean } = {}
+): Promise<void> {
   dependencies.invalidateAuthRequests();
   // Account classification belongs to the controller; same-account token refreshes stay light.
   dependencies.setAuthSession(session);
@@ -229,21 +326,23 @@ async function applyAuthCandidate(session, { reconcilePageOwner = false } = {}) 
   if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) resumeLinkReturn();
 }
 
-export async function restoreAuth() {
+export async function restoreAuth(): Promise<void> {
   const controller = dependencies.getController();
   const bootstrapIntentVersion = controller.capturePendingIntentVersion();
   let bootRestoring = true;
-  let latestAuthCandidate = Promise.resolve();
+  let latestAuthCandidate: Promise<void> = Promise.resolve();
   onAuthStateChange((session, event) => {
     if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
-    latestAuthCandidate = applyAuthCandidate(session, { reconcilePageOwner: bootRestoring });
+    latestAuthCandidate = applyAuthCandidate(session as ControllerAuthSession | null, {
+      reconcilePageOwner: bootRestoring,
+    });
     if (session && event === "SIGNED_IN") resumeLinkReturn();
   });
   const initialRequest = dependencies.captureAuthGateRequest();
-  let initialSession = null;
+  let initialSession: ControllerAuthSession | null = null;
   let initialSessionResolved = false;
   try {
-    initialSession = await getInitialSession();
+    initialSession = (await getInitialSession()) as ControllerAuthSession | null;
     initialSessionResolved = true;
   } catch {
     // A later auth event can still complete restoration after a transport failure.

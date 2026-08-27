@@ -126,14 +126,14 @@ import {
   openSafeLogin,
   reloadCurrentProfile,
   restoreAuth,
-} from "./features/profile/profileOrchestrationFeature.js";
+} from "./features/profile/profileOrchestrationFeature.ts";
 import {
   configurePresenceFeature,
   reconcilePresenceTracking,
   resetPresenceTracking,
   updateOpenToGreetingSetting,
   updatePresenceSharing,
-} from "./features/presence/presenceFeature.js";
+} from "./features/presence/presenceFeature.ts";
 import { eligibilityFromPrivateProfile } from "./profile.ts";
 import { createRequestGate } from "./requestGate.ts";
 import { sessionIdFromHash } from "./sessionRoute.js";
