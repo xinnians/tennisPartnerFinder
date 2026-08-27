@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
 const SRC_DIR = fileURLToPath(new URL("../src/", import.meta.url));
+const REQUIRED_CSS_SOURCE_ANCHORS = ["src/style.css", "src/vocabulary.css", "src/sheet-shells.css"];
 
 function readCssTree(directory = SRC_DIR, prefix = "src") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -54,7 +55,11 @@ const CONTAINMENT_RULES = [...CSS.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
   .filter(({ declarations }) => /content-visibility\s*:\s*auto|contain-intrinsic-size\s*:/.test(declarations));
 
 test("長列表 item selector 逐一綁定完整 content-visibility 契約", () => {
-  assert.ok(CSS_SOURCES.length >= 13, `CSS 掃描集過小（僅 ${CSS_SOURCES.length} 檔）`);
+  assert.ok(CSS_SOURCES.length > 0, "CSS 掃描集不可為空");
+  const cssSourcePaths = new Set(CSS_SOURCES.map(([path]) => path));
+  for (const anchor of REQUIRED_CSS_SOURCE_ANCHORS) {
+    assert.ok(cssSourcePaths.has(anchor), `CSS 掃描集缺少載重錨點 ${anchor}`);
+  }
   assert.ok(CONTRACTS.length > 0, "長列表 selector 契約集不可為空");
   assert.ok(CONTAINMENT_RULES.length > 0, "CSS containment 掃描集不可為空");
 

@@ -29,8 +29,8 @@ const FILES = SCAN_PATHS.map((path) => [path, readFileSync(new URL(`../${path}`,
 const BANNED = ["#d7f22a", "#2465bd", "#142c4b", "#eef4fb", "#64758b", "#d6e1ee", "Baloo", "20, 44, 75", "11, 28, 50"];
 
 test("舊視覺常數不再出現於任何樣式來源", () => {
-  // 目前基線是 64 個 src 檔 + index.html；貼近實數的下限會抓到單檔漏掃，
-  // 逐目錄非空斷言則防止整個既有子目錄被遞迴器跳過。
+  // 目前基線是 113 個 src 檔 + index.html；>=65 floor 約有 49 檔餘裕，
+  // 逐目錄非空斷言另防止整個既有子目錄被遞迴器跳過。
   assert.ok(
     FILES.length >= 65,
     `掃描集過小(僅 ${FILES.length} 檔),readdir 可能漏掃 src/ 或路徑錯誤;掃到:${SCAN_PATHS.join(", ")}`
@@ -40,7 +40,7 @@ test("舊視覺常數不再出現於任何樣式來源", () => {
     assert.ok(directChildren.length > 0, `${directory} 沒有任何直接來源檔，遞迴掃描可能漏掉整個目錄`);
   }
   for (const [path, content] of FILES) {
-    assert.ok(content.length > 100, `${path} 讀取異常,掃描集會漏檔`);
+    assert.ok(content.length > 0, `${path} 讀取異常（空檔）,掃描集會漏檔`);
     for (const banned of BANNED) {
       assert.ok(!content.toLowerCase().includes(banned.toLowerCase()), `${path} 仍含舊視覺常數 ${banned}`);
     }

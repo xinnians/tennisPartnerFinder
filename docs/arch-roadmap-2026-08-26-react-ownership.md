@@ -239,10 +239,12 @@
 - 順序（批 5 回報 §9.5 採納）：contract leaf 先行（防 bridge circular import）→
   `sheets.ts` 機械轉換（不拆 ownership）→按責任逐 edge 拆檔;保留的同步邊界
   不動,改 facade async shape 另立批。
-- **前置小批**（狀態：已派工，`docs/arch-dispatch-2026-08-27-batch6pre-thresholds.md`）：
-  兩處零餘裕測試下限改寫（`content-visibility-contract:57` `>=13`→載重錨點對帳;
-  `legacy-style-scan:43` `>100 bytes`→非空）,canary 含「小檔放行」改寫前紅證明;
-  test-only。
+- **前置小批**（狀態：**ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-6pre-thresholds-acceptance-2026-08-27.md`；派工單
+  `docs/arch-dispatch-2026-08-27-batch6pre-thresholds.md`）：兩處零餘裕測試
+  下限改寫完成（`>=13`→三載重錨點對帳;`>100 bytes`→非空）;三組 canary
+  驗收方親自複跑（含「小檔放行」新舊 guard 對照）;批 6 主體解鎖。
+  `.js` TS 化優先序（Codex 回報 §5.5）採納為主體切批基礎。
 - ACCEPTED 回填：（待）
 
 ## 隨時可插的獨立小批
