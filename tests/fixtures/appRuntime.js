@@ -5,6 +5,7 @@ const APP_MODULE_EXTENSIONS = Object.freeze({
   filters: ".ts",
   map: ".ts",
   pins: ".ts",
+  sessionController: ".ts",
   sheets: ".ts",
 });
 

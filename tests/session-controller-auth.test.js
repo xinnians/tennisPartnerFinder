@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createSessionController } from "../src/sessionController.js";
+import { createSessionController } from "../src/sessionController.ts";
 
 function flush() {
   return new Promise((resolve) => setImmediate(resolve));

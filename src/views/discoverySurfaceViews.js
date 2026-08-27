@@ -209,7 +209,7 @@ export function openPlayerCardSheet(
     html: "",
   });
   // 映射決策 6:「看球友名單」不直呼 controller,只透過 onSeeDirectory 這條既有
-  // callback 慣例;controller 端接的是既有 openPlayerDirectory 入口(sessionController.js
+  // callback 慣例;controller 端接的是既有 openPlayerDirectory 入口(sessionController.ts
   // openPlayer() 已接線),它本身就會關掉這張卡再開名單,這裡不重複 close()。
   const content = lazyMounts.playerCard(mounted.surface, {
     courts,

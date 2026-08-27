@@ -112,7 +112,7 @@ src/main.js                 入口、路由、Auth/Maps/page 接線（組合根�
 src/app/                    單一 React root（App.tsx）與 SurfaceHost
 src/pages/ src/sheets/      React 頁面與 sheet/dialog 元件
 src/components/             共用 React 元件（AppErrorBoundary 等）
-src/sessionController.js    探索、定位、狀態與 lifecycle orchestration
+src/sessionController.ts    探索、定位、狀態與 lifecycle orchestration
 src/controller/             七個子 controller 與 surfaceRegistry（strict TS）
 src/features/               十個 feature 純邏輯模組
 src/sessionViews.js src/views/  遷移期 legacy adapter 接線

@@ -62,7 +62,7 @@ export interface ControllerAppState {
   profile: Partial<Profile> | null;
 }
 
-/** `sessionController.js` 唯一 `createStore({...})` 的 27 個初始欄位。 */
+/** `sessionController.ts` 唯一 `createStore({...})` 的 27 個初始欄位。 */
 export interface SessionControllerState {
   authEpoch: number;
   authSession: ControllerAuthSession | null;

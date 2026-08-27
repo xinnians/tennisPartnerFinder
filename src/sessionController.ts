@@ -26,6 +26,110 @@ import { createLifecycleActionsController } from "./controller/lifecycleActionsC
 import { createIntentController } from "./controller/intentController.ts";
 import { createAuthController } from "./controller/authController.ts";
 
+import type {
+  ControllerAuthSnapshot,
+  ControllerChatSurfaceContext,
+  ControllerEventName,
+  ControllerIdentifier,
+  ControllerOpenSessionResult,
+  ControllerRequestGate,
+  ControllerSurfaceHandle,
+  SessionControllerState,
+} from "./controllerContracts.ts";
+import type { MySessionSummary, SessionSummary, SurfaceCloseOptions } from "./domainTypes.ts";
+import type { Store } from "./sessionStore.ts";
+import type { SurfaceRegistry } from "./controller/surfaceRegistry.ts";
+
+type AuthControllerOptions = Parameters<typeof createAuthController>[0];
+type ChatControllerOptions = Parameters<typeof createChatController>[0];
+type DiscoveryMapControllerOptions = Parameters<typeof createDiscoveryMapController>[0];
+type IntentControllerOptions = Parameters<typeof createIntentController>[0];
+type LifecycleActionsControllerOptions = Parameters<typeof createLifecycleActionsController>[0];
+type MySessionsControllerOptions = Parameters<typeof createMySessionsController>[0];
+type PlayerDirectoryControllerOptions = Parameters<typeof createPlayerDirectoryController>[0];
+
+type SessionControllerDataPort = ChatControllerOptions["api"] &
+  DiscoveryMapControllerOptions["api"] &
+  IntentControllerOptions["api"] &
+  LifecycleActionsControllerOptions["api"] &
+  MySessionsControllerOptions["api"] &
+  PlayerDirectoryControllerOptions["api"] & {
+    createReport?(input: {
+      messageId?: ControllerIdentifier;
+      reason: string;
+      reportedProfileId: ControllerIdentifier;
+      sessionId: ControllerIdentifier;
+    }): Promise<unknown>;
+    loadSessionJoinPreview?(sessionId: ControllerIdentifier): Promise<unknown>;
+    setPlayerVisibility?(visible: boolean): Promise<unknown>;
+  };
+
+interface SessionDetailHandlers {
+  action: ReturnType<ReturnType<typeof createMySessionsController>["actionFor"]>;
+  canChat: boolean;
+  canDecide: boolean;
+  canEdit: boolean;
+  canReport: boolean;
+  courts: SessionControllerState["courts"];
+  initialStage: string;
+  isMine: boolean;
+  onChat(): unknown;
+  onClose(options?: SurfaceCloseOptions): void;
+  onConfirmJoin(): unknown;
+  onDecide(): unknown;
+  onEdit(): unknown;
+  onPrimary(): unknown;
+  onReport(): unknown;
+  onWithdraw(): unknown;
+  showJoinPreview: boolean;
+}
+
+interface ReportDialogHandlers {
+  onClose(): void;
+  onSubmit(reason: unknown): Promise<unknown>;
+  targetLabel: string;
+}
+
+interface ReportTarget {
+  messageId?: ControllerIdentifier;
+  reportedProfileId?: ControllerIdentifier;
+  sessionId?: ControllerIdentifier;
+  targetLabel: string;
+}
+
+interface SessionControllerOptions {
+  api?: SessionControllerDataPort;
+  mapTools?: DiscoveryMapControllerOptions["mapTools"];
+  render?: DiscoveryMapControllerOptions["render"];
+  renderPins?: DiscoveryMapControllerOptions["renderPins"];
+  renderPlayers?: DiscoveryMapControllerOptions["renderPlayers"];
+  openSession?: (
+    session: SessionSummary | MySessionSummary,
+    handlers: SessionDetailHandlers
+  ) => ControllerSurfaceHandle | null | undefined;
+  openCourtDrawer?: PlayerDirectoryControllerOptions["openCourtDrawer"];
+  openCourtPlayersDrawer?: PlayerDirectoryControllerOptions["openCourtPlayersDrawer"];
+  openPlayerDirectoryList?: PlayerDirectoryControllerOptions["openPlayerDirectoryList"];
+  openPlayerCard?: PlayerDirectoryControllerOptions["openPlayerCard"];
+  openCreateSession?: IntentControllerOptions["openCreateSession"];
+  openDecideSession?: LifecycleActionsControllerOptions["openDecideSession"];
+  openEditSession?: LifecycleActionsControllerOptions["openEditSession"];
+  openChat?: ChatControllerOptions["openChat"];
+  openLogin?: IntentControllerOptions["openLogin"];
+  openReport?: (handlers: ReportDialogHandlers) => ControllerSurfaceHandle | null | undefined;
+  openWithdrawConfirmation?: LifecycleActionsControllerOptions["openWithdrawConfirmation"];
+  promptProfile?: IntentControllerOptions["profilePrompt"];
+  reloadCurrentProfile?: () => boolean | void | Promise<boolean | void>;
+  onMySessionsChange?: MySessionsControllerOptions["onMySessionsChange"];
+  onAuthIdentityChange?: AuthControllerOptions["onAuthIdentityChange"];
+  showCreatedSession?: IntentControllerOptions["showCreatedSession"];
+  intentStore?: IntentControllerOptions["intentStore"];
+  toast?: MySessionsControllerOptions["toast"];
+  visibilityTarget?: Document;
+  chatPollIntervalMs?: number;
+  discoveryPollIntervalMs?: number;
+}
+
 /**
  * Arrange private My Sessions rows around the next safe action. Host request
  * rows are supplied by an already-authorized roster hydrate; public discovery
@@ -66,14 +170,16 @@ export function createSessionController({
   visibilityTarget = globalThis.document,
   chatPollIntervalMs = CHAT_POLL_INTERVAL_MS,
   discoveryPollIntervalMs = DISCOVERY_POLL_INTERVAL_MS,
-} = {}) {
+}: SessionControllerOptions = {}) {
   // 渲染狀態的唯一容器。收進來的判準是「會出現在某條通道的 payload,或決定該
   // payload 的內容」;authEpoch 以 viewGeneration 之名進 My Sessions payload,所以
   // 一併收進來。其餘 let/Map(地圖實例、idle timer、請求 gate、併發與版本守衛)
   // 都不進任何 payload,是純機械資源,留在 closure——收進 store 只會製造沒有訂閱者
   // 關心的假更新。
-  /** @type {import("./sessionStore.ts").Store<import("./controllerContracts.ts").SessionControllerState, import("./controllerContracts.ts").ControllerEventName>} */
-  const store = createStore({
+  const store: Store<SessionControllerState, ControllerEventName> = createStore<
+    SessionControllerState,
+    ControllerEventName
+  >({
     authEpoch: 0,
     bounds: cloneBounds(TAIPEI_CITY_BOUNDS),
     courts: [],
@@ -115,11 +221,11 @@ export function createSessionController({
   const playerCardGate = createRequestGate();
   const surfaceRegistry = createSurfaceRegistry({
     chat: {
-      close: (context, options) => context.sheet?.close?.(options),
+      close: (context, options) => (context as ControllerChatSurfaceContext).sheet?.close?.(options),
       onRelease: (context) => {
-        context.requestGate.invalidate();
-        context.poller?.stop();
-        context.poller = null;
+        (context as ControllerChatSurfaceContext).requestGate.invalidate();
+        (context as ControllerChatSurfaceContext).poller?.stop();
+        (context as ControllerChatSurfaceContext).poller = null;
       },
     },
     courtDrawer: { emptyOptionsByDefault: false },
@@ -133,7 +239,10 @@ export function createSessionController({
     profilePrompt: { metadata: ["intent"] },
     reportDialog: {},
   });
-  const SURFACE_TRANSITIONS = Object.freeze({
+  const SURFACE_TRANSITIONS: Record<
+    string,
+    NonNullable<Parameters<typeof surfaceRegistry.transition>[0]>
+  > = Object.freeze({
     authIdentityChanged: [
       "createSession",
       "decisionSession",
@@ -148,11 +257,11 @@ export function createSessionController({
     authProfileResolved: ["profilePrompt"],
     clearPlayerDirectory: [
       "playerDirectory",
-      { name: "playerCard", when: (registry) => registry.meta("playerCard", "gate") === "directory" },
+      { name: "playerCard", when: (registry: SurfaceRegistry) => registry.meta("playerCard", "gate") === "directory" },
     ],
     clearPlayerLayer: [
       "playerDrawer",
-      { name: "playerCard", when: (registry) => registry.meta("playerCard", "gate") === "ntrp" },
+      { name: "playerCard", when: (registry: SurfaceRegistry) => registry.meta("playerCard", "gate") === "ntrp" },
     ],
     openChat: [
       { name: "chat", options: { reason: "chat-replaced", restoreFocus: false } },
@@ -186,12 +295,12 @@ export function createSessionController({
     ],
   });
 
-  function transitionSurfaces(name, options) {
+  function transitionSurfaces(name: string, options?: SurfaceCloseOptions): void {
     surfaceRegistry.transition(SURFACE_TRANSITIONS[name], options);
   }
 
   const mySessionsController = createMySessionsController({
-    api,
+    api: api!,
     blockedPlayerGate,
     onMySessionsChange,
     participationGate,
@@ -220,7 +329,7 @@ export function createSessionController({
   } = mySessionsController;
 
   const playerDirectoryController = createPlayerDirectoryController({
-    api,
+    api: api!,
     captureAuthSnapshot,
     isCurrentAuthSnapshot,
     openCourtDrawer,
@@ -234,7 +343,7 @@ export function createSessionController({
     playerGate,
     publish: () => discoveryMapController.publish(),
     reloadParticipation,
-    requireSessionAction: (intent) => intentController.requireSessionAction(intent),
+    requireSessionAction: (intent) => intentController.requireSessionAction(intent) as Promise<boolean> | void,
     store,
     surfaceRegistry,
     transitionSurfaces,
@@ -252,7 +361,7 @@ export function createSessionController({
   } = playerDirectoryController;
 
   const discoveryMapController = createDiscoveryMapController({
-    api,
+    api: api!,
     discoveryGate,
     discoveryPollIntervalMs,
     getPlayerGroups: playerGroups,
@@ -284,7 +393,7 @@ export function createSessionController({
 
   const intentController = createIntentController({
     actionFor,
-    api,
+    api: api!,
     beginLifecycleAction,
     captureAuthSnapshot,
     clearPlayerLayer,
@@ -327,7 +436,7 @@ export function createSessionController({
   } = intentController;
 
   const lifecycleActionsController = createLifecycleActionsController({
-    api,
+    api: api!,
     beginLifecycleAction,
     captureAuthSnapshot,
     finishLifecycleAction,
@@ -375,7 +484,12 @@ export function createSessionController({
     transitionSurfaces,
   });
 
-  async function hydrateSessionJoinPreview(sessionId, surface, gate, authSnapshot = captureAuthSnapshot()) {
+  async function hydrateSessionJoinPreview(
+    sessionId: ControllerIdentifier,
+    surface: ControllerSurfaceHandle | null | undefined,
+    gate: ControllerRequestGate,
+    authSnapshot: ControllerAuthSnapshot = captureAuthSnapshot()
+  ): Promise<boolean> {
     if (!isCurrentAuthSnapshot(authSnapshot) || typeof api?.loadSessionJoinPreview !== "function") return false;
     const request = gate.issue(() => isCurrentAuthSnapshot(authSnapshot));
     surface?.setJoinPreview?.({ participants: [], status: "loading" });
@@ -394,14 +508,16 @@ export function createSessionController({
     }
   }
 
-  /** @returns {import("./controllerContracts.ts").ControllerSurfaceHandle | null | undefined} */
-  function openSessionDetail(session, { initialStage = "idle" } = {}) {
+  function openSessionDetail(
+    session: SessionSummary | MySessionSummary | null | undefined,
+    { initialStage = "idle" }: { initialStage?: string } = {}
+  ): ControllerSurfaceHandle | null | undefined {
     // mountSheet replaces a court drawer in the same root and preserves that
     // drawer's original opener for focus restoration. Forget the controller
     // reference without closing the surface ahead of that hand-off.
     transitionSurfaces("openDetail");
     if (!session) return;
-    const action = actionFor(session);
+    const action = actionFor(session as SessionSummary);
     const participation = currentParticipation(session.sessionId);
     const hostCanManage = String(participation?.viewerRole) === "host" && Boolean(participation?.canCancel);
     const canDecide = hostCanManage && isUndecidedCandidate(session);
@@ -413,7 +529,7 @@ export function createSessionController({
     const isMine = String(participation?.viewerRole).toLowerCase() === "host";
     const showJoinPreview = Boolean(read().authSession);
     const previewAuthSnapshot = showJoinPreview ? captureAuthSnapshot() : null;
-    let detail = null;
+    let detail: ControllerSurfaceHandle | null | undefined = null;
     detail = openSession(session, {
       action,
       courts: read().courts,
@@ -426,11 +542,16 @@ export function createSessionController({
       onDecide: () => openSessionDecision(session.sessionId),
       onEdit: () => openSessionEdit(session.sessionId),
       onChat: () => openSessionChat(session.sessionId),
-      onPrimary: () => startPrimaryAction(session, detail),
-      onConfirmJoin: () => requestJoin(session, detail, surfaceRegistry.meta("detail", "confirmingAuth")),
+      onPrimary: () => startPrimaryAction(session as SessionSummary, detail),
+      onConfirmJoin: () =>
+        requestJoin(
+          session as SessionSummary,
+          detail,
+          surfaceRegistry.meta("detail", "confirmingAuth") as ControllerAuthSnapshot | null
+        ),
       canReport: Boolean(read().authSession && profileIsReady(read().profileEligibility)),
       onReport: () => openSessionReport(session.sessionId),
-      onWithdraw: () => withdraw(session, detail),
+      onWithdraw: () => withdraw(session as SessionSummary, detail),
       onClose: ({ reason = "dismiss" } = {}) => {
         surfaceRegistry.release("detail", detail);
         // requireSessionAction always saves a "join" intent before this sheet
@@ -439,29 +560,27 @@ export function createSessionController({
         // once the sheet does represent an in-flight join attempt, an
         // intentional dismissal must abandon it so a later reload cannot
         // resume straight back into confirming.
-        if (reason === "dismiss") clearIntent({ action: "join", sessionId: session.sessionId });
+        if (reason === "dismiss") clearIntent({ action: "join", sessionId: session.sessionId as number });
       },
     });
     const registeredDetail = surfaceRegistry.set("detail", detail?.close ? detail : null, {
       actionKey: detail?.close ? actionKey(action) : null,
       session: detail?.close ? session : null,
-    });
+    }) as ControllerSurfaceHandle | null;
     if (registeredDetail && previewAuthSnapshot) {
       void hydrateSessionJoinPreview(session.sessionId, registeredDetail, detailJoinPreviewGate, previewAuthSnapshot);
     }
     return registeredDetail;
   }
 
-  /** @returns {import("./controllerContracts.ts").ControllerSurfaceHandle | null | undefined} */
-  function openSessionById(sessionId) {
+  function openSessionById(sessionId: ControllerIdentifier): ControllerSurfaceHandle | null | undefined {
     const session =
       read().sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
       read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
     return openSessionDetail(session);
   }
 
-  /** @returns {Promise<import("./controllerContracts.ts").ControllerOpenSessionResult>} */
-  async function openSessionFromLink(sessionId) {
+  async function openSessionFromLink(sessionId: ControllerIdentifier): Promise<ControllerOpenSessionResult> {
     const normalizedSessionId = Number(sessionId);
     if (
       !Number.isSafeInteger(normalizedSessionId) ||
@@ -471,7 +590,7 @@ export function createSessionController({
       return { status: "unavailable" };
     }
     try {
-      const session = await api.loadSessionSummary(normalizedSessionId);
+      const session = (await api.loadSessionSummary(normalizedSessionId)) as SessionSummary | null;
       if (!session) return { status: "unavailable" };
       // 批 C3-2:main.js 的 hash 深連結開啟與 resumePendingIntent 的 join resume
       // 都不互相 await,兩條都可能在對方之後才把自己的 loadSessionSummary 讀完。
@@ -480,7 +599,7 @@ export function createSessionController({
       // 這裡先查:若已經有這個 session 的 detail 開著(不論被誰、用哪個 stage 開的),
       // 就不要再蓋一次,保留它目前的狀態。
       const activeDetail = surfaceRegistry.get("detail");
-      const activeDetailSession = surfaceRegistry.meta("detail", "session");
+      const activeDetailSession = surfaceRegistry.meta("detail", "session") as SessionSummary | null;
       if (activeDetail && activeDetailSession && String(activeDetailSession.sessionId) === String(session.sessionId)) {
         return { session, status: "opened" };
       }
@@ -492,7 +611,7 @@ export function createSessionController({
   }
 
   const { openSessionChat } = createChatController({
-    api,
+    api: api!,
     chatPollIntervalMs,
     isCurrentAuthSnapshot,
     notifyMySessions,
@@ -509,9 +628,9 @@ export function createSessionController({
     withdrawMySession,
   });
 
-  function reconcileActiveDetail(bounds = read().bounds) {
+  function reconcileActiveDetail(bounds: SessionControllerState["bounds"] = read().bounds): void {
     const activeDetail = surfaceRegistry.get("detail");
-    const activeDetailSession = surfaceRegistry.meta("detail", "session");
+    const activeDetailSession = surfaceRegistry.meta("detail", "session") as SessionSummary | null;
     if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
     const freshSession = read().sessions.find(
       (entry) => String(entry.sessionId) === String(activeDetailSession.sessionId)
@@ -526,28 +645,28 @@ export function createSessionController({
     }
   }
 
-  function reconcileActiveDetailParticipation() {
+  function reconcileActiveDetailParticipation(): void {
     const activeDetail = surfaceRegistry.get("detail");
-    const activeDetailSession = surfaceRegistry.meta("detail", "session");
+    const activeDetailSession = surfaceRegistry.meta("detail", "session") as SessionSummary | null;
     if (!activeDetail || !activeDetailSession || reconcileSuppressed(activeDetailSession)) return;
     if (actionKey(actionFor(activeDetailSession)) !== surfaceRegistry.meta("detail", "actionKey")) {
       surfaceRegistry.close("detail", { reason: "stale-authority" });
     }
   }
 
-  function reconcileActiveChatParticipation() {
-    const activeChat = surfaceRegistry.get("chat");
+  function reconcileActiveChatParticipation(): void {
+    const activeChat = surfaceRegistry.get("chat") as ControllerChatSurfaceContext | null;
     if (!activeChat) return;
     const session = currentParticipation(activeChat.session.sessionId);
     if (!chatMemberSession(session)) {
       surfaceRegistry.close("chat", { reason: "chat-authority-changed", restoreFocus: false });
       return;
     }
-    activeChat.session = session;
-    if (MY_SESSION_FINAL_STATUSES.has(String(session.status).toLowerCase())) activeChat.sheet?.setArchived?.();
+    activeChat.session = session!;
+    if (MY_SESSION_FINAL_STATUSES.has(String(session!.status).toLowerCase())) activeChat.sheet?.setArchived?.();
   }
 
-  async function commitPlayerVisibility() {
+  async function commitPlayerVisibility(): Promise<void> {
     const authSnapshot = captureAuthSnapshot();
     if (
       !isCurrentAuthSnapshot(authSnapshot) ||
@@ -571,8 +690,7 @@ export function createSessionController({
     });
     notifyMySessions();
 
-    // eslint-disable-next-line no-useless-assignment -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-    let reloaded = false;
+    let reloaded: boolean | void = false;
     try {
       reloaded = await reloadCurrentProfile();
     } catch {
@@ -583,19 +701,18 @@ export function createSessionController({
     if (!reloaded) throw new Error("球友卡設定已更新，但個人檔案同步失敗，請稍後重新整理。");
   }
 
-  /** @returns {Promise<void> | void} */
-  function togglePlayerVisibility() {
+  function togglePlayerVisibility(): Promise<void> | void {
     if (
       !read().authSession ||
       !profileIsReady(read().profileEligibility) ||
       !profileMeetsGate(read().profileEligibility, "directory")
     ) {
-      return requireSessionAction({ action: "visibility" });
+      return requireSessionAction({ action: "visibility" }) as void;
     }
     return commitPlayerVisibility();
   }
 
-  function requireReportAccess() {
+  function requireReportAccess(): ControllerAuthSnapshot {
     const authSnapshot = captureAuthSnapshot();
     if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profileEligibility)) {
       throw new Error("請先登入後再檢舉。");
@@ -604,23 +721,33 @@ export function createSessionController({
     return authSnapshot;
   }
 
-  function openReportForTarget({ messageId = null, sessionId = null, reportedProfileId = null, targetLabel }) {
+  function openReportForTarget({
+    messageId = null,
+    sessionId = null,
+    reportedProfileId = null,
+    targetLabel,
+  }: ReportTarget): ControllerSurfaceHandle | null | undefined {
     const authSnapshot = requireReportAccess();
-    let dialog = null;
+    let dialog: ControllerSurfaceHandle | null | undefined = null;
     dialog = openReport({
       targetLabel,
       onClose: () => {
         surfaceRegistry.release("reportDialog", dialog);
       },
-      onSubmit: async (reason) => {
+      onSubmit: async (reason: unknown) => {
         const normalizedReason = String(reason ?? "").trim();
         if (!normalizedReason) throw new Error("請選擇檢舉原因。");
         if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profileEligibility)) {
           throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
         }
-        const reportInput = { reportedProfileId, reason: normalizedReason, sessionId };
+        const reportInput: {
+          messageId?: ControllerIdentifier;
+          reason: string;
+          reportedProfileId: ControllerIdentifier;
+          sessionId: ControllerIdentifier;
+        } = { reportedProfileId, reason: normalizedReason, sessionId };
         if (messageId != null) reportInput.messageId = messageId;
-        const result = await api.createReport(reportInput);
+        const result = await api!.createReport!(reportInput);
         if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新開啟檢舉。");
         toast("已送出檢舉，謝謝你的回報。");
         return result;
@@ -630,7 +757,7 @@ export function createSessionController({
     return dialog;
   }
 
-  function openSessionReport(sessionId) {
+  function openSessionReport(sessionId: ControllerIdentifier): ControllerSurfaceHandle | null | undefined {
     const session =
       read().sessions.find((entry) => String(entry.sessionId) === String(sessionId)) ??
       read().mySessions.find((entry) => String(entry.sessionId) === String(sessionId));
@@ -641,7 +768,10 @@ export function createSessionController({
     });
   }
 
-  function openRosterParticipantReport(sessionId, profileId) {
+  function openRosterParticipantReport(
+    sessionId: ControllerIdentifier,
+    profileId: ControllerIdentifier
+  ): ControllerSurfaceHandle | null | undefined {
     const session = mySessionForAction(sessionId);
     const participant = (read().mySessionRosters.get(sessionKey(sessionId)) ?? []).find(
       (candidate) => String(candidate.profileId) === String(profileId)

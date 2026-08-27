@@ -293,7 +293,15 @@
   與 `eslint.config.js:109/:156` 豁免字面兩個必卡點事前解凍。6E 設計輸入
   ＝Codex 回報 §9.5（直接機械轉不先拆、四口徑 edge 盤點、contract 橋
   保留、最小 options port、難點七層順序）。
-- ACCEPTED 回填（6E–6F）：（待）
+- **6E 狀態：ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-6E-controller-ts-acceptance-2026-08-27.md`。
+  711 行機械轉換零 runtime token 例外（擦除全等、chunk hash 不變、
+  零 prefer-const 衝突）；橋有牙探針三重紅實證 `ReturnType` exact-key
+  橋載重；shorthand 展開（`api: api!`）經隔離實測裁定為擦除等價。
+  **6F 範圍調整輸入**：type-aware 9 條實掃 325 findings（unbound-method
+  獨佔 246），不可一次全開——6F 建議縮為兩 feature 檔＋恢復拆批方案落檔，
+  規則恢復依五段批序另立批（詳驗收紀錄）。
+- ACCEPTED 回填（6F）：（待）
 
 ## 隨時可插的獨立小批
 

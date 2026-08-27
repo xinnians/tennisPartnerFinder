@@ -5,7 +5,7 @@ import test from "node:test";
 import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.ts";
 import * as mapModule from "../src/map.ts";
 import * as pinModule from "../src/pins.ts";
-import * as sessionController from "../src/sessionController.js";
+import * as sessionController from "../src/sessionController.ts";
 import { PENDING_SESSION_INTENT_KEY } from "../src/sessionIntent.ts";
 
 const { createSessionController, groupMySessions } = sessionController;
@@ -2289,7 +2289,7 @@ test("an anonymous Join intent restores the same target into confirmation withou
   assert.equal(harness.loginPrompts.length, 1);
 
   // 批 C3-2:resume 現在直接以 initialStage:"confirming" 開一張新的 detail
-  // sheet(見 sessionController.js 的 resumePendingIntent → enterJoinConfirming),
+  // sheet(見 sessionController.ts 的 resumePendingIntent → enterJoinConfirming),
   // 不再開獨立的 confirmation surface;第一個 opened 是匿名時的 idle 詳情,
   // 第二個才是 resume 開的確認態。
   await harness.controller.setAuthState({ user: { id: "guest-a" } }, { directory: true, nickname: true, ntrp: true });
@@ -2571,7 +2571,7 @@ test("an account switch closes account-bound create and profile forms before the
 
 // 批 D5:submitCreateSession 不再自動 close()/showCreatedSession()——sheet 留
 // 在原地渲染自己的成功頁,只有使用者點成功頁的「查看我的球局」才觸發
-// onViewMySessions(見 sessionController.js 的 openCreateSessionForIntent)。
+// onViewMySessions(見 sessionController.ts 的 openCreateSessionForIntent)。
 test("create session publish keeps the sheet open for its own success page and defers My Sessions navigation to onViewMySessions", async () => {
   const created = [];
   const harness = createHarness({

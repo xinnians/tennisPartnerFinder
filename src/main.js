@@ -80,7 +80,7 @@ import {
 } from "./dataApi.ts";
 import { installGlobalErrorHandlers, showGlobalErrorNotice } from "./appErrors.ts";
 import { configureSentryErrorTransport } from "./sentryErrorTransport.ts";
-import { createSessionController } from "./sessionController.js";
+import { createSessionController } from "./sessionController.ts";
 import { createStore } from "./sessionStore.ts";
 // Eager React app boundary: react-surface-lifecycle.test.js scans this explicit browser-entry import.
 import * as appModule from "./app/App.tsx";
@@ -468,7 +468,7 @@ function showMePage({ focus = false, focusNotificationSettings = false, historyM
 
 // 批 D7:訊息頁不新增 dataApi 呼叫——不像 showMySessionsPage 會另外
 // void controller.refreshMySessions()。setAuthState() 在登入/還原 session 時已經
-// 觸發過 reloadParticipation(見 sessionController.js),訊息頁只讀那份既有 state,
+// 觸發過 reloadParticipation(見 sessionController.ts),訊息頁只讀那份既有 state,
 // 不重複打 RPC。
 function showMessagesPage({ focus = false, historyMode = "push" } = {}) {
   controller.setDrawerState("collapsed");
@@ -635,7 +635,7 @@ function init() {
     openWithdrawConfirmation: openWithdrawSessionConfirmation,
     promptProfile: openProfileCompletion,
     reloadCurrentProfile,
-    // 批 C3-3:controller 仍只傳原始 sessionId(見 sessionController.js 的
+    // 批 C3-3:controller 仍只傳原始 sessionId(見 sessionController.ts 的
     // showCreatedSession(result?.sessionId))；這裡在接線邊界補上 reason:"created"，
     // controller 本身不需要知道 reason 字串這個 view 層概念。
     showCreatedSession: (sessionId) => showMySessionsPage({ sessionId, reason: "created" }),

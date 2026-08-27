@@ -56,7 +56,7 @@
 ## 程式結構
 
 - `src/main.js`：應用程式入口、頁面切換、Maps/Auth 接線。
-- `src/sessionController.js`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh；
+- `src/sessionController.ts`：探索、地圖 bounds、登入／個人檔案門檻、生命週期 refresh；
   `src/controller/`：七個子 controller、surfaceRegistry 與 controllerApiContract（strict TS）。
 - `src/sessionViews.js` 與 `src/views/`：頁面、抽屜、表單與 surface 的遷移期 legacy adapter。
 - `src/sheets.ts`：可存取的 sheet/dialog 原語與焦點回復。

@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createSessionController } from "../src/sessionController.js";
+import { createSessionController } from "../src/sessionController.ts";
 
 const SESSION_A_START = "2099-01-02T02:00:00.000Z";
 const SESSION_B_START = "2099-01-03T02:00:00.000Z";

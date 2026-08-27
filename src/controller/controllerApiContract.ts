@@ -1,5 +1,5 @@
 import type { ControllerApi } from "../controllerContracts.ts";
-import type { createSessionController } from "../sessionController.js";
+import type { createSessionController } from "../sessionController.ts";
 
 type FactoryResult = ReturnType<typeof createSessionController>;
 type MissingControllerKeys = Exclude<keyof ControllerApi, keyof FactoryResult>;

@@ -389,7 +389,7 @@ test("saving a profile before court options are ready preserves its existing cou
 // 還原焦點、才 await refreshAuthoritativeState() 背景重繪」這個順序,是 commit
 // 5a06b345(2026-07-18「feat: complete mutual-consent session lifecycle」)引入,
 // 早於本管線 D1(693e3e7,2026-08-10)三週以上;`git merge-base --is-ancestor
-// 5a06b345 693e3e7` 回傳 true 已驗證。sessionController.js 同檔的
+// 5a06b345 693e3e7` 回傳 true 已驗證。sessionController.ts 同檔的
 // performDetailWithdrawal() 用相反順序(先 refresh 再 close)才是正確寫法,兩者
 // 順序不一致是既有 bug,已用 spawn_task 掛起追蹤(標題:Fix focus loss after
 // stale-join-rejection drawer close),非本批 Files 範圍,明確 fixme 跳過而非靜默排除。
