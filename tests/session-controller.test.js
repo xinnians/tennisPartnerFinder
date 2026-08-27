@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
+import { MAP_IDLE_DEBOUNCE_MS } from "../src/config.ts";
 import * as mapModule from "../src/map.ts";
 import * as pinModule from "../src/pins.ts";
 import * as sessionController from "../src/sessionController.js";

@@ -261,7 +261,15 @@
   下限改寫完成（`>=13`→三載重錨點對帳;`>100 bytes`→非空）;三組 canary
   驗收方親自複跑（含「小檔放行」新舊 guard 對照）;批 6 主體解鎖。
   `.js` TS 化優先序（Codex 回報 §5.5）採納為主體切批基礎。
-- ACCEPTED 回填：（待）
+- **6A 狀態：ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-6A-leaf-ts-acceptance-2026-08-27.md`（派工單
+  `docs/arch-dispatch-2026-08-27-batch6A-leaf-ts.md`）。四檔改名＋annotation、
+  25 importer 僅副檔名、main chunk hash 與基準相同（emit byte 級一致）、
+  bundle 淨 0 B、strict 探針 ×4 驗收方親自複跑。樣板四紀律成立,6B–6F 沿用。
+  偏差核可一項（`.ts` 不適用 `no-extra-boolean-cast`,既有 disable 註解移除）;
+  覆蓋債三項記入驗收紀錄。6B 設計輸入＝Codex 回報 §9.5：順序 `requestGate`→
+  `sessionIntent`→`filters`。
+- ACCEPTED 回填（6B–6F）：（待）
 
 ## 隨時可插的獨立小批
 

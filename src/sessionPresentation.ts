@@ -8,10 +8,10 @@ import type {
 } from "./domainTypes.ts";
 import { canReceiveFocus } from "./meFocus.js";
 import { notificationPreferencesForRead } from "./notificationPreferences.ts";
-import { formatNtrp, validProfileNtrp } from "./profile.js";
-import { isUndecidedCandidate } from "./sessionCriteria.js";
+import { formatNtrp, validProfileNtrp } from "./profile.ts";
+import { isUndecidedCandidate } from "./sessionCriteria.ts";
 import { runMySessionAction, runNotificationSettingAction, runPresenceSettingAction } from "./sessionActions.ts";
-import { taipeiClock, taipeiDateKey, taipeiDateTime, taipeiParts } from "./taipeiTime.js";
+import { taipeiClock, taipeiDateKey, taipeiDateTime, taipeiParts } from "./taipeiTime.ts";
 
 // Typed, side-effect-free presentation rules shared by legacy adapters and React.
 // DOM-backed async action ownership is isolated in sessionActions.ts so this file

@@ -1,4 +1,4 @@
-import { CHAT_POLL_INTERVAL_MS, DISCOVERY_POLL_INTERVAL_MS, TAIPEI_CITY_BOUNDS } from "./config.js";
+import { CHAT_POLL_INTERVAL_MS, DISCOVERY_POLL_INTERVAL_MS, TAIPEI_CITY_BOUNDS } from "./config.ts";
 import { boundsContainSession, cloneBounds, cloneFilters } from "./features/discovery/discoveryFeature.ts";
 import {
   MY_SESSION_FINAL_STATUSES,
@@ -14,7 +14,7 @@ import {
   profileMeetsGate,
 } from "./features/profile-auth/profileAuthFeature.ts";
 import { createRequestGate } from "./requestGate.js";
-import { isUndecidedCandidate } from "./sessionCriteria.js";
+import { isUndecidedCandidate } from "./sessionCriteria.ts";
 import { createStore } from "./sessionStore.ts";
 import { selectControllerMySessionsView, selectControllerPlayerLayerView } from "./sessionSelectors.ts";
 import { createSurfaceRegistry } from "./controller/surfaceRegistry.ts";

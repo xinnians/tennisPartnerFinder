@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { LAUNCH_CITY } from "../../config.js";
+import { LAUNCH_CITY } from "../../config.ts";
 import type { SessionSummary } from "../../domainTypes.ts";
 import { getE2ETestHooks } from "../../e2eTestHooks.ts";
 import {

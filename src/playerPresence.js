@@ -1,4 +1,4 @@
-import { distanceMeters } from "./sessionCriteria.js";
+import { distanceMeters } from "./sessionCriteria.ts";
 
 const MINIMUM_INTERVAL_MS = 60 * 1000;
 const MINIMUM_DISTANCE_METERS = 50;

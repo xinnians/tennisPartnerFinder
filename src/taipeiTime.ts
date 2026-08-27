@@ -1,16 +1,23 @@
-import { TAIPEI_TIME_ZONE } from "./config.js";
+import { TAIPEI_TIME_ZONE } from "./config.ts";
+
+type DateInput = Date | number | string | null | undefined;
+
+interface TaipeiDateTimeLocalOptions {
+  includeMilliseconds?: boolean;
+  includeSeconds?: boolean;
+}
 
 export const TAIPEI_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
 
-const padTwo = (value) => String(value).padStart(2, "0");
+const padTwo = (value: unknown) => String(value).padStart(2, "0");
 
-export function validDate(value) {
+export function validDate(value: DateInput) {
   if (value == null || value === "") return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function taipeiParts(value) {
+export function taipeiParts(value: DateInput) {
   const date = validDate(value);
   if (!date) return null;
   const taipei = new Date(date.getTime() + TAIPEI_UTC_OFFSET_MS);
@@ -26,29 +33,29 @@ export function taipeiParts(value) {
   };
 }
 
-export function taipeiClock(value) {
+export function taipeiClock(value: DateInput) {
   const parts = taipeiParts(value);
   return parts ? `${padTwo(parts.hour)}:${padTwo(parts.minute)}` : "";
 }
 
-export function taipeiHourRange(startAt, rangeEnd) {
+export function taipeiHourRange(startAt: DateInput, rangeEnd: DateInput) {
   const start = taipeiParts(startAt);
   if (!start) return "";
   const end = taipeiParts(rangeEnd);
   return end ? `${start.hour}–${end.hour}` : taipeiClock(startAt);
 }
 
-export function taipeiDateKey(value) {
+export function taipeiDateKey(value: DateInput) {
   const parts = taipeiParts(value);
   return parts ? `${parts.year}-${padTwo(parts.month)}-${padTwo(parts.day)}` : null;
 }
 
-export function isTaipeiWeekend(value) {
+export function isTaipeiWeekend(value: DateInput) {
   const weekday = taipeiParts(value)?.weekday;
   return weekday === 0 || weekday === 6;
 }
 
-export function taipeiDateTime(value) {
+export function taipeiDateTime(value: DateInput) {
   const date = validDate(value);
   if (!date) return "時間待確認";
   return new Intl.DateTimeFormat("zh-TW", {
@@ -62,7 +69,7 @@ export function taipeiDateTime(value) {
   }).format(date);
 }
 
-export function taipeiLocalDateTimeToIso(value) {
+export function taipeiLocalDateTimeToIso(value: unknown) {
   const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
   if (!match) return null;
   const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0", millisecondText = "0"] = match;
@@ -90,8 +97,8 @@ export function taipeiLocalDateTimeToIso(value) {
 }
 
 export function taipeiDateTimeLocalValue(
-  value = new Date(),
-  { includeMilliseconds = false, includeSeconds = false } = {}
+  value: DateInput = new Date(),
+  { includeMilliseconds = false, includeSeconds = false }: TaipeiDateTimeLocalOptions = {}
 ) {
   const parts = taipeiParts(value);
   if (!parts) return "";

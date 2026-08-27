@@ -4,7 +4,7 @@ import type {
   ControllerSessionWithRequests,
 } from "../../controllerContracts.ts";
 import type { MySessionSummary, SessionSummary } from "../../domainTypes.ts";
-import { isSessionFull, isUndecidedCandidate } from "../../sessionCriteria.js";
+import { isSessionFull, isUndecidedCandidate } from "../../sessionCriteria.ts";
 
 export const MY_SESSION_FINAL_STATUSES = new Set(["cancelled", "expired", "played"]);
 export const MY_SESSION_OPEN_STATUSES = new Set(["open", "full"]);

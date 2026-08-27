@@ -1,4 +1,4 @@
-import { GOOGLE_MAPS_MAP_ID, MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.js";
+import { GOOGLE_MAPS_MAP_ID, MAP_CENTER, MAP_ZOOM, TAIPEI_CITY_BOUNDS } from "./config.ts";
 import {
   advancedMarkerContent,
   candidateSessionPin,
@@ -8,8 +8,8 @@ import {
   sessionPin,
   userLocationPin,
 } from "./pins.ts";
-import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.js";
-import { taipeiClock, taipeiHourRange } from "./taipeiTime.js";
+import { isSessionFull, isUndecidedCandidate } from "./sessionCriteria.ts";
+import { taipeiClock, taipeiHourRange } from "./taipeiTime.ts";
 import type { ControllerCoordinates, ControllerPlayerGroup } from "./controllerContracts.ts";
 import type { MapCourtSummary, SessionSummary } from "./domainTypes.ts";
 import type { MapPin, MapPoint, MapSize } from "./pins.ts";

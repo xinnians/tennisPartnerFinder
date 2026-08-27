@@ -13,7 +13,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { Avatar } from "../components/Avatar.tsx";
 import type { CourtSummary, SessionJoinPreviewState, SessionSummary } from "../domainTypes.ts";
 import { FOCUSABLE_SELECTOR } from "../focusableSelector.js";
-import { formatNtrp } from "../profile.js";
+import { formatNtrp } from "../profile.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { notificationPushHint, sessionDetailSheetRuntime } from "../sessionPresentation.ts";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";

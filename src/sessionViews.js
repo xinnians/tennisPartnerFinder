@@ -1,6 +1,6 @@
 import { BANDS, DEFAULT_FILTER_STATE } from "./filters.js"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 import { configureLoginModalContent, mountDialog, mountSheet } from "./sheets.js";
-import { taipeiClock, taipeiDateTimeLocalValue } from "./taipeiTime.js";
+import { taipeiClock, taipeiDateTimeLocalValue } from "./taipeiTime.ts";
 import { esc } from "./util.js";
 import {
   runNotificationSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
@@ -622,7 +622,7 @@ if (typeof document !== "undefined") {
   document.addEventListener("focusin", (event) => preloadForIntent(event.target));
 }
 
-export { taipeiLocalDateTimeToIso } from "./taipeiTime.js";
+export { taipeiLocalDateTimeToIso } from "./taipeiTime.ts";
 
 /** Shared pure/runtime dependencies injected into the strict React form sheets. */
 export const sessionFormSheetRuntime = Object.freeze({

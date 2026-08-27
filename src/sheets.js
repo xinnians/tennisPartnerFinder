@@ -1,5 +1,5 @@
 import { pushSurfaceIsolation } from "./modalIsolation.js";
-import { AUTH_LINE_PROVIDER_ID } from "./config.js";
+import { AUTH_LINE_PROVIDER_ID } from "./config.ts";
 
 const sheetRoot = () => document.getElementById("sheet-root");
 const modalRoot = () => document.getElementById("modal-root");

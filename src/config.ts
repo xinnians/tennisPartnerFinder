@@ -3,7 +3,7 @@
 //  請在 .env.local 設定 VITE_GOOGLE_MAPS_API_KEY。
 //  沒填時,頁面會顯示說明蓋板而不是地圖。
 // ============================================================
-const env = import.meta.env ?? {};
+const env: ImportMetaEnv = import.meta.env ?? {};
 
 export const GOOGLE_MAPS_API_KEY = env.VITE_GOOGLE_MAPS_API_KEY ?? "___";
 // AdvancedMarkerElement requires a Cloud Maps map ID. Empty keeps the

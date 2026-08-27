@@ -12,10 +12,10 @@ import type {
 } from "../controllerContracts.ts";
 import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
 import type { PageNotificationSettings } from "../pageViewStore.ts";
-import { formatNtrp } from "../profile.js";
+import { formatNtrp } from "../profile.ts";
 import { scheduleMySessionsCreatedFocus } from "../mySessionsCreatedFocus.ts";
 import { setMySessionActionScope, syncPendingMySessionActions } from "../sessionActions.ts";
-import { isUndecidedCandidate } from "../sessionCriteria.js";
+import { isUndecidedCandidate } from "../sessionCriteria.ts";
 import { mySessionsPageRuntime } from "../sessionPresentation.ts";
 
 type MySessionsSegment = "hosted" | "joined";

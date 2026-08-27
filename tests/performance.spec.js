@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { DISCOVERY_WINDOW_DAYS, MAP_IDLE_DEBOUNCE_MS } from "../src/config.js";
+import { DISCOVERY_WINDOW_DAYS, MAP_IDLE_DEBOUNCE_MS } from "../src/config.ts";
 import { installAppModuleImporter, installAppTestHooks, readAppTestHook } from "./fixtures/appRuntime.js";
 import { installFakeMaps, setFakeMapBounds, setFakeMapBoundsBurst } from "./fixtures/fakeMaps.js";
 

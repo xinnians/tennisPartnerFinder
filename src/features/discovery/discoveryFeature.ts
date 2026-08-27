@@ -1,4 +1,4 @@
-import { TAIPEI_CITY_BOUNDS } from "../../config.js";
+import { TAIPEI_CITY_BOUNDS } from "../../config.ts";
 import type { ControllerFilters, ControllerMapStatus, SessionControllerState } from "../../controllerContracts.ts";
 import type { SessionSummary } from "../../domainTypes.ts";
 import { DEFAULT_FILTER_STATE, filterSessions, sortSessionsForDrawer } from "../../filters.js";

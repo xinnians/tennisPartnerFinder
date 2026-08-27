@@ -1,6 +1,6 @@
 import { hostCanDecideSession, hostCanEditSession } from "../features/session-lifecycle/sessionLifecycleFeature.ts";
 import { profileIsReady } from "../features/profile-auth/profileAuthFeature.ts";
-import { isUndecidedCandidate } from "../sessionCriteria.js";
+import { isUndecidedCandidate } from "../sessionCriteria.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
 
 import type {

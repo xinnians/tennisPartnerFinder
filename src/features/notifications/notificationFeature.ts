@@ -1,4 +1,4 @@
-import { WEB_PUSH_VAPID_PUBLIC_KEY } from "../../config.js";
+import { WEB_PUSH_VAPID_PUBLIC_KEY } from "../../config.ts";
 import type { ControllerAuthSession } from "../../controllerContracts.ts";
 import {
   isSupabaseConfigured,

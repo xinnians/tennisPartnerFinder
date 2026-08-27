@@ -10,7 +10,7 @@ import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import { isDefaultFilters, joinableSessionCount } from "../filters.js";
 import { restoreNearbyDrawerFocus, useNearbyDrawerRoot } from "../nearbyDrawerFocus.ts";
 import { nearbySessionsDrawerRuntime, nearbySessionsSummaryText } from "../sessionPresentation.ts";
-import { taipeiClock } from "../taipeiTime.js";
+import { taipeiClock } from "../taipeiTime.ts";
 
 type NearbySession = Partial<SessionSummary>;
 

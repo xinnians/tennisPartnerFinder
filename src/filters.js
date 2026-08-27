@@ -1,7 +1,7 @@
-import { distanceMeters, isJoinableSession, isUndecidedCandidate } from "./sessionCriteria.js";
-import { isTaipeiWeekend, taipeiDateKey, validDate } from "./taipeiTime.js";
+import { distanceMeters, isJoinableSession, isUndecidedCandidate } from "./sessionCriteria.ts";
+import { isTaipeiWeekend, taipeiDateKey, validDate } from "./taipeiTime.ts";
 
-export { isJoinableSession } from "./sessionCriteria.js";
+export { isJoinableSession } from "./sessionCriteria.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

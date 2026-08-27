@@ -31,7 +31,7 @@ import {
 } from "../src/dataApi.js";
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.js";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
-import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.js";
+import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.ts";
 import { messagesFromGroups } from "../src/sessionViews.js";
 import {
   PENDING_SESSION_INTENT_KEY,

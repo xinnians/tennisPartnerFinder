@@ -1,4 +1,4 @@
-import { DISCOVERY_WINDOW_DAYS, TAIPEI_CITY_BOUNDS } from "../../config.js";
+import { DISCOVERY_WINDOW_DAYS, TAIPEI_CITY_BOUNDS } from "../../config.ts";
 import type { SessionSummary } from "../../domainTypes.ts";
 import { asDate, asNumber } from "./valueMappers.ts";
 

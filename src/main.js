@@ -25,7 +25,7 @@ if (import.meta.env.PROD) {
   });
 }
 
-import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.js";
+import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.ts";
 import { joinableSessionCount } from "./filters.js";
 import {
   configureFilterToolbarFeature,
@@ -134,7 +134,7 @@ import {
   updateOpenToGreetingSetting,
   updatePresenceSharing,
 } from "./features/presence/presenceFeature.js";
-import { eligibilityFromPrivateProfile } from "./profile.js";
+import { eligibilityFromPrivateProfile } from "./profile.ts";
 import { createRequestGate } from "./requestGate.js";
 import { sessionIdFromHash } from "./sessionRoute.js";
 

@@ -1,8 +1,8 @@
-import { isUndecidedCandidate } from "../sessionCriteria.js";
+import { isUndecidedCandidate } from "../sessionCriteria.ts";
 import { mountSheet } from "../sheets.js";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { runAsyncAction } from "../sessionActions.ts";
-import { taipeiClock, taipeiDateTimeLocalValue, taipeiLocalDateTimeToIso, taipeiParts } from "../taipeiTime.js";
+import { taipeiClock, taipeiDateTimeLocalValue, taipeiLocalDateTimeToIso, taipeiParts } from "../taipeiTime.ts";
 import { padTwo, taipeiTileDate } from "../sessionPresentation.ts";
 
 let deferSurfaceOpen;

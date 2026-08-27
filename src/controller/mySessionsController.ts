@@ -1,4 +1,4 @@
-import { isSessionFull } from "../sessionCriteria.js";
+import { isSessionFull } from "../sessionCriteria.ts";
 import { selectControllerMySessionsView } from "../sessionSelectors.ts";
 import { MY_SESSION_OPEN_STATUSES, terminalAction } from "../features/session-lifecycle/sessionLifecycleFeature.ts";
 import {

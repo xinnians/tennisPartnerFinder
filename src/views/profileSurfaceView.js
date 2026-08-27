@@ -1,8 +1,8 @@
-import { validProfileNtrp } from "../profile.js";
+import { validProfileNtrp } from "../profile.ts";
 import { mountSheet } from "../sheets.js";
 import { runAsyncAction } from "../sessionActions.ts";
 import { PROFILE_SLOTS } from "../sessionPresentation.ts";
-import { taipeiDateTime } from "../taipeiTime.js";
+import { taipeiDateTime } from "../taipeiTime.ts";
 
 let deferSurfaceOpen;
 let lazyMounts;

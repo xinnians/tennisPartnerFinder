@@ -1,4 +1,4 @@
-import { TAIPEI_CITY_BOUNDS } from "../config.js";
+import { TAIPEI_CITY_BOUNDS } from "../config.ts";
 import { cloneBounds, validBounds } from "../features/discovery/discoveryFeature.ts";
 import { profileIsReady, profileMeetsGate } from "../features/profile-auth/profileAuthFeature.ts";
 import {
