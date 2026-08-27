@@ -236,6 +236,13 @@
 
 - 優先轉換仍存在的 orchestration contract；拆分已穩定介面的 presentation／form section／
   feature component；不為行數而拆檔；逐步恢復 9 條 type-aware ESLint 規則。
+- 順序（批 5 回報 §9.5 採納）：contract leaf 先行（防 bridge circular import）→
+  `sheets.ts` 機械轉換（不拆 ownership）→按責任逐 edge 拆檔;保留的同步邊界
+  不動,改 facade async shape 另立批。
+- **前置小批**（狀態：已派工，`docs/arch-dispatch-2026-08-27-batch6pre-thresholds.md`）：
+  兩處零餘裕測試下限改寫（`content-visibility-contract:57` `>=13`→載重錨點對帳;
+  `legacy-style-scan:43` `>100 bytes`→非空）,canary 含「小檔放行」改寫前紅證明;
+  test-only。
 - ACCEPTED 回填：（待）
 
 ## 隨時可插的獨立小批
