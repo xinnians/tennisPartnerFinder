@@ -218,11 +218,19 @@
 - 逐個移除 `syncCommit` 剩餘兩個 caller（`sessionStore.ts`、`SurfaceHost.tsx`；
   `App.tsx` caller 已隨批 3C-2 slot 退役收掉），
   每移除一個都用原始 race／focus 測試驗證；允許「有書面理由的殘留」，不硬壓歸零。
-- （狀態：已派工，`docs/arch-dispatch-2026-08-27-batch5-synccommit.md`）審計
-  先行、條件式退役：殘留必須「移除即紅」實證、移除必須原始矩陣全綠；矩陣無
-  判別力時 BLOCKED 交裁決不強制移除;`:94` 標題髒點本批必修;全歸零分支連動
-  lifecycle `:15`／B 群改寫／三個 harness fixture import。
-- ACCEPTED 回填：（待）
+- （狀態：**ACCEPTED（2026-08-27）**，驗收紀錄
+  `docs/arch-reports/batch-5-synccommit-acceptance-2026-08-27.md`；對立審查
+  `docs/arch-reports/batch-5-adversarial-2026-08-27.md`；殘留理由書
+  `docs/arch-reports/batch-5-synccommit-retention-2026-08-27.md`；派工單
+  `docs/arch-dispatch-2026-08-27-batch5-synccommit.md`）
+- ACCEPTED 回填：**結論＝caller files 維持 2（皆載重）、SurfaceHost 同步點
+  6→4**。兩 caller＋四保留點全部附「移除即紅」原始 oracle 實證（sessionStore
+  →`performance:416` race 3/3;`commit(update)`→`map-and-bootstrap:377`
+  decision identity）;兩移除點（mount-failure cleanup／content-unmount 獨立
+  flush）附探針實證「可觀測但無人觀測」。`:94` 標題髒點已修。審計紀律升級：
+  shared synchronous boundary 退役判定必須跑完整原始 consumer matrix,
+  focused green 不算數（本批兩次假綠實例確立）。批 6 前置已列：兩處零餘裕
+  下限改寫＋TS 化 contract-leaf-first 順序（Codex §9.5）。
 
 ## 批 6：核心 TypeScript 化＋大檔拆分
 

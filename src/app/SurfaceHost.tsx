@@ -246,7 +246,7 @@ function commitSurfaceSlots(): void {
   renderSurfaceHost(new Map(slots));
 }
 
-/** Imperative sheet adapters read their portal DOM before returning; React-owned event updates bypass this boundary. */
+/** Frozen surface facades read shell/content DOM before returning at these explicit boundaries. */
 function commitSynchronously(update: () => void): void {
   syncCommit(update);
 }
@@ -276,7 +276,7 @@ export function mountSurfaceShell(rootElement: HTMLElement, options: SurfaceShel
   if (!surface) {
     shellRegistry.delete(rootElement);
     slots.delete(rootElement);
-    commitSynchronously(commitSurfaceSlots);
+    commitSurfaceSlots();
     throw new Error("Surface shell did not mount.");
   }
   let isLive = true;
@@ -316,7 +316,7 @@ export function mountSurfaceContent(rootElement: HTMLElement): SurfaceContentHan
       try {
         if (slots.get(rootElement)?.id === id) {
           slots.delete(rootElement);
-          commitSynchronously(commitSurfaceSlots);
+          commitSurfaceSlots();
         }
       } finally {
         const hooks = getE2ETestHooks<SurfaceContentTestHooks>();

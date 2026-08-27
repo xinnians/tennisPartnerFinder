@@ -91,7 +91,7 @@ test("all React sheet adapters register tracked SurfaceHost portal content", () 
   }
 });
 
-test("synchronous React commits stay behind one fail-closed helper and three approved callers", () => {
+test("synchronous React commits stay behind one fail-closed helper and approved callers", () => {
   const sourceFiles = readSourceFiles();
   assert.ok(sourceFiles.length > 0, "source scan unexpectedly found no JavaScript or TypeScript files");
 
