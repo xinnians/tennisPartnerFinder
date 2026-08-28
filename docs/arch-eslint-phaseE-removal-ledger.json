@@ -72,6 +72,78 @@
       "path": "src/controller/discoveryMapController.ts",
       "batch": "E-5",
       "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e3756c71329c99ecce0faf2cf1fb90f0",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "34da16e02753441592963c60f9c1f92f",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "9cf1a1bf5de918b6f012db21e9448272",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a04a92d2dbfb309588618abf80bee8a9",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5a005b71ad7f5043efe3fdab6f06cdfc",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "cd3b31d43e48fe667f04b54ff0e6830d",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "52c2ee79658beebfe1218e957221cc7c",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "509f4bf0b4e992c0bf2c222d8d37485e",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "862b5090ce883d3a2e69f05b4b9a6e13",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "eb8043a3396ced0e46fca111e5723768",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4a2f858cb237f19e8fbc0154c8a09e44",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5c3954bc5387ad8b7428bd54f70d4abd",
+      "path": "src/controller/authController.ts",
+      "batch": "E-6",
+      "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
     }
   ]
 }

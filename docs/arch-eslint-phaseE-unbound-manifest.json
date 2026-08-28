@@ -5,10 +5,10 @@
     "src/**/*.{ts,tsx}",
     "vite.config.ts"
   ],
-  "findingsChecksum": "sha256:221dfbad158d8cf6bd590e96a9b88122c188d05242991325355095440c3fd91f",
+  "findingsChecksum": "sha256:8e69cf93e72cf21024a7ce117eed1dae6dd035a80b8322d4b08128fa60904c19",
   "summary": {
-    "totalFindings": 234,
-    "fileCount": 25,
+    "totalFindings": 222,
+    "fileCount": 24,
     "sessionControllerFindings": 63,
     "duplicateStableIdCount": 0,
     "unresolvedDeclarationCount": 0,
@@ -18,19 +18,19 @@
   "messageIdStatistics": [
     {
       "name": "unboundWithoutThisAnnotation",
-      "count": 234
+      "count": 222
     }
   ],
   "thisUsageStatistics": [
     {
       "name": "ambient-no-body",
-      "count": 234
+      "count": 222
     }
   ],
   "proposedFixClassStatistics": [
     {
       "name": "function-property-contract",
-      "count": 234
+      "count": 222
     }
   ],
   "familyStatistics": [
@@ -56,11 +56,11 @@
     },
     {
       "family": "controller-callback-port",
-      "count": 69,
+      "count": 57,
       "proposedFixClasses": [
         {
           "name": "function-property-contract",
-          "count": 69
+          "count": 57
         }
       ]
     },
@@ -658,294 +658,6 @@
       "family": "react-callback-contract",
       "proposedFixClass": "function-property-contract",
       "tests": [],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "e3756c71329c99ecce0faf2cf1fb90f0",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 58,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[1]",
-      "expressionFingerprint": "clearIntent",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "34da16e02753441592963c60f9c1f92f",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 67,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[10]",
-      "expressionFingerprint": "reloadParticipation",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "9cf1a1bf5de918b6f012db21e9448272",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 68,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[11]",
-      "expressionFingerprint": "replaceMySessions",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "a04a92d2dbfb309588618abf80bee8a9",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 69,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[12]",
-      "expressionFingerprint": "resumePendingIntent",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "5a005b71ad7f5043efe3fdab6f06cdfc",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 72,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[15]",
-      "expressionFingerprint": "transitionSurfaces",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "cd3b31d43e48fe667f04b54ff0e6830d",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 59,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[2]",
-      "expressionFingerprint": "clearPlayerDirectory",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "52c2ee79658beebfe1218e957221cc7c",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 60,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[3]",
-      "expressionFingerprint": "clearPlayerLayer",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "509f4bf0b4e992c0bf2c222d8d37485e",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 61,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[4]",
-      "expressionFingerprint": "isCurrentAuthSnapshot",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "862b5090ce883d3a2e69f05b4b9a6e13",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 62,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[5]",
-      "expressionFingerprint": "notifyMySessions",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "eb8043a3396ced0e46fca111e5723768",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 64,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[7]",
-      "expressionFingerprint": "publish",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "4a2f858cb237f19e8fbc0154c8a09e44",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 65,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[8]",
-      "expressionFingerprint": "reconcileActiveChatParticipation",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "5c3954bc5387ad8b7428bd54f70d4abd",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/authController.ts",
-      "line": 66,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[9]",
-      "expressionFingerprint": "reconcileActiveDetailParticipation",
-      "owner": "factory:createAuthController",
-      "receiverType": "parameter-pattern:AuthControllerDependencies",
-      "declarationPath": "src/controller/authController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
       "reviewStatus": "machine-classified"
     },
     {

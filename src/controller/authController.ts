@@ -29,21 +29,21 @@ export type AuthIdentityChangeHandler = (change: AuthIdentityChange) => Controll
 
 interface AuthControllerDependencies {
   blockedPlayerGate: ControllerRequestGate;
-  clearIntent(): boolean;
-  clearPlayerDirectory(options?: { closeReason?: string }): void;
-  clearPlayerLayer(options?: { closeReason?: string }): void;
-  isCurrentAuthSnapshot(snapshot: { epoch: number; identity: string | null }): boolean;
-  notifyMySessions(): void;
+  clearIntent: () => boolean;
+  clearPlayerDirectory: (options?: { closeReason?: string }) => void;
+  clearPlayerLayer: (options?: { closeReason?: string }) => void;
+  isCurrentAuthSnapshot: (snapshot: { epoch: number; identity: string | null }) => boolean;
+  notifyMySessions: () => void;
   onAuthIdentityChange?: AuthIdentityChangeHandler | null;
-  publish(): void;
-  reconcileActiveChatParticipation(): void;
-  reconcileActiveDetailParticipation(): void;
-  reloadParticipation(epoch: number, identity: string | null): Promise<boolean>;
-  replaceMySessions(sessions: unknown): void;
-  resumePendingIntent(): Promise<boolean>;
+  publish: () => void;
+  reconcileActiveChatParticipation: () => void;
+  reconcileActiveDetailParticipation: () => void;
+  reloadParticipation: (epoch: number, identity: string | null) => Promise<boolean>;
+  replaceMySessions: (sessions: unknown) => void;
+  resumePendingIntent: () => Promise<boolean>;
   store: Store<SessionControllerState, ControllerEventName>;
   surfaceRegistry: SurfaceRegistry;
-  transitionSurfaces(name: string, options?: SurfaceCloseOptions): void;
+  transitionSurfaces: (name: string, options?: SurfaceCloseOptions) => void;
 }
 
 interface IdentityDecision extends AuthIdentityChange {
