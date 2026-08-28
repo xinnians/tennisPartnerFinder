@@ -29,9 +29,9 @@ interface ReportTarget {
 interface ChatControllerDependencies {
   api: ChatDataApi;
   chatPollIntervalMs: number;
-  isCurrentAuthSnapshot(snapshot: ControllerAuthSnapshot): boolean;
-  notifyMySessions(): void;
-  openChat(
+  isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot) => boolean;
+  notifyMySessions: () => void;
+  openChat: (
     session: MySessionSummary,
     handlers: {
       canWithdraw: boolean;
@@ -42,20 +42,20 @@ interface ChatControllerDependencies {
       onReport(messageId: ControllerIdentifier): unknown;
       onWithdraw(): unknown;
     }
-  ): ControllerSurfaceHandle | null | undefined;
-  openReportForTarget(target: ReportTarget): unknown;
-  readCourts(): unknown[];
-  refreshMyPlayerBlocks(snapshot: ControllerAuthSnapshot): Promise<boolean>;
-  refreshMySessions(): Promise<boolean>;
-  requireMySessionAction(
+  ) => ControllerSurfaceHandle | null | undefined;
+  openReportForTarget: (target: ReportTarget) => unknown;
+  readCourts: () => unknown[];
+  refreshMyPlayerBlocks: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
+  refreshMySessions: () => Promise<boolean>;
+  requireMySessionAction: (
     sessionId: ControllerIdentifier,
     predicate: (session: MySessionSummary | null | undefined) => boolean
-  ): { authSnapshot: ControllerAuthSnapshot; session: MySessionSummary };
+  ) => { authSnapshot: ControllerAuthSnapshot; session: MySessionSummary };
   surfaceRegistry: SurfaceRegistry;
-  toast(message: string): void;
-  transitionSurfaces(name: string): void;
+  toast: (message: string) => void;
+  transitionSurfaces: (name: string) => void;
   visibilityTarget: Document | undefined;
-  withdrawMySession(sessionId: ControllerIdentifier): unknown;
+  withdrawMySession: (sessionId: ControllerIdentifier) => unknown;
 }
 
 function actionCode(error: unknown): unknown {

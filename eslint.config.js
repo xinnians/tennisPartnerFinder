@@ -99,6 +99,7 @@ export default tseslint.config(
   {
     files: [
       "src/controller/authController.ts",
+      "src/controller/chatController.ts",
       "src/controller/discoveryMapController.ts",
       "src/controller/mySessionsController.ts",
       "src/controller/playerDirectoryController.ts",

@@ -5,10 +5,10 @@
     "src/**/*.{ts,tsx}",
     "vite.config.ts"
   ],
-  "findingsChecksum": "sha256:000d8adbbb9c763877ea00de58505a65ca4ab65b92aecb11323036a9f85dba33",
+  "findingsChecksum": "sha256:b228e332427d80400e14c398f5036795919d6a7a0c96786b00a530e4522ab55e",
   "summary": {
-    "totalFindings": 209,
-    "fileCount": 23,
+    "totalFindings": 198,
+    "fileCount": 22,
     "sessionControllerFindings": 63,
     "duplicateStableIdCount": 0,
     "unresolvedDeclarationCount": 0,
@@ -18,19 +18,19 @@
   "messageIdStatistics": [
     {
       "name": "unboundWithoutThisAnnotation",
-      "count": 209
+      "count": 198
     }
   ],
   "thisUsageStatistics": [
     {
       "name": "ambient-no-body",
-      "count": 209
+      "count": 198
     }
   ],
   "proposedFixClassStatistics": [
     {
       "name": "function-property-contract",
-      "count": 209
+      "count": 198
     }
   ],
   "familyStatistics": [
@@ -56,11 +56,11 @@
     },
     {
       "family": "controller-callback-port",
-      "count": 44,
+      "count": 33,
       "proposedFixClasses": [
         {
           "name": "function-property-contract",
-          "count": 44
+          "count": 33
         }
       ]
     },
@@ -658,270 +658,6 @@
       "family": "react-callback-contract",
       "proposedFixClass": "function-property-contract",
       "tests": [],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "e700dadac9062df874386df1a1eb2bc7",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 81,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[11]",
-      "expressionFingerprint": "toast",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "d79fd5ad5211ca65be7b00a4daf62f24",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 82,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[12]",
-      "expressionFingerprint": "transitionSurfaces",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "0bb560eeae89cf52c331fd23d606f51e",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 84,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[14]",
-      "expressionFingerprint": "withdrawMySession",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "700002637db483e5d5cab91d567aca64",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 72,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[2]",
-      "expressionFingerprint": "isCurrentAuthSnapshot",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "63a82b1a032be827ea0f3f1083178ddf",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 73,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[3]",
-      "expressionFingerprint": "notifyMySessions",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "7e9f1007fe33058f35738036d82c1ab1",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 74,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[4]",
-      "expressionFingerprint": "openChat",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "da1560bb7600a9b8512921a4b4bdf283",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 75,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[5]",
-      "expressionFingerprint": "openReportForTarget",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "abb1fa02f2d369e6837b907aa1c225ba",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 76,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[6]",
-      "expressionFingerprint": "readCourts",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "c4c01719deed2482bbcb76288ff49073",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 77,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[7]",
-      "expressionFingerprint": "refreshMyPlayerBlocks",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "ee4c9bb35d8cfedb6ae4805024af2323",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 78,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[8]",
-      "expressionFingerprint": "refreshMySessions",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "99a96b72c6cd05925bb962d0e5599f74",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/chatController.ts",
-      "line": 79,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[1]/Block[0]/FirstStatement[0]/VariableDeclarationList[0]/VariableDeclaration[0]/ObjectBindingPattern[0]/BindingElement[9]",
-      "expressionFingerprint": "requireMySessionAction",
-      "owner": "factory:createChatController",
-      "receiverType": "ChatControllerDependencies",
-      "declarationPath": "src/controller/chatController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "destructure",
-      "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
       "reviewStatus": "machine-classified"
     },
     {

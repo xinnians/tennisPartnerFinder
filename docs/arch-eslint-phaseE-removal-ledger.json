@@ -222,6 +222,72 @@
       "path": "src/controller/playerDirectoryController.ts",
       "batch": "E-7",
       "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e700dadac9062df874386df1a1eb2bc7",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "d79fd5ad5211ca65be7b00a4daf62f24",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "0bb560eeae89cf52c331fd23d606f51e",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "700002637db483e5d5cab91d567aca64",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "63a82b1a032be827ea0f3f1083178ddf",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7e9f1007fe33058f35738036d82c1ab1",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "da1560bb7600a9b8512921a4b4bdf283",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "abb1fa02f2d369e6837b907aa1c225ba",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "c4c01719deed2482bbcb76288ff49073",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ee4c9bb35d8cfedb6ae4805024af2323",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "99a96b72c6cd05925bb962d0e5599f74",
+      "path": "src/controller/chatController.ts",
+      "batch": "E-8",
+      "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
     }
   ]
 }
