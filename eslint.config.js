@@ -98,6 +98,8 @@ export default tseslint.config(
   // 全庫清零後移除本區塊與全域 off。
   {
     files: [
+      "src/app/App.tsx",
+      "src/app/AppServicesProvider.tsx",
       "src/controller/authController.ts",
       "src/controller/chatController.ts",
       "src/controller/discoveryMapController.ts",
@@ -106,6 +108,9 @@ export default tseslint.config(
       "src/controller/mySessionsController.ts",
       "src/controller/playerDirectoryController.ts",
       "src/map.ts",
+      "src/pages/MePage.tsx",
+      "src/pages/MySessionsPage.tsx",
+      "src/pages/NearbySessionsDrawer.tsx",
       "src/sessionController.ts",
     ],
     rules: {

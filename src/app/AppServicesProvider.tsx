@@ -16,27 +16,27 @@ import { useStoreSelector } from "../sessionStore.ts";
 type MessagesServices = Pick<ControllerApi, "openSessionChat" | "sessionStore">;
 
 export interface MySessionsAppActions {
-  onBack(): unknown;
-  onCreatedSessionFocus(sessionId?: ControllerIdentifier): boolean;
-  onEnablePush(): unknown;
-  onSignIn(): unknown;
+  onBack: () => unknown;
+  onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => boolean;
+  onEnablePush: () => unknown;
+  onSignIn: () => unknown;
 }
 
 export interface NearbyDrawerAppActions {
-  onSubscribe(): unknown;
+  onSubscribe: () => unknown;
 }
 
 export interface MeAppActions {
   lineProviderId: string;
-  onEditProfile(): unknown;
-  onEnablePush(): unknown;
-  onLinkProvider(provider: string): unknown;
-  onSaveCourtSubscriptions(courtIds: number[]): unknown;
-  onSaveNotificationPreferences(preferences: import("../domainTypes.ts").NotificationPreferences): unknown;
-  onSetOpenToGreeting(enabled: boolean): unknown;
-  onSetPresenceSharing(enabled: boolean): unknown;
-  onSignIn(): unknown;
-  onSignOut(): unknown;
+  onEditProfile: () => unknown;
+  onEnablePush: () => unknown;
+  onLinkProvider: (provider: string) => unknown;
+  onSaveCourtSubscriptions: (courtIds: number[]) => unknown;
+  onSaveNotificationPreferences: (preferences: import("../domainTypes.ts").NotificationPreferences) => unknown;
+  onSetOpenToGreeting: (enabled: boolean) => unknown;
+  onSetPresenceSharing: (enabled: boolean) => unknown;
+  onSignIn: () => unknown;
+  onSignOut: () => unknown;
   supportHref: string;
 }
 
@@ -131,7 +131,7 @@ export interface MySessionsActions {
   onMarkPlayed: MySessionsServices["markMySessionPlayed"];
   onOpenChat: MySessionsServices["openSessionChat"];
   onOpenSession: MySessionsServices["openSession"];
-  onRefresh(): ReturnType<ControllerApi["refreshMySessions"]>;
+  onRefresh: () => ReturnType<ControllerApi["refreshMySessions"]>;
   onReportParticipant: MySessionsServices["openRosterParticipantReport"];
   onReportSession: MySessionsServices["openSessionReport"];
   onWithdraw: MySessionsServices["withdrawMySession"];

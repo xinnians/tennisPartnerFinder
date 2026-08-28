@@ -119,11 +119,12 @@ header（現值）。每批 ACCEPTED 時回填本表。
 | E-8 | chat 11（首個 body-destructure 批） | ACCEPTED | `f63b688` | `eslintE8-chat-port-acceptance-2026-08-28.md` |
 | E-9~E-11 | lifecycle ports 11＋intent 22＋extraction 2（首個三 stage 聯合批）——**controller-callback-port 79/79 全清** | ACCEPTED | 見本批 commit | `eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md` |
 | FR-A/B/C | factory results 63,分組 **23/25/15**（mySessions15＋playerDir8／discoveryMap13＋intent12／lifecycle11＋auth3＋chat1;FR-C 上線 sessionController selector）——**factory-result family 全清**;唯一偏差=discoveryMap `:135` nullable annotation（user 核可,erased 全等） | ACCEPTED | 見本批 commit | `eslintFR-factory-results-acceptance-2026-08-28.md` |
-| 後續 | React contracts 79（app 22／sheets 42／pages 15）→ method-ref 1＋surface-lifecycle 19＋injected-repo 1 → 收攏批 | 未派 | — | — |
+| R1-A/B | React app 22＋pages 15（37 筆;pages 三檔零 diff 自證;selector 上線 5 檔;零 variance 偏差） | ACCEPTED | 見本批 commit | `eslintR1-app-pages-acceptance-2026-08-28.md` |
+| 後續 | R2 三 stage（sheet contracts 42→surface-lifecycle 19→零星 2;切法見 R1 驗收紀錄）→ 收攏批 | 未派 | — | — |
 
-量化現況（FR 後）：`unbound-method` **100 findings／19 檔**（baseline
-246−ledger 146）；scoped 上線 9 檔（七個 controller 檔＋map＋
-sessionController）；
+量化現況（R1 後）：`unbound-method` **63 findings／14 檔**（baseline
+246−ledger 183）；scoped 上線 14 檔（七個 controller 檔＋map＋
+sessionController＋app 兩檔＋pages 三檔）；
 另 databaseTypes ledger 2（§5 方案一）。全庫清零後收攏：移除全域 off
 ＋scoped 區塊，裁決 generator/manifest 轉常規 gate 或退役。
 

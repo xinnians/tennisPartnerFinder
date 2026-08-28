@@ -273,12 +273,12 @@ type ControllerSurfaceResult = ControllerSurfaceHandle | null | undefined | void
 /** `createSessionController()` return object 的公開方法，名稱與同步／非同步邊界照現況。 */
 export interface ControllerApi {
   attachMap(map: unknown): void;
-  cancelMySession(sessionId: ControllerIdentifier): Promise<unknown>;
+  cancelMySession: (sessionId: ControllerIdentifier) => Promise<unknown>;
   capturePendingIntentVersion(): number;
   clearPendingIntent(): boolean;
   clearPendingIntentIfUnchanged(version: number): boolean;
-  confirmMySessionAttendance(sessionId: ControllerIdentifier): Promise<unknown>;
-  expandBounds(): ControllerDiscoveryResult | void;
+  confirmMySessionAttendance: (sessionId: ControllerIdentifier) => Promise<unknown>;
+  expandBounds: () => ControllerDiscoveryResult | void;
   getAppState(): ControllerAppState;
   getMySessionGroups(): ControllerMySessionGroups;
   getMySessions(): MySessionSummary[];
@@ -286,28 +286,28 @@ export interface ControllerApi {
   getPlayerLayerState(): ControllerPlayerLayerViewState;
   getVisibleSessions(): SessionSummary[];
   loadDiscovery(bounds?: MapBounds | null): ControllerDiscoveryResult;
-  markMySessionPlayed(sessionId: ControllerIdentifier): Promise<unknown>;
+  markMySessionPlayed: (sessionId: ControllerIdentifier) => Promise<unknown>;
   openCourt(court: DataCourt, onlySessions?: SessionSummary[] | null): void;
-  openCreateIntent(): void;
+  openCreateIntent: () => void;
   openPlayerCourt(court: DataCourt, onlyPlayers?: ControllerPlayer[] | null): ControllerSurfaceResult;
   openPlayerDirectory(): Promise<boolean> | void;
-  openRosterParticipantReport(
+  openRosterParticipantReport: (
     sessionId: ControllerIdentifier,
     profileId: ControllerIdentifier
-  ): ControllerSurfaceResult;
-  openSession(sessionId: ControllerIdentifier): ControllerSurfaceResult;
-  openSessionChat(sessionId: ControllerIdentifier): ControllerSurfaceResult;
-  openSessionDecision(sessionId: ControllerIdentifier): Promise<ControllerSurfaceResult>;
-  openSessionEdit(sessionId: ControllerIdentifier): ControllerSurfaceResult;
+  ) => ControllerSurfaceResult;
+  openSession: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
+  openSessionChat: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
+  openSessionDecision: (sessionId: ControllerIdentifier) => Promise<ControllerSurfaceResult>;
+  openSessionEdit: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
   openSessionFromLink(sessionId: ControllerIdentifier): Promise<ControllerOpenSessionResult>;
-  openSessionReport(sessionId: ControllerIdentifier): ControllerSurfaceResult;
+  openSessionReport: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
   refreshMyPlayerBlocks(): Promise<boolean>;
   refreshMySessions(): Promise<boolean>;
   requestCurrentLocation(): void;
-  resetFilters(): void;
+  resetFilters: () => void;
   respondInvite(sessionId: ControllerIdentifier, decision: "accepted" | "declined"): Promise<unknown>;
   resumePendingIntent(): Promise<boolean>;
-  retryDiscovery(): ControllerDiscoveryResult;
+  retryDiscovery: () => ControllerDiscoveryResult;
   reviewMySessionParticipant(
     sessionId: ControllerIdentifier,
     participantId: ControllerIdentifier,
@@ -316,13 +316,13 @@ export interface ControllerApi {
   setAuthState(session: ControllerAuthSession | null, profile?: ControllerProfileEligibility | null): Promise<void>;
   setAuthSession(session: ControllerAuthSession | null): void;
   setCourts(courts: DataCourt[], options?: { ready?: boolean }): void;
-  setDrawerState(value: ControllerDrawerState): void;
+  setDrawerState: (value: ControllerDrawerState) => void;
   setFilter<Key extends keyof ControllerFilters>(key: Key, value: ControllerFilters[Key]): void;
   setMapUnavailable(): void;
   setProfile(profile: Partial<Profile> | null): void;
   sessionStore: Store<SessionControllerState, ControllerEventName>;
   togglePlayerLayer(): Promise<boolean> | void;
-  togglePlayerVisibility(): Promise<void> | void;
-  unblockPlayer(profileId: ControllerIdentifier): Promise<true>;
-  withdrawMySession(sessionId: ControllerIdentifier): ControllerSurfaceResult;
+  togglePlayerVisibility: () => Promise<void> | void;
+  unblockPlayer: (profileId: ControllerIdentifier) => Promise<true>;
+  withdrawMySession: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
 }

@@ -37,15 +37,15 @@ interface FilterSnapshot {
 }
 
 interface FilterToolbarHandlers {
-  onOpenFilter(): void;
+  onOpenFilter: () => void;
   onSetFilter(field: "band" | "dateKey" | "instantOnly", value: boolean | string | null): void;
 }
 
 interface LoginModalOptions {
   action?: string;
   lineProviderId?: string;
-  onClose(): void;
-  onProvider?(provider: string): unknown;
+  onClose: () => void;
+  onProvider?: (provider: string) => unknown;
 }
 
 interface AppProps {
