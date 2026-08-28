@@ -288,6 +288,216 @@
       "path": "src/controller/chatController.ts",
       "batch": "E-8",
       "acceptanceDoc": "docs/arch-reports/eslintE8-chat-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4500e4510b7a7d554218f8eedbd80850",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "8fe7fe129236a63dbd4b6396d64095e5",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "9ef772e2211454c055d7dfb76970d334",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7f9eafaf86f052e1ea15e32b5e395eb1",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "d9244d7a6c863395e13063a98c0006a1",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f70ddcdff97a9c195874e28a5caffb70",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "65091efc930269d3532efef4dd2c1ee8",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2fd1b37c0f88d35da7e88cbe478f783c",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "987535f9fa42320940cfbad9cf7df3af",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "d8c2f57104bc8e4f92a22ce394cb2273",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3388ea60fb76122bbe9aff704854a09c",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-9",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "68bcd45f1b8e292a01d2f84abdd70dfd",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b06b01d28df408f45ac0ea8d971ba600",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "30b027aa7733f7874e59e89a8d788e37",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "07150d83c1fe92aa4dec1d8cfa8330ce",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "89342c0a3f1aba92fa9e80b3bdb3c5f3",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3e3a3b206c2d1ec8eddc5c96c3961773",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "066583902dbea6b6fde181d82519c0c0",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "156f8c70ce523cc2a226cb7584d56694",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "d5945f03c02fcea2096b28a92e8375dc",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "0bbe3ff81b107341aaa0d90711f85e3b",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2e8dcfe212bbfb4ca691efd0b7adebb9",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2b63304478171c40b719ae12ab2eff56",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "d41ddf19c5fb8d1ff4fe72867238998a",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "61a99f774bb9f06677e1e1382a097054",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "32a61647bb76353596f6563b982a801d",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b9e9cf08367840cec2ff89cc875f02fc",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "c0964e8de068514795efbdb20941a4d2",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "879f40b82f4b20752b2511df708bf6f1",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "36eaa31dd823cc56eaf83ad6321f8483",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4691d544841fbd7af7e4c3568c0881d7",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b4065b3b6f1ac3e9a0ec77e4be8e9f4e",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "487726c7ea17870ba5b74809a2915ceb",
+      "path": "src/controller/intentController.ts",
+      "batch": "E-10",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "935b4a871e023b6e95762ff458fe80a2",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-11",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a3efe94c1bb08d148764c4f2c3783ce7",
+      "path": "src/controller/lifecycleActionsController.ts",
+      "batch": "E-11",
+      "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
     }
   ]
 }

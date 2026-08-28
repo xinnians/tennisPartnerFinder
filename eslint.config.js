@@ -101,6 +101,8 @@ export default tseslint.config(
       "src/controller/authController.ts",
       "src/controller/chatController.ts",
       "src/controller/discoveryMapController.ts",
+      "src/controller/intentController.ts",
+      "src/controller/lifecycleActionsController.ts",
       "src/controller/mySessionsController.ts",
       "src/controller/playerDirectoryController.ts",
       "src/map.ts",

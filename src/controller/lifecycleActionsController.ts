@@ -23,7 +23,7 @@ interface MutationResult {
 type SurfaceResult = ControllerSurfaceHandle | null | undefined | void;
 
 interface LifecycleDataApi {
-  acceptSessionParticipant?(sessionId: ControllerIdentifier, participantId: ControllerIdentifier): Promise<unknown>;
+  acceptSessionParticipant?: (sessionId: ControllerIdentifier, participantId: ControllerIdentifier) => Promise<unknown>;
   cancelSession?(sessionId: ControllerIdentifier): Promise<unknown>;
   confirmSessionAttendance?(sessionId: ControllerIdentifier): Promise<unknown>;
   decideSessionCourt?(
@@ -31,7 +31,10 @@ interface LifecycleDataApi {
     courtId: ControllerIdentifier,
     startAt: unknown
   ): Promise<unknown>;
-  declineSessionParticipant?(sessionId: ControllerIdentifier, participantId: ControllerIdentifier): Promise<unknown>;
+  declineSessionParticipant?: (
+    sessionId: ControllerIdentifier,
+    participantId: ControllerIdentifier
+  ) => Promise<unknown>;
   loadSessionSummary?(sessionId: ControllerIdentifier): Promise<unknown>;
   markSessionPlayed?(sessionId: ControllerIdentifier): Promise<unknown>;
   respondToSessionInvite?(sessionId: ControllerIdentifier, decision: string): Promise<unknown>;
@@ -55,26 +58,26 @@ interface EditHandlers {
 
 interface LifecycleActionsDependencies {
   api: LifecycleDataApi;
-  beginLifecycleAction(
+  beginLifecycleAction: (
     kind: string,
     sessionId: ControllerIdentifier,
     authSnapshot: ControllerAuthSnapshot
-  ): LifecycleActionToken | null;
-  captureAuthSnapshot(): ControllerAuthSnapshot;
-  finishLifecycleAction(token: LifecycleActionToken | null | undefined): void;
-  isCurrentAuthSnapshot(snapshot: ControllerAuthSnapshot): boolean;
-  openDecideSession(
+  ) => LifecycleActionToken | null;
+  captureAuthSnapshot: () => ControllerAuthSnapshot;
+  finishLifecycleAction: (token: LifecycleActionToken | null | undefined) => void;
+  isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot) => boolean;
+  openDecideSession: (
     session: SessionSummary | null,
     handlers: DecideHandlers
-  ): ControllerSurfaceHandle | null | undefined;
-  openEditSession(session: MySessionSummary, handlers: EditHandlers): ControllerSurfaceHandle | null | undefined;
-  openWithdrawConfirmation(handlers: { onConfirm(): unknown }): unknown;
-  refreshAuthoritativeState(snapshot: ControllerAuthSnapshot): Promise<boolean>;
-  sessionKey(sessionId: ControllerIdentifier): string;
+  ) => ControllerSurfaceHandle | null | undefined;
+  openEditSession: (session: MySessionSummary, handlers: EditHandlers) => ControllerSurfaceHandle | null | undefined;
+  openWithdrawConfirmation: (handlers: { onConfirm(): unknown }) => unknown;
+  refreshAuthoritativeState: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
+  sessionKey: (sessionId: ControllerIdentifier) => string;
   store: Store<SessionControllerState, ControllerEventName>;
   surfaceRegistry: SurfaceRegistry;
-  toast(message: string): void;
-  transitionSurfaces(name: string): void;
+  toast: (message: string) => void;
+  transitionSurfaces: (name: string) => void;
 }
 
 export interface LifecycleActionsController {

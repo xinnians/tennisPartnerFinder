@@ -45,49 +45,49 @@ interface MutationResult extends Record<string, unknown> {
 }
 
 interface IntentControllerDependencies {
-  actionFor(session: SessionSummary): ControllerSessionAction;
+  actionFor: (session: SessionSummary) => ControllerSessionAction;
   api: IntentDataApi;
-  beginLifecycleAction(
+  beginLifecycleAction: (
     kind: string,
     sessionId: ControllerIdentifier,
     snapshot: ControllerAuthSnapshot
-  ): LifecycleActionToken | null;
-  captureAuthSnapshot(): ControllerAuthSnapshot;
-  clearPlayerLayer(options?: { closeReason?: string }): void;
-  commitPlayerVisibility(): Promise<void>;
-  currentParticipation(sessionId: ControllerIdentifier): MySessionSummary | null;
-  finishLifecycleAction(token: LifecycleActionToken | null | undefined): void;
+  ) => LifecycleActionToken | null;
+  captureAuthSnapshot: () => ControllerAuthSnapshot;
+  clearPlayerLayer: (options?: { closeReason?: string }) => void;
+  commitPlayerVisibility: () => Promise<void>;
+  currentParticipation: (sessionId: ControllerIdentifier) => MySessionSummary | null;
+  finishLifecycleAction: (token: LifecycleActionToken | null | undefined) => void;
   intentStore: IntentStore;
-  isCurrentAuthSnapshot(snapshot: ControllerAuthSnapshot | null | undefined): boolean;
-  lifecycleActionIsInFlight(sessionId: ControllerIdentifier): boolean;
-  loadDiscovery(): Promise<boolean | void>;
-  loadPlayerDirectoryList(): Promise<boolean>;
-  loadPlayers(): Promise<boolean>;
+  isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot | null | undefined) => boolean;
+  lifecycleActionIsInFlight: (sessionId: ControllerIdentifier) => boolean;
+  loadDiscovery: () => Promise<boolean | void>;
+  loadPlayerDirectoryList: () => Promise<boolean>;
+  loadPlayers: () => Promise<boolean>;
   locationGate: ControllerRequestGate;
-  openCreateSession(handlers: {
+  openCreateSession: (handlers: {
     courts: unknown[];
     courtsReady: boolean;
     onClose(options?: { reason?: string }): void;
     onSubmit(input: unknown): Promise<unknown>;
     onViewMySessions(sessionId: ControllerIdentifier): void;
-  }): ControllerSurfaceHandle | null | undefined;
-  openLogin(handlers: { action: string; onClose(options?: { reason?: string }): void }): unknown;
-  openSessionChat(sessionId: ControllerIdentifier): unknown;
-  openSessionDetail(session: SessionSummary, options?: { initialStage?: string }): unknown;
-  profilePrompt(context: {
+  }) => ControllerSurfaceHandle | null | undefined;
+  openLogin: (handlers: { action: string; onClose(options?: { reason?: string }): void }) => unknown;
+  openSessionChat: (sessionId: ControllerIdentifier) => unknown;
+  openSessionDetail: (session: SessionSummary, options?: { initialStage?: string }) => unknown;
+  profilePrompt: (context: {
     courts: unknown[];
     courtsReady: boolean;
     intent: ControllerPendingIntent;
     onClose(options?: { reason?: string; saved?: boolean }): void;
     returnSession: SessionSummary | null;
-  }): ControllerSurfaceHandle | null | undefined;
-  publish(): void;
-  refreshLocationViewport(location: { lat: number; lng: number }): Promise<boolean | void> | void;
-  reloadParticipation(epoch: number, identity: string | null): Promise<boolean>;
-  showCreatedSession(sessionId: ControllerIdentifier): void;
+  }) => ControllerSurfaceHandle | null | undefined;
+  publish: () => void;
+  refreshLocationViewport: (location: { lat: number; lng: number }) => Promise<boolean | void> | void;
+  reloadParticipation: (epoch: number, identity: string | null) => Promise<boolean>;
+  showCreatedSession: (sessionId: ControllerIdentifier) => void;
   store: Store<SessionControllerState, ControllerEventName>;
   surfaceRegistry: SurfaceRegistry;
-  toast(message: string): void;
+  toast: (message: string) => void;
 }
 
 export interface IntentController {

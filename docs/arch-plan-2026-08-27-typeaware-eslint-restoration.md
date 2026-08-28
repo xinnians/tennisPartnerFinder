@@ -116,12 +116,13 @@ header（現值）。每批 ACCEPTED 時回填本表。
 | E-5 | discoveryMap ports 6 | ACCEPTED | `1cbe80e` | `eslintE5-discoverymap-port-acceptance-2026-08-28.md` |
 | E-6 | auth ports 12 | ACCEPTED | `8007e3e` | `eslintE6-auth-port-acceptance-2026-08-28.md` |
 | E-7 | playerDirectory 13（首個多行簽名批） | ACCEPTED | `a795d10` | `eslintE7-playerdirectory-port-acceptance-2026-08-28.md` |
-| E-8 | chat 11（首個 body-destructure 批） | ACCEPTED | 見本批 commit | `eslintE8-chat-port-acceptance-2026-08-28.md` |
-| E-9 起 | lifecycle ports 11（不加 selector，要件見 E-8 驗收紀錄）→ intent 22 → lifecycle extraction 2 → factory results 63（sessionController，family/owner 切小批，最後一批才上線）→ React contracts 79（app 22／sheets 42／pages 15）→ method-ref 1＋surface-lifecycle 19 | 未派 | — | — |
+| E-8 | chat 11（首個 body-destructure 批） | ACCEPTED | `f63b688` | `eslintE8-chat-port-acceptance-2026-08-28.md` |
+| E-9~E-11 | lifecycle ports 11＋intent 22＋extraction 2（首個三 stage 聯合批）——**controller-callback-port 79/79 全清** | ACCEPTED | 見本批 commit | `eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md` |
+| FR-A/B/C | factory results 63,分組 **23/25/15**（mySessions15＋playerDir8／discoveryMap13＋intent12／lifecycle11＋auth3＋chat1;FR-C 才上線 sessionController selector;分組裁決見 E-9~E-11 驗收紀錄） | 未派 | — | — |
+| 後續 | React contracts 79（app 22／sheets 42／pages 15）→ method-ref 1＋surface-lifecycle 19＋injected-repo 1 → 收攏批 | 未派 | — | — |
 
-量化現況（E-8 後）：`unbound-method` **198 findings／22 檔**（baseline
-246−ledger 48）；scoped 上線 6 檔（map／mySessions／discoveryMap／auth
-／playerDirectory／chat）；
+量化現況（E-11 後）：`unbound-method` **163 findings／20 檔**（baseline
+246−ledger 83）；scoped 上線 8 檔（七個 controller 檔＋map）；
 另 databaseTypes ledger 2（§5 方案一）。全庫清零後收攏：移除全域 off
 ＋scoped 區塊，裁決 generator/manifest 轉常規 gate 或退役。
 
