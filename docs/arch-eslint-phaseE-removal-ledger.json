@@ -144,6 +144,84 @@
       "path": "src/controller/authController.ts",
       "batch": "E-6",
       "acceptanceDoc": "docs/arch-reports/eslintE6-auth-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "eb04e759cc4cf6e905697e4b6ce2ee06",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3b8caa77050a0787e319652907aa7265",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "c4409683140c0deed10a011b2ee14522",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "77882e87081d797558371271c5b99245",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ddfc3fbebe89c821c0c1cb923020802c",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5db1cfcb66828b1ad35770cde90c1ac4",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "614e224d354fee168352fc27e6aae982",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5df8df592522cc83b0e9a9261dcd9e03",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f5e840372c0aee2407cb0e1a37a9d900",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e059c6c214384b533ee05809a3aad86f",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "cb489a441fd27ff9e499282e5c5d7395",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "73aef827bbad053d1251acb3d85dd9f8",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "0d0ccf3e15796e9eb1c985902254ae69",
+      "path": "src/controller/playerDirectoryController.ts",
+      "batch": "E-7",
+      "acceptanceDoc": "docs/arch-reports/eslintE7-playerdirectory-port-acceptance-2026-08-28.md"
     }
   ]
 }

@@ -43,20 +43,20 @@ interface MutationResult {
 
 interface PlayerDirectoryControllerDependencies {
   api: PlayerDataApi;
-  captureAuthSnapshot(): ControllerAuthSnapshot;
-  isCurrentAuthSnapshot(snapshot: ControllerAuthSnapshot): boolean;
-  openCourtDrawer(
+  captureAuthSnapshot: () => ControllerAuthSnapshot;
+  isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot) => boolean;
+  openCourtDrawer: (
     court: DataCourt,
     sessions: SessionSummary[],
     handlers: { courts: DataCourt[]; onOpenSession(sessionId: ControllerIdentifier): unknown }
-  ): ControllerSurfaceHandle | null | undefined;
-  openCourtPlayersDrawer(
+  ) => ControllerSurfaceHandle | null | undefined;
+  openCourtPlayersDrawer: (
     court: DataCourt,
     players: ControllerPlayer[],
     handlers: { onClose(): void; onOpenPlayer(player: ControllerPlayer): unknown }
-  ): ControllerSurfaceHandle | null | undefined;
-  openCreateIntent(): void;
-  openPlayerCard(
+  ) => ControllerSurfaceHandle | null | undefined;
+  openCreateIntent: () => void;
+  openPlayerCard: (
     player: ControllerPlayer | PlayerDirectoryEntry,
     handlers: {
       courts: DataCourt[];
@@ -66,23 +66,23 @@ interface PlayerDirectoryControllerDependencies {
       onInvite(sessionId: ControllerIdentifier): Promise<unknown>;
       onSeeDirectory(): unknown;
     }
-  ): ControllerSurfaceHandle | null | undefined;
-  openPlayerDirectoryList(handlers: {
+  ) => ControllerSurfaceHandle | null | undefined;
+  openPlayerDirectoryList: (handlers: {
     onClose(): void;
     onOpenPlayer(player: PlayerDirectoryEntry): unknown;
     onRetry(): Promise<boolean>;
-  }): ControllerSurfaceHandle | null | undefined;
-  openSessionById(sessionId: ControllerIdentifier): unknown;
+  }) => ControllerSurfaceHandle | null | undefined;
+  openSessionById: (sessionId: ControllerIdentifier) => unknown;
   playerCardGate: CapturingRequestGate;
   playerDirectoryGate: ControllerRequestGate;
   playerGate: ControllerRequestGate;
-  publish(): void;
-  reloadParticipation(epoch: number, identity: string | null): Promise<boolean>;
-  requireSessionAction(intent: { action: "directory" }): Promise<boolean> | void;
+  publish: () => void;
+  reloadParticipation: (epoch: number, identity: string | null) => Promise<boolean>;
+  requireSessionAction: (intent: { action: "directory" }) => Promise<boolean> | void;
   store: Store<SessionControllerState, ControllerEventName>;
   surfaceRegistry: SurfaceRegistry;
-  transitionSurfaces(name: string, options?: SurfaceCloseOptions): void;
-  visibleSessions(): SessionSummary[];
+  transitionSurfaces: (name: string, options?: SurfaceCloseOptions) => void;
+  visibleSessions: () => SessionSummary[];
 }
 
 export interface PlayerDirectoryController {

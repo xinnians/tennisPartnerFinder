@@ -114,11 +114,13 @@ header（現值）。每批 ACCEPTED 時回填本表。
 | E-3 | ledger 機械化（常數退場、集合等式、scoped 正反 assert） | ACCEPTED | `e5ca551` | `eslintE3-manifest-ledger-acceptance-2026-08-28.md` |
 | E-4 | mySessions ports 4＋G1/G2 守門（首個紅簽章流程批） | ACCEPTED | `48dd6c6` | `eslintE4-mysessions-port-acceptance-2026-08-28.md` |
 | E-5 | discoveryMap ports 6 | ACCEPTED | `1cbe80e` | `eslintE5-discoverymap-port-acceptance-2026-08-28.md` |
-| E-6 | auth ports 12 | ACCEPTED | 見本批 commit | `eslintE6-auth-port-acceptance-2026-08-28.md` |
-| E-7 起 | playerDirectory 13（凍結清單見 E-6 驗收紀錄）→ chat 11 → lifecycle ports 11（不加 selector）→ intent 22 → lifecycle extraction 2 → factory results 63（sessionController，family/owner 切小批，最後一批才上線）→ React contracts 79（app 22／sheets 42／pages 15）→ method-ref 1＋surface-lifecycle 19 | 未派 | — | — |
+| E-6 | auth ports 12 | ACCEPTED | `8007e3e` | `eslintE6-auth-port-acceptance-2026-08-28.md` |
+| E-7 | playerDirectory 13（首個多行簽名批） | ACCEPTED | 見本批 commit | `eslintE7-playerdirectory-port-acceptance-2026-08-28.md` |
+| E-8 起 | chat 11（要件見 E-7 驗收紀錄）→ lifecycle ports 11（不加 selector）→ intent 22 → lifecycle extraction 2 → factory results 63（sessionController，family/owner 切小批，最後一批才上線）→ React contracts 79（app 22／sheets 42／pages 15）→ method-ref 1＋surface-lifecycle 19 | 未派 | — | — |
 
-量化現況（E-6 後）：`unbound-method` **222 findings／24 檔**（baseline
-246−ledger 24）；scoped 上線 4 檔（map／mySessions／discoveryMap／auth）；
+量化現況（E-7 後）：`unbound-method` **209 findings／23 檔**（baseline
+246−ledger 37）；scoped 上線 5 檔（map／mySessions／discoveryMap／auth
+／playerDirectory）；
 另 databaseTypes ledger 2（§5 方案一）。全庫清零後收攏：移除全域 off
 ＋scoped 區塊，裁決 generator/manifest 轉常規 gate 或退役。
 
