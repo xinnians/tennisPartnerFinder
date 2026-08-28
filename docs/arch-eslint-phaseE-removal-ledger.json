@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "acceptedRemovals": [
+    {
+      "stableId": "20cd603ceabcae4d0887599015c26831",
+      "path": "src/map.ts",
+      "batch": "E-2",
+      "acceptanceDoc": "docs/arch-reports/eslintE2-map-callback-default-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "761154dcdb4d5bda67d077b9bf89e588",
+      "path": "src/map.ts",
+      "batch": "E-2",
+      "acceptanceDoc": "docs/arch-reports/eslintE2-map-callback-default-acceptance-2026-08-28.md"
+    }
+  ]
+}

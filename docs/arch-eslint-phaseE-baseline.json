@@ -1,0 +1,992 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "77365a0",
+  "findingCount": 246,
+  "findings": [
+    {
+      "stableId": "381f65d1a81d4b4845ae3233b47dcfe5",
+      "path": "src/app/App.tsx"
+    },
+    {
+      "stableId": "5349689dfd59d35a8aad0a6430dde021",
+      "path": "src/app/App.tsx"
+    },
+    {
+      "stableId": "fd8f82b6b84462b5f7b3c3d61963ba02",
+      "path": "src/app/App.tsx"
+    },
+    {
+      "stableId": "33ef24902650ba00096e4bc80c7adf9c",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "c2a1c8893f98ecb729ad380754173b1a",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "d90e683950bc91f4cb4cb3e0033403a4",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "d380ccf9e34a183fcc4d6f4bd6cfa5d9",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "c35222a2d4b304e04e5b99e773d090c6",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "d205af51a91bb396f587d3b89139ecdb",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "9299c6dfd40087ebcf7acff6301402d8",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "e83a7e5701a9ae775a524a8e59e687bd",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "e73025caac78b52d815eef7ec90a8b64",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "f08f2b22f9283a98c90d6f95f2d112e4",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "5071641263a1039db509c67d40397c36",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "5d06050134b6106d437ee9c3eeb754fb",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "f22a24baa82d6f2e15fef8a69bacbd3f",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "8a996bd02857404c5093d2c71985145c",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "d64359cb4a452bfbfd7500da9b701f5f",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "205afa7fae0dbc120e781005bca6d5c9",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "828bd2a3516c07d4424506f14bc7fbee",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "61b34b0f50b069a6a772da178f476b8a",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "5ace336c098cb1ff87c845b48995a3da",
+      "path": "src/app/AppServicesProvider.tsx"
+    },
+    {
+      "stableId": "e3756c71329c99ecce0faf2cf1fb90f0",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "34da16e02753441592963c60f9c1f92f",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "9cf1a1bf5de918b6f012db21e9448272",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "a04a92d2dbfb309588618abf80bee8a9",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "5a005b71ad7f5043efe3fdab6f06cdfc",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "cd3b31d43e48fe667f04b54ff0e6830d",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "52c2ee79658beebfe1218e957221cc7c",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "509f4bf0b4e992c0bf2c222d8d37485e",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "862b5090ce883d3a2e69f05b4b9a6e13",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "eb8043a3396ced0e46fca111e5723768",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "4a2f858cb237f19e8fbc0154c8a09e44",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "5c3954bc5387ad8b7428bd54f70d4abd",
+      "path": "src/controller/authController.ts"
+    },
+    {
+      "stableId": "e700dadac9062df874386df1a1eb2bc7",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "d79fd5ad5211ca65be7b00a4daf62f24",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "0bb560eeae89cf52c331fd23d606f51e",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "700002637db483e5d5cab91d567aca64",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "63a82b1a032be827ea0f3f1083178ddf",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "7e9f1007fe33058f35738036d82c1ab1",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "da1560bb7600a9b8512921a4b4bdf283",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "abb1fa02f2d369e6837b907aa1c225ba",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "c4c01719deed2482bbcb76288ff49073",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "ee4c9bb35d8cfedb6ae4805024af2323",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "99a96b72c6cd05925bb962d0e5599f74",
+      "path": "src/controller/chatController.ts"
+    },
+    {
+      "stableId": "1ed8b19ddfae0cdc2ecf7234a2069d51",
+      "path": "src/controller/discoveryMapController.ts"
+    },
+    {
+      "stableId": "545214c04e96dec6589b97408d383638",
+      "path": "src/controller/discoveryMapController.ts"
+    },
+    {
+      "stableId": "1b8f9d6f4ff0613167cf9610203242ee",
+      "path": "src/controller/discoveryMapController.ts"
+    },
+    {
+      "stableId": "4ef06f27267ec8414004d40a450e2bcb",
+      "path": "src/controller/discoveryMapController.ts"
+    },
+    {
+      "stableId": "68f6f0bc444c826ad20bd5d2bb8a505c",
+      "path": "src/controller/discoveryMapController.ts"
+    },
+    {
+      "stableId": "34af30da673a2ea64bbfff5a73fb2e16",
+      "path": "src/controller/discoveryMapController.ts"
+    },
+    {
+      "stableId": "68bcd45f1b8e292a01d2f84abdd70dfd",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "b06b01d28df408f45ac0ea8d971ba600",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "30b027aa7733f7874e59e89a8d788e37",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "07150d83c1fe92aa4dec1d8cfa8330ce",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "89342c0a3f1aba92fa9e80b3bdb3c5f3",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "3e3a3b206c2d1ec8eddc5c96c3961773",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "066583902dbea6b6fde181d82519c0c0",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "156f8c70ce523cc2a226cb7584d56694",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "d5945f03c02fcea2096b28a92e8375dc",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "0bbe3ff81b107341aaa0d90711f85e3b",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "2e8dcfe212bbfb4ca691efd0b7adebb9",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "2b63304478171c40b719ae12ab2eff56",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "d41ddf19c5fb8d1ff4fe72867238998a",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "61a99f774bb9f06677e1e1382a097054",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "32a61647bb76353596f6563b982a801d",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "b9e9cf08367840cec2ff89cc875f02fc",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "c0964e8de068514795efbdb20941a4d2",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "879f40b82f4b20752b2511df708bf6f1",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "36eaa31dd823cc56eaf83ad6321f8483",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "4691d544841fbd7af7e4c3568c0881d7",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "b4065b3b6f1ac3e9a0ec77e4be8e9f4e",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "487726c7ea17870ba5b74809a2915ceb",
+      "path": "src/controller/intentController.ts"
+    },
+    {
+      "stableId": "935b4a871e023b6e95762ff458fe80a2",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "a3efe94c1bb08d148764c4f2c3783ce7",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "4500e4510b7a7d554218f8eedbd80850",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "8fe7fe129236a63dbd4b6396d64095e5",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "9ef772e2211454c055d7dfb76970d334",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "7f9eafaf86f052e1ea15e32b5e395eb1",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "d9244d7a6c863395e13063a98c0006a1",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "f70ddcdff97a9c195874e28a5caffb70",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "65091efc930269d3532efef4dd2c1ee8",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "2fd1b37c0f88d35da7e88cbe478f783c",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "987535f9fa42320940cfbad9cf7df3af",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "d8c2f57104bc8e4f92a22ce394cb2273",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "3388ea60fb76122bbe9aff704854a09c",
+      "path": "src/controller/lifecycleActionsController.ts"
+    },
+    {
+      "stableId": "ebf46214044c39a47782e9fbb01a152a",
+      "path": "src/controller/mySessionsController.ts"
+    },
+    {
+      "stableId": "1957d00e0e6a2cb919662ff63d65c0c4",
+      "path": "src/controller/mySessionsController.ts"
+    },
+    {
+      "stableId": "df2cdcfc865e2bfed69286f2c866996f",
+      "path": "src/controller/mySessionsController.ts"
+    },
+    {
+      "stableId": "bcb22c134f491515ce57c49fe82f1c8a",
+      "path": "src/controller/mySessionsController.ts"
+    },
+    {
+      "stableId": "eb04e759cc4cf6e905697e4b6ce2ee06",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "3b8caa77050a0787e319652907aa7265",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "c4409683140c0deed10a011b2ee14522",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "77882e87081d797558371271c5b99245",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "ddfc3fbebe89c821c0c1cb923020802c",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "5db1cfcb66828b1ad35770cde90c1ac4",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "614e224d354fee168352fc27e6aae982",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "5df8df592522cc83b0e9a9261dcd9e03",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "f5e840372c0aee2407cb0e1a37a9d900",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "e059c6c214384b533ee05809a3aad86f",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "cb489a441fd27ff9e499282e5c5d7395",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "73aef827bbad053d1251acb3d85dd9f8",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "0d0ccf3e15796e9eb1c985902254ae69",
+      "path": "src/controller/playerDirectoryController.ts"
+    },
+    {
+      "stableId": "7b8644385cfb62eaa602651f632ea263",
+      "path": "src/data/repositories/privateDataRepository.ts"
+    },
+    {
+      "stableId": "20cd603ceabcae4d0887599015c26831",
+      "path": "src/map.ts"
+    },
+    {
+      "stableId": "761154dcdb4d5bda67d077b9bf89e588",
+      "path": "src/map.ts"
+    },
+    {
+      "stableId": "aa2e2634b2efc4efa198597a19220c64",
+      "path": "src/mySessionsCreatedFocus.ts"
+    },
+    {
+      "stableId": "286c77305dc747dccbb3e3e1a714b343",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "4e722df82116ae3c5ab35fc0a249d965",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "d3b6de3899597abd8a0152d6c7f5f061",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "c47ad97e43f155115bcb52d2d57eb771",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "2d74f742ee21e82dfadf1b695f2d7bd2",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "e31fe2120b5ab5ba2dcdd1d69949d13e",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "ae16a9db4e90135d18277ebe6dee836d",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "6b4d7581c25b390b45df4b82b9a895d3",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "77a33127a2cbb48d538827ec73f92bac",
+      "path": "src/pages/MePage.tsx"
+    },
+    {
+      "stableId": "2f4826ee1fba4f3a48a79aa1d2107b83",
+      "path": "src/pages/MySessionsPage.tsx"
+    },
+    {
+      "stableId": "e8f980d7fafd716418e9aec84324f9b6",
+      "path": "src/pages/MySessionsPage.tsx"
+    },
+    {
+      "stableId": "6b71d4e31795c288d35d9b3a289665f7",
+      "path": "src/pages/MySessionsPage.tsx"
+    },
+    {
+      "stableId": "eb98876aa2376e3467a58b7332cf0d43",
+      "path": "src/pages/MySessionsPage.tsx"
+    },
+    {
+      "stableId": "eb2e4b44c6f5449994b952aba9ab22d6",
+      "path": "src/pages/MySessionsPage.tsx"
+    },
+    {
+      "stableId": "f34f540fee5d3b59a5cfcf6c88aee8c1",
+      "path": "src/pages/NearbySessionsDrawer.tsx"
+    },
+    {
+      "stableId": "7070bcce055e4ba65a309b97a384bf6f",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "94b2661fb673833217e2e18d3b1e1667",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "2cbb5ae4f0b951f92c6de5e02f7df9dd",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "67bd39025e4b8e9c09843e49ec9d8b27",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "a8679898090886881726da07732ad23e",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "03294447169dfc77adde9c176b8056cf",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "3d3765ccbf8c510ea389fcc82d190bb9",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "55316e76ad009dbe6f2c023cdb429320",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "625443911762ad6a826341b98bbb5db5",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "3929393dc05484279b4c34df61bfe553",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "a32aefa9cfac55e9c9e8c6f87fa168b1",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "bc68e315e2514106ed715e2d387b7cd7",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "0ee1045176e9d7410b69fdcfe7ae7af3",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "733e70efa2147480d273cb729c4be94d",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "199c7b6ee40d1b50dfce75e583e1b738",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "7ebdcb29b9a1ee15eb9bfe242e922275",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "f81c028cf652376abddd8b30060db6ba",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "5b17e82aca25514a7935291ae34eda39",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "a78b9b24613fb613430c329ecc7d73ef",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "e11912c61797d97c904fac8f6e31b998",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "48f122f6cdec472220528fb9845da03d",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "7d4d069b1610d7aa9ee6962ca962c23f",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "dd4bba1a2e4a353675464a4322d1d2c6",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "2d84d1e8194fdc8aa03ccc4a0be00486",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "cc65f8e626fc05693c25312c8e2d1405",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "f95313672e3c42ca1760c4a9998cce69",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "0e4f0d5bda56bd810391639117a043d5",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "952ab042953540ef553cceec161f35c2",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "7fd5382e5ac09e4bbef26951d4026bf2",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "e64d362dd89452c31532feec18e7c0b3",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "8537ce9ba5d471ba3b43cef7e20b11f2",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "e009a7bfe79896b97e3bd91ca7c8d2a8",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "a763b784d9100b0b97247f5da7a4de1a",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "145d7136c96f3d5e3eb3bc8cf15459d1",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "e55dc28bb6eaff545e54cba02e04359a",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "90e8bb9ab0a0abd38d82eb34090db9ec",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "dd0103e607dd5cd49375c7639f746a3a",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "714b2b19051727e37873a15f8abb8dad",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "989506111c1537962a46a3f804568857",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "4219d4acb206ec862872e8f309f031a9",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "f665c68113ae21ccf39074e857fa5e1d",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "596f20c2a4823d0e219eb83a954d08d2",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "45ba806804e38fb646d6bf70db44d0e7",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "953ac6451f3af4a29eedd6d02d0da8b6",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "4d0fd9670f2828589b676e81e324c9e7",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "810c642497c9030079d22a06bc2af603",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "e686d63f5493334dd7b0ff7b32d87fa2",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "fa6d600bf5bec18e07171eb623fc0526",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "10d5f36331028b3b71ba1179fc5bfa20",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "c55ce135c93b5ad36f59603cb9c6c2a7",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "49afb87b426f991563e208f1b3686c26",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "ca155a32fbf9f3a49b7f4a5cdff7b5cb",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "3b6254b035a420c8aa25f46b5e5d80e0",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "ffd87b1a218027f976aed427c3012fb7",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "a66a4a29f2b23f368274e5f1c28a4c55",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "80352f9fee870451473db7938f599c68",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "b99e4e96a5d7fb7f33cc503ef943f65a",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "95f665d10c120a5ce901ff466437ab51",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "29c29cf98cb343030ff9b7c042eee312",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "cbe8f0200281fdf0b14c8dd95b7cb553",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "75cd4020732a1733d8c57bde1aa0dea0",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "781cbd80fd64568ed8036d655435de14",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "b5443c26d5d8f44f05321a8a506272f8",
+      "path": "src/sessionController.ts"
+    },
+    {
+      "stableId": "de0fd8fa7e2a7ba061b2eeea15e7e72b",
+      "path": "src/sheets.ts"
+    },
+    {
+      "stableId": "200f349b4e570e4adccb340e0a90a7ab",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "04dc8a6870066a646fc7d8663242ba3d",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "8c97905c80d36502961d14fe027ba3f0",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "415a369b5ecd070f88439eddbe770523",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "525f937b582e25ebf9ddb814bf249fe6",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "8a5f0fb1159d9943c42d46e6e51bad08",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "c6b9d71f2dd8e59879fa5da596b2e184",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "beb997a1cddd47ad44b042f2c5b3c799",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "b87d1853e9e0c6830df72ad4c34ab59e",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "4c26b0b84a45fe139453a8f655742f3f",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "0688cf300c9d8f8a8232a04a24cc793b",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "5386d58d61fdc3c8d3f5bc54fa3979fa",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "1c74fb93107761f8617c669bac819d51",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "b0694650f6b31aa338206b71cb4e8d70",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "30cb2dcc70fe7111f5b47ec76e4852da",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "8d1b89c1171adab8bbac1aef20fd70db",
+      "path": "src/sheets/CreateSessionSheet.tsx"
+    },
+    {
+      "stableId": "9417a763aadfc8dd794466d6ff0d8bed",
+      "path": "src/sheets/DecideSessionSheet.tsx"
+    },
+    {
+      "stableId": "e090a8dd82915494b249493088e0c59b",
+      "path": "src/sheets/DecideSessionSheet.tsx"
+    },
+    {
+      "stableId": "29b762f3c86a81cd0e11b78a2ec62cae",
+      "path": "src/sheets/DecideSessionSheet.tsx"
+    },
+    {
+      "stableId": "b57d6b08f5c94ddc9e919df8e994b2b4",
+      "path": "src/sheets/DecideSessionSheet.tsx"
+    },
+    {
+      "stableId": "a97217995e823aa0732a2b37f7bc02c0",
+      "path": "src/sheets/EditSessionSheet.tsx"
+    },
+    {
+      "stableId": "1bde8e1cbc776c2214d96bb03757f2f8",
+      "path": "src/sheets/EditSessionSheet.tsx"
+    },
+    {
+      "stableId": "ca71e27948f5357f8837b8cb5af8eb25",
+      "path": "src/sheets/EditSessionSheet.tsx"
+    },
+    {
+      "stableId": "f9e731ac85772deebae3c5e23eb9333a",
+      "path": "src/sheets/EditSessionSheet.tsx"
+    },
+    {
+      "stableId": "caa8a657802a9333d743230740b18d4c",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "919c2f96dd705cc7ad2ed1c251078db8",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "2b1c0a44c7890d1ab70b4ce63dba1d8a",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "d52ac0426a66ee169f7593360ea016b8",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "dd852ee90a5157c825f343464e163b46",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "aa098d97b2bf305f789849582c890c64",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "41ad3e9ae7e36e6ca096427f653c801c",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "5ba9dda6de6fea747f471cdccbb65b04",
+      "path": "src/sheets/FilterSheet.tsx"
+    },
+    {
+      "stableId": "991e1e6df11e4d2292b4a9f30f0bcf80",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "315a888dcf5c517826561cac9aea4f64",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "87d756e883583ba01881ddedce659ad6",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "f24f03de7fea006e9a32cafac04575e3",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "3c8f4fe2fb6e763bee014f5dc3a34429",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "4bcbb6fc35fea0983a223270169867b1",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "7421436c0813ef95903247f7808805c7",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "a45c359d139cdea851f149f584368f3f",
+      "path": "src/sheets/PlayerCardSheet.tsx"
+    },
+    {
+      "stableId": "3408a866440355b4ab5d553313db8514",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "ba2ad29dc28898c425a60c55c2249280",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "44854b42f28388fa807a2717902949c4",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "c3ee8f7038864d384ae60a94bd482afc",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "91adaaf936310cbfc9bb0deab0cbcac8",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "07321bff177401d4adf795a7190977ef",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "f595848afc7c228e62a643f4ea664869",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "1b0289fa06ecbb8259e1fbe151f64455",
+      "path": "src/sheets/PlayerDirectorySheet.tsx"
+    },
+    {
+      "stableId": "2fe966c7dc46a31b2eac7ff82c9dce25",
+      "path": "src/sheets/ProfileCompletionSheet.tsx"
+    },
+    {
+      "stableId": "3689826b800ed557fce7e761bc62eee9",
+      "path": "src/sheets/ProfileCompletionSheet.tsx"
+    },
+    {
+      "stableId": "b5bbfb09d50766b1466ffae57b05696c",
+      "path": "src/sheets/ProfileCompletionSheet.tsx"
+    },
+    {
+      "stableId": "5e06fb201990c6768859791083494309",
+      "path": "src/sheets/ProfileCompletionSheet.tsx"
+    },
+    {
+      "stableId": "ea38afa10ae1ff7c06d3a59e4f43f92c",
+      "path": "src/sheets/ReportDialog.tsx"
+    },
+    {
+      "stableId": "91849872dbf74bf5e0683c9772f21c5e",
+      "path": "src/sheets/SessionChatSheet.tsx"
+    },
+    {
+      "stableId": "af95504f6fc12b4d12f7eba3feee7c2e",
+      "path": "src/sheets/SessionChatSheet.tsx"
+    },
+    {
+      "stableId": "bcc751d69035bf3e2098d61a05f008de",
+      "path": "src/sheets/SessionChatSheet.tsx"
+    },
+    {
+      "stableId": "2deac77676f78b362044e5bc8f23bc6d",
+      "path": "src/sheets/SessionChatSheet.tsx"
+    },
+    {
+      "stableId": "862ad80c01b5b81c24521940f1ebca32",
+      "path": "src/sheets/SessionDetailSheet.tsx"
+    },
+    {
+      "stableId": "a991e47cd001ba9a05ce0ac0b476998d",
+      "path": "src/sheets/SessionDetailSheet.tsx"
+    },
+    {
+      "stableId": "f4aad88b7fc3c5938232d8d56163657c",
+      "path": "src/sheets/WithdrawSessionConfirmationDialog.tsx"
+    }
+  ]
+}
+

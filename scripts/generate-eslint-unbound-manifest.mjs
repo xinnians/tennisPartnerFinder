@@ -13,9 +13,8 @@ const RULE = "@typescript-eslint/unbound-method";
 const SCAN_GLOBS = ["src/**/*.{ts,tsx}", "vite.config.ts"];
 const JSON_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-unbound-manifest.json");
 const MARKDOWN_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-unbound-manifest.md");
-const EXPECTED_FINDINGS = 244;
-const EXPECTED_FILES = 27;
-const EXPECTED_SESSION_CONTROLLER_FINDINGS = 63;
+const BASELINE_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-baseline.json");
+const REMOVAL_LEDGER_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-removal-ledger.json");
 const TYPE_FORMAT_FLAGS = ts.TypeFormatFlags.NoTruncation;
 const ALLOWED_MESSAGE_IDS = new Set(["unbound", "unboundWithoutThisAnnotation"]);
 const FINDING_FIELDS = [
@@ -43,6 +42,125 @@ const FINDING_FIELDS = [
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function readJson(filePath, label) {
+  let source;
+  try {
+    source = readFileSync(filePath, "utf8");
+  } catch (error) {
+    throw new Error(`${label} read failed (${repositoryPath(filePath)}): ${errorMessage(error)}`, { cause: error });
+  }
+  try {
+    return JSON.parse(source);
+  } catch (error) {
+    throw new Error(`${label} JSON parse failed (${repositoryPath(filePath)}): ${errorMessage(error)}`, {
+      cause: error,
+    });
+  }
+}
+
+function assertExactKeys(value, keys, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} schema violation: expected object`);
+  }
+  const actualKeys = Object.keys(value).sort();
+  const expectedKeys = [...keys].sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+    throw new Error(
+      `${label} schema violation: expected keys ${expectedKeys.join(", ")}; received ${actualKeys.join(", ")}`
+    );
+  }
+}
+
+function assertStableId(value, label) {
+  if (typeof value !== "string" || !/^[0-9a-f]{32}$/.test(value)) {
+    throw new Error(`${label} schema violation: stableId must be 16-byte lowercase hex`);
+  }
+}
+
+function assertRepositoryPath(value, label) {
+  const segments = typeof value === "string" ? value.split("/") : [];
+  if (
+    typeof value !== "string" ||
+    !value ||
+    value.includes("\\") ||
+    value.startsWith("/") ||
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  ) {
+    throw new Error(`${label} schema violation: path must be a POSIX repository path`);
+  }
+}
+
+function loadLedgerState() {
+  const baseline = readJson(BASELINE_PATH, "unbound-method baseline");
+  assertExactKeys(baseline, ["schemaVersion", "sourceCommit", "findingCount", "findings"], "baseline");
+  if (baseline.schemaVersion !== 1) throw new Error(`baseline schema violation: unsupported schemaVersion`);
+  if (typeof baseline.sourceCommit !== "string" || !/^[0-9a-f]{7,40}$/.test(baseline.sourceCommit)) {
+    throw new Error(`baseline schema violation: sourceCommit must be a git object ID`);
+  }
+  if (!Number.isInteger(baseline.findingCount) || baseline.findingCount < 0) {
+    throw new Error(`baseline schema violation: findingCount must be a non-negative integer`);
+  }
+  if (!Array.isArray(baseline.findings)) throw new Error(`baseline schema violation: findings must be an array`);
+  if (baseline.findingCount !== baseline.findings.length) {
+    throw new Error(
+      `baseline schema violation: findingCount ${baseline.findingCount} does not match findings ${baseline.findings.length}`
+    );
+  }
+
+  const baselineById = new Map();
+  for (const [index, finding] of baseline.findings.entries()) {
+    const label = `baseline.findings[${index}]`;
+    assertExactKeys(finding, ["stableId", "path"], label);
+    assertStableId(finding.stableId, label);
+    assertRepositoryPath(finding.path, label);
+    if (baselineById.has(finding.stableId)) {
+      throw new Error(`baseline duplicate stableId: ${finding.stableId} (${finding.path})`);
+    }
+    baselineById.set(finding.stableId, finding);
+  }
+
+  const ledger = readJson(REMOVAL_LEDGER_PATH, "unbound-method removal ledger");
+  assertExactKeys(ledger, ["schemaVersion", "acceptedRemovals"], "removal ledger");
+  if (ledger.schemaVersion !== 1) throw new Error(`removal ledger schema violation: unsupported schemaVersion`);
+  if (!Array.isArray(ledger.acceptedRemovals)) {
+    throw new Error(`removal ledger schema violation: acceptedRemovals must be an array`);
+  }
+
+  const removalIds = new Set();
+  for (const [index, removal] of ledger.acceptedRemovals.entries()) {
+    const label = `removal ledger.acceptedRemovals[${index}]`;
+    assertExactKeys(removal, ["stableId", "path", "batch", "acceptanceDoc"], label);
+    assertStableId(removal.stableId, label);
+    assertRepositoryPath(removal.path, label);
+    assertRepositoryPath(removal.acceptanceDoc, label);
+    if (typeof removal.batch !== "string" || !removal.batch) {
+      throw new Error(`${label} schema violation: batch must be a non-empty string`);
+    }
+    if (removalIds.has(removal.stableId)) {
+      throw new Error(`removal ledger duplicate stableId: ${removal.stableId} (${removal.path})`);
+    }
+    removalIds.add(removal.stableId);
+    const baselineFinding = baselineById.get(removal.stableId);
+    if (!baselineFinding) {
+      throw new Error(`removal ledger stableId ${removal.stableId} is not in baseline (${removal.path})`);
+    }
+    if (baselineFinding.path !== removal.path) {
+      throw new Error(
+        `removal ledger path mismatch for ${removal.stableId}: baseline ${baselineFinding.path}; ledger ${removal.path}`
+      );
+    }
+  }
+
+  return {
+    baselineFindings: baseline.findings,
+    expectedFindings: baseline.findings.filter((finding) => !removalIds.has(finding.stableId)),
+  };
 }
 
 function toPosix(value) {
@@ -605,7 +723,40 @@ function validateFindingSchema(findings) {
   }
 }
 
-function validateHardGates(findings) {
+function normalizedSeverity(ruleConfiguration) {
+  const severity = Array.isArray(ruleConfiguration) ? ruleConfiguration[0] : ruleConfiguration;
+  if (severity === 2 || severity === "error") return "error";
+  if (severity === 1 || severity === "warn") return "warn";
+  return "off";
+}
+
+async function validateScopedRuleGates(findings, baselineFindings, effectiveConfigEslint) {
+  const currentPaths = new Set(findings.map((finding) => finding.path));
+  const baselinePaths = [...new Set(baselineFindings.map((finding) => finding.path))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+  const effectiveRules = await Promise.all(
+    baselinePaths.map(async (findingPath) => {
+      const config = await effectiveConfigEslint.calculateConfigForFile(path.join(ROOT, findingPath));
+      return {
+        findingPath,
+        severity: normalizedSeverity(config?.rules?.[RULE]),
+      };
+    })
+  );
+  const errors = [];
+  for (const { findingPath, severity } of effectiveRules) {
+    if (!currentPaths.has(findingPath) && severity !== "error") {
+      errors.push(`cleared file is not scoped to error: ${findingPath} (effective severity: ${severity})`);
+    }
+    if (currentPaths.has(findingPath) && severity === "error") {
+      errors.push(`uncleared file is prematurely scoped to error: ${findingPath} (effective severity: ${severity})`);
+    }
+  }
+  if (errors.length) throw new Error(`scoped unbound-method gate failed:\n- ${errors.join("\n- ")}`);
+}
+
+async function validateHardGates(findings, ledgerState, effectiveConfigEslint) {
   const files = new Set(findings.map((finding) => finding.path));
   const stableIds = findings.map((finding) => finding.stableId);
   const duplicateStableIdCount = stableIds.length - new Set(stableIds).size;
@@ -614,11 +765,32 @@ function validateHardGates(findings) {
     (finding) => !finding.declarationPath || !finding.declarationKind
   ).length;
   const sessionControllerFindings = findings.filter((finding) => finding.path === "src/sessionController.ts").length;
+  const actualById = new Map(findings.map((finding) => [finding.stableId, finding]));
+  const expectedById = new Map(ledgerState.expectedFindings.map((finding) => [finding.stableId, finding]));
+  const expectedFileCount = new Set(ledgerState.expectedFindings.map((finding) => finding.path)).size;
+  const expectedSessionControllerFindings = ledgerState.expectedFindings.filter(
+    (finding) => finding.path === "src/sessionController.ts"
+  ).length;
   const errors = [];
-  if (findings.length !== EXPECTED_FINDINGS) {
-    errors.push(`findings expected ${EXPECTED_FINDINGS}, received ${findings.length}`);
+  for (const finding of findings) {
+    const expected = expectedById.get(finding.stableId);
+    if (!expected) {
+      errors.push(`unexpected current finding outside baseline-minus-ledger: ${finding.stableId} (${finding.path})`);
+    } else if (expected.path !== finding.path) {
+      errors.push(
+        `current finding path mismatch for ${finding.stableId}: expected ${expected.path}; received ${finding.path}`
+      );
+    }
   }
-  if (files.size !== EXPECTED_FILES) errors.push(`files expected ${EXPECTED_FILES}, received ${files.size}`);
+  for (const expected of ledgerState.expectedFindings) {
+    if (!actualById.has(expected.stableId)) {
+      errors.push(`expected finding missing from current scan: ${expected.stableId} (${expected.path})`);
+    }
+  }
+  if (findings.length !== ledgerState.expectedFindings.length) {
+    errors.push(`findings expected ${ledgerState.expectedFindings.length}, received ${findings.length}`);
+  }
+  if (files.size !== expectedFileCount) errors.push(`files expected ${expectedFileCount}, received ${files.size}`);
   if (duplicateStableIdCount !== 0) {
     const duplicateLocations = duplicateStableIds.flatMap((stableId) =>
       findings
@@ -630,26 +802,29 @@ function validateHardGates(findings) {
   if (unresolvedDeclarationCount !== 0) {
     errors.push(`unresolved declarations: ${unresolvedDeclarationCount}`);
   }
-  if (sessionControllerFindings !== EXPECTED_SESSION_CONTROLLER_FINDINGS) {
+  if (sessionControllerFindings !== expectedSessionControllerFindings) {
     errors.push(
-      `sessionController findings expected ${EXPECTED_SESSION_CONTROLLER_FINDINGS}, received ${sessionControllerFindings}`
+      `sessionController findings expected ${expectedSessionControllerFindings}, received ${sessionControllerFindings}`
     );
   }
   if (errors.length) throw new Error(`manifest hard gate failed:\n- ${errors.join("\n- ")}`);
+  await validateScopedRuleGates(findings, ledgerState.baselineFindings, effectiveConfigEslint);
   return { duplicateStableIdCount, fileCount: files.size, sessionControllerFindings, unresolvedDeclarationCount };
 }
 
 async function buildManifest() {
+  const ledgerState = loadLedgerState();
   const configPath = path.join(ROOT, "tsconfig.json");
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
   if (configFile.error) throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\n"));
   const parsedConfig = ts.parseJsonConfigFileContent(configFile.config, ts.sys, ROOT, undefined, configPath);
   const program = ts.createProgram({ options: parsedConfig.options, rootNames: parsedConfig.fileNames });
   const checker = program.getTypeChecker();
-  const eslint = new ESLint({
+  const scanEslint = new ESLint({
     overrideConfig: [{ files: SCAN_GLOBS, rules: { [RULE]: "error" } }],
   });
-  const lintResults = await eslint.lintFiles(SCAN_GLOBS);
+  const effectiveConfigEslint = new ESLint();
+  const lintResults = await scanEslint.lintFiles(SCAN_GLOBS);
   const lintFindings = lintResults.flatMap((result) =>
     result.messages
       .filter((message) => message.ruleId === RULE)
@@ -713,7 +888,7 @@ async function buildManifest() {
 
   findings.sort((left, right) => left.path.localeCompare(right.path) || left.astPath.localeCompare(right.astPath));
   validateFindingSchema(findings);
-  const gates = validateHardGates(findings);
+  const gates = await validateHardGates(findings, ledgerState, effectiveConfigEslint);
   const familyNames = [...new Set(findings.map((finding) => finding.family))].sort((left, right) =>
     left.localeCompare(right)
   );
