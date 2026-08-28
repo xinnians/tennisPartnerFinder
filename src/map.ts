@@ -102,8 +102,8 @@ interface SessionPinGroup {
 }
 
 interface SessionPinHandlers {
-  onCluster?(court: MapCourtSummary, sessions: SessionSummary[]): void;
-  onSession?(sessionId: SessionSummary["sessionId"]): void;
+  onCluster?: (court: MapCourtSummary, sessions: SessionSummary[]) => void;
+  onSession?: (sessionId: SessionSummary["sessionId"]) => void;
 }
 
 interface MarkerSpec {

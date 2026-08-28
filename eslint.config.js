@@ -94,6 +94,14 @@ export default tseslint.config(
       "@typescript-eslint/no-redundant-type-constituents": "off",
     },
   },
+  // Phase E unbound-method 逐批恢復：已清零的檔案以 scoped override 先上線，
+  // 全庫清零後移除本區塊與全域 off。
+  {
+    files: ["src/map.ts"],
+    rules: {
+      "@typescript-eslint/unbound-method": "error",
+    },
+  },
   // Keep these ranges disjoint: flat-config rule arrays replace rather than merge.
   // Non-data source retains both the data boundary and the synchronous-commit boundary.
   {

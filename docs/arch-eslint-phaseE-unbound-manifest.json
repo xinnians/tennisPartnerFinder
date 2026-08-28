@@ -5,10 +5,10 @@
     "src/**/*.{ts,tsx}",
     "vite.config.ts"
   ],
-  "findingsChecksum": "sha256:bab42fb9f181522efb46d889e1e6db710262d503378edbdb2831a43b2828a959",
+  "findingsChecksum": "sha256:ce5a3e8a82e75dca710449d1c2d9c549448831573891cf6ffec230e380ccdd30",
   "summary": {
-    "totalFindings": 246,
-    "fileCount": 28,
+    "totalFindings": 244,
+    "fileCount": 27,
     "sessionControllerFindings": 63,
     "duplicateStableIdCount": 0,
     "unresolvedDeclarationCount": 0,
@@ -18,34 +18,24 @@
   "messageIdStatistics": [
     {
       "name": "unboundWithoutThisAnnotation",
-      "count": 246
+      "count": 244
     }
   ],
   "thisUsageStatistics": [
     {
       "name": "ambient-no-body",
-      "count": 246
+      "count": 244
     }
   ],
   "proposedFixClassStatistics": [
     {
       "name": "function-property-contract",
-      "count": 246
+      "count": 244
     }
   ],
   "familyStatistics": [
     {
       "family": "api-method-extraction",
-      "count": 2,
-      "proposedFixClasses": [
-        {
-          "name": "function-property-contract",
-          "count": 2
-        }
-      ]
-    },
-    {
-      "family": "callback-default",
       "count": 2,
       "proposedFixClasses": [
         {
@@ -2635,54 +2625,6 @@
       "proposedFixClass": "function-property-contract",
       "tests": [
         "tests/session-data-boundary.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "20cd603ceabcae4d0887599015c26831",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/map.ts",
-      "line": 470,
-      "column": 5,
-      "astPath": "SourceFile[0]/FunctionDeclaration[14]/Parameter[3]/ObjectBindingPattern[0]/BindingElement[0]",
-      "expressionFingerprint": "onSession = () => {}",
-      "owner": "function:renderSessionPins",
-      "receiverType": "default-empty-object:SessionPinHandlers",
-      "declarationPath": "src/map.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "default parameter",
-      "invocationStyle": "default-callback",
-      "identitySensitivity": "none-observed",
-      "family": "callback-default",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "761154dcdb4d5bda67d077b9bf89e588",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/map.ts",
-      "line": 470,
-      "column": 27,
-      "astPath": "SourceFile[0]/FunctionDeclaration[14]/Parameter[3]/ObjectBindingPattern[0]/BindingElement[1]",
-      "expressionFingerprint": "onCluster = () => {}",
-      "owner": "function:renderSessionPins",
-      "receiverType": "default-empty-object:SessionPinHandlers",
-      "declarationPath": "src/map.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "default parameter",
-      "invocationStyle": "default-callback",
-      "identitySensitivity": "none-observed",
-      "family": "callback-default",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
       ],
       "reviewStatus": "machine-classified"
     },
