@@ -81,24 +81,24 @@ interface LifecycleActionsDependencies {
 }
 
 export interface LifecycleActionsController {
-  cancelMySession(sessionId: ControllerIdentifier): Promise<unknown>;
-  confirmMySessionAttendance(sessionId: ControllerIdentifier): Promise<unknown>;
-  markMySessionPlayed(sessionId: ControllerIdentifier): Promise<unknown>;
-  mySessionForAction(sessionId: ControllerIdentifier): MySessionSummary;
-  openSessionDecision(sessionId: ControllerIdentifier): Promise<SurfaceResult>;
-  openSessionEdit(sessionId: ControllerIdentifier): SurfaceResult;
-  requireMySessionAction(
+  cancelMySession: (sessionId: ControllerIdentifier) => Promise<unknown>;
+  confirmMySessionAttendance: (sessionId: ControllerIdentifier) => Promise<unknown>;
+  markMySessionPlayed: (sessionId: ControllerIdentifier) => Promise<unknown>;
+  mySessionForAction: (sessionId: ControllerIdentifier) => MySessionSummary;
+  openSessionDecision: (sessionId: ControllerIdentifier) => Promise<SurfaceResult>;
+  openSessionEdit: (sessionId: ControllerIdentifier) => SurfaceResult;
+  requireMySessionAction: (
     sessionId: ControllerIdentifier,
     predicate: (session: MySessionSummary) => boolean
-  ): { authSnapshot: ControllerAuthSnapshot; session: MySessionSummary };
-  respondInvite(sessionId: ControllerIdentifier, decision: string): Promise<unknown>;
-  reviewMySessionParticipant(
+  ) => { authSnapshot: ControllerAuthSnapshot; session: MySessionSummary };
+  respondInvite: (sessionId: ControllerIdentifier, decision: string) => Promise<unknown>;
+  reviewMySessionParticipant: (
     sessionId: ControllerIdentifier,
     participantId: ControllerIdentifier,
     decision: string
-  ): Promise<unknown>;
-  withdraw(session: SessionSummary, detail: ControllerSurfaceHandle | null | undefined): unknown;
-  withdrawMySession(sessionId: ControllerIdentifier): SurfaceResult;
+  ) => Promise<unknown>;
+  withdraw: (session: SessionSummary, detail: ControllerSurfaceHandle | null | undefined) => unknown;
+  withdrawMySession: (sessionId: ControllerIdentifier) => SurfaceResult;
 }
 
 function mutationResult(value: unknown): MutationResult {

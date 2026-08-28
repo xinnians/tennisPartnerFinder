@@ -64,7 +64,7 @@ function actionCode(error: unknown): unknown {
 
 /** Owns the active chat surface, polling, read cursor, and chat mutations. */
 export function createChatController(dependencies: ChatControllerDependencies): {
-  openSessionChat(sessionId: ControllerIdentifier): ControllerSurfaceHandle | null | undefined;
+  openSessionChat: (sessionId: ControllerIdentifier) => ControllerSurfaceHandle | null | undefined;
 } {
   const {
     api,

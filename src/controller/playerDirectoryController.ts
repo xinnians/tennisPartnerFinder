@@ -86,17 +86,17 @@ interface PlayerDirectoryControllerDependencies {
 }
 
 export interface PlayerDirectoryController {
-  clearPlayerDirectory(options?: { closeReason?: string }): void;
-  clearPlayerLayer(options?: { closeReason?: string; turnOff?: boolean }): void;
-  getPlayerGroups(): ControllerPlayerGroup[];
-  loadPlayerDirectoryList(): Promise<boolean>;
-  loadPlayers(bounds?: MapBounds): Promise<boolean>;
-  openCourt(court: DataCourt, onlySessions?: SessionSummary[] | null): void;
-  openPlayerCourt(
+  clearPlayerDirectory: (options?: { closeReason?: string }) => void;
+  clearPlayerLayer: (options?: { closeReason?: string; turnOff?: boolean }) => void;
+  getPlayerGroups: () => ControllerPlayerGroup[];
+  loadPlayerDirectoryList: () => Promise<boolean>;
+  loadPlayers: (bounds?: MapBounds) => Promise<boolean>;
+  openCourt: (court: DataCourt, onlySessions?: SessionSummary[] | null) => void;
+  openPlayerCourt: (
     court: DataCourt,
     onlyPlayers?: ControllerPlayer[] | null
-  ): ControllerSurfaceHandle | null | undefined;
-  openPlayerDirectory(): Promise<boolean> | void;
+  ) => ControllerSurfaceHandle | null | undefined;
+  openPlayerDirectory: () => Promise<boolean> | void;
 }
 
 function mutationResult(value: unknown): MutationResult {

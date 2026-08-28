@@ -91,28 +91,28 @@ interface IntentControllerDependencies {
 }
 
 export interface IntentController {
-  capturePendingIntentVersion(): number;
-  clearIntent(expectedIntent?: ControllerPendingIntent | null): boolean;
-  clearPendingIntentIfUnchanged(version: number): boolean;
-  isReconcileSuppressed(session: SessionSummary | MySessionSummary | null | undefined): boolean;
-  openCreateIntent(): void;
-  refreshAuthoritativeState(snapshot: ControllerAuthSnapshot): Promise<boolean>;
-  requestCurrentLocation(): void;
-  requestJoin(
+  capturePendingIntentVersion: () => number;
+  clearIntent: (expectedIntent?: ControllerPendingIntent | null) => boolean;
+  clearPendingIntentIfUnchanged: (version: number) => boolean;
+  isReconcileSuppressed: (session: SessionSummary | MySessionSummary | null | undefined) => boolean;
+  openCreateIntent: () => void;
+  refreshAuthoritativeState: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
+  requestCurrentLocation: () => void;
+  requestJoin: (
     session: SessionSummary,
     detail: ControllerSurfaceHandle | null | undefined,
     confirmingAuth: ControllerAuthSnapshot | null
-  ): Promise<Record<string, unknown>>;
-  requireSessionAction(
+  ) => Promise<Record<string, unknown>>;
+  requireSessionAction: (
     intent: ControllerPendingIntent,
     options?: {
       detail?: ControllerSurfaceHandle | null;
       session?: SessionSummary | null;
     }
-  ): unknown;
-  resumePendingIntent(): Promise<boolean>;
-  startPrimaryAction(session: SessionSummary, detail: ControllerSurfaceHandle | null | undefined): unknown;
-  togglePlayerLayer(): Promise<boolean> | void;
+  ) => unknown;
+  resumePendingIntent: () => Promise<boolean>;
+  startPrimaryAction: (session: SessionSummary, detail: ControllerSurfaceHandle | null | undefined) => unknown;
+  togglePlayerLayer: () => Promise<boolean> | void;
 }
 
 function mutationResult(value: unknown): MutationResult {

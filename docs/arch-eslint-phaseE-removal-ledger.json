@@ -498,6 +498,384 @@
       "path": "src/controller/lifecycleActionsController.ts",
       "batch": "E-11",
       "acceptanceDoc": "docs/arch-reports/eslintE9-E11-controller-ports-finale-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7070bcce055e4ba65a309b97a384bf6f",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "94b2661fb673833217e2e18d3b1e1667",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2cbb5ae4f0b951f92c6de5e02f7df9dd",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "67bd39025e4b8e9c09843e49ec9d8b27",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a8679898090886881726da07732ad23e",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "03294447169dfc77adde9c176b8056cf",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3d3765ccbf8c510ea389fcc82d190bb9",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "55316e76ad009dbe6f2c023cdb429320",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "625443911762ad6a826341b98bbb5db5",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3929393dc05484279b4c34df61bfe553",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a32aefa9cfac55e9c9e8c6f87fa168b1",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "bc68e315e2514106ed715e2d387b7cd7",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "0ee1045176e9d7410b69fdcfe7ae7af3",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "733e70efa2147480d273cb729c4be94d",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "199c7b6ee40d1b50dfce75e583e1b738",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7ebdcb29b9a1ee15eb9bfe242e922275",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f81c028cf652376abddd8b30060db6ba",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5b17e82aca25514a7935291ae34eda39",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a78b9b24613fb613430c329ecc7d73ef",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e11912c61797d97c904fac8f6e31b998",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "48f122f6cdec472220528fb9845da03d",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7d4d069b1610d7aa9ee6962ca962c23f",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "dd4bba1a2e4a353675464a4322d1d2c6",
+      "path": "src/sessionController.ts",
+      "batch": "FR-A",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2d84d1e8194fdc8aa03ccc4a0be00486",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "cc65f8e626fc05693c25312c8e2d1405",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f95313672e3c42ca1760c4a9998cce69",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "0e4f0d5bda56bd810391639117a043d5",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "952ab042953540ef553cceec161f35c2",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7fd5382e5ac09e4bbef26951d4026bf2",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e64d362dd89452c31532feec18e7c0b3",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "8537ce9ba5d471ba3b43cef7e20b11f2",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e009a7bfe79896b97e3bd91ca7c8d2a8",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a763b784d9100b0b97247f5da7a4de1a",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "145d7136c96f3d5e3eb3bc8cf15459d1",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e55dc28bb6eaff545e54cba02e04359a",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "90e8bb9ab0a0abd38d82eb34090db9ec",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "dd0103e607dd5cd49375c7639f746a3a",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "714b2b19051727e37873a15f8abb8dad",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "989506111c1537962a46a3f804568857",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4219d4acb206ec862872e8f309f031a9",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f665c68113ae21ccf39074e857fa5e1d",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "596f20c2a4823d0e219eb83a954d08d2",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "45ba806804e38fb646d6bf70db44d0e7",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "953ac6451f3af4a29eedd6d02d0da8b6",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4d0fd9670f2828589b676e81e324c9e7",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "810c642497c9030079d22a06bc2af603",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e686d63f5493334dd7b0ff7b32d87fa2",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "fa6d600bf5bec18e07171eb623fc0526",
+      "path": "src/sessionController.ts",
+      "batch": "FR-B",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "10d5f36331028b3b71ba1179fc5bfa20",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "c55ce135c93b5ad36f59603cb9c6c2a7",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "49afb87b426f991563e208f1b3686c26",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ca155a32fbf9f3a49b7f4a5cdff7b5cb",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3b6254b035a420c8aa25f46b5e5d80e0",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ffd87b1a218027f976aed427c3012fb7",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a66a4a29f2b23f368274e5f1c28a4c55",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "80352f9fee870451473db7938f599c68",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b99e4e96a5d7fb7f33cc503ef943f65a",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "95f665d10c120a5ce901ff466437ab51",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "29c29cf98cb343030ff9b7c042eee312",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "cbe8f0200281fdf0b14c8dd95b7cb553",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "75cd4020732a1733d8c57bde1aa0dea0",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "781cbd80fd64568ed8036d655435de14",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b5443c26d5d8f44f05321a8a506272f8",
+      "path": "src/sessionController.ts",
+      "batch": "FR-C",
+      "acceptanceDoc": "docs/arch-reports/eslintFR-factory-results-acceptance-2026-08-28.md"
     }
   ]
 }

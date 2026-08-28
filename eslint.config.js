@@ -106,6 +106,7 @@ export default tseslint.config(
       "src/controller/mySessionsController.ts",
       "src/controller/playerDirectoryController.ts",
       "src/map.ts",
+      "src/sessionController.ts",
     ],
     rules: {
       "@typescript-eslint/unbound-method": "error",

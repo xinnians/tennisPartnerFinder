@@ -73,19 +73,19 @@ interface DiscoveryMapDependencies {
 }
 
 export interface DiscoveryMapController {
-  attachMap(map: unknown): void;
-  expandBounds(): Promise<boolean | void> | void;
-  getVisibleSessions(): SessionSummary[];
-  loadDiscovery(bounds?: MapBounds | null): Promise<boolean | void>;
-  publish(): void;
-  refreshLocationViewport(location: SessionControllerState["userLocation"]): Promise<boolean | void> | void;
-  resetFilters(): void;
-  retryDiscovery(): Promise<boolean | void>;
-  setCourts(courts: DataCourt[], options?: { ready?: boolean }): void;
-  setDrawerState(value: SessionControllerState["drawerState"]): void;
-  setFilter<Key extends keyof ControllerFilters>(key: Key, value: ControllerFilters[Key]): void;
-  setMapUnavailable(): void;
-  startDiscoveryPolling(): void;
+  attachMap: (map: unknown) => void;
+  expandBounds: () => Promise<boolean | void> | void;
+  getVisibleSessions: () => SessionSummary[];
+  loadDiscovery: (bounds?: MapBounds | null) => Promise<boolean | void>;
+  publish: () => void;
+  refreshLocationViewport: (location: SessionControllerState["userLocation"]) => Promise<boolean | void> | void;
+  resetFilters: () => void;
+  retryDiscovery: () => Promise<boolean | void>;
+  setCourts: (courts: DataCourt[], options?: { ready?: boolean }) => void;
+  setDrawerState: (value: SessionControllerState["drawerState"]) => void;
+  setFilter: <Key extends keyof ControllerFilters>(key: Key, value: ControllerFilters[Key]) => void;
+  setMapUnavailable: () => void;
+  startDiscoveryPolling: () => void;
 }
 
 /** Owns discovery requests, the map viewport, filters, and map/court publishes. */
@@ -132,7 +132,7 @@ export function createDiscoveryMapController({
     store.emit("map");
   }
 
-  async function loadDiscovery(bounds = read().bounds): Promise<boolean | void> {
+  async function loadDiscovery(bounds: MapBounds | null = read().bounds): Promise<boolean | void> {
     const nextBounds = validBounds(bounds) ? cloneBounds(bounds) : cloneBounds(TAIPEI_CITY_BOUNDS);
     const request = discoveryGate.issue();
     surfaceRegistry.close("courtDrawer");

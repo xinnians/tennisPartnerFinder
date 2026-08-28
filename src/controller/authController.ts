@@ -71,9 +71,9 @@ export function createAuthController({
   surfaceRegistry,
   transitionSurfaces,
 }: AuthControllerDependencies): {
-  setAuthSession(session: ControllerAuthSession | null): void;
-  setAuthState(session: ControllerAuthSession | null, profile?: ControllerProfileEligibility | null): Promise<void>;
-  setProfile(profile: Partial<Profile> | null): void;
+  setAuthSession: (session: ControllerAuthSession | null) => void;
+  setAuthState: (session: ControllerAuthSession | null, profile?: ControllerProfileEligibility | null) => Promise<void>;
+  setProfile: (profile: Partial<Profile> | null) => void;
 } {
   const read = store.getState;
 

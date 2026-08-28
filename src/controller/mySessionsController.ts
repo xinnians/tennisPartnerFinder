@@ -60,25 +60,25 @@ interface MySessionsControllerDependencies {
 }
 
 export interface MySessionsController {
-  actionFor(session: SessionSummary): ControllerSessionAction;
-  beginLifecycleAction(
+  actionFor: (session: SessionSummary) => ControllerSessionAction;
+  beginLifecycleAction: (
     kind: string,
     sessionId: ControllerIdentifier,
     authSnapshot: ControllerAuthSnapshot
-  ): LifecycleActionToken | null;
-  captureAuthSnapshot(): ControllerAuthSnapshot;
-  currentParticipation(sessionId: ControllerIdentifier): MySessionSummary | null;
-  finishLifecycleAction(token: LifecycleActionToken | null | undefined): void;
-  isCurrentAuthSnapshot(snapshot: ControllerAuthSnapshot | null | undefined): boolean;
-  lifecycleActionIsInFlight(sessionId: ControllerIdentifier): boolean;
-  mySessionGroups(): ControllerMySessionGroups;
-  notifyMySessions(): void;
-  refreshMyPlayerBlocks(snapshot?: ControllerAuthSnapshot): Promise<boolean>;
-  refreshMySessions(): Promise<boolean>;
-  reloadParticipation(epoch?: number, identity?: string | null): Promise<boolean>;
-  replaceMySessions(sessions: unknown): void;
-  sessionKey(sessionId: ControllerIdentifier): string;
-  unblockPlayer(profileId: ControllerIdentifier): Promise<true>;
+  ) => LifecycleActionToken | null;
+  captureAuthSnapshot: () => ControllerAuthSnapshot;
+  currentParticipation: (sessionId: ControllerIdentifier) => MySessionSummary | null;
+  finishLifecycleAction: (token: LifecycleActionToken | null | undefined) => void;
+  isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot | null | undefined) => boolean;
+  lifecycleActionIsInFlight: (sessionId: ControllerIdentifier) => boolean;
+  mySessionGroups: () => ControllerMySessionGroups;
+  notifyMySessions: () => void;
+  refreshMyPlayerBlocks: (snapshot?: ControllerAuthSnapshot) => Promise<boolean>;
+  refreshMySessions: () => Promise<boolean>;
+  reloadParticipation: (epoch?: number, identity?: string | null) => Promise<boolean>;
+  replaceMySessions: (sessions: unknown) => void;
+  sessionKey: (sessionId: ControllerIdentifier) => string;
+  unblockPlayer: (profileId: ControllerIdentifier) => Promise<true>;
 }
 
 /** Owns private participation reads, roster hydration, blocks, and lifecycle in-flight gates. */
