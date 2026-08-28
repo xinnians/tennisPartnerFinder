@@ -19,7 +19,7 @@ interface EligibilityOptions {
 }
 
 export function validProfileNtrp(value: unknown) {
-  if (value == null || String(value).trim() === "") return false;
+  if (value == null || String(value as string | number satisfies string | number).trim() === "") return false;
   const ntrp = Number(value);
   return Number.isFinite(ntrp) && ntrp >= 1 && ntrp <= 7;
 }
@@ -32,7 +32,7 @@ export function eligibilityFromPrivateProfile(
   profile: PrivateProfileInput | null | undefined,
   { courts = [], courtsReady = true, courtsStatus = null, status = "ready" }: EligibilityOptions = {}
 ) {
-  const nickname = String(profile?.nick ?? "").trim() !== "";
+  const nickname = String((profile?.nick as string | undefined) ?? "").trim() !== "";
   const ntrpValue = validProfileNtrp(profile?.ntrp) ? Number(profile!.ntrp) : null;
   const ntrp = nickname && ntrpValue != null;
   const selectedCourts = profile?.courts instanceof Set ? profile.courts : new Set(profile?.courts ?? []);
@@ -40,7 +40,10 @@ export function eligibilityFromPrivateProfile(
   const activeTaipeiCourts = new Set(
     availableCourts
       .filter((court) => court?.city === "台北市")
-      .flatMap((court) => [String(court?.id ?? ""), String(court?.name ?? "")])
+      .flatMap((court) => [
+        String((court?.id as number | null | undefined) ?? ""),
+        String((court?.name as string | undefined) ?? ""),
+      ])
   );
   let directoryStatus = "loading";
   if (courtsStatus === "error") directoryStatus = "error";

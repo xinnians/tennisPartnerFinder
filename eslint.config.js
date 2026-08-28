@@ -81,8 +81,6 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
       // 既有 type-aware 型別債，本批不改變既有程式語意。
-      "@typescript-eslint/no-base-to-string": "off",
-      // 既有 type-aware 型別債，本批不改變既有程式語意。
       "@typescript-eslint/unbound-method": "off",
       "react-hooks/exhaustive-deps": "error",
       "react-hooks/rules-of-hooks": "error",

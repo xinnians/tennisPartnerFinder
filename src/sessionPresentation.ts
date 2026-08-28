@@ -83,12 +83,12 @@ interface PlayerInput {
 export const GOOGLE_AVATAR_URL = /^https:\/\/lh[0-9]+[.]googleusercontent[.]com\//;
 
 export function safeGoogleAvatarUrl(value: unknown): string {
-  const candidate = String(value ?? "");
+  const candidate = String((value as string | null | undefined) ?? "");
   return GOOGLE_AVATAR_URL.test(candidate) ? candidate : "";
 }
 
 export function avatarInitial(nickname: unknown): string {
-  return [...String(nickname ?? "").trim()][0] || "球";
+  return [...String((nickname as string | null | undefined) ?? "").trim()][0] || "球";
 }
 
 // NTRP 磚的 null／未填值必須顯示「—」；不要改成 Number(ntrp) 判斷，

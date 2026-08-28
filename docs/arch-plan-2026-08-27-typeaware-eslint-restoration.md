@@ -87,7 +87,12 @@ scoped override 記帳 2 筆。債餘 4 條 off／266 findings（264 待修＋2 
 - 驗收草案：惡意／malformed payload canary、stale gate tests、兩規則各自紅綠三拍、逐檔
   token 對帳、完整 mock/local。
 
-### D. `no-base-to-string` UI policy 批
+### D. `no-base-to-string` UI policy 批——**ACCEPTED（2026-08-28）**
+
+狀態：已完成並驗收（`docs/arch-reports/eslintD-base-to-string-acceptance-2026-08-28.md`）。
+證明制零行為路線（8 站 erasable cast＋construction-site 證明，零 object
+來源、零文案裁決）；含 cast 寬窄裁決記帳。債餘 1 條 off（unbound-method
+246）＋2 記帳。以下原方案文字保留為歷史依據。
 
 - 範圍：8 個 finding，四檔。
 - 先為 null／undefined／object／symbol 定義逐欄位顯示政策，再改實作；不能用通用

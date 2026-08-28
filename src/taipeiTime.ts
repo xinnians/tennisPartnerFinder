@@ -70,7 +70,9 @@ export function taipeiDateTime(value: DateInput) {
 }
 
 export function taipeiLocalDateTimeToIso(value: unknown) {
-  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/);
+  const match = String((value as string | null | undefined) ?? "").match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/
+  );
   if (!match) return null;
   const [, yearText, monthText, dayText, hourText, minuteText, secondText = "0", millisecondText = "0"] = match;
   const year = Number(yearText);

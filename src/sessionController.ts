@@ -735,7 +735,7 @@ export function createSessionController({
         surfaceRegistry.release("reportDialog", dialog);
       },
       onSubmit: async (reason: unknown) => {
-        const normalizedReason = String(reason ?? "").trim();
+        const normalizedReason = String((reason as string) ?? "").trim();
         if (!normalizedReason) throw new Error("請選擇檢舉原因。");
         if (!isCurrentAuthSnapshot(authSnapshot) || !profileIsReady(read().profileEligibility)) {
           throw new Error("登入或個人檔案狀態已變更，請重新開啟檢舉。");
