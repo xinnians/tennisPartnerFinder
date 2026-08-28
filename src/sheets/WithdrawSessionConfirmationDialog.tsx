@@ -2,7 +2,7 @@ import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
 interface WithdrawSessionConfirmationContentOptions {
-  onClose(): void;
+  onClose: () => void;
 }
 
 /**

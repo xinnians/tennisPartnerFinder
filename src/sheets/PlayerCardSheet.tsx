@@ -36,10 +36,10 @@ export interface PlayerCardSheetContentContract {
 interface PlayerCardSheetContentOptions {
   courts: PlayerCardCourt[];
   myInvitableSessions: InvitableSession[];
-  onClose(): void;
-  onCreate(): void;
-  onInvite(sessionId: string): Promise<unknown>;
-  onSeeDirectory(): void;
+  onClose: () => void;
+  onCreate: () => void;
+  onInvite: (sessionId: string) => Promise<unknown>;
+  onSeeDirectory: () => void;
   player: CardPlayer;
   /** mountSheet's `#sheet-root`; the pending guard checks containment there. */
   sheetRoot: HTMLElement;
@@ -51,7 +51,7 @@ interface PlayerCardSheetProps extends PlayerCardSheetContentOptions {
 
 type InviteBranch = "self" | "form" | "empty";
 
-function InviteEmpty({ onCreate }: { onCreate(): void }) {
+function InviteEmpty({ onCreate }: { onCreate: () => void }) {
   return (
     <>
       <p className="surface__copy">你目前沒有可邀請的球局</p>
@@ -76,7 +76,7 @@ function InviteOptions({
 }: {
   courts: PlayerCardCourt[];
   generation: number;
-  onCreate(): void;
+  onCreate: () => void;
   sessions: InvitableSession[];
 }) {
   if (!sessions.length) {

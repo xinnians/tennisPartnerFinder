@@ -32,8 +32,8 @@ interface SessionChatContentOptions {
   archived: boolean;
   canWithdraw: boolean;
   headerSub: string;
-  onClose(): void;
-  onFeedClick(event: React.MouseEvent<HTMLElement>): void;
+  onClose: () => void;
+  onFeedClick: (event: React.MouseEvent<HTMLElement>) => void;
   playType: string;
   venueBadge: string;
   venueCourt: string;

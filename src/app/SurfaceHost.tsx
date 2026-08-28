@@ -11,8 +11,8 @@ import {
 import { syncCommit } from "../syncCommit.ts";
 
 export interface SurfaceContentLifecycle {
-  isSurfaceRootLive(): boolean;
-  unmount(): void;
+  isSurfaceRootLive: () => boolean;
+  unmount: () => void;
 }
 
 interface SurfaceContentHandle extends SurfaceContentLifecycle {

@@ -32,8 +32,8 @@ interface EditSessionContentOptions {
   courtsReady: boolean;
   hasOptionalValues: boolean;
   ntrpExplanation: string;
-  onClose(): void;
-  onSubmit(nodes: EditSessionActionNodes): void | Promise<void>;
+  onClose: () => void;
+  onSubmit: (nodes: EditSessionActionNodes) => void | Promise<void>;
   playTypeHint: string;
   playTypes: string[];
   session: EditableSession;

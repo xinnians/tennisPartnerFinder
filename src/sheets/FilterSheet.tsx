@@ -32,9 +32,9 @@ interface FilterSheetFiltersInput {
 
 interface FilterSheetContentOptions {
   filters?: FilterSheetFiltersInput | null;
-  onClose(): void;
-  onReset(): void;
-  onSetFilter(field: FilterField, value: FilterValue): void;
+  onClose: () => void;
+  onReset: () => void;
+  onSetFilter: (field: FilterField, value: FilterValue) => void;
   resultCount?: unknown;
 }
 
@@ -70,7 +70,7 @@ function selectedClass(className: string, selected: boolean, selectedClassName: 
 
 interface FilterControlsProps {
   filters: FilterSheetFilters;
-  onSelect(field: FilterField, value: string): void;
+  onSelect: (field: FilterField, value: string) => void;
 }
 
 const FilterControls = memo(function FilterControls({ filters, onSelect }: FilterControlsProps) {
@@ -167,8 +167,8 @@ const FilterControls = memo(function FilterControls({ filters, onSelect }: Filte
 });
 
 interface FilterFooterProps {
-  onApply(): void;
-  onReset(): void;
+  onApply: () => void;
+  onReset: () => void;
   resultCount: string;
 }
 

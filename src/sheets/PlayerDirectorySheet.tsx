@@ -34,16 +34,16 @@ export interface PlayerDirectorySheetContentContract {
 }
 
 interface PlayerDirectorySheetContentOptions {
-  onClose(): void;
-  onOpenPlayer(player: DirectoryPlayer): void;
-  onRetry(): void;
+  onClose: () => void;
+  onOpenPlayer: (player: DirectoryPlayer) => void;
+  onRetry: () => void;
 }
 
 interface PlayerDirectorySheetProps extends PlayerDirectorySheetContentOptions {
   contentRef: React.Ref<PlayerDirectorySheetContentContract>;
 }
 
-function DirectoryRow({ onOpenPlayer, player }: { onOpenPlayer(id: string): void; player: DirectoryPlayer }) {
+function DirectoryRow({ onOpenPlayer, player }: { onOpenPlayer: (id: string) => void; player: DirectoryPlayer }) {
   const presentation = playerDirectorySheetRuntime.playerDirectoryRowPresentation(player);
   return (
     <button
@@ -79,8 +79,8 @@ function DirectoryBody({
   onRetry,
   state,
 }: {
-  onOpenPlayer(id: string): void;
-  onRetry(): void;
+  onOpenPlayer: (id: string) => void;
+  onRetry: () => void;
   state: PlayerDirectoryState | null;
 }) {
   if (state === null) return null;

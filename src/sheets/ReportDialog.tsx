@@ -11,7 +11,7 @@ import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/Surfac
  * no state, so it never re-renders and can never patch those writes back.
  */
 interface ReportDialogContentOptions {
-  onClose(): void;
+  onClose: () => void;
   targetLabel: string;
 }
 

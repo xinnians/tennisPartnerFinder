@@ -1098,6 +1098,384 @@
       "path": "src/pages/NearbySessionsDrawer.tsx",
       "batch": "R1-B",
       "acceptanceDoc": "docs/arch-reports/eslintR1-app-pages-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7b8644385cfb62eaa602651f632ea263",
+      "path": "src/data/repositories/privateDataRepository.ts",
+      "batch": "R2-C",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "aa2e2634b2efc4efa198597a19220c64",
+      "path": "src/mySessionsCreatedFocus.ts",
+      "batch": "R2-C",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "de0fd8fa7e2a7ba061b2eeea15e7e72b",
+      "path": "src/sheets.ts",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "200f349b4e570e4adccb340e0a90a7ab",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "04dc8a6870066a646fc7d8663242ba3d",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "8c97905c80d36502961d14fe027ba3f0",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "415a369b5ecd070f88439eddbe770523",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "525f937b582e25ebf9ddb814bf249fe6",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "8a5f0fb1159d9943c42d46e6e51bad08",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "c6b9d71f2dd8e59879fa5da596b2e184",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "beb997a1cddd47ad44b042f2c5b3c799",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b87d1853e9e0c6830df72ad4c34ab59e",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4c26b0b84a45fe139453a8f655742f3f",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "0688cf300c9d8f8a8232a04a24cc793b",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5386d58d61fdc3c8d3f5bc54fa3979fa",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "1c74fb93107761f8617c669bac819d51",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b0694650f6b31aa338206b71cb4e8d70",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "30cb2dcc70fe7111f5b47ec76e4852da",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "8d1b89c1171adab8bbac1aef20fd70db",
+      "path": "src/sheets/CreateSessionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "9417a763aadfc8dd794466d6ff0d8bed",
+      "path": "src/sheets/DecideSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "e090a8dd82915494b249493088e0c59b",
+      "path": "src/sheets/DecideSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "29b762f3c86a81cd0e11b78a2ec62cae",
+      "path": "src/sheets/DecideSessionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b57d6b08f5c94ddc9e919df8e994b2b4",
+      "path": "src/sheets/DecideSessionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a97217995e823aa0732a2b37f7bc02c0",
+      "path": "src/sheets/EditSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "1bde8e1cbc776c2214d96bb03757f2f8",
+      "path": "src/sheets/EditSessionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ca71e27948f5357f8837b8cb5af8eb25",
+      "path": "src/sheets/EditSessionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f9e731ac85772deebae3c5e23eb9333a",
+      "path": "src/sheets/EditSessionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "caa8a657802a9333d743230740b18d4c",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "919c2f96dd705cc7ad2ed1c251078db8",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2b1c0a44c7890d1ab70b4ce63dba1d8a",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "d52ac0426a66ee169f7593360ea016b8",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "dd852ee90a5157c825f343464e163b46",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "aa098d97b2bf305f789849582c890c64",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "41ad3e9ae7e36e6ca096427f653c801c",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5ba9dda6de6fea747f471cdccbb65b04",
+      "path": "src/sheets/FilterSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "991e1e6df11e4d2292b4a9f30f0bcf80",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "315a888dcf5c517826561cac9aea4f64",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "87d756e883583ba01881ddedce659ad6",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f24f03de7fea006e9a32cafac04575e3",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3c8f4fe2fb6e763bee014f5dc3a34429",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4bcbb6fc35fea0983a223270169867b1",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "7421436c0813ef95903247f7808805c7",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a45c359d139cdea851f149f584368f3f",
+      "path": "src/sheets/PlayerCardSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3408a866440355b4ab5d553313db8514",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ba2ad29dc28898c425a60c55c2249280",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "44854b42f28388fa807a2717902949c4",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "c3ee8f7038864d384ae60a94bd482afc",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "91adaaf936310cbfc9bb0deab0cbcac8",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "07321bff177401d4adf795a7190977ef",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f595848afc7c228e62a643f4ea664869",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "1b0289fa06ecbb8259e1fbe151f64455",
+      "path": "src/sheets/PlayerDirectorySheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2fe966c7dc46a31b2eac7ff82c9dce25",
+      "path": "src/sheets/ProfileCompletionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "3689826b800ed557fce7e761bc62eee9",
+      "path": "src/sheets/ProfileCompletionSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "b5bbfb09d50766b1466ffae57b05696c",
+      "path": "src/sheets/ProfileCompletionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "5e06fb201990c6768859791083494309",
+      "path": "src/sheets/ProfileCompletionSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ea38afa10ae1ff7c06d3a59e4f43f92c",
+      "path": "src/sheets/ReportDialog.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "91849872dbf74bf5e0683c9772f21c5e",
+      "path": "src/sheets/SessionChatSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "af95504f6fc12b4d12f7eba3feee7c2e",
+      "path": "src/sheets/SessionChatSheet.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "bcc751d69035bf3e2098d61a05f008de",
+      "path": "src/sheets/SessionChatSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "2deac77676f78b362044e5bc8f23bc6d",
+      "path": "src/sheets/SessionChatSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "862ad80c01b5b81c24521940f1ebca32",
+      "path": "src/sheets/SessionDetailSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "a991e47cd001ba9a05ce0ac0b476998d",
+      "path": "src/sheets/SessionDetailSheet.tsx",
+      "batch": "R2-B",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "f4aad88b7fc3c5938232d8d56163657c",
+      "path": "src/sheets/WithdrawSessionConfirmationDialog.tsx",
+      "batch": "R2-A",
+      "acceptanceDoc": "docs/arch-reports/eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md"
     }
   ]
 }

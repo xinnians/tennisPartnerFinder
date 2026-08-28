@@ -26,8 +26,8 @@ export interface DecideSessionContentContract {
 
 interface DecideSessionContentOptions {
   candidateIds: Set<string>;
-  onClose(): void;
-  onDecide(event: React.MouseEvent<HTMLButtonElement>): void;
+  onClose: () => void;
+  onDecide: (event: React.MouseEvent<HTMLButtonElement>) => void;
   rangeEndLocal: string;
   startAtLocal: string;
   unavailable: boolean;

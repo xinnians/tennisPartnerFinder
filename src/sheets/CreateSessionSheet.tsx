@@ -92,27 +92,27 @@ interface CreateSessionActionNodes {
 }
 
 interface CreateSessionContentOptions {
-  bumpTime(time: string | null, deltaMinutes: number): string;
-  canPublish(form: CreateSessionFormState): boolean;
-  clock(value: Date): string;
+  bumpTime: (time: string | null, deltaMinutes: number) => string;
+  canPublish: (form: CreateSessionFormState) => boolean;
+  clock: (value: Date) => string;
   config: CreateSessionSheetConfig;
   courts: CreateCourt[];
   courtsReady: boolean;
-  dateValueNow(value: Date): string;
-  donePresentation(
+  dateValueNow: (value: Date) => string;
+  donePresentation: (
     value: CreateSessionValidatedValue,
     result: CreateSessionResult | null | undefined,
     courts: CreateCourt[]
-  ): CreateDonePresentation;
-  fixedStartAt(form: CreateSessionFormState, now: Date): string;
-  candidateWindow(form: CreateSessionFormState, now: Date): CandidateWindow;
+  ) => CreateDonePresentation;
+  fixedStartAt: (form: CreateSessionFormState, now: Date) => string;
+  candidateWindow: (form: CreateSessionFormState, now: Date) => CandidateWindow;
   initialForm: CreateSessionFormState;
-  now(): Date;
-  onBackToMap(): void;
-  onClose(): void;
-  onSubmit(form: CreateSessionFormState, nodes: CreateSessionActionNodes): void | Promise<void>;
-  onViewMySessions(sessionId: number | null): void;
-  toast(message: string): void;
+  now: () => Date;
+  onBackToMap: () => void;
+  onClose: () => void;
+  onSubmit: (form: CreateSessionFormState, nodes: CreateSessionActionNodes) => void | Promise<void>;
+  onViewMySessions: (sessionId: number | null) => void;
+  toast: (message: string) => void;
 }
 
 export interface CreateSessionContentContract {
@@ -137,7 +137,7 @@ function CourtCell({
   court: CreateCourt;
   role: "court" | "cand-court";
   selected: boolean;
-  onClick(): void;
+  onClick: () => void;
 }) {
   const testPrefix = role === "court" ? "create-court" : "create-candidate-court";
   return (

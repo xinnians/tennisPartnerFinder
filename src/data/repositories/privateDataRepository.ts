@@ -102,7 +102,7 @@ interface ReportInput {
 export interface PrivateDataRepositoryOptions {
   client: SupabaseClient<RepositoryDatabase> | null;
   configured: boolean;
-  loadCourts(city?: string): Promise<DataCourt[]>;
+  loadCourts: (city?: string) => Promise<DataCourt[]>;
   mockPlayerPresence: MockRow[];
   mockPlayers: MockRow[];
   mockSessionJoinPreviews: MockRow[];

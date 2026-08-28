@@ -43,7 +43,7 @@ export interface LoginModalContentOptions {
 }
 
 export interface LoginModalContentHandle {
-  unmount(): void;
+  unmount: () => void;
 }
 
 export type LoginModalContentRenderer = (

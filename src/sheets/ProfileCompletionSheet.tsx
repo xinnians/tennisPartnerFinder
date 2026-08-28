@@ -32,8 +32,8 @@ interface ProfileCompletionContentOptions {
   nickname: string;
   ntrpDefaultValue: string;
   ntrpExplanation: string;
-  onClose(): void;
-  onSubmit(nodes: ProfileCompletionActionNodes): void | Promise<void>;
+  onClose: () => void;
+  onSubmit: (nodes: ProfileCompletionActionNodes) => void | Promise<void>;
   playTypes: string[];
   returnContextText: string;
   selectedSlots: Set<string>;

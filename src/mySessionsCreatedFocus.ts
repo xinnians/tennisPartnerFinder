@@ -4,7 +4,7 @@ interface MySessionsCreatedFocusOptions {
   createdSessionId: ControllerIdentifier;
   groups: ControllerMySessionGroups;
   highlightSessionId: ControllerIdentifier;
-  onCreatedSessionFocus(sessionId?: ControllerIdentifier): boolean;
+  onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => boolean;
   rootElement: HTMLElement;
 }
 
