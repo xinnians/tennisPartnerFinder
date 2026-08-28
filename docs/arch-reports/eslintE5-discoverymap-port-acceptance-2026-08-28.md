@@ -48,7 +48,8 @@
   arrow（`requireSessionAction` 含 `as Promise<boolean> | void` cast）;
   intent 三個 arrow＋`profilePrompt: promptProfile` 改名。
 - lifecycle ports 11 批不加 selector（extraction 2 筆在 `:230` 同一行,
-  另開小批）;紅簽章算式:auth −12→228/25;lifecycle ports −11 檔數
+  另開小批）;紅簽章算式:auth −12→222/24（勘誤 2026-08-28:原誤寫
+  228/25,E-6 read-back 抓出,以實算為準）;lifecycle ports −11 檔數
   不變。
 
 ## Ledger 追加（本紀錄即 acceptanceDoc）
