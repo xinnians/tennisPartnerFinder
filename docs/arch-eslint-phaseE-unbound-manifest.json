@@ -5,10 +5,10 @@
     "src/**/*.{ts,tsx}",
     "vite.config.ts"
   ],
-  "findingsChecksum": "sha256:ee6ee497bf88745d8f3b20e8a96f6aa8ea93fb1afec719899c95e6ae92da100f",
+  "findingsChecksum": "sha256:221dfbad158d8cf6bd590e96a9b88122c188d05242991325355095440c3fd91f",
   "summary": {
-    "totalFindings": 240,
-    "fileCount": 26,
+    "totalFindings": 234,
+    "fileCount": 25,
     "sessionControllerFindings": 63,
     "duplicateStableIdCount": 0,
     "unresolvedDeclarationCount": 0,
@@ -18,19 +18,19 @@
   "messageIdStatistics": [
     {
       "name": "unboundWithoutThisAnnotation",
-      "count": 240
+      "count": 234
     }
   ],
   "thisUsageStatistics": [
     {
       "name": "ambient-no-body",
-      "count": 240
+      "count": 234
     }
   ],
   "proposedFixClassStatistics": [
     {
       "name": "function-property-contract",
-      "count": 240
+      "count": 234
     }
   ],
   "familyStatistics": [
@@ -56,11 +56,11 @@
     },
     {
       "family": "controller-callback-port",
-      "count": 75,
+      "count": 69,
       "proposedFixClasses": [
         {
           "name": "function-property-contract",
-          "count": 75
+          "count": 69
         }
       ]
     },
@@ -1204,150 +1204,6 @@
       "thisUsage": "ambient-no-body",
       "transferSink": "destructure",
       "invocationStyle": "destructured-function",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "1ed8b19ddfae0cdc2ecf7234a2069d51",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/discoveryMapController.ts",
-      "line": 96,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[3]",
-      "expressionFingerprint": "getPlayerGroups",
-      "owner": "factory:createDiscoveryMapController",
-      "receiverType": "parameter-pattern:DiscoveryMapDependencies",
-      "declarationPath": "src/controller/discoveryMapController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "545214c04e96dec6589b97408d383638",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/discoveryMapController.ts",
-      "line": 97,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[4]",
-      "expressionFingerprint": "loadPlayers",
-      "owner": "factory:createDiscoveryMapController",
-      "receiverType": "parameter-pattern:DiscoveryMapDependencies",
-      "declarationPath": "src/controller/discoveryMapController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "1b8f9d6f4ff0613167cf9610203242ee",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/discoveryMapController.ts",
-      "line": 99,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[6]",
-      "expressionFingerprint": "reconcileActiveDetail",
-      "owner": "factory:createDiscoveryMapController",
-      "receiverType": "parameter-pattern:DiscoveryMapDependencies",
-      "declarationPath": "src/controller/discoveryMapController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "4ef06f27267ec8414004d40a450e2bcb",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/discoveryMapController.ts",
-      "line": 100,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[7]",
-      "expressionFingerprint": "render",
-      "owner": "factory:createDiscoveryMapController",
-      "receiverType": "parameter-pattern:DiscoveryMapDependencies",
-      "declarationPath": "src/controller/discoveryMapController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "68f6f0bc444c826ad20bd5d2bb8a505c",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/discoveryMapController.ts",
-      "line": 101,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[8]",
-      "expressionFingerprint": "renderPins",
-      "owner": "factory:createDiscoveryMapController",
-      "receiverType": "parameter-pattern:DiscoveryMapDependencies",
-      "declarationPath": "src/controller/discoveryMapController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "34af30da673a2ea64bbfff5a73fb2e16",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/discoveryMapController.ts",
-      "line": 102,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[9]",
-      "expressionFingerprint": "renderPlayers",
-      "owner": "factory:createDiscoveryMapController",
-      "receiverType": "parameter-pattern:DiscoveryMapDependencies",
-      "declarationPath": "src/controller/discoveryMapController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
       "identitySensitivity": "none-observed",
       "family": "controller-callback-port",
       "proposedFixClass": "function-property-contract",

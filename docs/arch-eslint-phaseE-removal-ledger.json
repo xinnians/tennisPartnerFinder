@@ -36,6 +36,42 @@
       "path": "src/controller/mySessionsController.ts",
       "batch": "E-4",
       "acceptanceDoc": "docs/arch-reports/eslintE4-mysessions-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "1ed8b19ddfae0cdc2ecf7234a2069d51",
+      "path": "src/controller/discoveryMapController.ts",
+      "batch": "E-5",
+      "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "545214c04e96dec6589b97408d383638",
+      "path": "src/controller/discoveryMapController.ts",
+      "batch": "E-5",
+      "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "1b8f9d6f4ff0613167cf9610203242ee",
+      "path": "src/controller/discoveryMapController.ts",
+      "batch": "E-5",
+      "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "4ef06f27267ec8414004d40a450e2bcb",
+      "path": "src/controller/discoveryMapController.ts",
+      "batch": "E-5",
+      "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "68f6f0bc444c826ad20bd5d2bb8a505c",
+      "path": "src/controller/discoveryMapController.ts",
+      "batch": "E-5",
+      "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "34af30da673a2ea64bbfff5a73fb2e16",
+      "path": "src/controller/discoveryMapController.ts",
+      "batch": "E-5",
+      "acceptanceDoc": "docs/arch-reports/eslintE5-discoverymap-port-acceptance-2026-08-28.md"
     }
   ]
 }
