@@ -121,13 +121,13 @@ header（現值）。每批 ACCEPTED 時回填本表。
 | FR-A/B/C | factory results 63,分組 **23/25/15**（mySessions15＋playerDir8／discoveryMap13＋intent12／lifecycle11＋auth3＋chat1;FR-C 上線 sessionController selector）——**factory-result family 全清**;唯一偏差=discoveryMap `:135` nullable annotation（user 核可,erased 全等） | ACCEPTED | 見本批 commit | `eslintFR-factory-results-acceptance-2026-08-28.md` |
 | R1-A/B | React app 22＋pages 15（37 筆;pages 三檔零 diff 自證;selector 上線 5 檔;零 variance 偏差） | ACCEPTED | 見本批 commit | `eslintR1-app-pages-acceptance-2026-08-28.md` |
 | R2-A/B/C | sheets 42＋surface-lifecycle 19＋零星 2（63 筆清零批;selector 兩波上線 14 檔;守門四拍;零偏差）——**全庫清零** | ACCEPTED | 見本批 commit | `eslintR2-sheets-lifecycle-leaves-acceptance-2026-08-28.md` |
-| 後續 | 收攏批（off 行＋scoped 區塊移除、config regression test 強制交付、inline-disable 破口堵防、四資產退役;要件見 R2 驗收紀錄） | 未派 | — | — |
+| CL | 收攏批:全庫明訂 error＋scoped 區塊移除＋policy gate 三斷言（noInlineConfig 實 lint）＋generator 退役——**管線全案完結**（一輪退件:grep 版 gate 被三形式打穿,改 ESLint API 後閉環） | ACCEPTED | 見本批 commit | `eslintCL-closing-acceptance-2026-08-29.md` |
 
-量化現況（R2 後）：`unbound-method` **0 findings／0 檔**（baseline
-246−ledger 246,集合等式閉合）；scoped 上線 **28 檔=baseline 全
-path**；另 databaseTypes ledger 2（§5 方案一）。剩收攏批：移除全域
-off＋scoped 區塊、config regression test 強制交付、inline-disable
-破口堵防（詳見 R2 驗收紀錄下批要件）。
+終態（CL 後,**全案完結**）：`unbound-method` 全庫明訂 `error`,
+scoped 區塊與全域 off 均移除;守門=`tests/eslint-unbound-policy.test.js`
+三斷言（斷言 2/3 覆蓋面不重疊不得擇一刪除,詳見 CL 驗收紀錄）;
+generator 退役,baseline／ledger／manifest 凍結為歷史。管線外殘項:
+databaseTypes 2 筆（`no-redundant-type-constituents`,另案）。
 
 流程紀律（E-3／E-4 拍板，詳見各驗收紀錄）：實作者交**紅簽章**
 （generator 恰 N+2 條錯誤）＋lint canary＋erased-token 三重證據；

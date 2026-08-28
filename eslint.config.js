@@ -80,8 +80,8 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
-      // 既有 type-aware 型別債，本批不改變既有程式語意。
-      "@typescript-eslint/unbound-method": "off",
+      // type-aware 恢復管線終態：本區塊規則全為專案明訂 error。
+      "@typescript-eslint/unbound-method": "error",
       "react-hooks/exhaustive-deps": "error",
       "react-hooks/rules-of-hooks": "error",
     },
@@ -92,43 +92,6 @@ export default tseslint.config(
     files: ["src/data/databaseTypes.ts"],
     rules: {
       "@typescript-eslint/no-redundant-type-constituents": "off",
-    },
-  },
-  // Phase E unbound-method 逐批恢復：已清零的檔案以 scoped override 先上線，
-  // 全庫清零後移除本區塊與全域 off。
-  {
-    files: [
-      "src/app/App.tsx",
-      "src/app/AppServicesProvider.tsx",
-      "src/controller/authController.ts",
-      "src/controller/chatController.ts",
-      "src/controller/discoveryMapController.ts",
-      "src/controller/intentController.ts",
-      "src/controller/lifecycleActionsController.ts",
-      "src/controller/mySessionsController.ts",
-      "src/controller/playerDirectoryController.ts",
-      "src/data/repositories/privateDataRepository.ts",
-      "src/map.ts",
-      "src/mySessionsCreatedFocus.ts",
-      "src/pages/MePage.tsx",
-      "src/pages/MySessionsPage.tsx",
-      "src/pages/NearbySessionsDrawer.tsx",
-      "src/sessionController.ts",
-      "src/sheets.ts",
-      "src/sheets/CreateSessionSheet.tsx",
-      "src/sheets/DecideSessionSheet.tsx",
-      "src/sheets/EditSessionSheet.tsx",
-      "src/sheets/FilterSheet.tsx",
-      "src/sheets/PlayerCardSheet.tsx",
-      "src/sheets/PlayerDirectorySheet.tsx",
-      "src/sheets/ProfileCompletionSheet.tsx",
-      "src/sheets/ReportDialog.tsx",
-      "src/sheets/SessionChatSheet.tsx",
-      "src/sheets/SessionDetailSheet.tsx",
-      "src/sheets/WithdrawSessionConfirmationDialog.tsx",
-    ],
-    rules: {
-      "@typescript-eslint/unbound-method": "error",
     },
   },
   // Keep these ranges disjoint: flat-config rule arrays replace rather than merge.
