@@ -36,7 +36,7 @@ import type {
   ControllerSurfaceHandle,
   SessionControllerState,
 } from "./controllerContracts.ts";
-import type { MySessionSummary, SessionSummary, SurfaceCloseOptions } from "./domainTypes.ts";
+import type { MySessionSummary, SessionJoinPreview, SessionSummary, SurfaceCloseOptions } from "./domainTypes.ts";
 import type { Store } from "./sessionStore.ts";
 import type { SurfaceRegistry } from "./controller/surfaceRegistry.ts";
 
@@ -60,7 +60,7 @@ type SessionControllerDataPort = ChatControllerOptions["api"] &
       reportedProfileId: ControllerIdentifier;
       sessionId: ControllerIdentifier;
     }): Promise<unknown>;
-    loadSessionJoinPreview?(sessionId: ControllerIdentifier): Promise<unknown>;
+    loadSessionJoinPreview?(sessionId: ControllerIdentifier): Promise<SessionJoinPreview[]>;
     setPlayerVisibility?(visible: boolean): Promise<unknown>;
   };
 

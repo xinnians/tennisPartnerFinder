@@ -684,7 +684,7 @@ export function decideCourtOptionsPresentation(
   candidateIds: Set<string> | readonly string[],
   { ready = true }: { ready?: boolean } = {}
 ) {
-  const available = Array.isArray(courts) ? courts : [];
+  const available = (Array.isArray(courts) ? courts : []) as CourtInput[];
   const ids = candidateIds instanceof Set ? candidateIds : new Set([...(candidateIds ?? [])].map(String));
   const candidateCourts = available.filter((court) => ids.has(String(court.id)));
   return {

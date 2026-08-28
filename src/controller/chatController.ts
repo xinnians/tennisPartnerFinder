@@ -8,11 +8,11 @@ import type {
   ControllerIdentifier,
   ControllerSurfaceHandle,
 } from "../controllerContracts.ts";
-import type { MySessionSummary, SessionRosterEntry } from "../domainTypes.ts";
+import type { ChatMessage, MySessionSummary, SessionRosterEntry } from "../domainTypes.ts";
 import type { SurfaceRegistry } from "./surfaceRegistry.ts";
 
 interface ChatDataApi {
-  loadSessionMessages?(sessionId: ControllerIdentifier): Promise<unknown>;
+  loadSessionMessages?(sessionId: ControllerIdentifier): Promise<ChatMessage[]>;
   loadSessionRoster?(sessionId: ControllerIdentifier): Promise<unknown>;
   markSessionChatRead?(sessionId: ControllerIdentifier): Promise<unknown>;
   postSessionMessage?(sessionId: ControllerIdentifier, body: unknown): Promise<unknown>;

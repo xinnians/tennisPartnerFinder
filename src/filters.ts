@@ -176,7 +176,7 @@ export function filterSessions(
   filters: FilterStateInput | null | undefined = DEFAULT_FILTER_STATE,
   now: FilterDateInput = new Date()
 ) {
-  const source: SessionInput[] = Array.isArray(sessions) ? sessions : [];
+  const source = (Array.isArray(sessions) ? sessions : []) as SessionInput[];
   const state = filters ?? DEFAULT_FILTER_STATE;
 
   return source.filter(
@@ -239,7 +239,7 @@ export function sortSessionsForDrawer(
   now: FilterDateInput = new Date(),
   courts: CourtInput[] = []
 ) {
-  const source: SessionInput[] = Array.isArray(sessions) ? sessions : [];
+  const source = (Array.isArray(sessions) ? sessions : []) as SessionInput[];
   const location = validLocation(userLocation);
   // 滿員局沉底(2026-08-17 拍板「降級顯示」),可加入的局中「進行中且有缺額」優先。
   const comparePriority = (left: SessionInput, right: SessionInput) =>

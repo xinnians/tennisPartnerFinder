@@ -74,7 +74,11 @@ scoped override 記帳 2 筆。債餘 4 條 off／266 findings（264 待修＋2 
 - 驗收草案：兩規則分別 canary；`.d.ts`／contract consumer typecheck；esbuild 擦除全等；
   generated file 若未拍板則以 scoped override 留在後續，不得手改後假裝可重生。
 
-### C. unsafe assignment／member-access 資料邊界批
+### C. unsafe assignment／member-access 資料邊界批——**ACCEPTED（2026-08-28）**
+
+狀態：已完成並驗收（`docs/arch-reports/eslintC-data-boundary-acceptance-2026-08-28.md`）。
+兩規則恢復、10 筆清零（port 收斂 4＋collection cast 6）、零 runtime token。
+債餘 2 條 off／256 findings（254 待修＋2 記帳）。以下原方案文字保留為歷史依據。
 
 - 範圍：12＋25 個 finding；notification、session controller、presentation 是交集熱點。
 - 順序：由來源向下游修（config／repository payload → mapper → controller → UI），避免用
