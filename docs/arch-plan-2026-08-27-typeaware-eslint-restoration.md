@@ -101,7 +101,35 @@ scoped override 記帳 2 筆。債餘 4 條 off／266 findings（264 待修＋2 
 - 驗收草案：每個 finding 有 before/after 輸入矩陣，既存中文字面 seal、token 差異逐點
   裁決、mock/local 視覺 journey。
 
-### E. `unbound-method` 專批
+### E. `unbound-method` 專批——**進行中（進度表 2026-08-28 回填）**
+
+進度控制：本節進度表＋`docs/arch-eslint-phaseE-removal-ledger.json`
+（機器帳：已接受移除逐筆）＋`docs/arch-eslint-phaseE-unbound-manifest.json`
+header（現值）。每批 ACCEPTED 時回填本表。
+
+| 批次 | 範圍 | 狀態 | commit | 驗收紀錄 |
+| --- | --- | --- | --- | --- |
+| E-1 | manifest 產出（generator＋246 筆分類，不改碼） | ACCEPTED | `77365a0` | `eslintE1-unbound-manifest-acceptance-2026-08-28.md` |
+| E-2 | callback-default 2（map.ts；首個 scoped 上線） | ACCEPTED | `abd0cf1` | `eslintE2-map-callback-default-acceptance-2026-08-28.md` |
+| E-3 | ledger 機械化（常數退場、集合等式、scoped 正反 assert） | ACCEPTED | `e5ca551` | `eslintE3-manifest-ledger-acceptance-2026-08-28.md` |
+| E-4 | mySessions ports 4＋G1/G2 守門（首個紅簽章流程批） | ACCEPTED | `48dd6c6` | `eslintE4-mysessions-port-acceptance-2026-08-28.md` |
+| E-5 | discoveryMap ports 6 | ACCEPTED | `1cbe80e` | `eslintE5-discoverymap-port-acceptance-2026-08-28.md` |
+| E-6 | auth ports 12 | 已派工待 Codex | 派工單 `f46b2af` | — |
+| E-7 起 | chat 11 → lifecycle ports 11（不加 selector）→ playerDirectory 13 → intent 22 → lifecycle extraction 2 → factory results 63（sessionController，family/owner 切小批，最後一批才上線）→ React contracts 79（app 22／sheets 42／pages 15）→ method-ref 1＋surface-lifecycle 19 | 未派 | — | — |
+
+量化現況（E-5 後）：`unbound-method` **234 findings／25 檔**（baseline
+246−ledger 12）；scoped 上線 3 檔（map／mySessions／discoveryMap）；
+另 databaseTypes ledger 2（§5 方案一）。全庫清零後收攏：移除全域 off
+＋scoped 區塊，裁決 generator/manifest 轉常規 gate 或退役。
+
+流程紀律（E-3／E-4 拍板，詳見各驗收紀錄）：實作者交**紅簽章**
+（generator 恰 N+2 條錯誤）＋lint canary＋erased-token 三重證據；
+ledger 追加與 manifest 重生由驗收方 ACCEPTED 時原子完成；清零門檻以
+檔計非 family 計；多行簽名檔（chat／lifecycle／playerDirectory／
+intent）驗收改逐 stableId 對點（nested handler method signature 非
+findings，不得順手改）。
+
+以下原始方案文字保留為歷史依據。
 
 - 範圍：246 筆／28 檔；先做完整分類 manifest，再依 contract family 切小批，而非一次
   開規則。
