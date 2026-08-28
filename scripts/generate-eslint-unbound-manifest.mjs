@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ const SCAN_GLOBS = ["src/**/*.{ts,tsx}", "vite.config.ts"];
 const JSON_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-unbound-manifest.json");
 const MARKDOWN_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-unbound-manifest.md");
 const BASELINE_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-baseline.json");
+const BASELINE_SHA256 = "14e56a1675ccf4939f2e0bc3e2685070b325a32a75ef778ea1ffa45b018fd207";
 const REMOVAL_LEDGER_PATH = path.join(ROOT, "docs/arch-eslint-phaseE-removal-ledger.json");
 const TYPE_FORMAT_FLAGS = ts.TypeFormatFlags.NoTruncation;
 const ALLOWED_MESSAGE_IDS = new Set(["unbound", "unboundWithoutThisAnnotation"]);
@@ -97,6 +98,11 @@ function assertRepositoryPath(value, label) {
 }
 
 function loadLedgerState() {
+  const baselineSource = readFileSync(BASELINE_PATH);
+  const baselineChecksum = sha256(baselineSource);
+  if (baselineChecksum !== BASELINE_SHA256) {
+    throw new Error(`baseline file drifted: expected sha256 ${BASELINE_SHA256}; received ${baselineChecksum}`);
+  }
   const baseline = readJson(BASELINE_PATH, "unbound-method baseline");
   assertExactKeys(baseline, ["schemaVersion", "sourceCommit", "findingCount", "findings"], "baseline");
   if (baseline.schemaVersion !== 1) throw new Error(`baseline schema violation: unsupported schemaVersion`);
@@ -139,6 +145,9 @@ function loadLedgerState() {
     assertStableId(removal.stableId, label);
     assertRepositoryPath(removal.path, label);
     assertRepositoryPath(removal.acceptanceDoc, label);
+    if (!existsSync(path.join(ROOT, removal.acceptanceDoc))) {
+      throw new Error(`${label} acceptanceDoc does not exist: ${removal.acceptanceDoc}`);
+    }
     if (typeof removal.batch !== "string" || !removal.batch) {
       throw new Error(`${label} schema violation: batch must be a non-empty string`);
     }

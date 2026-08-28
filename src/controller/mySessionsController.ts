@@ -50,13 +50,13 @@ export interface ControllerSessionAction {
 interface MySessionsControllerDependencies {
   api: MySessionsDataApi;
   blockedPlayerGate: ControllerRequestGate;
-  onMySessionsChange(state: ControllerMySessionsViewState): void;
+  onMySessionsChange: (state: ControllerMySessionsViewState) => void;
   participationGate: ControllerRequestGate;
-  reconcileActiveChatParticipation(): void;
-  reconcileActiveDetailParticipation(): void;
+  reconcileActiveChatParticipation: () => void;
+  reconcileActiveDetailParticipation: () => void;
   rosterGate: ControllerRequestGate;
   store: Store<SessionControllerState, ControllerEventName>;
-  toast(message: string): void;
+  toast: (message: string) => void;
 }
 
 export interface MySessionsController {

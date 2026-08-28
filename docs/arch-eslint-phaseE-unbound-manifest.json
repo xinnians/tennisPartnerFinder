@@ -5,10 +5,10 @@
     "src/**/*.{ts,tsx}",
     "vite.config.ts"
   ],
-  "findingsChecksum": "sha256:ce5a3e8a82e75dca710449d1c2d9c549448831573891cf6ffec230e380ccdd30",
+  "findingsChecksum": "sha256:ee6ee497bf88745d8f3b20e8a96f6aa8ea93fb1afec719899c95e6ae92da100f",
   "summary": {
-    "totalFindings": 244,
-    "fileCount": 27,
+    "totalFindings": 240,
+    "fileCount": 26,
     "sessionControllerFindings": 63,
     "duplicateStableIdCount": 0,
     "unresolvedDeclarationCount": 0,
@@ -18,19 +18,19 @@
   "messageIdStatistics": [
     {
       "name": "unboundWithoutThisAnnotation",
-      "count": 244
+      "count": 240
     }
   ],
   "thisUsageStatistics": [
     {
       "name": "ambient-no-body",
-      "count": 244
+      "count": 240
     }
   ],
   "proposedFixClassStatistics": [
     {
       "name": "function-property-contract",
-      "count": 244
+      "count": 240
     }
   ],
   "familyStatistics": [
@@ -56,11 +56,11 @@
     },
     {
       "family": "controller-callback-port",
-      "count": 79,
+      "count": 75,
       "proposedFixClasses": [
         {
           "name": "function-property-contract",
-          "count": 79
+          "count": 75
         }
       ]
     },
@@ -2184,102 +2184,6 @@
       "owner": "factory:createLifecycleActionsController",
       "receiverType": "parameter-pattern:LifecycleActionsDependencies",
       "declarationPath": "src/controller/lifecycleActionsController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "ebf46214044c39a47782e9fbb01a152a",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/mySessionsController.ts",
-      "line": 88,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[2]",
-      "expressionFingerprint": "onMySessionsChange",
-      "owner": "factory:createMySessionsController",
-      "receiverType": "parameter-pattern:MySessionsControllerDependencies",
-      "declarationPath": "src/controller/mySessionsController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "1957d00e0e6a2cb919662ff63d65c0c4",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/mySessionsController.ts",
-      "line": 90,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[4]",
-      "expressionFingerprint": "reconcileActiveChatParticipation",
-      "owner": "factory:createMySessionsController",
-      "receiverType": "parameter-pattern:MySessionsControllerDependencies",
-      "declarationPath": "src/controller/mySessionsController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "df2cdcfc865e2bfed69286f2c866996f",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/mySessionsController.ts",
-      "line": 91,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[5]",
-      "expressionFingerprint": "reconcileActiveDetailParticipation",
-      "owner": "factory:createMySessionsController",
-      "receiverType": "parameter-pattern:MySessionsControllerDependencies",
-      "declarationPath": "src/controller/mySessionsController.ts",
-      "declarationKind": "MethodSignature",
-      "thisUsage": "ambient-no-body",
-      "transferSink": "parameter pattern",
-      "invocationStyle": "parameter-destructure",
-      "identitySensitivity": "none-observed",
-      "family": "controller-callback-port",
-      "proposedFixClass": "function-property-contract",
-      "tests": [
-        "tests/session-controller.test.js"
-      ],
-      "reviewStatus": "machine-classified"
-    },
-    {
-      "stableId": "bcb22c134f491515ce57c49fe82f1c8a",
-      "rule": "@typescript-eslint/unbound-method",
-      "messageId": "unboundWithoutThisAnnotation",
-      "path": "src/controller/mySessionsController.ts",
-      "line": 94,
-      "column": 3,
-      "astPath": "SourceFile[0]/FunctionDeclaration[0]/Parameter[0]/ObjectBindingPattern[0]/BindingElement[8]",
-      "expressionFingerprint": "toast",
-      "owner": "factory:createMySessionsController",
-      "receiverType": "parameter-pattern:MySessionsControllerDependencies",
-      "declarationPath": "src/controller/mySessionsController.ts",
       "declarationKind": "MethodSignature",
       "thisUsage": "ambient-no-body",
       "transferSink": "parameter pattern",

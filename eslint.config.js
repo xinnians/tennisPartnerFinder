@@ -97,7 +97,7 @@ export default tseslint.config(
   // Phase E unbound-method 逐批恢復：已清零的檔案以 scoped override 先上線，
   // 全庫清零後移除本區塊與全域 off。
   {
-    files: ["src/map.ts"],
+    files: ["src/controller/mySessionsController.ts", "src/map.ts"],
     rules: {
       "@typescript-eslint/unbound-method": "error",
     },

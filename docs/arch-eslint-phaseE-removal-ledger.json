@@ -12,6 +12,30 @@
       "path": "src/map.ts",
       "batch": "E-2",
       "acceptanceDoc": "docs/arch-reports/eslintE2-map-callback-default-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "ebf46214044c39a47782e9fbb01a152a",
+      "path": "src/controller/mySessionsController.ts",
+      "batch": "E-4",
+      "acceptanceDoc": "docs/arch-reports/eslintE4-mysessions-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "1957d00e0e6a2cb919662ff63d65c0c4",
+      "path": "src/controller/mySessionsController.ts",
+      "batch": "E-4",
+      "acceptanceDoc": "docs/arch-reports/eslintE4-mysessions-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "df2cdcfc865e2bfed69286f2c866996f",
+      "path": "src/controller/mySessionsController.ts",
+      "batch": "E-4",
+      "acceptanceDoc": "docs/arch-reports/eslintE4-mysessions-port-acceptance-2026-08-28.md"
+    },
+    {
+      "stableId": "bcb22c134f491515ce57c49fe82f1c8a",
+      "path": "src/controller/mySessionsController.ts",
+      "batch": "E-4",
+      "acceptanceDoc": "docs/arch-reports/eslintE4-mysessions-port-acceptance-2026-08-28.md"
     }
   ]
 }
