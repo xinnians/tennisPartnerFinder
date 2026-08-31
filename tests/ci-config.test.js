@@ -252,6 +252,10 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
     assert.ok(project?.testMatch.test("react-page-focus.spec.js"), `${name} silently excludes the page-focus gate`);
     assert.ok(project?.testMatch.test("auth-lock.spec.js"), `${name} silently excludes the auth-lock gate`);
     assert.ok(project?.testMatch.test("push-storage.spec.js"), `${name} silently excludes the Push storage gate`);
+    assert.ok(
+      project?.testMatch.test("push-cleanup-transport.spec.js"),
+      `${name} silently excludes the Push cleanup transport gate`
+    );
   }
 });
 
@@ -518,6 +522,7 @@ test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workfl
     "react-page-focus.spec.js",
     "auth-lock.spec.js",
     "push-storage.spec.js",
+    "push-cleanup-transport.spec.js",
   ]) {
     assert.equal(webkit.testMatch.test(spec), chromium.testMatch.test(spec), `WebKit coverage drifted for ${spec}`);
   }

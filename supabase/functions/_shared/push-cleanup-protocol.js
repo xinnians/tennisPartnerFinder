@@ -1,10 +1,21 @@
 export const CLEANUP_ENVELOPE_VERSION = 1;
+export const CLEANUP_KEY_ID_BYTES = 32;
+export const CLEANUP_KEY_ID_CHARACTERS = Math.ceil((CLEANUP_KEY_ID_BYTES * 8) / 6);
 export const CLEANUP_KEY_ALGORITHM = "RSA-OAEP-256";
+export const CLEANUP_PUBLIC_KEY_DOCUMENT_BYTES = 499;
 export const CLEANUP_PUBLIC_KEY_DOCUMENT_VERSION = 1;
+export const CLEANUP_PUBLIC_KEY_PATH = "/push-cleanup-key-v1.json";
 export const CLEANUP_RSA_LABEL_TEXT = "qiuka.tw/push-cleanup-token/v1";
 export const CLEANUP_RSA_MODULUS_BITS = 2048;
 export const CLEANUP_RSA_CIPHERTEXT_BYTES = CLEANUP_RSA_MODULUS_BITS / 8;
 export const CLEANUP_RSA_CIPHERTEXT_CHARACTERS = Math.ceil((CLEANUP_RSA_CIPHERTEXT_BYTES * 8) / 6);
+export const CLEANUP_ENVELOPE_BYTES = new TextEncoder().encode(
+  JSON.stringify({
+    ciphertext: "A".repeat(CLEANUP_RSA_CIPHERTEXT_CHARACTERS),
+    keyId: "A".repeat(CLEANUP_KEY_ID_CHARACTERS),
+    version: CLEANUP_ENVELOPE_VERSION,
+  })
+).byteLength;
 export const CLEANUP_TOKEN_BYTES = 32;
 export const CLEANUP_TOKEN_CHARACTERS = 43;
 
@@ -177,7 +188,7 @@ function exactEnvelopeShape(envelope) {
 
 function validKeyId(value) {
   const decoded = decodeCanonicalBase64Url(value);
-  return decoded?.byteLength === 32;
+  return decoded?.byteLength === CLEANUP_KEY_ID_BYTES;
 }
 
 export function canonicalCleanupEnvelopeJson(envelope) {
@@ -212,11 +223,15 @@ export async function encryptCleanupTokenEnvelope(token, publicJwk, cryptoRef = 
     const plaintext = new TextEncoder().encode(token);
     try {
       const ciphertext = new Uint8Array(await cryptoRef.subtle.encrypt(RSA_OAEP_OPERATION, key, plaintext));
-      return {
-        ciphertext: encodeBase64Url(ciphertext),
-        keyId: publicJwk.kid,
-        version: CLEANUP_ENVELOPE_VERSION,
-      };
+      try {
+        return {
+          ciphertext: encodeBase64Url(ciphertext),
+          keyId: publicJwk.kid,
+          version: CLEANUP_ENVELOPE_VERSION,
+        };
+      } finally {
+        ciphertext.fill(0);
+      }
     } finally {
       plaintext.fill(0);
     }

@@ -6,6 +6,8 @@ import { enableBrowserPush, vapidPublicKeyBytes } from "../src/notificationPush.
 
 const PUSH_STORAGE_URL = new URL("../src/notificationPushStorage.ts", import.meta.url);
 const PUSH_STORAGE_SOURCE = readFileSync(PUSH_STORAGE_URL, "utf8");
+const PUSH_CLEANUP_TRANSPORT_URL = new URL("../src/notificationPushCleanupTransport.ts", import.meta.url);
+const PUSH_CLEANUP_TRANSPORT_SOURCE = readFileSync(PUSH_CLEANUP_TRANSPORT_URL, "utf8");
 
 function sourceFiles(directoryUrl) {
   return readdirSync(directoryUrl, { withFileTypes: true }).flatMap((entry) => {
@@ -76,6 +78,14 @@ test("the Push storage foundation stays outside the production runtime graph", (
   assert.deepEqual(references, []);
 });
 
+test("the Push cleanup transport stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_CLEANUP_TRANSPORT_URL.href)
+    .filter((sourceUrl) => /notificationPushCleanupTransport/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
 test("the Push storage foundation has no network, Supabase, or unsafe fallback boundary", () => {
   const importSources = [...PUSH_STORAGE_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
   const sideEffectImports = [...PUSH_STORAGE_SOURCE.matchAll(/^\s*import\s+"([^"]+)";/gmu)].map((match) => match[1]);
@@ -86,4 +96,23 @@ test("the Push storage foundation has no network, Supabase, or unsafe fallback b
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:dataApi|supabaseClient)\b/u);
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u);
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:localStorage|sessionStorage|Math\.random)\b/u);
+});
+
+test("the dormant cleanup transport imports only the public shared protocol and never persists or logs secrets", () => {
+  const importSources = [...PUSH_CLEANUP_TRANSPORT_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
+  const sideEffectImports = [...PUSH_CLEANUP_TRANSPORT_SOURCE.matchAll(/^\s*import\s+"([^"]+)";/gmu)].map(
+    (match) => match[1]
+  );
+
+  assert.deepEqual(importSources, ["../supabase/functions/_shared/push-cleanup-protocol.js"]);
+  assert.deepEqual(sideEffectImports, []);
+  assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /\b(?:dataApi|supabaseClient|notificationPushStorage)\b/u);
+  assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /\bconsole\.|\b(?:Authorization|apikey)\b/u);
+  assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /response\.(?:arrayBuffer|blob|formData|json|text)\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_CLEANUP_TRANSPORT_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|Math\.random)\b/u
+  );
 });

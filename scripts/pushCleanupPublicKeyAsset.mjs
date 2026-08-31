@@ -1,16 +1,22 @@
 import {
   canonicalCleanupPublicKeyDocumentJson,
+  CLEANUP_PUBLIC_KEY_DOCUMENT_BYTES,
+  CLEANUP_PUBLIC_KEY_PATH,
   parseCanonicalCleanupPublicJwkJson,
 } from "../supabase/functions/_shared/push-cleanup-protocol.js";
 
-export const PUSH_CLEANUP_PUBLIC_KEY_ASSET = "push-cleanup-key-v1.json";
-export const PUSH_CLEANUP_PUBLIC_KEY_PATH = `/${PUSH_CLEANUP_PUBLIC_KEY_ASSET}`;
+export const PUSH_CLEANUP_PUBLIC_KEY_PATH = CLEANUP_PUBLIC_KEY_PATH;
+export const PUSH_CLEANUP_PUBLIC_KEY_ASSET = PUSH_CLEANUP_PUBLIC_KEY_PATH.slice(1);
 export const PUSH_CLEANUP_PUBLIC_JWK_ENV = "PUSH_CLEANUP_PUBLIC_JWK_JSON";
 
 export async function createPushCleanupPublicKeyAssetSource(serializedPublicJwk) {
   if (serializedPublicJwk === "") return null;
   const publicJwk = await parseCanonicalCleanupPublicJwkJson(serializedPublicJwk);
-  return canonicalCleanupPublicKeyDocumentJson(publicJwk);
+  const source = await canonicalCleanupPublicKeyDocumentJson(publicJwk);
+  if (new TextEncoder().encode(source).byteLength !== CLEANUP_PUBLIC_KEY_DOCUMENT_BYTES) {
+    throw new Error("PUSH_CLEANUP_PUBLIC_KEY_DOCUMENT_INVALID");
+  }
+  return source;
 }
 
 export function createPushCleanupPublicKeyAssetPlugin(serializedPublicJwk) {

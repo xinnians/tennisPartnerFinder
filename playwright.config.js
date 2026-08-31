@@ -46,13 +46,13 @@ export function createPlaywrightConfig({
       {
         name: "desktop-chromium",
         testMatch:
-          /(?:smoke|performance|error-boundary|react-unmount|react-page-focus|auth-lock|push-storage)\.spec\.js/,
+          /(?:smoke|performance|error-boundary|react-unmount|react-page-focus|auth-lock|push-storage|push-cleanup-transport)\.spec\.js/,
         use: { ...devices["Desktop Chrome"], baseURL: "http://127.0.0.1:5174" },
       },
       {
         name: "mobile-chromium",
         testMatch:
-          /(?:smoke|performance|error-boundary|react-unmount|react-page-focus|auth-lock|push-storage)\.spec\.js/,
+          /(?:smoke|performance|error-boundary|react-unmount|react-page-focus|auth-lock|push-storage|push-cleanup-transport)\.spec\.js/,
         use: {
           ...devices["Pixel 5"],
           baseURL: "http://127.0.0.1:5174",
@@ -62,7 +62,7 @@ export function createPlaywrightConfig({
       {
         name: "mobile-webkit",
         testMatch:
-          /(?:smoke|performance|error-boundary|react-unmount|react-page-focus|auth-lock|push-storage)\.spec\.js/,
+          /(?:smoke|performance|error-boundary|react-unmount|react-page-focus|auth-lock|push-storage|push-cleanup-transport)\.spec\.js/,
         use: {
           ...devices["iPhone 12"],
           baseURL: "http://127.0.0.1:5174",

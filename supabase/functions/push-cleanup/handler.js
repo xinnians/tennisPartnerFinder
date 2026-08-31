@@ -1,12 +1,6 @@
-import { canonicalCleanupEnvelopeJson, CLEANUP_RSA_CIPHERTEXT_CHARACTERS, digestForCleanupEnvelope } from "./crypto.js";
+import { canonicalCleanupEnvelopeJson, CLEANUP_ENVELOPE_BYTES, digestForCleanupEnvelope } from "./crypto.js";
 
-export const CLEANUP_ENVELOPE_BYTES = new TextEncoder().encode(
-  JSON.stringify({
-    ciphertext: "A".repeat(CLEANUP_RSA_CIPHERTEXT_CHARACTERS),
-    keyId: "A".repeat(43),
-    version: 1,
-  })
-).byteLength;
+export { CLEANUP_ENVELOPE_BYTES };
 
 const BASE_HEADERS = Object.freeze({
   "cache-control": "no-store",
