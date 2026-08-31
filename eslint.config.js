@@ -66,6 +66,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ["supabase/functions/push-cleanup/**/*.js"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      globals: globals.denoBuiltin,
+    },
+  },
+  {
+    files: ["supabase/functions/push-cleanup/**/*.ts"],
+    extends: [...tseslint.configs.recommended],
+    languageOptions: {
+      globals: globals.denoBuiltin,
+    },
+  },
+  {
     files: ["src/**/*.{ts,tsx}", "vite.config.ts"],
     extends: [...tseslint.configs.recommendedTypeChecked],
     plugins: {

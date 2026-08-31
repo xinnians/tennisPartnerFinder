@@ -390,6 +390,12 @@ deno_version = 2
 [functions.notification-outbox-dispatch]
 verify_jwt = false
 
+# Sessionless cleanup is authorized by an application-layer encrypted,
+# cleanup-only bearer. The handler is hard-disabled on hosted Supabase until
+# the separately approved distributed rate limiter is implemented.
+[functions.push-cleanup]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

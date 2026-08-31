@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { ESLint } from "eslint";
 
 import { createPlaywrightConfig } from "../playwright.config.js";
 import {
@@ -24,6 +27,7 @@ const SMOKE_SPECS = readdirSync(new URL("./", import.meta.url))
   .join("\n");
 const DEVELOPMENT_BRANCH = "claude/tennis-partner-finder-proto-xfrr6g";
 const REQUIRED_NODE_VERSION = [22, 18, 0];
+const REPOSITORY_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 const scriptCommands = (name) => PACKAGE.scripts[name].split("&&").map((command) => command.trim());
 
@@ -186,12 +190,24 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/push-cleanup/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/push-cleanup/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
   );
+});
+
+test("ESLint applies real JS and TypeScript rules to the cleanup Edge boundary", async () => {
+  const eslint = new ESLint({ cwd: REPOSITORY_ROOT });
+  const [javascriptConfig, typescriptConfig] = await Promise.all([
+    eslint.calculateConfigForFile("supabase/functions/push-cleanup/crypto.js"),
+    eslint.calculateConfigForFile("supabase/functions/push-cleanup/index.ts"),
+  ]);
+
+  assert.equal(javascriptConfig?.rules?.["no-undef"]?.[0], 2);
+  assert.equal(typescriptConfig?.languageOptions?.parser?.meta?.name, "typescript-eslint/parser");
+  assert.equal(typescriptConfig?.rules?.["@typescript-eslint/no-unused-vars"]?.[0], 2);
 });
 
 test("the session unit aggregate registers every top-level unit test except the local API suite", () => {
@@ -264,20 +280,37 @@ test("production alias excludes mockData through every relative import shape", (
 });
 
 test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () => {
+  const supabaseJob = workflowJob("supabase");
   assert.equal(
     PACKAGE.scripts["test:local:mobile"],
     "TENNIS_TEST_HARNESS_MODE=local playwright test --project=supabase-mobile-chromium"
+  );
+  assert.equal(
+    PACKAGE.scripts["test:local:push-cleanup-edge"],
+    "RUN_LOCAL_PUSH_CLEANUP_EDGE_TEST=1 node --test --test-concurrency=1 tests/push-cleanup-edge-local.test.js"
   );
   assert.deepEqual(scriptCommands("test:ci:supabase"), [
     "node scripts/generate-courts-seed.mjs --check",
     "npm run test:db",
     "npm run test:local",
     "npm run test:local:mobile",
+    "npm run test:local:push-cleanup-edge",
     "git diff --check",
   ]);
-  assert.match(WORKFLOW, /run: npm run test:ci:supabase/);
-  assert.match(WORKFLOW, /CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test/);
-  assert.match(WORKFLOW, /if: always\(\)[\s\S]*npx supabase stop --no-backup/);
+  assert.match(supabaseJob, /run: npm run test:ci:supabase/);
+  assert.match(supabaseJob, /CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test/);
+  assert.match(supabaseJob, /if: always\(\)[\s\S]*npx supabase stop --no-backup/);
+  const orderedCommands = [
+    "npx supabase start",
+    "CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test",
+    "npm run test:ci:supabase",
+    "npx supabase stop --no-backup",
+  ].map((command) => supabaseJob.indexOf(command));
+  assert.ok(orderedCommands.every((index) => index >= 0));
+  assert.deepEqual(
+    orderedCommands,
+    [...orderedCommands].sort((left, right) => left - right)
+  );
 });
 
 test("the Supabase CLI used by npx is pinned exactly in the lockfile", () => {
