@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03A2` Push schema contract 定稿；準備 commit |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0` 與 `FA-03A1` 完成；`FA-03A2` 已核可待 commit |
+| 目前批次 | `FA-03A3` dormant Push schema 完成；下一批為 compatible command／browser／dispatcher |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3` 已完成 |
 | runtime 變更 | 無 |
-| migration 變更 | 本機新增 2 份 additive foundation migration；hosted 尚未套用 |
+| migration 變更 | repo／本機共新增 9 份 additive foundation migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | commit `FA-03A2`，再建立本機 dormant schema migrations 與 pgTAP；不部署 hosted |
+| 下一步 | 進入 compatible command／browser auth／dispatcher；不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -39,8 +39,8 @@ git log --oneline --decorate -10
 | D7 | `ds-bundle/` 與 `.design-sync/` 保留並持續使用於 UI/UX 優化 | 已決策；同步前仍需全量重驗，不能假設自動同步 |
 | D8 | 開發期 bundle bytes 只報告、不阻擋 CI；demo／E2E hook／隱私與拆包邊界仍 hard fail | `FA-01` 已完成 |
 | D9 | 第一個 production release candidate 前，依 route、裝置、網路、gzip／Brotli 與 Web Vitals 基線重訂並啟用 hard byte limits | 待 production baseline |
-| D10 | 刪帳時清除 consent/device/token、transport、outbox/delivery/payload；只留 algorithm/hash/state/reason/version 的 ownerless deny registry row，時間欄清空 | `FA-03A2` 已核可；待 migration |
-| D11 | `update_session` 的通知相關欄位完全沒變時，不建立 `session_updated` Push | `FA-03A2` 已核可；待 compatible runtime |
+| D10 | 刪帳時清除 consent/device/token、transport、outbox/delivery/payload；只留 algorithm/hash/state/reason/version 的 ownerless deny registry row，時間欄清空 | `FA-03A3` dormant schema／真實 FK 測試完成；待 compatible runtime |
+| D11 | `update_session` 的通知相關欄位完全沒變時，不建立 `session_updated` Push | `FA-03A3` DB-owned source version 完成；待 compatible RPC |
 
 ## 授權邊界
 
@@ -57,7 +57,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`、`FA-03A1` 完成；additive expand 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3` 完成；compatible runtime 待開始 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -296,13 +296,62 @@ git diff --check：通過
 
 本輪未做 hosted migration/deploy、browser/dispatcher/runtime、legacy erase 或 pending cancel。
 
+## FA-03A3 dormant Push schema
+
+已完成：
+
+- 新增 `003`～`009` 七份 additive migration，依 relation 拆開 source version、message immutable、outbox
+  format、runtime control、consent/registry 與 delivery，避免不必要的跨表 DDL lock。
+- `sessions.notification_state_version` 只在契約列出的 16 個 domain 欄位真變更時加一；participant
+  version 只看 session/profile/role/status/initiated-by。多欄只加一次，no-op、只改 `updated_at`、caller
+  傳 `NULL` 或偽造值都不能改寫 DB version。`session_messages` 的 UPDATE 由 DB 全面拒絕，固定 source
+  version `1` 不再只是應用程式慣例。
+- outbox 以明確 format `1/2` 區分 legacy 與新版資料；format 2 的 source triple、expiry、fan-out 與
+  outcome 都有 validated CHECK，`NULL source_id/source_version` 也會 fail-closed。deferred constraint
+  trigger 禁止以 `open` commit；舊三欄 reminder unique index保持原樣，尚未提前切換 runtime 語意。
+- 建立 private singleton control、worker ledger、空 canary allowlist；所有未查實的 lease/deadline/attempt/
+  TTL safety 數值保持 `NULL`，沒有猜預設秒數或次數。
+- consent、endpoint registry 與 per-device delivery 皆由 DB 維護 identity/version/timestamps；delivery
+  只能從 pristine pending 建立，identity 不可換，terminal 結果不可復活。private tables 全部 RLS on、
+  zero policy，PUBLIC/anon/authenticated/service_role 的 table、sequence、helper EXECUTE 全撤除。
+- 真實 auth→profile→session→outbox/consent/registry/subscription/delivery/canary fixture 證實：一般直接
+  刪 consent 會被 deferred audit FK 阻擋；刪 auth user 則清除 consent/device/token、raw subscription、
+  outbox/payload、delivery、canary 與 session，只留下 algorithm/hash/state/reason/version 的 ownerless
+  deny registry row，且三個時間欄皆為 `NULL`。
+- generated public DB types 與 `notification_outbox` 精確欄位 allowlist 已同步。
+
+刻意未做：
+
+- 沒有新增或啟用 compatible command、browser consent UI、logout cleanup、dispatcher、cron 或新 grants。
+- 沒有改舊 reminder scheduler 去重、移除 outbox format `DEFAULT 1`，也沒有啟用 format 2 writer。
+- 沒有 hosted migration/deploy、legacy raw key 擦除、pending cancel 或其他不可逆 contract。
+
+本批驗證：
+
+```text
+source-version pgTAP：60／60 passed
+outbox-format pgTAP：33／33 passed
+private-lifecycle pgTAP：84／84 passed
+npm run test:db：11 files、1,014 tests，全數通過
+npx supabase db lint --local --schema public,private：No schema errors found
+strict pg-delta shadow replay：34 migrations 全部套用，public/private diff 為空
+npm run db:gen-types：完成，差異只有核可的 public schema 欄位
+npm run typecheck：通過
+npm run lint：通過
+Push／dispatcher Node tests：13／13 passed
+git diff --check：通過
+private schema 獨立覆核：兩個 Medium hardening 缺口修正後 zero blockers
+全批最終覆核：INSERT version ownership blocker 修正並補真實 fixture 後 zero blockers
+```
+
 ## 已知阻塞與風險
 
 - 開發期 bytes 已改為 report；release hard limits 仍沿用歷史數值，必須在第一個 production
   release candidate 前依真實裝置、網路、gzip／Brotli 與 Web Vitals 重訂，不能把目前通過當成正式基線。
-- 現行 `push_subscriptions` 只有 active row，沒有 quarantine／consent／expiry state。
-- consent／registry／delivery、outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op
-  update 的 contract 已定稿；runtime 與 migration 尚未實作。
+- 現行 runtime 仍只讀寫 legacy `push_subscriptions` active row；新 consent／registry／delivery schema 已在
+  repo／本機 dormant 建立，但尚無 public command 或 browser wiring，不能誤稱已啟用。
+- outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op source version 已完成本機
+  migration／測試；compatible runtime、barrier 與 hosted 套用仍未做。
 - 現行一般登出走 auth-js 預設 global scope，與 D2 尚未一致。
 - 現行 identity helpers 仍以 `access_token` fallback，與 D6 尚未一致。
 - 現行 dispatcher 沒有 delivery lease，且多裝置只有一個 outbox outcome；不能只加 quarantine filter。
@@ -310,8 +359,8 @@ git diff --check：通過
   監控並明列無法完全消除的斷線空檔。
 - 現行 web-push 預設 TTL 四週且沒有明確 timeout；endpoint 可控制 Edge outbound target。兩者都是
   FA-03 deployment blocker，不能沿用隱含預設。
-- Hosted public-schema default privileges 對 app roles 過寬；FA-03 新 table／sequence／function 必須在
-  同一 migration 立即 revoke，再做最小 grant，不能留下部署空窗。
+- Hosted public-schema default privileges 對 app roles 過寬；本批 private table／sequence／helper 已在各自
+  migration 同步 revoke，後續 compatible command／public schema 物件仍須維持相同部署邊界。
 - `canonical-endpoint-policy-v1` 尚未實作，不能用 SQL regex／ambient URL parser 猜 canonical 例外；
   這不阻擋 additive expand，但會阻擋 destructive contract。
 - Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
@@ -321,11 +370,11 @@ git diff --check：通過
 ## 下一個 session 的起點
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
-2. `FA-03A2` 已取得 account-delete audit retention 與 no-op `session_updated` Push 的產品確認；先確認
-   contract commit 存在，再從 dormant schema migrations 開始。
-3. `FA-03A1` 已在本機套用；以 `npm run test:db` 的 837／837 與 strict shadow diff 空白作為下一批基線。
-4. 之後依 compatible runtime → barrier → disabled deploy → canary → contract → enable 分批實作、測試、
-   更新本文件並建立獨立 commit。
+2. 確認 `FA-03A2` contract 與 `FA-03A3` dormant schema commit 都存在；不要重做已完成的 003～009。
+3. 以 `npm run test:db` 的 1,014／1,014、DB lint clean 與 strict shadow diff 空白作為 compatible runtime
+   的下一批基線。
+4. 接著依 compatible command/browser/dispatcher → barrier → disabled deploy → canary → contract → enable
+   分批實作、測試，更新本文件並建立獨立 commit。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -340,3 +389,4 @@ git diff --check：通過
 | 2026-08-31 | FA-03A0 | reminder pgTAP 改用隔離時鐘與 fixture-scoped outbox 斷言；完整 DB 測試 804／804 通過。 |
 | 2026-08-31 | FA-03A1 | sessions schedule version 與 outbox nullable/sentinel foundation 分成兩個無反向鎖序的 migration；837／837 通過，hosted 未套用。 |
 | 2026-08-31 | FA-03A2 | schema contract 三路複查完成；使用者核可刪帳最小保留與 no-op 不推播，準備獨立 commit；hosted 未寫入。 |
+| 2026-08-31 | FA-03A3 | 003～009 dormant schema、177 項新增 pgTAP 與真實刪帳 FK 測試完成；全套 DB 1,014／1,014、strict diff 空白，hosted 未套用。 |

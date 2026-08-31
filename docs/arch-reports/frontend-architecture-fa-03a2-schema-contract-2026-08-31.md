@@ -68,6 +68,10 @@ created_at, updated_at, state_changed_at
 epoch；明確 re-enable 在同一 transaction 同時旋轉 epoch 與 cleanup token。HTTP retry 使用相同 cleanup
 token 時，回傳既有 epoch/version，不可重複旋轉。
 
+新 consent 只能從 `enabled/user_enabled` 建立；`BEFORE INSERT` 由 DB 覆寫 epoch、version 與 audit
+timestamps。re-enable 時 caller 只提供新的 cleanup hash，trigger 由 DB 產生新 epoch，不能由 caller
+指定。
+
 `profile_id + device_id` 建立後不可改。table 另提供 `(id, profile_id)` unique 給 child composite FK。
 `profile_id` 對 profiles 採 `ON DELETE CASCADE`，所以刪帳會清除 device ID、consent 與 cleanup token。
 
@@ -88,6 +92,9 @@ token 時，回傳既有 epoch/version，不可重複旋轉。
 profiles 採 `ON DELETE SET NULL`。同一個 row 的 `BEFORE UPDATE` trigger 必須把這次 FK 動作同步轉成
 `deny/owner_deleted`、version `+1`，並清除三個時間；不能先留下不合法的 ownerless quarantine。兩個
 非空 owner 間禁止直接轉讓；deny row 不能重新啟用，只能在 server provider 證據成立時整筆刪除。
+
+registry 的 `BEFORE INSERT` 由 DB 固定 version `1` 與三個 audit timestamps，且禁止直接建立 deny；deny
+只能由既有 owner row 在刪帳的 `SET NULL` 路徑產生。
 
 這張表是帳號刪除後唯一刻意保留的 Push row。deny row 的非空內容只有 algorithm/hash、`deny` state、
 固定 `owner_deleted` reason 與 DB concurrency version；不留 owner、device、時間、raw endpoint、keys、
@@ -145,6 +152,10 @@ delivery 的 cascade，因此不能抹掉 audit。outbox 另提供 `(id, recipie
 outbox recipient 與 consent owner 相同。效果是：平常不能刪掉仍被 delivery 引用的 consent，但
 profile/session/account cascade 同一 transaction 已先刪 outbox/delivery 時不會被 Push FK 擋住。
 
+delivery 只能以初始 `pending`、attempts `0` 建立；DB 產生固定 notification ID 與 audit timestamps。
+建立後 outbox／recipient／consent／epoch／notification ID 都不可改，terminal row 的 state 與送達結果也
+不可再改回 non-terminal 或重寫。
+
 使用者已確認：帳號刪除後不長期保存 delivery、device、recipient 或 payload audit，只保留最小 deny
 registry row。既有 outbox 的 account/session cascade 保持不變，delivery 依上述 composite FK 一起清除。
 
@@ -170,6 +181,9 @@ outcome, outcome_code, outcome_at
 
 format 1 reminder 保留 `source_version=0`；其他 legacy event 的 source triple 維持 `NULL`。format 2 必須
 有完整 source triple、`source_version > 0`、非空且晚於 `created_at` 的 `expires_at`。
+
+本 dormant migration 不改現有三欄 reminder unique index；它要等 compatible enqueue helper 與 legacy
+shim 能在同一 transaction 一起切換時才改，避免提前改變現行 scheduler 的去重語意。
 
 format 2 的 `fanout_state` 只有 `open/frozen`。`open` 只允許存在於尚未 commit 的 event transaction；
 deferred constraint trigger 會拒絕任何以 `open` commit 的 row。零裝置也要 freeze，並直接結案

@@ -133,36 +133,60 @@ export type Database = {
           created_at: string;
           event_type: string;
           expires_at: string | null;
+          fanout_frozen_at: string | null;
+          fanout_state: string;
           id: number;
+          outbox_format_version: number;
+          outcome: string | null;
+          outcome_at: string | null;
+          outcome_code: string | null;
           payload: Json;
           recipient_profile_id: number;
           sent_at: string | null;
           session_id: number;
-          source_schedule_version: number | null;
+          source_id: number | null;
+          source_kind: string | null;
+          source_version: number | null;
         };
         Insert: {
           attempts?: number;
           created_at?: string;
           event_type: string;
           expires_at?: string | null;
+          fanout_frozen_at?: string | null;
+          fanout_state?: string;
           id?: never;
+          outbox_format_version?: number;
+          outcome?: string | null;
+          outcome_at?: string | null;
+          outcome_code?: string | null;
           payload: Json;
           recipient_profile_id: number;
           sent_at?: string | null;
           session_id: number;
-          source_schedule_version?: number | null;
+          source_id?: number | null;
+          source_kind?: string | null;
+          source_version?: number | null;
         };
         Update: {
           attempts?: number;
           created_at?: string;
           event_type?: string;
           expires_at?: string | null;
+          fanout_frozen_at?: string | null;
+          fanout_state?: string;
           id?: never;
+          outbox_format_version?: number;
+          outcome?: string | null;
+          outcome_at?: string | null;
+          outcome_code?: string | null;
           payload?: Json;
           recipient_profile_id?: number;
           sent_at?: string | null;
           session_id?: number;
-          source_schedule_version?: number | null;
+          source_id?: number | null;
+          source_kind?: string | null;
+          source_version?: number | null;
         };
         Relationships: [
           {
@@ -1031,6 +1055,7 @@ export type Database = {
           created_at: string;
           id: number;
           initiated_by: string;
+          notification_state_version: number;
           played_confirmed: boolean;
           profile_id: number;
           role: string;
@@ -1042,6 +1067,7 @@ export type Database = {
           created_at?: string;
           id?: never;
           initiated_by?: string;
+          notification_state_version?: number;
           played_confirmed?: boolean;
           profile_id: number;
           role: string;
@@ -1053,6 +1079,7 @@ export type Database = {
           created_at?: string;
           id?: never;
           initiated_by?: string;
+          notification_state_version?: number;
           played_confirmed?: boolean;
           profile_id?: number;
           role?: string;
@@ -1138,6 +1165,7 @@ export type Database = {
           join_mode: string;
           notes: string | null;
           notification_schedule_version: number;
+          notification_state_version: number;
           ntrp_max: number | null;
           ntrp_min: number | null;
           play_type: string;
@@ -1160,6 +1188,7 @@ export type Database = {
           join_mode?: string;
           notes?: string | null;
           notification_schedule_version?: number;
+          notification_state_version?: number;
           ntrp_max?: number | null;
           ntrp_min?: number | null;
           play_type: string;
@@ -1182,6 +1211,7 @@ export type Database = {
           join_mode?: string;
           notes?: string | null;
           notification_schedule_version?: number;
+          notification_state_version?: number;
           ntrp_max?: number | null;
           ntrp_min?: number | null;
           play_type?: string;

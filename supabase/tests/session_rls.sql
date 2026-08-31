@@ -355,7 +355,7 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'notification_outbox'
   ),
-  'id,event_type,recipient_profile_id,session_id,payload,created_at,sent_at,attempts,expires_at,source_schedule_version',
+  'id,event_type,recipient_profile_id,session_id,payload,created_at,sent_at,attempts,expires_at,source_version,outbox_format_version,source_kind,source_id,fanout_state,fanout_frozen_at,outcome,outcome_code,outcome_at',
   'notification outbox has the exact expanded service-only column contract'
 );
 

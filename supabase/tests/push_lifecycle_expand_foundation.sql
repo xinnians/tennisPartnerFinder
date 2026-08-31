@@ -77,21 +77,21 @@ select ok(
 select has_column(
   'public',
   'notification_outbox',
-  'source_schedule_version',
-  'the outbox exposes an optional reminder schedule version'
+  'source_version',
+  'the outbox exposes an optional notification source version'
 );
 select ok(
   exists (
     select 1
     from pg_attribute attribute_row
     where attribute_row.attrelid = 'public.notification_outbox'::regclass
-      and attribute_row.attname = 'source_schedule_version'
+      and attribute_row.attname = 'source_version'
       and format_type(attribute_row.atttypid, attribute_row.atttypmod) = 'bigint'
       and not attribute_row.attnotnull
       and not attribute_row.atthasdef
       and not attribute_row.attisdropped
   ),
-  'the reminder schedule version is nullable bigint without a global default'
+  'the notification source version is nullable bigint without a global default'
 );
 select ok(
   exists (
@@ -431,7 +431,7 @@ values (
 );
 select is(
   (
-    select outbox_row.source_schedule_version
+    select outbox_row.source_version
     from public.notification_outbox outbox_row
     where outbox_row.session_id = current_setting('pgtap.fa03_foundation_session_id')::bigint
       and outbox_row.event_type = 'session_reminder'
@@ -447,7 +447,7 @@ select throws_ok(
         recipient_profile_id,
         session_id,
         payload,
-        source_schedule_version
+        source_version
       )
       values ('decide_reminder', %s, %s, %L::jsonb, -1)
     $query$,
@@ -470,7 +470,7 @@ select throws_ok(
         recipient_profile_id,
         session_id,
         payload,
-        source_schedule_version
+        source_version
       )
       values ('session_updated', %s, %s, %L::jsonb, 0)
     $query$,
@@ -507,7 +507,7 @@ select throws_ok(
         recipient_profile_id,
         session_id,
         payload,
-        source_schedule_version
+        source_version
       )
       values ('session_reminder', %s, %s, %L::jsonb, 0)
     $query$,
@@ -541,7 +541,7 @@ values (
 select ok(
   (
     select outbox_row.expires_at is null
-      and outbox_row.source_schedule_version is null
+      and outbox_row.source_version is null
     from public.notification_outbox outbox_row
     where outbox_row.session_id = current_setting('pgtap.fa03_foundation_session_id')::bigint
       and outbox_row.event_type = 'session_updated'
