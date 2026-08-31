@@ -669,3 +669,202 @@ test("site-data deletion creates a new logical device and removes old pending wo
   expect(afterDelete.deviceId).not.toBe(beforeDelete.oldDeviceId);
   expect(afterDelete).toMatchObject({ pendingCount: 0, runtime: "disabled" });
 });
+
+test("Auth unavailable closes the exact local binding without creating cleanup work", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+  expect(enabled).toMatchObject({ hasCleanupToken: false, state: "enabled" });
+
+  const result = await page.evaluate(async (authUserId) => {
+    const [{ createNotificationPushStorage }, { createNotificationPushAuthFailureCoordinator }] = await Promise.all([
+      import("/src/notificationPushStorage.ts"),
+      import("/src/notificationPushAuthFailureCoordinator.ts"),
+    ]);
+    const storage = createNotificationPushStorage();
+    const before = await storage.readPushRuntimeState();
+    if (before.kind !== "enabled") return { wrongRuntime: before.kind };
+
+    let cleanupCalls = 0;
+    const coordinator = createNotificationPushAuthFailureCoordinator({
+      cleanup: {
+        processPendingPushCleanup: async () => {
+          cleanupCalls += 1;
+          return { kind: "completed" };
+        },
+      },
+      storage,
+    });
+    const coordinatorResult = await coordinator.processAuthFailure({
+      authUserId,
+      binding: before.binding,
+      kind: "unavailable",
+    });
+    const after = await storage.readPushRuntimeState();
+    if (after.kind !== "auth-unverified") return { wrongRuntime: after.kind };
+    return {
+      cleanupCalls,
+      coordinatorResult,
+      exposesCleanupToken: Object.hasOwn(after.binding, "cleanupToken"),
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      reason: after.binding.reason,
+      state: after.binding.state,
+    };
+  }, AUTH_USER_ID);
+  expect(result).toEqual({
+    cleanupCalls: 0,
+    coordinatorResult: { kind: "local-closed" },
+    exposesCleanupToken: false,
+    pendingCount: 0,
+    reason: "auth_unavailable",
+    state: "auth-unverified",
+  });
+
+  await page.reload();
+  const persisted = await page.evaluate(async () => {
+    const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+    const storage = createNotificationPushStorage();
+    const runtime = await storage.readPushRuntimeState();
+    return {
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      reason: runtime.kind === "auth-unverified" ? runtime.binding.reason : null,
+      runtime: runtime.kind,
+    };
+  });
+  expect(persisted).toEqual({ pendingCount: 0, reason: "auth_unavailable", runtime: "auth-unverified" });
+});
+
+test("Auth rejected preserves exact B5 cleanup work when the B8 transport stays pending", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+  expect(enabled).toMatchObject({ hasCleanupToken: false, state: "enabled" });
+
+  const result = await page.evaluate(async (authUserId) => {
+    const [storageModule, cleanupModule, authFailureModule] = await Promise.all([
+      import("/src/notificationPushStorage.ts"),
+      import("/src/notificationPushCleanupCoordinator.ts"),
+      import("/src/notificationPushAuthFailureCoordinator.ts"),
+    ]);
+    const storage = storageModule.createNotificationPushStorage();
+    const before = await storage.readPushRuntimeState();
+    if (before.kind !== "enabled") return { wrongRuntime: before.kind };
+
+    let transportCalls = 0;
+    let receivedTokenMatches = false;
+    const cleanup = cleanupModule.createNotificationPushCleanupCoordinator({
+      storage,
+      transport: {
+        sendPushCleanup: async ({ cleanupToken }) => {
+          transportCalls += 1;
+          const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cleanupToken)));
+          receivedTokenMatches =
+            Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("") === window.name;
+          return { kind: "pending" };
+        },
+      },
+    });
+    const coordinator = authFailureModule.createNotificationPushAuthFailureCoordinator({ cleanup, storage });
+    const coordinatorResult = await coordinator.processAuthFailure({
+      authUserId,
+      binding: before.binding,
+      kind: "rejected",
+    });
+    const after = await storage.readPushRuntimeState();
+    const pending = await storage.listPendingPushCleanups();
+    return {
+      coordinatorResult,
+      pendingCount: pending.length,
+      pendingOwner: pending[0]?.authUserId ?? null,
+      pendingReason: pending[0]?.reason ?? null,
+      receivedTokenMatches,
+      resultExposesToken: JSON.stringify(coordinatorResult).includes("cleanupToken"),
+      runtime: after.kind,
+      transportCalls,
+    };
+  }, AUTH_USER_ID);
+  expect(result).toEqual({
+    coordinatorResult: { kind: "pending" },
+    pendingCount: 1,
+    pendingOwner: AUTH_USER_ID,
+    pendingReason: "auth_rejected",
+    receivedTokenMatches: true,
+    resultExposesToken: false,
+    runtime: "cleanup-pending",
+    transportCalls: 1,
+  });
+
+  await page.reload();
+  const persisted = await page.evaluate(async () => {
+    const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+    const storage = createNotificationPushStorage();
+    return {
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      runtime: (await storage.readPushRuntimeState()).kind,
+    };
+  });
+  expect(persisted).toEqual({ pendingCount: 1, runtime: "cleanup-pending" });
+});
+
+test("Auth rejected completes exact B5 cleanup work through B8 once", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+  expect(enabled).toMatchObject({ hasCleanupToken: false, state: "enabled" });
+
+  const result = await page.evaluate(async (authUserId) => {
+    const [storageModule, cleanupModule, authFailureModule] = await Promise.all([
+      import("/src/notificationPushStorage.ts"),
+      import("/src/notificationPushCleanupCoordinator.ts"),
+      import("/src/notificationPushAuthFailureCoordinator.ts"),
+    ]);
+    const storage = storageModule.createNotificationPushStorage();
+    const before = await storage.readPushRuntimeState();
+    if (before.kind !== "enabled") return { wrongRuntime: before.kind };
+
+    let transportCalls = 0;
+    let receivedTokenMatches = false;
+    const cleanup = cleanupModule.createNotificationPushCleanupCoordinator({
+      storage,
+      transport: {
+        sendPushCleanup: async ({ cleanupToken }) => {
+          transportCalls += 1;
+          const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cleanupToken)));
+          receivedTokenMatches =
+            Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("") === window.name;
+          return { kind: "completed" };
+        },
+      },
+    });
+    const coordinator = authFailureModule.createNotificationPushAuthFailureCoordinator({ cleanup, storage });
+    const coordinatorResult = await coordinator.processAuthFailure({
+      authUserId,
+      binding: before.binding,
+      kind: "rejected",
+    });
+    return {
+      coordinatorResult,
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      receivedTokenMatches,
+      resultExposesToken: JSON.stringify(coordinatorResult).includes("cleanupToken"),
+      runtime: (await storage.readPushRuntimeState()).kind,
+      transportCalls,
+    };
+  }, AUTH_USER_ID);
+  expect(result).toEqual({
+    coordinatorResult: { kind: "cleanup-completed" },
+    pendingCount: 0,
+    receivedTokenMatches: true,
+    resultExposesToken: false,
+    runtime: "disabled",
+    transportCalls: 1,
+  });
+
+  await page.reload();
+  const persisted = await page.evaluate(async () => {
+    const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+    const storage = createNotificationPushStorage();
+    return {
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      runtime: (await storage.readPushRuntimeState()).kind,
+    };
+  });
+  expect(persisted).toEqual({ pendingCount: 0, runtime: "disabled" });
+});
