@@ -4,8 +4,16 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { ESLint } from "eslint";
+import { build as buildVite } from "vite";
 
 import { createPlaywrightConfig } from "../playwright.config.js";
+import {
+  createPushCleanupPublicKeyAssetPlugin,
+  createPushCleanupPublicKeyAssetSource,
+  PUSH_CLEANUP_PUBLIC_JWK_ENV,
+  PUSH_CLEANUP_PUBLIC_KEY_ASSET,
+  PUSH_CLEANUP_PUBLIC_KEY_PATH,
+} from "../scripts/pushCleanupPublicKeyAsset.mjs";
 import {
   applyByteLimitPolicy,
   BYTE_LIMIT_MODES,
@@ -28,6 +36,18 @@ const SMOKE_SPECS = readdirSync(new URL("./", import.meta.url))
 const DEVELOPMENT_BRANCH = "claude/tennis-partner-finder-proto-xfrr6g";
 const REQUIRED_NODE_VERSION = [22, 18, 0];
 const REPOSITORY_ROOT = fileURLToPath(new URL("../", import.meta.url));
+const RFC_7638_RSA_MODULUS =
+  "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw";
+const CLEANUP_PUBLIC_JWK = Object.freeze({
+  alg: "RSA-OAEP-256",
+  e: "AQAB",
+  ext: true,
+  key_ops: ["encrypt"],
+  kid: "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs",
+  kty: "RSA",
+  n: RFC_7638_RSA_MODULUS,
+});
+const SERIALIZED_CLEANUP_PUBLIC_JWK = JSON.stringify(CLEANUP_PUBLIC_JWK);
 
 const scriptCommands = (name) => PACKAGE.scripts[name].split("&&").map((command) => command.trim());
 
@@ -190,21 +210,23 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/push-cleanup/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup}/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/push-cleanup/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup}/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
   );
 });
 
 test("ESLint applies real JS and TypeScript rules to the cleanup Edge boundary", async () => {
   const eslint = new ESLint({ cwd: REPOSITORY_ROOT });
-  const [javascriptConfig, typescriptConfig] = await Promise.all([
+  const [sharedConfig, javascriptConfig, typescriptConfig] = await Promise.all([
+    eslint.calculateConfigForFile("supabase/functions/_shared/push-cleanup-protocol.js"),
     eslint.calculateConfigForFile("supabase/functions/push-cleanup/crypto.js"),
     eslint.calculateConfigForFile("supabase/functions/push-cleanup/index.ts"),
   ]);
 
+  assert.equal(sharedConfig?.rules?.["no-undef"]?.[0], 2);
   assert.equal(javascriptConfig?.rules?.["no-undef"]?.[0], 2);
   assert.equal(typescriptConfig?.languageOptions?.parser?.meta?.name, "typescript-eslint/parser");
   assert.equal(typescriptConfig?.rules?.["@typescript-eslint/no-unused-vars"]?.[0], 2);
@@ -259,6 +281,10 @@ test("production alias excludes mockData through every relative import shape", (
   assert.equal(typeof createViteConfig, "function");
   const production = createViteConfig({ command: "build", mode: "production" });
   assert.equal(production.define?.__TENNIS_E2E_TEST_HOOKS__, "false");
+  assert.ok(
+    production.plugins?.some((plugin) => plugin?.name === "tennis-push-cleanup-public-key"),
+    "Vite config must keep the cleanup public-key publisher installed"
+  );
   const aliases = production.resolve?.alias;
   assert.equal(aliases?.length, 1);
   const [{ find, replacement }] = aliases;
@@ -277,6 +303,139 @@ test("production alias excludes mockData through every relative import shape", (
   const development = createViteConfig({ command: "serve", mode: "development" });
   assert.equal(development.define?.__TENNIS_E2E_TEST_HOOKS__, "true");
   assert.equal(development.resolve, undefined, "development and mock harness must retain the full fixture");
+});
+
+test("Vite emits only the canonical rotatable cleanup public-key document when configured", async () => {
+  async function buildWithPublicKey(serializedPublicJwk) {
+    const virtualEntry = "\0cleanup-public-key-test-entry";
+    const result = await buildVite({
+      build: {
+        rollupOptions: { input: virtualEntry },
+        write: false,
+      },
+      configFile: false,
+      logLevel: "silent",
+      plugins: [
+        {
+          load(id) {
+            return id === virtualEntry ? "export const cleanupKeyAssetTest = true;" : null;
+          },
+          name: "cleanup-public-key-test-entry",
+          resolveId(id) {
+            return id === virtualEntry ? virtualEntry : null;
+          },
+        },
+        createPushCleanupPublicKeyAssetPlugin(serializedPublicJwk),
+      ],
+    });
+    assert.equal(Array.isArray(result), false);
+    return result.output;
+  }
+
+  const expectedSource = await createPushCleanupPublicKeyAssetSource(SERIALIZED_CLEANUP_PUBLIC_JWK);
+  const configuredOutput = await buildWithPublicKey(SERIALIZED_CLEANUP_PUBLIC_JWK);
+  const keyAsset = configuredOutput.find(
+    (output) => output.type === "asset" && output.fileName === PUSH_CLEANUP_PUBLIC_KEY_ASSET
+  );
+  assert.ok(keyAsset, "configured build did not emit the cleanup public-key asset");
+  assert.equal(String(keyAsset.source), expectedSource);
+
+  const javascript = configuredOutput
+    .filter((output) => output.type === "chunk")
+    .map(({ code }) => code)
+    .join("\n");
+  for (const forbidden of [
+    CLEANUP_PUBLIC_JWK.kid,
+    CLEANUP_PUBLIC_JWK.n,
+    PUSH_CLEANUP_PUBLIC_JWK_ENV,
+    "PUSH_CLEANUP_PRIVATE_JWKS_JSON",
+  ]) {
+    assert.equal(javascript.includes(forbidden), false, `JavaScript chunk contains build-only key data: ${forbidden}`);
+  }
+
+  const unconfiguredOutput = await buildWithPublicKey("");
+  assert.equal(
+    unconfiguredOutput.some((output) => output.fileName === PUSH_CLEANUP_PUBLIC_KEY_ASSET),
+    false,
+    "an unconfigured build must not publish a placeholder key"
+  );
+});
+
+test("Vite reads the public-only cleanup env without defining it in browser JavaScript", async () => {
+  const previous = process.env[PUSH_CLEANUP_PUBLIC_JWK_ENV];
+  process.env[PUSH_CLEANUP_PUBLIC_JWK_ENV] = SERIALIZED_CLEANUP_PUBLIC_JWK;
+  try {
+    const config = createViteConfig({ command: "build", mode: "production" });
+    assert.equal(Object.hasOwn(config.define ?? {}, PUSH_CLEANUP_PUBLIC_JWK_ENV), false);
+    const plugin = config.plugins?.find((candidate) => candidate?.name === "tennis-push-cleanup-public-key");
+    assert.equal(typeof plugin?.generateBundle, "function");
+
+    const emitted = [];
+    await plugin.generateBundle.call({ emitFile: (asset) => emitted.push(asset) });
+    assert.deepEqual(emitted, [
+      {
+        fileName: PUSH_CLEANUP_PUBLIC_KEY_ASSET,
+        source: await createPushCleanupPublicKeyAssetSource(SERIALIZED_CLEANUP_PUBLIC_JWK),
+        type: "asset",
+      },
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env[PUSH_CLEANUP_PUBLIC_JWK_ENV];
+    else process.env[PUSH_CLEANUP_PUBLIC_JWK_ENV] = previous;
+  }
+});
+
+test("cleanup public-key build config fails closed on non-canonical or private input", async () => {
+  const parsed = JSON.parse(SERIALIZED_CLEANUP_PUBLIC_JWK);
+  for (const invalid of [
+    `${SERIALIZED_CLEANUP_PUBLIC_JWK}\n`,
+    JSON.stringify({ ...parsed, d: "AQ" }),
+    JSON.stringify({ ...parsed, kid: "A".repeat(43) }),
+  ]) {
+    await assert.rejects(createPushCleanupPublicKeyAssetSource(invalid), /PUBLIC_KEY_INVALID/);
+  }
+  assert.equal(await createPushCleanupPublicKeyAssetSource(""), null);
+});
+
+test("cleanup public-key dev middleware serves only the fixed path without caching", async () => {
+  const plugin = createPushCleanupPublicKeyAssetPlugin(SERIALIZED_CLEANUP_PUBLIC_JWK);
+  let middleware = null;
+  await plugin.configureServer({
+    middlewares: {
+      use(handler) {
+        middleware = handler;
+      },
+    },
+  });
+  assert.equal(typeof middleware, "function");
+
+  const headers = new Map();
+  let body = null;
+  let nextCalls = 0;
+  middleware(
+    { method: "GET", url: PUSH_CLEANUP_PUBLIC_KEY_PATH },
+    {
+      end(value) {
+        body = value;
+      },
+      setHeader(name, value) {
+        headers.set(name.toLowerCase(), value);
+      },
+    },
+    () => {
+      nextCalls += 1;
+    }
+  );
+  assert.equal(nextCalls, 0);
+  assert.equal(headers.get("cache-control"), "no-store");
+  assert.equal(headers.get("pragma"), "no-cache");
+  assert.equal(headers.get("content-type"), "application/json; charset=utf-8");
+  assert.equal(body, await createPushCleanupPublicKeyAssetSource(SERIALIZED_CLEANUP_PUBLIC_JWK));
+
+  middleware({ method: "GET", url: `${PUSH_CLEANUP_PUBLIC_KEY_PATH}?alias=1` }, { end() {}, setHeader() {} }, () => {
+    nextCalls += 1;
+  });
+  assert.equal(nextCalls, 1, "query aliases must not become another key publication URL");
 });
 
 test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () => {

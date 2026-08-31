@@ -74,3 +74,11 @@ test("the push service worker always revalidates instead of staying stale", () =
   assert.ok(workerRule, "push service worker header rule is missing");
   assert.equal(headerMap(workerRule).get("cache-control"), "public, max-age=0, must-revalidate");
 });
+
+test("the rotatable cleanup public key is never served from an HTTP cache", () => {
+  const keyRule = CONFIG.headers.find(({ source }) => source === "/push-cleanup-key-v1.json");
+  assert.ok(keyRule, "cleanup public-key header rule is missing");
+  const headers = headerMap(keyRule);
+  assert.equal(headers.get("cache-control"), "no-store");
+  assert.equal(headers.get("pragma"), "no-cache");
+});

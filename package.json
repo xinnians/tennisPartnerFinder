@@ -29,8 +29,8 @@
     "test:ci:frontend": "node scripts/generate-courts-seed.mjs --check && npm run typecheck && npm run lint && npm run prettier:check && npm run test:mock && npm run build && npm run check:production-bundle && git diff --check",
     "test:ci:supabase": "node scripts/generate-courts-seed.mjs --check && npm run test:db && npm run test:local && npm run test:local:mobile && npm run test:local:push-cleanup-edge && git diff --check",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"supabase/functions/push-cleanup/**/*.{js,ts}\" \"tests/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" eslint.config.js prettier.config.js playwright.config.js vite.config.ts",
-    "prettier:check": "prettier --check \"src/**/*.{js,ts,tsx}\" \"supabase/functions/push-cleanup/**/*.{js,ts}\" \"tests/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json",
+    "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"supabase/functions/{_shared,push-cleanup}/**/*.{js,ts}\" \"tests/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" eslint.config.js prettier.config.js playwright.config.js vite.config.ts",
+    "prettier:check": "prettier --check \"src/**/*.{js,ts,tsx}\" \"supabase/functions/{_shared,push-cleanup}/**/*.{js,ts}\" \"tests/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json",
     "db:reset:test": "node scripts/reset-local-test-db.mjs"
   },
   "devDependencies": {

@@ -4,7 +4,10 @@ import test from "node:test";
 
 import {
   canonicalCleanupEnvelopeJson,
+  canonicalCleanupPublicJwkJson,
+  canonicalCleanupPublicKeyDocumentJson,
   CLEANUP_KEY_RING_LIMIT,
+  CLEANUP_PUBLIC_KEY_DOCUMENT_VERSION,
   CLEANUP_RSA_CIPHERTEXT_BYTES,
   CLEANUP_RSA_CIPHERTEXT_CHARACTERS,
   CLEANUP_RSA_LABEL_TEXT,
@@ -15,6 +18,8 @@ import {
   encodeBase64Url,
   encryptCleanupTokenEnvelope,
   loadPrivateKeyRing,
+  parseCanonicalCleanupPublicJwkJson,
+  parseCanonicalCleanupPublicKeyDocument,
   rsaJwkThumbprint,
 } from "../supabase/functions/push-cleanup/crypto.js";
 import { CLEANUP_ENVELOPE_BYTES, createPushCleanupHandler } from "../supabase/functions/push-cleanup/handler.js";
@@ -185,6 +190,58 @@ test("private JWKS verifies RFC 7638 kid, exact usage, and key uniqueness", asyn
     loadPrivateKeyRing(JSON.stringify({ keys: [{ ...testKeys.privateJwk, unexpected: true }] })),
     /KEY_CONFIG_INVALID/
   );
+});
+
+test("public-key v1 document is canonical, public-only, and bound to its RFC 7638 kid", async () => {
+  const canonicalJwk = await canonicalCleanupPublicJwkJson(testKeys.publicJwk);
+  const canonicalDocument = await canonicalCleanupPublicKeyDocumentJson(testKeys.publicJwk);
+
+  assert.equal(CLEANUP_PUBLIC_KEY_DOCUMENT_VERSION, 1);
+  assert.equal(
+    canonicalJwk,
+    JSON.stringify({
+      alg: "RSA-OAEP-256",
+      e: "AQAB",
+      ext: true,
+      key_ops: ["encrypt"],
+      kid: testKeys.publicJwk.kid,
+      kty: "RSA",
+      n: testKeys.publicJwk.n,
+    })
+  );
+  assert.equal(canonicalDocument, `{"key":${canonicalJwk},"version":1}`);
+  assert.deepEqual(await parseCanonicalCleanupPublicJwkJson(canonicalJwk), JSON.parse(canonicalJwk));
+  assert.deepEqual(await parseCanonicalCleanupPublicKeyDocument(canonicalDocument), JSON.parse(canonicalJwk));
+  for (const privateMember of ["d", "dp", "dq", "p", "q", "qi"]) {
+    assert.equal(Object.hasOwn(JSON.parse(canonicalDocument).key, privateMember), false);
+  }
+});
+
+test("public-key config rejects aliases, duplicate or private fields, and document drift", async () => {
+  const canonicalJwk = await canonicalCleanupPublicJwkJson(testKeys.publicJwk);
+  const canonicalDocument = await canonicalCleanupPublicKeyDocumentJson(testKeys.publicJwk);
+  const parsedJwk = JSON.parse(canonicalJwk);
+  const privateJwk = JSON.stringify({ ...parsedJwk, d: "AQ" });
+  const duplicateAlgorithm = canonicalJwk.replace(
+    '{"alg":"RSA-OAEP-256"',
+    '{"alg":"RSA-OAEP-256","alg":"RSA-OAEP-256"'
+  );
+
+  for (const invalid of ["", `${canonicalJwk}\n`, duplicateAlgorithm, privateJwk, JSON.stringify(testKeys.publicJwk)]) {
+    await assert.rejects(parseCanonicalCleanupPublicJwkJson(invalid), /PUBLIC_KEY_INVALID/);
+  }
+  await assert.rejects(
+    parseCanonicalCleanupPublicJwkJson(JSON.stringify({ ...parsedJwk, kid: otherTestKeys.publicJwk.kid })),
+    /PUBLIC_KEY_INVALID/
+  );
+  for (const invalid of [
+    `${canonicalDocument}\n`,
+    canonicalDocument.replace('"version":1', '"version":2'),
+    canonicalDocument.replace('"version":1', '"version":1,"extra":true'),
+    JSON.stringify({ version: 1, key: parsedJwk }),
+  ]) {
+    await assert.rejects(parseCanonicalCleanupPublicKeyDocument(invalid), /PUBLIC_KEY_DOCUMENT_INVALID/);
+  }
 });
 
 test("private JWKS rejects a structurally valid key whose private CRT values cannot decrypt", async () => {
@@ -613,10 +670,11 @@ test("foreign, null, suffix, and missing origins stop before body, keys, crypto,
 });
 
 test("Edge source has no application logging and only the approved RPC name", () => {
+  const sharedProtocolSource = readFileSync(new URL("../_shared/push-cleanup-protocol.js", FUNCTION_DIRECTORY), "utf8");
   const cryptoSource = readFileSync(new URL("crypto.js", FUNCTION_DIRECTORY), "utf8");
   const handlerSource = readFileSync(new URL("handler.js", FUNCTION_DIRECTORY), "utf8");
   const indexSource = readFileSync(new URL("index.ts", FUNCTION_DIRECTORY), "utf8");
-  const allSource = `${cryptoSource}\n${handlerSource}\n${indexSource}`;
+  const allSource = `${sharedProtocolSource}\n${cryptoSource}\n${handlerSource}\n${indexSource}`;
 
   assert.doesNotMatch(allSource, /console\./u);
   assert.doesNotMatch(allSource, /access-control-allow-origin["']?\s*:\s*["']\*["']/u);
@@ -625,6 +683,7 @@ test("Edge source has no application logging and only the approved RPC name", ()
   assert.match(indexSource, /redirect:\s*["']error["']/u);
   assert.doesNotMatch(indexSource, /push_subscriptions|push_device_consents|push_endpoint_registry/u);
   assert.doesNotMatch(indexSource, /PUSH_CLEANUP_RUNTIME_MODE[^\n]+production/u);
+  assert.doesNotMatch(sharedProtocolSource, /loadPrivateKeyRing|subtle\.decrypt|PUSH_CLEANUP_PRIVATE/u);
 
   const configSource = readFileSync(new URL("../../config.toml", FUNCTION_DIRECTORY), "utf8");
   assert.match(configSource, /\[functions\.push-cleanup\]\s*verify_jwt\s*=\s*false/u);

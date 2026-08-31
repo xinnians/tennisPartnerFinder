@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B3` 加密 cleanup Edge boundary 完成；只允許本機測試，browser／dispatcher 尚未接線 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B3` 已完成 |
-| runtime 變更 | Auth gate、DB dormant command 與本機 Edge 已落地；hosted 強制停用，Q9 browser cleanup／dispatcher 尚未完成 |
+| 目前批次 | `FA-03B4` 可輪替 cleanup public-key boundary 完成；尚未配置 key，browser／dispatcher 尚未接線 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B4` 已完成 |
+| runtime 變更 | Auth gate、DB dormant command、本機 Edge 與 public-key build boundary 已落地；hosted 強制停用，Q9 browser cleanup／dispatcher 尚未完成 |
 | migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 設計 public-key 發布與 browser IndexedDB pending cleanup，再接 Auth rejected；仍不部署 hosted |
+| 下一步 | 建立 dormant browser IndexedDB logical-device／pending-cleanup foundation，再接 v2 enable 與 Auth rejected；仍不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -43,6 +43,7 @@ git log --oneline --decorate -10
 | D11 | `update_session` 的通知相關欄位完全沒變時，不建立 `session_updated` Push | `FA-03A3` DB-owned source version 完成；待 compatible RPC |
 | D12 | cleanup raw token 不直接送進 Edge invocation log 可見的 request body；採 application-layer RSA-OAEP-SHA256 隨機加密封包 | `FA-03B3` codec／key rotation／真實 Edge 解密與 DB 狀態轉換完成；browser 尚未接線 |
 | D13 | cleanup Edge 先採 local-only、預設關閉；完成 distributed limiter、hosted canary 與 hosted log 證據前，不得在 hosted 執行 | `FA-03B3` 以 runtime marker＋exact local mode 強制；沒有 hosted deploy／secret／請求 |
+| D14 | cleanup current public key 由 build-only public env 產生固定 same-origin v1 JSON，HTTP `no-store`；不綁進 `VITE_*` JS 常數 | `FA-03B4` 已完成 generator／headers／CI；目前未配置 key，browser loader 尚未接線 |
 
 ## 授權邊界
 
@@ -59,7 +60,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B3` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B4` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -609,6 +610,58 @@ preflight gateway 誤判、log key 漏掃、teardown masking 與 Edge lint 假�
 hosted migration／deploy／secret／Edge request／DB 寫入：未執行
 ```
 
+## FA-03B4 可輪替 cleanup public-key boundary（dormant）
+
+已完成：
+
+- 將 browser 需要的 base64url、RFC 7638 thumbprint、RSA-OAEP encrypt、canonical envelope 與 public-key
+  validator 抽到 `supabase/functions/_shared/push-cleanup-protocol.js`。Edge private key ring、decrypt、fallback
+  digest 仍只在 `push-cleanup/crypto.js`；shared source 明確沒有 private-key loader、decrypt 或 private env。
+- public key 不放進 `VITE_*` 或 app config，避免已開啟的舊 tab 永久綁住舊 JS 常數。Vite 只在 build／dev
+  server 端讀 public-only `PUSH_CLEANUP_PUBLIC_JWK_JSON`，並產生固定同源路徑
+  `/push-cleanup-key-v1.json`。依 [Vite env 文件](https://vite.dev/guide/env-and-mode.html)，只有 `VITE_*`
+  會自動暴露給 client；本批也以真實 build 證明 key、modulus 與 env 名稱都沒有進 JS chunk。
+- v1 env 只能是 exact canonical 479-byte public JWK；document 固定為 499-byte
+  `{"key":{...},"version":1}`，只發布 current encrypt key。額外／重複／private 欄位、錯誤 `kid`、欄位順序、
+  空白、尾端換行與非 2048-bit key 全部 fail build，沒有自動修正或寬鬆 alias。
+- 沒有設定 public key 時不產生 placeholder asset；實際 production build 已確認檔案不存在，因此目前仍是
+  dormant。`.env.example` 只留空的 public env 名稱，沒有生成或提交任何真實 key。
+- Vite dev middleware 對 exact path 提供 `Cache-Control: no-store`、`Pragma: no-cache`、JSON content type 與
+  `nosniff`；query alias／其他 method 不視為同一路徑。Vercel exact path 也加入 `no-store/no-cache`，政策依
+  [Vercel Cache-Control 文件](https://vercel.com/docs/caching/cache-control-headers)；尚未部署，所以沒有宣稱
+  production response 已實測。
+- build test 以真實 Vite/Rollup output 驗證 configured 時只多一份 byte-for-byte canonical JSON，未配置時
+  零 asset；JS chunks 不含 public `kid/n`、public env 名或 private env 名。lint／Prettier 範圍也擴到
+  `_shared`，並由 resolved ESLint config canary 證明不是假 glob。
+- 同一份共用協定已由真實本機 Edge runtime 再跑完整 envelope → RPC → DB quarantine，確認抽檔後 Deno
+  bundle 與既有行為相容。
+
+精確邊界（不可過度宣稱）：
+
+- browser 尚未 fetch 這份文件，沒有 cleanup transport、RETRY refetch、IndexedDB token 或 Auth wiring；
+  因此舊 tab **目前還不會**自動換 key。下一批 browser loader 在讀 response 前必須補 499-byte bounded
+  read／exact content contract，不能先用無上限 `response.text()`。
+- 固定同源 URL 讓未來 stable-origin 舊 tab 可重新抓新 deployment，但 commit-specific preview URL 與 rollback
+  仍可能指向舊 asset。正式 rotation 必須按 private ring `[new, old]` → new asset → canary → retire old 的順序；
+  不能以猜測天數移除 old key，也不能把已疑似外洩的舊 private key 為 rollback 放回。
+- build 只驗 public document 本身；尚未有 deployment canary 證明 published `kid` 確實存在 hosted private
+  ring。hosted Edge 仍由 D13 hard-disable，本批沒有 deploy、env 寫入、hosted request 或 DB migration。
+- `no-store` 目前由設定測試與本機 middleware 證明，尚未由真實 Vercel response 證明。production／preview
+  是否共用 Supabase project、允許的 stable origins、可安全 rollback 的 deployment 都仍需部署前查實。
+
+本批驗證：
+
+```text
+public-key／Edge／CI／header targeted：54／54 passed
+真實 local Edge → DB smoke：1／1 passed
+npm run test:ci:frontend：通過；Node 430 passed / 1 skipped；Chromium 304 passed / 4 skipped
+npm run build：509 modules；未配置 key 時沒有 public-key asset
+npm run check:production-bundle：結構 gate 通過；既有 total gzip 仍超額 1,324 bytes，依 D8 只報告
+typecheck／lint／prettier:check／git diff --check：完整 frontend CI 全部通過
+獨立安全／build 審查：公私鑰邊界、canonical fail-closed、Edge 語意與真實 Vite dev/build 均 zero blockers
+DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,038／190,258 與最大 lazy 16,476／4,828 raw/gzip 均在現有門檻；
@@ -633,9 +686,12 @@ hosted migration／deploy／secret／Edge request／DB 寫入：未執行
 - Hosted public-schema default privileges 對 app roles 過寬；`011` 已在 migration 內把 subscription ACL
   精確重設為 authenticated 無 raw 權限、service role 只有舊 dispatcher 必需的 SELECT／DELETE，但 hosted
   尚未套用，其他後續 public schema 物件也仍須維持相同部署邊界。
-- cleanup raw-token codec、application-layer encryption、local Edge 與本機 log 去敏測試已完成；但 browser
-  key distribution／IndexedDB 尚未接線，distributed limiter 與 hosted log 證據仍缺。hosted handler 因此
-  hard-disabled，不能把本機結果外推為完整 production cleanup API。
+- cleanup raw-token codec、application-layer encryption、local Edge、本機 log 去敏與 build-time public-key
+  asset boundary 已完成；但 browser loader／bounded read／IndexedDB 尚未接線，distributed limiter 與 hosted
+  log 證據仍缺。hosted handler 因此 hard-disabled，不能把本機結果外推為完整 production cleanup API。
+- public-key dev server 的 query alias 會落到既有 SPA fallback 並回 `200 text/html`，不是 key response、也沒有
+  洩漏 key。未來 browser loader 必須固定無 query 的 same-origin URL，同時驗 `Content-Type`、499-byte body 與
+  canonical JSON，不能只看 HTTP 200；正式 Vercel `no-store` 也仍待 hosted response canary。
 - 本機 gateway 對 preflight／response 會覆寫 `ACAO: *`；handler exact Origin gate 已由惡意 suffix POST
   實測為 `403`，但 Origin 不是非瀏覽器身分驗證，真正 bearer authorization 仍是 256-bit cleanup token。
 - `supabase functions deploy`／`serve` 會涵蓋多個 Functions；即使 hosted handler 不執行 DB，誤部署仍可能
@@ -651,13 +707,14 @@ hosted migration／deploy／secret／Edge request／DB 寫入：未執行
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
-   `FA-03B2` quarantine DB boundary 與 `FA-03B3` local-only encrypted Edge 都存在；不要重做已完成的
-   003～011、Auth gate、transport linkage 或 RSA envelope。
+   `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge 與 `FA-03B4` public-key asset 都
+   存在；不要重做已完成的 003～011、Auth gate、transport linkage、RSA envelope 或 key generator。
 3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
    DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
-4. 下一批先查明 public key 的可信發布與 rotation cache 邊界，再接 browser IndexedDB pending cleanup；
-   `RETRY` 必須重抓 key、重加密且有限次。之後才接 Auth rejected 與 D2 local sign-out；SW／dispatcher 仍各自
-   分批完成並建立獨立 commit。沒有 hosted limiter／canary／log 證據前，不可移除 local-only gate。
+4. `FA-03B4` 已建立 fixed same-origin public-key asset；下一批先做 dormant browser IndexedDB logical device、
+   current binding 與 immutable pending cleanup attempt。之後補 499-byte bounded key loader 與有限次
+   `RETRY → refetch → re-encrypt` transport，再接 v2 enable、Auth rejected 與 D2 local sign-out；SW／dispatcher
+   仍各自分批完成並建立獨立 commit。沒有 hosted limiter／canary／log 證據前，不可移除 local-only gate。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -678,3 +735,4 @@ hosted migration／deploy／secret／Edge request／DB 寫入：未執行
 | 2026-08-31 | FA-03B1 | boot 只接受 server refresh＋matching event；Web Locks 防跨頁覆寫，stale sign-out barrier 與真實 GoTrueClient 測試完成；Q9 Push cleanup 部分仍待實作。 |
 | 2026-08-31 | FA-03B2 | v2 transport linkage、legacy shim／ACL 與 owner／token-digest quarantine DB boundary 完成；owner-lock bypass 修正，1,092 DB tests 通過；Edge／browser／dispatcher 仍未接線。 |
 | 2026-08-31 | FA-03B3 | 使用者核可 encrypted envelope＋local-only；RSA-OAEP v1、hosted hard gate、真實 Edge→DB quarantine 與本機全 logs 敏感值掃描完成；browser／hosted／dispatcher 未接線。 |
+| 2026-08-31 | FA-03B4 | fixed same-origin v1 public-key asset、public-only canonical generator、encrypt-only shared protocol 與 no-store headers 完成；未配置 key、未接 browser、未部署 hosted。 |
