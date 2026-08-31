@@ -2,10 +2,88 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createSessionController } from "../src/sessionController.ts";
+import { sessionIdentity, validAuthSession } from "../src/features/profile-auth/profileAuthFeature.ts";
 
 function flush() {
   return new Promise((resolve) => setImmediate(resolve));
 }
+
+test("auth identity only accepts a non-empty session user id", () => {
+  const valid = { access_token: "token-a", user: { id: "account-a" } };
+
+  assert.equal(sessionIdentity(valid), "account-a");
+  assert.equal(validAuthSession(valid), valid);
+  assert.equal(sessionIdentity({ access_token: "must-not-be-an-identity" }), null);
+  assert.equal(sessionIdentity({ user: { id: "   " } }), null);
+  assert.equal(validAuthSession({ access_token: "must-not-be-an-identity" }), null);
+});
+
+test("controller rejects a session without user.id and performs no private participation load", async () => {
+  const identityChanges = [];
+  let participationLoads = 0;
+  const controller = createSessionController({
+    api: {
+      loadMySessions: async () => {
+        participationLoads += 1;
+        return [];
+      },
+    },
+    discoveryPollIntervalMs: 60 * 60 * 1000,
+    onAuthIdentityChange: (change) => {
+      identityChanges.push(change);
+      return null;
+    },
+    visibilityTarget: null,
+  });
+
+  controller.setAuthSession({ access_token: "must-not-be-an-identity" });
+  await flush();
+
+  assert.equal(controller.getAppState().authSession, null);
+  assert.equal(controller.sessionStore.getState().profileEligibility, null);
+  assert.equal(controller.sessionStore.getState().authEpoch, 1);
+  assert.deepEqual(controller.getMySessions(), []);
+  assert.equal(participationLoads, 0);
+  assert.equal(identityChanges.length, 1);
+  assert.equal(identityChanges[0].identity, null);
+  assert.equal(identityChanges[0].invalidSession, true);
+});
+
+test("an invalid session clears private rows from an authenticated controller without another private load", async () => {
+  let participationLoads = 0;
+  const privateSession = {
+    sessionId: 41,
+    startAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    status: "open",
+    viewerParticipantStatus: "accepted",
+    viewerRole: "guest",
+  };
+  const controller = createSessionController({
+    api: {
+      loadMySessions: async () => {
+        participationLoads += 1;
+        return [privateSession];
+      },
+    },
+    discoveryPollIntervalMs: 60 * 60 * 1000,
+    onAuthIdentityChange: ({ session }) =>
+      session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null,
+    visibilityTarget: null,
+  });
+
+  controller.setAuthSession({ access_token: "token-a", user: { id: "account-a" } });
+  await flush();
+  assert.deepEqual(controller.getMySessions(), [privateSession]);
+  assert.equal(participationLoads, 1);
+
+  controller.setAuthSession({ access_token: "must-not-be-an-identity" });
+  await flush();
+
+  assert.equal(controller.getAppState().authSession, null);
+  assert.deepEqual(controller.getMySessions(), []);
+  assert.equal(controller.sessionStore.getState().profileEligibility, null);
+  assert.equal(participationLoads, 1);
+});
 
 test("controller classifies auth identity once, resets before reconciliation, and keeps token refresh light", async () => {
   const order = [];

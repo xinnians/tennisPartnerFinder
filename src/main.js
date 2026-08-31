@@ -491,12 +491,11 @@ function routeCurrentHash() {
   if (page === "me") showMePage({ historyMode: "none" });
 }
 
-function reconcilePageRouteOwner() {
+function reconcilePageRouteOwner({ forcePublic = false } = {}) {
   const pageOwnerIdentity = globalThis.history?.state?.pageOwnerIdentity;
   if (
     pageFromHash(globalThis.location?.hash) &&
-    pageOwnerIdentity &&
-    pageOwnerIdentity !== authIdentity(getAppState().authSession)
+    (forcePublic || (pageOwnerIdentity && pageOwnerIdentity !== authIdentity(getAppState().authSession)))
   ) {
     showMapPage({ historyMode: "replace" });
   }

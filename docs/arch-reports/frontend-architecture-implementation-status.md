@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03A3` dormant Push schema 完成；下一批為 compatible command／browser／dispatcher |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3` 已完成 |
-| runtime 變更 | 無 |
+| 目前批次 | `FA-03B0` auth identity fail-closed 完成；下一批為 Q9-A boot Auth refresh |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03B0` 已完成 |
+| runtime 變更 | D6 已落地：session owner 只認非空 `user.id`；不完整 session 不進私人資料流程 |
 | migration 變更 | repo／本機共新增 9 份 additive foundation migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 進入 compatible command／browser auth／dispatcher；不部署 hosted |
+| 下一步 | 完成 Q9-A boot Auth refresh 與事件競態；再進 compatible command／browser Push／dispatcher；不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -35,7 +35,7 @@ git log --oneline --decorate -10
 | D3 | Push cleanup 結果不明時採 durable quarantine；dispatcher 送出前重查狀態 | Q1-A／Q7-A 已核可；FA-03 待實作 |
 | D4 | Q6-A 已取代原本無法由現有 stack 證明的精確界線：只承諾 DB transaction 持續有效時的 quarantine/send 排序；載入記憶體仍不算 handoff | 已核可 current-stack 條件式邊界；殘餘斷線空檔需保留監控與測試 |
 | D5 | quarantine 的重新確認、保存期限與到期處理由 `FA-02` 提案後再核可；不先猜 30／90 天 | Q1-A 已核可：不設日曆期限，只依 server provider 證據解除 |
-| D6 | session 缺少 `user.id` 時 fail-closed：視為無效、清私人狀態並要求重新登入 | 是 FA-03 前置或同批依賴；目前仍 fallback 到 access token |
+| D6 | session 缺少 `user.id` 時 fail-closed：視為無效、清私人狀態並要求重新登入 | `FA-03B0` 已完成；controller 與 orchestration 都只接受非空 `user.id` |
 | D7 | `ds-bundle/` 與 `.design-sync/` 保留並持續使用於 UI/UX 優化 | 已決策；同步前仍需全量重驗，不能假設自動同步 |
 | D8 | 開發期 bundle bytes 只報告、不阻擋 CI；demo／E2E hook／隱私與拆包邊界仍 hard fail | `FA-01` 已完成 |
 | D9 | 第一個 production release candidate 前，依 route、裝置、網路、gzip／Brotli 與 Web Vitals 基線重訂並啟用 hard byte limits | 待 production baseline |
@@ -57,7 +57,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3` 完成；compatible runtime 待開始 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03B0` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -344,6 +344,40 @@ private schema 獨立覆核：兩個 Medium hardening 缺口修正後 zero block
 全批最終覆核：INSERT version ownership blocker 修正並補真實 fixture 後 zero blockers
 ```
 
+## FA-03B0 auth identity fail-closed
+
+已完成：
+
+- `sessionIdentity()` 與 page/profile 共用的 `authIdentity()` 不再 fallback 到 `access_token`；只接受非空
+  `session.user.id`。
+- auth controller 會把缺少有效 `user.id` 的 candidate 正規化成匿名狀態；即使 caller 直接繞過
+  profile orchestration，也不能把 access token 存成 owner identity 或啟動私人 participation load。
+- profile orchestration 在 profile／notification 私人讀取前攔截不完整 session，失效在途 auth request、
+  清 presence/profile/notification state、關閉 profile completion、回公開頁並提示重新登入。
+- 新增 controller 與 orchestration 回歸測試，明確驗證 access token 不能當 identity、零私人
+  participation load、route force-public 與私人 state reset 順序。
+
+刻意未做：
+
+- 本批沒有改 boot session 取得方式；Q9-A 的強制 Auth refresh 與 `INITIAL_SESSION` 競態留在下一個獨立
+  commit。
+- 沒有新增 Push device/cleanup command、改 logout scope、啟用 Push runtime，或做 hosted 寫入。
+
+本批驗證：
+
+```text
+targeted auth tests：5／5 passed
+npm run test:session-unit：341 top-level／355 total tests，全數通過
+npm run test:mock：Chromium 298 passed／4 skipped
+npm run typecheck：通過
+npm run lint：通過
+npm run prettier:check：通過
+npm run build：通過
+npm run check:production-bundle：結構檢查通過、development report 0 exceeded
+git diff --check：通過
+獨立 diff 覆核：zero correctness/security blockers
+```
+
 ## 已知阻塞與風險
 
 - 開發期 bytes 已改為 report；release hard limits 仍沿用歷史數值，必須在第一個 production
@@ -353,7 +387,7 @@ private schema 獨立覆核：兩個 Medium hardening 缺口修正後 zero block
 - outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op source version 已完成本機
   migration／測試；compatible runtime、barrier 與 hosted 套用仍未做。
 - 現行一般登出走 auth-js 預設 global scope，與 D2 尚未一致。
-- 現行 identity helpers 仍以 `access_token` fallback，與 D6 尚未一致。
+- D6 已完成，但 app boot 仍只讀 local session；Q9-A 強制 Auth refresh 與 boot event gate 尚未完成。
 - 現行 dispatcher 沒有 delivery lease，且多裝置只有一個 outbox outcome；不能只加 quarantine filter。
 - Web Push 與 PostgreSQL 沒有共同 transaction；Q6-A 已核可較弱但可實作的條件式邊界，仍須測試、
   監控並明列無法完全消除的斷線空檔。
@@ -373,8 +407,8 @@ private schema 獨立覆核：兩個 Medium hardening 缺口修正後 zero block
 2. 確認 `FA-03A2` contract 與 `FA-03A3` dormant schema commit 都存在；不要重做已完成的 003～009。
 3. 以 `npm run test:db` 的 1,014／1,014、DB lint clean 與 strict shadow diff 空白作為 compatible runtime
    的下一批基線。
-4. 接著依 compatible command/browser/dispatcher → barrier → disabled deploy → canary → contract → enable
-   分批實作、測試，更新本文件並建立獨立 commit。
+4. 先完成 Q9-A boot Auth refresh，再依 compatible command/browser/dispatcher → barrier → disabled deploy →
+   canary → contract → enable 分批實作、測試，更新本文件並建立獨立 commit。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -390,3 +424,4 @@ private schema 獨立覆核：兩個 Medium hardening 缺口修正後 zero block
 | 2026-08-31 | FA-03A1 | sessions schedule version 與 outbox nullable/sentinel foundation 分成兩個無反向鎖序的 migration；837／837 通過，hosted 未套用。 |
 | 2026-08-31 | FA-03A2 | schema contract 三路複查完成；使用者核可刪帳最小保留與 no-op 不推播，準備獨立 commit；hosted 未寫入。 |
 | 2026-08-31 | FA-03A3 | 003～009 dormant schema、177 項新增 pgTAP 與真實刪帳 FK 測試完成；全套 DB 1,014／1,014、strict diff 空白，hosted 未套用。 |
+| 2026-08-31 | FA-03B0 | auth identity 只認非空 `user.id`；不完整 session 在私人 RPC 前 fail-closed，完整單元回歸 355／355、Chromium 298 passed。 |

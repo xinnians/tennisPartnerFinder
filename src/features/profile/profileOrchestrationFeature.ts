@@ -18,6 +18,7 @@ import type {
   ControllerSurfaceHandle,
 } from "../../controllerContracts.ts";
 import type { Profile, SessionSummary, SurfaceCloseOptions, SurfaceLoadStatus } from "../../domainTypes.ts";
+import { sessionIdentity, validAuthSession } from "../profile-auth/profileAuthFeature.ts";
 
 type AuthProvider = Parameters<typeof signInWithOAuthProvider>[0];
 type ProfileDraft = NonNullable<Parameters<typeof saveCurrentProfile>[0]>;
@@ -82,7 +83,7 @@ interface ProfileOrchestrationDependencies {
   localDemoUnavailable: string;
   openLoginModal(options: LoginModalOptions): unknown;
   openProfileCompletionSheet(options: ProfileCompletionSheetOptions): ControllerSurfaceHandle | null | undefined;
-  reconcilePageRouteOwner?(): void;
+  reconcilePageRouteOwner?(options?: { forcePublic?: boolean }): void;
   reconcilePresenceTracking(): boolean;
   resetNotificationSettings(): void;
   resetPresenceTracking(): void;
@@ -116,11 +117,7 @@ export function configureProfileOrchestrationFeature(options: ProfileOrchestrati
 }
 
 export function authIdentity(session: unknown): string | null {
-  const value =
-    (session as ControllerAuthSession | null | undefined)?.user?.id ??
-    (session as ControllerAuthSession | null | undefined)?.access_token ??
-    null;
-  return value == null ? null : String(value);
+  return sessionIdentity(session as ControllerAuthSession | null | undefined);
 }
 
 export function isProfileReady(): boolean {
@@ -306,20 +303,29 @@ export function handleAuthIdentityChange({
   return session ? { directory: false, nickname: false, ntrp: false, status: "loading" } : null;
 }
 
-async function applyAuthCandidate(
-  session: ControllerAuthSession | null,
+export async function applyAuthCandidate(
+  candidate: ControllerAuthSession | null,
   { reconcilePageOwner = false }: { reconcilePageOwner?: boolean } = {}
 ): Promise<void> {
+  const session = validAuthSession(candidate);
+  const invalidSession = candidate !== null && session === null;
   dependencies.invalidateAuthRequests();
-  // Account classification belongs to the controller; same-account token refreshes stay light.
+  // Never pass an ownerless candidate downstream; the controller repeats this validation as defense in depth.
   dependencies.setAuthSession(session);
-  if (reconcilePageOwner) dependencies.reconcilePageRouteOwner?.();
+  if (reconcilePageOwner || invalidSession) {
+    dependencies.reconcilePageRouteOwner?.({ forcePublic: invalidSession });
+  }
   if (!session) {
+    if (invalidSession) {
+      closeActiveProfileCompletion();
+      profileRevision += 1;
+    }
     dependencies.resetPresenceTracking();
     dependencies.setProfile(dependencies.defaultProfile());
     storedProfileExists = false;
     dependencies.resetNotificationSettings();
     profileLoadStatus = "idle";
+    if (invalidSession) dependencies.toast("登入狀態無效，請重新登入。");
     return;
   }
   await reloadCurrentProfile().catch(() => {});

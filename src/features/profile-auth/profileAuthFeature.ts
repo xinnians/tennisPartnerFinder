@@ -20,8 +20,12 @@ export interface PendingIntentStore {
 }
 
 export function sessionIdentity(session: ControllerAuthSession | null | undefined): string | null {
-  const value = session?.user?.id ?? session?.access_token ?? null;
-  return value == null ? null : String(value);
+  const value = session?.user?.id;
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+export function validAuthSession(session: ControllerAuthSession | null | undefined): ControllerAuthSession | null {
+  return sessionIdentity(session) ? (session ?? null) : null;
 }
 
 export function profileMeetsGate(

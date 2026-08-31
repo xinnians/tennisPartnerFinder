@@ -3,6 +3,7 @@ import {
   profileMeetsGate,
   profileReadiness,
   sessionIdentity,
+  validAuthSession,
 } from "../features/profile-auth/profileAuthFeature.ts";
 
 import type {
@@ -20,6 +21,7 @@ import type { SurfaceRegistry } from "./surfaceRegistry.ts";
 export interface AuthIdentityChange {
   accountChanged: boolean;
   identity: string | null;
+  invalidSession: boolean;
   previousIdentity: string | null;
   session: ControllerAuthSession | null;
   signedOut: boolean;
@@ -77,13 +79,15 @@ export function createAuthController({
 } {
   const read = store.getState;
 
-  function classifyIdentity(session: ControllerAuthSession | null): IdentityDecision {
+  function classifyIdentity(candidate: ControllerAuthSession | null): IdentityDecision {
+    const session = validAuthSession(candidate);
     const identity = sessionIdentity(session);
     const previousIdentity = sessionIdentity(read().authSession);
     return {
       accountChanged: Boolean(previousIdentity) && Boolean(identity) && previousIdentity !== identity,
       identity,
       identityChanged: previousIdentity !== identity,
+      invalidSession: candidate !== null && session === null,
       previousIdentity,
       session,
       signedOut: Boolean(previousIdentity) && !identity,
@@ -100,7 +104,9 @@ export function createAuthController({
     profile: ControllerProfileEligibility | null,
     decision: IdentityDecision
   ): Promise<void> {
-    const { accountChanged, identity, identityChanged, signedOut } = decision;
+    const { accountChanged, identity, identityChanged, invalidSession, signedOut } = decision;
+    const authBoundaryChanged = identityChanged || invalidSession;
+    const authCleared = signedOut || invalidSession;
     const previousGates = Object.fromEntries(
       GATE_LEVELS.map((level) => [level, profileMeetsGate(read().profileEligibility, level)])
     ) as Record<(typeof GATE_LEVELS)[number], boolean>;
@@ -115,17 +121,19 @@ export function createAuthController({
     const directoryWasLost = previousGates.directory && !nextGates.directory;
     const readinessChanged =
       previousReadiness.state !== nextReadiness.state || previousReadiness.source !== nextReadiness.source;
-    if (identityChanged || gatesChanged || readinessChanged) store.setState({ authEpoch: read().authEpoch + 1 });
+    if (authBoundaryChanged || gatesChanged || readinessChanged) store.setState({ authEpoch: read().authEpoch + 1 });
     const epoch = read().authEpoch;
 
-    if (signedOut || accountChanged) clearIntent();
-    if (signedOut || accountChanged || ntrpWasLost) {
-      clearPlayerLayer({ closeReason: signedOut || accountChanged ? "account-change" : "ntrp-gate-lost" });
+    if (authCleared || accountChanged) clearIntent();
+    if (authCleared || accountChanged || ntrpWasLost) {
+      clearPlayerLayer({ closeReason: authCleared || accountChanged ? "account-change" : "ntrp-gate-lost" });
     }
-    if (signedOut || accountChanged || ntrpWasLost || directoryWasLost) {
-      clearPlayerDirectory({ closeReason: signedOut || accountChanged ? "account-change" : "directory-gate-lost" });
+    if (authCleared || accountChanged || ntrpWasLost || directoryWasLost) {
+      clearPlayerDirectory({
+        closeReason: authCleared || accountChanged ? "account-change" : "directory-gate-lost",
+      });
     }
-    if (identityChanged) {
+    if (authBoundaryChanged) {
       transitionSurfaces("authIdentityChanged", { reason: "account-change", restoreFocus: false });
     } else {
       if (ntrpWasLost) {
@@ -143,7 +151,7 @@ export function createAuthController({
 
     store.setState({ authSession: session ?? null, profileEligibility: profile ?? null });
     store.emit("me");
-    if (identityChanged) {
+    if (authBoundaryChanged) {
       replaceMySessions([]);
       blockedPlayerGate.invalidate();
       store.setState({
@@ -163,20 +171,24 @@ export function createAuthController({
   }
 
   function setAuthState(
-    session: ControllerAuthSession | null,
+    candidate: ControllerAuthSession | null,
     profile: ControllerProfileEligibility | null = null
   ): Promise<void> {
-    return applyAuthState(session, profile, classifyIdentity(session));
+    const decision = classifyIdentity(candidate);
+    if (decision.invalidSession && onAuthIdentityChange) {
+      profile = onAuthIdentityChange(decision) ?? null;
+    }
+    return applyAuthState(decision.session, decision.session ? profile : null, decision);
   }
 
-  function setAuthSession(session: ControllerAuthSession | null): void {
-    const decision = classifyIdentity(session);
-    if (decision.identityChanged && onAuthIdentityChange) {
+  function setAuthSession(candidate: ControllerAuthSession | null): void {
+    const decision = classifyIdentity(candidate);
+    if ((decision.identityChanged || decision.invalidSession) && onAuthIdentityChange) {
       const profile = onAuthIdentityChange(decision) ?? null;
-      void applyAuthState(session, profile, decision);
+      void applyAuthState(decision.session, profile, decision);
       return;
     }
-    store.setState({ authSession: session ?? null });
+    store.setState({ authSession: decision.session });
     store.emit("me");
   }
 
