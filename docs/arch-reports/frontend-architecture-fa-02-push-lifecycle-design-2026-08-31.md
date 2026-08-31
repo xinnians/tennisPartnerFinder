@@ -1,10 +1,12 @@
 # FA-02 Push lifecycle 詳細設計
 
 最後更新：2026-08-31
-狀態：**技術設計草案完成，等待 10 項產品／migration 核可；尚未修改 runtime 或資料庫**
+狀態：**技術設計已核可；尚未修改 runtime 或資料庫**
 查證基準：`e2f93321c5d66d53191c2163b8c2ae174deadba8`
+核可日期：2026-08-31
+核可結果：`1A、2A、3A、4A、5A、6A、7A、8A、9A、10B`
 
-這份文件只處理 Web Push。內容分成「已查到的現況」、「建議方案」與「尚待確認」，不把
+這份文件只處理 Web Push。內容分成「已查到的現況」、「已核可方案」與「實作邊界」，不把
 尚未實作的方案寫成既有能力，也不把本機資料庫當成 hosted production。
 
 ## 先說結論
@@ -22,10 +24,26 @@
 5. 每筆已排隊通知都有明確 DB 截止時間；未知 endpoint 不靠猜測天數解除，Push service 也不再
    沿用套件預設四週的保存時間。
 
-## 只需要你確認的 10 件事
+## 已確認的 10 項決策
 
-Q5-B 會覆寫 Q3 的一般規則，並依 Q10 決定 legacy row 的 deadline；其餘可分開選。回覆例如：
-`1A、2A、...、10A`。若選 Q1-B，請寫成 `1B＝N 天`。
+下列選項原本是實作前的決策題，已於 2026-08-31 全部確認。實作只能採核可欄，不得自行改選。
+
+| 題目 | 核可 | 實作結果 |
+| --- | --- | --- |
+| Q1 | A | owner-linked quarantine 不設日曆期限；只有 server 觀察到可信 provider 證據才解除 |
+| Q2 | A | 同帳號、同 logical device 重新登入也不自動恢復；由使用者明確操作 |
+| Q3 | A | 一般通知在事件建立時固定 recipient 與 logical device |
+| Q4 | A | hosted canonical preflight 零例外時，legacy subscription 全部隔離並擦除 raw send material；任何例外都停止 contract |
+| Q5 | A | UTC cutoff 前尚未送出的 legacy outbox 全部取消並保留稽核狀態 |
+| Q6 | A | 採 current-stack 條件式 D4 邊界，接受文件明列的極小未觀察斷線空檔 |
+| Q7 | A | 刪帳後保留不能寄信的 ownerless deny fingerprint，直到 server 有可信 provider 證據 |
+| Q8 | A | TTL＝DB 剩餘時間減已查實 safety budget；budget 未查實時一律為 0 |
+| Q9 | A | 每次 app boot 強制向 Auth server refresh；拒絕時 quarantine，離線／timeout 時本機 fail-closed |
+| Q10 | B | 採第 8.4 節完整 10-event expiry matrix 與第 8.5 節 domain invalidation |
+
+Q4-A 與 Q5-A 是已核可的 migration 政策，不等於已授權在未知 hosted 影響筆數下直接執行不可逆
+contract。FA-03 必須先完成 hosted 唯讀 preflight；實際擦除或批次取消前，仍須回報精確影響筆數並
+再次確認。
 
 ### Q1：隔離資料何時自動到期？
 
@@ -206,9 +224,10 @@ outbound／SSRF 邊界。FA-03 必須限制 public HTTPS egress、private／loop
 6. cleanup 失敗不能卡住登出。
 7. session 缺 `user.id` 時 fail-closed，不可用 access token 當 owner identity。
 
-原 D4 要求「只有 quarantine 前已由 Push service 接受的通知可視為無法追回」。本輪確認
-PostgreSQL 與外部 Push service 沒有共同 transaction，現有 stack 無法證明這個精確邊界；Q6 必須
-重新確認，不能把 request invoked、service accepted、device displayed 混成同一件事。
+原 D4 要求「只有 quarantine 前已由 Push service 接受的通知可視為無法追回」。查證確認 PostgreSQL
+與外部 Push service 沒有共同 transaction，現有 stack 無法證明這個精確邊界；已核可的 Q6-A 因此
+取代原 D4，改採第 8.2 節的 current-stack 條件式邊界。仍不能把 request invoked、service accepted、
+device displayed 混成同一件事。
 
 ## 4. 建議的資料模型
 
@@ -229,7 +248,7 @@ Safari、Firefox 與實際 PWA matrix 查證，不在文件假設每個 browser 
 | `push_subscriptions` | row 存在／不存在 | 只有 active transport 才有 row，保存 endpoint／keys；隔離就刪除 |
 
 獨立 registry 可處理 legacy row：它有舊 owner，卻沒有可信 device／consent，不能偽造 device ID
-塞進新模型。帳號刪除若選 Q7-A，registry 把 owner 清成 `NULL` 並轉 `deny`，不是假裝仍有 owner。
+塞進新模型。依 Q7-A，帳號刪除時 registry 把 owner 清成 `NULL` 並轉 `deny`，不是假裝仍有 owner。
 
 ### 4.3 欄位、constraint 與 index
 
@@ -297,10 +316,10 @@ Browser 不再直接讀寫 raw tables。撤 authenticated 的 raw `SELECT/INSERT
 再次 claim。lease 到期可用新 token reclaim `processing`；超過核可 attempts 或已過 `expires_at` 分別轉
 `failed`／`cancelled`。provider stale 也轉 `cancelled`，原因寫固定 code，不另造未定義的 `stale` state。
 
-`notification_outbox` 增加非空 `expires_at`、fan-out 完成邊界與 `no_targets/cancelled/completed` outcome；
-fan-out 完成後不能再補新 logical device。Q3-A 在 event transaction 建立 delivery；Q3-B 則由第一次
-dispatcher transaction 鎖 outbox、建立當下 deliveries 並標示 fan-out 完成，之後不再加裝置。這修正
-目前「一台成功就把其他台一起當成功」的問題。
+`notification_outbox` 增加非空 `expires_at`、fan-out 完成邊界與 `no_targets/cancelled/completed` outcome。
+依已核可的 Q3-A，event transaction 立即建立 deliveries，並把 fan-out 標成 `frozen`；沒有目標時標成
+`no_targets`。新 outbox 不會留下等待 dispatcher 補裝置的 `open` 狀態，之後開啟／恢復 Push 的裝置也
+不會收到舊通知。這同時修正目前「一台成功就把其他台一起當成功」的問題。
 
 outbox 同時保存可鎖定的 `source_kind/source_id/source_version`，讓 dispatcher 依第 8.5 節重驗 domain
 狀態並從 current row 重建核可 payload；不能只看 event 建立時的 JSON snapshot。
@@ -333,22 +352,20 @@ session／recipient／event 看見 version 0 就保守不新增。contract 完�
 | Push service stale | endpoint 已通過 provider policy，response 語意已確認 | 移除 transport；registry quarantine 或依證據刪除 | 不再重試該 transport |
 | browser 回報已啟動 deactivation | captured endpoint 與 owner/version 相符 | 只記 audit；不單憑 client assertion 刪 registry | owner lock 繼續保留 |
 | server 觀察到 provider expired/stale | endpoint 已通過 provider policy、response 語意已查證 | 依 Q1 解除 registry row | owner lock 解除 |
-| 同 owner 自動恢復（僅 Q2-B） | current owner＋同 device cleanup-token proof；pause reason=`local_logout`；permission／VAPID／endpoint 全部通過 | `resume_push_device` 旋轉 cleanup token 與 epoch、重建 active transport | 不復活舊 delivery |
 | 同 owner 再 opt-in | 明確 action、fingerprint owner 相同 | 新 epoch；registry active；重建 transport | 舊 deliveries 不復活 |
 
 所有路徑共用一份 lock protocol，不在各段各寫一套：
 
-1. Q3-B fan-out 才先鎖 outbox；finalizer 只鎖 outbox，不再取得下列 lock。
-2. 依序鎖 `session → participant/message`，同類 row 依 PK 遞增。
-3. 再依固定 namespace 順序取得 guard advisory locks：`notification_pref(profile) →
+1. 依序鎖 `session → participant/message`，同類 row 依 PK 遞增。
+2. 再依固定 namespace 順序取得 guard advisory locks：`notification_pref(profile) →
    player_block(min_profile,max_profile) → court_subscription(profile)`，接著鎖已存在的對應 row。advisory
    guard 讓「目前沒有 prefs／block／subscription row」也能和並行 insert/delete 序列化。
-4. 最後鎖 `consent → endpoint registry → active subscription → delivery`；fingerprint 依 binary bytes、
+3. 最後鎖 `consent → endpoint registry → active subscription → delivery`；fingerprint 依 binary bytes、
    數字 PK 依數值遞增，refresh 的 old/new fingerprint 也同序。
 
 fan-out、send 與 domain invalidation 只取需要的 prefix／guard，但順序不能改。`set_notification_prefs`、
 `set_player_block`、`set_court_subscriptions` 先取自己的同一 guard，再改 row 並取消 affected delivery；
-它們不回頭取 session/outbox/consent。quarantine 只走第 4 步，不取 domain/outbox。claim 的短 transaction
+它們不回頭取 session/outbox/consent。quarantine 只走第 3 步，不取 domain/outbox。claim 的短 transaction
 只鎖 delivery，finalizer 只鎖 outbox，因此都不形成反向循環。
 
 guard 一律在同一條 checked-out connection、同一 transaction 使用
@@ -359,14 +376,13 @@ pooler 把 lock 留在下一個 borrower。三個 namespace 使用互不相同�
 `(namespace_id, unsigned_key_hash, canonical_tuple_bytes)` 排序後逐一取得；對應實體 row 也用同 tuple
 順序鎖，不能在 recipient loop 中邊走邊鎖。
 
-domain RPC／上述 setter **永遠不鎖或更新既有 outbox**：它們可插入本 transaction 才建立、尚未對外
-可見的新 event row，但對舊事件只更新 domain row 並取消已存在的 delivery。
-Q3-B 尚為 `fanout_state='open'` 時本來就沒有 delivery；之後由持有 outbox lock 的 fan-out transaction
-依最新 domain/guard 狀態決定 `cancelled/no_targets/frozen`。已 fan-out 的 outbox 則由 outbox-only
-finalizer 依 terminal deliveries 聚合。這條限制避免 `outbox→session` 與 `session→outbox` 形成反向鎖。
+domain RPC／上述 setter **永遠不鎖或更新既有 outbox**：event-creating transaction 可在取得上述 lock
+後插入本 transaction 才建立、尚未對外可見的 outbox 與 deliveries；對舊事件只更新 domain row 並取消
+已存在的 delivery。finalizer 只鎖 outbox，依 terminal deliveries 聚合，不再回頭取得 domain／consent
+locks。這條限制避免 `outbox→session` 與 `session→outbox` 形成反向鎖。
 
-FA-03 要有 absent-row insert/delete race、endpoint swap、fan-out/quarantine、deadlock、lock timeout 與
-pool exhaustion 測試。
+FA-03 要有 absent-row insert/delete race、endpoint swap、event-creation fan-out/quarantine、deadlock、
+lock timeout 與 pool exhaustion 測試。
 
 ## 6. Browser 與 auth 流程
 
@@ -413,11 +429,8 @@ final-v3 原草案先 browser unsubscribe。本輪建議改成 server-first，�
   timeout／離線時先把 local SW 標 paused、不顯示私人內容，但 server consent 仍可能 enabled，待下次
   online check。背景 SW 單純收到 Push 也不能證明 revoke。
 
-若 Q2-B 核可，同 owner＋同 logical device 登入後，reconcile 只在 server pause reason 允許自動恢復、
-subscription／VAPID／owner 全部一致時呼叫 resume command，並旋轉 epoch；換帳號、remote revoke、
-permission revoke 或對帳失敗仍顯示暫停。只有 `pause_reason='local_logout'` 可自動 resume；
-`session_invalid/account_switch/permission_revoked/cleanup_unknown` 都必須明確按「恢復」。Q2-A 則永遠
-等待使用者按「恢復」。
+依已核可的 Q2-A，任何 pause reason 都不會在登入或 reconcile 時自動恢復。UI 顯示暫停原因，只有
+使用者明確按「恢復」後才走 `enable_push_device` 建立新 epoch；舊 delivery 永遠不復活。
 
 ## 7. Server command 與權限
 
@@ -427,13 +440,16 @@ permission revoke 或對帳失敗仍顯示暫停。只有 `pause_reason='local_l
 | --- | --- | --- |
 | `get_push_device_state` | 登入 owner | 只回 consent／transport 安全狀態、epoch、version |
 | `enable_push_device` | 登入 owner、明確 UI action | 建立／恢復 consent、registry 與 active transport |
-| `resume_push_device` | 登入 current owner＋同 device cleanup-token proof | 僅 Q2-B 且 pause reason=`local_logout`；server 重驗 owner／subscription／VAPID／egress，旋轉 token＋epoch後恢復 |
 | `refresh_push_subscription` | 登入 owner、enabled epoch | 同 device 換 endpoint／keys，不建立新帳號 consent |
 | `quarantine_push_device` | 登入 owner | 暫停／撤銷、刪 transport、registry quarantine、取消 epoch deliveries |
 | `quarantine_push_by_token` | cleanup token holder | 只能 quarantine，不能讀、啟用、刪除或轉讓 |
 | `record_push_deactivation_attestation` | 登入 owner | 記錄 captured fingerprint/version 與 UA 結果；不能解除 owner lock |
 | `release_push_endpoint_lock` | dispatcher 專用 role | 只接受 server 觀察且符合核可 provider policy 的 stale／expired 證據 |
 | `disable_push_device` | 登入 owner、明確 UI action | consent revoked，走同一 quarantine 流程 |
+
+Q2-B 未採用，因此 FA-03 不建立也不 grant `resume_push_device`；登入、boot 與 reconcile 都不能用 cleanup
+token 把 Push 改回 enabled。初次開啟與手動恢復都必須來自明確 UI action，並走
+`enable_push_device`。
 
 所有 command 用 epoch／version／fingerprint 做條件式更新。不同 owner 命中同 fingerprint 只能拒絕；
 不能根據 client 宣稱轉移。endpoint 另通過 egress policy，並以 DB advisory／registry lock 解決
@@ -452,15 +468,10 @@ Edge 不使用 postgres 管理員 DSN。建立專用 `notification_dispatcher` D
 
 ### 8.1 Fan-out、claim 與 lease
 
-若 Q3-A 核可，outbox insert 同一 DB transaction 立即建立 deliveries 並凍結 epoch；沒有目標就標
+依已核可的 Q3-A，outbox insert 同一 DB transaction 立即建立 deliveries 並凍結 epoch；沒有目標就標
 `no_targets`。fan-out 依第 5 節取得 relevant domain row、prefs/block/court guard 與 consent lock，持有到
 delivery insert／fan-out frozen commit；preference、block、subscription 或 quarantine 都不能在 fan-out
 讀完後插隊，留下仍可送的舊 delivery。這不是等 dispatcher 執行才重新找裝置。
-
-若 Q3-B 核可，outbox 先以 `fanout_state='open'` 建立；第一個 dispatcher 用 row lock 在同一 transaction
-依第 5 節鎖 domain/guards、查當下 enabled consent，再取得同樣的 consent lock，建立 deliveries 並改
-`fanout_state='frozen'`。transaction commit 後永遠不補裝置；並發 worker 只能看到同一個 frozen 結果。
-Q5-B 是唯一另行設計的 legacy 例外。
 
 claim 使用 service-only function 與 `FOR UPDATE SKIP LOCKED`：
 
@@ -500,10 +511,10 @@ checked-out connection。private function 取得上述 locks 並回傳當下 sen
 - request timeout 時，無法知道 Push service 是否已接受。
 - Push service accepted 不等於 device received／displayed。
 
-因此文件不宣稱「quarantine commit 後絕對零 request」。Q6-A 接受的是有前提與殘餘風險的
-current-stack 邊界；Q6-B 才維持原本嚴格要求，代價是先停用或新增專用基礎設施。
+因此文件不宣稱「quarantine commit 後絕對零 request」。已核可的 Q6-A 是有前提與殘餘風險的
+current-stack 邊界；未採用的 Q6-B 才維持原本嚴格要求，代價是先停用或新增專用基礎設施。
 
-一般規則仍是不在 DB transaction 等網路。若採 Q6-A，這是狹窄的隱私例外：一次一個 delivery、
+一般規則仍是不在 DB transaction 等網路。依 Q6-A，這是狹窄的隱私例外：一次一個 delivery、
 固定 lock 順序、專用 role、小 pool、lock／transaction／總 request deadline、`try/finally` rollback／release。
 web-push 的 `timeout` 只是 socket idle timeout，不是總 deadline；FA-03 必須包自己的整體 deadline，
 數值由 hosted canary 與平台上限決定。
@@ -531,13 +542,13 @@ web-push 的 `timeout` 只是 socket idle timeout，不是總 deadline；FA-03 �
 row 無限等待。
 
 目前資料庫沒有任何 notification expiry policy。逐一核對 10 種 event 後，只有兩種 reminder 的文案與
-query 本身能直接證明語意截止點；其餘時間都是**現有操作窗口**，不等於既有通知政策。Q10-B 才會
-把下表「提案」正式變成產品規則：
+query 本身能直接證明語意截止點；其餘時間都是**現有操作窗口**，不等於既有通知政策。已核可的
+Q10-B 正式把下表提案變成新產品規則：
 
 | event | Q10-B 的 DB `expires_at` | 性質 |
 | --- | --- | --- |
-| `session_reminder` | `session.start_at` | Q10-A/B 都啟用；開打提醒到開打即失效 |
-| `decide_reminder` | `session.start_at` | Q10-A/B 都啟用；未定案提醒到候選起點即失效 |
+| `session_reminder` | `session.start_at` | 開打提醒到開打即失效 |
+| `decide_reminder` | `session.start_at` | 未定案提醒到候選起點即失效 |
 | `chat_message` | 候選且未定案：`start_at`；其餘：`start_at + 24 hours` | 新產品規則，借用現有 chat archived 邊界 |
 | `host_new_request` | 候選且未定案：`start_at`；其餘：`start_at + 2 hours` | 新產品規則，借用現有加入窗口 |
 | `guest_invited` | 候選且未定案：`start_at`；其餘：`start_at + 2 hours` | 新產品規則，借用現有邀請回覆窗口 |
@@ -547,9 +558,9 @@ query 本身能直接證明語意截止點；其餘時間都是**現有操作窗
 | `session_decided` | `start_at + 24 hours` | 新產品規則；目前沒有 notification deadline |
 | `session_cancelled` | `start_at + 24 hours` | 新產品規則；目前沒有 notification deadline |
 
-Q10-A 只為前兩種建立 Push outbox，其餘 8 種 fail-closed；Q10-B 才啟用完整表。`expires_at` 在 event
-transaction 依當時 session 值凍結；之後若 session 或來源狀態改變，依第 8.5 節取消／取代，不能偷偷
-重算舊 row。未來新增 event type 而沒有已核可 deadline 時，也一律不建立 Push outbox。
+FA-03 依 Q10-B 啟用完整表。`expires_at` 在 event transaction 依當時 session 值凍結；之後若 session
+或來源狀態改變，依第 8.5 節取消／取代，不能偷偷重算舊 row。未來新增 event type 而沒有已核可
+deadline 時，一律不建立 Push outbox。
 
 上述邊界直接對照 `202607270007_notification_rework.sql:105-156`、
 `202607270002_session_flow_rpcs.sql:120-159`、`202607270004_chat_block_hardening.sql:48-56,320-356,481-510`
@@ -558,19 +569,18 @@ transaction 依當時 session 值凍結；之後若 session 或來源狀態改�
 reminder，source 沒有通知 expiry 欄位或政策；因此表中其餘 8 種明列為 Q10-B 新規則。
 
 舊 migration 曾允許、但目前 10 種 event constraint 已移除的 `district_new_session` 仍可能存在於
-hosted legacy row（constraint 目前是 `NOT VALID`，本機資料不能代替 hosted 結果）。Q5-B 的特例 preflight
-必須找出這類 row；未先核可 deadline／映射的一律 cancelled，不能硬套 `court_new_session`。
+hosted legacy row（constraint 目前是 `NOT VALID`，本機資料不能代替 hosted 結果）。Q5-A 的 preflight
+必須分 event type 回報所有 pending legacy row；contract 時一律依 UTC cutoff 取消，不能硬套
+`court_new_session` 後繼續送。
 
-現行 web-push 預設可在 Push service 保留四週，這不是本專案明確決策。FA-03 必須顯式傳 TTL：
-
-- Q8-A：先用 DB clock 算剩餘毫秒，再扣除已由 hosted canary／平台文件查實的 request deadline 與
-  clock-skew safety budget，向下取整為非負整數秒；budget 尚未查實或剩餘不足就用 `TTL=0`。
-- Q8-B：TTL 固定 0，只做立即嘗試。
+現行 web-push 預設可在 Push service 保留四週，這不是本專案明確決策。依 Q8-A，FA-03 必須顯式傳
+TTL：先用 DB clock 算剩餘毫秒，再扣除已由 hosted canary／平台文件查實的 request deadline 與
+clock-skew safety budget，向下取整為非負整數秒；budget 尚未查實或剩餘不足就用 `TTL=0`。
 
 RFC 8030 的 TTL 從 Push service 收到 request 才開始，service 也無義務把兩段網路 transit 算進去；
-所以 Q8-A 只能降低、不能保證「UA 一定在 DB deadline 前收到」。Q8-B 代表不在 service 排隊，也不保證
-已開始的 transit/display 時刻。兩者都要求 DB 過期後零新 adapter call，payload 帶 `expires_at` 供 SW
-再次 fail-closed，並測「quarantine 前 accepted、quarantine 後才到 UA」的晚到情境。
+所以 Q8-A 只能降低、不能保證「UA 一定在 DB deadline 前收到」。實作仍要求 DB 過期後零新 adapter
+call，payload 帶 `expires_at` 供 SW 再次 fail-closed，並測「quarantine 前 accepted、quarantine 後才到
+UA」的晚到情境。
 
 ### 8.5 Domain invalidation
 
@@ -605,7 +615,7 @@ fail-closed。
 目前 W3C Push API Working Draft 明定 `expirationTime` 可為 `null`；deactivated subscription 不再收
 訊息，且 deactivated endpoint 不得被新 subscription 重用。但 timeout／未知不是 deactivation 證據。
 
-若 Q1-A 核可：
+依已核可的 Q1-A：
 
 - quarantine 刪 active transport，只留 registry fingerprint owner lock。
 - Browser 的 `unsubscribe()` resolve `true/false` 只是 client attestation，server 無法證明 UA 或 Push
@@ -618,9 +628,9 @@ fail-closed。
 - 不因 30／90 天經過就轉給另一帳號。
 
 因 quarantine 已刪除 send material，server 後續通常也無法再主動探測該 endpoint，所以 row 可能長期
-保留；這是 Q1-A 的明確代價，不是假設 client 回報可驗證。Q7 另決定帳號刪除時保留 ownerless deny、
-完整刪除，或阻塞刪帳；不能讓 FK cascade／restrict／set null 的預設行為替產品做決定。Q7-A 的 deny
-不受 Q1-B cleanup 天數影響。
+保留；這是 Q1-A 的明確代價，不是假設 client 回報可驗證。依 Q7-A，帳號刪除時轉成 ownerless deny；
+FK 不得自行 cascade 掉 owner lock，也不得以 restrict 永久阻塞刪帳。這類 deny 沒有日曆期限，只能依
+server 取得的可信 provider 證據解除。
 
 ## 10. Migration 與發布順序
 
@@ -646,8 +656,9 @@ provider origins、platform timeout 與 in-flight 狀態，輸出精確影響筆
 4. **Deploy disabled**：部署新 Edge、web、SW，但 Push 保持 disabled；新 app 要完成 active SW protocol
    handshake，舊 app／舊 SW／waiting SW 只能收到 `PUSH_CLIENT_UPGRADE_REQUIRED`，不能寫舊 RPC。
 5. **Canary**：用測試帳號驗證新 schema、egress、locks、A→B、兩裝置、TTL 與 failure injection。
-6. **Contract**：依 Q4 將 legacy row 轉 registry tombstone 並擦 raw send material；依 Q5/Q10 處理 cutoff
-   前 pending outbox。已 sent row 以 `sent_at` 回填 expiry；legacy attempts 已耗盡但未 sent 的 row 先明確
+6. **Contract**：依 Q4-A 將 legacy row 轉 registry tombstone 並擦 raw send material；依 Q5-A 取消 cutoff
+   前全部 pending outbox，Q10-B 只適用於新版 event。已 sent row 以 `sent_at` 回填 expiry；legacy attempts
+   已耗盡但未 sent 的 row 先明確
    轉 `failed`，以 cutoff 作 terminal expiry；其餘無法分類的 row fail-closed `cancelled`。確認零 NULL 後
    validate CHECK、再 `SET NOT NULL`，最後才把 `legacy_outbox_handled=true` 並撤 legacy grants／RPC。
 7. **Enable**：只允許新明確 opt-in，通過 production canary 後再 schedule cron。
@@ -671,8 +682,8 @@ Q4-A 執行後只能 **Push 保持停用並 roll forward**，不得從 log 或�
 - 同 endpoint 兩 owner 首次併發，只有一方成功，另一方收到穩定 ownership error。
 - quarantine 原子移除 send material、取消 epoch deliveries；不同 owner 不能接管。
 - browser raw writes 全拒；cleanup token replay／rotation／遺失／猜測／跨 owner 全覆蓋。
-- `resume_push_device` 只接受 current owner＋同 device token＋`local_logout`；cross-owner、revoked、
-  session-invalid、permission-revoked、stale VAPID／endpoint 全拒且不旋轉 epoch。
+- `resume_push_device` 不存在且無任何 role 可 execute；登入／boot／reconcile 不會自動恢復。只有明確
+  UI action 能呼叫 `enable_push_device` 建立新 epoch。
 - raw `SELECT/INSERT/DELETE`、sequence、private helper ACL、RLS、FK indexes、CHECK 精確驗證。
 - 任意 host、private／loopback／link-local／metadata IP、DNS rebinding、redirect、非核可 port 被拒絕。
 - 同 schedule version 的 reminder 只建立一次；改期先取消舊 row，新 version 可各建立一次，不被舊
@@ -696,15 +707,15 @@ Q4-A 執行後只能 **Push 保持停用並 roll forward**，不得從 log 或�
   以及 request timeout 後遠端仍 accepted，都有 failure-injection test 並記入 Q6-A residual-risk 指標。
 - consent pause → re-enable 不復活舊 delivery；多裝置各自 retry。
 - 第 8.5 節每種 domain transition 都有「主動 cancel」與「adapter 前 fresh-check」競態測試；不再有效的
-  source 零 adapter call，Q10-A 的 8 種 event 零 Push outbox。
+  source 零 adapter call。依 Q10-B，10 種 event 都驗證第 8.4 節的 `expires_at` 與對應 invalidation。
 - `court_new_session` 排隊後取消所有對應球場訂閱，主動 cancel 與 send-time recheck 都得到零 adapter call。
 - Push service accepted、DB commit 前 crash 以同 notification ID 重試，SW 去重。
 - 多裝置同時 terminal／finalizer crash 後，idempotent reconciler 可把 outbox 收斂到正確 outcome。
 - `pending/processing/unknown/accepted/cancelled/failed` transition、lease reclaim、404／410 policy、429、
   DB error、malformed payload、attempt exhausted、expiry、pool saturation 全覆蓋。
 - lock 順序 deadlock canary；監控 transaction duration、lock wait、quarantine latency、unknown、pool usage。
-- Q3-B open outbox 與 domain invalidation 並行時沒有 `outbox↔session` 反向鎖；invalid source 由 fan-out
-  transaction cancel，已建立 delivery 由 domain transaction cancel、outbox-only finalizer 聚合。
+- event-creation fan-out 與 domain mutation 依同一 lock order 序列化；既有 delivery 由 domain
+  transaction cancel，outbox-only finalizer 聚合，沒有 `outbox↔session` 反向鎖。
 - log／HTTP response 不含 endpoint、keys、payload 或原始第三方 error。
 
 ### Browser／Service Worker
@@ -719,7 +730,7 @@ Q4-A 執行後只能 **Push 保持停用並 roll forward**，不得從 log 或�
 - `signOut({ scope:'local' })` 精確呼叫；缺 `user.id` 零私人 RPC。
 - Q9-A boot 強制 auth refresh：server-rejected 走 token quarantine；offline/timeout 只 local fail-closed、
   不誤稱 server 已暫停；背景 Push 不假裝完成 session check。
-- Q2-B 同 owner/local-logout 可自動 resume 並旋轉 token＋epoch；其他 pause reason 仍需明確 UI action。
+- Q2-A 下所有 pause reason 都不會自動 resume；只有明確 UI action 能建立新 epoch，舊 delivery 不復活。
 
 ### Migration／gate
 
