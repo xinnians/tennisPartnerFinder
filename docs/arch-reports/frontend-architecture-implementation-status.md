@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03A2` Push additive expand：consent／registry／delivery 精確 schema contract |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0` 與 `FA-03A1` 完成，contract gate 尚未完成 |
+| 目前批次 | `FA-03A2` Push schema contract 定稿；準備 commit |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0` 與 `FA-03A1` 完成；`FA-03A2` 已核可待 commit |
 | runtime 變更 | 無 |
 | migration 變更 | 本機新增 2 份 additive foundation migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 補定新資料表、control／worker、source version 與刪帳 audit 的精確契約；不部署 hosted，不進 destructive contract |
+| 下一步 | commit `FA-03A2`，再建立本機 dormant schema migrations 與 pgTAP；不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -39,6 +39,8 @@ git log --oneline --decorate -10
 | D7 | `ds-bundle/` 與 `.design-sync/` 保留並持續使用於 UI/UX 優化 | 已決策；同步前仍需全量重驗，不能假設自動同步 |
 | D8 | 開發期 bundle bytes 只報告、不阻擋 CI；demo／E2E hook／隱私與拆包邊界仍 hard fail | `FA-01` 已完成 |
 | D9 | 第一個 production release candidate 前，依 route、裝置、網路、gzip／Brotli 與 Web Vitals 基線重訂並啟用 hard byte limits | 待 production baseline |
+| D10 | 刪帳時清除 consent/device/token、transport、outbox/delivery/payload；只留 algorithm/hash/state/reason/version 的 ownerless deny registry row，時間欄清空 | `FA-03A2` 已核可；待 migration |
+| D11 | `update_session` 的通知相關欄位完全沒變時，不建立 `session_updated` Push | `FA-03A2` 已核可；待 compatible runtime |
 
 ## 授權邊界
 
@@ -270,14 +272,37 @@ git diff --check：通過
 三位獨立 reviewer：產品範圍、schema 契約與 lock-order 複查皆 zero blockers
 ```
 
+## FA-03A2 schema contract
+
+契約文件：`frontend-architecture-fa-03a2-schema-contract-2026-08-31.md`
+
+已完成並經 PostgreSQL 17／三路 reviewer 查核：
+
+- 固定 ID/hash/version、consent/registry/delivery state、outbox format 1/2、四種 source kind、10-event
+  deadline/invalidation、control/worker admission、ACL 與 profile-first 的未來 lock gate。
+- 修正兩個原設計缺口：outbox format 1 default 在 barrier 必須移除；message version `1` 必須由 DB
+  immutable trigger 保證，不能只靠目前沒有 edit RPC。
+- PG17 rollback-only fixture 證實 registry `SET NULL` 會觸發 child `BEFORE UPDATE` 並可轉 ownerless deny；
+  delivery→consent 若是 immediate NO ACTION 會阻塞 profile delete，改成 deferred NO ACTION 才能依 final
+  state 正確收斂。
+- 新 registry owner composite FK 所需的 non-deferrable three-column UNIQUE、所有 version 的 NOT NULL，
+  以及 worker register/barrier admission race 都已補回契約。
+
+使用者於 2026-08-31 確認：
+
+1. 刪帳時 cascade 清除 Push consent/device/token、transport、outbox/delivery/payload，只留下最小
+   ownerless deny registry row。
+2. `update_session` 的通知相關欄位與 DB 現值完全相同時，不建立 `session_updated` Push。
+
+本輪未做 hosted migration/deploy、browser/dispatcher/runtime、legacy erase 或 pending cancel。
+
 ## 已知阻塞與風險
 
 - 開發期 bytes 已改為 report；release hard limits 仍沿用歷史數值，必須在第一個 production
   release candidate 前依真實裝置、網路、gzip／Brotli 與 Web Vitals 重訂，不能把目前通過當成正式基線。
 - 現行 `push_subscriptions` 只有 active row，沒有 quarantine／consent／expiry state。
-- consent／registry／delivery 的 ID/hash 型別、FK delete action、account-delete audit；outbox 的完整
-  source version／fanout／outcome；control／worker generation／role provisioning 仍未形成唯一 schema
-  contract。`FA-03A2` 必須先逐項固定，不以慣例猜值。
+- consent／registry／delivery、outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op
+  update 的 contract 已定稿；runtime 與 migration 尚未實作。
 - 現行一般登出走 auth-js 預設 global scope，與 D2 尚未一致。
 - 現行 identity helpers 仍以 `access_token` fallback，與 D6 尚未一致。
 - 現行 dispatcher 沒有 delivery lease，且多裝置只有一個 outbox outcome；不能只加 quarantine filter。
@@ -296,8 +321,8 @@ git diff --check：通過
 ## 下一個 session 的起點
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
-2. 從 `FA-03A2` 開始：逐項固定 consent／registry／delivery、source version、刪帳 audit、control／worker
-   與 role provisioning；技術選擇要寫出依據，產品語意不足才停下詢問。
+2. `FA-03A2` 已取得 account-delete audit retention 與 no-op `session_updated` Push 的產品確認；先確認
+   contract commit 存在，再從 dormant schema migrations 開始。
 3. `FA-03A1` 已在本機套用；以 `npm run test:db` 的 837／837 與 strict shadow diff 空白作為下一批基線。
 4. 之後依 compatible runtime → barrier → disabled deploy → canary → contract → enable 分批實作、測試、
    更新本文件並建立獨立 commit。
@@ -314,3 +339,4 @@ git diff --check：通過
 | 2026-08-31 | FA-03 | 完成 hosted pre-expand 唯讀盤點：4 legacy subscriptions、7 筆 `sent_at` 非空／0 pending outbox；結構無 drift、ACL 有差異；未做 hosted 寫入。 |
 | 2026-08-31 | FA-03A0 | reminder pgTAP 改用隔離時鐘與 fixture-scoped outbox 斷言；完整 DB 測試 804／804 通過。 |
 | 2026-08-31 | FA-03A1 | sessions schedule version 與 outbox nullable/sentinel foundation 分成兩個無反向鎖序的 migration；837／837 通過，hosted 未套用。 |
+| 2026-08-31 | FA-03A2 | schema contract 三路複查完成；使用者核可刪帳最小保留與 no-op 不推播，準備獨立 commit；hosted 未寫入。 |
