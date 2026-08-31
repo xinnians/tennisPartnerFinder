@@ -355,8 +355,8 @@ select is(
     from information_schema.columns
     where table_schema = 'public' and table_name = 'notification_outbox'
   ),
-  'id,event_type,recipient_profile_id,session_id,payload,created_at,sent_at,attempts',
-  'notification outbox has the exact service-only column contract'
+  'id,event_type,recipient_profile_id,session_id,payload,created_at,sent_at,attempts,expires_at,source_schedule_version',
+  'notification outbox has the exact expanded service-only column contract'
 );
 
 -- The discovery projection is deliberately exact: no profile identifier or
