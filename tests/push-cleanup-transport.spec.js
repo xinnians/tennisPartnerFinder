@@ -234,6 +234,7 @@ test("an exact browser OK removes only the original durable pending attempt", as
     async ({ cleanupEndpoint, document }) => {
       const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
       const { createNotificationPushCleanupTransport } = await import("/src/notificationPushCleanupTransport.ts");
+      const { createNotificationPushCleanupCoordinator } = await import("/src/notificationPushCleanupCoordinator.ts");
       const storage = createNotificationPushStorage();
       const authUserId = "11111111-1111-4111-8111-111111111111";
       const deviceId = await storage.getOrCreateLogicalDeviceId();
@@ -280,16 +281,16 @@ test("an exact browser OK removes only the original durable pending attempt", as
           return response('{"outcome":"OK"}', 200, url);
         },
       });
+      const coordinator = createNotificationPushCleanupCoordinator({ storage, transport });
       const before = await storage.listPendingPushCleanups();
-      const outcome = await transport.sendPushCleanup({ cleanupToken: suspended.attempt.cleanupToken });
-      const exactCompleted =
-        outcome.kind === "completed" ? await storage.completePendingPushCleanup(suspended.attempt) : false;
+      const outcome = await coordinator.processPendingPushCleanup({ attempt: suspended.attempt });
+      const pendingAfter = (await storage.listPendingPushCleanups()).length;
       return {
         attemptId: suspended.attempt.attemptId,
         callOrder,
-        exactCompleted,
+        exactCompleted: outcome.kind === "completed" && pendingAfter === 0,
         outcome,
-        pendingAfter: (await storage.listPendingPushCleanups()).length,
+        pendingAfter,
         pendingBefore: before.length,
         runtimeAfter: (await storage.readPushRuntimeState()).kind,
         tokenAbsent,
@@ -325,6 +326,7 @@ test("an ambiguous aborted POST keeps the exact pending attempt across reload", 
     async ({ cleanupEndpoint, document }) => {
       const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
       const { createNotificationPushCleanupTransport } = await import("/src/notificationPushCleanupTransport.ts");
+      const { createNotificationPushCleanupCoordinator } = await import("/src/notificationPushCleanupCoordinator.ts");
       const storage = createNotificationPushStorage();
       const authUserId = "11111111-1111-4111-8111-111111111111";
       const deviceId = await storage.getOrCreateLogicalDeviceId();
@@ -372,8 +374,9 @@ test("an ambiguous aborted POST keeps the exact pending attempt across reload", 
           throw new DOMException("request aborted", "AbortError");
         },
       });
-      const outcome = await transport.sendPushCleanup({
-        cleanupToken: suspended.attempt.cleanupToken,
+      const coordinator = createNotificationPushCleanupCoordinator({ storage, transport });
+      const outcome = await coordinator.processPendingPushCleanup({
+        attempt: suspended.attempt,
         signal: abortController.signal,
       });
       const [stored] = await storage.listPendingPushCleanups();

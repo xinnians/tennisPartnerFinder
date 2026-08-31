@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B7` dormant owner-quarantine RPC adapter 完成；production runtime 零 import／caller |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B7` 已完成 |
-| runtime 變更 | Auth gate、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport 與 owner-quarantine adapter 已落地；後三者尚未接 production，Auth／登出、SW、dispatcher 尚未接線 |
+| 目前批次 | `FA-03B8` dormant single-attempt cleanup coordinator 完成；production runtime 零 import／caller |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B8` 已完成 |
+| runtime 變更 | Auth gate、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport、owner-quarantine adapter 與 single-attempt cleanup coordinator 已落地；後四者尚未接 production，Auth／登出、SW、dispatcher 尚未接線 |
 | migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 分批建立 v2 enable／refresh command、Auth rejected cleanup 與 D2 local sign-out coordinator；SW／dispatcher 仍各自分批，仍不部署 hosted |
+| 下一步 | 分批建立 v2 enable／refresh command，並接 Auth rejected cleanup 與 D2 local sign-out；SW／dispatcher 仍各自分批，仍不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -47,6 +47,7 @@ git log --oneline --decorate -10
 | D15 | browser 必須在 enable network 前先保存 logical device、binding 與 raw cleanup token；需要 cleanup 時先獨立提交本機 fail-closed，再用另一筆原子交易把 token 搬到 immutable pending attempt；壞資料或較新 DB version 不自動刪除／降版 | `FA-03B5` dormant storage boundary 已完成；production 零 caller |
 | D16 | dormant cleanup transport 每次明確呼叫最多送出 2 次 POST；只有第一個 response 完全符合 `503`＋exact `{"outcome":"RETRY"}` 與 URL／header 契約，才重新抓 key、重新加密並送第二次。其他錯誤、不明結果或第二次 `RETRY` 都保留 pending，不立即重送 | `FA-03B6` 已完成；沒有自行猜 timeout、backoff 或跨呼叫重試次數，production 零 caller |
 | D17 | dormant owner-quarantine adapter 每次有效呼叫只送 1 次既有 `quarantine_push_device` RPC；exact `OK` 才回 completed、exact `STALE_PUSH_DEVICE` 才回 stale，其餘回 pending。UUID／version 不合法時在 RPC 前 fail-closed | `FA-03B7` 已完成；沒有 retry、timeout、backoff 或排程，production 零 caller |
+| D18 | dormant cleanup coordinator 每次只處理 caller 明確提供的一筆 attempt，最多呼叫 transport 一次；只有 exact `{kind: "completed"}` 才把原 attempt 交給 local completion 一次。local completion 回 primitive boolean（`true`／`false`）才回 completed，其餘或 throw 都回 pending；不掃描、不排程、不自行重試 | `FA-03B8` 已完成；production 零 caller |
 
 ## 授權邊界
 
@@ -63,7 +64,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B7` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B8` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -698,8 +699,8 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 - IndexedDB 不是同源 XSS 的秘密保管箱；raw token 仍是 browser-held bearer secret。真正的損害限制仍來自
   token 只能 quarantine，不能讀取、啟用、刪除或轉讓 Push。
 - `FA-03B6` 已有 dormant 499-byte bounded key loader、cleanup HTTP transport 與單次呼叫最多 2 POST 的有限重試；
-  仍無 production caller、v2 enable／refresh command、Auth rejected、D2 local sign-out 或 SW display gate。
-  `auth-unverified` 只證明本機 fail-closed。
+  `FA-03B8` 也已串起 caller 指定的單筆 attempt，但仍無 production caller、queue trigger、v2 enable／refresh
+  command、Auth rejected、D2 local sign-out 或 SW display gate。`auth-unverified` 只證明本機 fail-closed。
 - 現行 `public/push-sw.js` 是 classic Service Worker，不能直接 import 這份 TS／ESM module。SW 批次必須先
   選擇可 bundle 的 module worker 或單一共享 schema artifact，不能複製兩份 validator 後假設永遠同步。
 - targeted tests 實測 Playwright desktop Chromium、Pixel 5 Chromium emulation 與 iPhone 12 WebKit emulation；
@@ -739,7 +740,7 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
   `{"outcome":"OK"}` 才回 `completed`。網路錯誤、abort、redirect、header／URL／body 不符、response 超限
   或第二次 `RETRY` 都回 `pending`，不在同一次呼叫內繼續送。
 - transport 沒有自行設定 timeout、backoff、jitter 或 timer，只接受 caller 傳入的 `AbortSignal`；也不自行刪除
-  B5 IndexedDB attempt。browser 整合測試只在 exact `completed` 後，另外呼叫 B5 exact CAS completion。
+  B5 IndexedDB attempt。browser 整合測試已改由 B8 coordinator 在 exact `completed` 後呼叫 B5 exact CAS completion。
 - production `src` 沒有其他檔案 import transport；transport 也沒有 storage、Auth、UI、Service Worker、
   data API、Supabase client、session credential、log 或 persistence dependency。D13 hosted hard-disable 沒有變動，
   production runtime 行為不變。
@@ -749,7 +750,7 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 - 本批沒有接 v2 enable／refresh、Auth rejected、D2 local sign-out、Service Worker 或 dispatcher，也沒有
   production caller；不能寫成 production cleanup 已啟用。
 - transport 只回 `completed`／`pending`，不會自行刪 IndexedDB attempt。每次呼叫最多 2 POST 不是跨呼叫的
-  全域上限；未來 coordinator 若反覆呼叫，仍需另外定義持久化排程、租約與退避。
+  全域上限；B8 只處理 caller 提供的一筆 attempt，尚未定義由誰掃描、觸發、排程、租約或退避。
 - transport 沒有內建 timeout。caller 未 abort 且底層 fetch 永久不結束時，呼叫也可能一直 pending；目前沒有
   證據支持自行猜 timeout 或 backoff 秒數。
 - 499 是 public-key **實際解碼後 body** 的上限且 body 必須恰為 499 bytes；425 是 outgoing canonical envelope
@@ -835,6 +836,62 @@ typecheck／lint／prettier:check／git diff --check：完整 frontend CI 全部
 DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：未執行
 ```
 
+## FA-03B8 dormant single-attempt cleanup coordinator
+
+已完成：
+
+- 新增未接 production 的 `notificationPushCleanupCoordinator.ts`。它只靠 structural generic ports 組合
+  B5 storage 與 B6 transport，不 import 兩者，也不複製完整 pending-attempt schema；只讀 `cleanupToken`，
+  完成時把同一個原始 attempt 物件交回 storage。
+- factory 只確認兩個注入方法存在；建立 coordinator 不呼叫任何 port。設定無效只拋固定錯誤 code，錯誤
+  不夾帶輸入。
+- 每次 `processPendingPushCleanup()` 只接 caller 提供的一筆 attempt，並把同一個 `AbortSignal` 傳給 transport；
+  transport 方法最多呼叫一次。input 只做 object＋string token 的最小檢查。
+- 只有 own key 恰為 `kind` 的 exact `{ kind: "completed" }` 才呼叫 local completion 一次。pending、額外欄位、
+  未知 shape、invalid input 或 transport throw 都只回固定 `{ kind: "pending" }`，且 local completion 為零次。
+- exact transport completion 後，即使 signal 已在 response 前被 abort，仍執行 local CAS，因為 server completion
+  證據已經取得。storage 收到原 attempt identity；primitive `true`／`false` 都代表這筆 input 已 settled，回
+  fixed completed。storage 回其他值或 throw 則回 pending，也不再次呼叫 transport。
+- 回傳值只有 `kind`，沒有 token、attempt 或底層錯誤。source canary 禁止 direct network／storage／Auth／log／
+  timer／loop 與 pending-list API，並驗證 production graph 零 import／caller。
+- 既有 browser 整合已改成由 B8 串真 B5＋B6：exact OK 後原 attempt 消失，reload 維持 disabled；ambiguous
+  abort 後原 attempt 跨 reload 保留。
+
+精確邊界（不可過度宣稱）：
+
+- 這不是 queue reader、drainer 或 scheduler。B8 不呼叫 `listPendingPushCleanups()`，不找工作；caller 必須先
+  取得一筆 attempt 再明確呼叫。尚未決定誰在何時觸發，也沒有 timer、timeout、backoff、online listener、
+  Background Sync、lease 或持久排程。
+- B8 只驗最小 shape，不證明任意輸入一定是 B5 的 durable attempt，也不重做完整 token 驗證；組合真 B5／B6
+  時，完整資料與 canonical token 仍各自在原 boundary fail-closed。
+- coordinator 的 completed 不等於「本次一定刪除一列」。真 B5 回 `true` 代表 exact attempt 在該 transaction
+  被刪除並 commit；`false` 只代表同一 attemptId 在該 snapshot 已不存在，本次沒有刪除。它不證明 queue 為空、
+  不證明由誰先刪，也不證明沒有較新的 attempt。B6／Edge 的 exact OK 同樣不揭露原本是否存在 server row。
+- B8 每次最多呼叫 transport 方法一次；組合真 B6 時，一次 transport call 仍可能依 D16 送最多 2 次 POST。
+  這不是跨呼叫或跨 tab 的全域上限。B8 沒有 Web Lock、in-flight 合併或 traffic dedup；B5 CAS 防誤刪，
+  但不防重複 POST，本批也沒有宣稱已驗證雙 coordinator race。
+- pending／throw 只代表本次 B8 沒有呼叫 local completion，不代表 server 一定沒收到 request，也不排除另一個
+  tab 同時改 storage。B8 只透傳 caller signal；caller 不 abort 且底層 fetch 不結束時，呼叫也可能不返回。
+- raw token 仍以 JavaScript string 傳給 B6，無法可靠清零；同源 XSS 風險沒有改變。
+- 本批沒有接 Auth rejected、D2 sign-out、owner RPC、enable／refresh、Service Worker、dispatcher 或 production
+  caller。public key 仍未配置，hosted hard-disable 與既有 deployment blockers 都沒有解除。
+- browser 證據使用真 WebCrypto／IndexedDB 與 fake fetch／Response；不是 local Edge 或 hosted E2E。mobile
+  Chromium／WebKit 仍是 Playwright emulation，不是 Android／iPhone 實機。
+
+本批驗證：
+
+```text
+coordinator／Push／CI targeted Node：41／41 passed（coordinator 本身 6／6）
+cleanup transport browser targeted：12／12 passed（desktop Chromium、mobile Chromium、mobile WebKit 各 4）
+browser reviewer repeat-each 壓力重跑：40／40 passed
+npm run test:ci:frontend：通過；Node 460 passed / 1 skipped；Chromium 322 passed / 4 skipped
+npm run build：509 modules；production output 不含 B8 coordinator／error marker
+npm run check:production-bundle：結構 gate 通過；total gzip 260,386，超額 1,324 bytes，依 D8 只報告
+typecheck／lint／prettier:check／git diff --check：全部通過
+獨立程式／型別／測試複核：最新版 zero blockers
+DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,038／190,258 與最大 lazy 16,476／4,828 raw/gzip 均在現有門檻；
@@ -860,9 +917,10 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
   精確重設為 authenticated 無 raw 權限、service role 只有舊 dispatcher 必需的 SELECT／DELETE，但 hosted
   尚未套用，其他後續 public schema 物件也仍須維持相同部署邊界。
 - cleanup raw-token codec、application-layer encryption、local Edge、本機 log 去敏、build-time public-key
-  asset、dormant IndexedDB、bounded browser transport 與 owner-quarantine adapter 已完成；但 production graph
-  對三個 browser foundation 都是零 import／caller，Auth／登出／SW／dispatcher 尚未接線，distributed limiter
-  與 hosted log 證據仍缺。hosted handler 因此 hard-disabled，不能把本機結果外推為完整 production cleanup API。
+  asset、dormant IndexedDB、bounded browser transport、owner-quarantine adapter 與 single-attempt coordinator
+  已完成；但 production graph 對 B5～B8 四個 browser foundation 都是零 import／caller，Auth／登出／SW／
+  dispatcher 尚未接線，distributed limiter 與 hosted log 證據仍缺。hosted handler 因此 hard-disabled，不能把
+  本機結果外推為完整 production cleanup API。
 - public-key dev server 的 query alias 會落到既有 SPA fallback 並回 `200 text/html`，不是 key response、也沒有
   洩漏 key。dormant loader 已固定無 query 的 same-origin URL，並驗 `Content-Type`、`no-store`、499-byte body 與
   canonical JSON；正式 Vercel response、compression 與 stable-origin 行為仍待 hosted canary。
@@ -883,13 +941,15 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
-   owner-quarantine adapter 都存在；不要重做已完成的 003～011、Auth gate、transport linkage、RSA envelope、
-   key generator、browser storage schema、key loader、owner result mapping 或 bigint string boundary。
+   owner-quarantine adapter、`FA-03B8` single-attempt coordinator 都存在；不要重做已完成的 003～011、Auth gate、
+   transport linkage、RSA envelope、key generator、browser storage schema、key loader、owner result mapping、
+   bigint string boundary 或 single-attempt exact transport→CAS handoff。
 3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
    DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
-4. `FA-03B5`～`FA-03B7` 已建立 dormant storage、bounded cleanup transport 與 owner RPC adapter；下一批分批
-   建立 v2 enable／refresh command、Auth rejected cleanup 與 D2 local sign-out coordinator。SW／dispatcher 仍
-   各自分批完成並建立獨立 commit；沒有 hosted limiter／canary／log 證據前，不可移除 local-only gate。
+4. `FA-03B5`～`FA-03B8` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter 與 caller-supplied
+   single-attempt coordinator；下一批分批建立 v2 enable／refresh command，以及「誰在何時取得 attempt 並呼叫
+   B8」的 Auth rejected／D2 local sign-out trigger。未決定排程與 backoff 前不可自行加入 scheduler；SW／
+   dispatcher 仍各自分批完成並建立獨立 commit。沒有 hosted limiter／canary／log 證據前，不可移除 local-only gate。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -914,3 +974,4 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 | 2026-09-01 | FA-03B5 | dormant IndexedDB logical device、persistent provisioning、local fail-closed 與 immutable pending cleanup foundation 完成；production 零 caller、零 network、零 hosted 寫入。 |
 | 2026-09-01 | FA-03B6 | dormant 499-byte key loader、425-byte encrypted cleanup POST 與每次呼叫最多 2 POST 的 exact RETRY transport 完成；production 零 caller、未配置 key、未部署 hosted。 |
 | 2026-09-01 | FA-03B7 | dormant owner-quarantine RPC adapter、exact OK／STALE／pending mapping 與 bigint string boundary 完成；production 零 caller，Auth rejected／D2 sign-out／hosted 均未接。 |
+| 2026-09-01 | FA-03B8 | dormant caller-supplied single-attempt cleanup coordinator 完成 exact transport→local CAS handoff；production 零 caller，未掃描 queue、未排程、未做跨 tab traffic dedup。 |

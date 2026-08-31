@@ -8,6 +8,8 @@ const PUSH_STORAGE_URL = new URL("../src/notificationPushStorage.ts", import.met
 const PUSH_STORAGE_SOURCE = readFileSync(PUSH_STORAGE_URL, "utf8");
 const PUSH_CLEANUP_TRANSPORT_URL = new URL("../src/notificationPushCleanupTransport.ts", import.meta.url);
 const PUSH_CLEANUP_TRANSPORT_SOURCE = readFileSync(PUSH_CLEANUP_TRANSPORT_URL, "utf8");
+const PUSH_CLEANUP_COORDINATOR_URL = new URL("../src/notificationPushCleanupCoordinator.ts", import.meta.url);
+const PUSH_CLEANUP_COORDINATOR_SOURCE = readFileSync(PUSH_CLEANUP_COORDINATOR_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
 
@@ -88,6 +90,14 @@ test("the Push cleanup transport stays outside the production runtime graph", ()
   assert.deepEqual(references, []);
 });
 
+test("the Push cleanup coordinator stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_CLEANUP_COORDINATOR_URL.href)
+    .filter((sourceUrl) => /notificationPushCleanupCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
 test("the Push owner-quarantine adapter stays outside the production runtime graph", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_URL.href)
@@ -125,6 +135,30 @@ test("the dormant cleanup transport imports only the public shared protocol and 
     PUSH_CLEANUP_TRANSPORT_SOURCE,
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|Math\.random)\b/u
   );
+});
+
+test("the dormant cleanup coordinator has no direct runtime, scheduling, or logging dependency", () => {
+  assert.doesNotMatch(PUSH_CLEANUP_COORDINATOR_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
+  assert.doesNotMatch(PUSH_CLEANUP_COORDINATOR_SOURCE, /^\s*import\s+["']/gmu);
+  assert.doesNotMatch(PUSH_CLEANUP_COORDINATOR_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_CLEANUP_COORDINATOR_SOURCE,
+    /\b(?:dataApi|supabaseClient|notificationPushStorage|notificationPushCleanupTransport|notificationPushOwnerQuarantine)\b/u
+  );
+  assert.doesNotMatch(
+    PUSH_CLEANUP_COORDINATOR_SOURCE,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u
+  );
+  assert.doesNotMatch(PUSH_CLEANUP_COORDINATOR_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(
+    PUSH_CLEANUP_COORDINATOR_SOURCE,
+    /\b(?:console|logger|Sentry)\.|\b(?:Authorization|apikey|listPendingPushCleanups)\b/u
+  );
+  assert.doesNotMatch(
+    PUSH_CLEANUP_COORDINATOR_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+  assert.doesNotMatch(PUSH_CLEANUP_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
 });
 
 test("the dormant owner-quarantine adapter has no secret, storage, network, logging, or timer dependency", () => {
