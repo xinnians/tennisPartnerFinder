@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03A` Push additive expand：本機實作準備 |
+| 目前批次 | `FA-03A1` Push additive expand：本機 DB foundation 設計與實作 |
 | 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 pre-expand hosted 唯讀盤點完成，contract gate 尚未完成 |
 | runtime 變更 | 無 |
 | migration 變更 | 無 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 依核可設計實作、測試並 commit 本機 additive expand；不部署 hosted，不進 destructive contract |
+| 下一步 | 先固定可由現有證據支持的 schema contract，再實作、測試並 commit 本機 additive expand；不部署 hosted，不進 destructive contract |
 
 查實際 Git 狀態：
 
@@ -55,7 +55,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | pre-expand 唯讀盤點完成；additive expand 準備中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | pre-expand 唯讀盤點與 `FA-03A0` 測試基線修正完成；additive expand 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -183,7 +183,7 @@ FA-02 結案當時尚未做（後續 hosted 盤點見 FA-03）：
 | Q9 | A | app boot 強制 Auth refresh；拒絕時 quarantine，離線／timeout 時 local fail-closed |
 | Q10 | B | 啟用完整 10-event expiry matrix 與 domain invalidation 規則 |
 
-本輪已實測：
+FA-02 結案時實測：
 
 ```text
 notification data／Push／dispatcher Node tests：13 passed（8 個直接屬 Push／dispatcher）
@@ -191,7 +191,7 @@ npm run test:db：804 tests，802 passed / 2 failed
 ```
 
 DB 的兩個失敗已定位為 reminder fixture 使用全庫總數，被本機既有 candidate session 多算；不是
-FA-02 程式變更造成，但必須在 FA-03 前修成資料隔離斷言。
+FA-02 程式變更造成。此測試問題已由下方 `FA-03A0` 修正。
 
 ## FA-03 pre-expand 唯讀盤點
 
@@ -217,6 +217,22 @@ FA-02 程式變更造成，但必須在 FA-03 前修成資料隔離斷言。
 frozen canonical scanner、platform timeout／provider／browser canary、maintenance barrier，以及 Barrier
 後重新取數並再次取得使用者確認。
 
+## FA-03A0 測試基線隔離
+
+已完成：
+
+- reminder pgTAP 的時鐘改到本機既有所有有限 session 起始時間之後，避免掃到非本測試建立的 session。
+- 只刪除與統計本測試建立的 outbox；不再清空全表，也不以全庫總數當 fixture 斷言。
+- 第一次 enqueue 必須精確回傳 `3`、第二次必須精確回傳 `0`，原本的 production 行為斷言沒有放寬。
+- 獨立 reviewer 檢查未提交差異，結論為 zero blockers。
+
+本批驗證：
+
+```text
+npm run test:db：7 files、804 tests，全數通過
+git diff --check：通過
+```
+
 ## 已知阻塞與風險
 
 - 開發期 bytes 已改為 report；release hard limits 仍沿用歷史數值，必須在第一個 production
@@ -240,9 +256,9 @@ frozen canonical scanner、platform timeout／provider／browser canary、mainte
 ## 下一個 session 的起點
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
-2. 從本機 additive expand 開始：control／consent／registry／delivery schema、schedule version、legacy
-   compatibility shim、最小 ACL 與 isolated pgTAP tests；不套用 hosted。
-3. 修正既有 reminder pgTAP fixture 的全庫計數，先建立可信 baseline。
+2. 先把現有證據不足以唯一決定的 schema contract 分開列出；只實作已固定的 control／consent／registry／
+   delivery schema、schedule version、legacy compatibility shim、最小 ACL 與 isolated pgTAP tests；不套用 hosted。
+3. reminder pgTAP fixture 已隔離；以 `npm run test:db` 的 804／804 作為 FA-03 additive expand 基線。
 4. 之後依 compatible runtime → barrier → disabled deploy → canary → contract → enable 分批實作、測試、
    更新本文件並建立獨立 commit。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
@@ -256,3 +272,4 @@ frozen canonical scanner、platform timeout／provider／browser canary、mainte
 | 2026-08-31 | FA-02 | 完成 Push 現況稽核與詳細設計草案；runtime／migration 未動，等待十項核可。 |
 | 2026-08-31 | FA-02 | 使用者核可 `1A、2A、3A、4A、5A、6A、7A、8A、9A、10B`；FA-03 可開始，contract 前仍須回報 hosted 實際影響。 |
 | 2026-08-31 | FA-03 | 完成 hosted pre-expand 唯讀盤點：4 legacy subscriptions、7 筆 `sent_at` 非空／0 pending outbox；結構無 drift、ACL 有差異；未做 hosted 寫入。 |
+| 2026-08-31 | FA-03A0 | reminder pgTAP 改用隔離時鐘與 fixture-scoped outbox 斷言；完整 DB 測試 804／804 通過。 |

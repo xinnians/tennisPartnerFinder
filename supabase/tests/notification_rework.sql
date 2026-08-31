@@ -63,7 +63,7 @@ declare
   guest_id bigint;
   host_id bigint;
   pref_id bigint;
-  reminder_now timestamptz := date_trunc('minute', now());
+  reminder_now timestamptz;
   sport_id bigint;
   court_id bigint;
   undecided_session_id bigint;
@@ -81,6 +81,14 @@ begin
     return query select * from skip('Stage 5 notification rework is not installed yet', 29);
     return;
   end if;
+
+  select date_trunc(
+    'minute',
+    greatest(now(), coalesce(max(session_row.start_at), now())) + interval '1 day'
+  )
+  into reminder_now
+  from public.sessions session_row
+  where isfinite(session_row.start_at);
 
   return next is(
     (
@@ -239,7 +247,8 @@ begin
     'no active event payload stores LINE or chat message body fields'
   );
 
-  delete from public.notification_outbox;
+  delete from public.notification_outbox
+  where session_id = base_session_id;
   insert into public.notification_prefs (profile_id, session_reminder_enabled)
   values (guest_id, false);
 
@@ -291,11 +300,27 @@ begin
       select 1
       from public.notification_outbox
       where event_type in ('session_reminder', 'decide_reminder')
+        and session_id in (
+          fixed_session_id,
+          decided_session_id,
+          undecided_session_id,
+          far_candidate_session_id
+        )
     ),
     'reminder scan set is non-empty'
   );
   return next is(
-    (select count(*) from public.notification_outbox where event_type = 'session_reminder'),
+    (
+      select count(*)
+      from public.notification_outbox
+      where event_type = 'session_reminder'
+        and session_id in (
+          fixed_session_id,
+          decided_session_id,
+          undecided_session_id,
+          far_candidate_session_id
+        )
+    ),
     2::bigint,
     'fixed and decided candidate sessions each enqueue one enabled start reminder'
   );
@@ -310,7 +335,18 @@ begin
     'an undecided candidate within three hours receives one host decision reminder'
   );
   return next is(
-    (select count(*) from public.notification_outbox where event_type = 'session_reminder' and recipient_profile_id = guest_id),
+    (
+      select count(*)
+      from public.notification_outbox
+      where event_type = 'session_reminder'
+        and recipient_profile_id = guest_id
+        and session_id in (
+          fixed_session_id,
+          decided_session_id,
+          undecided_session_id,
+          far_candidate_session_id
+        )
+    ),
     0::bigint,
     'a disabled session reminder preference suppresses every guest start reminder'
   );
@@ -325,12 +361,24 @@ begin
       from public.notification_outbox outbox_row,
            lateral jsonb_object_keys(outbox_row.payload) payload_key
       where outbox_row.event_type in ('session_reminder', 'decide_reminder')
+        and outbox_row.session_id in (
+          fixed_session_id,
+          decided_session_id,
+          undecided_session_id,
+          far_candidate_session_id
+        )
         and payload_key not in ('court', 'message', 'slots_remaining', 'start_at', 'url')
     )
       and not exists (
         select 1
         from public.notification_outbox outbox_row
         where outbox_row.event_type in ('session_reminder', 'decide_reminder')
+          and outbox_row.session_id in (
+            fixed_session_id,
+            decided_session_id,
+            undecided_session_id,
+            far_candidate_session_id
+          )
           and outbox_row.payload->>'url' <> '#/session/' || outbox_row.session_id::text
       ),
     'reminder payloads use the shared allowlist and authoritative session deep link'
@@ -341,7 +389,17 @@ begin
     'a second reminder scan inserts no duplicate rows'
   );
   return next is(
-    (select count(*) from public.notification_outbox where event_type in ('session_reminder', 'decide_reminder')),
+    (
+      select count(*)
+      from public.notification_outbox
+      where event_type in ('session_reminder', 'decide_reminder')
+        and session_id in (
+          fixed_session_id,
+          decided_session_id,
+          undecided_session_id,
+          far_candidate_session_id
+        )
+    ),
     3::bigint,
     'running the reminder job twice leaves exactly one row per session recipient and event type'
   );
