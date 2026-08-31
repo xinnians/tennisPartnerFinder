@@ -614,27 +614,48 @@ export type Database = {
       push_subscriptions: {
         Row: {
           auth: string;
+          consent_id: number | null;
           created_at: string;
           endpoint: string;
+          endpoint_fingerprint: string | null;
+          endpoint_fingerprint_algorithm: string | null;
           id: number;
           p256dh: string;
           profile_id: number;
+          transport_version: number | null;
+          updated_at: string | null;
+          vapid_fingerprint: string | null;
+          vapid_fingerprint_algorithm: string | null;
         };
         Insert: {
           auth: string;
+          consent_id?: number | null;
           created_at?: string;
           endpoint: string;
+          endpoint_fingerprint?: string | null;
+          endpoint_fingerprint_algorithm?: string | null;
           id?: never;
           p256dh: string;
           profile_id: number;
+          transport_version?: number | null;
+          updated_at?: string | null;
+          vapid_fingerprint?: string | null;
+          vapid_fingerprint_algorithm?: string | null;
         };
         Update: {
           auth?: string;
+          consent_id?: number | null;
           created_at?: string;
           endpoint?: string;
+          endpoint_fingerprint?: string | null;
+          endpoint_fingerprint_algorithm?: string | null;
           id?: never;
           p256dh?: string;
           profile_id?: number;
+          transport_version?: number | null;
+          updated_at?: string | null;
+          vapid_fingerprint?: string | null;
+          vapid_fingerprint_algorithm?: string | null;
         };
         Relationships: [
           {
@@ -1804,6 +1825,18 @@ export type Database = {
       };
       post_session_message: {
         Args: { p_body: string; p_session_id: number };
+        Returns: string;
+      };
+      quarantine_push_by_token: {
+        Args: { p_cleanup_token_hash_hex: string };
+        Returns: string;
+      };
+      quarantine_push_device: {
+        Args: {
+          p_consent_epoch: string;
+          p_device_id: string;
+          p_expected_version: number;
+        };
         Returns: string;
       };
       remove_push_subscription: {

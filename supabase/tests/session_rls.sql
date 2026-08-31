@@ -4086,10 +4086,11 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005003', true);
-select is(
-  (select count(*) from public.push_subscriptions where endpoint = 'https://push.example/incomplete'),
-  0::bigint,
-  'a different authenticated user cannot read another push subscription'
+select throws_ok(
+  $$select * from public.push_subscriptions$$,
+  '42501',
+  null,
+  'authenticated users cannot read raw push subscriptions'
 );
 reset role;
 

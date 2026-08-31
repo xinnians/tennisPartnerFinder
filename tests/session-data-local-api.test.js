@@ -172,3 +172,46 @@ test(
     assert.equal(anonError?.code, "42501");
   }
 );
+
+test("Push quarantine commands keep their exact Data API role boundary", { skip: !runLocalApiTest }, async () => {
+  const runId = randomUUID();
+  const { client: ownerClient } = await signUpUser(`push-quarantine-${runId}@example.test`);
+  const ownerApi = createDataApi({ configured: true, client: ownerClient });
+  await ownerApi.saveCurrentProfile({ nick: "本機推播隔離", ntrp: 3.5 });
+
+  const { data: ownerOutcome, error: ownerError } = await ownerClient.rpc("quarantine_push_device", {
+    p_consent_epoch: randomUUID(),
+    p_device_id: randomUUID(),
+    p_expected_version: 1,
+  });
+  assert.equal(ownerError, null);
+  assert.equal(ownerOutcome, "OK");
+
+  const { data: ownerRawRows, error: ownerRawError } = await ownerClient
+    .from("push_subscriptions")
+    .select("id")
+    .limit(1);
+  assert.equal(ownerRawRows, null);
+  assert.equal(ownerRawError?.code, "42501");
+
+  const unknownHash = "00".repeat(32);
+  const { data: ownerTokenOutcome, error: ownerTokenError } = await ownerClient.rpc("quarantine_push_by_token", {
+    p_cleanup_token_hash_hex: unknownHash,
+  });
+  assert.equal(ownerTokenOutcome, null);
+  assert.equal(ownerTokenError?.code, "42501");
+
+  const anonClient = makeClient();
+  const { data: anonTokenOutcome, error: anonTokenError } = await anonClient.rpc("quarantine_push_by_token", {
+    p_cleanup_token_hash_hex: unknownHash,
+  });
+  assert.equal(anonTokenOutcome, null);
+  assert.equal(anonTokenError?.code, "42501");
+
+  const adminClient = makeAdminClient();
+  const { data: serviceOutcome, error: serviceError } = await adminClient.rpc("quarantine_push_by_token", {
+    p_cleanup_token_hash_hex: unknownHash,
+  });
+  assert.equal(serviceError, null);
+  assert.equal(serviceOutcome, "OK");
+});

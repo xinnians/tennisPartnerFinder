@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B1` Q9-A Auth boot refresh gate 完成；Q9 的 Push cleanup／quarantine 部分仍待實作 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B1` 已完成 |
-| runtime 變更 | D6 與 Q9-A Auth gate 已落地：只有 server refresh＋matching event 能開私人狀態；Push cleanup 尚未接上 |
-| migration 變更 | repo／本機共新增 10 份 additive foundation／hotfix migration；hosted 尚未套用 |
+| 目前批次 | `FA-03B2` v2 transport 與 quarantine DB boundary 完成；Edge／browser／dispatcher 尚未接線 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B2` 已完成 |
+| runtime 變更 | Auth gate 已落地；DB 已有 dormant no-send command，但 Q9 cleanup 尚未接到 Edge／browser／dispatcher |
+| migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 實作 rejected→cleanup-token quarantine、D2 local sign-out 與 private Push/SW fail-closed；不部署 hosted |
+| 下一步 | 實作 cleanup Edge token boundary，再接 IndexedDB／rejected cleanup；仍不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -57,7 +57,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B1` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B2` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -469,18 +469,83 @@ git diff --check：通過
 hosted migration／deploy／Auth 寫入：未執行
 ```
 
+## FA-03B2 v2 transport 與 quarantine DB boundary
+
+已完成：
+
+- 新增 compatible `011` migration，在既有 `public.push_subscriptions` 加入七個 nullable v2 metadata：
+  `consent_id`、endpoint／VAPID fingerprint algorithm＋digest、`transport_version`、`updated_at`。既有
+  legacy row 七欄全部維持 `NULL`，沒有 backfill、轉換或擦除 endpoint／keys。
+- DB 以 all-or-none CHECK、exact endpoint UTF-8 SHA-256 CHECK、同 owner consent／registry composite FK、
+  consent 與 endpoint fingerprint partial unique index固定 v2 transport。trigger 強制新 transport version
+  從 `1` 開始，semantic update 才加一；caller 不能偽造 version／timestamp，也不能在 legacy／v2 間換模式。
+- authenticated 的 raw subscription table／sequence 權限全部撤除；現行 app 實際使用的
+  `save_push_subscription`／`remove_push_subscription` signature 保留。service role 權限精確收斂為舊
+  dispatcher 目前必要的 `SELECT/DELETE`，沒有 sequence／raw insert／update。
+- legacy RPC 每次先鎖 runtime control；`legacy_writes_enabled=false` 固定拒絕
+  `PUSH_CLIENT_UPGRADE_REQUIRED`。開啟期間仍只寫七欄皆 `NULL` 的 legacy row；一旦 exact endpoint
+  fingerprint 已進 registry，不論同 owner／不同 owner、active／quarantined／deny，一律要求升級，
+  不能用舊 RPC 繞過 owner lock 或重新放回 send material。
+- `quarantine_push_device(device_id, consent_epoch, expected_version)` 只給 authenticated owner；仍 enabled
+  但 epoch/version 不符時回 `STALE_PUSH_DEVICE`，不把零變更說成成功。exact match 才走共同 private
+  helper；不存在或本來已 inactive 則以 `OK` 冪等收斂。
+- cleanup token 的 DB command 只給 service role，且只接收 64 字元 lowercase SHA-256 hex digest；DB
+  不接 reusable raw token。invalid／unknown／replay 都只回固定 `OK`，不回 owner、device、epoch、hash
+  或狀態。raw token 的 32-byte canonical base64url 驗證與 Web Crypto hash 明確留在下一批獨立 Edge
+  endpoint，尚未假裝已完成。
+- 共同 helper 依 `profile → consent → registry → transport → delivery` 取鎖，在同一 transaction 把
+  consent 轉 paused、registry 保留 owner 並轉 quarantined、刪除 endpoint／keys、取消同 epoch 的
+  `pending/processing/unknown` delivery；既有 terminal delivery 不改，也不鎖／更新 outbox。
+- 新增 68 項 pgTAP，涵蓋 exact schema／ACL、legacy shim、owner／token／stale／rotation／replay、跨帳號
+  owner-lock 繞過、三種 non-terminal cancellation、terminal preservation、強制最後一步失敗的完整
+  rollback，以及真實 account delete 仍只留下最小 ownerless deny fingerprint。
+- generated public DB types 已同步兩個 command 與七個欄位；舊 browser repository 仍只走相容 RPC。
+
+精確邊界（不可過度宣稱）：
+
+- `new_runtime_mode` 仍為 `disabled`；本批沒有 enable command、沒有建立 production v2 row，也沒有切
+  cron／dispatcher。現行 dispatcher 仍讀 legacy subscription，未參與 consent／delivery lock，因此只能
+  宣稱 DB transaction 內的 quarantine 原子性，不能宣稱 adapter handoff 已符合 Q6-A。
+- cleanup Edge endpoint、canonical token codec、rate limit、request body／log 去敏尚未實作；
+  `quarantine_push_by_token` 是 service-role-only digest boundary，不是 browser 可直接呼叫的完整 API。
+- Auth `rejected` 尚未接 cleanup、IndexedDB 尚無 logical device／raw token／pending attempt，production
+  sign-out 仍是 global；Service Worker 也尚未做 owner／epoch／expiry gate，所以 Q9 與 D2 都未完成。
+- 本批沒有雙連線 deadlock／pooler canary、hosted default-privilege 實測或 production Edge canary；這些
+  必須在 compatible dispatcher／Edge 接線後補。`canonical-endpoint-policy-v1` 仍是 enable／contract
+  blocker，不因本批 exact fingerprint CHECK 就視為完成。
+
+本批驗證：
+
+```text
+quarantine targeted pgTAP：68／68 passed
+npm run test:db：13 files、1,092 tests，全數通過
+本機 DB 從零重播：36 migrations 全部套用
+npx supabase db lint --local --schema public,private：No schema errors found
+strict pg-delta shadow replay：public/private diff 空白
+notification data／Push／dispatcher Node tests：13／13 passed
+npm run test:session-unit：381 top-level／398 total，全數通過
+npm run test:local：local API 3／3；Supabase Chromium 45 passed／11 skipped
+npm run test:local:mobile：6／6 passed
+npm run db:gen-types／typecheck／lint／prettier:check：全數通過
+npm run build：509 modules，通過
+npm run check:production-bundle：結構 gate 通過；既有 total gzip 仍超額 1,324 bytes
+git diff --check：通過
+獨立 source／runtime 覆核：legacy owner-lock bypass 修正後 zero blockers
+hosted migration／deploy／Edge 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,038／190,258 與最大 lazy 16,476／4,828 raw/gzip 均在現有門檻；
   total raw 849,662 也在 849,961 內，但 total gzip 260,386 超過 259,062 共 1,324 bytes。D8 允許開發期
   report 繼續，release enforce 已實測 hard fail；第一個 production candidate 前仍須依 D9 重訂正式基線。
-- 現行 runtime 仍只讀寫 legacy `push_subscriptions` active row；新 consent／registry／delivery schema 已在
-  repo／本機 dormant 建立，但尚無 public command 或 browser wiring，不能誤稱已啟用。
+- 現行 browser／dispatcher 仍只讀寫 legacy `push_subscriptions`；repo／本機已有 v2 transport metadata 與
+  dormant quarantine command，但沒有 enable／Edge／browser wiring，不能誤稱已啟用或已停止 production send。
 - outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op source version 已完成本機
   migration／測試；compatible runtime、barrier 與 hosted 套用仍未做。
 - 現行一般登出走 auth-js 預設 global scope，與 D2 尚未一致。
-- D6 與 Q9-A Auth boot gate 已完成；但 explicit rejection 尚未觸發 cleanup-token quarantine，SW/private
-  Push 與 dispatcher 也未接 gate，因此 Q9 整體仍未完成。
+- D6 與 Q9-A Auth boot gate、quarantine DB digest boundary 已完成；但 explicit rejection 尚未經 Edge
+  觸發 cleanup-token quarantine，SW/private Push 與 dispatcher 也未接 gate，因此 Q9 整體仍未完成。
 - Auth 跨頁安全依賴符合規格的 Web Locks 與目前固定的 auth-js 2.110.0 call shape；舊版 tab／外部 client
   不受新 lock 約束。`-1` 無期限等待避免 timeout-steal，但持鎖 request 若永久 pending 也會讓後續 auth/data
   等待；目前沒有未經證據自行設定 network timeout。
@@ -489,8 +554,11 @@ hosted migration／deploy／Auth 寫入：未執行
   監控並明列無法完全消除的斷線空檔。
 - 現行 web-push 預設 TTL 四週且沒有明確 timeout；endpoint 可控制 Edge outbound target。兩者都是
   FA-03 deployment blocker，不能沿用隱含預設。
-- Hosted public-schema default privileges 對 app roles 過寬；本批 private table／sequence／helper 已在各自
-  migration 同步 revoke，後續 compatible command／public schema 物件仍須維持相同部署邊界。
+- Hosted public-schema default privileges 對 app roles 過寬；`011` 已在 migration 內把 subscription ACL
+  精確重設為 authenticated 無 raw 權限、service role 只有舊 dispatcher 必需的 SELECT／DELETE，但 hosted
+  尚未套用，其他後續 public schema 物件也仍須維持相同部署邊界。
+- cleanup raw token canonical codec、Edge endpoint、rate limit 與 log 去敏尚未實作；DB 目前只接受
+  service-role 傳入的 lowercase hash digest，不能讓 browser 直接呼叫或把它當完整 cleanup API。
 - `canonical-endpoint-policy-v1` 尚未實作，不能用 SQL regex／ambient URL parser 猜 canonical 例外；
   這不阻擋 additive expand，但會阻擋 destructive contract。
 - Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
@@ -500,13 +568,13 @@ hosted migration／deploy／Auth 寫入：未執行
 ## 下一個 session 的起點
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
-2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix 與 `FA-03B1` Auth gate
-   commit 都存在；不要重做已完成的 003～010 或 boot refresh gate。
-3. 以 `npm run test:db` 的 1,024／1,024 作為 compatible runtime 的最新 DB 基線；A3 當時的 DB lint
-   clean 與 strict shadow diff 空白仍是 schema foundation 證據，`010` hotfix 另有從零 replay 證據。
-4. 從 rejected→cleanup-token quarantine、D2 local sign-out、SW/private Push gate 開始，再依 compatible
-   command/browser/dispatcher → barrier → disabled deploy → canary → contract → enable 分批實作、測試，
-   更新本文件並建立獨立 commit。
+2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate 與
+   `FA-03B2` quarantine DB boundary 都存在；不要重做已完成的 003～011、Auth gate 或 transport linkage。
+3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
+   DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
+4. 先實作獨立 cleanup Edge endpoint：canonical 43-char base64url token → Web Crypto SHA-256 → lowercase
+   digest，只呼叫 service-role-only DB command，並固定 no-log/no-oracle contract。再接 IndexedDB pending
+   cleanup、Auth rejected 與 D2 local sign-out；SW／dispatcher 仍各自分批完成並建立獨立 commit。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -525,3 +593,4 @@ hosted migration／deploy／Auth 寫入：未執行
 | 2026-08-31 | FA-03A3.1 | 010 將 deferred outbox guard 收斂為 postgres-owned empty-path definer helper，browser 權限不放寬；從零 replay 與 DB 1,024／1,024 通過，hosted 未套用。 |
 | 2026-08-31 | FA-03B0 | auth identity 只認非空 `user.id`；不完整 session 在私人 RPC 前 fail-closed，完整單元回歸 355／355、Chromium 298 passed。 |
 | 2026-08-31 | FA-03B1 | boot 只接受 server refresh＋matching event；Web Locks 防跨頁覆寫，stale sign-out barrier 與真實 GoTrueClient 測試完成；Q9 Push cleanup 部分仍待實作。 |
+| 2026-08-31 | FA-03B2 | v2 transport linkage、legacy shim／ACL 與 owner／token-digest quarantine DB boundary 完成；owner-lock bypass 修正，1,092 DB tests 通過；Edge／browser／dispatcher 仍未接線。 |
