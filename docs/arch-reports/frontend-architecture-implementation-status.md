@@ -1,6 +1,6 @@
 # 前端架構開發進度
 
-最後更新：2026-08-31
+最後更新：2026-09-01
 
 這是前端架構開發的**單一進度入口**。新的 session 應先讀本文件，再讀
 `frontend-architecture-final-v3-2026-08-31.md`；舊的審查報告只作歷史紀錄，不直接代表目前狀態。
@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B4` 可輪替 cleanup public-key boundary 完成；尚未配置 key，browser／dispatcher 尚未接線 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B4` 已完成 |
-| runtime 變更 | Auth gate、DB dormant command、本機 Edge 與 public-key build boundary 已落地；hosted 強制停用，Q9 browser cleanup／dispatcher 尚未完成 |
+| 目前批次 | `FA-03B5` dormant browser IndexedDB Push storage foundation 完成；production runtime 零 import |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B5` 已完成 |
+| runtime 變更 | Auth gate、DB dormant command、本機 Edge、public-key build boundary 與 dormant IndexedDB 已落地；cleanup transport、Auth／登出、SW、dispatcher 尚未接線 |
 | migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 建立 dormant browser IndexedDB logical-device／pending-cleanup foundation，再接 v2 enable 與 Auth rejected；仍不部署 hosted |
+| 下一步 | 建立 499-byte bounded public-key loader 與有限次 `RETRY → refetch → re-encrypt` cleanup transport；仍不接 production、仍不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -44,6 +44,7 @@ git log --oneline --decorate -10
 | D12 | cleanup raw token 不直接送進 Edge invocation log 可見的 request body；採 application-layer RSA-OAEP-SHA256 隨機加密封包 | `FA-03B3` codec／key rotation／真實 Edge 解密與 DB 狀態轉換完成；browser 尚未接線 |
 | D13 | cleanup Edge 先採 local-only、預設關閉；完成 distributed limiter、hosted canary 與 hosted log 證據前，不得在 hosted 執行 | `FA-03B3` 以 runtime marker＋exact local mode 強制；沒有 hosted deploy／secret／請求 |
 | D14 | cleanup current public key 由 build-only public env 產生固定 same-origin v1 JSON，HTTP `no-store`；不綁進 `VITE_*` JS 常數 | `FA-03B4` 已完成 generator／headers／CI；目前未配置 key，browser loader 尚未接線 |
+| D15 | browser 必須在 enable network 前先保存 logical device、binding 與 raw cleanup token；需要 cleanup 時先獨立提交本機 fail-closed，再用另一筆原子交易把 token 搬到 immutable pending attempt；壞資料或較新 DB version 不自動刪除／降版 | `FA-03B5` dormant storage boundary 已完成；production 零 caller |
 
 ## 授權邊界
 
@@ -60,7 +61,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B4` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B5` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -662,6 +663,59 @@ typecheck／lint／prettier:check／git diff --check：完整 frontend CI 全部
 DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：未執行
 ```
 
+## FA-03B5 dormant browser Push storage foundation
+
+已完成：
+
+- 新增未接 production 的 `notificationPushStorage.ts`。IndexedDB 固定為
+  `tennis-partner-finder-push` v1，只有 `meta`、`current-binding`、`pending-cleanups` 三個 store；前兩個是
+  singleton，pending 以 `bindingId` unique index 防止同一 binding 重複排隊。
+- logical device 使用 Web Crypto UUIDv4。同一個 browser storage context 可跨 reload 與分頁共用；刪除整個
+  IndexedDB 後才建立新 device。模組 import 本身不開 DB。
+- future enable 必須先建立 `provisioning`：先用 Web Crypto 產 32 random bytes，再保存成 43 字元 canonical
+  base64url cleanup token。server response 只能把同一筆 provisioning 提升為 `enabled`，不能替換 raw token；
+  consent 的 PostgreSQL bigint ID／version 以 canonical decimal string 保存，避免 JavaScript number 精度遺失。
+- mutation 以 exact auth user、binding 與隨機 local revision 做 CAS。兩個分頁同時建立 device／provisioning
+  只會得到同一筆；同時 cleanup 只有一筆成功，舊 revision 固定回 `PUSH_STORAGE_STALE` 且零寫入。
+- cleanup 分兩步：第一筆 transaction 先把本機改成 `cleanup-required`，立即 fail-closed；第二筆 transaction
+  再把 current binding 刪除並以 `add` 搬成 immutable pending attempt。第二筆若 abort，刪除也會 rollback，
+  `cleanup-required` 與原 token 都還在，不會回到 `enabled`。
+- `auth-unverified` 專門表示 Auth 網路結果不明：本機停用但不宣稱 server 已 quarantine，也不先排 cleanup。
+  它只能單向升級為真正 cleanup；本批沒有 resume API。
+- current binding 與 pending attempt 不可共存；pending 未精確完成前不能建立新 provisioning。一般 runtime
+  snapshot 不回 raw token，只有明確的 provisioning／pending transport API 可以讀取。完成 cleanup 只刪除
+  所有欄位逐一相符的 attempt；修改內容或舊 response 都不能碰新的 current binding。
+- 每次操作會檢查 DB version、exact store／index、record exact keys、UUID、token、bigint 與跨 record device
+  關係。多餘 singleton row、壞資料或較新的 physical DB version 都 fail-closed，且不刪除、不修正、不降版。
+  connection 每次 transaction 完成後關閉，並在 `versionchange` 立即關閉。
+- production `src` 沒有其他檔案 import 此模組；模組也沒有 dataApi、Supabase client、network、Auth、UI、SW、
+  `localStorage`、`sessionStorage` 或 `Math.random()` fallback。目前 production 行為完全不變。
+
+精確邊界（不可過度宣稱）：
+
+- IndexedDB 不是同源 XSS 的秘密保管箱；raw token 仍是 browser-held bearer secret。真正的損害限制仍來自
+  token 只能 quarantine，不能讀取、啟用、刪除或轉讓 Push。
+- 尚無 499-byte bounded key loader、cleanup HTTP transport、有限重試、v2 enable／refresh command、Auth
+  rejected、D2 local sign-out 或 SW display gate。`auth-unverified` 只證明本機 fail-closed。
+- 現行 `public/push-sw.js` 是 classic Service Worker，不能直接 import 這份 TS／ESM module。SW 批次必須先
+  選擇可 bundle 的 module worker 或單一共享 schema artifact，不能複製兩份 validator 後假設永遠同步。
+- targeted tests 實測 Playwright desktop Chromium、Pixel 5 Chromium emulation 與 iPhone 12 WebKit emulation；
+  這不是 Android／iPhone 實機證據，也尚未驗 Firefox、installed PWA 與各平台 storage partition matrix。
+- 模組尚未進 production graph，所以本批沒有修改 privacy page；真正開始保存本機 Push 狀態前必須更新。
+- 本批沒有 migration、hosted deploy、env、request 或 DB 寫入，也沒有配置 public key。
+
+本批驗證：
+
+```text
+Push storage targeted Node／CI canary：29／29 passed
+真實 browser IndexedDB targeted：15／15 passed（desktop Chromium、mobile Chromium、mobile WebKit 各 5）
+npm run test:ci:frontend：通過；Node 432 passed / 1 skipped；Chromium 314 passed / 4 skipped
+npm run build：509 modules；production output 不含 B5 DB name／error marker，bundle bytes 與 B4 相同
+npm run check:production-bundle：結構 gate 通過；既有 total gzip 仍超額 1,324 bytes，依 D8 只報告
+typecheck／lint／prettier:check／git diff --check：完整 frontend CI 全部通過
+DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,038／190,258 與最大 lazy 16,476／4,828 raw/gzip 均在現有門檻；
@@ -686,9 +740,10 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 - Hosted public-schema default privileges 對 app roles 過寬；`011` 已在 migration 內把 subscription ACL
   精確重設為 authenticated 無 raw 權限、service role 只有舊 dispatcher 必需的 SELECT／DELETE，但 hosted
   尚未套用，其他後續 public schema 物件也仍須維持相同部署邊界。
-- cleanup raw-token codec、application-layer encryption、local Edge、本機 log 去敏與 build-time public-key
-  asset boundary 已完成；但 browser loader／bounded read／IndexedDB 尚未接線，distributed limiter 與 hosted
-  log 證據仍缺。hosted handler 因此 hard-disabled，不能把本機結果外推為完整 production cleanup API。
+- cleanup raw-token codec、application-layer encryption、local Edge、本機 log 去敏、build-time public-key
+  asset 與 dormant IndexedDB foundation 已完成；但 production graph 零 storage import，browser key loader／
+  bounded read／cleanup transport 尚未接線，distributed limiter 與 hosted log 證據仍缺。hosted handler 因此
+  hard-disabled，不能把本機結果外推為完整 production cleanup API。
 - public-key dev server 的 query alias 會落到既有 SPA fallback 並回 `200 text/html`，不是 key response、也沒有
   洩漏 key。未來 browser loader 必須固定無 query 的 same-origin URL，同時驗 `Content-Type`、499-byte body 與
   canonical JSON，不能只看 HTTP 200；正式 Vercel `no-store` 也仍待 hosted response canary。
@@ -707,14 +762,15 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
-   `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge 與 `FA-03B4` public-key asset 都
-   存在；不要重做已完成的 003～011、Auth gate、transport linkage、RSA envelope 或 key generator。
+   `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset 與
+   `FA-03B5` dormant IndexedDB storage 都存在；不要重做已完成的 003～011、Auth gate、transport linkage、
+   RSA envelope、key generator 或 browser storage schema。
 3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
    DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
-4. `FA-03B4` 已建立 fixed same-origin public-key asset；下一批先做 dormant browser IndexedDB logical device、
-   current binding 與 immutable pending cleanup attempt。之後補 499-byte bounded key loader 與有限次
-   `RETRY → refetch → re-encrypt` transport，再接 v2 enable、Auth rejected 與 D2 local sign-out；SW／dispatcher
-   仍各自分批完成並建立獨立 commit。沒有 hosted limiter／canary／log 證據前，不可移除 local-only gate。
+4. `FA-03B5` 已建立 dormant logical device、provisioning、local suspension 與 immutable pending cleanup CAS
+   storage；下一批先做 499-byte bounded key loader 與有限次 `RETRY → refetch → re-encrypt` transport，再接
+   v2 enable、Auth rejected 與 D2 local sign-out。SW／dispatcher 仍各自分批完成並建立獨立 commit；沒有
+   hosted limiter／canary／log 證據前，不可移除 local-only gate。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -736,3 +792,4 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 | 2026-08-31 | FA-03B2 | v2 transport linkage、legacy shim／ACL 與 owner／token-digest quarantine DB boundary 完成；owner-lock bypass 修正，1,092 DB tests 通過；Edge／browser／dispatcher 仍未接線。 |
 | 2026-08-31 | FA-03B3 | 使用者核可 encrypted envelope＋local-only；RSA-OAEP v1、hosted hard gate、真實 Edge→DB quarantine 與本機全 logs 敏感值掃描完成；browser／hosted／dispatcher 未接線。 |
 | 2026-08-31 | FA-03B4 | fixed same-origin v1 public-key asset、public-only canonical generator、encrypt-only shared protocol 與 no-store headers 完成；未配置 key、未接 browser、未部署 hosted。 |
+| 2026-09-01 | FA-03B5 | dormant IndexedDB logical device、persistent provisioning、local fail-closed 與 immutable pending cleanup foundation 完成；production 零 caller、零 network、零 hosted 寫入。 |
