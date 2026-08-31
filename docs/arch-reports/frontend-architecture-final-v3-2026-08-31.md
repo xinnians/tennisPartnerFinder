@@ -1,9 +1,12 @@
 # 前端架構最終方案 v3
 
 日期：2026-08-31
-狀態：**待一輪終驗後定稿；本文件不構成任何 runtime／migration／rules／byte-limit 變更的授權**
+狀態：**開發計畫已啟動；產品決策已確認，但 runtime／migration 仍依批次授權**
 程式基準：HEAD `a14e81e`；bundle 數字對應 8/30–8/31 的 fresh production build
 （主 chunk `index-BWygPPVv.js`，經 in-memory Vite `write:false` 與 `dist/` 逐 byte 比對一致）
+
+執行進度的單一來源：`docs/arch-reports/frontend-architecture-implementation-status.md`。
+本文件描述目標與驗收；「已決策」不等於「已實作」。
 
 ## 版本沿革
 
@@ -81,8 +84,9 @@
 （`profileAuthFeature.ts:22`）是**同語意重複實作**，皆 `user.id ?? access_token ?? null`；
 寫入 `history.state` 的是前者（`main.js:424`）。auth-js `_isValidSession()` 不檢查 `user`，
 被竄改／不完整的 storage session 可觸發 access_token fallback。
-修法：兩處一併收斂為 `user.id ?? null`；`main.js:495-500` 已有 null 短路，
-但 null 是 **fail-open**（該 entry 不再做 owner 比對），屬可接受降級，須在派工單載明。
+已確認修法（**尚未實作**）：兩處一併只認 `user.id`；缺少 `user.id` 的 session 採
+**fail-closed**，視為無效 session，清除私人 state／cache／在途結果，回到公開頁面並要求重新登入。
+不得只依賴 `main.js:495-500` 的 null 短路繼續保留不明 owner 的頁面。
 
 ## 1.3 Web Push 缺陷鏈
 
@@ -239,22 +243,22 @@ RPC 全庫單一收斂點 `privateDataRepository.ts:146`；`PostgrestClient` 原
 
 ---
 
-# 第三層：需產品決策
+# 第三層：已確認的產品決策
 
-| # | 決策 | 背景 |
+| # | 已確認決策 | 尚待處理 |
 | --- | --- | --- |
-| P1 | Push 同意模型：origin permission 即可，或帳號＋裝置 opt-in | 現況無帳號層 consent 記錄；自動重訂在 origin 模型下會讓未同意的 B 被訂閱 |
-| P2 | 登出是否必停本機推播；是否影響其他裝置 | 兩裝置 rollback 已證 remove 單一 endpoint 不影響另一台 |
-| P3 | 換帳號是否強制重新 opt-in | |
-| P4 | 可接受的 residual window：unknown/timeout 分支無 application-enforced 上限——接受（不 migration）或要求 durable quarantine（需 migration：加狀態欄／新表＋owner-scoped RPC＋dispatcher filter＋types＋DB tests） | 條件風險見 §1.3 |
-| P5 | 是否接受 one in-flight push（dispatcher snapshot race）；不接受則需 send 前重查／lease 設計 | `index.ts:84-90` |
-| P6 | orphan subscription TTL | |
-| P7 | `ds-bundle/` 去留 | 13 tracked files、runtime module 命中 0、`.design-sync/` 三檔仍引用；repo 內無 8/17 決策證據，repo 外 memory 檔（mtime 2026-08-17）記載「拍板不保留」，8/21 重新入版無翻案紀錄 |
-| P8 | bundle gate 是否重編（方案 D）：前置含修訂 `react-migration.md` 一票否決條文（引條文文字非行號）、批准者=repo 負責人、真實裝置 before/after、canary（放寬後仍會翻紅）、同步修 §1.5 的文件過時處、checker 納入 rules paths、公式定義（基準取哪次 build；lazy 1% 逐 chunk 或總和；`max(4KiB,1%)` 與「禁止預留」的條件式衝突；累積 ledger 需新持久化資產） | |
+| P1 | Push 採「帳號＋裝置」opt-in；不能只靠 origin permission 自動替新帳號訂閱 | consent state／UI／RPC 由 FA-02 設計 |
+| P2 | 一般登出只停止目前裝置的登入與推播；其他裝置不受影響 | 現行 auth-js 預設 global sign-out，需改成符合本機語意 |
+| P3 | 換帳號必須重新 opt-in，不沿用上一帳號的同意 | identity switch 與 browser E2E 待建 |
+| P4 | unknown／timeout 採 durable quarantine：立即停送、保留原 owner、暫不轉讓 endpoint | 需 migration／RPC／dispatcher filter／types／DB tests |
+| P5 | dispatcher 送出前重查狀態；只接受 quarantine 寫入前已交給外部 push service 的通知無法追回 | snapshot race integration test 待建 |
+| P6 | quarantine 保存期限、重新確認與到期處理不先猜數字；由 FA-02 提案後再核可 | 需先定義到期時刪除、延長封鎖或要求新 endpoint 的條件 |
+| P7 | `ds-bundle/` 與 `.design-sync/` 保留並持續用於 UI/UX 優化 | 人工同步，使用前需對目前 UI/CSS 做全量重驗 |
+| P8 | 開發期間 bundle bytes 只報告、不阻擋 CI；非 byte 的安全／隱私／拆包邊界仍 hard fail。第一個 production release candidate 前，以 route／裝置／網路／gzip／Brotli／Web Vitals 基線重訂並啟用 hard limits | FA-01 先做 checker 分流；正式數值待 production baseline |
 
 ---
 
-# 第四層：分階段執行方案（授權：本文件僅為提案；每階段派工單需逐一核可）
+# 第四層：分階段執行方案（實際狀態與授權以 implementation status 文件為準）
 
 ## 階段 -2：文件與規則對齊（授權類型：文字修正，不動 byte limits）
 
@@ -273,7 +277,8 @@ RPC 全庫單一收斂點 `privateDataRepository.ts:146`；`PostgrestClient` 原
    不再投遞義務，push service 側可能仍在重試）；例外／timeout＝unknown
 4. 重讀 `getSubscription()`：null 或 endpoint 已不同 → 才刪捕捉到的舊 row；
    出現新 endpoint → 走 refresh reconciliation，不得掛給下一個帳號
-5. unknown 或重讀仍同 endpoint → **不刪 row**（保留可擋接管；P4 決定 residual window 處置）
+5. unknown 或重讀仍同 endpoint → 進 durable quarantine：**立即停送、不刪 owner lock、不可轉讓**；
+   保存期限與到期處理由 P6／FA-02 補齊
 6. cleanup 成敗都不得阻止 `signOut()`
 
 **同批必含**：登入後 auto-resubscribe 需 P1 的帳號層同意（不能只看
@@ -287,7 +292,7 @@ RPC 全庫單一收斂點 `privateDataRepository.ts:146`；`PostgrestClient` 原
 dispatcher 404/410 按 endpoint 刪（static/unit）；無 blocker fixture 的 auth cascade。
 
 新建：A 正常登出（row 移除＋本機停用＋登出完成）；unsubscribe 失敗不轉讓 endpoint
-（六步第 5 步）；server delete 失敗仍可登出＋殘留可被 404/410 或 TTL 清；雙 cleanup 失敗有
+（六步第 5 步）；server delete 失敗仍可登出＋殘留可被 404/410 或核可後的 quarantine policy 清；雙 cleanup 失敗有
 提示與重試契約；A→B identity change 不外洩不誤訂；subscription refresh 同步；
 permission 撤銷再授予可恢復；VAPID 輪替；間接 FK blocker（`reports.session_id`）情境。
 
@@ -331,7 +336,7 @@ permission 撤銷再授予可恢復；VAPID 輪替；間接 FK blocker（`report
 | 刪 13 個 presentation re-export（若做） | 須同批改 `session-presentation-boundary.test.js:21-35` `RUNTIME_EXPORTS` 與 `:147-158` 正則；freeze 計數預期值**不改** |
 | 清 `prettier-ignore` 鷹架 | 其凍結的 F2D gate 已零殘留；同批重 format＋`prettier:check` |
 | preload 清單調整 | 只改下載時機；**仍要 fresh build 驗證**（清單與事件邏輯改 main 程式碼，不保證 0 byte）；手機不依賴 hover |
-| `ds-bundle` | 標唯讀；去留待 P7 |
+| `ds-bundle` | 保留並持續維護；它是人工 design-sync 資料包，使用／同步前須對目前 UI/CSS 全量重驗 |
 
 ## 階段 2：production preview 與效能基線（授權類型：測試＋設定）
 
