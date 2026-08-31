@@ -187,6 +187,14 @@ test("Push quarantine commands keep their exact Data API role boundary", { skip:
   assert.equal(ownerError, null);
   assert.equal(ownerOutcome, "OK");
 
+  const { data: maxVersionOutcome, error: maxVersionError } = await ownerClient.rpc("quarantine_push_device", {
+    p_consent_epoch: randomUUID(),
+    p_device_id: randomUUID(),
+    p_expected_version: "9223372036854775807",
+  });
+  assert.equal(maxVersionError, null);
+  assert.equal(maxVersionOutcome, "OK");
+
   const { data: ownerRawRows, error: ownerRawError } = await ownerClient
     .from("push_subscriptions")
     .select("id")

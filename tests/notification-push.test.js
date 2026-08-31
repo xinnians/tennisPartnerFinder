@@ -8,6 +8,8 @@ const PUSH_STORAGE_URL = new URL("../src/notificationPushStorage.ts", import.met
 const PUSH_STORAGE_SOURCE = readFileSync(PUSH_STORAGE_URL, "utf8");
 const PUSH_CLEANUP_TRANSPORT_URL = new URL("../src/notificationPushCleanupTransport.ts", import.meta.url);
 const PUSH_CLEANUP_TRANSPORT_SOURCE = readFileSync(PUSH_CLEANUP_TRANSPORT_URL, "utf8");
+const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
+const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
 
 function sourceFiles(directoryUrl) {
   return readdirSync(directoryUrl, { withFileTypes: true }).flatMap((entry) => {
@@ -86,6 +88,14 @@ test("the Push cleanup transport stays outside the production runtime graph", ()
   assert.deepEqual(references, []);
 });
 
+test("the Push owner-quarantine adapter stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_URL.href)
+    .filter((sourceUrl) => /notificationPushOwnerQuarantine/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
 test("the Push storage foundation has no network, Supabase, or unsafe fallback boundary", () => {
   const importSources = [...PUSH_STORAGE_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
   const sideEffectImports = [...PUSH_STORAGE_SOURCE.matchAll(/^\s*import\s+"([^"]+)";/gmu)].map((match) => match[1]);
@@ -114,5 +124,22 @@ test("the dormant cleanup transport imports only the public shared protocol and 
   assert.doesNotMatch(
     PUSH_CLEANUP_TRANSPORT_SOURCE,
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|Math\.random)\b/u
+  );
+});
+
+test("the dormant owner-quarantine adapter has no secret, storage, network, logging, or timer dependency", () => {
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /^\s*import\s+["']/gmu);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_OWNER_QUARANTINE_SOURCE,
+    /\b(?:dataApi|supabaseClient|notificationPushStorage|notificationPushCleanupTransport)\b/u
+  );
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\bconsole\.|\b(?:Authorization|apikey|cleanupToken|p256dh)\b/u);
+  assert.doesNotMatch(
+    PUSH_OWNER_QUARANTINE_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
 });
