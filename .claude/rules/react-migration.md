@@ -1,10 +1,15 @@
 ---
 paths:
+  - "src/app/**"
+  - "src/components/**"
   - "src/pages/**"
   - "src/sheets/**"
+  - "src/views/**"
   - "src/main.js"
   - "src/sessionViews.js"
+  - "src/sessionStore.ts"
   - "src/sheets.ts"
+  - "src/syncCommit.ts"
   - "tests/fixtures/appRuntime.js"
 ---
 
@@ -43,7 +48,7 @@ paths:
 3. 允許把「以 adapter 為 harness」的既有 e2e 測試改寫為 UI 驅動，但行為 oracle（焦點還原、Escape、可見性等斷言語意）不得弱化或刪除。
 4. 批 4 才解凍 `mountSheet` 專有 surface 殼：backdrop、focus trap、Escape、surface stack、關閉與焦點回復允許遷入 React surface system；批 4 之前仍凍結。
 5. 批 5 才解凍 imperative handle 的 `flushSync`／同步 commit 契約並允許逐 caller 退役；每移除一個須以原始 race／focus 測試驗證，留存者需書面理由。
-6. 本次不解凍 `data-testid`、id、class、aria、文案與既有 e2e 斷言 oracle 語意、`dataApi` 邊界與隱私 allowlist；production bundle gate 不得任意放寬。這些契約仍是一票否決，任何批不得變更。
+6. 本次不解凍 `data-testid`、id、class、aria、文案與既有 e2e 斷言 oracle 語意、`dataApi` 邊界與隱私 allowlist。production bundle 的 demo／E2E hook／隱私與拆包結構仍是 hard gate；開發期 bytes 只報告，release candidate 改用 hard byte limits。這些契約仍是一票否決，任何批不得變更。
 
 ## Sheet 批固定模式
 

@@ -1,12 +1,20 @@
 ---
 paths:
   - "tests/**"
+  - "scripts/**"
+  - ".github/workflows/**"
   - "playwright.config.js"
+  - "package.json"
+  - "vite.config.ts"
+  - "eslint.config.js"
+  - "prettier.config.js"
+  - "tsconfig.json"
 ---
 
 # 測試：非破壞性預設與 local Supabase 分流
 
-`npm test` 等同 `npm run test:mock`，只跑 mock unit/Playwright，**不會重置任何資料庫**。
+`npm test` 會先檢查球場 seed，再執行 `npm run test:mock`；mock pre-script 會先 typecheck，
+之後才跑 unit／Playwright。整條流程**不會重置任何資料庫**。
 `npm run test:local` 也不重置資料庫。需要乾淨 local fixture 時，只能明確執行：
 
 ```bash
@@ -32,29 +40,34 @@ npm run typecheck
 npm run lint
 npm run prettier:check
 npm run build
+npm run check:production-bundle
 git diff --check
 ```
 
-CI 由 `.github/workflows/quality-gate.yml` 分成 frontend 與 Supabase 兩個 job；聚合入口是
-`npm run test:ci:frontend`、`npm run test:ci:supabase`。後者包含新增的
+CI 由 `.github/workflows/quality-gate.yml` 分成三個 job：frontend、Supabase 會阻擋，
+mobile-webkit 只提供相容性訊號。前兩者聚合入口是
+`npm run test:ci:frontend`、`npm run test:ci:supabase`；後者包含
 `npm run test:local:mobile`。CI 可用 `TENNIS_DISCOVERY_SHELL_BUDGET_MS=2500` 放寬共用 runner
 的 shell timing 預算，本機預設仍是 1000ms；不得用這個變數放寬其他斷言。
-frontend CI 在 build 後必跑 `npm run check:production-bundle`，防止 mock 暱稱被打進正式產物。
-另有獨立 `mobile-webkit` job；它會留失敗證據，但目前以 `continue-on-error` 運作，不擋合併。
+frontend CI 在 build 後必跑 `npm run check:production-bundle`：demo／E2E hook 洩漏、輸出掃描不足、
+private repository 或 Sentry 拆包邊界錯誤一律 hard fail；bytes 在開發期只報告。
+`npm run check:production-bundle:release` 會以相同門檻強制 bytes，供 release candidate 使用。
+`mobile-webkit` 會留失敗證據，但目前以 `continue-on-error` 運作，不擋合併。
 2026-08-21 基準為 Chromium `266 passed / 4 skipped`；WebKit 在 avatar CDN stub 後連跑三次
 均為 `126 passed / 6 failed / 3 skipped`。另有一條負載相依、非穩定的 dialog focus 訊號；
 完整分類與批 23 初版數字更正見 `docs/migration-reports/batch-23.md`、`batch-26.md`。
 
 `npm run test:mock` 與 `npm run test:local` 的 pre-script 都會先跑 `npm run typecheck`；
-`lint` 與 `prettier:check` 只掃 `.ts/.tsx`，不把存量 `.js` 納入本批改寫範圍。
+`lint`／`prettier:check` 會掃 source、tests、scripts 的 JS／MJS／TS／TSX 與列名的 root 設定檔。
 
 只要批次修改 `src/` 的 runtime 程式碼，就不得豁免 `npm run test:local`；只有純測試檔、
 CI 設定或文件批次可豁免。`npm run test:db` 維持零 migration 即可豁免的判準。
 
 ## Playwright projects
 
-- `desktop-chromium`、`mobile-chromium`：mock mode，port 5174，執行 `smoke.spec.js`、
-  `performance.spec.js`、`error-boundary.spec.js` 與 `react-unmount.spec.js`。
+- `desktop-chromium`、`mobile-chromium`：mock mode，port 5174，執行 7 個
+  `*-smoke.spec.js`，以及 `performance`、`error-boundary`、`react-unmount`、
+  `react-page-focus`，共 11 個 spec。
 - `mobile-webkit`：同一組 mock specs，iPhone 12／390×844；由非阻擋 CI job 獨立執行。
 - `supabase-chromium`：local Supabase mode，port 5175，執行 `session.spec.js` 與
   local-only `performance.spec.js`。

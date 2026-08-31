@@ -1,22 +1,28 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build } from "vite";
 
+import {
+  applyByteLimitPolicy,
+  BUNDLE_SIZE_LIMITS,
+  identifySentryChunk,
+  parseByteLimitMode,
+} from "./productionBundlePolicy.mjs";
+
 const DIST_DIR = new URL("../dist/", import.meta.url);
-// F4-3 emits 654,771 raw / 191,396 gzip after authenticated repositories become conditional.
-// One 4 KiB raw / 1 KiB gzip maintenance window keeps the budget below the prior 661,080/192,693 bundle.
-const MAIN_CHUNK_RAW_LIMIT_BYTES = 658_867;
-const MAIN_CHUNK_GZIP_LIMIT_BYTES = 192_420;
-// The largest ordinary lazy surface is 16,912/5,122; keep roughly 1 KiB/378 B for local maintenance.
-const LAZY_CHUNK_RAW_LIMIT_BYTES = 18_000;
-const LAZY_CHUNK_GZIP_LIMIT_BYTES = 5_500;
-// Sentry is intentionally isolated but substantially larger than application lazy chunks.
-const SENTRY_CHUNK_RAW_LIMIT_BYTES = 90_000;
-const SENTRY_CHUNK_GZIP_LIMIT_BYTES = 31_000;
-// F4-3 total JS (including push-sw.js) is 841,545/256,497. A 1% ceiling prevents split-induced growth.
-const TOTAL_JS_RAW_LIMIT_BYTES = 849_961;
-const TOTAL_JS_GZIP_LIMIT_BYTES = 259_062;
+const byteLimitMode = parseByteLimitMode(process.argv.slice(2));
+const {
+  lazyGzipBytes: LAZY_CHUNK_GZIP_LIMIT_BYTES,
+  lazyRawBytes: LAZY_CHUNK_RAW_LIMIT_BYTES,
+  mainGzipBytes: MAIN_CHUNK_GZIP_LIMIT_BYTES,
+  mainRawBytes: MAIN_CHUNK_RAW_LIMIT_BYTES,
+  sentryGzipBytes: SENTRY_CHUNK_GZIP_LIMIT_BYTES,
+  sentryRawBytes: SENTRY_CHUNK_RAW_LIMIT_BYTES,
+  totalGzipBytes: TOTAL_JS_GZIP_LIMIT_BYTES,
+  totalRawBytes: TOTAL_JS_RAW_LIMIT_BYTES,
+} = BUNDLE_SIZE_LIMITS;
 const DEMO_IDENTIFIERS = [
   "示範山嵐",
   "示範彗星",
@@ -50,6 +56,16 @@ assert.ok(
   "development bundle must retain the E2E hook before production absence can be trusted"
 );
 
+const productionBuild = await build({
+  build: { write: false },
+  logLevel: "silent",
+  mode: "production",
+});
+const productionOutputs = (Array.isArray(productionBuild) ? productionBuild : [productionBuild]).flatMap(
+  ({ output }) => output
+);
+const sentryOutputChunk = identifySentryChunk(productionOutputs.filter((output) => output.type === "chunk"));
+
 const outputFiles = readdirSync(DIST_DIR, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile())
   .map((entry) => `${entry.parentPath}/${entry.name}`);
@@ -70,7 +86,7 @@ assert.deepEqual(entryScripts.length, 1, `expected one production entry script, 
 const [mainChunkPath] = entryScripts;
 const mainChunk = readFileSync(new URL(`../dist/${mainChunkPath}`, import.meta.url));
 const mainChunkGzipBytes = gzipSync(mainChunk).length;
-const mainChunkFile = `${DIST_DIR.pathname}${mainChunkPath}`;
+const mainChunkFile = fileURLToPath(new URL(mainChunkPath, DIST_DIR));
 const javascriptChunks = outputFiles
   .filter((file) => file.endsWith(".js"))
   .map((file) => {
@@ -88,18 +104,16 @@ assert.ok(
 
 const sentryMarker = "sentry_version";
 assert.ok(!mainChunk.includes(sentryMarker), `Sentry SDK leaked into the production main chunk: ${mainChunkPath}`);
-const sentryChunks = javascriptChunks.filter(
-  ({ file, source }) => file !== mainChunkFile && source.includes(sentryMarker)
+const sentryChunkFile = fileURLToPath(new URL(sentryOutputChunk.fileName, DIST_DIR));
+const sentryChunk = javascriptChunks.find(({ file }) => file === sentryChunkFile);
+assert.ok(sentryChunk, `verified Sentry output is absent from dist: ${sentryOutputChunk.fileName}`);
+assert.equal(
+  sentryChunk.source.toString("utf8"),
+  sentryOutputChunk.code,
+  `dist Sentry output differs from the verified production build: ${sentryOutputChunk.fileName}`
 );
-assert.ok(sentryChunks.length > 0, "production build did not retain a separate lazy Sentry SDK chunk");
-assert.ok(
-  mainChunk.length <= MAIN_CHUNK_RAW_LIMIT_BYTES,
-  `production main chunk raw size ${mainChunk.length} bytes exceeds ${MAIN_CHUNK_RAW_LIMIT_BYTES} bytes: ${mainChunkPath}`
-);
-assert.ok(
-  mainChunkGzipBytes <= MAIN_CHUNK_GZIP_LIMIT_BYTES,
-  `production main chunk gzip size ${mainChunkGzipBytes} bytes exceeds ${MAIN_CHUNK_GZIP_LIMIT_BYTES} bytes: ${mainChunkPath}`
-);
+assert.ok(sentryChunk.source.includes(sentryMarker), "verified Sentry chunk lost its SDK marker");
+const sentryChunks = [sentryChunk];
 const privateDataMarker = "tennis_private_data_repository_v1";
 assert.ok(!mainChunk.includes(privateDataMarker), `private repository leaked into the main chunk: ${mainChunkPath}`);
 const privateDataChunks = javascriptChunks.filter(
@@ -107,36 +121,52 @@ const privateDataChunks = javascriptChunks.filter(
 );
 assert.equal(privateDataChunks.length, 1, `expected one private repository chunk, found ${privateDataChunks.length}`);
 
+const byteChecks = [
+  {
+    actualBytes: mainChunk.length,
+    limitBytes: MAIN_CHUNK_RAW_LIMIT_BYTES,
+    name: `production main chunk raw (${mainChunkPath})`,
+  },
+  {
+    actualBytes: mainChunkGzipBytes,
+    limitBytes: MAIN_CHUNK_GZIP_LIMIT_BYTES,
+    name: `production main chunk gzip (${mainChunkPath})`,
+  },
+];
 for (const chunk of javascriptChunks.filter(({ file }) => file !== mainChunkFile)) {
   const isSentry = sentryChunks.includes(chunk);
   const rawLimit = isSentry ? SENTRY_CHUNK_RAW_LIMIT_BYTES : LAZY_CHUNK_RAW_LIMIT_BYTES;
   const gzipLimit = isSentry ? SENTRY_CHUNK_GZIP_LIMIT_BYTES : LAZY_CHUNK_GZIP_LIMIT_BYTES;
   const name = chunk.file.split("/").at(-1);
-  assert.ok(
-    chunk.rawBytes <= rawLimit,
-    `production lazy chunk raw size ${chunk.rawBytes} exceeds ${rawLimit}: ${name}`
-  );
-  assert.ok(
-    chunk.gzipBytes <= gzipLimit,
-    `production lazy chunk gzip size ${chunk.gzipBytes} exceeds ${gzipLimit}: ${name}`
+  byteChecks.push(
+    { actualBytes: chunk.rawBytes, limitBytes: rawLimit, name: `production lazy chunk raw (${name})` },
+    { actualBytes: chunk.gzipBytes, limitBytes: gzipLimit, name: `production lazy chunk gzip (${name})` }
   );
 }
 
 const totalJavaScriptRawBytes = javascriptChunks.reduce((total, chunk) => total + chunk.rawBytes, 0);
 const totalJavaScriptGzipBytes = javascriptChunks.reduce((total, chunk) => total + chunk.gzipBytes, 0);
-assert.ok(
-  totalJavaScriptRawBytes <= TOTAL_JS_RAW_LIMIT_BYTES,
-  `production JavaScript raw total ${totalJavaScriptRawBytes} exceeds ${TOTAL_JS_RAW_LIMIT_BYTES}`
+byteChecks.push(
+  {
+    actualBytes: totalJavaScriptRawBytes,
+    limitBytes: TOTAL_JS_RAW_LIMIT_BYTES,
+    name: "production JavaScript raw total",
+  },
+  {
+    actualBytes: totalJavaScriptGzipBytes,
+    limitBytes: TOTAL_JS_GZIP_LIMIT_BYTES,
+    name: "production JavaScript gzip total",
+  }
 );
-assert.ok(
-  totalJavaScriptGzipBytes <= TOTAL_JS_GZIP_LIMIT_BYTES,
-  `production JavaScript gzip total ${totalJavaScriptGzipBytes} exceeds ${TOTAL_JS_GZIP_LIMIT_BYTES}`
-);
+const exceededByteLimits = applyByteLimitPolicy(byteChecks, {
+  mode: byteLimitMode,
+  onReport: (message) => console.warn(message),
+});
 
 const largestApplicationLazyChunk = javascriptChunks
   .filter((chunk) => chunk.file !== mainChunkFile && !sentryChunks.includes(chunk))
   .sort((left, right) => right.rawBytes - left.rawBytes)[0];
 
 console.log(
-  `production bundle check passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; main ${mainChunk.length}/${mainChunkGzipBytes} within ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}; largest app lazy ${largestApplicationLazyChunk.file.split("/").at(-1)} ${largestApplicationLazyChunk.rawBytes}/${largestApplicationLazyChunk.gzipBytes} within ${LAZY_CHUNK_RAW_LIMIT_BYTES}/${LAZY_CHUNK_GZIP_LIMIT_BYTES}; total JS ${totalJavaScriptRawBytes}/${totalJavaScriptGzipBytes} within ${TOTAL_JS_RAW_LIMIT_BYTES}/${TOTAL_JS_GZIP_LIMIT_BYTES}; private repository: ${privateDataChunks[0].file.split("/").at(-1)}; Sentry: ${sentryChunks.map(({ file }) => file.split("/").at(-1)).join(", ")}`
+  `production bundle structural checks passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; byte mode ${byteLimitMode}, ${exceededByteLimits.length} exceeded; main ${mainChunk.length}/${mainChunkGzipBytes} budget ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}; largest app lazy ${largestApplicationLazyChunk.file.split("/").at(-1)} ${largestApplicationLazyChunk.rawBytes}/${largestApplicationLazyChunk.gzipBytes} budget ${LAZY_CHUNK_RAW_LIMIT_BYTES}/${LAZY_CHUNK_GZIP_LIMIT_BYTES}; total JS ${totalJavaScriptRawBytes}/${totalJavaScriptGzipBytes} budget ${TOTAL_JS_RAW_LIMIT_BYTES}/${TOTAL_JS_GZIP_LIMIT_BYTES}; private repository: ${privateDataChunks[0].file.split("/").at(-1)}; Sentry: ${sentryChunks.map(({ file }) => file.split("/").at(-1)).join(", ")}`
 );

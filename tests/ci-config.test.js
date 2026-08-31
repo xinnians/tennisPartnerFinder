@@ -3,6 +3,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import { createPlaywrightConfig } from "../playwright.config.js";
+import {
+  applyByteLimitPolicy,
+  BYTE_LIMIT_MODES,
+  ENFORCE_BYTE_LIMITS_FLAG,
+  identifySentryChunk,
+  parseByteLimitMode,
+} from "../scripts/productionBundlePolicy.mjs";
 import createViteConfig from "../vite.config.ts";
 
 const PACKAGE = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -92,6 +99,88 @@ test("frontend CI script contains every current non-database gate in order", () 
   ];
   assert.deepEqual(commands, gates);
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
+});
+
+test("development bundle checks report byte excesses while release checks enforce them", () => {
+  assert.equal(PACKAGE.scripts["check:production-bundle"], "node scripts/check-production-bundle.mjs");
+  assert.equal(
+    PACKAGE.scripts["check:production-bundle:release"],
+    `npm run build && node scripts/check-production-bundle.mjs ${ENFORCE_BYTE_LIMITS_FLAG}`
+  );
+  assert.equal(parseByteLimitMode([]), BYTE_LIMIT_MODES.REPORT);
+  assert.equal(parseByteLimitMode([ENFORCE_BYTE_LIMITS_FLAG]), BYTE_LIMIT_MODES.ENFORCE);
+  assert.throws(() => parseByteLimitMode(["--unknown"]), /unsupported bundle checker arguments/);
+
+  const checks = [
+    { actualBytes: 10, limitBytes: 10, name: "at limit" },
+    { actualBytes: 12, limitBytes: 10, name: "over limit" },
+  ];
+  const reports = [];
+  assert.deepEqual(
+    applyByteLimitPolicy(checks, { mode: BYTE_LIMIT_MODES.REPORT, onReport: (message) => reports.push(message) }),
+    [checks[1]]
+  );
+  assert.deepEqual(reports, ["bundle size report only — over limit: 12 bytes exceeds 10 bytes by 2"]);
+  assert.throws(
+    () => applyByteLimitPolicy(checks, { mode: BYTE_LIMIT_MODES.ENFORCE }),
+    /production bundle byte limits exceeded:[\s\S]*over limit/
+  );
+  assert.deepEqual(
+    applyByteLimitPolicy([checks[0]], { mode: BYTE_LIMIT_MODES.ENFORCE }),
+    [],
+    "the exact limit must remain valid"
+  );
+});
+
+test("Sentry size allowance follows Vite module provenance instead of a text marker", () => {
+  const wrapper = {
+    code: "sentry_version",
+    dynamicImports: [],
+    facadeModuleId: "/repo/src/sentryBrowserSdk.ts",
+    fileName: "assets/sentry.js",
+    imports: [],
+    modules: {
+      "/repo/node_modules/@sentry/browser/build/npm/esm/index.js": {},
+      "/repo/src/sentryBrowserSdk.ts": {},
+    },
+  };
+  const ordinaryMarkerChunk = {
+    code: "sentry_version",
+    facadeModuleId: "/repo/src/views/ordinary.ts",
+    fileName: "assets/ordinary.js",
+    modules: { "/repo/src/views/ordinary.ts": {} },
+  };
+  assert.equal(identifySentryChunk([ordinaryMarkerChunk, wrapper]), wrapper);
+  assert.throws(
+    () =>
+      identifySentryChunk([
+        wrapper,
+        {
+          facadeModuleId: "/repo/src/other.ts",
+          fileName: "assets/other-sentry.js",
+          modules: { "/repo/node_modules/@sentry/core/build/index.js": {} },
+        },
+      ]),
+    /expected all @sentry dependencies in one chunk/
+  );
+  assert.throws(
+    () =>
+      identifySentryChunk([
+        {
+          ...wrapper,
+          modules: { ...wrapper.modules, "/repo/src/unrelatedApplication.ts": {} },
+        },
+      ]),
+    /Sentry chunk contains application or unrelated modules/
+  );
+  assert.throws(
+    () => identifySentryChunk([{ ...wrapper, imports: ["assets/unrelated-app.js"] }]),
+    /Sentry chunk must not statically import another chunk/
+  );
+  assert.throws(
+    () => identifySentryChunk([{ ...wrapper, dynamicImports: ["assets/unrelated-app.js"] }]),
+    /Sentry chunk must not dynamically import another chunk/
+  );
 });
 
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {

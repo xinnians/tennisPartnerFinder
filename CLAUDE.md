@@ -64,13 +64,13 @@
   （14 個 sheet/dialog）與 `src/components/` 的內容以 portal 掛進 legacy 容器。
 - `src/features/`：十個 feature 純邏輯模組（chat、discovery、filters、notifications、
   player-directory、presence、profile、profile-auth、session-lifecycle、share）。
-- `src/dataApi.ts`：唯一瀏覽器資料邊界的 80 行薄 facade；實作在 `src/data/`
+- `src/dataApi.ts`：唯一瀏覽器資料邊界的薄 facade；實作在 `src/data/`
   （`databaseTypes.ts` 生成型別、`repositories/`、`mappers/`、`authApi.ts`），邊界語意不變。
 - `src/domainTypes.ts`：從 data API mapper 反推的共用 domain／surface 型別。
 - React 頁面批的 mount、import、DOM 凍結與焦點／Escape 混用規則見 `.claude/rules/react-migration.md`。
 - `src/map.ts`／`src/pins.ts`：Google Maps 與球局／球場圖釘。`src/mockData.js`：安全的本機
   demo `SessionSummary`；production build 以 Vite alias 改讀 `src/mockData.empty.js`，
-  `npm run check:production-bundle` 阻止示範暱稱進入 `dist`，mock dev／測試仍用完整 fixture。
+  bundle checker 以 hard gate 守 demo／E2E hook／隱私與拆包，開發期 bytes 只報告、release 才強制。
 - `data/courts.json`：球場目錄單一來源；產生 migration／pgTAP fixture 的來源。
 
 既有頁面以 `innerHTML` 產生 DOM 時，所有動態內容都必須使用 `esc()`。新 `.ts/.tsx` 走
@@ -141,11 +141,11 @@ npm run check:production-bundle
 git diff --check
 ```
 
-`.github/workflows/quality-gate.yml` 已隨目前開發分支 push 到 origin，push／PR 都會在該分支
-執行；`main` 尚未合流，待 REL 讓 `main` 追上後才會在 `main` 生效。frontend 與 Supabase 聚合入口分別是
+`.github/workflows/quality-gate.yml` 已存在 `origin/main`；push 只監看 `main` 與既定 Claude 分支，
+其他工作分支需以目標為 `main` 的 PR 或 `workflow_dispatch` 觸發。frontend／Supabase 聚合入口是
 `npm run test:ci:frontend`、`npm run test:ci:supabase`；WebKit 是獨立的非阻擋 job。
 
-`npm test` 等同 `npm run test:mock`，**不會**重置資料庫；`npm run test:local` 也不會。
+`npm test` 先檢查球場 seed，再進 `test:mock` 的 typecheck、unit 與 Playwright；不會重置資料庫。
 需要清空本機資料時，唯一標準入口是帶有 `CONFIRM_LOCAL_DB_RESET=1` 的 guarded 指令。
 測試規則、ports、Fake Maps 與本機登入 fixture 見 `.claude/rules/testing.md`。
 

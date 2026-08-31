@@ -1,8 +1,13 @@
 ---
 paths:
   - "supabase/**"
+  - "src/data/**"
   - "src/dataApi.ts"
+  - "src/features/notifications/**"
+  - "src/notificationPreferences.ts"
+  - "src/notificationPush.js"
   - "src/supabaseClient.js"
+  - "public/push-sw.js"
 ---
 
 # Supabase：公開球局、隱私與資料庫契約
