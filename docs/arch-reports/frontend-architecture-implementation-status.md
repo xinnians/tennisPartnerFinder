@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03A3.1` outbox deferred guard 相容性 hotfix 完成；Q9-A boot Auth refresh 驗證中 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0` 已完成 |
-| runtime 變更 | D6 已落地：session owner 只認非空 `user.id`；不完整 session 不進私人資料流程 |
+| 目前批次 | `FA-03B1` Q9-A Auth boot refresh gate 完成；Q9 的 Push cleanup／quarantine 部分仍待實作 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B1` 已完成 |
+| runtime 變更 | D6 與 Q9-A Auth gate 已落地：只有 server refresh＋matching event 能開私人狀態；Push cleanup 尚未接上 |
 | migration 變更 | repo／本機共新增 10 份 additive foundation／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 完成 Q9-A boot Auth refresh 與事件競態；再進 compatible command／browser Push／dispatcher；不部署 hosted |
+| 下一步 | 實作 rejected→cleanup-token quarantine、D2 local sign-out 與 private Push/SW fail-closed；不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -57,7 +57,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B1` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -406,16 +406,84 @@ git diff --check：通過
 獨立 diff 覆核：zero correctness/security blockers
 ```
 
+## FA-03B1 Q9-A Auth boot refresh gate
+
+已完成：
+
+- boot 不再把 `getSession()` 的 local cache 當登入證明；它只用來確認是否有可 refresh 的 session，接著
+  必須以 no-argument `refreshSession()` 向 Auth server 取得非空 `user.id`＋`access_token`，並和同一輪
+  `TOKEN_REFRESHED` 的 identity／token 完全相符，才會開啟私人 state 與資料載入。
+- Auth callback 只記錄事件並排到下一個 task，避免在 auth-js subscriber 內重入 refresh deadlock；
+  `INITIAL_SESSION` 不授權。SIGNED_OUT、換帳號、不同 token、pending publish、superseded refresh 與延遲
+  cross-tab 事件都有 revision/proof barrier。已驗證 state 收到同 identity 的 `TOKEN_REFRESHED` 才能接續
+  token rotation；一般 `SIGNED_IN` 只有 identity＋access token 都完全相同才可在重驗期間保留，token
+  不同會先關閉。登出後的 stale `SIGNED_IN → TOKEN_REFRESHED` 必須重新 server 驗證，不能靠 local event 復活。
+- 明確 4xx rejection 只接受固定 Auth code；network、5xx、timeout／未知錯誤維持 local public 並可在
+  `online` 事件重試，不猜成匿名。auth-js initialize 吞掉 `session_not_found` 的已驗證版本行為，另由 exact
+  refresh endpoint observer 提供一次性證據。
+- observer 只比對 configured origin、精確 path、POST 與 `grant_type=refresh_token`；遵守 Fetch 的
+  `init.method` override。它不讀 request body、不讀成功 token response；失敗 response 只保存 frozen
+  `revision/kind/status/code`，不保存 credential、message 或 response body。
+- 全部 app-owned auth storage 操作共用 `lock:${SUPABASE_AUTH_STORAGE_KEY}`。Web Locks `0` 保留立即失敗，
+  其他 timeout 固定為 `-1`，不 timeout／不 steal；缺少 Web Locks 或 callback 沒有取得真正 lock 時直接
+  fail-closed。OAuth sign-in／identity linking 共用同一 lock，並以安裝中的真實 GoTrueClient 驗證 PKCE
+  verifier 與 linking 都能完成；SDK 自己負責 sign-out 的同名 lock。
+- 登出仍會清私人 state，但「我」頁是可安全顯示匿名登入入口的公開頁，因此留在原頁；「我的球局／訊息」
+  仍會導回公開地圖。這個真實 local browser 回歸已固定。
+- Playwright 永久測試以同一 context 的兩個真實 page、共用 storage key 與安裝中的 GoTrueClient 驗證：
+  refresh A 未完成時，B 換帳號或 local sign-out 必須等鎖，最終不能被 A 覆寫或復活。
+
+精確邊界（不可過度宣稱）：
+
+- 這是 Q9-A 的 **Auth boot／local private fail-closed 部分**，不是完整 Q9。`rejected` 尚未接到
+  cleanup-token quarantine、Service Worker/private Push display gate 或 dispatcher；D2 production
+  sign-out 也仍是 SDK 預設 global scope。
+- observer 是單一 tab、latest／one-use 證據，尚未和未來 cleanup device／attempt 綁定；連接 server
+  Push state 前必須補這層關聯。
+- lock 保證只涵蓋目前 app-owned 呼叫；舊版分頁、外部 client、直接改 localStorage 或不用同名 lock 的
+  程式不在保證內。SDK 固定為 `supabase-js/auth-js 2.110.0`；升級時必須重驗 lock name、refresh request、
+  error code 與 event ordering。
+- 不支援或錯誤實作 Web Locks 的 browser 會安全失敗；而 Supabase data request 也可能因取不到 auth
+  session 而不可用。`-1` 是刻意無期限等待，沒有自行猜 timeout；持鎖 network request 若永久 pending，
+  後續 auth/data 也會等待，private state 維持關閉。
+- 真實 browser lock 測試涵蓋 desktop/mobile Chromium 與 Playwright WebKit，但 Auth HTTP 為 mock；沒有
+  hosted Auth、Firefox、實體 Safari／裝置或真實 OAuth provider E2E。
+- auth／online subscription 目前符合 app boot 只執行一次的 lifecycle；若未來支援 HMR/re-entry，需先補
+  teardown ownership。
+
+本批驗證：
+
+```text
+targeted Auth／lock／orchestration：43／43 passed
+npm run test:session-unit：381 top-level／398 total，全數通過
+npm run test:mock：Chromium 304 passed／4 skipped
+真實雙分頁 GoTrueClient lock：desktop Chromium、mobile Chromium、mobile WebKit 共 9／9 passed
+npm run test:local：local API 2／2；Supabase Chromium 45 passed／11 skipped
+npm run test:local:mobile：6／6 passed
+npm run typecheck／lint／prettier:check：全數通過
+npm run build：509 modules，通過
+npm run check:production-bundle：結構 gate 通過；development report 只有 total gzip 超額 1,324 bytes
+npm run check:production-bundle:release：按 D8 預期 hard fail（260,386 > 259,062）
+git diff --check：通過
+兩路 Auth 獨立覆核：null-lock 與 stale cross-tab barrier 修正後 zero blockers
+hosted migration／deploy／Auth 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
-- 開發期 bytes 已改為 report；release hard limits 仍沿用歷史數值，必須在第一個 production
-  release candidate 前依真實裝置、網路、gzip／Brotli 與 Web Vitals 重訂，不能把目前通過當成正式基線。
+- 最新 development bundle 的 main 647,038／190,258 與最大 lazy 16,476／4,828 raw/gzip 均在現有門檻；
+  total raw 849,662 也在 849,961 內，但 total gzip 260,386 超過 259,062 共 1,324 bytes。D8 允許開發期
+  report 繼續，release enforce 已實測 hard fail；第一個 production candidate 前仍須依 D9 重訂正式基線。
 - 現行 runtime 仍只讀寫 legacy `push_subscriptions` active row；新 consent／registry／delivery schema 已在
   repo／本機 dormant 建立，但尚無 public command 或 browser wiring，不能誤稱已啟用。
 - outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op source version 已完成本機
   migration／測試；compatible runtime、barrier 與 hosted 套用仍未做。
 - 現行一般登出走 auth-js 預設 global scope，與 D2 尚未一致。
-- D6 已完成，但 app boot 仍只讀 local session；Q9-A 強制 Auth refresh 與 boot event gate 尚未完成。
+- D6 與 Q9-A Auth boot gate 已完成；但 explicit rejection 尚未觸發 cleanup-token quarantine，SW/private
+  Push 與 dispatcher 也未接 gate，因此 Q9 整體仍未完成。
+- Auth 跨頁安全依賴符合規格的 Web Locks 與目前固定的 auth-js 2.110.0 call shape；舊版 tab／外部 client
+  不受新 lock 約束。`-1` 無期限等待避免 timeout-steal，但持鎖 request 若永久 pending 也會讓後續 auth/data
+  等待；目前沒有未經證據自行設定 network timeout。
 - 現行 dispatcher 沒有 delivery lease，且多裝置只有一個 outbox outcome；不能只加 quarantine filter。
 - Web Push 與 PostgreSQL 沒有共同 transaction；Q6-A 已核可較弱但可實作的條件式邊界，仍須測試、
   監控並明列無法完全消除的斷線空檔。
@@ -432,11 +500,13 @@ git diff --check：通過
 ## 下一個 session 的起點
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
-2. 確認 `FA-03A2` contract 與 `FA-03A3` dormant schema commit 都存在；不要重做已完成的 003～009。
+2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix 與 `FA-03B1` Auth gate
+   commit 都存在；不要重做已完成的 003～010 或 boot refresh gate。
 3. 以 `npm run test:db` 的 1,024／1,024 作為 compatible runtime 的最新 DB 基線；A3 當時的 DB lint
    clean 與 strict shadow diff 空白仍是 schema foundation 證據，`010` hotfix 另有從零 replay 證據。
-4. 先完成 Q9-A boot Auth refresh，再依 compatible command/browser/dispatcher → barrier → disabled deploy →
-   canary → contract → enable 分批實作、測試，更新本文件並建立獨立 commit。
+4. 從 rejected→cleanup-token quarantine、D2 local sign-out、SW/private Push gate 開始，再依 compatible
+   command/browser/dispatcher → barrier → disabled deploy → canary → contract → enable 分批實作、測試，
+   更新本文件並建立獨立 commit。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -454,3 +524,4 @@ git diff --check：通過
 | 2026-08-31 | FA-03A3 | 003～009 dormant schema、177 項新增 pgTAP 與真實刪帳 FK 測試完成；全套 DB 1,014／1,014、strict diff 空白，hosted 未套用。 |
 | 2026-08-31 | FA-03A3.1 | 010 將 deferred outbox guard 收斂為 postgres-owned empty-path definer helper，browser 權限不放寬；從零 replay 與 DB 1,024／1,024 通過，hosted 未套用。 |
 | 2026-08-31 | FA-03B0 | auth identity 只認非空 `user.id`；不完整 session 在私人 RPC 前 fail-closed，完整單元回歸 355／355、Chromium 298 passed。 |
+| 2026-08-31 | FA-03B1 | boot 只接受 server refresh＋matching event；Web Locks 防跨頁覆寫，stale sign-out barrier 與真實 GoTrueClient 測試完成；Q9 Push cleanup 部分仍待實作。 |

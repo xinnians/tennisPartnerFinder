@@ -18,6 +18,7 @@ import type {
   ControllerSurfaceHandle,
 } from "../../controllerContracts.ts";
 import type { Profile, SessionSummary, SurfaceCloseOptions, SurfaceLoadStatus } from "../../domainTypes.ts";
+import { createAuthRefreshCoordinator } from "../profile-auth/authRefreshCoordinator.ts";
 import { sessionIdentity, validAuthSession } from "../profile-auth/profileAuthFeature.ts";
 
 type AuthProvider = Parameters<typeof signInWithOAuthProvider>[0];
@@ -26,10 +27,6 @@ type ProfileIntent = ControllerPendingIntent | { action: "presence" };
 
 interface AuthRequestSnapshot {
   identity: string | null;
-  isStale(): boolean;
-}
-
-interface RequestSnapshot {
   isStale(): boolean;
 }
 
@@ -71,7 +68,6 @@ interface SafeLoginOptions {
 }
 
 interface ProfileOrchestrationDependencies {
-  captureAuthGateRequest(): RequestSnapshot;
   captureAuthRequest(isCurrent?: () => boolean): AuthRequestSnapshot;
   currentAuthAvatarUrl(): string;
   currentProfileEligibility(): ControllerProfileEligibility;
@@ -305,15 +301,15 @@ export function handleAuthIdentityChange({
 
 export async function applyAuthCandidate(
   candidate: ControllerAuthSession | null,
-  { reconcilePageOwner = false }: { reconcilePageOwner?: boolean } = {}
+  { forcePublic = false, reconcilePageOwner = false }: { forcePublic?: boolean; reconcilePageOwner?: boolean } = {}
 ): Promise<void> {
   const session = validAuthSession(candidate);
   const invalidSession = candidate !== null && session === null;
   dependencies.invalidateAuthRequests();
   // Never pass an ownerless candidate downstream; the controller repeats this validation as defense in depth.
   dependencies.setAuthSession(session);
-  if (reconcilePageOwner || invalidSession) {
-    dependencies.reconcilePageRouteOwner?.({ forcePublic: invalidSession });
+  if (reconcilePageOwner || invalidSession || forcePublic) {
+    dependencies.reconcilePageRouteOwner?.({ forcePublic: invalidSession || forcePublic });
   }
   if (!session) {
     if (invalidSession) {
@@ -329,38 +325,47 @@ export async function applyAuthCandidate(
     return;
   }
   await reloadCurrentProfile().catch(() => {});
-  if (bootAuthParams.get("error") || bootAuthParams.get("error_description")) resumeLinkReturn();
+}
+
+interface AuthRestorePort {
+  schedule?: (task: () => void) => void;
+  subscribe: (callback: (session: unknown, event: string) => void) => () => void;
+  subscribeOnline?: (callback: () => void) => () => void;
+  verifyCurrentSession: () => ReturnType<typeof getInitialSession>;
+}
+
+export async function restoreAuthWithPort({
+  schedule,
+  subscribe,
+  subscribeOnline,
+  verifyCurrentSession,
+}: AuthRestorePort): Promise<void> {
+  const controller = dependencies.getController();
+  const bootstrapIntentVersion = controller.capturePendingIntentVersion();
+  const coordinator = createAuthRefreshCoordinator({
+    applyCandidate: applyAuthCandidate,
+    onConfirmedAnonymous: () => controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion),
+    onSignedOut: () => controller.clearPendingIntent(),
+    onVerified: resumeLinkReturn,
+    ...(schedule ? { schedule } : {}),
+    verifyCurrentSession,
+  });
+  subscribe((session, event) =>
+    coordinator.recordAuthEvent(session as ControllerAuthSession | null | undefined, event)
+  );
+  subscribeOnline?.(() => {
+    void coordinator.retryIfNeeded().catch(() => {});
+  });
+  await coordinator.restore();
 }
 
 export async function restoreAuth(): Promise<void> {
-  const controller = dependencies.getController();
-  const bootstrapIntentVersion = controller.capturePendingIntentVersion();
-  let bootRestoring = true;
-  let latestAuthCandidate: Promise<void> = Promise.resolve();
-  onAuthStateChange((session, event) => {
-    if (!session && event === "SIGNED_OUT") controller.clearPendingIntent();
-    latestAuthCandidate = applyAuthCandidate(session as ControllerAuthSession | null, {
-      reconcilePageOwner: bootRestoring,
-    });
-    if (session && event === "SIGNED_IN") resumeLinkReturn();
+  await restoreAuthWithPort({
+    subscribe: onAuthStateChange,
+    subscribeOnline: (callback) => {
+      globalThis.addEventListener("online", callback);
+      return () => globalThis.removeEventListener("online", callback);
+    },
+    verifyCurrentSession: getInitialSession,
   });
-  const initialRequest = dependencies.captureAuthGateRequest();
-  let initialSession: ControllerAuthSession | null = null;
-  let initialSessionResolved = false;
-  try {
-    initialSession = (await getInitialSession()) as ControllerAuthSession | null;
-    initialSessionResolved = true;
-  } catch {
-    // A later auth event can still complete restoration after a transport failure.
-  }
-  if (initialSessionResolved && !initialSession && !dependencies.getAppState().authSession) {
-    controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion);
-  }
-  if (!initialSessionResolved || initialRequest.isStale()) {
-    await latestAuthCandidate;
-    bootRestoring = false;
-    return;
-  }
-  await applyAuthCandidate(initialSession, { reconcilePageOwner: true });
-  bootRestoring = false;
 }

@@ -371,7 +371,6 @@ const notificationFeature = createNotificationFeature({
 });
 
 configureProfileOrchestrationFeature({
-  captureAuthGateRequest: () => authRequestGate.capture(),
   captureAuthRequest,
   currentAuthAvatarUrl,
   currentProfileEligibility,
@@ -492,11 +491,12 @@ function routeCurrentHash() {
 }
 
 function reconcilePageRouteOwner({ forcePublic = false } = {}) {
+  const page = pageFromHash(globalThis.location?.hash);
   const pageOwnerIdentity = globalThis.history?.state?.pageOwnerIdentity;
-  if (
-    pageFromHash(globalThis.location?.hash) &&
-    (forcePublic || (pageOwnerIdentity && pageOwnerIdentity !== authIdentity(getAppState().authSession)))
-  ) {
+  const mustLeavePrivatePage = forcePublic && page !== "map" && page !== "me";
+  const changedPageOwner =
+    !forcePublic && pageOwnerIdentity && pageOwnerIdentity !== authIdentity(getAppState().authSession);
+  if (page && (mustLeavePrivatePage || changedPageOwner)) {
     showMapPage({ historyMode: "replace" });
   }
 }

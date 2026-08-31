@@ -171,6 +171,18 @@ function sourceTextMatches(sources, pattern) {
   );
 }
 
+function authClientCalls(sources) {
+  return sources.flatMap(({ path, source }) =>
+    source.split("\n").flatMap((line) => {
+      if (line.trimStart().startsWith("//")) return [];
+      return [...line.matchAll(/[.]auth[.]([A-Za-z_$][A-Za-z0-9_$]*)\s*[(]/g)].map((match) => ({
+        method: match[1],
+        path: path.replace(/^.*\/src\//, "src/"),
+      }));
+    })
+  );
+}
+
 test("retired LINE token scan blocks contact identifiers without matching unrelated words", () => {
   assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("LINE_ID"), true);
   assert.equal(RETIRED_LINE_TOKEN_PATTERN.test("LINEID"), true);
@@ -234,31 +246,66 @@ test("frontend source scan allows only the frozen LINE RPC parameter", async () 
   assert.equal(sourceCodeMatches(publicSources, /line_id/).length, 0, "public/ must not contain line_id");
 });
 
+test("browser auth SDK calls stay inside the reviewed serialized method inventory", async () => {
+  const sources = await readFrontendScriptSources(new URL("../src/", import.meta.url));
+  assert.deepEqual(authClientCalls(sources), [
+    { method: "initialize", path: "src/data/authApi.ts" },
+    { method: "getSession", path: "src/data/authApi.ts" },
+    { method: "refreshSession", path: "src/data/authApi.ts" },
+    { method: "onAuthStateChange", path: "src/data/authApi.ts" },
+    { method: "signInWithOAuth", path: "src/data/authApi.ts" },
+    { method: "signOut", path: "src/data/authApi.ts" },
+    { method: "linkIdentity", path: "src/data/authApi.ts" },
+  ]);
+
+  const clientSource = await readFile(new URL("../src/supabaseClient.js", import.meta.url), "utf8");
+  assert.match(clientSource, /lock:\s*serializeSupabaseAuthStorage/);
+  assert.match(clientSource, /lockAcquireTimeout:\s*-1/);
+  assert.match(clientSource, /acquireTimeout === 0 \? 0 : -1/);
+  assert.match(clientSource, /typeof globalThis[.]window !== "undefined"/);
+  assert.match(clientSource, /不支援安全的跨分頁登入鎖/);
+});
+
 test("initial auth restoration distinguishes a definitive anonymous result from a recoverable error", async () => {
   const anonymousClient = {
     auth: {
+      async initialize() {
+        return { error: null };
+      },
       async getSession() {
         return { data: { session: null }, error: null };
       },
     },
   };
-  assert.equal(await resolveInitialSession(anonymousClient, null), null);
+  assert.deepEqual(await resolveInitialSession(anonymousClient, null), { kind: "anonymous", session: null });
 
-  const restoreError = new Error("temporary refresh failure");
+  const cachedSession = {
+    access_token: "cached-access",
+    refresh_token: "cached-refresh",
+    user: { id: "account-a" },
+  };
+  const refreshedSession = {
+    access_token: "fresh-access",
+    refresh_token: "fresh-refresh",
+    user: { id: "account-a" },
+  };
+  let refreshCalls = 0;
   const restoringClient = {
     auth: {
-      async getSession() {
-        return { data: { session: null }, error: null };
+      async initialize() {
+        return { error: null };
       },
-      async setSession() {
-        return { data: { session: null }, error: restoreError };
+      async getSession() {
+        return { data: { session: cachedSession }, error: null };
+      },
+      async refreshSession() {
+        refreshCalls += 1;
+        return { data: { session: refreshedSession }, error: null };
       },
     },
   };
-  await assert.rejects(
-    () => resolveInitialSession(restoringClient, JSON.stringify({ access_token: "access", refresh_token: "refresh" })),
-    restoreError
-  );
+  assert.deepEqual(await resolveInitialSession(restoringClient), { kind: "verified", session: refreshedSession });
+  assert.equal(refreshCalls, 1, "a cached session must always be server-refreshed before use");
 });
 
 test("public and My Sessions mappers keep an explicit allowlist", () => {
