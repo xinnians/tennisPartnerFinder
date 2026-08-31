@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03` Push runtime／migration：唯讀 preflight |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-02 已核可 `1A、2A、3A、4A、5A、6A、7A、8A、9A、10B` |
+| 目前批次 | `FA-03A` Push additive expand：本機實作準備 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 pre-expand hosted 唯讀盤點完成，contract gate 尚未完成 |
 | runtime 變更 | 無 |
 | migration 變更 | 無 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 對 hosted 專案做唯讀 preflight；之後分批實作 FA-03，contract 前另報實際影響筆數 |
+| 下一步 | 依核可設計實作、測試並 commit 本機 additive expand；不部署 hosted，不進 destructive contract |
 
 查實際 Git 狀態：
 
@@ -55,7 +55,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | 已授權；唯讀 preflight 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | pre-expand 唯讀盤點完成；additive expand 準備中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -161,7 +161,7 @@ git diff --check：通過
 - endpoint owner lock 採 exact UTF-8 SHA-256；另以 frozen canonical policy 擋 URL alias。hosted preflight
   只要發現 non-canonical／parse-fail／owner conflict，就停止不可逆擦除並回報，不假設 production 為零。
 
-尚未做：
+FA-02 結案當時尚未做（後續 hosted 盤點見 FA-03）：
 
 - 沒有修改 runtime、migration、generated types、Edge Function、Service Worker 或測試。
 - 沒有查證 hosted production row 數、grant、cron、Edge env 或 provider 行為；這些是 FA-03
@@ -193,6 +193,30 @@ npm run test:db：804 tests，802 passed / 2 failed
 DB 的兩個失敗已定位為 reminder fixture 使用全庫總數，被本機既有 candidate session 多算；不是
 FA-02 程式變更造成，但必須在 FA-03 前修成資料隔離斷言。
 
+## FA-03 pre-expand 唯讀盤點
+
+詳細報告：`frontend-architecture-fa-03-push-preflight-2026-08-31.md`
+去敏證據：`frontend-architecture-fa-03-push-preflight-evidence-2026-08-31.md`
+
+已完成且沒有 hosted 寫入：
+
+- local／remote 25 個 migration 全對齊；PostgreSQL `17.6`、UTF-8。
+- strict pg-delta 確認 `public/private` 沒有 structural DDL drift；差異只在 hosted ACL／default
+  privileges，而且 hosted 預設會廣泛 grant 新物件。
+- `REPEATABLE READ READ ONLY` snapshot 實查 4 筆 legacy subscriptions／3 owners；7 筆 outbox 的
+  `sent_at` 非空，pending 0、orphan 0、retired event 0。這不代表 provider 接受或裝置收到。
+- exact UTF-8 SHA-256 conflict 0；但 frozen canonical policy 尚未實作，所以 canonical 例外**沒有數字**，
+  不能進 contract。
+- additive expand 會回填 2 個 session version 1、1 個 legacy reminder sentinel 0；duplicate group 0。
+- hosted dispatcher 是 ACTIVE version 6、`verify_jwt=false`；下載後兩個 source file 與 repo 逐 byte
+  相同。4 個 production custom secret 名稱存在，mock transport／test URL 名稱不存在。
+- dispatch／reminder cron 唯一、active、command shape 相符；Vault 三個必要名稱各一筆且查詢時非空。
+- 查詢當下 cron running 0、pg_net queue 0；這不等於零 in-flight Edge worker。
+
+盤點結論：可開始**本機** additive expand 與測試；尚未核可 hosted migration/deploy。contract 仍須
+frozen canonical scanner、platform timeout／provider／browser canary、maintenance barrier，以及 Barrier
+後重新取數並再次取得使用者確認。
+
 ## 已知阻塞與風險
 
 - 開發期 bytes 已改為 report；release hard limits 仍沿用歷史數值，必須在第一個 production
@@ -205,18 +229,23 @@ FA-02 程式變更造成，但必須在 FA-03 前修成資料隔離斷言。
   監控並明列無法完全消除的斷線空檔。
 - 現行 web-push 預設 TTL 四週且沒有明確 timeout；endpoint 可控制 Edge outbound target。兩者都是
   FA-03 deployment blocker，不能沿用隱含預設。
+- Hosted public-schema default privileges 對 app roles 過寬；FA-03 新 table／sequence／function 必須在
+  同一 migration 立即 revoke，再做最小 grant，不能留下部署空窗。
+- `canonical-endpoint-policy-v1` 尚未實作，不能用 SQL regex／ambient URL parser 猜 canonical 例外；
+  這不阻擋 additive expand，但會阻擋 destructive contract。
+- Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
+  side-effect-free healthcheck，因此本輪刻意沒有直接呼叫 hosted dispatcher。
 - `ds-bundle/` 是人工同步資料包；繼續使用前要確認與目前 UI/CSS 一致。
 
 ## 下一個 session 的起點
 
-1. 確認分支為 `codex/frontend-architecture-execution`，並讀本文件與 FA-02 設計文件。
-2. 先對 hosted 專案做唯讀 preflight，查實 schema、legacy subscription、pending outbox、grant、cron、
-   Edge 設定與可核對的 provider policy；不能用本機結果代替。
-3. 依 expand → compatible runtime → barrier → disabled deploy → canary → contract → enable 分批實作，
-   每批測試、更新本文件並建立獨立 commit。
-4. contract 前回報 hosted canonical 例外、owner conflict、legacy raw send material 與 pending outbox 的
-   精確筆數；未再次確認前不得擦除或批次取消。
-5. 不得直接 push 遠端。
+1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
+2. 從本機 additive expand 開始：control／consent／registry／delivery schema、schedule version、legacy
+   compatibility shim、最小 ACL 與 isolated pgTAP tests；不套用 hosted。
+3. 修正既有 reminder pgTAP fixture 的全庫計數，先建立可信 baseline。
+4. 之後依 compatible runtime → barrier → disabled deploy → canary → contract → enable 分批實作、測試、
+   更新本文件並建立獨立 commit。
+5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
 
@@ -226,3 +255,4 @@ FA-02 程式變更造成，但必須在 FA-03 前修成資料隔離斷言。
 | 2026-08-31 | FA-01 | Bundle 結構 hard gate 與 byte report／release enforce 分流完成，rules 與測試同步。 |
 | 2026-08-31 | FA-02 | 完成 Push 現況稽核與詳細設計草案；runtime／migration 未動，等待十項核可。 |
 | 2026-08-31 | FA-02 | 使用者核可 `1A、2A、3A、4A、5A、6A、7A、8A、9A、10B`；FA-03 可開始，contract 前仍須回報 hosted 實際影響。 |
+| 2026-08-31 | FA-03 | 完成 hosted pre-expand 唯讀盤點：4 legacy subscriptions、7 筆 `sent_at` 非空／0 pending outbox；結構無 drift、ACL 有差異；未做 hosted 寫入。 |
