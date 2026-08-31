@@ -11,10 +11,10 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B0` auth identity fail-closed 完成；下一批為 Q9-A boot Auth refresh |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03B0` 已完成 |
+| 目前批次 | `FA-03A3.1` outbox deferred guard 相容性 hotfix 完成；Q9-A boot Auth refresh 驗證中 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0` 已完成 |
 | runtime 變更 | D6 已落地：session owner 只認非空 `user.id`；不完整 session 不進私人資料流程 |
-| migration 變更 | repo／本機共新增 9 份 additive foundation migration；hosted 尚未套用 |
+| migration 變更 | repo／本機共新增 10 份 additive foundation／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
 | 下一步 | 完成 Q9-A boot Auth refresh 與事件競態；再進 compatible command／browser Push／dispatcher；不部署 hosted |
 
@@ -57,7 +57,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03B0` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -344,6 +344,34 @@ private schema 獨立覆核：兩個 Medium hardening 缺口修正後 zero block
 全批最終覆核：INSERT version ownership blocker 修正並補真實 fixture 後 zero blockers
 ```
 
+## FA-03A3.1 outbox deferred guard 相容性 hotfix
+
+已完成：
+
+- authenticated 邊界的 pre-fix 重現確認：test-only `SECURITY DEFINER` format 2 writer 返回後，deferred
+  trigger 會以 `authenticated` 執行；原本 invoker-security helper 讀取 `notification_outbox` 時精準失敗為
+  `42501 permission denied for table notification_outbox`。production writer 目前仍只寫 format 1，且因條件
+  短路不會執行該 SELECT；本文件不把 test-only format 2 證據誤稱為現行 browser writer 行為。
+- 新增 additive `010` migration，只把 `private.reject_open_notification_outbox_commit()` 改為
+  `SECURITY DEFINER`，保留空 `search_path`，並再次撤除 PUBLIC、anon、authenticated、service_role 的
+  直接 EXECUTE；沒有授予 browser role 任何 outbox SELECT。
+- 新增 10 項 pgTAP，從 `authenticated` 邊界實證：helper owner 為 `postgres`、現行 `create_session`
+  format 1 可提交、合法 frozen
+  format 2 可提交、open format 2 仍以契約錯誤 `23514 NOTIFICATION_OUTBOX_FANOUT_OPEN` 被拒絕，且
+  browser SELECT／直接呼叫 helper 持續禁止。
+- 本機測試 DB 從零套用 35 份 migration（含 `001`～`010`），沒有修改 hosted 資料庫。
+
+本批驗證：
+
+```text
+npm run test:db：12 files、1,024 tests，全數通過
+npx supabase db lint --local --schema public,private：No schema errors found
+npm run typecheck：通過
+npm run lint：通過
+npm run prettier:check：通過
+git diff --check（migration／DB tests）：通過
+```
+
 ## FA-03B0 auth identity fail-closed
 
 已完成：
@@ -405,8 +433,8 @@ git diff --check：通過
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
 2. 確認 `FA-03A2` contract 與 `FA-03A3` dormant schema commit 都存在；不要重做已完成的 003～009。
-3. 以 `npm run test:db` 的 1,014／1,014、DB lint clean 與 strict shadow diff 空白作為 compatible runtime
-   的下一批基線。
+3. 以 `npm run test:db` 的 1,024／1,024 作為 compatible runtime 的最新 DB 基線；A3 當時的 DB lint
+   clean 與 strict shadow diff 空白仍是 schema foundation 證據，`010` hotfix 另有從零 replay 證據。
 4. 先完成 Q9-A boot Auth refresh，再依 compatible command/browser/dispatcher → barrier → disabled deploy →
    canary → contract → enable 分批實作、測試，更新本文件並建立獨立 commit。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
@@ -424,4 +452,5 @@ git diff --check：通過
 | 2026-08-31 | FA-03A1 | sessions schedule version 與 outbox nullable/sentinel foundation 分成兩個無反向鎖序的 migration；837／837 通過，hosted 未套用。 |
 | 2026-08-31 | FA-03A2 | schema contract 三路複查完成；使用者核可刪帳最小保留與 no-op 不推播，準備獨立 commit；hosted 未寫入。 |
 | 2026-08-31 | FA-03A3 | 003～009 dormant schema、177 項新增 pgTAP 與真實刪帳 FK 測試完成；全套 DB 1,014／1,014、strict diff 空白，hosted 未套用。 |
+| 2026-08-31 | FA-03A3.1 | 010 將 deferred outbox guard 收斂為 postgres-owned empty-path definer helper，browser 權限不放寬；從零 replay 與 DB 1,024／1,024 通過，hosted 未套用。 |
 | 2026-08-31 | FA-03B0 | auth identity 只認非空 `user.id`；不完整 session 在私人 RPC 前 fail-closed，完整單元回歸 355／355、Chromium 298 passed。 |

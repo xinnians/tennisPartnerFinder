@@ -155,12 +155,12 @@ select ok(
 );
 select ok(
   (
-    select not function_row.prosecdef
+    select function_row.prosecdef
       and coalesce(function_row.proconfig, '{}'::text[]) @> array['search_path=""']::text[]
     from pg_proc function_row
     where function_row.oid = to_regprocedure('private.reject_open_notification_outbox_commit()')
   ),
-  'the deferred open-commit helper is invoker-security with an empty search path'
+  'the deferred open-commit helper is definer-security with an empty search path'
 );
 select ok(
   to_regprocedure('private.reject_open_notification_outbox_commit()') is not null
