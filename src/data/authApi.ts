@@ -203,10 +203,16 @@ export async function signInWithOAuthProvider(provider: Provider): Promise<void>
   if (error) throw asDataApiError(error);
 }
 
-export async function signOut(): Promise<void> {
-  const client = requireDefaultSupabase();
-  const { error } = await client.auth.signOut();
+export async function signOutCurrentDevice(client: AuthClient): Promise<void> {
+  // `local` clears only this browser's session. Do not wrap this in the app
+  // lock again: the configured GoTrue client already runs signOut under that
+  // same lock, and nesting it would deadlock.
+  const { error } = await client.auth.signOut({ scope: "local" });
   if (error) throw asDataApiError(error);
+}
+
+export async function signOut(): Promise<void> {
+  return signOutCurrentDevice(requireDefaultSupabase());
 }
 
 // manual identity linking:把另一個登入 provider 掛到「目前已登入」的帳號(整頁 redirect,

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { GoTrueClient } from "@supabase/supabase-js";
 
-import { resolveInitialSession } from "../src/data/authApi.ts";
+import { resolveInitialSession, signOutCurrentDevice } from "../src/data/authApi.ts";
 import {
   createSupabaseAuthRefreshObserver,
   serializeSupabaseAuthStorage,
@@ -94,6 +94,34 @@ function authClient({ fetch, storage, storageKey }) {
 async function letQueuedWorkRun() {
   await new Promise((resolve) => setImmediate(resolve));
 }
+
+test("the production auth wrapper signs out only the current device", async () => {
+  const calls = [];
+  await signOutCurrentDevice({
+    auth: {
+      async signOut(options) {
+        calls.push(options);
+        return { error: null };
+      },
+    },
+  });
+
+  assert.deepEqual(calls, [{ scope: "local" }]);
+});
+
+test("the current-device sign-out wrapper preserves a Supabase failure", async () => {
+  const failure = Object.assign(new Error("logout unavailable"), { code: "auth_unavailable" });
+  await assert.rejects(
+    signOutCurrentDevice({
+      auth: {
+        async signOut() {
+          return { error: failure };
+        },
+      },
+    }),
+    (error) => error?.message === failure.message && error?.code === failure.code && error?.cause === failure
+  );
+});
 
 test("auth storage fails closed in a browser without cross-tab Web Locks", async () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
