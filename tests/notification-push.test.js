@@ -10,6 +10,8 @@ const PUSH_CLEANUP_TRANSPORT_URL = new URL("../src/notificationPushCleanupTransp
 const PUSH_CLEANUP_TRANSPORT_SOURCE = readFileSync(PUSH_CLEANUP_TRANSPORT_URL, "utf8");
 const PUSH_CLEANUP_COORDINATOR_URL = new URL("../src/notificationPushCleanupCoordinator.ts", import.meta.url);
 const PUSH_CLEANUP_COORDINATOR_SOURCE = readFileSync(PUSH_CLEANUP_COORDINATOR_URL, "utf8");
+const PUSH_DEACTIVATION_URL = new URL("../src/notificationPushDeactivation.ts", import.meta.url);
+const PUSH_DEACTIVATION_SOURCE = readFileSync(PUSH_DEACTIVATION_URL, "utf8");
 const PUSH_AUTH_FAILURE_COORDINATOR_URL = new URL("../src/notificationPushAuthFailureCoordinator.ts", import.meta.url);
 const PUSH_AUTH_FAILURE_COORDINATOR_SOURCE = readFileSync(PUSH_AUTH_FAILURE_COORDINATOR_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
@@ -100,6 +102,14 @@ test("the Push cleanup coordinator stays outside the production runtime graph", 
   assert.deepEqual(references, []);
 });
 
+test("the Push deactivation seam stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_DEACTIVATION_URL.href)
+    .filter((sourceUrl) => /notificationPushDeactivation/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
 test("the Push Auth-failure coordinator stays outside the production runtime graph", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_AUTH_FAILURE_COORDINATOR_URL.href)
@@ -169,6 +179,24 @@ test("the dormant cleanup coordinator has no direct runtime, scheduling, or logg
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
   assert.doesNotMatch(PUSH_CLEANUP_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
+});
+
+test("the dormant Push deactivation seam has no runtime, network, persistence, logging, or timer dependency", () => {
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /^\s*import\s+["']/gmu);
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_DEACTIVATION_SOURCE,
+    /\b(?:dataApi|supabaseClient|notificationPushStorage|notificationPushCleanupCoordinator|notificationPushCleanupTransport|notificationPushOwnerQuarantine)\b/u
+  );
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u);
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_DEACTIVATION_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\b(?:for|while)\s*\(/u);
 });
 
 test("the dormant Push Auth-failure coordinator has no direct Auth, runtime, queue, or scheduling dependency", () => {

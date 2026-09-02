@@ -11,9 +11,9 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B10.1` current-device Auth sign-out scope 完成；Push cleanup coordination 仍未接線 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.1` 已完成；`FA-03B10` contract 待外部複核 |
-| runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport、owner-quarantine adapter、single-attempt cleanup coordinator 與 Auth-failure handoff coordinator 已落地；Push 登出 cleanup、B1 → B9 Auth failure、SW、dispatcher 尚未接線 |
+| 目前批次 | `FA-03B10.2` dormant browser Push deactivation seam 完成；production 零 importer／caller |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.2` 已完成；`FA-03B10` contract 待外部複核 |
+| runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport、owner-quarantine adapter、single-attempt cleanup coordinator、Auth-failure handoff 與 browser Push deactivation seam 已落地；Push 登出 server cleanup、B1 → B9 Auth failure、SW、dispatcher 尚未接線 |
 | migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
 | 下一步 | 請 Claude 複核 `FA-03B10` 契約；收斂 reviewer 意見並由使用者核可 additive migration 後，才進 `FA-03A4`。D2 Push cleanup、SW／dispatcher 仍各自分批，仍不部署 hosted |
@@ -31,7 +31,7 @@ git log --oneline --decorate -10
 | ID | 決策 | 實作狀態 |
 | --- | --- | --- |
 | D1 | Push 同意採「帳號＋裝置」opt-in；換帳號必須重新同意 | Q2-A 已核可；FA-03 待實作 |
-| D2 | 一般登出只停止目前裝置的登入與推播；其他裝置不受影響 | `FA-03B10.1` 已把 production Auth sign-out 固定為 local scope；server-first Push cleanup 與 browser unsubscribe 尚未接線 |
+| D2 | 一般登出只停止目前裝置的登入與推播；其他裝置不受影響 | `FA-03B10.1` 已固定 production Auth local scope；`FA-03B10.2` 已完成 dormant capture／unsubscribe／reread 分類，production 與 server cleanup 尚未接線 |
 | D3 | Push cleanup 結果不明時採 durable quarantine；dispatcher 送出前重查狀態 | Q1-A／Q7-A 已核可；FA-03 待實作 |
 | D4 | Q6-A 已取代原本無法由現有 stack 證明的精確界線：只承諾 DB transaction 持續有效時的 quarantine/send 排序；載入記憶體仍不算 handoff | 已核可 current-stack 條件式邊界；殘餘斷線空檔需保留監控與測試 |
 | D5 | quarantine 的重新確認、保存期限與到期處理由 `FA-02` 提案後再核可；不先猜 30／90 天 | Q1-A 已核可：不設日曆期限，只依 server provider 證據解除 |
@@ -67,7 +67,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.1` 完成；`FA-03B10` contract 待外部複核 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.2` 完成；`FA-03B10` contract 待外部複核 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -1030,6 +1030,45 @@ typecheck／ESLint／Prettier／git diff --check：通過
 DB schema／migration：未變更；hosted deploy／env／Push request／DB 寫入：未執行
 ```
 
+## FA-03B10.2 dormant browser Push deactivation seam
+
+已完成：
+
+- 新增無 import 的 `notificationPushDeactivation.ts`，以注入的 `readCurrentSubscription()` 固定 D2 登出六步流程
+  的前四步：捕捉目前 subscription、呼叫一次 `unsubscribe()`、再讀一次、依實際結果分類。
+- 每次呼叫最多讀 subscription 兩次、unsubscribe 一次；第一讀為 exact `null` 時回 `absent`，不做 unsubscribe。
+- `unsubscribe()` 的 exact `true` 只記為 `deactivation-started`，exact `false` 只記為 `already-inactive`；throw 或
+  非 boolean 只記 `unknown`。這些回傳值都不能單獨證明最終狀態。
+- 第二讀為 exact `null` 才回 `deactivated`；endpoint exact 不同才回 `replaced`；相同 endpoint、讀取失敗、
+  malformed handle 或其他結果全部 fail-closed 為 `unknown`。
+- 結果只把 captured／replacement handle 交給未來明確 caller；本 module 不記錄、不持久化、不送 network，
+  也沒有 timer、retry 或全域 browser dependency。
+- `notification-push.test.js` 新增 production graph zero-reference 與無 network／storage／log／timer governance gate；
+  新單元測試已加入正式 `test:session-unit` inventory。
+
+精確邊界：
+
+- 本批是 dormant seam，production 沒有 importer 或 caller；`handleSignOut()` 行為仍只有 B10.1 Auth local scope。
+- 尚未建立 Service Worker registration adapter，也沒有接 B5 suspension、B7 owner quarantine、B8 token cleanup、
+  legacy delete、replacement reconciliation 或 UI 提示。
+- `captured.endpoint` 與 replacement handle 是 capability data；未來 caller 必須只傳給核可的 cleanup／refresh port，
+  不得寫 log、error、analytics 或一般 app state。
+- 本批不新增 timeout。若 browser promise 永久 pending，目前就會 pending；要訂 timeout 必須先有量測證據與
+  對應的 unknown → durable quarantine caller。
+- 沒有 runtime bundle、dependency、migration、hosted deploy、Push request 或 DB 寫入變更。
+
+本批驗證：
+
+```text
+deactivation／governance／CI inventory targeted：52／52 passed
+完整 session unit：488 tests；487 passed、1 skipped、0 failed
+mock Chromium：332 tests；328 passed、4 skipped、0 failed
+production build：509 modules；bundle bytes 與 B10.1 完全相同，structural gate 通過
+typecheck／ESLint／Prettier／git diff --check：通過
+production graph references：0
+DB schema／migration：未變更；hosted deploy／env／Push request／DB 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,082／190,278 與最大 lazy 16,476／4,830 raw/gzip 均在現有門檻；
@@ -1040,8 +1079,9 @@ DB schema／migration：未變更；hosted deploy／env／Push request／DB 寫�
   或已停止 production send。
 - outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op source version 已完成本機
   migration／測試；compatible runtime、barrier 與 hosted 套用仍未做。
-- 現行一般登出的 Auth session 已在 `FA-03B10.1` 改為 local scope；但 Push unsubscribe、server-first cleanup 與
-  durable quarantine 尚未接線，所以 D2 仍只完成 Auth 部分。
+- 現行一般登出的 Auth session 已在 `FA-03B10.1` 改為 local scope，B10.2 也已建立 dormant browser
+  capture／unsubscribe／reread seam；但 production importer、server-first cleanup 與 durable quarantine 尚未接線，
+  所以 D2 仍未完整。
 - D6、Q9-A Auth boot gate、quarantine DB digest boundary、local-only encrypted Edge 與 B9 dormant handoff seam
   已完成；但 B1 rejected result 尚無可信舊 owner correlation，production 對 B9 為零 caller，explicit rejection
   也尚未由 browser 呼叫 Edge。`auth_unavailable` 已決策為「驗證成功仍不自動恢復，必須手動重新啟用」，但
@@ -1084,18 +1124,20 @@ DB schema／migration：未變更；hosted deploy／env／Push request／DB 寫�
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
-   owner-quarantine adapter、`FA-03B8` single-attempt coordinator 與 `FA-03B9` Auth-failure handoff coordinator 都
-   存在；不要重做已完成的 003～011、Auth gate、transport linkage、RSA envelope、key generator、browser storage
-   schema、key loader、owner result mapping、bigint string boundary、single-attempt exact transport→CAS handoff
-   或 caller-supplied Auth failure → B5／B8 exact handoff。
+   owner-quarantine adapter、`FA-03B8` single-attempt coordinator、`FA-03B9` Auth-failure handoff、`FA-03B10.1`
+   Auth local sign-out 與 `FA-03B10.2` dormant browser deactivation 都存在；不要重做已完成的 003～011、Auth gate、
+   transport linkage、RSA envelope、key generator、browser storage schema、key loader、owner result mapping、bigint
+   string boundary、single-attempt exact transport→CAS handoff、caller-supplied Auth failure → B5／B8 handoff，或
+   capture → unsubscribe → reread classification。
 3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
    DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
    coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 B1 correlation、手動 re-enable、canonical endpoint、
    provider egress、Edge wire schema、service-role DB command 與 unified consent-version CAS。先收斂 Claude review；
-   additive migration 未獲使用者核可前不得開始 `FA-03A4`。`FA-03B10.1` 只完成 D2 Auth local scope；Push
-   unsubscribe／cleanup、SW／dispatcher 仍各自分批並建立獨立 commit。未決定排程與 backoff 前不可加入
-   scheduler。沒有 hosted limiter／canary／log／egress 證據前，不可移除 local-only gate。
+   additive migration 未獲使用者核可前不得開始 `FA-03A4`。`FA-03B10.1` 只完成 D2 Auth local scope，B10.2
+   只完成 dormant browser deactivation seam；production composition／server cleanup、SW／dispatcher 仍各自分批並
+   建立獨立 commit。未決定排程與 backoff 前不可加入 scheduler。沒有 hosted limiter／canary／log／egress
+   證據前，不可移除 local-only gate。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -1124,3 +1166,4 @@ DB schema／migration：未變更；hosted deploy／env／Push request／DB 寫�
 | 2026-09-01 | FA-03B9 | 使用者核可先完成 dormant Auth-failure handoff：unavailable 只做 B5 local-close，rejected 只把 exact B5 attempt 交 B8 一次；production 零 caller，B1 可信 owner correlation 與 unavailable recovery 仍未完成。 |
 | 2026-09-02 | FA-03B10 | 使用者核可 unavailable 不自動恢復與 contract-first；Push v2 enable／refresh v1 已 review-freeze，等待 Claude 複核與 additive migration 核可，runtime／hosted 未變。 |
 | 2026-09-02 | FA-03B10.1 | production Auth sign-out 明確改為 current-device local scope；exact wrapper／error／GoTrue race 測試通過，Push unsubscribe／cleanup 仍未接線。 |
+| 2026-09-02 | FA-03B10.2 | dormant browser Push capture／unsubscribe／reread seam 完成 bounded 分類；production 零 importer，server cleanup／migration／hosted 未動。 |
