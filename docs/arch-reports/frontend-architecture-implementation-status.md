@@ -1,6 +1,6 @@
 # 前端架構開發進度
 
-最後更新：2026-09-01
+最後更新：2026-09-02
 
 這是前端架構開發的**單一進度入口**。新的 session 應先讀本文件，再讀
 `frontend-architecture-final-v3-2026-08-31.md`；舊的審查報告只作歷史紀錄，不直接代表目前狀態。
@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B9` dormant Auth-failure handoff coordinator 完成；production runtime 零 import／caller |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B9` 已完成 |
+| 目前批次 | `FA-03B10` Push v2 enable／refresh technical contract v1 已 review-freeze；本批只改文件 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B9` 已完成；`FA-03B10` 待外部複核 |
 | runtime 變更 | Auth gate、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport、owner-quarantine adapter、single-attempt cleanup coordinator 與 Auth-failure handoff coordinator 已落地；後五者尚未接 production，B1 → B9 Auth failure、登出、SW、dispatcher 尚未接線 |
 | migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 先補 B1 rejection 與舊 owner／binding 的可信 correlation；`auth_unavailable` 成功重驗後的恢復政策仍待確認。v2 enable／refresh 必須先固定 canonical／egress 與 Edge／RPC technical contract；D2 local sign-out、SW／dispatcher 仍各自分批，仍不部署 hosted |
+| 下一步 | 請 Claude 複核 `FA-03B10` 契約；收斂 reviewer 意見並由使用者核可 additive migration 後，才進 `FA-03A4`。D2 local sign-out、SW／dispatcher 仍各自分批，仍不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -49,6 +49,8 @@ git log --oneline --decorate -10
 | D17 | dormant owner-quarantine adapter 每次有效呼叫只送 1 次既有 `quarantine_push_device` RPC；exact `OK` 才回 completed、exact `STALE_PUSH_DEVICE` 才回 stale，其餘回 pending。UUID／version 不合法時在 RPC 前 fail-closed | `FA-03B7` 已完成；沒有 retry、timeout、backoff 或排程，production 零 caller |
 | D18 | dormant cleanup coordinator 每次只處理 caller 明確提供的一筆 attempt，最多呼叫 transport 一次；只有 exact `{kind: "completed"}` 才把原 attempt 交給 local completion 一次。local completion 回 primitive boolean（`true`／`false`）才回 completed，其餘或 throw 都回 pending；不掃描、不排程、不自行重試 | `FA-03B8` 已完成；production 零 caller |
 | D19 | dormant Auth-failure handoff 只接受 exact `rejected`／`unavailable`、相符 `authUserId` 與 exact B5 safe binding CAS snapshot。`unavailable` 只做本機 `auth-unverified`；`rejected` 先交 B5 suspend／queue，再把 exact correlated attempt 交 B8 一次。invalid process input、contract drift、throw 或非 exact completion 一律 pending | 使用者核可先建立 `FA-03B9` dormant seam；production 零 caller，B1 可信 owner correlation 與 unavailable recovery 仍未完成 |
+| D20 | `auth_unavailable` 後即使 Auth 重新驗證成功也不自動恢復 Push；使用者必須再次明確啟用，先完成舊 binding cleanup，再建立新 binding、cleanup token 與 server consent epoch | 使用者於 2026-09-02 選 A；契約已寫入 `FA-03B10`，runtime／UI 尚未實作 |
+| D21 | v2 enable／refresh 先凍結 canonical subscription、provider egress、Edge、DB CAS、Auth correlation 與測試契約；Claude 複核與使用者 migration 核可前不實作 schema／production wiring | 使用者於 2026-09-02 選 A；`FA-03B10` review-freeze 完成 |
 
 ## 授權邊界
 
@@ -65,7 +67,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B9` 完成；compatible runtime 進行中 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B9` 完成；`FA-03B10` contract 待外部複核 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -924,8 +926,8 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
   舊 owner／binding identity；B9 只證明 caller 提供的 `authUserId` 和 snapshot owner 相等，不是獨立 Auth proof。
   在補上可信 correlation 前不能把 B1 直接接到 B9，Q9-A 整體仍未完成。
 - `local-closed` 只證明 B5 本機 transaction 回了 exact `auth-unverified` state；不代表 server 已 quarantine。
-  `auth_unavailable` 後驗證成功時要自動恢復、要求使用者重新啟用，或建立新 epoch，目前仍未決；B5／B9 沒有
-  resume API，本批沒有猜測。
+  B9 完成時尚未選擇後續政策；D20 已於 2026-09-02 決定「不自動恢復，手動重新啟用時建立新 epoch」。
+  B5／B9 目前仍沒有 resume／manual-reenable API，runtime 尚未實作。
 - B9 刻意不覆寫或降級既有 `cleanup-required`；`cleanup-required + unavailable` 分支不呼叫任何 port 並回
   pending，因此也不證明 caller snapshot 仍是目前狀態。
 - `cleanup-completed` 沿用 B8 的「本次 input attempt 已 settled」語意；不證明 server 原本有 row、整個 queue
@@ -940,8 +942,9 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
   無法可靠清零的 JavaScript string。同源 XSS 風險不變，但 B9 不記錄、不回傳，也不把 token 放進錯誤。
 - browser composition 的 transport 是 fake，沒有呼叫 B6、local Edge 或 hosted Edge。public key 仍未配置，
   hosted handler 仍 hard-disabled；D2 local sign-out、v2 enable／refresh、Service Worker 與 dispatcher 都未接線。
-- production v2 enable／refresh 仍缺 frozen canonical endpoint／provider egress policy、Edge request／response／
-  error contract、private DB command 與完整 CAS 定義；本批沒有新增 adapter 或 migration 來猜這些契約。
+- B9 完成時 production v2 enable／refresh 尚缺 canonical endpoint／provider egress、Edge request／response／
+  error、private DB command 與完整 CAS 定義；`FA-03B10` 已在後續文件凍結 v1 contract，但 adapter／migration
+  仍未實作。
 
 本批驗證：
 
@@ -958,6 +961,44 @@ typecheck／lint／prettier:check／git diff --check：全部通過
 DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：未執行
 ```
 
+## FA-03B10 Push v2 enable／refresh technical contract v1
+
+已完成：
+
+- 新增 `frontend-architecture-fa-03b10-push-v2-contract-2026-09-02.md`，明確分開 repo 已證明事實、使用者
+  已確認產品決策、未來 implementation contract 與仍需 deployment evidence 的參數。
+- D20 已固定：`auth_unavailable` 後驗證成功不自動 resume；使用者再次啟用時，必須先完成舊 binding cleanup，
+  再產生新 binding、cleanup token 與 server consent epoch。
+- v2 browser request、獨立 RSA-OAEP＋AES-GCM wire envelope、Edge exact input／output、canonical endpoint、
+  P-256／auth key、VAPID、provider-origin policy、DB command、CAS、idempotency、lock order、legacy coexistence、
+  B1 → B9 correlation 與測試矩陣已固定成 v1 review baseline。
+- 為避免無必要的 IndexedDB migration，選定沿用 B5 v1 server snapshot；未來 DB consent `version` 要擴充成
+  consent 或 transport 任一語意改變都遞增的統一 CAS。純 no-op 不遞增。
+- provider origin 實值、TTL、timeout、rate limit 與 hosted egress 能力沒有 repo／canary 證據，因此契約只固定
+  canonical config format 與 hard-disable gate，沒有猜 hostname 或秒數。
+- 查核來源包含現有 B1～B9、007／008／011 migrations、legacy dispatcher，以及 W3C Push API、RFC 8030／
+  8291、WHATWG URL、W3C Web Cryptography API、OWASP SSRF、web-push 3.x 與 Supabase Auth 官方文件。
+
+精確邊界：
+
+- 本批只新增／修改 Markdown；沒有新增 runtime、test、dependency、migration、Edge Function、env 或 UI 文案。
+- `client_binding_id`、`transport_revision`、`user_reenable` reason、provisioning cancel、v2 Edge／RPC 名稱、
+  hybrid envelope 與 `/push-subscription-key-v1.json` 都只是已凍結的 future contract，repo 目前尚不存在；
+  不可寫成已實作。
+- provider-origin allowlist 目前沒有 production 實值。contract reviewer 必須特別確認 DNS check 與實際 outbound
+  socket 是否共用同一解析結果；若平台不能提供可證明的 egress allowlist，v2 需改走獨立 push gateway。
+- 外部複核完成不等於 migration 已核可。`FA-03A4` 開始前仍須回報 exact additive diff 並取得使用者確認。
+
+本批驗證：
+
+```text
+repo／官方一手來源逐條交叉核對
+Markdown code fence parity：通過
+git diff --check：通過
+runtime／test／dependency／migration：未變更
+hosted deploy／env／request／DB 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,038／190,258 與最大 lazy 16,476／4,828 raw/gzip 均在現有門檻；
@@ -971,8 +1012,8 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 - 現行一般登出走 auth-js 預設 global scope，與 D2 尚未一致。
 - D6、Q9-A Auth boot gate、quarantine DB digest boundary、local-only encrypted Edge 與 B9 dormant handoff seam
   已完成；但 B1 rejected result 尚無可信舊 owner correlation，production 對 B9 為零 caller，explicit rejection
-  也尚未由 browser 呼叫 Edge。`auth_unavailable` 後的恢復政策、SW/private Push 與 dispatcher gate 都未完成，
-  因此 Q9 整體仍未完成。
+  也尚未由 browser 呼叫 Edge。`auth_unavailable` 已決策為「驗證成功仍不自動恢復，必須手動重新啟用」，但
+  coordinator／UI 尚未實作；SW/private Push 與 dispatcher gate 也未完成，因此 Q9 整體仍未完成。
 - Auth 跨頁安全依賴符合規格的 Web Locks 與目前固定的 auth-js 2.110.0 call shape；舊版 tab／外部 client
   不受新 lock 約束。`-1` 無期限等待避免 timeout-steal，但持鎖 request 若永久 pending 也會讓後續 auth/data
   等待；目前沒有未經證據自行設定 network timeout。
@@ -997,16 +1038,17 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 - `supabase functions deploy`／`serve` 會涵蓋多個 Functions；即使 hosted handler 不執行 DB，誤部署仍可能
   帶來公開請求成本。正式啟用前仍需 deployment allowlist、distributed limiter、hosted log canary 與有證據的
   RPC timeout；目前只先禁止 redirect，沒有猜測 timeout 秒數。
-- `canonical-endpoint-policy-v1` 尚未實作，不能用 SQL regex／ambient URL parser 猜 canonical 例外；
-  這不阻擋 additive schema expand，但會阻擋 production v2 enable／refresh 接受新的 raw endpoint，也會阻擋
-  destructive contract。
+- `FA-03B10` 已凍結 `canonical-endpoint-policy-v1` 契約，但 module 與 production provider-origin 實值尚未建立；
+  不能用 SQL regex／ambient URL parser 猜 canonical 例外。這不阻擋經核可的 additive schema expand，但會阻擋
+  production v2 enable／refresh 接受新的 raw endpoint，也會阻擋 destructive contract。
 - Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
   side-effect-free healthcheck，因此本輪刻意沒有直接呼叫 hosted dispatcher。
 - `ds-bundle/` 是人工同步資料包；繼續使用前要確認與目前 UI/CSS 一致。
 
 ## 下一個 session 的起點
 
-1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、FA-02 設計與 FA-03 preflight 報告。
+1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、`FA-03B10` Push v2 contract、FA-02 設計與
+   FA-03 preflight 報告。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -1017,12 +1059,11 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
    DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
-   coordinator 與 Auth-failure handoff seam。下一批先解決 B1 rejected result 如何帶出可信舊 owner／binding
-   correlation；`auth_unavailable` 成功重驗後的恢復政策未確認前，不得自行新增 resume transition。v2 enable／
-   refresh 必須先固定 canonical endpoint／provider egress、Edge wire schema、private DB command 與 CAS contract；
-   若需要 additive migration，先依授權邊界取得確認。D2 local sign-out、SW／dispatcher 仍各自分批並建立獨立
-   commit；未決定排程與 backoff 前不可加入 scheduler。沒有 hosted limiter／canary／log 證據前，不可移除
-   local-only gate。
+   coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 B1 correlation、手動 re-enable、canonical endpoint、
+   provider egress、Edge wire schema、service-role DB command 與 unified consent-version CAS。先收斂 Claude review；
+   additive migration 未獲使用者核可前不得開始 `FA-03A4`。D2 local sign-out、SW／dispatcher 仍各自分批並建立
+   獨立 commit；未決定排程與 backoff 前不可加入 scheduler。沒有 hosted limiter／canary／log／egress 證據前，
+   不可移除 local-only gate。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -1049,3 +1090,4 @@ DB schema／migration：未變更；hosted deploy／env／request／DB 寫入：
 | 2026-09-01 | FA-03B7 | dormant owner-quarantine RPC adapter、exact OK／STALE／pending mapping 與 bigint string boundary 完成；production 零 caller，Auth rejected／D2 sign-out／hosted 均未接。 |
 | 2026-09-01 | FA-03B8 | dormant caller-supplied single-attempt cleanup coordinator 完成 exact transport→local CAS handoff；production 零 caller，未掃描 queue、未排程、未做跨 tab traffic dedup。 |
 | 2026-09-01 | FA-03B9 | 使用者核可先完成 dormant Auth-failure handoff：unavailable 只做 B5 local-close，rejected 只把 exact B5 attempt 交 B8 一次；production 零 caller，B1 可信 owner correlation 與 unavailable recovery 仍未完成。 |
+| 2026-09-02 | FA-03B10 | 使用者核可 unavailable 不自動恢復與 contract-first；Push v2 enable／refresh v1 已 review-freeze，等待 Claude 複核與 additive migration 核可，runtime／hosted 未變。 |
