@@ -1,7 +1,7 @@
-# FA-03B10 Push v2 enable／refresh 技術契約 v1.1
+# FA-03B10 Push v2 enable／refresh 技術契約 v1.2
 
 日期：2026-09-02
-狀態：**review freeze v1.1；2026-09-02 依 Claude 複核與使用者拍板修訂；尚未實作**
+狀態：**review freeze v1.2；2026-09-02 依 Claude 複核與使用者拍板修訂為 v1.1，同日補兩項拍板為 v1.2；尚未實作**
 
 這份文件是給下一輪實作與 Claude 複核使用的固定契約。它把「repo 已存在的事實」和「未來要做的設計」分開寫，
 避免把提案誤當成已完成。
@@ -30,6 +30,11 @@
   11. §14 A4 口徑改為 additive＋既有物件替換；B11 加 `/push-subscription-key-v1.json` header rule；新增
       push-cleanup hosted 啟用批次。
   12. §16 改為複核紀錄與仍開放的檢查點。
+- v1.2（2026-09-02）：使用者補兩項拍板，只影響 §10.4、§10.5 與 §13 DB：
+  1. §10.4 新增「enabled、同 binding、無 transport」的 transport 重建路徑，封掉同 binding 永遠 `stale` 的鎖死；
+     §10.5 對應回 `stale` 交由 enable 收斂。
+  2. §13 DB 的 lock-order 併發測試明訂本機 pgTAP 單一連線的替代斷言與 canary；真併發 deadlock 與寫入階段三種
+     搶插分支列入 §14 第 6 條 dispatcher barrier 批。
 
 ## 1. 本次已確認的產品決策
 
@@ -455,8 +460,8 @@ predecessor 非 null 的 request；predecessor 為 null 時依 §10.4 的 same-o
 ### 10.4 enable state transition
 
 - 無 consent：建立 enabled consent、active registry 與 v2 transport。
-- 判定順序：先比 request `bindingId` 與 stored `client_binding_id`。相等時只走 exact retry（no-op success）或
-  stale，不進 rotation；不相等（新 provisioning 的新 `bindingId`）才依 predecessor 是否為 null 分流。
+- 判定順序：先比 request `bindingId` 與 stored `client_binding_id`。相等時只走 exact retry（no-op success）、
+  無 transport 時的 transport 重建，或 stale，不進 rotation；不相等（新 provisioning 的新 `bindingId`）才依 predecessor 是否為 null 分流。
 - predecessor 非 null 時，只接受 §10.3 的兩種 exact successor 狀態：exact enabled 於同一 transaction 先 pause 舊
   epoch，再以新 token／binding 啟用新 epoch，該 pause 必須經 `private.quarantine_locked_push_consent`
   （`reason_code = 'subscription_changed'`）執行，不得自寫第二份 registry＋transport＋delivery 三段；one-step
@@ -488,8 +493,13 @@ predecessor 非 null 的 request；predecessor 為 null 時依 §10.4 的 same-o
   dispatcher 誤刪 transport 三種情境都靠 same-owner rotation 收斂。
 - enabled 且 exact retry：no-op success。exact retry 的定義是 stored `client_binding_id`、`cleanup_token_hash`、
   endpoint fingerprint、`p256dh`、`auth`、VAPID fingerprint 全部相同。
-- enabled 且 bindingId 等於 stored `client_binding_id` 但內容不同：stale；改寫既有 binding 的 transport 是 refresh
-  的職責，不是 enable。
+- enabled、bindingId 等於 stored `client_binding_id`、仍有 transport 但內容不同：stale；改寫既有 binding 的
+  transport 是 refresh 的職責，不是 enable。
+- enabled、bindingId 等於 stored `client_binding_id`、且該 consent 完全沒有 transport（例如 legacy dispatcher 以
+  endpoint 誤刪 v2 row）：enable command 以 request 的 subscription 直接重建 transport；不旋轉 cleanup hash、
+  consent epoch 或 binding，consent version 依 §6.1 因 transport 語意變更遞增一次，回 `committed`。registry 仍走
+  本節的 owner lock 與 `quarantined` 回 `active` 規則。使用者於 2026-09-02 拍板，用來封掉「同 binding 卻永遠
+  `stale`」的鎖死路徑；§13 DB 有對應測試。
 - endpoint registry different owner 或 deny：generic endpoint-unavailable；不得更新 owner。
 - 同 owner、同 fingerprint 的 registry 若處於 `quarantined`，enable command 在同一 transaction 將其回 `active`；
   registry quarantined → active 的 trigger 轉換已有 pgTAP 覆蓋（`push_lifecycle_private_foundation.sql` 的
@@ -508,7 +518,8 @@ predecessor 非 null 的 request；predecessor 為 null 時依 §10.4 的 same-o
 
 ### 10.5 refresh state transition
 
-- 只接受目前 enabled consent。
+- 只接受目前 enabled 且仍有 transport 的 consent；enabled 但無 transport 回 `stale`，由 §10.4 的同 binding
+  transport 重建路徑收斂，refresh 不自行補建。
 - endpoint 相同但 keys 不同，視為 transport change。
 - endpoint 不同時，舊 registry 先變 `quarantined／transport_replaced`，新 registry 才能 active。
 - 新 endpoint different owner／deny 時整筆 rollback，舊 transport 保持原狀但 caller 本機仍 fail-closed。
@@ -630,7 +641,15 @@ v2 enable／refresh 完成仍不代表可以送 Push。v2 dispatcher 還必須�
   `enabled` 時轉 paused 後 `reason_code = 'subscription_changed'`，舊 consent 為 `paused`／`revoked` 時 reason
   不變、僅做殘留清理。
 - lock-order concurrency、rollback、account delete、registry deny 與 delivery cancellation；v2 command 與既有
-  `quarantine_push_device`／`quarantine_push_by_token` 併發不 deadlock。
+  `quarantine_push_device`／`quarantine_push_by_token` 併發不 deadlock。本機 `npx supabase test db` 是單一連線、
+  整份測試在一個 transaction 內，真正的雙連線 deadlock 無法觸發；A4 以兩類可證偽的替代斷言守（使用者於
+  2026-09-02 拍板）：(a) 對 `pg_get_functiondef` 的取鎖述句順序斷言，每個錨點先驗非空，並以「把 registry 取鎖搬到
+  consent `for update` 之前」與「刪掉 command 內 consent 的 `for update`」兩個 canary 各驗紅一次；(b) 同一
+  transaction 內 v2 command 與既有 quarantine 指令交錯呼叫後狀態收斂。真正的雙連線 deadlock 測試，以及只有真併發
+  才會走到的三個寫入階段分支（consent 被搶插、目標 registry 被搶插、cleanup hash 撞唯一索引），列入 §14 第 6 條
+  dispatcher barrier 批並在 CI 加 `dblink`；A4 不得把這三個分支寫成已覆蓋。
+- enabled、同 binding、無 transport 時 enable 重建 transport：回 `committed`、consent version 恰 +1、cleanup hash／
+  epoch／binding 不變、registry 回 `active`；同情境 refresh 回 `stale`。
 - `push_lifecycle_private_foundation.sql` 的 consent exact-column 斷言同批更新為含新欄位的清單；兩份 pgTAP 檔中
   直接 insert `private.push_device_consents` 的五處 fixture（§10.2 既有物件替換第 3 條）都明確帶 `client_binding_id`。
 - `push_lifecycle_private_foundation.sql` 的三個 trigger helper invoker-security／empty search_path 斷言

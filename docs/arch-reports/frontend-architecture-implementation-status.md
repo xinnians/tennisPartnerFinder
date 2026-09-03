@@ -11,8 +11,8 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B10.3` Push v2 契約複核與修訂完成；契約 v1.1 已寫入，runtime／migration 未變 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.3` 已完成；`FA-03B10` 契約已複核並修訂為 v1.1，`FA-03A4` 待使用者確認 exact diff |
+| 目前批次 | `FA-03B10.4` 契約 v1.2 補兩項拍板（同 binding 無 transport 的重建路徑、併發測試替代斷言）；runtime／migration 未變 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.4` 已完成；`FA-03B10` 契約已複核並修訂為 v1.2，`FA-03A4` 待使用者確認 exact diff |
 | runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport、owner-quarantine adapter、single-attempt cleanup coordinator、Auth-failure handoff 與 browser Push deactivation seam 已落地；Push 登出 server cleanup、B1 → B9 Auth failure、SW、dispatcher 尚未接線 |
 | migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
@@ -54,6 +54,8 @@ git log --oneline --decorate -10
 | D22 | provider egress 採應用層充分條件：exact provider-origin allowlist＋send-time DNS public-IP 檢查即可進 enabled；平台 egress 層 allowlist 為 nice-to-have，殘餘風險為攻擊者需控制 provider DNS 解析結果 | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作 |
 | D23 | Edge envelope 的 AES-GCM AAD 綁定已驗證 `authUserId`，並釘死 `encryptedKey`／`iv`／`keyId`／AES key 長度；不符即 `invalid`、不進 DB | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作 |
 | D24 | 不新增 local cleanup reason；手動重新啟用沿用既有 `subscription_changed`，避免 B5 validator 在前端回滾後把 push 子系統讀成 `invalid` | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作 |
+| D25 | consent 為 `enabled`、request binding 等於 stored binding、但完全沒有 transport 時，enable command 直接重建 transport（version +1，不旋轉 hash／epoch／binding）；refresh 同情境回 `stale` | 使用者於 2026-09-02 拍板；契約 v1.2 §10.4／§10.5／§13 已寫入；runtime 未實作 |
+| D26 | 本機 pgTAP 單一連線無法觸發真併發 deadlock；A4 以取鎖述句順序斷言（錨點非空＋兩個 canary 驗紅）與同 transaction 交錯呼叫收斂斷言替代；真併發與三個寫入階段搶插分支列入 dispatcher barrier 批並在 CI 加 `dblink` | 使用者於 2026-09-02 拍板；契約 v1.2 §13 已寫入；A4 不得宣稱已覆蓋 |
 
 ## 授權邊界
 
@@ -1112,6 +1114,32 @@ DB schema／migration：未變更；hosted deploy／env／Push request／DB 寫�
 
 ```text
 新增複核報告一份；修改兩個 Markdown：契約檔與本進度文件
+Markdown code fence parity：通過
+git diff --check：通過
+runtime／test／migration：未變更
+hosted deploy／env／request／DB 寫入：未執行
+```
+
+## FA-03B10.4 契約 v1.2 補充拍板
+
+已完成：
+
+- 使用者於 2026-09-02 補兩項拍板（D25、D26），契約升 v1.2：§10.4 新增「enabled、同 binding、無 transport」的
+  transport 重建路徑並在判定順序明列；§10.5 改為只接受仍有 transport 的 enabled consent，無 transport 回 `stale`；
+  §13 DB 明訂本機單一連線的 lock-order 替代斷言、兩個 canary 與真併發另案，並新增重建路徑測試項。
+- 新增 `frontend-architecture-fa-03a4-handoff-2026-09-02.md`：給 `FA-03A4` 實作者的複核結果摘要與契約 v1→v1.2
+  變動通知。
+
+精確邊界：
+
+- 只改契約檔、本進度文件與新增一份 handoff Markdown；沒有 runtime、test、migration、Edge、env 或 UI 變更。
+- `FA-03A4` 仍待實作者回報 exact diff 並取得使用者確認；口徑不變（additive 欄位＋§10.2 既有物件替換第 1–4 條，
+  含殘留清理子 helper 抽取；兩者分開列）。
+
+本批驗證：
+
+```text
+修改兩個 Markdown、新增一個 Markdown
 Markdown code fence parity：通過
 git diff --check：通過
 runtime／test／migration：未變更
