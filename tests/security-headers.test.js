@@ -82,3 +82,11 @@ test("the rotatable cleanup public key is never served from an HTTP cache", () =
   assert.equal(headers.get("cache-control"), "no-store");
   assert.equal(headers.get("pragma"), "no-cache");
 });
+
+test("the independent subscription public key is never served from an HTTP cache", () => {
+  const keyRule = CONFIG.headers.find(({ source }) => source === "/push-subscription-key-v1.json");
+  assert.ok(keyRule, "subscription public-key header rule is missing");
+  const headers = headerMap(keyRule);
+  assert.equal(headers.get("cache-control"), "no-store");
+  assert.equal(headers.get("pragma"), "no-cache");
+});

@@ -6,6 +6,10 @@ import {
   createPushCleanupPublicKeyAssetPlugin,
   PUSH_CLEANUP_PUBLIC_JWK_ENV,
 } from "./scripts/pushCleanupPublicKeyAsset.mjs";
+import {
+  createPushSubscriptionPublicKeyAssetPlugin,
+  PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV,
+} from "./scripts/pushSubscriptionPublicKeyAsset.mjs";
 
 const EMPTY_MOCK_DATA_MODULE = new URL("./src/mockData.empty.js", import.meta.url).pathname;
 const MOCK_DATA_IMPORT = /^(?:.*\/)?mockData\.js$/;
@@ -17,6 +21,11 @@ function cleanupPublicJwk(mode: string): string {
   return process.env[PUSH_CLEANUP_PUBLIC_JWK_ENV] ?? fileEnvironment[PUSH_CLEANUP_PUBLIC_JWK_ENV] ?? "";
 }
 
+function subscriptionPublicJwk(mode: string): string {
+  const fileEnvironment = loadEnv(mode, import.meta.dirname, "PUSH_SUBSCRIPTION_");
+  return process.env[PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV] ?? fileEnvironment[PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV] ?? "";
+}
+
 export default defineConfig(({ command, mode }) => ({
   define: {
     __TENNIS_E2E_TEST_HOOKS__: JSON.stringify(command !== "build" || mode !== "production"),
@@ -25,6 +34,7 @@ export default defineConfig(({ command, mode }) => ({
   plugins: [
     react(),
     createPushCleanupPublicKeyAssetPlugin(cleanupPublicJwk(mode)),
+    createPushSubscriptionPublicKeyAssetPlugin(subscriptionPublicJwk(mode)),
     ...(BUNDLE_ANALYSIS_ENABLED
       ? [
           visualizer({

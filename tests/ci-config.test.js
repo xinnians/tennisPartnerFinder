@@ -15,6 +15,13 @@ import {
   PUSH_CLEANUP_PUBLIC_KEY_PATH,
 } from "../scripts/pushCleanupPublicKeyAsset.mjs";
 import {
+  createPushSubscriptionPublicKeyAssetPlugin,
+  createPushSubscriptionPublicKeyAssetSource,
+  PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV,
+  PUSH_SUBSCRIPTION_PUBLIC_KEY_ASSET,
+  PUSH_SUBSCRIPTION_PUBLIC_KEY_PATH,
+} from "../scripts/pushSubscriptionPublicKeyAsset.mjs";
+import {
   applyByteLimitPolicy,
   BYTE_LIMIT_MODES,
   ENFORCE_BYTE_LIMITS_FLAG,
@@ -48,6 +55,16 @@ const CLEANUP_PUBLIC_JWK = Object.freeze({
   n: RFC_7638_RSA_MODULUS,
 });
 const SERIALIZED_CLEANUP_PUBLIC_JWK = JSON.stringify(CLEANUP_PUBLIC_JWK);
+const SUBSCRIPTION_PUBLIC_JWK = Object.freeze({
+  alg: "RSA-OAEP-256",
+  e: "AQAB",
+  ext: true,
+  key_ops: ["encrypt"],
+  kid: "RNdz7elerOjBYA4WWMBFEEfaE5SASprbbETl9VmTVv8",
+  kty: "RSA",
+  n: "zJYuOqckRC96aTybzarS09v-SAvx_Jc1EREjmY8Vj8Zhaw1ZOVP-JWCxem41czvLpD8kiJAXkXvuIP4dA3MChvVoGU5ZD7kjtwj6L-7fISpxsa6iaPdNu8rUHtddrlHRkzXVbMNboL4Z1Klbyz0b5fqLCQdPTGcxqLhA36nnrkYLKxQPAPr641QNdfJkmgY7lFT-oMHHLP4pPSMVaH3ZhNCLcekY-GxwyuGrp1B1E9nFtrJ7wbEwJneHNXB6-Wr-Vc6yCA8yk9t9uTYH33XoxriqmINCn_xQqkwJsN49skSI49fXg8gkhy5mFO04H6M-BU_v2taszzpKsXY83RebgQ",
+});
+const SERIALIZED_SUBSCRIPTION_PUBLIC_JWK = JSON.stringify(SUBSCRIPTION_PUBLIC_JWK);
 
 const scriptCommands = (name) => PACKAGE.scripts[name].split("&&").map((command) => command.trim());
 
@@ -210,24 +227,26 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup}/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2}/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup}/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2}/**/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
   );
 });
 
-test("ESLint applies real JS and TypeScript rules to the cleanup Edge boundary", async () => {
+test("ESLint applies real JS and TypeScript rules to both Push Edge boundaries", async () => {
   const eslint = new ESLint({ cwd: REPOSITORY_ROOT });
-  const [sharedConfig, javascriptConfig, typescriptConfig] = await Promise.all([
+  const [sharedConfig, javascriptConfig, subscriptionConfig, typescriptConfig] = await Promise.all([
     eslint.calculateConfigForFile("supabase/functions/_shared/push-cleanup-protocol.js"),
     eslint.calculateConfigForFile("supabase/functions/push-cleanup/crypto.js"),
+    eslint.calculateConfigForFile("supabase/functions/push-subscription-v2/crypto.js"),
     eslint.calculateConfigForFile("supabase/functions/push-cleanup/index.ts"),
   ]);
 
   assert.equal(sharedConfig?.rules?.["no-undef"]?.[0], 2);
   assert.equal(javascriptConfig?.rules?.["no-undef"]?.[0], 2);
+  assert.equal(subscriptionConfig?.rules?.["no-undef"]?.[0], 2);
   assert.equal(typescriptConfig?.languageOptions?.parser?.meta?.name, "typescript-eslint/parser");
   assert.equal(typescriptConfig?.rules?.["@typescript-eslint/no-unused-vars"]?.[0], 2);
 });
@@ -255,6 +274,10 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
     assert.ok(
       project?.testMatch.test("push-cleanup-transport.spec.js"),
       `${name} silently excludes the Push cleanup transport gate`
+    );
+    assert.ok(
+      project?.testMatch.test("push-subscription-v2-protocol.spec.js"),
+      `${name} silently excludes the Push subscription v2 protocol gate`
     );
   }
 });
@@ -289,6 +312,10 @@ test("production alias excludes mockData through every relative import shape", (
   assert.ok(
     production.plugins?.some((plugin) => plugin?.name === "tennis-push-cleanup-public-key"),
     "Vite config must keep the cleanup public-key publisher installed"
+  );
+  assert.ok(
+    production.plugins?.some((plugin) => plugin?.name === "tennis-push-subscription-public-key"),
+    "Vite config must keep the subscription public-key publisher installed"
   );
   const aliases = production.resolve?.alias;
   assert.equal(aliases?.length, 1);
@@ -441,6 +468,53 @@ test("cleanup public-key dev middleware serves only the fixed path without cachi
     nextCalls += 1;
   });
   assert.equal(nextCalls, 1, "query aliases must not become another key publication URL");
+});
+
+test("subscription public-key publisher uses its own path and environment contract", async () => {
+  assert.equal(PUSH_SUBSCRIPTION_PUBLIC_KEY_PATH, "/push-subscription-key-v1.json");
+  assert.equal(PUSH_SUBSCRIPTION_PUBLIC_KEY_ASSET, "push-subscription-key-v1.json");
+  assert.equal(PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV, "PUSH_SUBSCRIPTION_PUBLIC_JWK_JSON");
+  const source = await createPushSubscriptionPublicKeyAssetSource(SERIALIZED_SUBSCRIPTION_PUBLIC_JWK);
+  assert.equal(new TextEncoder().encode(source).byteLength, 499);
+  assert.notEqual(SUBSCRIPTION_PUBLIC_JWK.kid, CLEANUP_PUBLIC_JWK.kid);
+
+  const plugin = createPushSubscriptionPublicKeyAssetPlugin(SERIALIZED_SUBSCRIPTION_PUBLIC_JWK);
+  const emitted = [];
+  await plugin.generateBundle.call({ emitFile: (asset) => emitted.push(asset) });
+  assert.deepEqual(emitted, [{ fileName: PUSH_SUBSCRIPTION_PUBLIC_KEY_ASSET, source, type: "asset" }]);
+  assert.equal(await createPushSubscriptionPublicKeyAssetSource(""), null);
+  await assert.rejects(createPushSubscriptionPublicKeyAssetSource(`${SERIALIZED_SUBSCRIPTION_PUBLIC_JWK}\n`));
+  await assert.rejects(
+    createPushSubscriptionPublicKeyAssetSource(JSON.stringify({ ...SUBSCRIPTION_PUBLIC_JWK, d: "AQ" }))
+  );
+  const publisherSource = readFileSync(
+    new URL("../scripts/pushSubscriptionPublicKeyAsset.mjs", import.meta.url),
+    "utf8"
+  );
+  assert.doesNotMatch(publisherSource, /pushCleanup|PUSH_CLEANUP/u);
+});
+
+test("Vite keeps subscription public-key data in the build boundary, outside browser definitions", async () => {
+  const previous = process.env[PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV];
+  process.env[PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV] = SERIALIZED_SUBSCRIPTION_PUBLIC_JWK;
+  try {
+    const config = createViteConfig({ command: "build", mode: "production" });
+    assert.equal(Object.hasOwn(config.define ?? {}, PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV), false);
+    const plugin = config.plugins?.find((candidate) => candidate?.name === "tennis-push-subscription-public-key");
+    assert.equal(typeof plugin?.generateBundle, "function");
+    const emitted = [];
+    await plugin.generateBundle.call({ emitFile: (asset) => emitted.push(asset) });
+    assert.deepEqual(emitted, [
+      {
+        fileName: PUSH_SUBSCRIPTION_PUBLIC_KEY_ASSET,
+        source: await createPushSubscriptionPublicKeyAssetSource(SERIALIZED_SUBSCRIPTION_PUBLIC_JWK),
+        type: "asset",
+      },
+    ]);
+  } finally {
+    if (previous === undefined) delete process.env[PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV];
+    else process.env[PUSH_SUBSCRIPTION_PUBLIC_JWK_ENV] = previous;
+  }
 });
 
 test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () => {

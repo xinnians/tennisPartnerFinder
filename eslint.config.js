@@ -66,14 +66,14 @@ export default tseslint.config(
     },
   },
   {
-    files: ["supabase/functions/{_shared,push-cleanup}/**/*.js"],
+    files: ["supabase/functions/{_shared,push-cleanup,push-subscription-v2}/**/*.js"],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: globals.denoBuiltin,
     },
   },
   {
-    files: ["supabase/functions/{_shared,push-cleanup}/**/*.ts"],
+    files: ["supabase/functions/{_shared,push-cleanup,push-subscription-v2}/**/*.ts"],
     extends: [...tseslint.configs.recommended],
     languageOptions: {
       globals: globals.denoBuiltin,
