@@ -1,6 +1,6 @@
 # 前端架構開發進度
 
-最後更新：2026-09-02
+最後更新：2026-09-03
 
 這是前端架構開發的**單一進度入口**。新的 session 應先讀本文件，再讀
 `frontend-architecture-final-v3-2026-08-31.md`；舊的審查報告只作歷史紀錄，不直接代表目前狀態。
@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B10.4` 契約 v1.2 補兩項拍板（同 binding 無 transport 的重建路徑、併發測試替代斷言）；runtime／migration 未變 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.4` 已完成；`FA-03B10` 契約已複核並修訂為 v1.2，`FA-03A4` 待使用者確認 exact diff |
+| 目前批次 | `FA-03A4` Push v2 DB command：本機實作、驗證與使用者 exact-diff 核可完成；下一批為 `FA-03B11` dormant shared validator／Edge structural ports |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B10.4` 已完成；A4 hosted 尚未套用 |
 | runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 Edge、public-key build boundary、dormant IndexedDB、bounded cleanup transport、owner-quarantine adapter、single-attempt cleanup coordinator、Auth-failure handoff 與 browser Push deactivation seam 已落地；Push 登出 server cleanup、B1 → B9 Auth failure、SW、dispatcher 尚未接線 |
-| migration 變更 | repo／本機共新增 11 份 foundation／compatible／hotfix migration；hosted 尚未套用 |
+| migration 變更 | repo／本機共新增 12 份 FA-03 migration（最新為 `202609030001`）；hosted 仍只有原 25 份，這 12 份皆未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 回報 `FA-03A4` exact diff（口徑：additive 欄位＋契約 §10.2 既有物件替換第 1–4 條，含殘留清理子 helper 抽取）並取得使用者確認後，才進 `FA-03A4`。D2 Push cleanup、SW／dispatcher 仍各自分批，仍不部署 hosted |
+| 下一步 | 回報 `FA-03A4` exact diff 與驗證結果；使用者核可後建立獨立 commit，再進 `FA-03B11` dormant shared validator／Edge structural ports。D2 Push cleanup、SW／dispatcher 仍各自分批，仍不部署 hosted |
 
 查實際 Git 狀態：
 
@@ -30,9 +30,9 @@ git log --oneline --decorate -10
 
 | ID | 決策 | 實作狀態 |
 | --- | --- | --- |
-| D1 | Push 同意採「帳號＋裝置」opt-in；換帳號必須重新同意 | Q2-A 已核可；FA-03 待實作 |
+| D1 | Push 同意採「帳號＋裝置」opt-in；換帳號必須重新同意 | `FA-03A4` 已完成本機 DB command；browser／Edge composition 尚未接線 |
 | D2 | 一般登出只停止目前裝置的登入與推播；其他裝置不受影響 | `FA-03B10.1` 已固定 production Auth local scope；`FA-03B10.2` 已完成 dormant capture／unsubscribe／reread 分類，production 與 server cleanup 尚未接線 |
-| D3 | Push cleanup 結果不明時採 durable quarantine；dispatcher 送出前重查狀態 | Q1-A／Q7-A 已核可；FA-03 待實作 |
+| D3 | Push cleanup 結果不明時採 durable quarantine；dispatcher 送出前重查狀態 | quarantine DB／Edge foundation 與 A4 共用 residue helper 已完成；dispatcher 重查仍待實作 |
 | D4 | Q6-A 已取代原本無法由現有 stack 證明的精確界線：只承諾 DB transaction 持續有效時的 quarantine/send 排序；載入記憶體仍不算 handoff | 已核可 current-stack 條件式邊界；殘餘斷線空檔需保留監控與測試 |
 | D5 | quarantine 的重新確認、保存期限與到期處理由 `FA-02` 提案後再核可；不先猜 30／90 天 | Q1-A 已核可：不設日曆期限，只依 server provider 證據解除 |
 | D6 | session 缺少 `user.id` 時 fail-closed：視為無效、清私人狀態並要求重新登入 | `FA-03B0` 已完成；controller 與 orchestration 都只接受非空 `user.id` |
@@ -50,12 +50,12 @@ git log --oneline --decorate -10
 | D18 | dormant cleanup coordinator 每次只處理 caller 明確提供的一筆 attempt，最多呼叫 transport 一次；只有 exact `{kind: "completed"}` 才把原 attempt 交給 local completion 一次。local completion 回 primitive boolean（`true`／`false`）才回 completed，其餘或 throw 都回 pending；不掃描、不排程、不自行重試 | `FA-03B8` 已完成；production 零 caller |
 | D19 | dormant Auth-failure handoff 只接受 exact `rejected`／`unavailable`、相符 `authUserId` 與 exact B5 safe binding CAS snapshot。`unavailable` 只做本機 `auth-unverified`；`rejected` 先交 B5 suspend／queue，再把 exact correlated attempt 交 B8 一次。invalid process input、contract drift、throw 或非 exact completion 一律 pending | 使用者核可先建立 `FA-03B9` dormant seam；production 零 caller，B1 可信 owner correlation 與 unavailable recovery 仍未完成 |
 | D20 | `auth_unavailable` 後即使 Auth 重新驗證成功也不自動恢復 Push；使用者必須再次明確啟用，先完成舊 binding cleanup，再建立新 binding、cleanup token 與 server consent epoch | 使用者於 2026-09-02 選 A；契約 v1.1（`FA-03B10.3`）已寫入手動重新啟用沿用 `subscription_changed` 與 predecessor null 的 same-owner rotation；runtime／UI 尚未實作 |
-| D21 | v2 enable／refresh 先凍結 canonical subscription、provider egress、Edge、DB CAS、Auth correlation 與測試契約；Claude 複核與使用者 migration 核可前不實作 schema／production wiring | 使用者於 2026-09-02 選 A；`FA-03B10` review-freeze 完成，Claude 複核完成（`FA-03B10.3`），blocking 與拍板結果已寫入契約 v1.1；`FA-03A4` 待 exact diff 確認 |
+| D21 | v2 enable／refresh 先凍結 canonical subscription、provider egress、Edge、DB CAS、Auth correlation 與測試契約；Claude 複核與使用者 migration 核可前不實作 schema／production wiring | 契約 v1.2 已複核；A4 本機 DB CAS／wrapper 與 exact-diff 核可已完成，production wiring 仍未開始 |
 | D22 | provider egress 採應用層充分條件：exact provider-origin allowlist＋send-time DNS public-IP 檢查即可進 enabled；平台 egress 層 allowlist 為 nice-to-have，殘餘風險為攻擊者需控制 provider DNS 解析結果 | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作 |
 | D23 | Edge envelope 的 AES-GCM AAD 綁定已驗證 `authUserId`，並釘死 `encryptedKey`／`iv`／`keyId`／AES key 長度；不符即 `invalid`、不進 DB | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作 |
 | D24 | 不新增 local cleanup reason；手動重新啟用沿用既有 `subscription_changed`，避免 B5 validator 在前端回滾後把 push 子系統讀成 `invalid` | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作 |
-| D25 | consent 為 `enabled`、request binding 等於 stored binding、但完全沒有 transport 時，enable command 直接重建 transport（version +1，不旋轉 hash／epoch／binding）；refresh 同情境回 `stale` | 使用者於 2026-09-02 拍板；契約 v1.2 §10.4／§10.5／§13 已寫入；runtime 未實作 |
-| D26 | 本機 pgTAP 單一連線無法觸發真併發 deadlock；A4 以取鎖述句順序斷言（錨點非空＋兩個 canary 驗紅）與同 transaction 交錯呼叫收斂斷言替代；真併發與三個寫入階段搶插分支列入 dispatcher barrier 批並在 CI 加 `dblink` | 使用者於 2026-09-02 拍板；契約 v1.2 §13 已寫入；A4 不得宣稱已覆蓋 |
+| D25 | consent 為 `enabled`、request binding 等於 stored binding、但完全沒有 transport 時，enable command 直接重建 transport（version +1，不旋轉 hash／epoch／binding）；refresh 同情境回 `stale` | `FA-03A4` command 與 pgTAP 已實作；production caller 尚未接線 |
+| D26 | 本機 pgTAP 單一連線無法觸發真併發 deadlock；A4 以取鎖述句順序斷言（錨點非空＋兩個 canary 驗紅）與同 transaction 交錯呼叫收斂斷言替代；真併發與三個寫入階段搶插分支列入 dispatcher barrier 批並在 CI 加 `dblink` | A4 替代斷言與要求的 canary 已完成；真併發／`dblink` 仍明確留在 dispatcher barrier 批，未宣稱覆蓋 |
 
 ## 授權邊界
 
@@ -72,7 +72,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A3.1`、`FA-03B0`～`FA-03B10.3` 完成；`FA-03B10` 契約 v1.1 已複核修訂，`FA-03A4` 待 exact diff 確認 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B10.4` 完成；契約 v1.2；A4 exact diff 已核可，hosted 未套用 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -1146,14 +1146,75 @@ runtime／test／migration：未變更
 hosted deploy／env／request／DB 寫入：未執行
 ```
 
+## FA-03A4 Push v2 DB commands
+
+已完成：
+
+- 依契約 v1.2 新增單一 migration `202609030001_push_subscription_v2_commands.sql`。migration 有 884 行，
+  `rg -n "^create( or replace)? function"` 列出 6 支函式：2 支既有函式替換、1 支 private residue helper、
+  1 支共用 private mutation helper，以及 2 支 public service-role wrapper。
+- additive 欄位明確只有兩個：`private.push_device_consents.client_binding_id uuid not null`（沒有 default）與
+  `transport_revision uuid`。migration 開頭會在既有 consent 非空時中止，沒有猜測 backfill 值。
+- 契約 §10.2 的既有物件替換第 1–4 條已分開完成：
+  1. `private.maintain_push_device_consent()` 把 `transport_revision` 納入語意 version，並限制
+     `client_binding_id` 只能在非 enabled → enabled 時更換。
+  2. `private.quarantine_locked_push_consent(...)` 的 reason 白名單加入 `subscription_changed`。
+  3. 既有 exact-column 斷言與兩份 pgTAP 的 5 個 consent fixture 都補上 `client_binding_id`。
+  4. registry → transport → delivery cancel 的殘留清理由唯一的
+     `private.clear_locked_push_consent_residue(...)` 承擔；父 helper 先 pause consent 再呼叫子 helper，v2 enable
+     也只呼叫同一子 helper，沒有複製三段清理。
+- `private.mutate_push_transport_v2(...)` 集中處理 enable／refresh 的 CAS、exact retry、same-owner rotation、
+  legacy coexistence、同 binding 無 transport 重建與固定 consent → registry → transport 鎖序。
+  `public.enable_push_device_v2(...)`、`public.refresh_push_transport_v2(...)` 只授權 `service_role`；沒有放寬 raw table
+  ACL。runtime control 預設 disabled，現行 browser／Edge 沒有 caller。
+- 新增 `push_subscription_v2_commands.sql` 77 項 pgTAP；更新兩份既有 pgTAP；generated DB types 只新增兩支
+  public RPC，其中 enable 的 3 個 predecessor 參數由資料庫 default 正確產生為 optional。
+- 完整 Supabase CI 發現本機 cleanup Edge fixture 仍直接 insert 舊 consent 欄位；已明確補入獨立
+  `client_binding_id`，targeted Edge 測試與最後整套 CI 都通過。
+- 逐段複查另找到並修正三個原測試未覆蓋的 fail-closed 缺口：Push command 不再嘗試建立缺 nickname／NTRP 的
+  profile；predecessor 非空但 server consent 不存在時回 stale；同 binding 重建只允許 enabled consent，且 cleanup
+  hash 必須相同。新增 6 項 pgTAP 分別證明不建立殘缺 profile、零寫入與 paused／revoked／hash mismatch 不會補 transport。
+
+精確邊界：
+
+- 目前只有 repo 與本機資料庫：`supabase migration list` 實測 37 份 local、25 份 remote，新增在內的 12 份
+  FA-03 migration 均未套 hosted。沒有 deploy、遠端 mutation、secret、provider request、SW、dispatcher 或 UI 變更。
+- 本機完整測試後 `push_device_consents`、`push_subscriptions`、`notification_deliveries` 都是 0；這只證明本機，
+  不外推 hosted。hosted 套用前仍須唯讀確認 consent／registry 空表並取得另一次核可。
+- A4 依 D26 只證明靜態鎖序與同 transaction 交錯收斂；沒有宣稱完成雙連線 deadlock 或三個寫入階段搶插測試。
+  這些仍在 dispatcher barrier 批加 `dblink`。
+- 驗證過程曾在「未重設 DB、連續再跑整套」時出現一次既有新帳號球場訂閱 UI checkbox 未及時更新；同一測試在
+  乾淨 reset 後單獨通過，之後從乾淨 reset 跑完整 Supabase CI 也通過。沒有足夠證據宣稱根因已消失，因此保留為
+  觀察項，不把它算成 A4 功能失敗或假裝未發生。
+- development bundle 仍是 D8 report-only：total JS gzip 260,430，比參考值 259,062 多 1,368 bytes；main 與最大
+  lazy chunk 各自在門檻內，結構 hard gate 通過。release 前仍依 D9 重訂並 enforce。
+
+本批驗證：
+
+```text
+要求的 6 個 red canary：6／6 都能使指定斷言失敗；逐一還原後全綠
+CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test：37 migrations 從零重播成功
+A4 targeted pgTAP：77／77 passed
+npm run test:db：14 files，1,169／1,169 passed
+Supabase DB lint（public＋private，warning）：0 issue
+supabase db diff --local --schema public,private：No schema changes found
+npm run test:local：3 Node API tests passed；Playwright 45 passed／11 skipped
+npm run test:local:mobile：6／6 passed
+npm run test:local:push-cleanup-edge：1／1 passed
+npm run test:ci:supabase（乾淨 reset 後）：通過
+npm run test:ci:frontend：通過；Playwright 328 passed／4 skipped；bundle structural gate passed
+typecheck／ESLint／Prettier／production build／git diff --check：通過
+hosted deploy／migration apply／env／request／DB 寫入：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,082／190,278 與最大 lazy 16,476／4,830 raw/gzip 均在現有門檻；
   total raw 849,706 也在 849,961 內，但 total gzip 260,430 超過 259,062 共 1,368 bytes。D8 允許開發期
   report 繼續，release enforce 已實測 hard fail；第一個 production candidate 前仍須依 D9 重訂正式基線。
 - 現行 browser／dispatcher 仍只讀寫 legacy `push_subscriptions`；repo／本機已有 v2 transport metadata、
-  dormant quarantine command 與 local-only encrypted Edge，但沒有 enable／browser wiring，不能誤稱已啟用
-  或已停止 production send。
+  quarantine command、A4 enable／refresh DB command 與 local-only encrypted Edge，但沒有 v2 browser／Edge wiring，
+  runtime gate 仍 disabled，不能誤稱已啟用或已停止 production send。
 - outbox source/fanout/outcome、control/worker、account-delete audit 與 no-op source version 已完成本機
   migration／測試；compatible runtime、barrier 與 hosted 套用仍未做。
 - 現行一般登出的 Auth session 已在 `FA-03B10.1` 改為 local scope，B10.2 也已建立 dormant browser
@@ -1196,9 +1257,9 @@ hosted deploy／env／request／DB 寫入：未執行
 
 ## 下一個 session 的起點
 
-1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、`FA-03B10` Push v2 contract、FA-02 設計與
-   FA-03 preflight 報告。先讀契約 v1.1 與複核報告
-   `frontend-architecture-fa-03b10-push-v2-contract-review-claude-2026-09-02.md`，再判斷 `FA-03A4` 的 exact diff。
+1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、`FA-03B10` Push v2 contract v1.2、
+   `frontend-architecture-fa-03a4-handoff-2026-09-02.md`、FA-02 設計與 FA-03 preflight 報告。A4 目前已完成本機
+   實作、驗證與使用者 exact-diff 核可；已隨 A4 獨立 commit 保存，不要重做或自行套 hosted。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -1207,13 +1268,14 @@ hosted deploy／env／request／DB 寫入：未執行
    transport linkage、RSA envelope、key generator、browser storage schema、key loader、owner result mapping、bigint
    string boundary、single-attempt exact transport→CAS handoff、caller-supplied Auth failure → B5／B8 handoff，或
    capture → unsubscribe → reread classification。
-3. 以 `npm run test:db` 的 1,092／1,092 作為 compatible runtime 的最新 DB 基線；36 migration 從零重播、
-   DB lint clean 與 strict pg-delta diff 空白是目前 schema 證據。
+3. 以 `npm run test:db` 的 1,169／1,169 作為 compatible runtime 的最新 DB 基線；37 migration 從零重播、
+   DB lint clean 與 local public/private pg-delta diff 空白是目前 schema 證據。hosted 仍只有 25 份 migration。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
    coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 B1 correlation、手動 re-enable、canonical endpoint、
-   provider egress、Edge wire schema、service-role DB command 與 unified consent-version CAS。Claude 複核已收斂為契約 v1.1；
-   `FA-03A4` exact diff（additive 欄位＋契約 §10.2 既有物件替換第 1–4 條，含殘留清理子 helper 抽取）未獲使用者確認前不得開始 `FA-03A4`。`FA-03B10.1` 只完成 D2 Auth local scope，B10.2
-   只完成 dormant browser deactivation seam；production composition／server cleanup、SW／dispatcher 仍各自分批並
+   provider egress、Edge wire schema、service-role DB command 與 unified consent-version CAS。Claude 複核已收斂為契約 v1.2；
+   A4 的 additive 欄位、既有物件替換、private helper、service-role wrappers 與 pgTAP 已完成；下一批是
+   `FA-03B11` dormant shared validator／hybrid envelope／Edge structural ports。`FA-03B10.1` 只完成 D2 Auth local scope，
+   B10.2 只完成 dormant browser deactivation seam；production composition／server cleanup、SW／dispatcher 仍各自分批並
    建立獨立 commit。未決定排程與 backoff 前不可加入 scheduler。沒有 hosted limiter／canary／log／egress
    證據前，不可移除 local-only gate。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
@@ -1246,3 +1308,5 @@ hosted deploy／env／request／DB 寫入：未執行
 | 2026-09-02 | FA-03B10.1 | production Auth sign-out 明確改為 current-device local scope；exact wrapper／error／GoTrue race 測試通過，Push unsubscribe／cleanup 仍未接線。 |
 | 2026-09-02 | FA-03B10.2 | dormant browser Push capture／unsubscribe／reread seam 完成 bounded 分類；production 零 importer，server cleanup／migration／hosted 未動。 |
 | 2026-09-02 | FA-03B10.3 | Claude 複核 `FA-03B10` 契約；使用者拍板 blocking 全修、egress 放寬、envelope 綁 `authUserId`、不新增 reason；契約修訂為 v1.1，runtime／migration／hosted 未變。 |
+| 2026-09-02 | FA-03B10.4 | 使用者補拍板同 binding 無 transport 與 A4 併發替代斷言；契約升 v1.2，新增 A4 handoff，runtime／migration／hosted 未變。 |
+| 2026-09-03 | FA-03A4 | v1.2 additive 欄位、既有物件替換、共用 residue／mutation helper、兩支 service-role RPC 與 77 項新 pgTAP 完成；六個 canary 全紅、DB 1,169／1,169、完整 frontend／Supabase CI 通過；使用者已核可 exact diff，hosted 未套用。 |

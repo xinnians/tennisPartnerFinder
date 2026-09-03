@@ -1810,6 +1810,22 @@ export type Database = {
         Args: { p_court_id: number; p_session_id: number; p_start_at: string };
         Returns: string;
       };
+      enable_push_device_v2: {
+        Args: {
+          p_auth: string;
+          p_auth_user_id: string;
+          p_cleanup_token_hash_hex: string;
+          p_client_binding_id: string;
+          p_device_id: string;
+          p_endpoint: string;
+          p_p256dh: string;
+          p_predecessor_consent_epoch?: string;
+          p_predecessor_consent_id?: string;
+          p_predecessor_consent_version?: string;
+          p_vapid_fingerprint_hex: string;
+        };
+        Returns: Json;
+      };
       invite_to_session: {
         Args: { p_profile_id: number; p_session_id: number };
         Returns: string;
@@ -1838,6 +1854,21 @@ export type Database = {
           p_expected_version: number;
         };
         Returns: string;
+      };
+      refresh_push_transport_v2: {
+        Args: {
+          p_auth: string;
+          p_auth_user_id: string;
+          p_client_binding_id: string;
+          p_device_id: string;
+          p_endpoint: string;
+          p_expected_consent_epoch: string;
+          p_expected_consent_id: string;
+          p_expected_consent_version: string;
+          p_p256dh: string;
+          p_vapid_fingerprint_hex: string;
+        };
+        Returns: Json;
       };
       remove_push_subscription: {
         Args: { p_endpoint: string };

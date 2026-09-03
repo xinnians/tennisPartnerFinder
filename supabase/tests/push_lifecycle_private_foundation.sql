@@ -40,7 +40,7 @@ select is(
     where table_schema = 'private'
       and table_name = 'push_device_consents'
   ),
-  'id,profile_id,device_id,state,reason_code,consent_epoch,version,cleanup_token_hash_algorithm,cleanup_token_hash,cleanup_token_rotated_at,cleanup_token_revoked_at,created_at,updated_at,state_changed_at',
+  'id,profile_id,device_id,state,reason_code,consent_epoch,version,cleanup_token_hash_algorithm,cleanup_token_hash,cleanup_token_rotated_at,cleanup_token_revoked_at,created_at,updated_at,state_changed_at,client_binding_id,transport_revision',
   'device consent keeps its exact column allowlist'
 );
 select is(
@@ -569,9 +569,17 @@ select throws_ok(
   format(
     $sql$
       insert into private.push_device_consents (
-        profile_id, device_id, state, reason_code, cleanup_token_hash
+        profile_id, device_id, client_binding_id, state, reason_code,
+        cleanup_token_hash
       )
-      values (%s, %L, 'paused', 'user_logout', decode(repeat('11', 32), 'hex'))
+      values (
+        %s,
+        %L,
+        '11000000-0000-4000-8000-000000000001',
+        'paused',
+        'user_logout',
+        decode(repeat('11', 32), 'hex')
+      )
     $sql$,
     current_setting('pgtap.fa03_private_owner_profile_id')::bigint,
     '10000000-0000-4000-8000-000000000001'
@@ -585,6 +593,7 @@ with inserted_consent as (
   insert into private.push_device_consents (
     profile_id,
     device_id,
+    client_binding_id,
     state,
     reason_code,
     consent_epoch,
@@ -599,6 +608,7 @@ with inserted_consent as (
   values (
     current_setting('pgtap.fa03_private_owner_profile_id')::bigint,
     '10000000-0000-4000-8000-000000000001',
+    '11000000-0000-4000-8000-000000000002',
     'enabled',
     'user_enabled',
     'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',

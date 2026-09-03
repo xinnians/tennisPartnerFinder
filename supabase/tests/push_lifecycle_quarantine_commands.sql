@@ -115,7 +115,7 @@ select ok(
 
 select ok(
   (
-    select count(*) = 4
+    select count(*) = 5
     from pg_proc function_row
     join pg_roles owner_role on owner_role.oid = function_row.proowner
     where function_row.oid = any(array[
@@ -123,13 +123,19 @@ select ok(
       to_regprocedure(
         'private.quarantine_locked_push_consent(bigint,uuid,text)'
       ),
+      to_regprocedure(
+        'private.clear_locked_push_consent_residue(bigint,uuid)'
+      ),
       to_regprocedure('public.quarantine_push_device(uuid,uuid,bigint)'),
       to_regprocedure('public.quarantine_push_by_token(text)')
     ])
       and owner_role.rolname = 'postgres'
       and function_row.prosecdef = (
         function_row.pronamespace <> 'private'::regnamespace
-        or function_row.proname = 'quarantine_locked_push_consent'
+        or function_row.proname in (
+          'quarantine_locked_push_consent',
+          'clear_locked_push_consent_residue'
+        )
       )
       and coalesce(function_row.proconfig, '{}'::text[])
         @> array['search_path=""']::text[]
@@ -241,6 +247,26 @@ select ok(
     and not has_function_privilege(
       'service_role',
       'private.quarantine_locked_push_consent(bigint,uuid,text)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'public',
+      'private.clear_locked_push_consent_residue(bigint,uuid)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'anon',
+      'private.clear_locked_push_consent_residue(bigint,uuid)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'authenticated',
+      'private.clear_locked_push_consent_residue(bigint,uuid)',
+      'execute'
+    )
+    and not has_function_privilege(
+      'service_role',
+      'private.clear_locked_push_consent_residue(bigint,uuid)',
       'execute'
     ),
   'trigger and mutation helpers cannot be executed directly by app roles'
@@ -530,6 +556,7 @@ with inserted_consent as (
   insert into private.push_device_consents (
     profile_id,
     device_id,
+    client_binding_id,
     state,
     reason_code,
     cleanup_token_hash
@@ -537,6 +564,7 @@ with inserted_consent as (
   values (
     current_setting('pgtap.fa03_quarantine_owner_profile_id')::bigint,
     '20000000-0000-4000-8000-000000000001',
+    '21000000-0000-4000-8000-000000000001',
     'enabled',
     'user_enabled',
     pg_catalog.sha256(pg_catalog.decode(repeat('00', 32), 'hex'))
@@ -991,6 +1019,7 @@ with inserted_consent as (
   insert into private.push_device_consents (
     profile_id,
     device_id,
+    client_binding_id,
     state,
     reason_code,
     cleanup_token_hash
@@ -998,6 +1027,7 @@ with inserted_consent as (
   values (
     current_setting('pgtap.fa03_quarantine_other_profile_id')::bigint,
     '20000000-0000-4000-8000-000000000002',
+    '21000000-0000-4000-8000-000000000002',
     'enabled',
     'user_enabled',
     pg_catalog.sha256(pg_catalog.decode(repeat('01', 32), 'hex'))
@@ -1406,6 +1436,7 @@ with inserted_consent as (
   insert into private.push_device_consents (
     profile_id,
     device_id,
+    client_binding_id,
     state,
     reason_code,
     cleanup_token_hash
@@ -1413,6 +1444,7 @@ with inserted_consent as (
   values (
     current_setting('pgtap.fa03_quarantine_rollback_profile_id')::bigint,
     '20000000-0000-4000-8000-000000000003',
+    '21000000-0000-4000-8000-000000000003',
     'enabled',
     'user_enabled',
     pg_catalog.sha256(pg_catalog.decode(repeat('04', 32), 'hex'))

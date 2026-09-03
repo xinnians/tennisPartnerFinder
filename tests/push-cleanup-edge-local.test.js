@@ -260,13 +260,19 @@ test(
         slots: ["we-m"],
       });
       const deviceId = randomUUID();
-      if (!/^[0-9a-f-]{36}$/u.test(createdUserId) || !/^[0-9a-f-]{36}$/u.test(deviceId)) {
+      const clientBindingId = randomUUID();
+      if (
+        !/^[0-9a-f-]{36}$/u.test(createdUserId) ||
+        !/^[0-9a-f-]{36}$/u.test(deviceId) ||
+        !/^[0-9a-f-]{36}$/u.test(clientBindingId)
+      ) {
         throw new Error("The local cleanup fixture IDs are invalid.");
       }
       const consentId = runLocalDatabaseSql(`
         insert into private.push_device_consents (
           profile_id,
           device_id,
+          client_binding_id,
           state,
           reason_code,
           cleanup_token_hash
@@ -274,6 +280,7 @@ test(
         select
           profile_row.id,
           '${deviceId}'::uuid,
+          '${clientBindingId}'::uuid,
           'enabled',
           'user_enabled',
           pg_catalog.decode('${digest}', 'hex')
