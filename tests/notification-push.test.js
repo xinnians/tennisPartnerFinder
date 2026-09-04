@@ -14,6 +14,8 @@ const PUSH_DEACTIVATION_URL = new URL("../src/notificationPushDeactivation.ts", 
 const PUSH_DEACTIVATION_SOURCE = readFileSync(PUSH_DEACTIVATION_URL, "utf8");
 const PUSH_AUTH_FAILURE_COORDINATOR_URL = new URL("../src/notificationPushAuthFailureCoordinator.ts", import.meta.url);
 const PUSH_AUTH_FAILURE_COORDINATOR_SOURCE = readFileSync(PUSH_AUTH_FAILURE_COORDINATOR_URL, "utf8");
+const PUSH_AUTH_CORRELATION_URL = new URL("../src/notificationPushAuthCorrelation.ts", import.meta.url);
+const PUSH_AUTH_CORRELATION_SOURCE = readFileSync(PUSH_AUTH_CORRELATION_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
 
@@ -114,6 +116,14 @@ test("the Push Auth-failure coordinator stays outside the production runtime gra
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_AUTH_FAILURE_COORDINATOR_URL.href)
     .filter((sourceUrl) => /notificationPushAuthFailureCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
+test("the Push Auth correlation adapter stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_AUTH_CORRELATION_URL.href)
+    .filter((sourceUrl) => /notificationPushAuthCorrelation/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
 });
@@ -228,6 +238,25 @@ test("the dormant Push Auth-failure coordinator has no direct Auth, runtime, que
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
   assert.doesNotMatch(PUSH_AUTH_FAILURE_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
+});
+
+test("the dormant Push Auth correlation adapter has no direct Auth, network, storage, or scheduling dependency", () => {
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /^\s*import\s+["']/gmu);
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_AUTH_CORRELATION_SOURCE,
+    /\b(?:dataApi|supabaseClient|notificationPushStorage|notificationPushAuthFailureCoordinator|notificationPushCleanupCoordinator|notificationPushCleanupTransport|notificationPushOwnerQuarantine)\b/u
+  );
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u);
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\b(?:access_token|refresh_token|onAuthStateChange|SIGNED_OUT)\b/u);
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_AUTH_CORRELATION_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+  assert.doesNotMatch(PUSH_AUTH_CORRELATION_SOURCE, /\b(?:for|while)\s*\(/u);
 });
 
 test("the dormant owner-quarantine adapter has no secret, storage, network, logging, or timer dependency", () => {

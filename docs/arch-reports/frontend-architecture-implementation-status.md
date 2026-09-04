@@ -88,7 +88,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                                              | 文件差異與 whitespace 檢查通過；無非文件變更                                                                             |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                                              | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                                         |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                                        | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                                     |
-| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1` storage 起點與 `FA-03B12.2` Auth correlation seam、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；B12 local composition、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1` storage 起點、`FA-03B12.2` Auth notice 與 `FA-03B12.3` correlation adapter、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；B12 local composition、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 未開始                                                                                                                                                                                                                                                            | gate 有 canary；清單有明確 scope                                                                                         |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 未開始                                                                                                                                                                                                                                                            | before／after 可重現；未放寬未核可邊界                                                                                   |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 未開始                                                                                                                                                                                                                                                            | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                              |
@@ -1346,6 +1346,37 @@ typecheck／ESLint／Prettier／bundle structural gate／git diff --check：通�
 hosted deploy／migration apply／env／request／DB 寫入：未執行
 ```
 
+## FA-03B12.3 Auth failure correlation adapter（dormant）
+
+已完成：
+
+- 新增無 import 的 `notificationPushAuthCorrelation.ts`，以 injected revision check、B5 runtime read 與 B9 port
+  組成；production graph 對它是零 reference。
+- notice 進入 B9 前後有兩次 current-revision gate；`superseded`、舊 revision、malformed notice、非 active binding
+  runtime 都不呼叫 B9。
+- warm session 的 `priorVerifiedAuthUserId` 必須與 B5 binding owner 完全相同；不符時回 `ignored`。
+- cold session 不發明 Auth owner：binding owner 只作 B5/B9 local CAS identity；`unavailable` 仍只能 local close，
+  `rejected` 仍只能由既有 B9 交 B8 token cleanup，adapter 沒有 authenticated owner RPC port。
+- port throw 與非 exact B9 result 一律回 detail-free `pending`。
+
+精確邊界：
+
+- 目前只有 adapter 與 injected fake port 測試；尚未把 B12.2 callback 接到 adapter，也沒有 concrete B5／B8／B9
+  composition。
+- 沒有 Auth、Supabase、network、browser storage、log、timer、retry 或 scheduler direct dependency。
+- production bundle 與 B12.2 完全相同；total gzip 仍是既有 D8 report-only 超額 1,493 bytes。
+- 沒有 migration、Hosted deploy、provider request、DB 寫入或 UI 變更。
+
+本批驗證：
+
+```text
+adapter／governance targeted：22／22 passed
+npm run test:ci:frontend：Node 518 passed／1 skipped；Playwright 334 passed／4 skipped；build 509 modules
+npm run test:ci:supabase：DB 1,198／1,198；local API 4／4；desktop 45 passed／11 skipped；mobile 6／6；Edge 1／1
+typecheck／ESLint／Prettier／bundle structural gate／git diff --check：通過
+hosted deploy／migration apply／env／request／DB 寫入：未執行
+```
+
 ## FA-03 push-cleanup distributed limiter foundation（repo／local only）
 
 已完成：
@@ -1550,8 +1581,8 @@ Hosted deploy／secret／request／DB write：未執行
   capture／unsubscribe／reread seam；但 production importer、server-first cleanup 與 durable quarantine 尚未接線，
   所以 D2 仍未完整。
 - B12.1 已完成 `auth-unverified` 手動重新啟用的原子 storage 起點與跨 tab 收斂；B12.2 已完成 B1 failure notice 的
-  revision／prior-owner 出口，但尚未建立 B1 → B9 adapter、B8 cleanup 或 enable／refresh coordinator；production
-  Push 仍不會呼叫它們。
+  revision／prior-owner 出口；B12.3 已完成 dormant B1 → B9 correlation adapter。但尚未做 concrete composition、
+  B8 cleanup → provisioning 或 enable／refresh coordinator；production Push 仍不會呼叫它們。
 - D6、Q9-A Auth boot gate、quarantine DB digest boundary、local-only encrypted Edge 與 B9 dormant handoff seam
   已完成；但 B1 rejected result 尚無可信舊 owner correlation，production 對 B9 為零 caller，explicit rejection
   也尚未由 browser 呼叫 Edge。`auth_unavailable` 已決策為「驗證成功仍不自動恢復，必須手動重新啟用」，但
@@ -1610,7 +1641,7 @@ Hosted deploy／secret／request／DB write：未執行
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
    owner-quarantine adapter、`FA-03B8` single-attempt coordinator、`FA-03B9` Auth-failure handoff、`FA-03B10.1`
    Auth local sign-out、`FA-03B10.2` dormant browser deactivation、`FA-03B12.1` manual re-enable storage 起點與
-   `FA-03B12.2` Auth failure correlation seam 都存在；
+   `FA-03B12.2` Auth failure notice 與 `FA-03B12.3` dormant correlation adapter 都存在；
    不要重做已完成的 003～011、Auth gate、
    transport linkage、RSA envelope、key generator、browser storage schema、key loader、owner result mapping、bigint
    string boundary、single-attempt exact transport→CAS handoff、caller-supplied Auth failure → B5／B8 handoff，或
@@ -1631,8 +1662,8 @@ Hosted deploy／secret／request／DB write：未執行
    substage 與完整 CI 已完成；下一步另行核可 2 secrets、最多 2 request、零 DB write 的 Hosted 最小重驗。
    production policy／timeout、privacy 文案與 hard gate 移除仍要之後獨立核可。
    `FA-03B12.1` 已完成 exact `auth-unverified` → `subscription_changed` pending cleanup 的原子 B5 action；B12.2
-   已完成 B1 exact failure notice。下一步只做 B1 notice → B9 的 local correlation adapter，以及 B8 cleanup → 新
-   provisioning 的 local coordinator composition。cleanup hosted 完成前不得接
+   已完成 B1 exact failure notice，B12.3 已完成 notice → B9 的 dormant correlation adapter。下一步只做 B8
+   cleanup → 新 provisioning 的 manual re-enable local coordinator。cleanup hosted 完成前不得接
    production；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
@@ -1679,3 +1710,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-04 | FA-03 cleanup source substage    | local 已細分 headers／CF／real-IP 缺少、無效與 mismatch，安全條件不放寬；targeted Node 34／34 與完整 frontend／Supabase CI 通過。最小 Hosted 重驗縮為 2 secrets、最多 2 requests、零 DB write，尚待使用者核可。                                                           |
 | 2026-09-04 | FA-03B12.1                       | dormant B5 manual re-enable storage action 完成：exact `auth-unverified` CAS 原子轉成單一 `subscription_changed` cleanup，跨 tab 收斂且 abort 完整 rollback；完整 frontend／Supabase CI 通過，production／Hosted 未接。                                                  |
 | 2026-09-04 | FA-03B12.2                       | B1 新增 privacy-safe failure notice：只帶 kind／revision／optional prior verified owner，cold boot 不猜 owner、較新 event 阻斷舊 notice；完整 frontend／Supabase CI 通過，callback 預設 no-op 且尚未接 B9。                                                               |
+| 2026-09-04 | FA-03B12.3                       | dormant B1 → B9 correlation adapter 完成：revision 前後 gate、warm owner exact match、cold branch 不猜 Auth proof、superseded 不進 B9；targeted 22／22 與完整 CI 通過，production graph 零 reference。                                                                      |
