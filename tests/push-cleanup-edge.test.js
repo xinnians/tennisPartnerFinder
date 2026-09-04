@@ -33,6 +33,8 @@ import {
 import {
   canonicalIpAddress,
   deriveRateLimitBucketHashes,
+  HOSTED_CLIENT_ADDRESS_FAILURES,
+  inspectTrustedHostedClientAddress,
   loadRateLimitHmacKey,
   matchesHostedLimiterCanaryToken,
   parseCanonicalRateLimitPolicy,
@@ -548,17 +550,30 @@ test("client address parser canonicalizes IP only and requires matching hosted g
     assert.equal(canonicalIpAddress(invalid), "", invalid);
   }
 
-  assert.equal(
-    trustedHostedClientAddress(new Headers({ "cf-connecting-ip": "2001:0DB8:0:0::1", "x-real-ip": "2001:db8::1" })),
-    "2001:db8::1"
-  );
-  for (const headers of [
-    new Headers(),
-    new Headers({ "cf-connecting-ip": "203.0.113.8" }),
-    new Headers({ "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.9" }),
-    new Headers({ "cf-connecting-ip": "bad", "x-real-ip": "bad" }),
-  ]) {
-    assert.equal(trustedHostedClientAddress(headers), "");
+  const matchingHeaders = new Headers({
+    "cf-connecting-ip": "2001:0DB8:0:0::1",
+    "x-real-ip": "2001:db8::1",
+  });
+  assert.deepEqual(inspectTrustedHostedClientAddress(matchingHeaders), { address: "2001:db8::1", failure: "" });
+  assert.equal(trustedHostedClientAddress(matchingHeaders), "2001:db8::1");
+
+  const failures = [
+    [null, HOSTED_CLIENT_ADDRESS_FAILURES.HEADERS],
+    [new Headers(), HOSTED_CLIENT_ADDRESS_FAILURES.CF_MISSING],
+    [new Headers({ "cf-connecting-ip": "bad", "x-real-ip": "203.0.113.8" }), HOSTED_CLIENT_ADDRESS_FAILURES.CF_INVALID],
+    [new Headers({ "cf-connecting-ip": "203.0.113.8" }), HOSTED_CLIENT_ADDRESS_FAILURES.REAL_MISSING],
+    [
+      new Headers({ "cf-connecting-ip": "203.0.113.8", "x-real-ip": "bad" }),
+      HOSTED_CLIENT_ADDRESS_FAILURES.REAL_INVALID,
+    ],
+    [
+      new Headers({ "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.9" }),
+      HOSTED_CLIENT_ADDRESS_FAILURES.MISMATCH,
+    ],
+  ];
+  for (const [headers, expectedFailure] of failures) {
+    assert.deepEqual(inspectTrustedHostedClientAddress(headers), { address: "", failure: expectedFailure });
+    if (headers) assert.equal(trustedHostedClientAddress(headers), "");
   }
 });
 
@@ -641,12 +656,44 @@ test("rate-limit client maps each internal boundary to a fixed canary-only stage
     "p_source_refill_milliseconds",
   ]);
 
-  const mismatchedSource = new Request("https://project.supabase.co/functions/v1/push-cleanup", {
-    headers: { "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.9" },
-    method: "POST",
-  });
   const cases = [
-    ["SOURCE", consumer(), mismatchedSource],
+    [
+      "SOURCE_HEADERS",
+      consumer({
+        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.HEADERS }),
+      }),
+    ],
+    [
+      "SOURCE_CF_MISSING",
+      consumer({
+        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.CF_MISSING }),
+      }),
+    ],
+    [
+      "SOURCE_CF_INVALID",
+      consumer({
+        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.CF_INVALID }),
+      }),
+    ],
+    [
+      "SOURCE_REAL_MISSING",
+      consumer({
+        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.REAL_MISSING }),
+      }),
+    ],
+    [
+      "SOURCE_REAL_INVALID",
+      consumer({
+        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.REAL_INVALID }),
+      }),
+    ],
+    [
+      "SOURCE_MISMATCH",
+      consumer({
+        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.MISMATCH }),
+      }),
+    ],
+    ["SOURCE", consumer({ inspectClientAddress: () => ({ address: "", failure: "UNKNOWN" }) })],
     ["POLICY", consumer({ environment: { PUSH_CLEANUP_RATE_LIMIT_POLICY_JSON: "{}" } })],
     ["HMAC_KEY", consumer({ environment: { PUSH_CLEANUP_RATE_LIMIT_HMAC_KEY: "invalid" } })],
     [

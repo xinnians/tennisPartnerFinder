@@ -13,7 +13,8 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 `frontend-architecture-fa-03-cleanup-c1-preflight-2026-09-04.md`、
 `frontend-architecture-fa-03-cleanup-c1-result-2026-09-04.md`；本機 stage diagnostic 與 Hosted 重驗待核可範圍在
 `frontend-architecture-fa-03-cleanup-c1-diagnostic-preflight-2026-09-04.md`，重驗結果在
-`frontend-architecture-fa-03-cleanup-c1-diagnostic-result-2026-09-04.md`。
+`frontend-architecture-fa-03-cleanup-c1-diagnostic-result-2026-09-04.md`；source substage 最小重驗範圍在
+`frontend-architecture-fa-03-cleanup-c1-source-substage-preflight-2026-09-04.md`。
 
 ## 目前狀態
 
@@ -21,12 +22,12 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                          |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                       |
-| 目前批次                | FA-03 cleanup C1 Hosted diagnostic 已回 `SOURCE` 並依規則停損；只送 2 request、沒有 retry、Hosted 已完整復原；下一步先做 local-only source substage refinement                                                                                                                                                                                                                                                   |
+| 目前批次                | FA-03 cleanup C1 source substage 已在 local 完成並通過完整 CI；Hosted 最小重驗待核可，尚未執行                                                                                                                                                                                                                                                                                                                   |
 | 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                                                            |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
 | migration 變更          | 38 local／38 remote；13 份 FA-03 migration 已完整套用，最新皆為 `202609040001`                                                                                                                                                                                                                                                                                                                                   |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report                                                                                                                                                                                                                                                                                                                                                   |
-| 下一步                  | 在 repo／local 將 `SOURCE` 細分為不含值的固定 stage，先判斷 Function 內部是哪個來源 header 缺少、無效或不同；完成測試後才另提最多 2 request 的 Hosted scope                                                                                                                                                                                                                                                      |
+| 下一步                  | 取得 source substage Hosted 最小重驗核可：只部署 cleanup、2 個臨時 secrets、最多 2 request、零 DB write；仍須接受 dispatcher version metadata 增加                                                                                                                                                                                                                                                               |
 
 查實際 Git 狀態：
 
@@ -82,15 +83,15 @@ git log --oneline --decorate -10
 
 ## 批次總表
 
-| 批次  | 內容                                                              | 狀態                                                                                                                                                                                                                                             | 完成條件                                                                                                     |
-| ----- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                             | 文件差異與 whitespace 檢查通過；無非文件變更                                                                 |
-| FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                             | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                             |
-| FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                       | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                         |
-| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path 與 local stage diagnostic 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；source substage、production Edge 與不可逆 contract 另行確認 |
-| FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 未開始                                                                                                                                                                                                                                           | gate 有 canary；清單有明確 scope                                                                             |
-| FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 未開始                                                                                                                                                                                                                                           | before／after 可重現；未放寬未核可邊界                                                                       |
-| FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 未開始                                                                                                                                                                                                                                           | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                  |
+| 批次  | 內容                                                              | 狀態                                                                                                                                                                                                                                                              | 完成條件                                                                                                                 |
+| ----- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                                              | 文件差異與 whitespace 檢查通過；無非文件變更                                                                             |
+| FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                                              | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                                         |
+| FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                                        | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                                     |
+| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
+| FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 未開始                                                                                                                                                                                                                                                            | gate 有 canary；清單有明確 scope                                                                                         |
+| FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 未開始                                                                                                                                                                                                                                                            | before／after 可重現；未放寬未核可邊界                                                                                   |
+| FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 未開始                                                                                                                                                                                                                                                            | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                              |
 
 ## FA-00 實際內容
 
@@ -1460,6 +1461,19 @@ Hosted deploy／secret／request／DB write：未執行
 - 詳細 client latency、log aggregate 與復原證據見
   `frontend-architecture-fa-03-cleanup-c1-diagnostic-result-2026-09-04.md`。
 
+### Hosted C1 source substage local 更新（2026-09-04）
+
+- `inspectTrustedHostedClientAddress` 現在能區分 headers 介面錯誤、Cloudflare header 缺少／無效、real-IP header
+  缺少／無效，以及兩個 canonical address 不同；只回固定 code，不回 raw header 或 IP。
+- canary stage 對應為 `SOURCE_HEADERS`、`SOURCE_CF_MISSING`、`SOURCE_CF_INVALID`、
+  `SOURCE_REAL_MISSING`、`SOURCE_REAL_INVALID`、`SOURCE_MISMATCH`；未知 inspector 契約仍 fail-closed 為 `SOURCE`。
+- 安全條件沒有放寬：只有兩個 header 都存在、是 canonical IP 且相同，才回 source address 並繼續 limiter。
+- targeted Node 34／34、TypeScript、ESLint、Prettier、完整 frontend CI、完整 Supabase CI 與真實 local Edge smoke
+  全數通過；Hosted 未再變更。
+- 下一輪可縮為 2 個臨時 secrets、最多 2 requests、零 DB write。因不設定 HMAC／policy，若 source 意外通過也只會
+  停在固定 `POLICY`，不會建立 limiter row。精確 scope 見
+  `frontend-architecture-fa-03-cleanup-c1-source-substage-preflight-2026-09-04.md`，尚待使用者核可。
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,082／190,278 與最大 lazy 16,476／4,830 raw/gzip 均在現有門檻；
@@ -1518,8 +1532,8 @@ Hosted deploy／secret／request／DB write：未執行
 - Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
   side-effect-free healthcheck，因此本輪刻意沒有直接呼叫 hosted dispatcher。
 - `ds-bundle/` 是人工同步資料包；繼續使用前要確認與目前 UI/CSS 一致。
-- C1 Hosted diagnostic 已停在 `SOURCE` 並完整復原。下一步要先在 local 將來源 header 缺少／無效／不同拆成
-  不含值的固定 substage；再次 Hosted deploy／secret／request 前仍須取得新核可。
+- C1 Hosted diagnostic 已停在 `SOURCE` 並完整復原；local source substage 已完成。再次 Hosted deploy／secret／
+  request 前仍須取得新核可；最小範圍是 2 secrets、2 requests、零 DB write。
 
 ## 下一個 session 的起點
 
@@ -1546,9 +1560,9 @@ Hosted deploy／secret／request／DB write：未執行
    使用者核可後的 Hosted 首輪只送 1 未授權＋1 授權 request，授權 request 缺 ALLOW marker 即停損，其餘 19 筆
    未送、沒有 retry，Function／4 secrets／limiter 已完整復原。local-only allowlisted stage diagnostic 與完整
    CI 已完成；使用者核可後的 Hosted diagnostic 只送 1 未授權＋1 授權 request，授權 request 回 `SOURCE` 即
-   停損。Function／4 secrets／limiter 已完整復原，dispatcher artifact hash 不變、version 10→14。下一步先在
-   local 細分 source substage，再另行核可最多 2 request 的 Hosted 重驗。production policy／timeout、privacy 文案
-   與 hard gate 移除仍要之後獨立核可。
+   停損。Function／4 secrets／limiter 已完整復原，dispatcher artifact hash 不變、version 10→14。local source
+   substage 與完整 CI 已完成；下一步另行核可 2 secrets、最多 2 request、零 DB write 的 Hosted 最小重驗。
+   production policy／timeout、privacy 文案與 hard gate 移除仍要之後獨立核可。
    `FA-03B12` 在 cleanup
    hosted 完成前最多只做 local composition；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
@@ -1593,3 +1607,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-04 | FA-03 cleanup C1 preflight       | Dormant Hosted limiter-only mode、32-byte token gate、fixed response marker 與 public-key path bundle 拆分完成；本機 targeted／Edge smoke 通過。4 臨時 secrets、最多 21 requests、guarded cleanup 的 exact scope 已記錄，Hosted 尚未執行。                                |
 | 2026-09-04 | FA-03 cleanup C1 diagnostic      | allowlisted stage header、獨立 limiter client 與防偽 error mapping 完成；targeted Node 34／34、完整 frontend／Supabase CI 與 local Edge smoke 通過。Hosted 重驗與 dispatcher version metadata 副作用待使用者核可，遠端未動。                                              |
 | 2026-09-04 | FA-03 cleanup C1 source result   | 使用者核可後只送 1 未授權＋1 授權 request；授權回 `SOURCE` 即停損，limiter RPC／row 皆 0。Function／4 secrets 已移除，Push/runtime 基線與 dispatcher hash 不變，version 10→14；下一步 local 細分 source substage。                                                        |
+| 2026-09-04 | FA-03 cleanup source substage    | local 已細分 headers／CF／real-IP 缺少、無效與 mismatch，安全條件不放寬；targeted Node 34／34 與完整 frontend／Supabase CI 通過。最小 Hosted 重驗縮為 2 secrets、最多 2 requests、零 DB write，尚待使用者核可。                                                           |

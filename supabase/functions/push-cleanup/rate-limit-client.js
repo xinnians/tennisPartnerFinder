@@ -1,10 +1,20 @@
 import { hostedLimiterCanaryFailure, PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES } from "./handler.js";
 import {
   deriveRateLimitBucketHashes,
+  HOSTED_CLIENT_ADDRESS_FAILURES,
+  inspectTrustedHostedClientAddress,
   loadRateLimitHmacKey,
   parseCanonicalRateLimitPolicy,
-  trustedHostedClientAddress,
 } from "./rate-limit.js";
+
+const SOURCE_FAILURE_STAGE = Object.freeze({
+  [HOSTED_CLIENT_ADDRESS_FAILURES.CF_INVALID]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE_CF_INVALID,
+  [HOSTED_CLIENT_ADDRESS_FAILURES.CF_MISSING]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE_CF_MISSING,
+  [HOSTED_CLIENT_ADDRESS_FAILURES.HEADERS]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE_HEADERS,
+  [HOSTED_CLIENT_ADDRESS_FAILURES.MISMATCH]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE_MISMATCH,
+  [HOSTED_CLIENT_ADDRESS_FAILURES.REAL_INVALID]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE_REAL_INVALID,
+  [HOSTED_CLIENT_ADDRESS_FAILURES.REAL_MISSING]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE_REAL_MISSING,
+});
 
 export function configuredPushCleanupSecretKey(readEnvironment) {
   const serialized = readEnvironment("SUPABASE_SECRET_KEYS");
@@ -28,6 +38,7 @@ export function createPushCleanupRateLimitConsumer({
   deriveBucketHashes = deriveRateLimitBucketHashes,
   fetchRef = globalThis.fetch,
   hostedRuntime,
+  inspectClientAddress = inspectTrustedHostedClientAddress,
   loadHmacKey = loadRateLimitHmacKey,
   parsePolicy = parseCanonicalRateLimitPolicy,
   readEnvironment,
@@ -60,8 +71,15 @@ export function createPushCleanupRateLimitConsumer({
   }
 
   return async function consumeRateLimit(request) {
-    const sourceAddress = hostedRuntime ? trustedHostedClientAddress(request.headers) : "127.0.0.1";
-    if (!sourceAddress) throw hostedLimiterCanaryFailure(PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE);
+    let sourceAddress = "127.0.0.1";
+    if (hostedRuntime) {
+      const inspectedSource = inspectClientAddress(request.headers);
+      sourceAddress = inspectedSource?.address ?? "";
+      if (!sourceAddress) {
+        const stage = SOURCE_FAILURE_STAGE[inspectedSource?.failure];
+        throw hostedLimiterCanaryFailure(stage ?? PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.SOURCE);
+      }
+    }
     const { key, policy } = await configuredRateLimit();
     let globalBucketHash;
     let sourceBucketHash;

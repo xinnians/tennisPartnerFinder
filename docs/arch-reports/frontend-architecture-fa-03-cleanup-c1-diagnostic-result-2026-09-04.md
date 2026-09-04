@@ -134,8 +134,9 @@ guarded SQL 問題已在本機重現：Bash 字串把 PostgreSQL dollar quote �
 
 ## 下一個安全步驟
 
-先在 repo／local 把 `SOURCE` 再細分成固定且不含值的 allowlisted stage，例如各 header 缺少／無效與兩值不同；
-完整測試確保仍不回 raw IP。完成後若仍需 Hosted 重驗，重新提出 deploy／secrets／最多 2 次 request 的精確範圍。
+repo／local 已把 `SOURCE` 細分成固定且不含值的 allowlisted stage，完整 CI 也已通過。新的 Hosted 最小範圍只需
+2 個臨時 secrets、最多 2 次 request、零 DB write；詳見
+`frontend-architecture-fa-03-cleanup-c1-source-substage-preflight-2026-09-04.md`，仍待使用者另行核可。
 
 新的核可前，不部署、不設定 secrets、不送 Hosted request。
 
