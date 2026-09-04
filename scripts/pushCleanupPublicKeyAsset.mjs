@@ -1,9 +1,9 @@
 import {
   canonicalCleanupPublicKeyDocumentJson,
   CLEANUP_PUBLIC_KEY_DOCUMENT_BYTES,
-  CLEANUP_PUBLIC_KEY_PATH,
   parseCanonicalCleanupPublicJwkJson,
 } from "../supabase/functions/_shared/push-cleanup-protocol.js";
+import { CLEANUP_PUBLIC_KEY_PATH } from "../supabase/functions/_shared/push-cleanup-public-key-path.js";
 
 export const PUSH_CLEANUP_PUBLIC_KEY_PATH = CLEANUP_PUBLIC_KEY_PATH;
 export const PUSH_CLEANUP_PUBLIC_KEY_ASSET = PUSH_CLEANUP_PUBLIC_KEY_PATH.slice(1);

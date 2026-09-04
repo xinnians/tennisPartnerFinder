@@ -491,10 +491,10 @@ test("openFilterSheet mounts a dialog with six data-filter groups and closes on 
   await expect(sheet).toHaveAttribute("aria-label", "篩選球局");
   await expect(sheet.locator("h2")).toHaveText("篩選球局");
 
-  const fieldGroups = await page.evaluate(() =>
-    [...document.querySelectorAll("#filters-sheet [data-filter]")].map((node) => node.dataset.filter)
-  );
-  expect(new Set(fieldGroups)).toEqual(new Set(["dateKey", "band", "types", "districts", "reset", "apply"]));
+  const fieldControls = sheet.locator("[data-filter]");
+  await expect
+    .poll(async () => new Set(await fieldControls.evaluateAll((nodes) => nodes.map((node) => node.dataset.filter))))
+    .toEqual(new Set(["dateKey", "band", "types", "districts", "reset", "apply"]));
 
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);

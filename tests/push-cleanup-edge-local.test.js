@@ -259,6 +259,7 @@ test(
     let createdUserId = "";
     let adminClient;
     let spawnFailed = false;
+    let outputContainsBundlerWarning;
     let outputContainsSensitiveValue;
     let testError;
     const logWindowStart = new Date(Date.now() - 1_000).toISOString();
@@ -330,6 +331,10 @@ test(
       childClosePromise = new Promise((resolve) => {
         child.once("close", (code, signal) => resolve({ code, signal }));
       });
+      outputContainsBundlerWarning = watchOutput(
+        [child.stdout, child.stderr],
+        ["Skipping import path outside source root"]
+      );
       outputContainsSensitiveValue = watchOutput(
         [child.stdout, child.stderr],
         [
@@ -449,6 +454,7 @@ test(
         serializedJwks,
         ...adminLogValues,
       ]);
+      assert.equal(outputContainsBundlerWarning(), false, "Edge bundle must not skip an absolute public-key path");
       assert.equal(outputContainsSensitiveValue(), false, "Edge output must not contain cleanup secrets");
       assert.equal(containerLogsContainSensitiveValue, false, "Local Supabase logs must not contain cleanup secrets");
     } catch (error) {

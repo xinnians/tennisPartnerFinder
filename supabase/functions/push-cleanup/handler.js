@@ -2,6 +2,8 @@ import { canonicalCleanupEnvelopeJson, CLEANUP_ENVELOPE_BYTES, digestForCleanupE
 
 export { CLEANUP_ENVELOPE_BYTES };
 
+export const PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER = "x-qiuka-cleanup-limiter-outcome";
+
 const BASE_HEADERS = Object.freeze({
   "cache-control": "no-store",
   "content-type": "application/json; charset=utf-8",
@@ -25,8 +27,8 @@ function okResponse(corsOrigin) {
   return response("OK", 200, corsOrigin);
 }
 
-function retryResponse(corsOrigin) {
-  return response("RETRY", 503, corsOrigin);
+function retryResponse(corsOrigin, additionalHeaders = {}) {
+  return response("RETRY", 503, corsOrigin, additionalHeaders);
 }
 
 function allowedContentType(request) {
@@ -99,7 +101,9 @@ async function readBoundedBody(request) {
 
 export function createPushCleanupHandler({
   allowedOrigin,
+  authorizeHostedLimiterCanary,
   consumeRateLimit,
+  hostedLimiterCanaryEnabled,
   cryptoRef = globalThis.crypto,
   hostedRuntime,
   loadKeyRing,
@@ -109,9 +113,31 @@ export function createPushCleanupHandler({
   return async function pushCleanupHandler(request) {
     const corsOrigin = request.headers.get("origin") === allowedOrigin && allowedOrigin ? allowedOrigin : null;
 
-    // The endpoint is deliberately incapable of running on hosted Supabase
-    // until a distributed limiter and its evidence-based threshold are added.
-    if (hostedRuntime || !localTestEnabled) return retryResponse(corsOrigin);
+    // Hosted canary mode is deliberately limited to one authenticated POST
+    // through the limiter. It cannot read the body, load cleanup keys, decrypt,
+    // or call the quarantine command. All other hosted traffic stays hard-gated.
+    if (hostedRuntime) {
+      let canaryAuthorized;
+      try {
+        canaryAuthorized =
+          hostedLimiterCanaryEnabled && request.method === "POST" && authorizeHostedLimiterCanary(request) === true;
+      } catch {
+        return retryResponse(corsOrigin);
+      }
+      if (!canaryAuthorized) return retryResponse(corsOrigin);
+
+      try {
+        const limiterOutcome = await consumeRateLimit(request);
+        if (limiterOutcome !== "ALLOW" && limiterOutcome !== "LIMIT") return retryResponse(corsOrigin);
+        return retryResponse(corsOrigin, {
+          [PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER]: limiterOutcome,
+        });
+      } catch {
+        return retryResponse(corsOrigin);
+      }
+    }
+
+    if (!localTestEnabled) return retryResponse(corsOrigin);
 
     // This is a browser-only boundary. Missing, null, suffix-matched, and
     // reflected origins stop before body, key, crypto, or database work.

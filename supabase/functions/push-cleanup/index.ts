@@ -3,7 +3,9 @@ import { createPushCleanupHandler } from "./handler.js";
 import {
   deriveRateLimitBucketHashes,
   loadRateLimitHmacKey,
+  matchesHostedLimiterCanaryToken,
   parseCanonicalRateLimitPolicy,
+  PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER,
   trustedHostedClientAddress,
 } from "./rate-limit.js";
 import { cleanupRuntimeAccess, exactHttpOrigin } from "./runtime.js";
@@ -12,7 +14,7 @@ function env(name: string) {
   return Deno.env.get(name) ?? "";
 }
 
-const { hostedRuntime, localTestEnabled } = cleanupRuntimeAccess(env);
+const { hostedLimiterCanaryEnabled, hostedRuntime, localTestEnabled } = cleanupRuntimeAccess(env);
 const allowedOrigin = exactHttpOrigin(env("PUSH_CLEANUP_ALLOWED_ORIGIN"));
 
 let keyRingSource = "";
@@ -61,6 +63,13 @@ function configuredRateLimit() {
     });
   }
   return rateLimitConfigPromise;
+}
+
+function authorizeHostedLimiterCanary(request: Request) {
+  return matchesHostedLimiterCanaryToken(
+    env("PUSH_CLEANUP_LIMITER_CANARY_TOKEN"),
+    request.headers.get(PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER)
+  );
 }
 
 async function consumeRateLimit(request: Request) {
@@ -120,7 +129,9 @@ async function quarantineByDigest(digestHex: string) {
 Deno.serve(
   createPushCleanupHandler({
     allowedOrigin,
+    authorizeHostedLimiterCanary,
     consumeRateLimit,
+    hostedLimiterCanaryEnabled,
     hostedRuntime,
     loadKeyRing: configuredKeyRing,
     localTestEnabled,

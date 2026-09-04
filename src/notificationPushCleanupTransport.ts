@@ -2,11 +2,11 @@ import {
   canonicalCleanupEnvelopeJson,
   CLEANUP_ENVELOPE_BYTES,
   CLEANUP_PUBLIC_KEY_DOCUMENT_BYTES,
-  CLEANUP_PUBLIC_KEY_PATH,
   decodeCanonicalCleanupToken,
   encryptCleanupTokenEnvelope,
   parseCanonicalCleanupPublicKeyDocument,
 } from "../supabase/functions/_shared/push-cleanup-protocol.js";
+import { CLEANUP_PUBLIC_KEY_PATH } from "../supabase/functions/_shared/push-cleanup-public-key-path.js";
 
 export const PUSH_CLEANUP_TRANSPORT_MAX_POSTS = 2;
 

@@ -22,12 +22,19 @@ import {
   parseCanonicalCleanupPublicKeyDocument,
   rsaJwkThumbprint,
 } from "../supabase/functions/push-cleanup/crypto.js";
-import { CLEANUP_ENVELOPE_BYTES, createPushCleanupHandler } from "../supabase/functions/push-cleanup/handler.js";
+import {
+  CLEANUP_ENVELOPE_BYTES,
+  createPushCleanupHandler,
+  PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER,
+} from "../supabase/functions/push-cleanup/handler.js";
 import {
   canonicalIpAddress,
   deriveRateLimitBucketHashes,
   loadRateLimitHmacKey,
+  matchesHostedLimiterCanaryToken,
   parseCanonicalRateLimitPolicy,
+  PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER,
+  PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES,
   PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES,
   PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION,
   trustedHostedClientAddress,
@@ -87,6 +94,7 @@ async function responseShape(response) {
   return {
     body: await response.json(),
     cacheControl: response.headers.get("cache-control"),
+    canaryOutcome: response.headers.get(PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER),
     corsOrigin: response.headers.get("access-control-allow-origin"),
     status: response.status,
     vary: response.headers.get("vary"),
@@ -97,7 +105,9 @@ function handlerHarness(overrides = {}) {
   const calls = [];
   const handler = createPushCleanupHandler({
     allowedOrigin: ALLOWED_ORIGIN,
+    authorizeHostedLimiterCanary: () => false,
     consumeRateLimit: async () => "ALLOW",
+    hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     loadKeyRing: async () => testKeyRing,
     localTestEnabled: true,
@@ -114,6 +124,7 @@ function expectedResponse(outcome, status, corsOrigin = ALLOWED_ORIGIN) {
   return {
     body: { outcome },
     cacheControl: "no-store",
+    canaryOutcome: null,
     corsOrigin,
     status,
     vary: "Origin",
@@ -388,25 +399,43 @@ test("current and previous keys decrypt, while a retired public kid asks the cli
 test("runtime gate requires exact local mode and treats deployment or region markers as hosted", () => {
   const access = (environment) => cleanupRuntimeAccess((name) => environment[name] ?? "");
 
-  assert.deepEqual(access({}), { hostedRuntime: false, localTestEnabled: false });
+  assert.deepEqual(access({}), {
+    hostedLimiterCanaryEnabled: false,
+    hostedRuntime: false,
+    localTestEnabled: false,
+  });
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "local-test" }), {
+    hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: false,
   });
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "local-test-v1" }), {
+    hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: true,
   });
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "local-test-v1", SB_EXECUTION_ID: "local-isolate" }), {
+    hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: true,
   });
   for (const marker of ["DENO_DEPLOYMENT_ID", "SB_REGION"]) {
     assert.deepEqual(access({ [marker]: "hosted", PUSH_CLEANUP_RUNTIME_MODE: "local-test-v1" }), {
+      hostedLimiterCanaryEnabled: false,
+      hostedRuntime: true,
+      localTestEnabled: false,
+    });
+    assert.deepEqual(access({ [marker]: "hosted", PUSH_CLEANUP_RUNTIME_MODE: "hosted-limiter-canary-v1" }), {
+      hostedLimiterCanaryEnabled: true,
       hostedRuntime: true,
       localTestEnabled: false,
     });
   }
+  assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "hosted-limiter-canary-v1" }), {
+    hostedLimiterCanaryEnabled: false,
+    hostedRuntime: false,
+    localTestEnabled: false,
+  });
 });
 
 test("allowed origin config accepts only an exact HTTP(S) origin", () => {
@@ -472,6 +501,26 @@ test("rate-limit HMAC key is exact, non-extractable, and domain-separates opaque
 
   for (const invalid of ["", `${serializedKey}=`, encodeBase64Url(new Uint8Array(31))]) {
     await assert.rejects(loadRateLimitHmacKey(invalid), /RATE_LIMIT_KEY_INVALID/u, invalid);
+  }
+});
+
+test("hosted limiter canary token requires two exact canonical 32-byte values", () => {
+  const configuredBytes = new Uint8Array(PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES);
+  const configuredToken = encodeBase64Url(configuredBytes);
+  configuredBytes.fill(0);
+  assert.equal(matchesHostedLimiterCanaryToken(configuredToken, configuredToken), true);
+
+  const differentBytes = new Uint8Array(PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES);
+  differentBytes[PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES - 1] = 1;
+  const differentToken = encodeBase64Url(differentBytes);
+  differentBytes.fill(0);
+  for (const presented of [
+    "",
+    `${configuredToken}=`,
+    encodeBase64Url(new Uint8Array(PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES - 1)),
+    differentToken,
+  ]) {
+    assert.equal(matchesHostedLimiterCanaryToken(configuredToken, presented), false, presented);
   }
 });
 
@@ -542,6 +591,88 @@ test("disabled and hosted handlers stop before body read, key import, decryption
 
     assert.deepEqual(await responseShape(await handler(request)), expectedResponse("RETRY", 503));
     assert.deepEqual({ bodyReads, keyLoads, rpcCalls }, { bodyReads: 0, keyLoads: 0, rpcCalls: 0 });
+  }
+});
+
+test("hosted limiter canary requires its exact POST token and never reaches body or cleanup dependencies", async () => {
+  let bodyReads = 0;
+  let keyLoads = 0;
+  let limiterCalls = 0;
+  let quarantineCalls = 0;
+  const outcomes = ["ALLOW", "LIMIT"];
+  const handler = createPushCleanupHandler({
+    allowedOrigin: ALLOWED_ORIGIN,
+    authorizeHostedLimiterCanary: (request) =>
+      matchesHostedLimiterCanaryToken(FIXED_TOKEN, request.headers.get(PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER)),
+    consumeRateLimit: async () => {
+      limiterCalls += 1;
+      return outcomes.shift();
+    },
+    hostedLimiterCanaryEnabled: true,
+    hostedRuntime: true,
+    loadKeyRing: async () => {
+      keyLoads += 1;
+      return testKeyRing;
+    },
+    localTestEnabled: false,
+    quarantineByDigest: async () => {
+      quarantineCalls += 1;
+      return "OK";
+    },
+  });
+  const canaryRequest = (token, method = "POST") => ({
+    get body() {
+      bodyReads += 1;
+      throw new Error("body must remain unread");
+    },
+    headers: new Headers(token ? { [PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER]: token } : {}),
+    method,
+  });
+
+  for (const request of [canaryRequest(""), canaryRequest(`${FIXED_TOKEN}=`), canaryRequest(FIXED_TOKEN, "GET")]) {
+    assert.deepEqual(await responseShape(await handler(request)), expectedResponse("RETRY", 503, null));
+  }
+  assert.equal(limiterCalls, 0);
+
+  for (const outcome of ["ALLOW", "LIMIT"]) {
+    const response = await handler(canaryRequest(FIXED_TOKEN));
+    const shape = await responseShape(response);
+    assert.deepEqual(shape, {
+      ...expectedResponse("RETRY", 503, null),
+      canaryOutcome: outcome,
+    });
+  }
+  assert.deepEqual(
+    { bodyReads, keyLoads, limiterCalls, quarantineCalls },
+    {
+      bodyReads: 0,
+      keyLoads: 0,
+      limiterCalls: 2,
+      quarantineCalls: 0,
+    }
+  );
+});
+
+test("hosted limiter canary hides invalid outcomes and failures", async () => {
+  for (const outcome of ["INVALID", new Error("canary limiter unavailable")]) {
+    const handler = createPushCleanupHandler({
+      allowedOrigin: ALLOWED_ORIGIN,
+      authorizeHostedLimiterCanary: () => true,
+      consumeRateLimit: async () => {
+        if (outcome instanceof Error) throw outcome;
+        return outcome;
+      },
+      hostedLimiterCanaryEnabled: true,
+      hostedRuntime: true,
+      loadKeyRing: async () => {
+        throw new Error("must not load cleanup keys");
+      },
+      localTestEnabled: false,
+      quarantineByDigest: async () => {
+        throw new Error("must not quarantine");
+      },
+    });
+    assert.deepEqual(await responseShape(await handler(jsonRequest(""))), expectedResponse("RETRY", 503));
   }
 });
 
@@ -826,6 +957,7 @@ test("Edge source has no application logging and only the approved RPC name", ()
   const allSource = `${sharedProtocolSource}\n${cryptoSource}\n${handlerSource}\n${rateLimitSource}\n${indexSource}`;
 
   assert.doesNotMatch(allSource, /console\./u);
+  assert.doesNotMatch(allSource, /push-cleanup-key-v1\.json/u);
   assert.doesNotMatch(allSource, /access-control-allow-origin["']?\s*:\s*["']\*["']/u);
   assert.doesNotMatch(handlerSource, /request\.(?:json|text)\(/u);
   assert.match(indexSource, /rest\/v1\/rpc\/quarantine_push_by_token/u);

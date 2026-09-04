@@ -16,8 +16,10 @@ export function exactHttpOrigin(value) {
 
 export function cleanupRuntimeAccess(readEnvironment) {
   const hostedRuntime = HOSTED_RUNTIME_MARKERS.some((name) => Boolean(readEnvironment(name)));
+  const runtimeMode = readEnvironment("PUSH_CLEANUP_RUNTIME_MODE");
   return {
+    hostedLimiterCanaryEnabled: hostedRuntime && runtimeMode === "hosted-limiter-canary-v1",
     hostedRuntime,
-    localTestEnabled: !hostedRuntime && readEnvironment("PUSH_CLEANUP_RUNTIME_MODE") === "local-test-v1",
+    localTestEnabled: !hostedRuntime && runtimeMode === "local-test-v1",
   };
 }

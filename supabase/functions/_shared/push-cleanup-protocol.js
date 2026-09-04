@@ -4,7 +4,6 @@ export const CLEANUP_KEY_ID_CHARACTERS = Math.ceil((CLEANUP_KEY_ID_BYTES * 8) / 
 export const CLEANUP_KEY_ALGORITHM = "RSA-OAEP-256";
 export const CLEANUP_PUBLIC_KEY_DOCUMENT_BYTES = 499;
 export const CLEANUP_PUBLIC_KEY_DOCUMENT_VERSION = 1;
-export const CLEANUP_PUBLIC_KEY_PATH = "/push-cleanup-key-v1.json";
 export const CLEANUP_RSA_LABEL_TEXT = "qiuka.tw/push-cleanup-token/v1";
 export const CLEANUP_RSA_MODULUS_BITS = 2048;
 export const CLEANUP_RSA_CIPHERTEXT_BYTES = CLEANUP_RSA_MODULUS_BITS / 8;

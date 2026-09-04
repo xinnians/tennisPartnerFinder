@@ -138,13 +138,16 @@ test("the Push storage foundation has no network, Supabase, or unsafe fallback b
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:localStorage|sessionStorage|Math\.random)\b/u);
 });
 
-test("the dormant cleanup transport imports only the public shared protocol and never persists or logs secrets", () => {
+test("the dormant cleanup transport imports only public shared modules and never persists or logs secrets", () => {
   const importSources = [...PUSH_CLEANUP_TRANSPORT_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
   const sideEffectImports = [...PUSH_CLEANUP_TRANSPORT_SOURCE.matchAll(/^\s*import\s+"([^"]+)";/gmu)].map(
     (match) => match[1]
   );
 
-  assert.deepEqual(importSources, ["../supabase/functions/_shared/push-cleanup-protocol.js"]);
+  assert.deepEqual(importSources, [
+    "../supabase/functions/_shared/push-cleanup-protocol.js",
+    "../supabase/functions/_shared/push-cleanup-public-key-path.js",
+  ]);
   assert.deepEqual(sideEffectImports, []);
   assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /\bimport\s*\(/u);
   assert.doesNotMatch(PUSH_CLEANUP_TRANSPORT_SOURCE, /\b(?:dataApi|supabaseClient|notificationPushStorage)\b/u);

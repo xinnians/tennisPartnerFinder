@@ -2,6 +2,8 @@ import { decodeCanonicalBase64Url } from "../_shared/push-cleanup-protocol.js";
 
 export const PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES = 32;
 export const PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION = 1;
+export const PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER = "x-qiuka-cleanup-limiter-canary";
+export const PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES = 32;
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const POLICY_KEYS = Object.freeze(["global", "idleTtlSeconds", "source", "version"]);
@@ -78,6 +80,27 @@ export async function loadRateLimitHmacKey(serialized, cryptoRef = globalThis.cr
     throw new Error("PUSH_CLEANUP_RATE_LIMIT_KEY_INVALID");
   } finally {
     bytes.fill(0);
+  }
+}
+
+export function matchesHostedLimiterCanaryToken(configuredToken, presentedToken) {
+  const configuredBytes = decodeCanonicalBase64Url(configuredToken);
+  const presentedBytes = decodeCanonicalBase64Url(presentedToken);
+  try {
+    if (
+      configuredBytes?.byteLength !== PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES ||
+      presentedBytes?.byteLength !== PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES
+    ) {
+      return false;
+    }
+    let difference = 0;
+    for (let index = 0; index < PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES; index += 1) {
+      difference |= configuredBytes[index] ^ presentedBytes[index];
+    }
+    return difference === 0;
+  } finally {
+    configuredBytes?.fill(0);
+    presentedBytes?.fill(0);
   }
 }
 
