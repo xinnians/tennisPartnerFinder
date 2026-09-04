@@ -2,8 +2,8 @@
 
 最後更新：2026-09-04
 
-狀態：**repo／official-doc 唯讀查證完成；尚未 deploy、設 env／secret 或送 Hosted request。等待 raw-IP log 與
-retention 決策。**
+狀態：**前置確認已結束；使用者確認 Free／1 天 retention 並核可 C0。C0 已完成，結果見
+`frontend-architecture-fa-03-cleanup-c0-2026-09-04.md`。**
 
 ## 白話結論
 
@@ -75,11 +75,11 @@ C0 通過後，才在 repo／local 設計受限的 Hosted canary mode，讓受�
 body、不解密、不 quarantine。暫時 policy、request 數量、停用方式與 env／secret 必須先形成 exact diff，再另行
 核可。這些測試值只作 canary fixture，不是 production threshold。
 
-## 目前需要使用者確認
+## 使用者決策與執行結果
 
-1. 目前 Supabase 專案是 Free、Pro、Team 或 Enterprise，才能固定 raw-IP log 的實際保留天數。
-2. 是否接受 Supabase 平台在該 retention 期間保存 `cf-connecting-ip`／`x-real-ip`。
-3. 接受後，是否核可 C0 的「只部署 hard-gated `push-cleanup`＋2 次空 body POST＋唯讀 logs／DB 驗證」。
+使用者於 2026-09-04 確認 Supabase 方案是 Free，接受平台 raw-IP log 保留 1 天，並核可 C0 的「只部署
+hard-gated `push-cleanup`＋2 次空 body POST＋唯讀 logs／DB 驗證＋立即刪除」。C0 已照此邊界完成：兩次都是
+exact `503 RETRY`；platform log 正好 2 筆，兩個來源 header 每筆都有且相同；DB 無變動；Function 已刪除。
 
 正式開放 cleanup 給使用者前，另需核可更新 `public/privacy.html`；這不包含在 C0。
 
