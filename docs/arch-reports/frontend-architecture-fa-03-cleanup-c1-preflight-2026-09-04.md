@@ -2,8 +2,8 @@
 
 最後更新：2026-09-04
 
-狀態：**repo／local dormant canary path 已完成；尚未部署、設定 Hosted secret、送 C1 request 或寫 Hosted
-limiter table。等待使用者核可下方 exact C1 範圍。**
+狀態：**本文件保存執行前 scope。使用者已核可並執行；首筆授權 request 缺 ALLOW marker後停損，已完整復原。
+實際證據見 `frontend-architecture-fa-03-cleanup-c1-result-2026-09-04.md`。**
 
 ## 白話結論
 
@@ -164,9 +164,9 @@ git diff --check：通過
 
 這些本機結果不等於 Hosted C1 已完成。
 
-## 需要使用者確認
+## 使用者核可紀錄
 
-是否核可上方完整 C1：
+使用者已於 2026-09-04 選 A 核可上方完整 C1：
 
 - 新增 4 個臨時 Hosted secrets。
 - 只部署 `push-cleanup`。

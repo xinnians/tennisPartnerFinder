@@ -9,8 +9,9 @@
 `frontend-architecture-fa-03-hosted-migration-apply-2026-09-04.md`。
 Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 `frontend-architecture-fa-03-cleanup-canary-preflight-2026-09-04.md`；已完成的 C0 證據在
-`frontend-architecture-fa-03-cleanup-c0-2026-09-04.md`；待核可的 C1 exact scope 在
-`frontend-architecture-fa-03-cleanup-c1-preflight-2026-09-04.md`。
+`frontend-architecture-fa-03-cleanup-c0-2026-09-04.md`；C1 scope 與未通過／完整復原證據分別在
+`frontend-architecture-fa-03-cleanup-c1-preflight-2026-09-04.md`、
+`frontend-architecture-fa-03-cleanup-c1-result-2026-09-04.md`。
 
 ## 目前狀態
 
@@ -18,12 +19,12 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | FA-03 cleanup C1 dormant limiter-only path 已完成本機實作；Hosted exact scope 已列出，等待 deploy／4 secrets／最多 21 requests／清理核可 |
+| 目前批次 | FA-03 cleanup C1 Hosted 首輪在第 1 次授權 request 缺 outcome marker 時停損；總共只送 2 request、沒有重試，已完整復原；下一步先做 local-only allowlisted diagnostic path |
 | 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用 |
 | runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
 | migration 變更 | 38 local／38 remote；13 份 FA-03 migration 已完整套用，最新皆為 `202609040001` |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 取得 C1 exact scope 核可後，才可設定 4 個臨時 secrets、部署單一 Function、送最多 21 request 並按固定順序完整復原 |
+| 下一步 | 先在 repo／local 建立只對 exact canary token 顯示固定 stage code 的診斷 path；完成測試後，另行取得新的 Hosted C1 diagnostic scope 核可 |
 
 查實際 Git 狀態：
 
@@ -66,7 +67,8 @@ git log --oneline --decorate -10
 | D27 | Push v2 provider policy 不內建猜測的 production hostname；設定只接受 sorted／unique／non-empty canonical origin JSON，endpoint 名稱再依 IANA Special-Use registry fail-closed | B11 已完成 shared parser／validator；production origin env 仍為空，release evidence 與 send-time DNS 留待後續批次 |
 | D28 | push-cleanup distributed limiter 採 Postgres 原子 token bucket，不新增外部 Redis 供應商；全域與來源兩層在同一 RPC 內固定順序鎖定，來源 IP 只以 Edge HMAC digest 進 DB；production 門檻沒有證據就不設定 | schema、RPC、Edge fail-closed composition 與並行測試完成，migration 已套 Hosted；C1 建議值只作可推導的 canary fixture，不是 production policy，Hosted 尚未設定 |
 | D29 | 13 份 FA-03 Hosted migration 獨立套用；本批只做 DB migration 與事後唯讀驗證，不綁 Edge deploy、env／secret、request 或 hard-gate 變更 | 使用者於 2026-09-04 核可並完成；38 local／38 remote、資料／ACL／catalog／lint 驗證通過 |
-| D30 | Supabase 方案為 Free；接受平台保存 raw source-IP headers 1 天，並核可 C0 只暫時部署 hard-gated cleanup、送 2 次空 body POST、唯讀驗證後立即刪除 | 使用者於 2026-09-04 確認；2 次 exact 503／RETRY、2 筆一致來源 header log、DB 零變動，Function 已刪除；C1 未核可 |
+| D30 | Supabase 方案為 Free；接受平台保存 raw source-IP headers 1 天，並核可 C0 只暫時部署 hard-gated cleanup、送 2 次空 body POST、唯讀驗證後立即刪除 | 使用者於 2026-09-04 確認；2 次 exact 503／RETRY、2 筆一致來源 header log、DB 零變動，Function 已刪除 |
+| D31 | C1 核可 4 個臨時 secrets、單一 cleanup deploy、最多 1 未授權＋20 授權空 body POST、不重試、固定 rollback；不包含 production policy／cleanup／key／browser／privacy／hard-gate 移除 | 使用者於 2026-09-04 選 A；實際 1 未授權符合、首筆授權缺 ALLOW marker即停，19 筆取消；Function／secrets／limiter 已復原，C1 未通過 |
 
 ## 授權邊界
 
@@ -83,7 +85,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation、Hosted additive migration、cleanup C0 與 dormant C1 path 完成；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；Hosted C1／production Edge 與不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation、Hosted additive migration、cleanup C0 與 dormant C1 path 完成；C1 Hosted 首輪停損且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；C1 diagnostic／production Edge 與不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -1397,6 +1399,27 @@ git diff --check：通過
 Hosted deploy／secret／request／DB write：未執行
 ```
 
+### Hosted C1 首輪執行更新（2026-09-04）
+
+- 使用者核可 C1 exact scope 後，事前 Function／secret name／DB 基線全數符合；單獨部署的 cleanup bundle 為
+  9.6 kB，C0 absolute public-key path warning 沒有再出現。
+- CLI 第一次拒絕 `/dev/stdin` env-file；當下 0 secret、0 mode、0 request，trap 刪除 Function。重新確認基線
+  完整復原後才進行第二次部署，沒有把工具失敗算成 canary request。
+- 實際 C1 先設定三個材料 secret，再最後設定 mode。未授權第 1 筆精確為 503／RETRY、沒有 marker，且獨立
+  DB check 為 limiter 0 rows。
+- 第 1 筆授權 request 仍為 503／RETRY，但缺少預期 ALLOW marker；依規則立刻停止，剩餘 19 筆未送、沒有 retry。
+  總 request 只有 2，因此沒有 p50／p95／p99 樣本。
+- 固定時間窗的 `function_edge_logs` 精確 2 筆；POST／503、兩個 source-IP header present／equal 都是 2，
+  distinct source 1，自訂 canary header log field 0。`function_logs` 只有 2 Boot＋2 EarlyDrop，沒有 application log。
+- 同時間窗的 `/rest/v1/rpc/consume_push_cleanup_rate_limit` gateway log 為 0，DB limiter 也為 0。現有固定回應無法
+  唯一區分 auth、設定、crypto 或 RPC 前置階段，因此不猜根因；下一步先做 local-only allowlisted stage diagnostic。
+- rollback 依序完成 mode unset、Function delete、guarded limiter check、其餘三個 secret unset；最終四個 C1
+  secret names 0、limiter／consent／registry／delivery 0、legacy／v2 Push 4／0、outbox／pending 7／0、runtime
+  disabled exact 1。
+- 四次 secret mutation 後，既有 dispatcher version 從 6 單調增加為 10，但 `ezbr_sha256` 前後相同；後續
+  rollback 必須驗 Function 名稱、狀態、`verify_jwt` 與 artifact hash，不能再要求 Hosted version 回到舊數字。
+- 詳細 timestamps、aggregate 與邊界見 `frontend-architecture-fa-03-cleanup-c1-result-2026-09-04.md`。
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,082／190,278 與最大 lazy 16,476／4,830 raw/gzip 均在現有門檻；
@@ -1440,7 +1463,12 @@ Hosted deploy／secret／request／DB write：未執行
 - `supabase functions deploy` 未指定名稱時會涵蓋所有 Functions；本案必須明列單一 `push-cleanup`，避免誤部署
   其他 function。即使 handler 不執行 DB，公開 endpoint 仍可能帶來請求成本；正式啟用前仍需 production limiter
   policy 與有證據的 RPC timeout。C0 的 absolute public-key path warning 已在 repo 拆分並由 local compile 驗證
-  消失，但要等下一次 Hosted deploy 才能確認 Hosted CLI output；不能只用本機結果宣稱完全解決。
+  消失，C1 Hosted deploy 也沒有再出現 warning。
+- C1 Hosted 首輪的未授權 request 通過，但首筆授權 request 缺 ALLOW marker；remaining 19 requests 已取消，
+  Function／secrets／limiter 全部復原。現有去敏固定回應無法從外部唯一定位 auth 到 RPC 前的失敗階段；在
+  local-only allowlisted diagnostic 與新一輪明確核可前，不再部署或送 Hosted request。
+- Supabase secret mutation 實測會讓未改 source 的既有 dispatcher version 單調增加；本輪由 6 變 10，artifact
+  hash 不變。version number 不能再作 rollback 等值條件，應改驗 code hash／狀態／config。
 - Supabase 官方 logging 文件與 C0 都證明 platform logs 會保存 `cf-connecting-ip` 與 `x-real-ip`；DB 只存 HMAC
   digest 無法去除平台層 raw IP。使用者已確認方案為 Free 並接受 1 天 retention。現行 privacy 頁只說 Vercel
   Analytics 不留 IP，沒有揭露 Supabase access logs；正式開放前必須另批更新。
@@ -1472,9 +1500,10 @@ Hosted deploy／secret／request／DB write：未執行
    validator／hybrid envelope／independent key asset／Edge structural ports，以及 Postgres distributed limiter
    foundation 已完成。2026-09-04 Hosted 已套完 13 份 migration，4 筆 legacy Push row 保留、1 筆 reminder
    sentinel update 完成，runtime 仍 disabled。Cleanup C0 已完成：Free／1 天 raw-IP retention 已接受；2 次
-   hard-gated request、platform log 與 DB 驗證通過，臨時 Function 已刪除。Dormant C1 limiter-only path 與 exact
-   scope 已完成；下一步等待 4 個臨時 secrets、單一 deploy、最多 21 requests 與固定 rollback 的 Hosted 核可。
-   production policy／timeout、privacy 文案與 hard gate 移除仍要之後獨立核可。
+   hard-gated request、platform log 與 DB 驗證通過，臨時 Function 已刪除。Dormant C1 limiter-only path 已完成；
+   使用者核可後的 Hosted 首輪只送 1 未授權＋1 授權 request，授權 request 缺 ALLOW marker 即停損，其餘 19 筆
+   未送、沒有 retry，Function／4 secrets／limiter 已完整復原。下一步先完成 local-only allowlisted stage
+   diagnostic，再另行核可 Hosted 重驗；production policy／timeout、privacy 文案與 hard gate 移除仍要之後獨立核可。
    `FA-03B12` 在 cleanup
    hosted 完成前最多只做 local composition；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
@@ -1513,6 +1542,7 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-04 | FA-03 cleanup limiter | 使用者核可 Postgres 原子限流；private global＋source token bucket、service-role RPC、HMAC source digest、Edge fail-closed composition、過期 reaper 與 parallel PostgREST 測試完成；38 migrations 重播、DB 1,198／1,198 與完整 CI 通過，production policy／hosted 仍未動。 |
 | 2026-09-04 | FA-03 hosted migration preflight | Hosted read-only transaction 重查 2 sessions／2 participants／2 messages／4 legacy Push／7 outbox，只有 1 reminder 會直接回填；dry-run 精確列出 13 份 migration，未做遠端寫入，等待獨立套用核可。 |
 | 2026-09-04 | FA-03 hosted migration apply | 使用者核可後套用全部 13 份；38／38 migration 對齊、4 legacy Push 與 7 outbox 保留、1 reminder sentinel、0 v2／consent／registry／delivery／limiter rows，ACL／catalog／linked lint 通過；Edge／env／secret／request 未動。 |
+| 2026-09-04 | FA-03 cleanup C1 Hosted | 使用者核可 exact scope；未授權 request 與 DB check 通過，首筆授權 request 缺 ALLOW marker即停損，19 筆取消、無 retry；mode、Function、4 secrets、limiter 完整復原。平台聚合不足以唯一判根因，下一步先做 local-only allowlisted diagnostic。 |
 | 2026-09-04 | FA-03 cleanup canary preflight | 官方文件確認 individual deploy 與 platform logs 會保存兩個 raw source-IP headers；前置確認當時 CLI／未登入 Dashboard 無法確認實際 plan retention，C0 尚待使用者核可。 |
 | 2026-09-04 | FA-03 cleanup C0 | 使用者確認 Free／1 天 retention 並接受 raw-IP log；暫時單獨部署 hard-gated cleanup，2 次空 body POST 均 exact 503／RETRY；platform log 正好 2 筆且兩個來源 header 皆存在並相同，DB 零變動；Function 已立即刪除，C1 未核可。 |
 | 2026-09-04 | FA-03 cleanup C1 preflight | Dormant Hosted limiter-only mode、32-byte token gate、fixed response marker 與 public-key path bundle 拆分完成；本機 targeted／Edge smoke 通過。4 臨時 secrets、最多 21 requests、guarded cleanup 的 exact scope 已記錄，Hosted 尚未執行。 |
