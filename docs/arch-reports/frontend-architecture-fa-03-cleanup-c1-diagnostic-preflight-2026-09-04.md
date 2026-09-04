@@ -2,7 +2,8 @@
 
 最後更新：2026-09-04
 
-狀態：**本機診斷程式與完整 CI 已通過；Hosted 重驗尚未核可、尚未執行。**
+狀態：**使用者已核可並完成 Hosted 重驗；第 1 次授權 request 回 `SOURCE` 後停損，Hosted 已完整復原。結果見
+`frontend-architecture-fa-03-cleanup-c1-diagnostic-result-2026-09-04.md`。**
 
 ## 白話結論
 
@@ -130,7 +131,8 @@ dispatcher source 與 artifact hash 完全沒變。這輪設定與移除臨時 s
 因此，執行 Hosted 重驗前需要使用者明確接受：**dispatcher version metadata 可以增加；驗收改看名稱、狀態、
 `verify_jwt` 與 artifact hash 不變。**
 
-## 尚未核可
+## 核可與執行紀錄
 
-建立本文件與本機程式不代表 Hosted 操作已獲授權。在使用者明確同意上方精確範圍與 dispatcher version metadata
-副作用前，不部署、不設定 secrets、不送 Hosted request，也不寫 Hosted DB。
+使用者於 2026-09-04 明確同意上方精確範圍與 dispatcher version metadata 副作用。實際執行只送 1 次未授權＋
+1 次授權 request；授權 request 回 `SOURCE` 後取消剩餘 19 次，沒有 retry。Function、4 個 secrets 與 DB 基線
+均已復原；dispatcher artifact hash 不變、version metadata 由 10 增至 14。
