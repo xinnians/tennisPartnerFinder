@@ -99,6 +99,7 @@ async function readBoundedBody(request) {
 
 export function createPushCleanupHandler({
   allowedOrigin,
+  consumeRateLimit,
   cryptoRef = globalThis.crypto,
   hostedRuntime,
   loadKeyRing,
@@ -130,6 +131,12 @@ export function createPushCleanupHandler({
 
     if (request.method !== "POST") {
       return response("METHOD_NOT_ALLOWED", 405, corsOrigin, { allow: "POST, OPTIONS" });
+    }
+
+    try {
+      if ((await consumeRateLimit(request)) !== "ALLOW") return retryResponse(corsOrigin);
+    } catch {
+      return retryResponse(corsOrigin);
     }
 
     if (!allowedContentType(request) || !allowedContentEncoding(request)) return okResponse(corsOrigin);

@@ -13,6 +13,7 @@ import {
   encryptCleanupTokenEnvelope,
   rsaJwkThumbprint,
 } from "../supabase/functions/push-cleanup/crypto.js";
+import { deriveRateLimitBucketHashes, loadRateLimitHmacKey } from "../supabase/functions/push-cleanup/rate-limit.js";
 import { loadLocalSupabaseConfig } from "./fixtures/localSupabaseConfig.js";
 import { createProfile, makeAdminClient, signUpUser } from "./fixtures/localSupabase.js";
 
@@ -223,6 +224,17 @@ test(
     const token = encodeBase64Url(tokenBytes);
     tokenBytes.fill(0);
     const digest = await cleanupTokenDigestHex(token);
+    const rateLimitKeyBytes = crypto.getRandomValues(new Uint8Array(32));
+    const serializedRateLimitKey = encodeBase64Url(rateLimitKeyBytes);
+    rateLimitKeyBytes.fill(0);
+    const rateLimitKey = await loadRateLimitHmacKey(serializedRateLimitKey);
+    const rateLimitBuckets = await deriveRateLimitBucketHashes("127.0.0.1", rateLimitKey);
+    const rateLimitPolicy = JSON.stringify({
+      global: { capacity: 5, refillMilliseconds: 1000000 },
+      idleTtlSeconds: 60,
+      source: { capacity: 3, refillMilliseconds: 1000000 },
+      version: 1,
+    });
     const { privateJwk, publicJwk } = await generateKeyMaterial();
     if (!digest || typeof privateJwk.d !== "string") {
       throw new Error("Unable to create local cleanup test material.");
@@ -237,6 +249,8 @@ test(
       "PUSH_CLEANUP_RUNTIME_MODE=local-test-v1",
       `PUSH_CLEANUP_ALLOWED_ORIGIN=${LOCAL_ORIGIN}`,
       `PUSH_CLEANUP_PRIVATE_JWKS_JSON=${serializedJwks}`,
+      `PUSH_CLEANUP_RATE_LIMIT_HMAC_KEY=${serializedRateLimitKey}`,
+      `PUSH_CLEANUP_RATE_LIMIT_POLICY_JSON=${rateLimitPolicy}`,
       "",
     ].join("\n");
 
@@ -268,6 +282,17 @@ test(
       ) {
         throw new Error("The local cleanup fixture IDs are invalid.");
       }
+      runLocalDatabaseSql(`
+        delete from private.push_cleanup_rate_limit_buckets bucket_row
+        where (bucket_row.scope = 'global'
+            and bucket_row.bucket_hash = pg_catalog.decode(
+              '${rateLimitBuckets.globalBucketHash}', 'hex'
+            ))
+          or (bucket_row.scope = 'source'
+            and bucket_row.bucket_hash = pg_catalog.decode(
+              '${rateLimitBuckets.sourceBucketHash}', 'hex'
+            ));
+      `);
       const consentId = runLocalDatabaseSql(`
         insert into private.push_device_consents (
           profile_id,
@@ -307,7 +332,16 @@ test(
       });
       outputContainsSensitiveValue = watchOutput(
         [child.stdout, child.stderr],
-        [token, digest, ...privateKeyValues, serializedJwks, ...adminLogValues]
+        [
+          token,
+          digest,
+          serializedRateLimitKey,
+          rateLimitBuckets.globalBucketHash,
+          rateLimitBuckets.sourceBucketHash,
+          ...privateKeyValues,
+          serializedJwks,
+          ...adminLogValues,
+        ]
       );
 
       await waitUntilHandlerIsReady(functionUrl, child, () => spawnFailed);
@@ -384,12 +418,33 @@ test(
         `),
         "paused|cleanup_quarantine"
       );
+      assert.equal(
+        runLocalDatabaseSql(`
+          select pg_catalog.string_agg(
+            bucket_row.scope || ':' || bucket_row.tokens::text,
+            ',' order by bucket_row.scope
+          )
+          from private.push_cleanup_rate_limit_buckets bucket_row
+          where (bucket_row.scope = 'global'
+              and bucket_row.bucket_hash = pg_catalog.decode(
+                '${rateLimitBuckets.globalBucketHash}', 'hex'
+              ))
+            or (bucket_row.scope = 'source'
+              and bucket_row.bucket_hash = pg_catalog.decode(
+                '${rateLimitBuckets.sourceBucketHash}', 'hex'
+              ));
+        `),
+        "global:4,source:2"
+      );
       await delay(500);
       await stopEdgeRuntime(child, childClosePromise);
       child = undefined;
       const containerLogsContainSensitiveValue = localContainerLogsContainSensitiveValue(logWindowStart, [
         token,
         digest,
+        serializedRateLimitKey,
+        rateLimitBuckets.globalBucketHash,
+        rateLimitBuckets.sourceBucketHash,
         ...privateKeyValues,
         serializedJwks,
         ...adminLogValues,
@@ -413,6 +468,21 @@ test(
       } catch (error) {
         cleanupErrors.push(error);
       }
+    }
+    try {
+      runLocalDatabaseSql(`
+        delete from private.push_cleanup_rate_limit_buckets bucket_row
+        where (bucket_row.scope = 'global'
+            and bucket_row.bucket_hash = pg_catalog.decode(
+              '${rateLimitBuckets.globalBucketHash}', 'hex'
+            ))
+          or (bucket_row.scope = 'source'
+            and bucket_row.bucket_hash = pg_catalog.decode(
+              '${rateLimitBuckets.sourceBucketHash}', 'hex'
+            ));
+      `);
+    } catch (error) {
+      cleanupErrors.push(error);
     }
     try {
       await rm(temporaryDirectory, { force: true, recursive: true });

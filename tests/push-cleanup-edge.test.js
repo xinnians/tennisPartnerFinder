@@ -23,6 +23,15 @@ import {
   rsaJwkThumbprint,
 } from "../supabase/functions/push-cleanup/crypto.js";
 import { CLEANUP_ENVELOPE_BYTES, createPushCleanupHandler } from "../supabase/functions/push-cleanup/handler.js";
+import {
+  canonicalIpAddress,
+  deriveRateLimitBucketHashes,
+  loadRateLimitHmacKey,
+  parseCanonicalRateLimitPolicy,
+  PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES,
+  PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION,
+  trustedHostedClientAddress,
+} from "../supabase/functions/push-cleanup/rate-limit.js";
 import { cleanupRuntimeAccess, exactHttpOrigin } from "../supabase/functions/push-cleanup/runtime.js";
 
 const ALLOWED_ORIGIN = "https://qiuka.tw";
@@ -88,6 +97,7 @@ function handlerHarness(overrides = {}) {
   const calls = [];
   const handler = createPushCleanupHandler({
     allowedOrigin: ALLOWED_ORIGIN,
+    consumeRateLimit: async () => "ALLOW",
     hostedRuntime: false,
     loadKeyRing: async () => testKeyRing,
     localTestEnabled: true,
@@ -415,6 +425,88 @@ test("allowed origin config accepts only an exact HTTP(S) origin", () => {
   }
 });
 
+test("rate-limit policy accepts only canonical positive Postgres integers", () => {
+  const policyJson = JSON.stringify({
+    global: { capacity: 20, refillMilliseconds: 1000 },
+    idleTtlSeconds: 60,
+    source: { capacity: 4, refillMilliseconds: 2000 },
+    version: 1,
+  });
+  assert.deepEqual(parseCanonicalRateLimitPolicy(policyJson), JSON.parse(policyJson));
+  assert.equal(PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION, 1);
+  for (const invalid of [
+    "",
+    `${policyJson}\n`,
+    JSON.stringify({ ...JSON.parse(policyJson), extra: true }),
+    JSON.stringify({ ...JSON.parse(policyJson), version: 2 }),
+    JSON.stringify({ ...JSON.parse(policyJson), idleTtlSeconds: 0 }),
+    JSON.stringify({ ...JSON.parse(policyJson), idleTtlSeconds: 2_147_483_648 }),
+    JSON.stringify({ ...JSON.parse(policyJson), global: { capacity: 0, refillMilliseconds: 1000 } }),
+    JSON.stringify({ ...JSON.parse(policyJson), source: { capacity: 4.5, refillMilliseconds: 2000 } }),
+  ]) {
+    assert.throws(() => parseCanonicalRateLimitPolicy(invalid), /RATE_LIMIT_POLICY_INVALID/u, invalid);
+  }
+});
+
+test("rate-limit HMAC key is exact, non-extractable, and domain-separates opaque buckets", async () => {
+  const serializedKey = encodeBase64Url(new Uint8Array(PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES));
+  const key = await loadRateLimitHmacKey(serializedKey);
+  assert.equal(key.extractable, false);
+  assert.deepEqual(key.usages, ["sign"]);
+
+  const first = await deriveRateLimitBucketHashes("203.0.113.8", key);
+  const alias = await deriveRateLimitBucketHashes("203.0.113.8", key);
+  const other = await deriveRateLimitBucketHashes("203.0.113.9", key);
+  const rotatedKeyBytes = new Uint8Array(PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES).fill(1);
+  const rotatedKey = await loadRateLimitHmacKey(encodeBase64Url(rotatedKeyBytes));
+  rotatedKeyBytes.fill(0);
+  const rotated = await deriveRateLimitBucketHashes("203.0.113.8", rotatedKey);
+  assert.deepEqual(first, alias);
+  assert.match(first.globalBucketHash, /^[0-9a-f]{64}$/u);
+  assert.match(first.sourceBucketHash, /^[0-9a-f]{64}$/u);
+  assert.notEqual(first.globalBucketHash, first.sourceBucketHash);
+  assert.equal(first.globalBucketHash, other.globalBucketHash);
+  assert.notEqual(first.sourceBucketHash, other.sourceBucketHash);
+  assert.equal(first.globalBucketHash, rotated.globalBucketHash);
+  assert.notEqual(first.sourceBucketHash, rotated.sourceBucketHash);
+
+  for (const invalid of ["", `${serializedKey}=`, encodeBase64Url(new Uint8Array(31))]) {
+    await assert.rejects(loadRateLimitHmacKey(invalid), /RATE_LIMIT_KEY_INVALID/u, invalid);
+  }
+});
+
+test("client address parser canonicalizes IP only and requires matching hosted gateway headers", () => {
+  assert.equal(canonicalIpAddress("203.0.113.8"), "203.0.113.8");
+  assert.equal(canonicalIpAddress("2001:0DB8:0:0::1"), "2001:db8::1");
+  assert.equal(canonicalIpAddress("::ffff:192.0.2.1"), "::ffff:c000:201");
+  for (const invalid of [
+    "",
+    "203.0.113.008",
+    "203.0.113.256",
+    "127.1",
+    " 203.0.113.8",
+    "203.0.113.8, 198.51.100.1",
+    "[2001:db8::1]",
+    "fe80::1%lo0",
+    "not-an-ip",
+  ]) {
+    assert.equal(canonicalIpAddress(invalid), "", invalid);
+  }
+
+  assert.equal(
+    trustedHostedClientAddress(new Headers({ "cf-connecting-ip": "2001:0DB8:0:0::1", "x-real-ip": "2001:db8::1" })),
+    "2001:db8::1"
+  );
+  for (const headers of [
+    new Headers(),
+    new Headers({ "cf-connecting-ip": "203.0.113.8" }),
+    new Headers({ "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.9" }),
+    new Headers({ "cf-connecting-ip": "bad", "x-real-ip": "bad" }),
+  ]) {
+    assert.equal(trustedHostedClientAddress(headers), "");
+  }
+});
+
 test("disabled and hosted handlers stop before body read, key import, decryption, or RPC", async () => {
   for (const access of [
     { hostedRuntime: false, localTestEnabled: false },
@@ -426,6 +518,10 @@ test("disabled and hosted handlers stop before body read, key import, decryption
     const handler = createPushCleanupHandler({
       ...access,
       allowedOrigin: ALLOWED_ORIGIN,
+      consumeRateLimit: async () => {
+        rpcCalls += 1;
+        return "ALLOW";
+      },
       loadKeyRing: async () => {
         keyLoads += 1;
         return testKeyRing;
@@ -446,6 +542,52 @@ test("disabled and hosted handlers stop before body read, key import, decryption
 
     assert.deepEqual(await responseShape(await handler(request)), expectedResponse("RETRY", 503));
     assert.deepEqual({ bodyReads, keyLoads, rpcCalls }, { bodyReads: 0, keyLoads: 0, rpcCalls: 0 });
+  }
+});
+
+test("limiter denial and failure stop before body, keys, crypto, or quarantine", async () => {
+  for (const outcome of ["LIMIT", "INVALID", new Error("limiter unavailable")]) {
+    let bodyReads = 0;
+    let keyLoads = 0;
+    let quarantineCalls = 0;
+    let limiterCalls = 0;
+    const handler = createPushCleanupHandler({
+      allowedOrigin: ALLOWED_ORIGIN,
+      consumeRateLimit: async () => {
+        limiterCalls += 1;
+        if (outcome instanceof Error) throw outcome;
+        return outcome;
+      },
+      hostedRuntime: false,
+      loadKeyRing: async () => {
+        keyLoads += 1;
+        return testKeyRing;
+      },
+      localTestEnabled: true,
+      quarantineByDigest: async () => {
+        quarantineCalls += 1;
+        return "OK";
+      },
+    });
+    const request = {
+      get body() {
+        bodyReads += 1;
+        throw new Error("body must remain unread");
+      },
+      headers: new Headers({ "content-type": "application/json", origin: ALLOWED_ORIGIN }),
+      method: "POST",
+    };
+
+    assert.deepEqual(await responseShape(await handler(request)), expectedResponse("RETRY", 503));
+    assert.deepEqual(
+      { bodyReads, keyLoads, limiterCalls, quarantineCalls },
+      {
+        bodyReads: 0,
+        keyLoads: 0,
+        limiterCalls: 1,
+        quarantineCalls: 0,
+      }
+    );
   }
 });
 
@@ -549,6 +691,7 @@ test("DB failure returns fixed RETRY without reflecting token, digest, ciphertex
   const envelope = await encryptCleanupTokenEnvelope(FIXED_TOKEN, testKeys.publicJwk);
   const handler = createPushCleanupHandler({
     allowedOrigin: ALLOWED_ORIGIN,
+    consumeRateLimit: async () => "ALLOW",
     hostedRuntime: false,
     loadKeyRing: async () => testKeyRing,
     localTestEnabled: true,
@@ -594,6 +737,7 @@ test("key, random, digest, and DB boundary failures all return the same fixed RE
   for (const dependencies of cases) {
     const handler = createPushCleanupHandler({
       allowedOrigin: ALLOWED_ORIGIN,
+      consumeRateLimit: async () => "ALLOW",
       hostedRuntime: false,
       localTestEnabled: true,
       ...dependencies,
@@ -642,6 +786,10 @@ test("foreign, null, suffix, and missing origins stop before body, keys, crypto,
     let dependencyCalls = 0;
     const handler = createPushCleanupHandler({
       allowedOrigin: ALLOWED_ORIGIN,
+      consumeRateLimit: async () => {
+        dependencyCalls += 1;
+        return "ALLOW";
+      },
       hostedRuntime: false,
       loadKeyRing: async () => {
         dependencyCalls += 1;
@@ -674,16 +822,23 @@ test("Edge source has no application logging and only the approved RPC name", ()
   const cryptoSource = readFileSync(new URL("crypto.js", FUNCTION_DIRECTORY), "utf8");
   const handlerSource = readFileSync(new URL("handler.js", FUNCTION_DIRECTORY), "utf8");
   const indexSource = readFileSync(new URL("index.ts", FUNCTION_DIRECTORY), "utf8");
-  const allSource = `${sharedProtocolSource}\n${cryptoSource}\n${handlerSource}\n${indexSource}`;
+  const rateLimitSource = readFileSync(new URL("rate-limit.js", FUNCTION_DIRECTORY), "utf8");
+  const allSource = `${sharedProtocolSource}\n${cryptoSource}\n${handlerSource}\n${rateLimitSource}\n${indexSource}`;
 
   assert.doesNotMatch(allSource, /console\./u);
   assert.doesNotMatch(allSource, /access-control-allow-origin["']?\s*:\s*["']\*["']/u);
   assert.doesNotMatch(handlerSource, /request\.(?:json|text)\(/u);
   assert.match(indexSource, /rest\/v1\/rpc\/quarantine_push_by_token/u);
+  assert.match(indexSource, /rest\/v1\/rpc\/consume_push_cleanup_rate_limit/u);
+  assert.deepEqual([...indexSource.matchAll(/rest\/v1\/rpc\/([a-z_]+)/gu)].map((match) => match[1]).sort(), [
+    "consume_push_cleanup_rate_limit",
+    "quarantine_push_by_token",
+  ]);
   assert.match(indexSource, /redirect:\s*["']error["']/u);
   assert.doesNotMatch(indexSource, /push_subscriptions|push_device_consents|push_endpoint_registry/u);
   assert.doesNotMatch(indexSource, /PUSH_CLEANUP_RUNTIME_MODE[^\n]+production/u);
   assert.doesNotMatch(sharedProtocolSource, /loadPrivateKeyRing|subtle\.decrypt|PUSH_CLEANUP_PRIVATE/u);
+  assert.doesNotMatch(rateLimitSource, /Deno\.env|fetch\(|subtle\.decrypt|PUSH_CLEANUP_PRIVATE/u);
 
   const configSource = readFileSync(new URL("../../config.toml", FUNCTION_DIRECTORY), "utf8");
   assert.match(configSource, /\[functions\.push-cleanup\]\s*verify_jwt\s*=\s*false/u);

@@ -1780,6 +1780,18 @@ export type Database = {
         Args: { p_session_id: number };
         Returns: string;
       };
+      consume_push_cleanup_rate_limit: {
+        Args: {
+          p_global_bucket_hash_hex: string;
+          p_global_capacity: number;
+          p_global_refill_milliseconds: number;
+          p_idle_ttl_seconds: number;
+          p_source_bucket_hash_hex: string;
+          p_source_capacity: number;
+          p_source_refill_milliseconds: number;
+        };
+        Returns: string;
+      };
       create_report: {
         Args: {
           p_message_id?: number;

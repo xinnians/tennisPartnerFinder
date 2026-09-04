@@ -1,6 +1,6 @@
 # 前端架構開發進度
 
-最後更新：2026-09-03
+最後更新：2026-09-04
 
 這是前端架構開發的**單一進度入口**。新的 session 應先讀本文件，再讀
 `frontend-architecture-final-v3-2026-08-31.md`；舊的審查報告只作歷史紀錄，不直接代表目前狀態。
@@ -11,12 +11,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | `FA-03B11` dormant shared validator／hybrid envelope／Edge structural ports 已完成並隨本批獨立 commit 保存；下一批依 v1.2 路線為 push-cleanup hosted 啟用前置工作 |
-| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11` 已完成；A4 hosted 尚未套用 |
-| runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation，以及 dormant Push v2 validator／hybrid crypto／Edge ports 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
-| migration 變更 | repo／本機共新增 12 份 FA-03 migration（最新為 `202609030001`）；hosted 仍只有原 25 份，這 12 份皆未套用 |
+| 目前批次 | push-cleanup Postgres distributed limiter foundation 已完成本機實作與驗證，隨本批獨立 commit 保存；hosted gate、門檻與部署都未變 |
+| 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11` 與 cleanup limiter foundation 已完成；hosted 尚未套用 FA-03 migration |
+| runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
+| migration 變更 | repo／本機共新增 13 份 FA-03 migration（最新為 `202609040001`）；hosted 仍只有原 25 份，這 13 份皆未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 依契約處理 push-cleanup hosted 啟用所需的 distributed limiter／門檻證據，不先猜數字、不部署 hosted。`FA-03B12` 目前最多只能做 local composition；SW／dispatcher 仍各自分批 |
+| 下一步 | 另行核可 hosted canary 後，驗證可信來源 headers、logs、latency／failure distribution，再決定 limiter 與 RPC timeout；證據完成前不移除 hosted hard gate。`FA-03B12` 目前最多只能做 local composition |
 
 查實際 Git 狀態：
 
@@ -57,6 +57,7 @@ git log --oneline --decorate -10
 | D25 | consent 為 `enabled`、request binding 等於 stored binding、但完全沒有 transport 時，enable command 直接重建 transport（version +1，不旋轉 hash／epoch／binding）；refresh 同情境回 `stale` | `FA-03A4` command 與 pgTAP 已實作；production caller 尚未接線 |
 | D26 | 本機 pgTAP 單一連線無法觸發真併發 deadlock；A4 以取鎖述句順序斷言（錨點非空＋兩個 canary 驗紅）與同 transaction 交錯呼叫收斂斷言替代；真併發與三個寫入階段搶插分支列入 dispatcher barrier 批並在 CI 加 `dblink` | A4 替代斷言與要求的 canary 已完成；真併發／`dblink` 仍明確留在 dispatcher barrier 批，未宣稱覆蓋 |
 | D27 | Push v2 provider policy 不內建猜測的 production hostname；設定只接受 sorted／unique／non-empty canonical origin JSON，endpoint 名稱再依 IANA Special-Use registry fail-closed | B11 已完成 shared parser／validator；production origin env 仍為空，release evidence 與 send-time DNS 留待後續批次 |
+| D28 | push-cleanup distributed limiter 採 Postgres 原子 token bucket，不新增外部 Redis 供應商；全域與來源兩層在同一 RPC 內固定順序鎖定，來源 IP 只以 Edge HMAC digest 進 DB；production 門檻沒有證據就不設定 | 使用者於 2026-09-04 核可 repo／local migration；schema、RPC、Edge fail-closed composition 與並行測試完成，hosted migration／env／deploy／canary 均未執行 |
 
 ## 授權邊界
 
@@ -73,7 +74,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策 | 完成 | 文件差異與 whitespace 檢查通過；無非文件變更 |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成 | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在 |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計 | 完成並核可 | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄 |
-| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11` 完成；契約 v1.2；A4 exact diff 已核可，hosted 未套用 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、cleanup limiter foundation 完成；契約 v1.2；hosted 未套用 | expand、DB、browser、dispatcher、雙帳號測試通過；不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest | 未開始 | gate 有 canary；清單有明確 scope |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR | 未開始 | before／after 可重現；未放寬未核可邊界 |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership | 未開始 | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸 |
@@ -1178,7 +1179,7 @@ hosted deploy／env／request／DB 寫入：未執行
 
 精確邊界：
 
-- 目前只有 repo 與本機資料庫：`supabase migration list` 實測 37 份 local、25 份 remote，新增在內的 12 份
+- 目前只有 repo 與本機資料庫：該批完成時 `supabase migration list` 實測 37 份 local、25 份 remote，當時新增的 12 份
   FA-03 migration 均未套 hosted。沒有 deploy、遠端 mutation、secret、provider request、SW、dispatcher 或 UI 變更。
 - 本機完整測試後 `push_device_consents`、`push_subscriptions`、`notification_deliveries` 都是 0；這只證明本機，
   不外推 hosted。hosted 套用前仍須唯讀確認 consent／registry 空表並取得另一次核可。
@@ -1269,6 +1270,65 @@ typecheck／ESLint／Prettier／git diff --check：通過
 hosted deploy／migration apply／env／request／DB 寫入：未執行
 ```
 
+## FA-03 push-cleanup distributed limiter foundation（repo／local only）
+
+已完成：
+
+- 使用者核可採 Postgres 原子限流，不引入 Upstash／Redis。新增
+  `202609040001_push_cleanup_rate_limit.sql`：private bucket table 只保存 `global|source` scope、32-byte opaque
+  digest、token 狀態與到期時間；application roles 對 raw table 全無權限。
+- `consume_push_cleanup_rate_limit` 只 grant 給 `service_role`，public wrapper 一律使用 DB
+  `clock_timestamp()`；可指定時鐘的 deterministic helper 留在 private，所有 application roles 都不能 execute。
+- limiter 是同一 transaction 的兩層 token bucket：先鎖 global，再鎖 source。global 已耗盡時不建立
+  attacker-selected source row；source 被限流時不消耗 global token。bucket 初次建立使用 `ON CONFLICT DO NOTHING`
+  收斂 race，不做 SELECT-then-INSERT。
+- 過期回收只在本次 target bucket 更新後執行，一次最多刪一筆並使用 `FOR UPDATE SKIP LOCKED`，不等待另一個
+  limiter transaction，避免 reaper 與 global／source 形成反向鎖序。每個 request 最多也只會新增一筆 source row。
+- Edge 新增 exact canonical policy parser；只接受 version 1 與 PostgreSQL positive `integer` 範圍內的 capacity、
+  refill milliseconds、idle TTL。repo 沒有 production 預設值；設定缺失、非 canonical、RPC 失敗或非 exact
+  `ALLOW|LIMIT` 都回固定 `503 RETRY`，且停在 body／RSA decrypt／quarantine RPC 前。
+- global bucket 用固定 versioned label 的 SHA-256，HMAC key rotation 不重設全域保護；source bucket 用獨立
+  32-byte non-extractable HMAC-SHA256 key 與 canonical IP，DB 不收到 raw IP。hosted 來源暫定必須由
+  `cf-connecting-ip` 與 `x-real-ip` 各自解析後完全相同；這條只完成 parser，尚未用 hosted gateway canary 證明。
+- local Edge 使用固定 loopback source，不把本機 gateway header 行為外推 production。真實 smoke 已走
+  Edge → limiter RPC → cleanup RPC → DB，並驗 global／source 各消耗一 token；測試 setup／teardown 只清自己的
+  exact bucket，因此連跑兩次皆通過。
+- 50 個同 bucket 的真實 parallel PostgREST RPC 在 capacity 5 時精確得到 5 `ALLOW`／45 `LIMIT`；另以 12 組
+  已到期 bucket 加 24 組不同 pair 同時呼叫，驗證 reaper 沒有 deadlock。這些數字只是假資料測試向量，不是
+  production threshold。
+- 本機 output 與所有 Supabase container logs 重新掃描 raw cleanup token、cleanup digest、RSA private material、
+  service keys、limiter HMAC key 與兩個 bucket digest，未命中。generated DB types 已包含新 public RPC。
+
+精確邊界：
+
+- `handler.js` 的 `hostedRuntime || !localTestEnabled` hard gate 仍在 limiter、body、key 與 DB 之前；本批沒有移除。
+- 沒有 production capacity、refill、idle TTL 或 RPC timeout。正常 browser 單次 cleanup invocation 最多 2 POST
+  是既有證據，但不能單獨推導共享 IP、全域容量或 hosted latency 門檻。
+- 沒有 hosted migration apply、Edge deploy、secret/env、request 或 DB write；local 1,198 pgTAP 與並行測試不能
+  代替 production traffic／gateway／log 證據。
+- Supabase 官方文件說 inbound Edge request 不受 recursive function-call limiter 保護，官方 rate-limit 範例使用
+  [Upstash Redis](https://supabase.com/docs/guides/functions/examples/rate-limiting)。本專案依使用者決策使用 Postgres，
+  代價是被拒絕的請求仍會產生一次輕量 DB RPC；它不是網路層 DDoS 防護。
+- hosted canary 必須先驗 gateway 是否可靠覆寫且同時提供兩個來源 header、invocation／PostgREST logs 是否去敏、
+  p50／p95／p99 latency 與 failure distribution，再提出 policy 與 timeout exact diff；仍需另一次核可。
+
+本批驗證：
+
+```text
+Node cleanup Edge／rate-limit targeted：30／30 passed
+limiter pgTAP：29／29 passed
+parallel local PostgREST：50 calls → 5 ALLOW／45 LIMIT；異 bucket＋expired reaper 無 deadlock
+CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test：38 migrations 從零重播成功
+npm run test:ci:frontend：通過；Node 505 passed／1 skipped；Playwright 330 passed／4 skipped
+npm run test:ci:supabase：通過；DB 15 files、1,198／1,198；local API 4／4；desktop 45 passed／11 skipped；mobile 6／6；Edge 1／1
+npx supabase db lint --local --level warning：No schema errors found
+npx supabase db diff --local --schema public,private：No schema changes found
+`npx supabase migration list`：38 份 local／25 份 remote；13 份 FA-03 migration 的 remote 欄皆空白
+local Edge smoke 連續兩次：各 1／1 passed；敏感值 log scan 未命中
+production bundle：與 B11 相同，main 647,082／190,278、最大 lazy 16,476／4,830、total 849,706／260,430 raw/gzip
+hosted migration／deploy／env／request／DB write：未執行
+```
+
 ## 已知阻塞與風險
 
 - 最新 development bundle 的 main 647,082／190,278 與最大 lazy 16,476／4,830 raw/gzip 均在現有門檻；
@@ -1300,7 +1360,8 @@ hosted deploy／migration apply／env／request／DB 寫入：未執行
 - cleanup raw-token codec、application-layer encryption、local Edge、本機 log 去敏、build-time public-key
   asset、dormant IndexedDB、bounded browser transport、owner-quarantine adapter、single-attempt coordinator 與
   Auth-failure handoff 已完成；但 production graph 對 B5～B9 五個 browser foundation 都是零 import／caller，
-  Auth failure／登出／SW／dispatcher 尚未接線，distributed limiter 與 hosted log 證據仍缺。hosted handler 因此
+  Auth failure／登出／SW／dispatcher 尚未接線。distributed limiter 已在 repo／local 完成，但 production policy、
+  trusted-source header、hosted latency／failure distribution 與 hosted log 證據仍缺；handler 因此維持
   hard-disabled，不能把本機結果外推為完整 production cleanup API。
 - public-key dev server 的 query alias 會落到既有 SPA fallback 並回 `200 text/html`，不是 key response、也沒有
   洩漏 key。dormant loader 已固定無 query 的 same-origin URL，並驗 `Content-Type`、`no-store`、499-byte body 與
@@ -1308,8 +1369,8 @@ hosted deploy／migration apply／env／request／DB 寫入：未執行
 - 本機 gateway 對 preflight／response 會覆寫 `ACAO: *`；handler exact Origin gate 已由惡意 suffix POST
   實測為 `403`，但 Origin 不是非瀏覽器身分驗證，真正 bearer authorization 仍是 256-bit cleanup token。
 - `supabase functions deploy`／`serve` 會涵蓋多個 Functions；即使 hosted handler 不執行 DB，誤部署仍可能
-  帶來公開請求成本。正式啟用前仍需 deployment allowlist、distributed limiter、hosted log canary 與有證據的
-  RPC timeout；目前只先禁止 redirect，沒有猜測 timeout 秒數。
+  帶來公開請求成本。正式啟用前仍需 deployment allowlist、production limiter policy、hosted log／gateway-header
+  canary 與有證據的 RPC timeout；目前只先禁止 redirect，沒有猜測 timeout 秒數。
 - `FA-03B11` 已建立 `canonical-endpoint-policy-v1` shared module，但 production provider-origin 實值、實機
   release evidence 與 send-time DNS/socket 綁定仍不存在。module 完成不代表 production v2 enable／refresh 已可接收
   endpoint，也不解除 destructive contract blocker。
@@ -1320,8 +1381,8 @@ hosted deploy／migration apply／env／request／DB 寫入：未執行
 ## 下一個 session 的起點
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、`FA-03B10` Push v2 contract v1.2、
-   `frontend-architecture-fa-03a4-handoff-2026-09-02.md`、FA-02 設計與 FA-03 preflight 報告。A4 與 B11 已完成本機
-   實作／驗證並各自保存；不要重做、填 production provider 值或自行套 hosted。
+   `frontend-architecture-fa-03a4-handoff-2026-09-02.md`、FA-02 設計與 FA-03 preflight 報告。A4、B11 與
+   cleanup limiter foundation 已完成本機實作／驗證並各自保存；不要重做、填 production 值或自行套 hosted。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -1330,14 +1391,15 @@ hosted deploy／migration apply／env／request／DB 寫入：未執行
    transport linkage、RSA envelope、key generator、browser storage schema、key loader、owner result mapping、bigint
    string boundary、single-attempt exact transport→CAS handoff、caller-supplied Auth failure → B5／B8 handoff，或
    capture → unsubscribe → reread classification。
-3. 以 `npm run test:db` 的 1,169／1,169 作為 compatible runtime 的最新 DB 基線；37 migration 從零重播、
+3. 以 `npm run test:db` 的 1,198／1,198 作為 compatible runtime 的最新 DB 基線；38 migration 從零重播、
    DB lint clean 與 local public/private pg-delta diff 空白是目前 schema 證據。hosted 仍只有 25 份 migration。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
    coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 v1.2 契約，A4 DB command 與 B11 shared
-   validator／hybrid envelope／independent key asset／Edge structural ports 已完成。下一批依 §14 是 push-cleanup hosted
-   啟用前置工作：先取得 distributed limiter 與門檻證據，不能直接移除 local-only gate。`FA-03B12` 在 cleanup hosted
-   完成前最多只做 local composition；production composition／server cleanup、SW／dispatcher 仍各自分批。未決定
-   timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
+   validator／hybrid envelope／independent key asset／Edge structural ports，以及 Postgres distributed limiter
+   foundation 已完成。下一個停點是另行核可 hosted canary：先驗 gateway source headers、logs、latency／failure
+   distribution，再提出 production policy／timeout exact diff；不能直接移除 local-only gate。`FA-03B12` 在 cleanup
+   hosted 完成前最多只做 local composition；production composition／server cleanup、SW／dispatcher 仍各自分批。
+   未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -1371,3 +1433,4 @@ hosted deploy／migration apply／env／request／DB 寫入：未執行
 | 2026-09-02 | FA-03B10.4 | 使用者補拍板同 binding 無 transport 與 A4 併發替代斷言；契約升 v1.2，新增 A4 handoff，runtime／migration／hosted 未變。 |
 | 2026-09-03 | FA-03A4 | v1.2 additive 欄位、既有物件替換、共用 residue／mutation helper、兩支 service-role RPC 與 77 項新 pgTAP 完成；六個 canary 全紅、DB 1,169／1,169、完整 frontend／Supabase CI 通過；使用者已核可 exact diff，hosted 未套用。 |
 | 2026-09-03 | FA-03B11 | shared canonical endpoint／provider／subscription validator、獨立 RSA＋AES envelope、key asset 與 Edge structural ports 完成；Node、Chromium、WebKit、完整 frontend／乾淨 Supabase CI 通過，production graph／provider env／hosted 仍未接線。 |
+| 2026-09-04 | FA-03 cleanup limiter | 使用者核可 Postgres 原子限流；private global＋source token bucket、service-role RPC、HMAC source digest、Edge fail-closed composition、過期 reaper 與 parallel PostgREST 測試完成；38 migrations 重播、DB 1,198／1,198 與完整 CI 通過，production policy／hosted 仍未動。 |

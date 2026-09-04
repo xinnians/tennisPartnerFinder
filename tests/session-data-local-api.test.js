@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 
 import { createDataApi } from "../src/dataApi.ts";
@@ -222,4 +222,81 @@ test("Push quarantine commands keep their exact Data API role boundary", { skip:
   });
   assert.equal(serviceError, null);
   assert.equal(serviceOutcome, "OK");
+});
+
+test("Push cleanup limiter atomically caps concurrent service requests", { skip: !runLocalApiTest }, async () => {
+  const runId = randomUUID().replaceAll("-", "");
+  const globalBucketHash = `${runId}${runId}`;
+  const sourceSeed = runId.replace(/[0-9a-f]/gu, (digit) =>
+    digit === "f" ? "0" : (Number.parseInt(digit, 16) + 1).toString(16)
+  );
+  const sourceBucketHash = `${sourceSeed}${sourceSeed}`;
+  const arguments_ = {
+    p_global_bucket_hash_hex: globalBucketHash,
+    p_global_capacity: 5,
+    p_global_refill_milliseconds: 2_147_483_647,
+    p_idle_ttl_seconds: 60,
+    p_source_bucket_hash_hex: sourceBucketHash,
+    p_source_capacity: 5,
+    p_source_refill_milliseconds: 2_147_483_647,
+  };
+  const adminClient = makeAdminClient();
+  const outcomes = await Promise.all(
+    Array.from({ length: 50 }, async () => {
+      const { data, error } = await adminClient.rpc("consume_push_cleanup_rate_limit", arguments_);
+      if (error) throw error;
+      return data;
+    })
+  );
+  assert.equal(outcomes.filter((outcome) => outcome === "ALLOW").length, 5);
+  assert.equal(outcomes.filter((outcome) => outcome === "LIMIT").length, 45);
+
+  const anonClient = makeClient();
+  const { data: anonOutcome, error: anonError } = await anonClient.rpc("consume_push_cleanup_rate_limit", arguments_);
+  assert.equal(anonOutcome, null);
+  assert.equal(anonError?.code, "42501");
+
+  const digestFor = (label) => createHash("sha256").update(`${runId}:${label}`).digest("hex");
+  const callWithBuckets = async (label, idleTtlSeconds) => {
+    const { data, error } = await adminClient.rpc("consume_push_cleanup_rate_limit", {
+      ...arguments_,
+      p_global_bucket_hash_hex: digestFor(`${label}:global`),
+      p_global_capacity: 1,
+      p_idle_ttl_seconds: idleTtlSeconds,
+      p_source_bucket_hash_hex: digestFor(`${label}:source`),
+      p_source_capacity: 1,
+    });
+    if (error) throw error;
+    return data;
+  };
+  const staleOutcomes = await Promise.all(
+    Array.from({ length: 12 }, (_, index) => callWithBuckets(`stale-${index}`, 1))
+  );
+  assert.equal(
+    staleOutcomes.every((outcome) => outcome === "ALLOW"),
+    true
+  );
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  const reaperOutcomes = await Promise.all(
+    Array.from({ length: 24 }, (_, index) => callWithBuckets(`reaper-${index}`, 60))
+  );
+  assert.equal(
+    reaperOutcomes.every((outcome) => outcome === "ALLOW"),
+    true
+  );
+
+  const { client: authenticatedClient, session } = await signUpUser(`push-limiter-${randomUUID()}@example.test`);
+  let authenticatedOutcome;
+  let authenticatedError;
+  let deleteError;
+  try {
+    const result = await authenticatedClient.rpc("consume_push_cleanup_rate_limit", arguments_);
+    authenticatedOutcome = result.data;
+    authenticatedError = result.error;
+  } finally {
+    ({ error: deleteError } = await adminClient.auth.admin.deleteUser(session.user.id));
+  }
+  if (deleteError) throw deleteError;
+  assert.equal(authenticatedOutcome, null);
+  assert.equal(authenticatedError?.code, "42501");
 });
