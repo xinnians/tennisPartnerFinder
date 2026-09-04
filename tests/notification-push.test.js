@@ -18,6 +18,8 @@ const PUSH_AUTH_CORRELATION_URL = new URL("../src/notificationPushAuthCorrelatio
 const PUSH_AUTH_CORRELATION_SOURCE = readFileSync(PUSH_AUTH_CORRELATION_URL, "utf8");
 const PUSH_MANUAL_REENABLE_URL = new URL("../src/notificationPushManualReenableCoordinator.ts", import.meta.url);
 const PUSH_MANUAL_REENABLE_SOURCE = readFileSync(PUSH_MANUAL_REENABLE_URL, "utf8");
+const PUSH_SUBSCRIPTION_COORDINATOR_URL = new URL("../src/notificationPushSubscriptionCoordinator.ts", import.meta.url);
+const PUSH_SUBSCRIPTION_COORDINATOR_SOURCE = readFileSync(PUSH_SUBSCRIPTION_COORDINATOR_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
 
@@ -134,6 +136,14 @@ test("the Push manual re-enable coordinator stays outside the production runtime
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_MANUAL_REENABLE_URL.href)
     .filter((sourceUrl) => /notificationPushManualReenableCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
+test("the Push subscription coordinator stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_COORDINATOR_URL.href)
+    .filter((sourceUrl) => /notificationPushSubscriptionCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
 });
@@ -286,6 +296,30 @@ test("the dormant manual re-enable coordinator has no direct runtime, network, s
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
   assert.doesNotMatch(PUSH_MANUAL_REENABLE_SOURCE, /\b(?:for|while)\s*\(/u);
+});
+
+test("the dormant subscription coordinator has no direct Auth, browser, network, storage, log, or timer dependency", () => {
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_COORDINATOR_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_COORDINATOR_SOURCE, /^\s*import\s+["']/gmu);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_COORDINATOR_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_SUBSCRIPTION_COORDINATOR_SOURCE,
+    /\b(?:dataApi|supabaseClient|notificationPushStorage|notificationPushAuthFailureCoordinator|notificationPushManualReenableCoordinator)\b/u
+  );
+  assert.doesNotMatch(
+    PUSH_SUBSCRIPTION_COORDINATOR_SOURCE,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u
+  );
+  assert.doesNotMatch(
+    PUSH_SUBSCRIPTION_COORDINATOR_SOURCE,
+    /\b(?:navigator|Notification|PushManager|ServiceWorker|localStorage|sessionStorage|indexedDB|caches)\b/u
+  );
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_COORDINATOR_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_SUBSCRIPTION_COORDINATOR_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
 });
 
 test("the dormant owner-quarantine adapter has no secret, storage, network, logging, or timer dependency", () => {
