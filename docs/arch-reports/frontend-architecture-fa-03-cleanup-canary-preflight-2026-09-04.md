@@ -15,6 +15,9 @@ retention 決策。**
   不輸出 IP、DB 只存 HMAC digest，都無法移除平台層這份 raw IP。
 - Log retention 依方案而定；官方價格頁目前列出 Free／Pro／Team／Enterprise 分別為 1／7／28／90 天。
   CLI 不回傳專案方案，兩個可用瀏覽器也都沒有 Supabase Dashboard 登入狀態，所以本輪沒有猜目前是哪一種。
+- 現行 `public/privacy.html` 只說 Vercel Web Analytics 不保留 IP；Supabase 段落只說提供登入／資料庫與新加坡
+  儲存區域，沒有揭露 API／Edge access logs、raw IP 或 retention。正式開放 cleanup 前必須補文案，不能拿
+  Vercel Analytics 的說明代替 Supabase logging disclosure。
 
 ## 已查證的 repo 邊界
 
@@ -38,6 +41,9 @@ x-real-ip
 
 因此「raw IP 不進本專案 DB」是成立的，但不能寫成「raw IP 不會被任何 Hosted log 保存」。canary 也不能把
 token、cleanup envelope、endpoint、Push keys 或 private material 放進測試 request，避免擴大平台 log 風險。
+
+即使 C0 只由開發者送測試 request，`verify_jwt=false` 的 endpoint 一部署就是公開網址，仍可能收到外部掃描流量；
+這些來源 IP 也會進平台 logs。因此接受 C0 同時代表接受這個短期公開觀察風險，不能假設只有兩筆 log。
 
 官方來源：
 
@@ -74,6 +80,8 @@ body、不解密、不 quarantine。暫時 policy、request 數量、停用方�
 1. 目前 Supabase 專案是 Free、Pro、Team 或 Enterprise，才能固定 raw-IP log 的實際保留天數。
 2. 是否接受 Supabase 平台在該 retention 期間保存 `cf-connecting-ip`／`x-real-ip`。
 3. 接受後，是否核可 C0 的「只部署 hard-gated `push-cleanup`＋2 次空 body POST＋唯讀 logs／DB 驗證」。
+
+正式開放 cleanup 給使用者前，另需核可更新 `public/privacy.html`；這不包含在 C0。
 
 若不接受平台 raw-IP log，就不能直接把依賴來源 IP 的公開 cleanup endpoint 部署在目前 Supabase Edge 架構；需
 另開架構批次，評估會先去識別化來源的可信 proxy／gateway，並重新設計 source limiter。

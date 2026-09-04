@@ -1380,7 +1380,8 @@ hosted migration／deploy／env／request／DB write：未執行
   policy、hosted log／gateway-header canary 與有證據的 RPC timeout。目前只先禁止 redirect，沒有猜測 timeout 秒數。
 - Supabase 官方 logging 文件明列 platform logs 會保存 `cf-connecting-ip` 與 `x-real-ip`；DB 只存 HMAC digest
   無法去除平台層 raw IP。retention 依方案為 1／7／28／90 天，但 CLI 不提供目前 plan，兩個瀏覽器也都未登入
-  Dashboard；未確認實際 plan 與使用者接受前不部署 cleanup canary。
+  Dashboard；未確認實際 plan 與使用者接受前不部署 cleanup canary。現行 privacy 頁只說 Vercel Analytics 不留
+  IP，沒有揭露 Supabase access logs；正式開放前必須另批更新。
 - `FA-03B11` 已建立 `canonical-endpoint-policy-v1` shared module，但 production provider-origin 實值、實機
   release evidence 與 send-time DNS/socket 綁定仍不存在。module 完成不代表 production v2 enable／refresh 已可接收
   endpoint，也不解除 destructive contract blocker。
