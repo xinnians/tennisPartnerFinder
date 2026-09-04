@@ -4,6 +4,9 @@
 
 狀態：**唯讀複查完成；13 份 migration 尚未套用，Edge Function、env、secret 與 hosted hard gate 均未變更。**
 
+後續狀態：使用者已核可，13 份 migration 於 2026-09-04 成功套用；結果見
+`frontend-architecture-fa-03-hosted-migration-apply-2026-09-04.md`。本文件以下內容保留套用前快照。
+
 這份文件只記錄 2026-09-04 當下實際查到的 aggregate／catalog 結果，不保存 endpoint、Push keys、payload、
 secret value、使用者 ID 或 project ref。資料查詢在同一個 `REPEATABLE READ READ ONLY` transaction 內完成，
 最後 `ROLLBACK`。
