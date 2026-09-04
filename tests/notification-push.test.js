@@ -20,6 +20,8 @@ const PUSH_MANUAL_REENABLE_URL = new URL("../src/notificationPushManualReenableC
 const PUSH_MANUAL_REENABLE_SOURCE = readFileSync(PUSH_MANUAL_REENABLE_URL, "utf8");
 const PUSH_SUBSCRIPTION_COORDINATOR_URL = new URL("../src/notificationPushSubscriptionCoordinator.ts", import.meta.url);
 const PUSH_SUBSCRIPTION_COORDINATOR_SOURCE = readFileSync(PUSH_SUBSCRIPTION_COORDINATOR_URL, "utf8");
+const PUSH_BROWSER_SUBSCRIPTION_URL = new URL("../src/notificationPushBrowserSubscription.ts", import.meta.url);
+const PUSH_BROWSER_SUBSCRIPTION_SOURCE = readFileSync(PUSH_BROWSER_SUBSCRIPTION_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
 
@@ -144,6 +146,14 @@ test("the Push subscription coordinator stays outside the production runtime gra
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_COORDINATOR_URL.href)
     .filter((sourceUrl) => /notificationPushSubscriptionCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
+test("the Push browser subscription port stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_BROWSER_SUBSCRIPTION_URL.href)
+    .filter((sourceUrl) => /notificationPushBrowserSubscription/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
 });
@@ -320,6 +330,26 @@ test("the dormant subscription coordinator has no direct Auth, browser, network,
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
   assert.doesNotMatch(PUSH_SUBSCRIPTION_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
+});
+
+test("the dormant browser subscription port has no provider policy or direct app-network dependency", () => {
+  const importSources = [...PUSH_BROWSER_SUBSCRIPTION_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(importSources, []);
+  assert.doesNotMatch(PUSH_BROWSER_SUBSCRIPTION_SOURCE, /^\s*import\s+"/gmu);
+  assert.doesNotMatch(PUSH_BROWSER_SUBSCRIPTION_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(PUSH_BROWSER_SUBSCRIPTION_SOURCE, /\b(?:providerOrigins|PUSH_PROVIDER_ORIGINS_V1)\b/u);
+  assert.doesNotMatch(
+    PUSH_BROWSER_SUBSCRIPTION_SOURCE,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u
+  );
+  assert.doesNotMatch(PUSH_BROWSER_SUBSCRIPTION_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_BROWSER_SUBSCRIPTION_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_BROWSER_SUBSCRIPTION_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
 });
 
 test("the dormant owner-quarantine adapter has no secret, storage, network, logging, or timer dependency", () => {
