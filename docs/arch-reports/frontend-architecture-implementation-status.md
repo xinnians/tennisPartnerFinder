@@ -17,7 +17,8 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 `frontend-architecture-fa-03-cleanup-c1-source-substage-preflight-2026-09-04.md`。目前 B12 local composition 的最新
 批次證據在 `frontend-architecture-fa-03b12-manual-reenable-coordinator-2026-09-04.md`；最新 storage 前置證據在
 `frontend-architecture-fa-03b12-provisioning-cancel-storage-2026-09-04.md` 與
-`frontend-architecture-fa-03b12-refresh-commit-storage-2026-09-04.md`。
+`frontend-architecture-fa-03b12-refresh-commit-storage-2026-09-04.md`。browser provider-policy 契約衝突與選項在
+`frontend-architecture-fa-03b12-browser-provider-policy-decision-2026-09-04.md`。
 
 ## 目前狀態
 
@@ -25,12 +26,12 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                          |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                       |
-| 目前批次                | `FA-03B12.6` refresh commit storage action 已完成並通過完整 CI；production 零 caller                                                                                                                                                                                                                                                                                                                               |
+| 目前批次                | `FA-03B12.6` 已完成；`FA-03B12.7` browser provider-policy 契約衝突待使用者選 A／B                                                                                                                                                                                                                                                                                                                                  |
 | 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1`～`FA-03B12.6`、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                        |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
 | migration 變更          | 38 local／38 remote；13 份 FA-03 migration 已完整套用，最新皆為 `202609040001`                                                                                                                                                                                                                                                                                                                                   |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report                                                                                                                                                                                                                                                                                                                                                   |
-| 下一步                  | 先做 enable／refresh browser coordinator 的 local-only 結構；cleanup source substage Hosted 最小重驗仍待另行核可                                                                                                                                                                                                                                                                                                  |
+| 下一步                  | 使用者確認 provider-policy A／B 後，才調整契約／B11 並做 enable／refresh browser coordinator；Hosted 重驗仍待另行核可                                                                                                                                                                                                                                                                                            |
 
 查實際 Git 狀態：
 
@@ -1667,6 +1668,9 @@ Hosted deploy／secret／request／DB write：未執行
 
 ## 已知阻塞與風險
 
+- `FA-03B12.7` 已查證 browser provider-policy 契約衝突：v1.2 §8 把 origins 定為 server-only，但 B11 browser
+  encryption 的 canonical serializer 又強制要求 origins。未經使用者選 A（拆開 browser 結構驗證與 server policy）
+  或 B（把 policy 改為公開設定）前，不實作具體 browser transport，也不自行猜 provider 值。
 - 最新 development bundle 的 main 647,304／190,390 與最大 lazy 16,476／4,829 raw/gzip 均在現有門檻；
   total raw 849,928 也在 849,961 內，但 total gzip 260,555 超過 259,062 共 1,493 bytes。D8 允許開發期
   report 繼續，release enforce 已實測 hard fail；第一個 production candidate 前仍須依 D9 重訂正式基線。
@@ -1767,7 +1771,9 @@ Hosted deploy／secret／request／DB write：未執行
    已完成 B1 exact failure notice，B12.3 已完成 notice → B9 的 dormant correlation adapter，B12.4 已完成 B8
    cleanup → 新 provisioning → injected enable port 的 manual re-enable local coordinator，B12.5 已完成 v1.2 要求的
    pre-network provisioning cancel，B12.6 已完成 exact refresh local commit。下一步只做
-   enable／refresh browser coordinator 的 local-only 結構。cleanup hosted 完成前不得接
+   enable／refresh browser coordinator 的 local-only 結構；但必須先讀
+   `frontend-architecture-fa-03b12-browser-provider-policy-decision-2026-09-04.md`，等待使用者選 A／B，不得把
+   server-only origins 偷渡到 browser 或自行猜 provider。cleanup hosted 完成前不得接
    production；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
@@ -1818,3 +1824,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-04 | FA-03B12.4                       | dormant manual re-enable coordinator 完成：逐段重驗 Auth proof、B8 exact completion 後才建新 binding／token、predecessor 只在同次呼叫記憶體傳遞；真實 B5／B8 Chromium 組合與完整 CI 通過，future enable port／production caller 未接。                                      |
 | 2026-09-04 | FA-03B12.5                       | B5 pre-network provisioning cancel 完成：exact CAS 只刪 provisioning、保留 logical device、不建 cleanup；stale／enabled／abort／replay 均 fail-closed。因本機七日窗累積 223 場造成 fixture 被 100 筆上限截掉，安全 reset local DB 後完整 CI 通過；Hosted 未動。 |
 | 2026-09-04 | FA-03B12.6                       | B5 refresh commit 完成：exact enabled CAS 只接受同 consent ID／epoch 與 version no-op 或恰好 +1；no-op 不改 local revision、成功重放收斂、stale／drift／abort 保留舊值。真實 Chromium 與完整 CI 通過；production／Hosted 未接。                         |
+| 2026-09-04 | FA-03B12.7 preflight             | 唯讀查證 v1.2 server-only provider origins 與 B11 browser encryption 必須持有 origins 的契約衝突；已整理 A 拆分結構／server policy（建議）與 B 公開 policy 兩案。runtime／migration／Hosted 未變，等待使用者選擇。                                               |
