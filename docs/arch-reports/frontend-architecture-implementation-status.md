@@ -4,6 +4,8 @@
 
 這是前端架構開發的**單一進度入口**。新的 session 應先讀本文件，再讀
 `frontend-architecture-final-v3-2026-08-31.md`；舊的審查報告只作歷史紀錄，不直接代表目前狀態。
+最新 Hosted migration aggregate 與 dry-run 證據在
+`frontend-architecture-fa-03-hosted-migration-preflight-2026-09-04.md`。
 
 ## 目前狀態
 
@@ -11,12 +13,12 @@
 | --- | --- |
 | 工作分支 | `codex/frontend-architecture-execution` |
 | 開發基準 | `51dde9c`（16 份前端架構審查文件首次入版） |
-| 目前批次 | push-cleanup Postgres distributed limiter foundation 已完成本機實作與驗證，隨本批獨立 commit 保存；hosted gate、門檻與部署都未變 |
+| 目前批次 | push-cleanup Postgres distributed limiter foundation 已由 `f5c4695` 保存；2026-09-04 hosted migration 唯讀複查完成，等待遠端套用核可 |
 | 整體狀態 | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11` 與 cleanup limiter foundation 已完成；hosted 尚未套用 FA-03 migration |
 | runtime 變更 | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
 | migration 變更 | repo／本機共新增 13 份 FA-03 migration（最新為 `202609040001`）；hosted 仍只有原 25 份，這 13 份皆未套用 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report |
-| 下一步 | 另行核可 hosted canary 後，驗證可信來源 headers、logs、latency／failure distribution，再決定 limiter 與 RPC timeout；證據完成前不移除 hosted hard gate。`FA-03B12` 目前最多只能做 local composition |
+| 下一步 | 建議先獨立核可 13 份 hosted migration；套用後只做 schema／ACL／aggregate 驗證，不部署 Edge。canary、env／secret、測試 request 與 hard gate 移除仍是下一個獨立核可批次 |
 
 查實際 Git 狀態：
 
@@ -1394,12 +1396,12 @@ hosted migration／deploy／env／request／DB write：未執行
 3. 以 `npm run test:db` 的 1,198／1,198 作為 compatible runtime 的最新 DB 基線；38 migration 從零重播、
    DB lint clean 與 local public/private pg-delta diff 空白是目前 schema 證據。hosted 仍只有 25 份 migration。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
-   coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 v1.2 契約，A4 DB command 與 B11 shared
+   coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 v1.2 契約，A4 DB command、B11 shared
    validator／hybrid envelope／independent key asset／Edge structural ports，以及 Postgres distributed limiter
-   foundation 已完成。下一個停點是另行核可 hosted canary：先驗 gateway source headers、logs、latency／failure
-   distribution，再提出 production policy／timeout exact diff；不能直接移除 local-only gate。`FA-03B12` 在 cleanup
-   hosted 完成前最多只做 local composition；production composition／server cleanup、SW／dispatcher 仍各自分批。
-   未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
+   foundation 已完成。2026-09-04 Hosted 唯讀複查確認 13 份 pending migration、4 筆 legacy Push row 與 1 筆
+   reminder sentinel update；下一個停點是另行核可只套 migration 並做 schema／ACL／aggregate 驗證。
+   Edge canary、env／secret、測試 request 與 hard gate 移除仍是再下一個獨立核可批次。`FA-03B12` 在 cleanup
+   hosted 完成前最多只做 local composition；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -1434,3 +1436,4 @@ hosted migration／deploy／env／request／DB write：未執行
 | 2026-09-03 | FA-03A4 | v1.2 additive 欄位、既有物件替換、共用 residue／mutation helper、兩支 service-role RPC 與 77 項新 pgTAP 完成；六個 canary 全紅、DB 1,169／1,169、完整 frontend／Supabase CI 通過；使用者已核可 exact diff，hosted 未套用。 |
 | 2026-09-03 | FA-03B11 | shared canonical endpoint／provider／subscription validator、獨立 RSA＋AES envelope、key asset 與 Edge structural ports 完成；Node、Chromium、WebKit、完整 frontend／乾淨 Supabase CI 通過，production graph／provider env／hosted 仍未接線。 |
 | 2026-09-04 | FA-03 cleanup limiter | 使用者核可 Postgres 原子限流；private global＋source token bucket、service-role RPC、HMAC source digest、Edge fail-closed composition、過期 reaper 與 parallel PostgREST 測試完成；38 migrations 重播、DB 1,198／1,198 與完整 CI 通過，production policy／hosted 仍未動。 |
+| 2026-09-04 | FA-03 hosted migration preflight | Hosted read-only transaction 重查 2 sessions／2 participants／2 messages／4 legacy Push／7 outbox，只有 1 reminder 會直接回填；dry-run 精確列出 13 份 migration，未做遠端寫入，等待獨立套用核可。 |
