@@ -16,7 +16,8 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 `frontend-architecture-fa-03-cleanup-c1-diagnostic-result-2026-09-04.md`；source substage 最小重驗範圍在
 `frontend-architecture-fa-03-cleanup-c1-source-substage-preflight-2026-09-04.md`。目前 B12 local composition 的最新
 批次證據在 `frontend-architecture-fa-03b12-manual-reenable-coordinator-2026-09-04.md`；最新 storage 前置證據在
-`frontend-architecture-fa-03b12-provisioning-cancel-storage-2026-09-04.md`。
+`frontend-architecture-fa-03b12-provisioning-cancel-storage-2026-09-04.md` 與
+`frontend-architecture-fa-03b12-refresh-commit-storage-2026-09-04.md`。
 
 ## 目前狀態
 
@@ -24,9 +25,9 @@ Cleanup canary 的平台 raw-IP log 限制與建議步驟在
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                          |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                       |
-| 目前批次                | `FA-03B12.5` pre-network provisioning cancel storage action 已完成並通過完整 CI；production 零 caller                                                                                                                                                                                                                                                                                                             |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1`～`FA-03B12.5`、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                        |
-| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network provisioning cancel、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
+| 目前批次                | `FA-03B12.6` refresh commit storage action 已完成並通過完整 CI；production 零 caller                                                                                                                                                                                                                                                                                                                               |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1`～`FA-03B12.6`、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                        |
+| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit、dormant Push v2 validator／hybrid crypto／Edge ports，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 HTTP/Auth/DB composition、SW、dispatcher 尚未接線 |
 | migration 變更          | 38 local／38 remote；13 份 FA-03 migration 已完整套用，最新皆為 `202609040001`                                                                                                                                                                                                                                                                                                                                   |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report                                                                                                                                                                                                                                                                                                                                                   |
 | 下一步                  | 先做 enable／refresh browser coordinator 的 local-only 結構；cleanup source substage Hosted 最小重驗仍待另行核可                                                                                                                                                                                                                                                                                                  |
@@ -63,7 +64,7 @@ git log --oneline --decorate -10
 | D18 | dormant cleanup coordinator 每次只處理 caller 明確提供的一筆 attempt，最多呼叫 transport 一次；只有 exact `{kind: "completed"}` 才把原 attempt 交給 local completion 一次。local completion 回 primitive boolean（`true`／`false`）才回 completed，其餘或 throw 都回 pending；不掃描、不排程、不自行重試                             | `FA-03B8` 已完成；production 零 caller                                                                                                                                                           |
 | D19 | dormant Auth-failure handoff 只接受 exact `rejected`／`unavailable`、相符 `authUserId` 與 exact B5 safe binding CAS snapshot。`unavailable` 只做本機 `auth-unverified`；`rejected` 先交 B5 suspend／queue，再把 exact correlated attempt 交 B8 一次。invalid process input、contract drift、throw 或非 exact completion 一律 pending | 使用者核可先建立 `FA-03B9` dormant seam；production 零 caller，B1 可信 owner correlation 與 unavailable recovery 仍未完成                                                                        |
 | D20 | `auth_unavailable` 後即使 Auth 重新驗證成功也不自動恢復 Push；使用者必須再次明確啟用，先完成舊 binding cleanup，再建立新 binding、cleanup token 與 server consent epoch                                                                                                                                                              | 使用者於 2026-09-02 選 A；B12.1、B12.4 與 B12.5 已完成 local 順序及 pre-network cancel，future enable port、production wiring 與 UI 尚未實作                                                   |
-| D21 | v2 enable／refresh 先凍結 canonical subscription、provider egress、Edge、DB CAS、Auth correlation 與測試契約；Claude 複核與使用者 migration 核可前不實作 schema／production wiring                                                                                                                                                   | 契約 v1.2 已複核；A4 本機 DB CAS／wrapper 與 exact-diff 核可已完成，production wiring 仍未開始                                                                                                   |
+| D21 | v2 enable／refresh 先凍結 canonical subscription、provider egress、Edge、DB CAS、Auth correlation 與測試契約；Claude 複核與使用者 migration 核可前不實作 schema／production wiring                                                                                                                                                   | 契約 v1.2 已複核；A4 DB CAS 與 B12.5／B12.6 local storage handoff 已完成，browser coordinator 與 production wiring 仍未開始                                                                     |
 | D22 | provider egress 採應用層充分條件：exact provider-origin allowlist＋send-time DNS public-IP 檢查即可進 enabled；平台 egress 層 allowlist 為 nice-to-have，殘餘風險為攻擊者需控制 provider DNS 解析結果                                                                                                                                | 使用者於 2026-09-02 拍板；B11 canonical allowlist parser／digest 已完成；真實值、send-time DNS 與 dispatcher 尚未實作                                                                            |
 | D23 | Edge envelope 的 AES-GCM AAD 綁定已驗證 `authUserId`，並釘死 `encryptedKey`／`iv`／`keyId`／AES key 長度；不符即 `invalid`、不進 DB                                                                                                                                                                                                  | 使用者於 2026-09-02 拍板；B11 dormant encrypt／decrypt 與 cross-account、長度、label canary 已完成；HTTP/Auth/DB composition 尚未接線                                                            |
 | D24 | 不新增 local cleanup reason；手動重新啟用沿用既有 `subscription_changed`，避免 B5 validator 在前端回滾後把 push 子系統讀成 `invalid`                                                                                                                                                                                                 | 使用者於 2026-09-02 拍板；契約 v1.1 已寫入；runtime 未實作                                                                                                                                       |
@@ -90,7 +91,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                                              | 文件差異與 whitespace 檢查通過；無非文件變更                                                                             |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                                              | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                                         |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                                        | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                                     |
-| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1`～`FA-03B12.5`、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；enable／refresh browser coordinator、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11`、`FA-03B12.1`～`FA-03B12.6`、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.2；runtime disabled | expand、DB、browser、dispatcher、雙帳號測試通過；enable／refresh browser coordinator、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 未開始                                                                                                                                                                                                                                                            | gate 有 canary；清單有明確 scope                                                                                         |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 未開始                                                                                                                                                                                                                                                            | before／after 可重現；未放寬未核可邊界                                                                                   |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 未開始                                                                                                                                                                                                                                                            | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                              |
@@ -1445,6 +1446,35 @@ hosted deploy／migration apply／env／request／DB 寫入：未執行
 本機測試球局。防呆 script 確認 target 是 `127.0.0.1:54321` 後重建本機測試 DB、重播 38 migration，再跑即全過。
 這次只刪除不可復原的本機測試資料，沒有碰 Hosted／production。
 
+## FA-03B12.6 refresh commit storage action（local-only）
+
+已完成：
+
+- B5 新增 `commitPushRefresh(...)`，只接受 exact owner／binding／device／local revision、完整 expected consent 與
+  server response consent。
+- response 必須保持同 consent ID／epoch，version 只能和 expected 完全相同或恰好 `+1`；其他語意漂移在 storage
+  transaction 前即拒絕。
+- transaction 內再次確認目前仍是 exact enabled binding 與舊 server consent。exact no-op 不寫資料、不改 local
+  revision；version `+1` 才更新 server consent 並產生新 local revision。
+- local commit 後重放同一 response 會回同一份 safe binding，不會再次增加 revision。
+- stale consent／local revision、invalid input 與 transaction abort 都完整保留舊 enabled binding。
+
+精確邊界：
+
+- 本批只建立 refresh response → B5 local commit；沒有取得 PushSubscription 或送 network request。
+- 沒有 production importer、UI、service worker、browser transport、Edge composition、migration 或 Hosted 變更。
+- production bundle 與 B12.5 完全相同；total gzip 仍是既有 D8 report-only 超額 1,493 bytes。
+
+本批驗證：
+
+```text
+push-storage targeted：15／15 passed
+npm run test:ci:frontend：Node 526 passed／1 skipped；Playwright 344 passed／4 skipped；build 509 modules
+npm run test:ci:supabase：DB 1,198／1,198；local API 4／4；desktop 45 passed／11 skipped；mobile 6／6；Edge 1／1
+typecheck／ESLint／Prettier／bundle structural gate／git diff --check：通過
+hosted deploy／migration apply／env／request／DB 寫入：未執行
+```
+
 ## FA-03 push-cleanup distributed limiter foundation（repo／local only）
 
 已完成：
@@ -1651,7 +1681,8 @@ Hosted deploy／secret／request／DB write：未執行
 - B12.1 已完成 `auth-unverified` 手動重新啟用的原子 storage 起點與跨 tab 收斂；B12.2 已完成 B1 failure notice 的
   revision／prior-owner 出口；B12.3 已完成 dormant B1 → B9 correlation adapter；B12.4 已完成 B8 cleanup → 新
   provisioning → future enable port 的 local coordinator；B12.5 已完成 pre-network provisioning cancel storage action。
-  但 B1 callback concrete composition 與 enable／refresh browser coordinator 仍未做；production Push 仍不會呼叫它們。
+  B12.6 已完成 refresh response → enabled binding 的 exact local CAS。但 B1 callback concrete composition 與
+  enable／refresh browser coordinator 仍未做；production Push 仍不會呼叫它們。
 - D6、Q9-A Auth boot gate、quarantine DB digest boundary、local-only encrypted Edge 與 B9 dormant handoff seam
   已完成；但 B1 rejected result 尚無可信舊 owner correlation，production 對 B9 為零 caller，explicit rejection
   也尚未由 browser 呼叫 Edge。`auth_unavailable` 已決策為「驗證成功仍不自動恢復，必須手動重新啟用」，但
@@ -1712,7 +1743,7 @@ Hosted deploy／secret／request／DB write：未執行
    owner-quarantine adapter、`FA-03B8` single-attempt coordinator、`FA-03B9` Auth-failure handoff、`FA-03B10.1`
    Auth local sign-out、`FA-03B10.2` dormant browser deactivation、`FA-03B12.1` manual re-enable storage 起點、
    `FA-03B12.2` Auth failure notice、`FA-03B12.3` dormant correlation adapter、`FA-03B12.4` manual re-enable
-   local coordinator 與 `FA-03B12.5` pre-network provisioning cancel 都存在；
+   local coordinator、`FA-03B12.5` pre-network provisioning cancel 與 `FA-03B12.6` refresh commit 都存在；
    不要重做已完成的 003～011、Auth gate、
    transport linkage、RSA envelope、key generator、browser storage schema、key loader、owner result mapping、bigint
    string boundary、single-attempt exact transport→CAS handoff、caller-supplied Auth failure → B5／B8 handoff，或
@@ -1735,7 +1766,7 @@ Hosted deploy／secret／request／DB write：未執行
    `FA-03B12.1` 已完成 exact `auth-unverified` → `subscription_changed` pending cleanup 的原子 B5 action；B12.2
    已完成 B1 exact failure notice，B12.3 已完成 notice → B9 的 dormant correlation adapter，B12.4 已完成 B8
    cleanup → 新 provisioning → injected enable port 的 manual re-enable local coordinator，B12.5 已完成 v1.2 要求的
-   pre-network provisioning cancel。下一步只做
+   pre-network provisioning cancel，B12.6 已完成 exact refresh local commit。下一步只做
    enable／refresh browser coordinator 的 local-only 結構。cleanup hosted 完成前不得接
    production；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
@@ -1786,3 +1817,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-04 | FA-03B12.3                       | dormant B1 → B9 correlation adapter 完成：revision 前後 gate、warm owner exact match、cold branch 不猜 Auth proof、superseded 不進 B9；targeted 22／22 與完整 CI 通過，production graph 零 reference。                                                                      |
 | 2026-09-04 | FA-03B12.4                       | dormant manual re-enable coordinator 完成：逐段重驗 Auth proof、B8 exact completion 後才建新 binding／token、predecessor 只在同次呼叫記憶體傳遞；真實 B5／B8 Chromium 組合與完整 CI 通過，future enable port／production caller 未接。                                      |
 | 2026-09-04 | FA-03B12.5                       | B5 pre-network provisioning cancel 完成：exact CAS 只刪 provisioning、保留 logical device、不建 cleanup；stale／enabled／abort／replay 均 fail-closed。因本機七日窗累積 223 場造成 fixture 被 100 筆上限截掉，安全 reset local DB 後完整 CI 通過；Hosted 未動。 |
+| 2026-09-04 | FA-03B12.6                       | B5 refresh commit 完成：exact enabled CAS 只接受同 consent ID／epoch 與 version no-op 或恰好 +1；no-op 不改 local revision、成功重放收斂、stale／drift／abort 保留舊值。真實 Chromium 與完整 CI 通過；production／Hosted 未接。                         |

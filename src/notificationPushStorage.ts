@@ -135,6 +135,14 @@ export interface CommitPushProvisioningInput extends PushServerConsentIdentity {
   expectedLocalRevision: string;
 }
 
+export interface CommitPushRefreshInput extends PushServerConsentIdentity {
+  authUserId: string;
+  bindingId: string;
+  deviceId: string;
+  expectedConsent: PushServerConsentIdentity;
+  expectedLocalRevision: string;
+}
+
 export interface SuspendCurrentPushBindingInput {
   authUserId: string;
   bindingId: string;
@@ -848,6 +856,70 @@ export function createNotificationPushStorage({
     });
   }
 
+  async function commitPushRefresh(input: CommitPushRefreshInput): Promise<SafeEnabledBinding> {
+    requireValidInput(
+      hasExactKeys(input, [
+        "authUserId",
+        "bindingId",
+        "consentEpoch",
+        "consentId",
+        "consentVersion",
+        "deviceId",
+        "expectedConsent",
+        "expectedLocalRevision",
+      ]) &&
+        isCanonicalUuid(input.authUserId) &&
+        isCanonicalUuid(input.bindingId) &&
+        isCanonicalUuid(input.deviceId) &&
+        isCanonicalUuid(input.expectedLocalRevision) &&
+        isServerConsent(input.expectedConsent) &&
+        isServerConsent({
+          consentEpoch: input.consentEpoch,
+          consentId: input.consentId,
+          consentVersion: input.consentVersion,
+        }) &&
+        input.consentEpoch === input.expectedConsent.consentEpoch &&
+        input.consentId === input.expectedConsent.consentId &&
+        (input.consentVersion === input.expectedConsent.consentVersion ||
+          BigInt(input.consentVersion) === BigInt(input.expectedConsent.consentVersion) + 1n)
+    );
+    const dependencies = requireDependencies();
+    return withTransaction(dependencies.indexedDb, "readwrite", async (transaction) => {
+      const state = await loadStoredState(transaction);
+      const serverConsent = {
+        consentEpoch: input.consentEpoch,
+        consentId: input.consentId,
+        consentVersion: input.consentVersion,
+      };
+      if (
+        state.binding?.state === "enabled" &&
+        state.binding.authUserId === input.authUserId &&
+        state.binding.bindingId === input.bindingId &&
+        state.binding.deviceId === input.deviceId &&
+        sameServerConsent(state.binding.serverConsent, serverConsent)
+      ) {
+        return safeBinding(state.binding);
+      }
+      const binding = requireExpectedBinding(state.binding, input);
+      if (
+        binding.state !== "enabled" ||
+        binding.deviceId !== input.deviceId ||
+        !sameServerConsent(binding.serverConsent, input.expectedConsent)
+      ) {
+        throw storageError(PUSH_STORAGE_ERROR_CODES.STALE);
+      }
+      if (sameServerConsent(binding.serverConsent, serverConsent)) return safeBinding(binding);
+
+      const enabled: EnabledBinding = {
+        ...binding,
+        localRevision: randomUuid(dependencies.cryptoRef),
+        serverConsent,
+      };
+      await requestValue(transaction.objectStore(CURRENT_STORE).put(enabled));
+      return safeBinding(enabled);
+    });
+  }
+
   async function commitLocalSuspension(input: SuspendCurrentPushBindingInput): Promise<SuspendedBinding> {
     requireValidInput(
       hasExactKeys(input, ["authUserId", "bindingId", "expectedLocalRevision", "reason"]) &&
@@ -965,6 +1037,7 @@ export function createNotificationPushStorage({
     beginExplicitPushReenable,
     cancelExplicitPushProvisioning,
     commitPushProvisioning,
+    commitPushRefresh,
     completePendingPushCleanup,
     getOrCreateLogicalDeviceId,
     listPendingPushCleanups,

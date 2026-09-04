@@ -970,6 +970,188 @@ test("cancel provisioning rejects invalid input and preserves an enabled binding
   });
 });
 
+test("refresh commit keeps no-op stable and accepts exactly one server version step", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async (authUserId) => {
+    const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+    const storage = createNotificationPushStorage();
+    const deviceId = await storage.getOrCreateLogicalDeviceId();
+    const provisioning = await storage.beginExplicitPushProvisioning({
+      authUserId,
+      deviceId,
+      expectedCurrentRevision: null,
+    });
+    const originalConsent = {
+      consentEpoch: "22222222-2222-4222-8222-222222222222",
+      consentId: "41",
+      consentVersion: "7",
+    };
+    const enabled = await storage.commitPushProvisioning({
+      authUserId,
+      bindingId: provisioning.bindingId,
+      deviceId,
+      expectedLocalRevision: provisioning.localRevision,
+      ...originalConsent,
+    });
+    const noOp = await storage.commitPushRefresh({
+      authUserId,
+      bindingId: enabled.bindingId,
+      deviceId,
+      expectedConsent: originalConsent,
+      expectedLocalRevision: enabled.localRevision,
+      ...originalConsent,
+    });
+    const nextConsent = { ...originalConsent, consentVersion: "8" };
+    const refreshed = await storage.commitPushRefresh({
+      authUserId,
+      bindingId: enabled.bindingId,
+      deviceId,
+      expectedConsent: originalConsent,
+      expectedLocalRevision: enabled.localRevision,
+      ...nextConsent,
+    });
+    const replay = await storage.commitPushRefresh({
+      authUserId,
+      bindingId: enabled.bindingId,
+      deviceId,
+      expectedConsent: originalConsent,
+      expectedLocalRevision: enabled.localRevision,
+      ...nextConsent,
+    });
+    return {
+      bindingStable: refreshed.bindingId === enabled.bindingId,
+      noOpRevisionStable: noOp.localRevision === enabled.localRevision,
+      refreshedRevisionChanged: refreshed.localRevision !== enabled.localRevision,
+      replayConverged: replay.localRevision === refreshed.localRevision,
+      runtime: (await storage.readPushRuntimeState()).kind,
+      serverConsent: refreshed.serverConsent,
+    };
+  }, AUTH_USER_ID);
+
+  expect(result).toEqual({
+    bindingStable: true,
+    noOpRevisionStable: true,
+    refreshedRevisionChanged: true,
+    replayConverged: true,
+    runtime: "enabled",
+    serverConsent: {
+      consentEpoch: "22222222-2222-4222-8222-222222222222",
+      consentId: "41",
+      consentVersion: "8",
+    },
+  });
+});
+
+test("refresh commit rejects drift and rolls back an aborted version update", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async (authUserId) => {
+    const module = await import("/src/notificationPushStorage.ts");
+    const storage = module.createNotificationPushStorage();
+    const deviceId = await storage.getOrCreateLogicalDeviceId();
+    const provisioning = await storage.beginExplicitPushProvisioning({
+      authUserId,
+      deviceId,
+      expectedCurrentRevision: null,
+    });
+    const serverConsent = {
+      consentEpoch: "22222222-2222-4222-8222-222222222222",
+      consentId: "41",
+      consentVersion: "7",
+    };
+    const enabledBinding = await storage.commitPushProvisioning({
+      authUserId,
+      bindingId: provisioning.bindingId,
+      deviceId,
+      expectedLocalRevision: provisioning.localRevision,
+      ...serverConsent,
+    });
+    const nextConsent = {
+      ...serverConsent,
+      consentVersion: (BigInt(serverConsent.consentVersion) + 1n).toString(),
+    };
+    const attempts = [
+      {
+        expectedConsent: { ...serverConsent, consentVersion: "1" },
+        expectedLocalRevision: enabledBinding.localRevision,
+        resultConsent: { ...serverConsent, consentVersion: "2" },
+      },
+      {
+        expectedConsent: serverConsent,
+        expectedLocalRevision: crypto.randomUUID(),
+        resultConsent: nextConsent,
+      },
+    ];
+    const staleCodes = [];
+    for (const { resultConsent, ...attempt } of attempts) {
+      try {
+        await storage.commitPushRefresh({
+          authUserId,
+          bindingId: enabledBinding.bindingId,
+          deviceId: enabledBinding.deviceId,
+          ...attempt,
+          ...resultConsent,
+        });
+      } catch (error) {
+        staleCodes.push(error instanceof Error && "code" in error ? error.code : null);
+      }
+    }
+
+    let invalidCode = null;
+    try {
+      await storage.commitPushRefresh({
+        authUserId,
+        bindingId: enabledBinding.bindingId,
+        consentEpoch: crypto.randomUUID(),
+        consentId: serverConsent.consentId,
+        consentVersion: serverConsent.consentVersion,
+        deviceId: enabledBinding.deviceId,
+        expectedConsent: serverConsent,
+        expectedLocalRevision: enabledBinding.localRevision,
+      });
+    } catch (error) {
+      invalidCode = error instanceof Error && "code" in error ? error.code : null;
+    }
+
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === module.PUSH_STORAGE_STORES.currentBinding) this.transaction.abort();
+      return originalPut.apply(this, args);
+    };
+    let abortCode = null;
+    try {
+      await storage.commitPushRefresh({
+        authUserId,
+        bindingId: enabledBinding.bindingId,
+        deviceId: enabledBinding.deviceId,
+        expectedConsent: serverConsent,
+        expectedLocalRevision: enabledBinding.localRevision,
+        ...nextConsent,
+      });
+    } catch (error) {
+      abortCode = error instanceof Error && "code" in error ? error.code : null;
+    } finally {
+      IDBObjectStore.prototype.put = originalPut;
+    }
+    const after = await storage.readPushRuntimeState();
+    return {
+      abortCode,
+      invalidCode,
+      preserved:
+        after.kind === "enabled" &&
+        after.binding.localRevision === enabledBinding.localRevision &&
+        JSON.stringify(after.binding.serverConsent) === JSON.stringify(serverConsent),
+      staleCodes,
+    };
+  }, AUTH_USER_ID);
+
+  expect(result).toEqual({
+    abortCode: "PUSH_STORAGE_UNAVAILABLE",
+    invalidCode: "PUSH_STORAGE_INVALID_INPUT",
+    preserved: true,
+    staleCodes: ["PUSH_STORAGE_STALE", "PUSH_STORAGE_STALE"],
+  });
+});
+
 test("manual re-enable accepts only exact auth-unverified CAS and rolls back an aborted move", async ({ page }) => {
   await page.goto("/");
   const enabled = await createEnabledBinding(page);
