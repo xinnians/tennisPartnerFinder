@@ -116,6 +116,12 @@ export interface BeginPushProvisioningInput {
   expectedCurrentRevision: string | null;
 }
 
+export interface BeginPushReenableInput {
+  authUserId: string;
+  bindingId: string;
+  expectedLocalRevision: string;
+}
+
 export interface CommitPushProvisioningInput extends PushServerConsentIdentity {
   authUserId: string;
   bindingId: string;
@@ -710,6 +716,53 @@ export function createNotificationPushStorage({
     });
   }
 
+  async function beginExplicitPushReenable(input: BeginPushReenableInput): Promise<PendingPushCleanupAttempt> {
+    requireValidInput(
+      hasExactKeys(input, ["authUserId", "bindingId", "expectedLocalRevision"]) &&
+        isCanonicalUuid(input.authUserId) &&
+        isCanonicalUuid(input.bindingId) &&
+        isCanonicalUuid(input.expectedLocalRevision)
+    );
+    const dependencies = requireDependencies();
+    return withTransaction(dependencies.indexedDb, "readwrite", async (transaction) => {
+      const state = await loadStoredState(transaction);
+      const existingAttempt = state.attempts[0];
+      if (existingAttempt) {
+        if (
+          existingAttempt.authUserId === input.authUserId &&
+          existingAttempt.bindingId === input.bindingId &&
+          existingAttempt.bindingRevision === input.expectedLocalRevision &&
+          existingAttempt.reason === "subscription_changed"
+        ) {
+          return existingAttempt;
+        }
+        throw storageError(PUSH_STORAGE_ERROR_CODES.STALE);
+      }
+
+      const binding = requireExpectedBinding(state.binding, input);
+      if (binding.state !== "auth-unverified" || binding.reason !== AUTH_UNAVAILABLE_REASON) {
+        throw storageError(PUSH_STORAGE_ERROR_CODES.STALE);
+      }
+
+      const attempt: PendingPushCleanupAttempt = {
+        attemptId: randomUuid(dependencies.cryptoRef),
+        authUserId: binding.authUserId,
+        bindingId: binding.bindingId,
+        bindingRevision: binding.localRevision,
+        cleanupToken: binding.cleanupToken,
+        deviceId: binding.deviceId,
+        reason: "subscription_changed",
+        schemaVersion: SCHEMA_VERSION,
+        serverConsent: binding.serverConsent,
+      };
+      const currentStore = transaction.objectStore(CURRENT_STORE);
+      const pendingStore = transaction.objectStore(PENDING_STORE);
+      await requestValue(currentStore.delete(CURRENT_BINDING_KEY));
+      await requestValue(pendingStore.add(attempt));
+      return attempt;
+    });
+  }
+
   async function readPushProvisioning(authUserId: string): Promise<PushProvisioningBinding | null> {
     requireValidInput(isCanonicalUuid(authUserId));
     const dependencies = requireDependencies();
@@ -887,6 +940,7 @@ export function createNotificationPushStorage({
 
   return Object.freeze({
     beginExplicitPushProvisioning,
+    beginExplicitPushReenable,
     commitPushProvisioning,
     completePendingPushCleanup,
     getOrCreateLogicalDeviceId,

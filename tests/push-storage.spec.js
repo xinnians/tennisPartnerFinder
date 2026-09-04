@@ -733,6 +733,192 @@ test("Auth unavailable closes the exact local binding without creating cleanup w
   expect(persisted).toEqual({ pendingCount: 0, reason: "auth_unavailable", runtime: "auth-unverified" });
 });
 
+test("manual re-enable atomically converges two tabs on one subscription-changed cleanup", async ({
+  context,
+  page,
+}) => {
+  const peer = await context.newPage();
+  await Promise.all([page.goto("/"), peer.goto("/")]);
+  const enabled = await createEnabledBinding(page);
+
+  const suspended = await page.evaluate(
+    async ({ authUserId, enabledBinding }) => {
+      const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+      const storage = createNotificationPushStorage();
+      await storage.suspendCurrentPushBinding({
+        authUserId,
+        bindingId: enabledBinding.bindingId,
+        expectedLocalRevision: enabledBinding.localRevision,
+        reason: "auth_unavailable",
+      });
+      const runtime = await storage.readPushRuntimeState();
+      if (runtime.kind !== "auth-unverified") throw new Error("AUTH_UNVERIFIED_BINDING_MISSING");
+      return runtime.binding;
+    },
+    { authUserId: AUTH_USER_ID, enabledBinding: enabled }
+  );
+
+  const begin = (target) =>
+    target.evaluate(
+      async ({ authUserId, binding }) => {
+        const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+        const storage = createNotificationPushStorage();
+        const attempt = await storage.beginExplicitPushReenable({
+          authUserId,
+          bindingId: binding.bindingId,
+          expectedLocalRevision: binding.localRevision,
+        });
+        const digest = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(attempt.cleanupToken))
+        );
+        return {
+          attemptId: attempt.attemptId,
+          bindingId: attempt.bindingId,
+          bindingRevision: attempt.bindingRevision,
+          reason: attempt.reason,
+          tokenDigest: Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join(""),
+        };
+      },
+      { authUserId: AUTH_USER_ID, binding: suspended }
+    );
+  const [first, second] = await Promise.all([begin(page), begin(peer)]);
+  expect(first).toEqual(second);
+  expect(first).toMatchObject({
+    bindingId: enabled.bindingId,
+    bindingRevision: suspended.localRevision,
+    reason: "subscription_changed",
+    tokenDigest: await page.evaluate(() => window.name),
+  });
+
+  const afterCleanup = await page.evaluate(
+    async ({ authUserId, oldAttemptId, oldBindingId, oldTokenDigest }) => {
+      const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+      const storage = createNotificationPushStorage();
+      const pending = await storage.listPendingPushCleanups();
+      const runtimeBefore = await storage.readPushRuntimeState();
+      if (!pending[0]) throw new Error("PENDING_CLEANUP_MISSING");
+      await storage.completePendingPushCleanup(pending[0]);
+      const runtimeAfter = await storage.readPushRuntimeState();
+      if (!("deviceId" in runtimeAfter) || runtimeAfter.deviceId === null) throw new Error("DEVICE_ID_MISSING");
+      const provisioning = await storage.beginExplicitPushProvisioning({
+        authUserId,
+        deviceId: runtimeAfter.deviceId,
+        expectedCurrentRevision: null,
+      });
+      const digest = new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(provisioning.cleanupToken))
+      );
+      const newTokenDigest = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+      return {
+        newBinding: provisioning.bindingId !== oldBindingId,
+        newCleanupToken: newTokenDigest !== oldTokenDigest,
+        pendingAttemptId: pending[0].attemptId,
+        pendingCount: (await storage.listPendingPushCleanups()).length,
+        runtimeAfter: (await storage.readPushRuntimeState()).kind,
+        runtimeBefore: runtimeBefore.kind,
+        sameAttempt: pending[0].attemptId === oldAttemptId,
+      };
+    },
+    {
+      authUserId: AUTH_USER_ID,
+      oldAttemptId: first.attemptId,
+      oldBindingId: enabled.bindingId,
+      oldTokenDigest: first.tokenDigest,
+    }
+  );
+  expect(afterCleanup).toEqual({
+    newBinding: true,
+    newCleanupToken: true,
+    pendingAttemptId: first.attemptId,
+    pendingCount: 0,
+    runtimeAfter: "provisioning",
+    runtimeBefore: "cleanup-pending",
+    sameAttempt: true,
+  });
+});
+
+test("manual re-enable accepts only exact auth-unverified CAS and rolls back an aborted move", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+
+  const result = await page.evaluate(
+    async ({ authUserId, enabledBinding }) => {
+      const module = await import("/src/notificationPushStorage.ts");
+      const storage = module.createNotificationPushStorage();
+      let enabledCode = null;
+      try {
+        await storage.beginExplicitPushReenable({
+          authUserId,
+          bindingId: enabledBinding.bindingId,
+          expectedLocalRevision: enabledBinding.localRevision,
+        });
+      } catch (error) {
+        enabledCode = error instanceof Error && "code" in error ? error.code : null;
+      }
+
+      await storage.suspendCurrentPushBinding({
+        authUserId,
+        bindingId: enabledBinding.bindingId,
+        expectedLocalRevision: enabledBinding.localRevision,
+        reason: "auth_unavailable",
+      });
+      const before = await storage.readPushRuntimeState();
+      if (before.kind !== "auth-unverified") throw new Error("AUTH_UNVERIFIED_BINDING_MISSING");
+
+      let staleCode = null;
+      try {
+        await storage.beginExplicitPushReenable({
+          authUserId,
+          bindingId: before.binding.bindingId,
+          expectedLocalRevision: crypto.randomUUID(),
+        });
+      } catch (error) {
+        staleCode = error instanceof Error && "code" in error ? error.code : null;
+      }
+
+      const originalAdd = IDBObjectStore.prototype.add;
+      IDBObjectStore.prototype.add = function (...args) {
+        if (this.name === module.PUSH_STORAGE_STORES.pendingCleanups) this.transaction.abort();
+        return originalAdd.apply(this, args);
+      };
+      let abortCode = null;
+      try {
+        await storage.beginExplicitPushReenable({
+          authUserId,
+          bindingId: before.binding.bindingId,
+          expectedLocalRevision: before.binding.localRevision,
+        });
+      } catch (error) {
+        abortCode = error instanceof Error && "code" in error ? error.code : null;
+      } finally {
+        IDBObjectStore.prototype.add = originalAdd;
+      }
+
+      const after = await storage.readPushRuntimeState();
+      return {
+        abortCode,
+        enabledCode,
+        pendingCount: (await storage.listPendingPushCleanups()).length,
+        preservedBinding:
+          after.kind === "auth-unverified" &&
+          after.binding.bindingId === before.binding.bindingId &&
+          after.binding.localRevision === before.binding.localRevision,
+        runtime: after.kind,
+        staleCode,
+      };
+    },
+    { authUserId: AUTH_USER_ID, enabledBinding: enabled }
+  );
+  expect(result).toEqual({
+    abortCode: "PUSH_STORAGE_UNAVAILABLE",
+    enabledCode: "PUSH_STORAGE_STALE",
+    pendingCount: 0,
+    preservedBinding: true,
+    runtime: "auth-unverified",
+    staleCode: "PUSH_STORAGE_STALE",
+  });
+});
+
 test("Auth rejected preserves exact B5 cleanup work when the B8 transport stays pending", async ({ page }) => {
   await page.goto("/");
   const enabled = await createEnabledBinding(page);
