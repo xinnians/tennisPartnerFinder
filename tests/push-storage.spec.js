@@ -837,6 +837,139 @@ test("manual re-enable atomically converges two tabs on one subscription-changed
   });
 });
 
+test("cancels only an exact provisioning before network without creating cleanup work", async ({ page }) => {
+  await page.goto("/");
+  const result = await page.evaluate(async (authUserId) => {
+    const module = await import("/src/notificationPushStorage.ts");
+    const storage = module.createNotificationPushStorage();
+    const deviceId = await storage.getOrCreateLogicalDeviceId();
+    const provisioning = await storage.beginExplicitPushProvisioning({
+      authUserId,
+      deviceId,
+      expectedCurrentRevision: null,
+    });
+
+    let staleCode = null;
+    try {
+      await storage.cancelExplicitPushProvisioning({
+        authUserId,
+        bindingId: provisioning.bindingId,
+        expectedLocalRevision: crypto.randomUUID(),
+      });
+    } catch (error) {
+      staleCode = error instanceof Error && "code" in error ? error.code : null;
+    }
+    const afterStale = await storage.readPushProvisioning(authUserId);
+
+    const originalDelete = IDBObjectStore.prototype.delete;
+    IDBObjectStore.prototype.delete = function (...args) {
+      if (this.name === module.PUSH_STORAGE_STORES.currentBinding) this.transaction.abort();
+      return originalDelete.apply(this, args);
+    };
+    let abortCode = null;
+    try {
+      await storage.cancelExplicitPushProvisioning({
+        authUserId,
+        bindingId: provisioning.bindingId,
+        expectedLocalRevision: provisioning.localRevision,
+      });
+    } catch (error) {
+      abortCode = error instanceof Error && "code" in error ? error.code : null;
+    } finally {
+      IDBObjectStore.prototype.delete = originalDelete;
+    }
+    const afterAbort = await storage.readPushProvisioning(authUserId);
+
+    await storage.cancelExplicitPushProvisioning({
+      authUserId,
+      bindingId: provisioning.bindingId,
+      expectedLocalRevision: provisioning.localRevision,
+    });
+    const after = await storage.readPushRuntimeState();
+    let replayCode = null;
+    try {
+      await storage.cancelExplicitPushProvisioning({
+        authUserId,
+        bindingId: provisioning.bindingId,
+        expectedLocalRevision: provisioning.localRevision,
+      });
+    } catch (error) {
+      replayCode = error instanceof Error && "code" in error ? error.code : null;
+    }
+    return {
+      abortCode,
+      afterAbortPreserved: afterAbort?.bindingId === provisioning.bindingId,
+      afterStalePreserved: afterStale?.bindingId === provisioning.bindingId,
+      devicePreserved: after.kind === "disabled" && after.deviceId === deviceId,
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      replayCode,
+      runtime: after.kind,
+      staleCode,
+    };
+  }, AUTH_USER_ID);
+
+  expect(result).toEqual({
+    abortCode: "PUSH_STORAGE_UNAVAILABLE",
+    afterAbortPreserved: true,
+    afterStalePreserved: true,
+    devicePreserved: true,
+    pendingCount: 0,
+    replayCode: "PUSH_STORAGE_STALE",
+    runtime: "disabled",
+    staleCode: "PUSH_STORAGE_STALE",
+  });
+});
+
+test("cancel provisioning rejects invalid input and preserves an enabled binding", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+  const result = await page.evaluate(
+    async ({ authUserId, enabledBinding }) => {
+      const { createNotificationPushStorage } = await import("/src/notificationPushStorage.ts");
+      const storage = createNotificationPushStorage();
+      let invalidCode = null;
+      try {
+        await storage.cancelExplicitPushProvisioning({
+          authUserId,
+          bindingId: enabledBinding.bindingId,
+          expectedLocalRevision: enabledBinding.localRevision,
+          unexpected: true,
+        });
+      } catch (error) {
+        invalidCode = error instanceof Error && "code" in error ? error.code : null;
+      }
+      let enabledCode = null;
+      try {
+        await storage.cancelExplicitPushProvisioning({
+          authUserId,
+          bindingId: enabledBinding.bindingId,
+          expectedLocalRevision: enabledBinding.localRevision,
+        });
+      } catch (error) {
+        enabledCode = error instanceof Error && "code" in error ? error.code : null;
+      }
+      const after = await storage.readPushRuntimeState();
+      return {
+        enabledCode,
+        invalidCode,
+        preserved:
+          after.kind === "enabled" &&
+          after.binding.bindingId === enabledBinding.bindingId &&
+          after.binding.localRevision === enabledBinding.localRevision,
+        runtime: after.kind,
+      };
+    },
+    { authUserId: AUTH_USER_ID, enabledBinding: enabled }
+  );
+
+  expect(result).toEqual({
+    enabledCode: "PUSH_STORAGE_STALE",
+    invalidCode: "PUSH_STORAGE_INVALID_INPUT",
+    preserved: true,
+    runtime: "enabled",
+  });
+});
+
 test("manual re-enable accepts only exact auth-unverified CAS and rolls back an aborted move", async ({ page }) => {
   await page.goto("/");
   const enabled = await createEnabledBinding(page);

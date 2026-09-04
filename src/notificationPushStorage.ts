@@ -122,6 +122,12 @@ export interface BeginPushReenableInput {
   expectedLocalRevision: string;
 }
 
+export interface CancelPushProvisioningInput {
+  authUserId: string;
+  bindingId: string;
+  expectedLocalRevision: string;
+}
+
 export interface CommitPushProvisioningInput extends PushServerConsentIdentity {
   authUserId: string;
   bindingId: string;
@@ -772,6 +778,22 @@ export function createNotificationPushStorage({
     });
   }
 
+  async function cancelExplicitPushProvisioning(input: CancelPushProvisioningInput): Promise<void> {
+    requireValidInput(
+      hasExactKeys(input, ["authUserId", "bindingId", "expectedLocalRevision"]) &&
+        isCanonicalUuid(input.authUserId) &&
+        isCanonicalUuid(input.bindingId) &&
+        isCanonicalUuid(input.expectedLocalRevision)
+    );
+    const dependencies = requireDependencies();
+    return withTransaction(dependencies.indexedDb, "readwrite", async (transaction) => {
+      const state = await loadStoredState(transaction);
+      const binding = requireExpectedBinding(state.binding, input);
+      if (binding.state !== "provisioning") throw storageError(PUSH_STORAGE_ERROR_CODES.STALE);
+      await requestValue(transaction.objectStore(CURRENT_STORE).delete(CURRENT_BINDING_KEY));
+    });
+  }
+
   async function commitPushProvisioning(input: CommitPushProvisioningInput): Promise<SafeCurrentBinding> {
     requireValidInput(
       hasExactKeys(input, [
@@ -941,6 +963,7 @@ export function createNotificationPushStorage({
   return Object.freeze({
     beginExplicitPushProvisioning,
     beginExplicitPushReenable,
+    cancelExplicitPushProvisioning,
     commitPushProvisioning,
     completePendingPushCleanup,
     getOrCreateLogicalDeviceId,
