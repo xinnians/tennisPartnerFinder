@@ -3,6 +3,34 @@ import { canonicalCleanupEnvelopeJson, CLEANUP_ENVELOPE_BYTES, digestForCleanupE
 export { CLEANUP_ENVELOPE_BYTES };
 
 export const PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER = "x-qiuka-cleanup-limiter-outcome";
+export const PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER = "x-qiuka-cleanup-limiter-stage";
+export const PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES = Object.freeze({
+  BUCKET_HASH: "BUCKET_HASH",
+  HMAC_KEY: "HMAC_KEY",
+  POLICY: "POLICY",
+  RPC_CONTRACT: "RPC_CONTRACT",
+  RPC_FETCH: "RPC_FETCH",
+  RPC_STATUS: "RPC_STATUS",
+  SERVICE_CONFIG: "SERVICE_CONFIG",
+  SOURCE: "SOURCE",
+  UNCLASSIFIED: "UNCLASSIFIED",
+});
+
+const CANARY_FAILURE_STAGE_VALUES = new Set(Object.values(PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES));
+const CANARY_FAILURE_STAGE_BY_ERROR = new WeakMap();
+
+export function hostedLimiterCanaryFailure(stage) {
+  const error = new Error("PUSH_CLEANUP_LIMITER_CANARY_FAILURE");
+  if (CANARY_FAILURE_STAGE_VALUES.has(stage) && stage !== PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.UNCLASSIFIED) {
+    CANARY_FAILURE_STAGE_BY_ERROR.set(error, stage);
+  }
+  return error;
+}
+
+function hostedLimiterCanaryFailureStage(error) {
+  const stage = error && typeof error === "object" ? CANARY_FAILURE_STAGE_BY_ERROR.get(error) : null;
+  return CANARY_FAILURE_STAGE_VALUES.has(stage) ? stage : PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.UNCLASSIFIED;
+}
 
 const BASE_HEADERS = Object.freeze({
   "cache-control": "no-store",
@@ -128,12 +156,18 @@ export function createPushCleanupHandler({
 
       try {
         const limiterOutcome = await consumeRateLimit(request);
-        if (limiterOutcome !== "ALLOW" && limiterOutcome !== "LIMIT") return retryResponse(corsOrigin);
+        if (limiterOutcome !== "ALLOW" && limiterOutcome !== "LIMIT") {
+          return retryResponse(corsOrigin, {
+            [PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER]: PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.UNCLASSIFIED,
+          });
+        }
         return retryResponse(corsOrigin, {
           [PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER]: limiterOutcome,
         });
-      } catch {
-        return retryResponse(corsOrigin);
+      } catch (error) {
+        return retryResponse(corsOrigin, {
+          [PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER]: hostedLimiterCanaryFailureStage(error),
+        });
       }
     }
 

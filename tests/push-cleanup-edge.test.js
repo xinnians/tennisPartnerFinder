@@ -25,7 +25,10 @@ import {
 import {
   CLEANUP_ENVELOPE_BYTES,
   createPushCleanupHandler,
+  hostedLimiterCanaryFailure,
+  PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES,
   PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER,
+  PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER,
 } from "../supabase/functions/push-cleanup/handler.js";
 import {
   canonicalIpAddress,
@@ -39,6 +42,7 @@ import {
   PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION,
   trustedHostedClientAddress,
 } from "../supabase/functions/push-cleanup/rate-limit.js";
+import { createPushCleanupRateLimitConsumer } from "../supabase/functions/push-cleanup/rate-limit-client.js";
 import { cleanupRuntimeAccess, exactHttpOrigin } from "../supabase/functions/push-cleanup/runtime.js";
 
 const ALLOWED_ORIGIN = "https://qiuka.tw";
@@ -95,6 +99,7 @@ async function responseShape(response) {
     body: await response.json(),
     cacheControl: response.headers.get("cache-control"),
     canaryOutcome: response.headers.get(PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER),
+    canaryStage: response.headers.get(PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER),
     corsOrigin: response.headers.get("access-control-allow-origin"),
     status: response.status,
     vary: response.headers.get("vary"),
@@ -125,6 +130,7 @@ function expectedResponse(outcome, status, corsOrigin = ALLOWED_ORIGIN) {
     body: { outcome },
     cacheControl: "no-store",
     canaryOutcome: null,
+    canaryStage: null,
     corsOrigin,
     status,
     vary: "Origin",
@@ -556,6 +562,119 @@ test("client address parser canonicalizes IP only and requires matching hosted g
   }
 });
 
+test("rate-limit client maps each internal boundary to a fixed canary-only stage", async () => {
+  const validPolicy = JSON.stringify({
+    global: { capacity: 2, refillMilliseconds: 2_147_483_647 },
+    idleTtlSeconds: 600,
+    source: { capacity: 1, refillMilliseconds: 2_147_483_647 },
+    version: 1,
+  });
+  const validEnvironment = {
+    PUSH_CLEANUP_RATE_LIMIT_HMAC_KEY: encodeBase64Url(new Uint8Array(PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES)),
+    PUSH_CLEANUP_RATE_LIMIT_POLICY_JSON: validPolicy,
+    SUPABASE_SECRET_KEYS: JSON.stringify({ default: "sb_secret_test" }),
+    SUPABASE_URL: "https://project.supabase.co",
+  };
+  const validRequest = () =>
+    new Request("https://project.supabase.co/functions/v1/push-cleanup", {
+      headers: { "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.8" },
+      method: "POST",
+    });
+  const consumer = (overrides = {}) => {
+    const environment = { ...validEnvironment, ...overrides.environment };
+    return createPushCleanupRateLimitConsumer({
+      fetchRef: async () => new Response(JSON.stringify("ALLOW"), { status: 200 }),
+      hostedRuntime: true,
+      readEnvironment: (name) => environment[name] ?? "",
+      ...overrides,
+    });
+  };
+  const stageFor = async (consumeRateLimit, request = validRequest()) => {
+    const handler = createPushCleanupHandler({
+      allowedOrigin: "",
+      authorizeHostedLimiterCanary: () => true,
+      consumeRateLimit,
+      hostedLimiterCanaryEnabled: true,
+      hostedRuntime: true,
+      loadKeyRing: async () => {
+        throw new Error("must not load cleanup keys");
+      },
+      localTestEnabled: false,
+      quarantineByDigest: async () => {
+        throw new Error("must not quarantine");
+      },
+    });
+    const response = await handler(request);
+    return {
+      outcome: response.headers.get(PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER),
+      stage: response.headers.get(PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER),
+    };
+  };
+
+  let fetchedUrl = "";
+  let fetchedInit;
+  assert.deepEqual(
+    await stageFor(
+      consumer({
+        fetchRef: async (url, init) => {
+          fetchedUrl = url;
+          fetchedInit = init;
+          return new Response(JSON.stringify("ALLOW"), { status: 200 });
+        },
+      })
+    ),
+    { outcome: "ALLOW", stage: null }
+  );
+  assert.equal(fetchedUrl, "https://project.supabase.co/rest/v1/rpc/consume_push_cleanup_rate_limit");
+  assert.equal(fetchedInit.method, "POST");
+  assert.equal(fetchedInit.redirect, "error");
+  assert.equal(fetchedInit.headers.apikey, "sb_secret_test");
+  assert.equal("authorization" in fetchedInit.headers, false);
+  assert.equal(fetchedInit.body.includes("203.0.113.8"), false);
+  assert.deepEqual(Object.keys(JSON.parse(fetchedInit.body)).sort(), [
+    "p_global_bucket_hash_hex",
+    "p_global_capacity",
+    "p_global_refill_milliseconds",
+    "p_idle_ttl_seconds",
+    "p_source_bucket_hash_hex",
+    "p_source_capacity",
+    "p_source_refill_milliseconds",
+  ]);
+
+  const mismatchedSource = new Request("https://project.supabase.co/functions/v1/push-cleanup", {
+    headers: { "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.9" },
+    method: "POST",
+  });
+  const cases = [
+    ["SOURCE", consumer(), mismatchedSource],
+    ["POLICY", consumer({ environment: { PUSH_CLEANUP_RATE_LIMIT_POLICY_JSON: "{}" } })],
+    ["HMAC_KEY", consumer({ environment: { PUSH_CLEANUP_RATE_LIMIT_HMAC_KEY: "invalid" } })],
+    [
+      "BUCKET_HASH",
+      consumer({
+        deriveBucketHashes: async () => {
+          throw new Error("hash failed");
+        },
+      }),
+    ],
+    ["SERVICE_CONFIG", consumer({ environment: { SUPABASE_URL: "" } })],
+    [
+      "RPC_FETCH",
+      consumer({
+        fetchRef: async () => {
+          throw new Error("network failed");
+        },
+      }),
+    ],
+    ["RPC_STATUS", consumer({ fetchRef: async () => new Response("{}", { status: 401 }) })],
+    ["RPC_CONTRACT", consumer({ fetchRef: async () => new Response("not-json", { status: 200 }) })],
+    ["RPC_CONTRACT", consumer({ fetchRef: async () => new Response(JSON.stringify("OTHER"), { status: 200 }) })],
+  ];
+  for (const [expectedStage, rateLimitConsumer, request] of cases) {
+    assert.deepEqual(await stageFor(rateLimitConsumer, request), { outcome: null, stage: expectedStage });
+  }
+});
+
 test("disabled and hosted handlers stop before body read, key import, decryption, or RPC", async () => {
   for (const access of [
     { hostedRuntime: false, localTestEnabled: false },
@@ -653,8 +772,19 @@ test("hosted limiter canary requires its exact POST token and never reaches body
   );
 });
 
-test("hosted limiter canary hides invalid outcomes and failures", async () => {
-  for (const outcome of ["INVALID", new Error("canary limiter unavailable")]) {
+test("hosted limiter canary exposes only allowlisted stages after exact authorization", async () => {
+  const cases = [
+    { expectedStage: "UNCLASSIFIED", outcome: "INVALID" },
+    { expectedStage: "UNCLASSIFIED", outcome: new Error("canary limiter unavailable") },
+    {
+      expectedStage: "UNCLASSIFIED",
+      outcome: Object.assign(new Error("forged stage"), { canaryStage: "POLICY" }),
+    },
+    ...Object.values(PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES)
+      .filter((stage) => stage !== PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.UNCLASSIFIED)
+      .map((stage) => ({ expectedStage: stage, outcome: hostedLimiterCanaryFailure(stage) })),
+  ];
+  for (const { expectedStage, outcome } of cases) {
     const handler = createPushCleanupHandler({
       allowedOrigin: ALLOWED_ORIGIN,
       authorizeHostedLimiterCanary: () => true,
@@ -672,7 +802,10 @@ test("hosted limiter canary hides invalid outcomes and failures", async () => {
         throw new Error("must not quarantine");
       },
     });
-    assert.deepEqual(await responseShape(await handler(jsonRequest(""))), expectedResponse("RETRY", 503));
+    assert.deepEqual(await responseShape(await handler(jsonRequest(""))), {
+      ...expectedResponse("RETRY", 503),
+      canaryStage: expectedStage,
+    });
   }
 });
 
@@ -953,20 +1086,24 @@ test("Edge source has no application logging and only the approved RPC name", ()
   const cryptoSource = readFileSync(new URL("crypto.js", FUNCTION_DIRECTORY), "utf8");
   const handlerSource = readFileSync(new URL("handler.js", FUNCTION_DIRECTORY), "utf8");
   const indexSource = readFileSync(new URL("index.ts", FUNCTION_DIRECTORY), "utf8");
+  const rateLimitClientSource = readFileSync(new URL("rate-limit-client.js", FUNCTION_DIRECTORY), "utf8");
   const rateLimitSource = readFileSync(new URL("rate-limit.js", FUNCTION_DIRECTORY), "utf8");
-  const allSource = `${sharedProtocolSource}\n${cryptoSource}\n${handlerSource}\n${rateLimitSource}\n${indexSource}`;
+  const allSource = `${sharedProtocolSource}\n${cryptoSource}\n${handlerSource}\n${rateLimitSource}\n${rateLimitClientSource}\n${indexSource}`;
 
   assert.doesNotMatch(allSource, /console\./u);
   assert.doesNotMatch(allSource, /push-cleanup-key-v1\.json/u);
   assert.doesNotMatch(allSource, /access-control-allow-origin["']?\s*:\s*["']\*["']/u);
   assert.doesNotMatch(handlerSource, /request\.(?:json|text)\(/u);
   assert.match(indexSource, /rest\/v1\/rpc\/quarantine_push_by_token/u);
-  assert.match(indexSource, /rest\/v1\/rpc\/consume_push_cleanup_rate_limit/u);
+  assert.match(rateLimitClientSource, /rest\/v1\/rpc\/consume_push_cleanup_rate_limit/u);
   assert.deepEqual([...indexSource.matchAll(/rest\/v1\/rpc\/([a-z_]+)/gu)].map((match) => match[1]).sort(), [
-    "consume_push_cleanup_rate_limit",
     "quarantine_push_by_token",
   ]);
-  assert.match(indexSource, /redirect:\s*["']error["']/u);
+  assert.deepEqual(
+    [...rateLimitClientSource.matchAll(/rest\/v1\/rpc\/([a-z_]+)/gu)].map((match) => match[1]),
+    ["consume_push_cleanup_rate_limit"]
+  );
+  assert.match(rateLimitClientSource, /redirect:\s*["']error["']/u);
   assert.doesNotMatch(indexSource, /push_subscriptions|push_device_consents|push_endpoint_registry/u);
   assert.doesNotMatch(indexSource, /PUSH_CLEANUP_RUNTIME_MODE[^\n]+production/u);
   assert.doesNotMatch(sharedProtocolSource, /loadPrivateKeyRing|subtle\.decrypt|PUSH_CLEANUP_PRIVATE/u);

@@ -34,15 +34,15 @@ Hosted mode、臨時 Function、4 個 secret 與 limiter row 均已清除。**
 
 所有 fail-closed 條件均符合：
 
-| 項目 | 結果 |
-| --- | ---: |
-| Hosted Function | 只有 `notification-outbox-dispatch` version 6 |
-| 4 個 C1 secret names | 0 |
-| limiter | 0 rows |
-| consent／registry／delivery | 0／0／0 rows |
-| legacy／v2 Push | 4／0 rows |
-| outbox／pending | 7／0 rows |
-| runtime control | disabled singleton exact 1 |
+| 項目                        |                                          結果 |
+| --------------------------- | --------------------------------------------: |
+| Hosted Function             | 只有 `notification-outbox-dispatch` version 6 |
+| 4 個 C1 secret names        |                                             0 |
+| limiter                     |                                        0 rows |
+| consent／registry／delivery |                                  0／0／0 rows |
+| legacy／v2 Push             |                                     4／0 rows |
+| outbox／pending             |                                     7／0 rows |
+| runtime control             |                    disabled singleton exact 1 |
 
 DB 基線查詢在 `REPEATABLE READ READ ONLY` transaction 中執行，只回傳 aggregate。
 
@@ -73,11 +73,11 @@ DB 基線查詢在 `REPEATABLE READ READ ONLY` transaction 中執行，只回傳
 
 ### 3. Request 停損結果
 
-| 類型 | 已送 | HTTP／body | outcome header | client 時間 | 結果 |
-| --- | ---: | --- | --- | ---: | --- |
-| 未授權 | 1 | 503／exact RETRY | absent | 1.041660 秒 | 符合 |
-| 授權 | 1 | 503／exact RETRY | absent；預期 ALLOW | 未保存單筆失敗 latency | **不符合** |
-| 剩餘授權 | 0／19 | 未送 | 未送 | 未送 | 依規則取消 |
+| 類型     |  已送 | HTTP／body       | outcome header     |            client 時間 | 結果       |
+| -------- | ----: | ---------------- | ------------------ | ---------------------: | ---------- |
+| 未授權   |     1 | 503／exact RETRY | absent             |            1.041660 秒 | 符合       |
+| 授權     |     1 | 503／exact RETRY | absent；預期 ALLOW | 未保存單筆失敗 latency | **不符合** |
+| 剩餘授權 | 0／19 | 未送             | 未送               |                   未送 | 依規則取消 |
 
 總 request 是 2，不是 21；沒有任何 retry。因樣本不足，沒有計算或宣稱 p50／p95／p99。
 
@@ -92,19 +92,19 @@ DB 基線查詢在 `REPEATABLE READ READ ONLY` transaction 中執行，只回傳
 
 只篩 exact pathname `/functions/v1/push-cleanup`：
 
-| 聚合欄位 | 結果 |
-| --- | ---: |
-| matched／POST／503 | 2／2／2 |
-| `cf-connecting-ip` present | 2 |
-| `x-real-ip` present | 2 |
-| 兩個 source header exact equal | 2 |
-| distinct source count | 1 |
-| 自訂 canary header log field present | 0 |
-| first／last timestamp | `11:05:07.827Z`／`11:05:10.663Z` |
-| distinct deployment／execution | 1／2 |
-| Function log version | 3 |
-| `sb_error_code` | 2 筆皆為 `EDGE_FUNCTION_ERROR` |
-| execution time min／max | 106／963 ms |
+| 聚合欄位                             |                             結果 |
+| ------------------------------------ | -------------------------------: |
+| matched／POST／503                   |                          2／2／2 |
+| `cf-connecting-ip` present           |                                2 |
+| `x-real-ip` present                  |                                2 |
+| 兩個 source header exact equal       |                                2 |
+| distinct source count                |                                1 |
+| 自訂 canary header log field present |                                0 |
+| first／last timestamp                | `11:05:07.827Z`／`11:05:10.663Z` |
+| distinct deployment／execution       |                             1／2 |
+| Function log version                 |                                3 |
+| `sb_error_code`                      |   2 筆皆為 `EDGE_FUNCTION_ERROR` |
+| execution time min／max              |                      106／963 ms |
 
 `503` 本身會落在 error 類別；本文件不把 `EDGE_FUNCTION_ERROR` 外推為未捕捉 exception。
 
@@ -126,16 +126,16 @@ Source code 禁止 `console.*`，本次查詢沒有讀取 `event_message`、raw 
 
 ## 復原後權威狀態
 
-| 項目 | 結果 |
-| --- | ---: |
-| `push-cleanup` | 不存在 |
-| C1 四個 secret names | 0 |
-| limiter | 0 rows |
-| consent／registry／delivery | 0／0／0 rows |
-| legacy／v2 Push | 4／0 rows |
-| outbox／pending | 7／0 rows |
-| runtime control | disabled singleton exact 1 |
-| Hosted Function | 只剩 dispatcher；ACTIVE、`verify_jwt=false`、version 10 |
+| 項目                        |                                                    結果 |
+| --------------------------- | ------------------------------------------------------: |
+| `push-cleanup`              |                                                  不存在 |
+| C1 四個 secret names        |                                                       0 |
+| limiter                     |                                                  0 rows |
+| consent／registry／delivery |                                            0／0／0 rows |
+| legacy／v2 Push             |                                               4／0 rows |
+| outbox／pending             |                                               7／0 rows |
+| runtime control             |                              disabled singleton exact 1 |
+| Hosted Function             | 只剩 dispatcher；ACTIVE、`verify_jwt=false`、version 10 |
 
 dispatcher 的 `ezbr_sha256` 在前後都是
 `649824d7e0985e832c72da15ac97493d44b89ec77cea52f86074c168c9aaa8bd`。沒有部署或修改 dispatcher source；
@@ -160,9 +160,10 @@ dispatcher 的 `ezbr_sha256` 在前後都是
 
 ## 下一個安全步驟
 
-先在 repo／local 增加一個只在「exact Hosted canary mode＋exact token」後才可看到的固定診斷 header。header 只回
-allowlisted stage code，不回 error text、secret、IP、digest、policy、URL、status body 或 DB detail；一般 request
-仍完全相同。完成測試與文件後，再提出新的 Hosted deploy／secret／request exact scope，由使用者另行核可。
+repo／local 的 allowlisted stage diagnostic 已完成並通過完整 CI。它只在「exact Hosted canary mode＋exact token」
+後回固定 stage code，不回 error text、secret、IP、digest、policy、URL、status body 或 DB detail；一般 request
+仍完全相同。新的 Hosted deploy／secret／request 精確範圍與已知 version metadata 副作用見
+`frontend-architecture-fa-03-cleanup-c1-diagnostic-preflight-2026-09-04.md`，仍待使用者另行核可。
 
 在新的核可前，不再部署、不設 secret、不送 Hosted request。
 
