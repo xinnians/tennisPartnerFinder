@@ -919,6 +919,98 @@ test("manual re-enable accepts only exact auth-unverified CAS and rolls back an 
   });
 });
 
+test("manual re-enable composes real B5 and B8 storage only after cleanup completion", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+
+  const result = await page.evaluate(
+    async ({ authUserId, enabledBinding, predecessor }) => {
+      const [storageModule, cleanupModule, reenableModule] = await Promise.all([
+        import("/src/notificationPushStorage.ts"),
+        import("/src/notificationPushCleanupCoordinator.ts"),
+        import("/src/notificationPushManualReenableCoordinator.ts"),
+      ]);
+      const storage = storageModule.createNotificationPushStorage();
+      await storage.suspendCurrentPushBinding({
+        authUserId,
+        bindingId: enabledBinding.bindingId,
+        expectedLocalRevision: enabledBinding.localRevision,
+        reason: "auth_unavailable",
+      });
+      const before = await storage.readPushRuntimeState();
+      if (before.kind !== "auth-unverified") throw new Error("AUTH_UNVERIFIED_BINDING_MISSING");
+
+      const calls = [];
+      let oldTokenMatches = false;
+      let newTokenDiffers = false;
+      const cleanup = cleanupModule.createNotificationPushCleanupCoordinator({
+        storage,
+        transport: {
+          sendPushCleanup: async ({ cleanupToken }) => {
+            calls.push("cleanup");
+            const digest = new Uint8Array(
+              await crypto.subtle.digest("SHA-256", new TextEncoder().encode(cleanupToken))
+            );
+            oldTokenMatches = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("") === window.name;
+            return { kind: "completed" };
+          },
+        },
+      });
+      const coordinator = reenableModule.createNotificationPushManualReenableCoordinator({
+        cleanup,
+        enable: {
+          enableProvisioning: async ({ authProofRevision, authUserId: owner, predecessor: received, provisioning }) => {
+            calls.push("enable");
+            if (authProofRevision !== 4 || owner !== authUserId) return { kind: "pending" };
+            if (JSON.stringify(received) !== JSON.stringify(predecessor)) return { kind: "pending" };
+            const digest = new Uint8Array(
+              await crypto.subtle.digest("SHA-256", new TextEncoder().encode(provisioning.cleanupToken))
+            );
+            newTokenDiffers = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("") !== window.name;
+            await storage.commitPushProvisioning({
+              authUserId: owner,
+              bindingId: provisioning.bindingId,
+              consentEpoch: "99999999-9999-4999-8999-999999999999",
+              consentId: "1",
+              consentVersion: "1",
+              deviceId: provisioning.deviceId,
+              expectedLocalRevision: provisioning.localRevision,
+            });
+            return { kind: "committed" };
+          },
+        },
+        isVerifiedAuthProofCurrent: ({ authUserId: owner, revision }) => owner === authUserId && revision === 4,
+        storage,
+      });
+      const coordinatorResult = await coordinator.startManualPushReenable({
+        authProofRevision: 4,
+        authUserId,
+        binding: before.binding,
+      });
+      const after = await storage.readPushRuntimeState();
+      return {
+        calls,
+        coordinatorResult,
+        newBinding: after.kind === "enabled" && after.binding.bindingId !== enabledBinding.bindingId,
+        newTokenDiffers,
+        oldTokenMatches,
+        pendingCount: (await storage.listPendingPushCleanups()).length,
+        runtime: after.kind,
+      };
+    },
+    { authUserId: AUTH_USER_ID, enabledBinding: enabled, predecessor: SERVER_CONSENT }
+  );
+  expect(result).toEqual({
+    calls: ["cleanup", "enable"],
+    coordinatorResult: { kind: "committed" },
+    newBinding: true,
+    newTokenDiffers: true,
+    oldTokenMatches: true,
+    pendingCount: 0,
+    runtime: "enabled",
+  });
+});
+
 test("Auth rejected preserves exact B5 cleanup work when the B8 transport stays pending", async ({ page }) => {
   await page.goto("/");
   const enabled = await createEnabledBinding(page);
