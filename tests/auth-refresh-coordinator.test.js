@@ -31,6 +31,7 @@ function deferred() {
 
 function createCoordinatorHarness(verifications, { onApplyCandidate } = {}) {
   const applied = [];
+  const failures = [];
   const scheduled = [];
   const signals = { anonymous: 0, signedOut: 0, verified: 0, verifyCalls: 0 };
   const coordinator = createAuthRefreshCoordinator({
@@ -43,6 +44,9 @@ function createCoordinatorHarness(verifications, { onApplyCandidate } = {}) {
     },
     onSignedOut: () => {
       signals.signedOut += 1;
+    },
+    onVerificationFailure: (failure) => {
+      failures.push(failure);
     },
     onVerified: () => {
       signals.verified += 1;
@@ -59,6 +63,7 @@ function createCoordinatorHarness(verifications, { onApplyCandidate } = {}) {
   return {
     applied,
     coordinator,
+    failures,
     async flushScheduled() {
       while (scheduled.length) {
         const tasks = scheduled.splice(0);
@@ -70,6 +75,65 @@ function createCoordinatorHarness(verifications, { onApplyCandidate } = {}) {
     signals,
   };
 }
+
+test("Auth failure notices expose only stable kind, revision, and an optional prior verified owner", async () => {
+  const initial = deferred();
+  const accountA = authSession("account-a", "fresh-a");
+  const unavailableError = new Error("must not leave the Auth boundary");
+  const rejectedError = new Error("must not leave the Auth boundary");
+  const harness = createCoordinatorHarness([
+    () => initial.promise,
+    Promise.resolve({ error: unavailableError, kind: "unavailable", session: null }),
+    Promise.resolve({ error: rejectedError, kind: "rejected", session: null }),
+  ]);
+
+  const restoring = harness.coordinator.restore();
+  harness.coordinator.recordAuthEvent(accountA, "TOKEN_REFRESHED");
+  initial.resolve({ kind: "verified", session: accountA });
+  await restoring;
+  await harness.flushScheduled();
+
+  await harness.coordinator.retry();
+  await harness.coordinator.retry();
+
+  assert.deepEqual(harness.failures, [
+    { kind: "unavailable", priorVerifiedAuthUserId: "account-a", revision: 1 },
+    { kind: "rejected", priorVerifiedAuthUserId: "account-a", revision: 1 },
+  ]);
+  for (const failure of harness.failures) {
+    assert.equal(Object.isFrozen(failure), true);
+    assert.deepEqual(Object.keys(failure), ["kind", "priorVerifiedAuthUserId", "revision"]);
+    assert.equal(JSON.stringify(failure).includes("must not leave"), false);
+    assert.equal(JSON.stringify(failure).includes("fresh-a"), false);
+  }
+});
+
+test("cold Auth failure has no invented owner and a newer event suppresses stale failure notice", async () => {
+  const coldHarness = createCoordinatorHarness([
+    Promise.resolve({ error: new Error("offline"), kind: "unavailable", session: null }),
+  ]);
+  await coldHarness.coordinator.restore();
+  assert.deepEqual(coldHarness.failures, [{ kind: "unavailable", revision: 0 }]);
+  assert.deepEqual(Object.keys(coldHarness.failures[0]), ["kind", "revision"]);
+
+  const verification = deferred();
+  const applyStarted = deferred();
+  const releaseApply = deferred();
+  const supersededHarness = createCoordinatorHarness([() => verification.promise], {
+    async onApplyCandidate(candidate) {
+      if (candidate !== null) return;
+      applyStarted.resolve();
+      await releaseApply.promise;
+    },
+  });
+  const restoring = supersededHarness.coordinator.restore();
+  verification.resolve({ error: new Error("offline"), kind: "unavailable", session: null });
+  await applyStarted.promise;
+  supersededHarness.coordinator.recordAuthEvent(authSession("account-b", "cached-b"), "SIGNED_IN");
+  releaseApply.resolve();
+  await restoring;
+  assert.deepEqual(supersededHarness.failures, []);
+});
 
 function refreshClient({
   current = authSession("account-a", "cached"),

@@ -23,9 +23,16 @@ export interface AuthRefreshCoordinatorDependencies {
   applyCandidate(candidate: ControllerAuthSession | null, options?: AuthCandidateOptions): Promise<void>;
   onConfirmedAnonymous(): void;
   onSignedOut(): void;
+  onVerificationFailure?(failure: AuthVerificationFailureNotice): void;
   onVerified(): void;
   schedule(task: () => void): void;
   verifyCurrentSession(): Promise<AuthVerificationResult>;
+}
+
+export interface AuthVerificationFailureNotice {
+  kind: "rejected" | "superseded" | "unavailable";
+  priorVerifiedAuthUserId?: string;
+  revision: number;
 }
 
 export interface AuthRefreshCoordinator {
@@ -80,6 +87,7 @@ export function createAuthRefreshCoordinator({
   applyCandidate,
   onConfirmedAnonymous,
   onSignedOut,
+  onVerificationFailure = () => undefined,
   onVerified,
   schedule = defaultSchedule,
   verifyCurrentSession,
@@ -90,6 +98,7 @@ export function createAuthRefreshCoordinator({
   let handledSignedOutRevision = 0;
   let lastSignedOutRevision = 0;
   let latest: AuthEventRecord | null = null;
+  let lastVerifiedIdentity: string | null = null;
   let pendingPublish: { promise: Promise<boolean>; proof: SessionProof } | null = null;
   let publishedProof: SessionProof | null = null;
   let retryRequired = false;
@@ -104,6 +113,17 @@ export function createAuthRefreshCoordinator({
     if (record.event !== "SIGNED_OUT" || handledSignedOutRevision >= record.revision) return;
     handledSignedOutRevision = record.revision;
     onSignedOut();
+  }
+
+  function publishVerificationFailure(kind: AuthVerificationFailureNotice["kind"], failureRevision: number): void {
+    const notice: AuthVerificationFailureNotice = lastVerifiedIdentity
+      ? { kind, priorVerifiedAuthUserId: lastVerifiedIdentity, revision: failureRevision }
+      : { kind, revision: failureRevision };
+    try {
+      onVerificationFailure(Object.freeze(notice));
+    } catch {
+      // A dormant observer cannot change Auth fail-closed behavior.
+    }
   }
 
   async function failClosed(
@@ -154,6 +174,7 @@ export function createAuthRefreshCoordinator({
       }
 
       publishedProof = proof;
+      lastVerifiedIdentity = proof.identity;
       expectedIdentity = proof.identity;
       onVerified();
       return true;
@@ -237,6 +258,7 @@ export function createAuthRefreshCoordinator({
           return;
         }
         if (reconcilePageOwner) onConfirmedAnonymous();
+        lastVerifiedIdentity = null;
         await failClosed(null, false);
         return;
       }
@@ -252,12 +274,14 @@ export function createAuthRefreshCoordinator({
           continue;
         }
         retryRequired = true;
+        if (revision === attemptRevision) publishVerificationFailure("superseded", attemptRevision);
         return;
       }
 
       // Rejected and unavailable results stay local-public. Only a later auth
       // event or explicit retry can start another verification.
       await failClosed(null);
+      if (revision === attemptRevision) publishVerificationFailure(result.kind, attemptRevision);
       retryRequired = result.kind === "unavailable";
       return;
     }
@@ -323,6 +347,7 @@ export function createAuthRefreshCoordinator({
     if (event === "SIGNED_OUT") {
       lastSignedOutRevision = record.revision;
       expectedIdentity = null;
+      lastVerifiedIdentity = null;
       publishedProof = null;
       retryRequired = false;
     } else if (event !== "TOKEN_REFRESHED") {
