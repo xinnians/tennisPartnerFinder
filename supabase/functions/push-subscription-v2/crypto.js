@@ -11,6 +11,7 @@ import {
   PUSH_SUBSCRIPTION_RSA_MODULUS_BITS,
   pushSubscriptionAad,
   pushSubscriptionRsaThumbprint,
+  validateCanonicalPushSubscription,
 } from "../_shared/push-subscription-v2-protocol.js";
 
 export const PUSH_SUBSCRIPTION_KEY_RING_LIMIT = 2;
@@ -160,8 +161,11 @@ export async function decryptPushSubscriptionEnvelope(
     } catch {
       return { kind: "invalid" };
     }
-    if ((await canonicalPushSubscriptionInnerJson(payload, providerOrigins, cryptoRef)) !== serialized) {
+    if ((await canonicalPushSubscriptionInnerJson(payload, cryptoRef)) !== serialized) {
       return { kind: "invalid" };
+    }
+    if (!(await validateCanonicalPushSubscription(payload.subscription, providerOrigins, cryptoRef))) {
+      return { kind: "endpoint-unavailable" };
     }
     return { kind: "payload", payload };
   } finally {

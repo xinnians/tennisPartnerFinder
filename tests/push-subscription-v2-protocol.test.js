@@ -24,7 +24,9 @@ import {
   pushSubscriptionAad,
   pushSubscriptionRsaThumbprint,
   validateCanonicalEndpoint,
+  validateCanonicalEndpointStructure,
   validateCanonicalPushSubscription,
+  validateCanonicalPushSubscriptionStructure,
   vapidPublicKeyFingerprint,
 } from "../supabase/functions/_shared/push-subscription-v2-protocol.js";
 import {
@@ -115,7 +117,7 @@ function replaceBase64Length(value, byteLength) {
 }
 
 async function envelopeWithRawAesKey(payload, authUserId, aesKeyBytes, label = PUSH_SUBSCRIPTION_RSA_LABEL_TEXT) {
-  const serialized = await canonicalPushSubscriptionInnerJson(payload, providerPolicy.origins);
+  const serialized = await canonicalPushSubscriptionInnerJson(payload);
   assert.ok(serialized);
   const iv = new Uint8Array(PUSH_SUBSCRIPTION_IV_BYTES).fill(9);
   const encryptionKeyBytes =
@@ -174,22 +176,29 @@ test("provider policy accepts only canonical sorted unique non-empty HTTPS origi
   }
 });
 
-test("the endpoint policy corpus rejects normalization, unsafe names, foreign origins, and byte overflow", () => {
+test("the endpoint corpus separates browser structure from server provider policy", () => {
   const prefix = `${PROVIDER_ORIGIN}/`;
   const exactLimit = prefix + "a".repeat(PUSH_SUBSCRIPTION_ENDPOINT_MAX_BYTES - textEncoder.encode(prefix).byteLength);
   const corpus = [
     ...PUSH_SUBSCRIPTION_V2_ENDPOINT_CORPUS,
-    { endpoint: exactLimit, valid: true },
-    { endpoint: `${exactLimit}a`, valid: false },
-    { endpoint: `${validSubscription.endpoint}#fragment`, valid: false },
+    { endpoint: exactLimit, providerValid: true, structureValid: true },
+    { endpoint: `${exactLimit}a`, providerValid: false, structureValid: false },
+    { endpoint: `${validSubscription.endpoint}#fragment`, providerValid: false, structureValid: false },
   ];
-  for (const { endpoint, valid } of corpus) {
-    assert.equal(Boolean(validateCanonicalEndpoint(endpoint, providerPolicy.origins)), valid, endpoint);
+  for (const { endpoint, providerValid, structureValid } of corpus) {
+    assert.equal(Boolean(validateCanonicalEndpointStructure(endpoint)), structureValid, `structure ${endpoint}`);
+    assert.equal(
+      Boolean(validateCanonicalEndpoint(endpoint, providerPolicy.origins)),
+      providerValid,
+      `provider ${endpoint}`
+    );
   }
 });
 
 test("subscription key corpus enforces exact shape, canonical base64url, lengths, and a valid P-256 point", async () => {
+  const structured = await validateCanonicalPushSubscriptionStructure(validSubscription);
   const validated = await validateCanonicalPushSubscription(validSubscription, providerPolicy.origins);
+  assert.deepEqual(structured, validated);
   assert.equal(validated?.endpoint, validSubscription.endpoint);
   assert.equal(validated?.endpointFingerprint.length, 64);
 
@@ -204,8 +213,12 @@ test("subscription key corpus enforces exact shape, canonical base64url, lengths
     { ...validSubscription, p256dh: encodeBase64Url(new Uint8Array(65).fill(4)) },
   ];
   for (const candidate of invalidSubscriptions) {
+    assert.equal(await validateCanonicalPushSubscriptionStructure(candidate), null);
     assert.equal(await validateCanonicalPushSubscription(candidate, providerPolicy.origins), null);
   }
+  const foreign = { ...validSubscription, endpoint: "https://push.other.qiuka.tw/send" };
+  assert.ok(await validateCanonicalPushSubscriptionStructure(foreign));
+  assert.equal(await validateCanonicalPushSubscription(foreign, providerPolicy.origins), null);
 });
 
 test("VAPID fingerprint validates the 65-byte uncompressed P-256 key", async () => {
@@ -218,7 +231,7 @@ test("VAPID fingerprint validates the 65-byte uncompressed P-256 key", async () 
 
 test("enable and refresh payloads require exact canonical shapes and PostgreSQL bigint strings", async () => {
   for (const payload of [enablePayload(), refreshPayload()]) {
-    const canonical = await canonicalPushSubscriptionInnerJson(payload, providerPolicy.origins);
+    const canonical = await canonicalPushSubscriptionInnerJson(payload);
     assert.equal(canonical, JSON.stringify(payload));
   }
   for (const invalid of [
@@ -233,7 +246,7 @@ test("enable and refresh payloads require exact canonical shapes and PostgreSQL 
     },
     { ...refreshPayload(), expectedConsent: null },
   ]) {
-    assert.equal(await canonicalPushSubscriptionInnerJson(invalid, providerPolicy.origins), null);
+    assert.equal(await canonicalPushSubscriptionInnerJson(invalid), null);
   }
 });
 
@@ -249,18 +262,8 @@ test("the independent public-key document is exact, encrypt-only, thumbprinted, 
 });
 
 test("hybrid envelopes randomize both AES key and IV, decrypt canonically, and bind the verified user in AAD", async () => {
-  const first = await encryptPushSubscriptionEnvelope(
-    enablePayload(),
-    AUTH_USER_ID,
-    providerPolicy.origins,
-    currentKeys.publicJwk
-  );
-  const second = await encryptPushSubscriptionEnvelope(
-    enablePayload(),
-    AUTH_USER_ID,
-    providerPolicy.origins,
-    currentKeys.publicJwk
-  );
+  const first = await encryptPushSubscriptionEnvelope(enablePayload(), AUTH_USER_ID, currentKeys.publicJwk);
+  const second = await encryptPushSubscriptionEnvelope(enablePayload(), AUTH_USER_ID, currentKeys.publicJwk);
   assert.notEqual(first.iv, second.iv);
   assert.notEqual(first.encryptedKey, second.encryptedKey);
   assert.notEqual(first.ciphertext, second.ciphertext);
@@ -278,7 +281,7 @@ test("hybrid envelopes randomize both AES key and IV, decrypt canonically, and b
   assert.deepEqual(
     await decryptPushSubscriptionEnvelope(first, AUTH_USER_ID, ["https://other.qiuka.tw"], currentKeyRing),
     {
-      kind: "invalid",
+      kind: "endpoint-unavailable",
     }
   );
 
@@ -286,7 +289,7 @@ test("hybrid envelopes randomize both AES key and IV, decrypt canonically, and b
   const fixedPrefixBytes = textEncoder.encode(PUSH_SUBSCRIPTION_AAD_PREFIX);
   const iv = decodeCanonicalBase64Url(fixedOnlyAad.iv);
   const wrongAadKey = await crypto.subtle.importKey("raw", new Uint8Array(32).fill(5), "AES-GCM", false, ["encrypt"]);
-  const inner = await canonicalPushSubscriptionInnerJson(enablePayload(), providerPolicy.origins);
+  const inner = await canonicalPushSubscriptionInnerJson(enablePayload());
   fixedOnlyAad.ciphertext = encodeBase64Url(
     new Uint8Array(
       await crypto.subtle.encrypt(
@@ -303,12 +306,7 @@ test("hybrid envelopes randomize both AES key and IV, decrypt canonically, and b
 });
 
 test("outer envelope length canaries stop before crypto and wrong label or AES-key length is invalid", async () => {
-  const envelope = await encryptPushSubscriptionEnvelope(
-    refreshPayload(),
-    AUTH_USER_ID,
-    providerPolicy.origins,
-    currentKeys.publicJwk
-  );
+  const envelope = await encryptPushSubscriptionEnvelope(refreshPayload(), AUTH_USER_ID, currentKeys.publicJwk);
   for (const field of ["encryptedKey", "iv", "keyId"]) {
     const bytes = decodeCanonicalBase64Url(envelope[field]);
     for (const delta of [-1, 1]) {
@@ -351,7 +349,6 @@ test("private key ring permits current plus previous, rejects duplicates, and re
   const previousEnvelope = await encryptPushSubscriptionEnvelope(
     refreshPayload(),
     AUTH_USER_ID,
-    providerPolicy.origins,
     previousKeys.publicJwk
   );
   assert.equal(
@@ -376,12 +373,7 @@ test("the request body bound is derived from a valid 4096-byte endpoint fixture"
       consentVersion: "9223372036854775807",
     },
   };
-  const envelope = await encryptPushSubscriptionEnvelope(
-    maximumPayload,
-    AUTH_USER_ID,
-    providerPolicy.origins,
-    currentKeys.publicJwk
-  );
+  const envelope = await encryptPushSubscriptionEnvelope(maximumPayload, AUTH_USER_ID, currentKeys.publicJwk);
   assert.equal(textEncoder.encode(JSON.stringify(envelope)).byteLength, PUSH_SUBSCRIPTION_ENVELOPE_MAX_BYTES);
 });
 

@@ -6,7 +6,10 @@ import {
   NotificationPushBrowserSubscriptionError,
   PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES,
 } from "../src/notificationPushBrowserSubscription.ts";
-import { encodeBase64Url } from "../supabase/functions/_shared/push-subscription-v2-protocol.js";
+import {
+  encodeBase64Url,
+  validateCanonicalPushSubscriptionStructure,
+} from "../supabase/functions/_shared/push-subscription-v2-protocol.js";
 
 const vapidKeyPair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
 const VAPID_BYTES = new Uint8Array(await crypto.subtle.exportKey("raw", vapidKeyPair.publicKey));
@@ -167,6 +170,27 @@ test("an existing subscription is reused only when its VAPID key is current", as
     harness.calls.some((call) => Array.isArray(call) && call[0] === "subscribe"),
     false
   );
+});
+
+test("the injected browser validator accepts canonical structure without a provider allowlist", async () => {
+  const canonical = {
+    auth: encodeBase64Url(new Uint8Array(16).fill(7)),
+    endpoint: "https://push.other.qiuka.tw/send/opaque?token=a%2Fb",
+    p256dh: encodeBase64Url(VAPID_BYTES),
+  };
+  const harness = createHarness({
+    subscribed: subscription({
+      endpoint: canonical.endpoint,
+      json: { endpoint: canonical.endpoint, keys: { auth: canonical.auth, p256dh: canonical.p256dh } },
+    }),
+    validateSubscription: async (candidate) =>
+      (await validateCanonicalPushSubscriptionStructure(candidate)) ? candidate : null,
+  });
+
+  assert.deepEqual(await harness.port.preparePushSubscription({ kind: "enable" }), {
+    kind: "ready",
+    subscription: canonical,
+  });
 });
 
 test("VAPID rotation unsubscribes, rereads, then explicitly creates a replacement", async () => {

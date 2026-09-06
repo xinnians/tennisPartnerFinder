@@ -1,7 +1,7 @@
-# FA-03B10 Push v2 enable／refresh 技術契約 v1.2
+# FA-03B10 Push v2 enable／refresh 技術契約 v1.3
 
 日期：2026-09-02
-狀態：**review freeze v1.2；2026-09-02 依 Claude 複核與使用者拍板修訂為 v1.1，同日補兩項拍板為 v1.2；尚未實作**
+狀態：**review freeze v1.3；v1.2 已完成 A4、B11 與部分 B12 dormant foundation；2026-09-06 依使用者選擇 A 修訂 browser／server provider-policy 邊界**
 
 這份文件是給下一輪實作與 Claude 複核使用的固定契約。它把「repo 已存在的事實」和「未來要做的設計」分開寫，
 避免把提案誤當成已完成。
@@ -35,6 +35,11 @@
      §10.5 對應回 `stale` 交由 enable 收斂。
   2. §13 DB 的 lock-order 併發測試明訂本機 pgTAP 單一連線的替代斷言與 canary；真併發 deadlock 與寫入階段三種
      搶插分支列入 §14 第 6 條 dispatcher barrier 批。
+- v1.3（2026-09-06）：使用者選擇 provider-policy 方案 A：
+  1. browser 只驗 endpoint canonical HTTPS／public hostname／長度與 subscription key 結構，不取得 provider origins。
+  2. canonical inner serializer 與 browser encryption 不再接收 provider origins。
+  3. Edge 解密後再用 server-only exact provider-origin allowlist 完整驗證；未命中回 `endpoint-unavailable`，不進 DB。
+  4. 同一 corpus 分別保存 browser structure 與 server provider-policy 的預期結果，不再要求兩層結果完全相同。
 
 ## 1. 本次已確認的產品決策
 
@@ -45,6 +50,7 @@
    enabled；平台 egress 層 allowlist 為 nice-to-have。
 5. Edge envelope 的 AES-GCM AAD 綁定已驗證 `authUserId`，並釘死 `encryptedKey`／`iv`／`keyId` 與 AES key 長度。
 6. 不新增 local reason；手動重新啟用沿用既有 `subscription_changed`。
+7. provider-policy 採方案 A：browser 不持有 provider allowlist；Edge 與 dispatcher 才執行 exact origin allowlist。
 
 白話說：網路恢復不代表使用者重新同意。必須再按一次，系統才會清理舊狀態並建立新的 server consent epoch。
 
@@ -70,8 +76,8 @@
 - 現行 dispatcher 不讀 v2 runtime control、consent 或 registry；所以本契約完成前不可啟用 v2 send。
 - B9 Auth-failure coordinator 仍是 dormant；production 對它沒有 importer 或 caller。
 
-第 3 節之後寫的是**已選定、尚待實作與驗證的未來契約**。其中的欄位、名稱、限制值與流程是設計決策，
-不是在宣稱 repo 或 hosted 現在已具備這些能力；實作後仍要用本文件列出的測試逐項證明。
+第 3 節之後同時包含已完成的 dormant foundation 與尚待實作的未來契約。是否已完成以
+`frontend-architecture-implementation-status.md` 為準；不得把 repo 的 dormant 程式誤稱為 hosted 或 production 已啟用。
 
 ## 3. 不變的安全邊界
 
@@ -182,7 +188,8 @@ consent state、cleanup authority 或 transport 任一語意變更，都要遞�
 
 ### 7.1 endpoint
 
-Edge 與 dispatcher 必須共用同一份 `canonical-endpoint-policy-v1` validator：
+endpoint 驗證分兩層。browser、Edge 與 dispatcher 共用結構規則；Edge 與 dispatcher 再套用 server-only provider
+policy：
 
 - input 必須是 browser 原樣提供的非空字串，不做 `trim()`。
 - Edge 選定更嚴格的 UTF-8 4,096-byte 上限；既有 DB 的 4,096-character constraint 只作第二層防線，
@@ -191,9 +198,10 @@ Edge 與 dispatcher 必須共用同一份 `canonical-endpoint-policy-v1` validat
 - 只接受 `https:`、非空 hostname、空 username、空 password、空 fragment、預設 443 port。
 - `new URL(input).href` 必須與 input 完全相同；path 與 query 視為 opaque，不 decode、不重排。
 - hostname 不得是 IP literal、localhost、private／loopback／link-local 名稱。
-- `url.origin` 必須 exact 命中 production provider-origin allowlist。
 - endpoint fingerprint 固定為 `SHA-256(UTF8(exact endpoint))`，沿用
   `sha256-endpoint-utf8-v1`。
+- 只有 Edge 與 dispatcher 額外要求 `url.origin` exact 命中 production provider-origin allowlist；browser 不取得、
+  不推導也不快取這份清單。
 
 ### 7.2 `p256dh` 與 `auth`
 
@@ -218,7 +226,8 @@ Push API 允許 user agent 選擇 push service，因此本文件**不猜** FCM�
 - server-only env：`PUSH_PROVIDER_ORIGINS_V1`。
 - 格式是 sorted、unique、non-empty 的 canonical JSON string array；每項只能是無 path／query／fragment／
   userinfo、預設 443 的 exact HTTPS origin。
-- parser、canonical serializer 與 SHA-256 policy digest 必須放在 Edge／dispatcher 共用 module。
+- provider-policy parser、canonical serializer 與 SHA-256 policy digest 必須放在 Edge／dispatcher 共用 module；browser
+  inner serializer 與 encryption API 不接收 origins。
 - allowlist 為空、JSON 非 canonical、重複、順序錯誤或含非法 origin時，enable 與 v2 dispatcher 都 hard-disable。
 - release evidence 必須保存 policy digest 與各 browser／OS 實機取得的 origin；不得保存完整 endpoint。
 - send-time 必須再次驗同一 policy 並禁止 redirect；DNS A／AAAA 全部為 public address 的檢查也在 send-time 執行，
@@ -244,10 +253,10 @@ Push API 允許 user agent 選擇 push service，因此本文件**不猜** FCM�
 
 ```ts
 {
-  ciphertext: string;    // AES-256-GCM ciphertext + 16-byte tag，canonical base64url
-  encryptedKey: string;  // RSA-OAEP／SHA-256 encrypted 32-byte AES key
-  iv: string;            // 12 random bytes，canonical base64url
-  keyId: string;         // 32-byte JWK thumbprint，canonical base64url
+  ciphertext: string; // AES-256-GCM ciphertext + 16-byte tag，canonical base64url
+  encryptedKey: string; // RSA-OAEP／SHA-256 encrypted 32-byte AES key
+  iv: string; // 12 random bytes，canonical base64url
+  keyId: string; // 32-byte JWK thumbprint，canonical base64url
   version: 1;
 }
 ```
@@ -321,13 +330,13 @@ Push API 允許 user agent 選擇 push service，因此本文件**不猜** FCM�
     consentEpoch: string;
     consentId: string;
     consentVersion: string;
-  };
+  }
   kind: "refresh";
   subscription: {
     auth: string;
     endpoint: string;
     p256dh: string;
-  };
+  }
   version: 1;
 }
 ```
@@ -669,7 +678,9 @@ v2 enable／refresh 完成仍不代表可以送 Push。v2 dispatcher 還必須�
 - AAD 只含固定字串、未綁 `authUserId` 的 envelope（v1 契約草案格式，repo 從未實作）判 `invalid`。
 - hosted／local logs 不得命中 endpoint、keys、cleanup digest、inner payload、AES key 或 RSA private material。
 - provider allowlist 空白、錯序、重複、DNS private result、3xx 與 policy drift 全部拒絕。
-- browser validator、Edge validator、dispatcher validator 共用同一份 corpus，結果逐筆相等。
+- browser structure、Edge provider-policy、dispatcher provider-policy 共用同一份 corpus；每筆分開保存 structure 與
+  provider-policy 預期結果。合法但未列入 allowlist 的 canonical origin 必須是 browser structure 通過、server policy
+  拒絕，不能再斷言三者逐筆相等。
 
 ## 14. 實作批次與停點
 
@@ -677,8 +688,7 @@ v2 enable／refresh 完成仍不代表可以送 Push。v2 dispatcher 還必須�
 2. `FA-03A4`：使用者核可後才做 additive schema＋§10.2「既有物件替換」第 1–4 條（含殘留清理子 helper 抽取）、
    private helper、service-role wrappers 與 pgTAP。
 3. `FA-03B11`：shared canonical subscription／provider policy validator、獨立 hybrid envelope 與 Edge structural
-   ports，先 dormant。交付物包含 `vercel.json` 對 `/push-subscription-key-v1.json` 的 `no-store` header rule 與
-   `tests/security-headers.test.js` 的對應斷言；目前兩者都只涵蓋 `/push-cleanup-key-v1.json`。
+   ports，先 dormant；已完成。v1.3 的 browser structure／server provider-policy API 拆分列為 B11.1，仍保持 dormant。
 4. push-cleanup hosted 啟用批次：distributed limiter 與 evidence-based 門檻完成後，才可移除 hosted 硬關閉。§5.2
    的手動重新啟用依賴 B8 在 production 回 `cleanup-completed`，因此這批未完成前，`FA-03B12` 只能停在 local
    composition。

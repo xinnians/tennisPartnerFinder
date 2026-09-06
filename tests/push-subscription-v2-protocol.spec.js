@@ -62,12 +62,14 @@ test("real browser WebCrypto uses the shared policy and produces an Edge-decrypt
         subscription,
         version: 1,
       };
-      const evaluatedCorpus = endpointCorpus.map(({ endpoint, valid }) => ({
-        actual: Boolean(protocol.validateCanonicalEndpoint(endpoint, policy.origins)),
+      const evaluatedCorpus = endpointCorpus.map(({ endpoint, providerValid, structureValid }) => ({
         endpoint,
-        expected: valid,
+        providerActual: Boolean(protocol.validateCanonicalEndpoint(endpoint, policy.origins)),
+        providerExpected: providerValid,
+        structureActual: Boolean(protocol.validateCanonicalEndpointStructure(endpoint)),
+        structureExpected: structureValid,
       }));
-      const envelope = await protocol.encryptPushSubscriptionEnvelope(payload, authUserId, policy.origins, publicJwk);
+      const envelope = await protocol.encryptPushSubscriptionEnvelope(payload, authUserId, publicJwk);
       return {
         canonical: protocol.canonicalPushSubscriptionEnvelopeJson(envelope) === JSON.stringify(envelope),
         endpointCorpus: evaluatedCorpus,
@@ -86,7 +88,10 @@ test("real browser WebCrypto uses the shared policy and produces an Edge-decrypt
 
   expect(result.canonical).toBe(true);
   expect(result.policyDigestBytes).toBe(32);
-  for (const item of result.endpointCorpus) expect(item.actual, item.endpoint).toBe(item.expected);
+  for (const item of result.endpointCorpus) {
+    expect(item.structureActual, `browser structure: ${item.endpoint}`).toBe(item.structureExpected);
+    expect(item.providerActual, `server provider: ${item.endpoint}`).toBe(item.providerExpected);
+  }
   await expect(
     decryptPushSubscriptionEnvelope(result.envelope, AUTH_USER_ID, [PROVIDER_ORIGIN], keyRing)
   ).resolves.toEqual({ kind: "payload", payload: result.payload });

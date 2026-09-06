@@ -1,17 +1,17 @@
 # FA-03B12.7 browser provider-policy contract decision
 
 日期：2026-09-04  
-狀態：待使用者確認；只做唯讀查證與文件，未改 runtime
+狀態：**2026-09-06 使用者已選 A；契約升 v1.3，B11.1 dormant API 拆分已實作並驗證**
 
 ## 白話結論
 
-目前不能直接實作 browser enable／refresh transport，因為契約與程式介面互相衝突：
+原本不能直接實作 browser enable／refresh transport，因為契約與程式介面互相衝突：
 
 - v1.2 明確說 provider origin allowlist 只能放在 server-only env。
 - 但 B11 的 browser 加密函式必須先拿到這份 allowlist，否則連合法 payload 都無法序列化與加密。
 
-這不是 production 值尚未填而已，而是資料應該放在哪一側的架構矛盾。若直接往下做，只能私自把 server-only 清單
-公開到 browser，或由 browser 從 endpoint 猜一份清單；兩者都超出已核可契約。
+這個衝突已由方案 A 解決：browser 只做結構驗證，provider allowlist 留在 server。production 值仍未填，且本批沒有
+猜測或新增任何 hostname。
 
 ## 已查證證據
 
@@ -54,11 +54,14 @@
 - 不把 server env 透過未定義機制偷偷注入 browser。
 - 不因為 production 尚未啟用就略過 canonical／policy gate。
 
-## 需要使用者確認
+## 最終決策
 
-請選：
+使用者於 2026-09-06 選擇 `A`。已完成：
 
-- `A`：拆分 browser 結構驗證與 server allowlist 驗證（建議）。
-- `B`：正式把 provider origins 改成 browser 可讀的公開設定。
+- Push v2 契約升為 v1.3。
+- B11 shared protocol 拆成 browser structure 與 server provider-policy 兩層。
+- browser serializer／encryption 不再需要 origins。
+- Edge 解密後仍執行 exact server allowlist；未命中回 `endpoint-unavailable`，不進 DB。
+- corpus 分別驗 structure 與 provider-policy 結果。
 
-確認後才會修改 v1.2 契約、B11 shared protocol 與 browser coordinator；此前不改 runtime、migration 或 Hosted。
+本決策沒有修改 migration、Hosted、production graph 或 production provider 值。

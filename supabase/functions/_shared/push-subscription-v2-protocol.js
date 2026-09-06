@@ -169,13 +169,19 @@ export async function parseCanonicalProviderOriginsPolicy(serialized, cryptoRef 
   }
 }
 
-export function validateCanonicalEndpoint(endpoint, providerOrigins) {
+export function validateCanonicalEndpointStructure(endpoint) {
   if (typeof endpoint !== "string" || !endpoint || utf8(endpoint).byteLength > PUSH_SUBSCRIPTION_ENDPOINT_MAX_BYTES) {
     return null;
   }
   const url = parseCanonicalHttpsUrl(endpoint);
-  if (!url || !Array.isArray(providerOrigins) || !providerOrigins.includes(url.origin)) return null;
-  return endpoint;
+  return url ? endpoint : null;
+}
+
+export function validateCanonicalEndpoint(endpoint, providerOrigins) {
+  const structured = validateCanonicalEndpointStructure(endpoint);
+  if (!structured || !Array.isArray(providerOrigins)) return null;
+  const url = new URL(structured);
+  return providerOrigins.includes(url.origin) ? structured : null;
 }
 
 async function validP256Point(bytes, cryptoRef) {
@@ -188,9 +194,9 @@ async function validP256Point(bytes, cryptoRef) {
   }
 }
 
-export async function validateCanonicalPushSubscription(subscription, providerOrigins, cryptoRef = globalThis.crypto) {
+export async function validateCanonicalPushSubscriptionStructure(subscription, cryptoRef = globalThis.crypto) {
   if (!hasExactKeys(subscription, ["auth", "endpoint", "p256dh"])) return null;
-  const endpoint = validateCanonicalEndpoint(subscription.endpoint, providerOrigins);
+  const endpoint = validateCanonicalEndpointStructure(subscription.endpoint);
   const auth = decodeCanonicalBase64Url(subscription.auth);
   const p256dh = decodeCanonicalBase64Url(subscription.p256dh);
   if (!endpoint || auth?.byteLength !== PUSH_SUBSCRIPTION_AUTH_BYTES || !(await validP256Point(p256dh, cryptoRef))) {
@@ -203,6 +209,11 @@ export async function validateCanonicalPushSubscription(subscription, providerOr
     endpointFingerprintAlgorithm: PUSH_SUBSCRIPTION_ENDPOINT_FINGERPRINT_ALGORITHM,
     p256dh: subscription.p256dh,
   };
+}
+
+export async function validateCanonicalPushSubscription(subscription, providerOrigins, cryptoRef = globalThis.crypto) {
+  const structured = await validateCanonicalPushSubscriptionStructure(subscription, cryptoRef);
+  return structured && validateCanonicalEndpoint(structured.endpoint, providerOrigins) ? structured : null;
 }
 
 export async function vapidPublicKeyFingerprint(value, cryptoRef = globalThis.crypto) {
@@ -244,9 +255,9 @@ function normalizedConsentIdentity(value) {
   };
 }
 
-export async function canonicalPushSubscriptionInnerJson(payload, providerOrigins, cryptoRef = globalThis.crypto) {
+export async function canonicalPushSubscriptionInnerJson(payload, cryptoRef = globalThis.crypto) {
   if (!isRecord(payload) || payload.version !== PUSH_SUBSCRIPTION_V2_VERSION) return null;
-  const subscription = await validateCanonicalPushSubscription(payload.subscription, providerOrigins, cryptoRef);
+  const subscription = await validateCanonicalPushSubscriptionStructure(payload.subscription, cryptoRef);
   if (!subscription || !validUuid(payload.bindingId, true) || !validUuid(payload.deviceId, true)) return null;
 
   if (payload.kind === "enable") {
@@ -410,14 +421,8 @@ export function pushSubscriptionAad(authUserId) {
   return utf8(`${PUSH_SUBSCRIPTION_AAD_PREFIX}${authUserId}`);
 }
 
-export async function encryptPushSubscriptionEnvelope(
-  payload,
-  authUserId,
-  providerOrigins,
-  publicJwk,
-  cryptoRef = globalThis.crypto
-) {
-  const inner = await canonicalPushSubscriptionInnerJson(payload, providerOrigins, cryptoRef);
+export async function encryptPushSubscriptionEnvelope(payload, authUserId, publicJwk, cryptoRef = globalThis.crypto) {
+  const inner = await canonicalPushSubscriptionInnerJson(payload, cryptoRef);
   const aad = pushSubscriptionAad(authUserId);
   if (!inner || !aad) throw new Error("PUSH_SUBSCRIPTION_PAYLOAD_INVALID");
   await validatePushSubscriptionPublicJwk(publicJwk, cryptoRef);
