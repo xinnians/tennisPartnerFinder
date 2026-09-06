@@ -1224,32 +1224,50 @@ test("authenticated players persist the authoritative court subscription set wit
   expect(availableCourts).toHaveLength(2);
   const selectedCourtIds = availableCourts.map((court) => court.id);
   await gotoWithSession(page, actor.session);
+  const initialSettingsLoad = Promise.all([
+    page.waitForResponse(
+      (response) => response.url().includes("/rest/v1/court_subscriptions") && response.request().method() === "GET"
+    ),
+    page.waitForResponse(
+      (response) => response.url().includes("/rest/v1/notification_prefs") && response.request().method() === "GET"
+    ),
+  ]);
   await page.getByTestId("me-tab").click();
+  await initialSettingsLoad;
   const settings = page.locator("#me-root .notification-settings");
   await expect(settings).not.toContainText("行政區");
+  const picker = page.locator("#notification-court-picker");
+  const togglePicker = page.getByTestId("toggle-court-picker");
+  const readStoredCourtIds = async () => {
+    const { data, error } = await actor.client.from("court_subscriptions").select("court_id").order("court_id");
+    if (error) throw error;
+    return data.map((row) => row.court_id);
+  };
   // 零訂閱預設收合（新使用者不該一進來就面對 53 座球場），要先展開才選得到。
-  await expect(page.locator("#notification-court-picker")).toBeHidden();
-  await page.getByTestId("toggle-court-picker").click();
-  await expect(page.locator("#notification-court-picker")).toBeVisible();
+  await expect(picker).toBeHidden();
+  await expect(settings).toContainText("已訂閱 0 座");
+  await togglePicker.click();
+  await expect(picker).toBeVisible();
   // 細選兩座：逐一勾選，驗證非全選路徑也送得出正確的 id。
+  const expectedCourtIds = [];
   for (const courtId of selectedCourtIds) {
+    await expect(togglePicker).toBeEnabled();
+    if (await picker.isHidden()) await togglePicker.click();
+    await expect(picker).toBeVisible();
     const court = page.getByTestId(`notification-court-${courtId}`);
-    await court.check();
-    // 每次勾選都會立即送一筆真實 DB 存檔並暫時停用整組控制項；
-    // 等該次 authoritative rerender 完成，才可進行下一筆互動。
     await expect(court).toBeEnabled();
-    await expect(court).toBeChecked();
+    await court.check();
+    expectedCourtIds.push(courtId);
+    // 每次勾選都會立即送一筆真實 DB 存檔；先等 DB 與 authoritative UI 都完成，
+    // 再處理下一座，避免 optimistic checkbox 或 picker 收合狀態被誤當成已存檔。
+    await expect.poll(readStoredCourtIds).toEqual([...expectedCourtIds].sort((left, right) => left - right));
+    await expect(settings).toContainText(`已訂閱 ${expectedCourtIds.length} 座`);
+    await expect(togglePicker).toBeEnabled();
   }
   await expect(page.locator("#toast-root")).toContainText("球場訂閱已儲存");
   await expect(page.locator("#me-root")).toContainText(`已訂閱 ${selectedCourtIds.length} 座`);
 
-  await expect
-    .poll(async () => {
-      const { data, error } = await actor.client.from("court_subscriptions").select("court_id").order("court_id");
-      if (error) throw error;
-      return data.map((row) => row.court_id);
-    })
-    .toEqual([...selectedCourtIds].sort((left, right) => left - right));
+  await expect.poll(readStoredCourtIds).toEqual([...selectedCourtIds].sort((left, right) => left - right));
   expect(runtimeErrors).toEqual([]);
 });
 
