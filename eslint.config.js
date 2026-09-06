@@ -66,7 +66,10 @@ export default tseslint.config(
     },
   },
   {
-    files: ["supabase/functions/{_shared,push-cleanup,push-subscription-v2}/**/*.js"],
+    files: [
+      "supabase/functions/{_shared,push-cleanup,push-subscription-v2}/**/*.js",
+      "supabase/functions/notification-outbox-dispatch/v2-egress.js",
+    ],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: globals.denoBuiltin,

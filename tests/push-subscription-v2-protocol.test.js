@@ -377,7 +377,7 @@ test("the request body bound is derived from a valid 4096-byte endpoint fixture"
   assert.equal(textEncoder.encode(JSON.stringify(envelope)).byteLength, PUSH_SUBSCRIPTION_ENVELOPE_MAX_BYTES);
 });
 
-test("B11 ports are exact, inert, and not imported by the production graph", () => {
+test("B11 ports are exact, inert, and only the dormant dispatcher core may import the shared policy", () => {
   const noop = () => {};
   const ports = {
     enableCommand: noop,
@@ -400,20 +400,32 @@ test("B11 ports are exact, inert, and not imported by the production graph", () 
     /push-cleanup-protocol|PUSH_CLEANUP_PUBLIC|PUSH_CLEANUP_PRIVATE/u
   );
 
+  const dormantDispatcherFile = "v2-egress.js";
   const productionSources = ["../src/", "../supabase/functions/notification-outbox-dispatch/"]
     .flatMap((root) => {
       const rootUrl = new URL(root, import.meta.url);
       return readdirSync(rootUrl, { recursive: true })
         .filter((path) => /\.(?:js|ts|tsx)$/u.test(path))
-        .filter(
-          (path) =>
-            root !== "../src/" ||
-            !["notificationPushSubscriptionLocalComposition.ts", "notificationPushSubscriptionTransport.ts"].includes(
-              path
-            )
+        .filter((path) =>
+          root === "../src/"
+            ? !["notificationPushSubscriptionLocalComposition.ts", "notificationPushSubscriptionTransport.ts"].includes(
+                path
+              )
+            : path !== dormantDispatcherFile
         )
         .map((path) => readFileSync(new URL(path, rootUrl), "utf8"));
     })
     .join("\n");
   assert.doesNotMatch(productionSources, /push-subscription-v2|pushSubscriptionV2/u);
+
+  const dispatcherDirectory = new URL("../supabase/functions/notification-outbox-dispatch/", import.meta.url);
+  const dispatcherV2References = readdirSync(dispatcherDirectory, { recursive: true })
+    .filter((path) => /\.(?:js|ts)$/u.test(path))
+    .filter((path) =>
+      /push-subscription-v2|pushSubscriptionV2/u.test(readFileSync(new URL(path, dispatcherDirectory), "utf8"))
+    );
+  assert.deepEqual(dispatcherV2References, [dormantDispatcherFile]);
+  const dormantDispatcherSource = readFileSync(new URL(dormantDispatcherFile, dispatcherDirectory), "utf8");
+  assert.match(dormantDispatcherSource, /\.\.\/_shared\/push-subscription-v2-protocol\.js/u);
+  assert.doesNotMatch(dormantDispatcherSource, /Deno\.serve\s*\(|\bfetch\s*\(|sendNotification\s*\(|console\./u);
 });
