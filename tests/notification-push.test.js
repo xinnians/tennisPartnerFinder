@@ -24,6 +24,11 @@ const PUSH_BROWSER_SUBSCRIPTION_URL = new URL("../src/notificationPushBrowserSub
 const PUSH_BROWSER_SUBSCRIPTION_SOURCE = readFileSync(PUSH_BROWSER_SUBSCRIPTION_URL, "utf8");
 const PUSH_SUBSCRIPTION_TRANSPORT_URL = new URL("../src/notificationPushSubscriptionTransport.ts", import.meta.url);
 const PUSH_SUBSCRIPTION_TRANSPORT_SOURCE = readFileSync(PUSH_SUBSCRIPTION_TRANSPORT_URL, "utf8");
+const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL = new URL(
+  "../src/notificationPushSubscriptionLocalComposition.ts",
+  import.meta.url
+);
+const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE = readFileSync(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
 
@@ -91,6 +96,7 @@ test("denied browser permission never registers a service worker or subscribes",
 test("the Push storage foundation stays outside the production runtime graph", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_STORAGE_URL.href)
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushStorage/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
@@ -147,6 +153,7 @@ test("the Push manual re-enable coordinator stays outside the production runtime
 test("the Push subscription coordinator stays outside the production runtime graph", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_COORDINATOR_URL.href)
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushSubscriptionCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
@@ -155,6 +162,7 @@ test("the Push subscription coordinator stays outside the production runtime gra
 test("the Push browser subscription port stays outside the production runtime graph", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_BROWSER_SUBSCRIPTION_URL.href)
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushBrowserSubscription/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
@@ -163,7 +171,16 @@ test("the Push browser subscription port stays outside the production runtime gr
 test("the Push subscription HTTP transport stays outside the production runtime graph", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_TRANSPORT_URL.href)
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushSubscriptionTransport/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
+});
+
+test("the Push subscription local composition stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
+    .filter((sourceUrl) => /notificationPushSubscriptionLocalComposition/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, []);
 });
@@ -381,6 +398,28 @@ test("the dormant subscription transport owns only bounded encrypted HTTP and no
   assert.doesNotMatch(PUSH_SUBSCRIPTION_TRANSPORT_SOURCE, /response\.(?:arrayBuffer|blob|formData|json|text)\s*\(/u);
   assert.doesNotMatch(
     PUSH_SUBSCRIPTION_TRANSPORT_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+});
+
+test("the dormant local composition has no provider policy, logging, timer, or direct app dependency", () => {
+  const importSources = [...PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(importSources, [
+    "../supabase/functions/_shared/push-subscription-v2-protocol.js",
+    "./notificationPushBrowserSubscription.ts",
+    "./notificationPushStorage.ts",
+    "./notificationPushSubscriptionCoordinator.ts",
+    "./notificationPushSubscriptionTransport.ts",
+  ]);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE, /^\s*import\s+"/gmu);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE, /\b(?:providerOrigins|PUSH_PROVIDER_ORIGINS_V1)\b/u);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE, /\b(?:dataApi|supabaseClient)\b/u);
+  assert.doesNotMatch(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE,
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
 });

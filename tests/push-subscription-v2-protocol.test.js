@@ -405,7 +405,13 @@ test("B11 ports are exact, inert, and not imported by the production graph", () 
       const rootUrl = new URL(root, import.meta.url);
       return readdirSync(rootUrl, { recursive: true })
         .filter((path) => /\.(?:js|ts|tsx)$/u.test(path))
-        .filter((path) => root !== "../src/" || path !== "notificationPushSubscriptionTransport.ts")
+        .filter(
+          (path) =>
+            root !== "../src/" ||
+            !["notificationPushSubscriptionLocalComposition.ts", "notificationPushSubscriptionTransport.ts"].includes(
+              path
+            )
+        )
         .map((path) => readFileSync(new URL(path, rootUrl), "utf8"));
     })
     .join("\n");
