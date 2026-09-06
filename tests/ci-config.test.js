@@ -279,6 +279,10 @@ test("both mock Chromium projects execute dedicated runtime safety specs", () =>
       project?.testMatch.test("push-subscription-v2-protocol.spec.js"),
       `${name} silently excludes the Push subscription v2 protocol gate`
     );
+    assert.ok(
+      project?.testMatch.test("push-subscription-transport.spec.js"),
+      `${name} silently excludes the Push subscription transport gate`
+    );
   }
 });
 
@@ -597,6 +601,8 @@ test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workfl
     "auth-lock.spec.js",
     "push-storage.spec.js",
     "push-cleanup-transport.spec.js",
+    "push-subscription-v2-protocol.spec.js",
+    "push-subscription-transport.spec.js",
   ]) {
     assert.equal(webkit.testMatch.test(spec), chromium.testMatch.test(spec), `WebKit coverage drifted for ${spec}`);
   }
