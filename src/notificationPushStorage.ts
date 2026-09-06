@@ -110,6 +110,10 @@ export interface PendingPushCleanupAttempt {
   serverConsent: PushServerConsentIdentity | null;
 }
 
+export interface SubscriptionChangedPendingPushCleanupAttempt extends PendingPushCleanupAttempt {
+  reason: "subscription_changed";
+}
+
 export interface BeginPushProvisioningInput {
   authUserId: string;
   deviceId: string;
@@ -730,7 +734,9 @@ export function createNotificationPushStorage({
     });
   }
 
-  async function beginExplicitPushReenable(input: BeginPushReenableInput): Promise<PendingPushCleanupAttempt> {
+  async function beginExplicitPushReenable(
+    input: BeginPushReenableInput
+  ): Promise<SubscriptionChangedPendingPushCleanupAttempt> {
     requireValidInput(
       hasExactKeys(input, ["authUserId", "bindingId", "expectedLocalRevision"]) &&
         isCanonicalUuid(input.authUserId) &&
@@ -748,7 +754,7 @@ export function createNotificationPushStorage({
           existingAttempt.bindingRevision === input.expectedLocalRevision &&
           existingAttempt.reason === "subscription_changed"
         ) {
-          return existingAttempt;
+          return { ...existingAttempt, reason: "subscription_changed" };
         }
         throw storageError(PUSH_STORAGE_ERROR_CODES.STALE);
       }
@@ -758,7 +764,7 @@ export function createNotificationPushStorage({
         throw storageError(PUSH_STORAGE_ERROR_CODES.STALE);
       }
 
-      const attempt: PendingPushCleanupAttempt = {
+      const attempt: SubscriptionChangedPendingPushCleanupAttempt = {
         attemptId: randomUuid(dependencies.cryptoRef),
         authUserId: binding.authUserId,
         bindingId: binding.bindingId,

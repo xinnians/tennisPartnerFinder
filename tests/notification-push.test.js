@@ -31,6 +31,7 @@ const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL = new URL(
 const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE = readFileSync(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
+const PUSH_RUNTIME_COMPOSITION_URL = new URL("../src/notificationPushRuntimeComposition.ts", import.meta.url);
 
 function sourceFiles(directoryUrl) {
   return readdirSync(directoryUrl, { withFileTypes: true }).flatMap((entry) => {
@@ -102,20 +103,20 @@ test("the Push storage foundation stays outside the production runtime graph", (
   assert.deepEqual(references, []);
 });
 
-test("the Push cleanup transport stays outside the production runtime graph", () => {
+test("the Push cleanup transport is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_CLEANUP_TRANSPORT_URL.href)
     .filter((sourceUrl) => /notificationPushCleanupTransport/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
-test("the Push cleanup coordinator stays outside the production runtime graph", () => {
+test("the Push cleanup coordinator is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_CLEANUP_COORDINATOR_URL.href)
     .filter((sourceUrl) => /notificationPushCleanupCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
 test("the Push deactivation seam stays outside the production runtime graph", () => {
@@ -126,28 +127,28 @@ test("the Push deactivation seam stays outside the production runtime graph", ()
   assert.deepEqual(references, []);
 });
 
-test("the Push Auth-failure coordinator stays outside the production runtime graph", () => {
+test("the Push Auth-failure coordinator is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_AUTH_FAILURE_COORDINATOR_URL.href)
     .filter((sourceUrl) => /notificationPushAuthFailureCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
-test("the Push Auth correlation adapter stays outside the production runtime graph", () => {
+test("the Push Auth correlation adapter is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_AUTH_CORRELATION_URL.href)
     .filter((sourceUrl) => /notificationPushAuthCorrelation/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
-test("the Push manual re-enable coordinator stays outside the production runtime graph", () => {
+test("the Push manual re-enable coordinator is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_MANUAL_REENABLE_URL.href)
     .filter((sourceUrl) => /notificationPushManualReenableCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
 test("the Push subscription coordinator stays outside the production runtime graph", () => {
@@ -177,12 +178,12 @@ test("the Push subscription HTTP transport stays outside the production runtime 
   assert.deepEqual(references, []);
 });
 
-test("the Push subscription local composition stays outside the production runtime graph", () => {
+test("the Push subscription local composition is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushSubscriptionLocalComposition/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
 test("the Push owner-quarantine adapter stays outside the production runtime graph", () => {

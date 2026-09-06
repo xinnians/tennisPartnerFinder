@@ -114,6 +114,7 @@ import {
   createNotificationFeature,
   defaultNotificationSettings,
 } from "./features/notifications/notificationFeature.ts";
+import { createNotificationPushProductionShell } from "./notificationPushProductionShell.ts";
 import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
 import {
   authIdentity,
@@ -158,6 +159,7 @@ let courtCatalogueStatus = "loading";
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 const authRequestGate = createRequestGate();
+const notificationPushV2Shell = createNotificationPushProductionShell({ mode: "disabled" });
 configureSessionViewModules({ appModule });
 function getAppState() {
   return controller?.getAppState?.() ?? { authSession: null, courts: [], courtsReady: false, profile: null };
@@ -380,6 +382,10 @@ configureProfileOrchestrationFeature({
   getController: () => controller,
   invalidateAuthRequests: () => authRequestGate.invalidate(),
   localDemoUnavailable: LOCAL_DEMO_UNAVAILABLE,
+  onAuthVerificationAuthority: (authority) => notificationPushV2Shell.installAuthVerificationAuthority(authority),
+  onAuthVerificationFailure: (failure) => {
+    void notificationPushV2Shell.processAuthVerificationFailure(failure);
+  },
   openLoginModal,
   openProfileCompletionSheet,
   reconcilePageRouteOwner,
