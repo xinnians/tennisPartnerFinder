@@ -396,6 +396,13 @@ verify_jwt = false
 [functions.push-cleanup]
 verify_jwt = false
 
+# The handler performs authoritative Auth `/user` verification so it can
+# distinguish a rejected user JWT from an unavailable Auth dependency. Hosted
+# execution remains hard-disabled unless a later, separately approved batch
+# changes the application-level runtime gate.
+[functions.push-subscription-v2]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

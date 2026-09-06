@@ -535,12 +535,17 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
     PACKAGE.scripts["test:local:push-cleanup-edge"],
     "RUN_LOCAL_PUSH_CLEANUP_EDGE_TEST=1 node --test --test-concurrency=1 tests/push-cleanup-edge-local.test.js"
   );
+  assert.equal(
+    PACKAGE.scripts["test:local:push-subscription-v2-edge"],
+    "RUN_LOCAL_PUSH_SUBSCRIPTION_V2_EDGE_TEST=1 node --test --test-concurrency=1 tests/push-subscription-v2-edge-local.test.js"
+  );
   assert.deepEqual(scriptCommands("test:ci:supabase"), [
     "node scripts/generate-courts-seed.mjs --check",
     "npm run test:db",
     "npm run test:local",
     "npm run test:local:mobile",
     "npm run test:local:push-cleanup-edge",
+    "npm run test:local:push-subscription-v2-edge",
     "git diff --check",
   ]);
   assert.match(supabaseJob, /run: npm run test:ci:supabase/);
