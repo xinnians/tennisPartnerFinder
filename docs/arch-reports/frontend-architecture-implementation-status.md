@@ -36,6 +36,8 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 `frontend-architecture-fa-03b13-default-off-composition-2026-09-07.md`。
 最新 UI／隱私狀態盤點與待確認項目在
 `frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`。
+最新 dispatcher generation／canary barrier 唯讀盤點在
+`frontend-architecture-fa-03-dispatcher-barrier-preflight-2026-09-07.md`。
 
 ## 目前狀態
 
@@ -43,12 +45,12 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 目前批次                | `FA-03B13.3` UI／隱私前置盤點已完成；實際 8 種 v2 技術狀態與 legacy 狀態不可直接合併，等待產品分組、異常恢復與隱私文案範圍確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 目前批次                | `FA-03B13.3` UI／隱私與 dispatcher barrier 前置盤點已完成；UI 等待產品決策，dispatcher D1 需要 additive migration 核可                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                                                                                                                                            |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 UI、SW、dispatcher 尚未接線 |
 | migration 變更          | 38 local／38 remote；13 份 FA-03 migration 已完整套用，最新皆為 `202609040001`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 下一步                  | 等待使用者確認 `FA-03B13.3` 的 8 種技術狀態顯示分組、`invalid` 恢復方式與隱私頁已查證範圍；可先獨立盤點 dispatcher barrier，但 cleanup Hosted 與 dispatcher barrier 完成前不接 v2 真實 request                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 下一步                  | 可先做 dispatcher D0 source-only dormant core；D1 新增 worker／delivery／finalizer command 與最小權限 role 前需 migration 核可。另等待 B13.3 狀態分組、`invalid` 恢復與隱私文案確認                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 查實際 Git 狀態：
 
@@ -1854,6 +1856,28 @@ Hosted deploy／migration／env／secret／request／DB write：未執行
 精確邊界：本批只新增盤點文件；沒有改 runtime、UI、隱私頁、測試、migration、Hosted 或設定。完整內容見
 `frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`。
 
+## FA-03 dispatcher generation／canary barrier 前置盤點
+
+已完成：
+
+- 2026-09-07 重新唯讀查詢並下載 Hosted `notification-outbox-dispatch`：目前 ACTIVE version 14、
+  `verify_jwt=false`；`index.ts`／`dispatch.js` 與 repo SHA-256 相同且逐 byte 相同，沒有 production source drift。
+- 查明現行 worker 只做 legacy outbox attempts CAS；它不讀 runtime control／generation／canary，也沒有 worker 或
+  delivery lease、send 前 fresh-check、per-device outcome 或 v2 finalizer。
+- 查明 404／410 仍依 endpoint 直接 delete，TTL 是 `web-push@3.6.7` 預設四週，socket timeout／總 deadline 都未設，
+  也尚無 dispatcher Edge→DB→mock provider integration test。
+- 核對 local DB：runtime mode disabled、generation 1、所有 duration／attempt policy 為 null，worker／canary／delivery／
+  v2 outbox／v2 subscription 都是 0。
+- 核對 upstream `web-push@3.6.7` 確實接受 `TTL`、`timeout` 與 `https.Agent`；Deno compatibility、DNS 綁定與
+  redirect 仍需 local canary，不以 source inspection 冒充實測。
+- 確認 barrier 不能只靠 `supabase-js` REST：Q6-A 要在外部 Push request 期間保持同一 DB transaction，需直接
+  Postgres transaction connection、最小權限 role／commands 與 Hosted DB connection secret。
+
+下一步分成 D0 source-only dormant core、D1 additive DB command migration、D2 compatible dispatcher、D3 Hosted
+canary／generation rotation、D4 legacy cutoff。D1 migration 只新增 dormant command／role／測試，不改 control 值、
+legacy row／cron，也不 deploy；開始前需使用者核可。完整內容見
+`frontend-architecture-fa-03-dispatcher-barrier-preflight-2026-09-07.md`。
+
 ## FA-03 push-cleanup distributed limiter foundation（repo／local only）
 
 已完成：
@@ -2229,3 +2253,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-07 | FA-03B13.1                       | B1 verified proof／revision current-check、exact 401 retry 與 profile failure／authority seam 完成；same-proof publication race 收斂到最新 revision。Node 581／2 skipped、Playwright 348／4 skipped、DB 1,198／1,198 與完整 local Edge CI 通過；production main／UI／Hosted 未接。                 |
 | 2026-09-07 | FA-03B13.2                       | production main 接 hard-coded disabled shell；完整 runtime 以 dynamic import 組合 B1／B9、subscription、cleanup 與 manual re-enable。disabled 零 loader／storage／SW／權限／request，重模組未輸出；Node 587／2 skipped、Playwright 348／4 skipped 與完整 Supabase CI 通過。                        |
 | 2026-09-07 | FA-03B13.3 preflight             | 唯讀查明三個 UI 入口仍共用 legacy 狀態；v2 storage 實際有八種狀態，operation unavailable 另計。已整理安全顯示分組、invalid 恢復與隱私頁 Edge raw-IP／IndexedDB 缺口；runtime、UI、隱私頁與 Hosted 均未改，等待產品確認。                                                                           |
+| 2026-09-07 | FA-03 dispatcher preflight       | Hosted dispatcher version 14 兩份 source 與 repo byte-identical，沒有 prod source drift；現行仍為 legacy worker。已確認 generation／lease／fresh-check／delivery／DNS barrier 缺口與 direct Postgres transaction＋additive migration 必要性；Hosted 無寫入。                                       |
