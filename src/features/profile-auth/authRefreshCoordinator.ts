@@ -19,6 +19,20 @@ interface SessionProof {
   identity: string;
 }
 
+export interface VerifiedAuthProof {
+  readonly accessToken: string;
+  readonly authUserId: string;
+  readonly revision: number;
+}
+
+export interface AuthVerificationAuthority {
+  isVerificationRevisionCurrent(revision: number): boolean;
+  isVerifiedAuthProofCurrent(proof: VerifiedAuthProof): boolean;
+  notifyUnauthorized(input: { authUserId: string; revision: number }): Promise<void>;
+  readCurrentVerifiedAuthProof(): VerifiedAuthProof | null;
+  readVerifiedAuthProof(input: { authUserId: string; revision: number }): VerifiedAuthProof | null;
+}
+
 export interface AuthRefreshCoordinatorDependencies {
   applyCandidate(candidate: ControllerAuthSession | null, options?: AuthCandidateOptions): Promise<void>;
   onConfirmedAnonymous(): void;
@@ -35,7 +49,7 @@ export interface AuthVerificationFailureNotice {
   revision: number;
 }
 
-export interface AuthRefreshCoordinator {
+export interface AuthRefreshCoordinator extends AuthVerificationAuthority {
   retryIfNeeded(): Promise<void>;
   recordAuthEvent(session: ControllerAuthSession | null | undefined, event: string): void;
   restore(): Promise<void>;
@@ -69,6 +83,16 @@ function proofFrom(value: unknown): SessionProof | null {
   ) {
     return { accessToken: value.accessToken, identity: value.identity };
   }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "authUserId" in value &&
+    "accessToken" in value &&
+    typeof value.authUserId === "string" &&
+    typeof value.accessToken === "string"
+  ) {
+    return { accessToken: value.accessToken, identity: value.authUserId };
+  }
   return sessionProof(value);
 }
 
@@ -100,7 +124,7 @@ export function createAuthRefreshCoordinator({
   let latest: AuthEventRecord | null = null;
   let lastVerifiedIdentity: string | null = null;
   let pendingPublish: { promise: Promise<boolean>; proof: SessionProof } | null = null;
-  let publishedProof: SessionProof | null = null;
+  let publishedProof: VerifiedAuthProof | null = null;
   let retryRequired = false;
   let revision = 0;
   let verificationPromise: Promise<void> | null = null;
@@ -156,6 +180,13 @@ export function createAuthRefreshCoordinator({
       return false;
     }
     if (publishedProof && sameProof(publishedProof, proof)) {
+      if (acceptedRevision === revision && proofMatchesExpected(session, acceptedRevision)) {
+        publishedProof = Object.freeze({
+          accessToken: proof.accessToken,
+          authUserId: proof.identity,
+          revision: acceptedRevision,
+        });
+      }
       return true;
     }
     if (pendingPublish && sameProof(pendingPublish.proof, proof)) {
@@ -164,6 +195,7 @@ export function createAuthRefreshCoordinator({
 
     const running = (async () => {
       await applyCandidate(session, { reconcilePageOwner });
+      let publishedRevision = acceptedRevision;
       if (latest && latest.revision !== acceptedRevision) {
         const duplicateFreshEvent =
           latest.event === "TOKEN_REFRESHED" &&
@@ -171,9 +203,14 @@ export function createAuthRefreshCoordinator({
           sameProof(latest.session, proof) &&
           proofMatchesExpected(latest.session, acceptedRevision);
         if (!duplicateFreshEvent) return false;
+        publishedRevision = latest.revision;
       }
 
-      publishedProof = proof;
+      publishedProof = Object.freeze({
+        accessToken: proof.accessToken,
+        authUserId: proof.identity,
+        revision: publishedRevision,
+      });
       lastVerifiedIdentity = proof.identity;
       expectedIdentity = proof.identity;
       onVerified();
@@ -325,7 +362,7 @@ export function createAuthRefreshCoordinator({
 
     if (!isLatest(record) || booting || verificationPromise) return;
     const proof = sessionProof(record.session);
-    const trustedIdentity = publishedProof?.identity;
+    const trustedIdentity = publishedProof?.authUserId;
     if (proof && trustedIdentity && trustedIdentity === proof.identity) {
       await publishVerified(record.session, record.revision, false);
       return;
@@ -363,7 +400,73 @@ export function createAuthRefreshCoordinator({
     });
   }
 
+  function isVerificationRevisionCurrent(candidateRevision: number): boolean {
+    return Number.isSafeInteger(candidateRevision) && candidateRevision >= 0 && candidateRevision === revision;
+  }
+
+  function isVerifiedAuthProofCurrent(candidate: VerifiedAuthProof): boolean {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return false;
+    const keys = Reflect.ownKeys(candidate);
+    if (
+      keys.length !== 3 ||
+      !keys.includes("accessToken") ||
+      !keys.includes("authUserId") ||
+      !keys.includes("revision") ||
+      typeof candidate.accessToken !== "string" ||
+      candidate.accessToken.trim().length === 0 ||
+      typeof candidate.authUserId !== "string" ||
+      candidate.authUserId.trim().length === 0 ||
+      !isVerificationRevisionCurrent(candidate.revision)
+    ) {
+      return false;
+    }
+    return Boolean(
+      publishedProof &&
+      publishedProof.revision === revision &&
+      publishedProof.authUserId === candidate.authUserId &&
+      publishedProof.accessToken === candidate.accessToken
+    );
+  }
+
+  function readCurrentVerifiedAuthProof(): VerifiedAuthProof | null {
+    return publishedProof && publishedProof.revision === revision ? Object.freeze({ ...publishedProof }) : null;
+  }
+
+  function readVerifiedAuthProof(input: { authUserId: string; revision: number }): VerifiedAuthProof | null {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+    const keys = Reflect.ownKeys(input);
+    if (
+      keys.length !== 2 ||
+      !keys.includes("authUserId") ||
+      !keys.includes("revision") ||
+      typeof input.authUserId !== "string" ||
+      !isVerificationRevisionCurrent(input.revision) ||
+      !publishedProof ||
+      publishedProof.revision !== input.revision ||
+      publishedProof.authUserId !== input.authUserId
+    ) {
+      return null;
+    }
+    return Object.freeze({ ...publishedProof });
+  }
+
+  async function retry(): Promise<void> {
+    await failClosed(null);
+    await requestVerification(false);
+  }
+
+  async function notifyUnauthorized(input: { authUserId: string; revision: number }): Promise<void> {
+    const proof = readVerifiedAuthProof(input);
+    if (!proof) return;
+    await retry();
+  }
+
   return {
+    isVerificationRevisionCurrent,
+    isVerifiedAuthProofCurrent,
+    notifyUnauthorized,
+    readCurrentVerifiedAuthProof,
+    readVerifiedAuthProof,
     recordAuthEvent,
     async restore() {
       try {
@@ -372,10 +475,7 @@ export function createAuthRefreshCoordinator({
         booting = false;
       }
     },
-    async retry() {
-      await failClosed(null);
-      await requestVerification(false);
-    },
+    retry,
     async retryIfNeeded() {
       // An online event can arrive while the boot request is still settling.
       // Wait for that request before reading retryRequired so the event is not

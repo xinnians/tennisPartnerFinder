@@ -30,6 +30,8 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 `frontend-architecture-fa-03b12-browser-edge-local-2026-09-07.md`。
 最新 production wiring 唯讀盤點在
 `frontend-architecture-fa-03b13-production-wiring-preflight-2026-09-07.md`。
+最新 Auth proof adapter 實作與競態證據在
+`frontend-architecture-fa-03b13-auth-proof-adapter-2026-09-07.md`。
 
 ## 目前狀態
 
@@ -37,12 +39,12 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 目前批次                | `FA-03B13` production wiring 唯讀 preflight 已完成；下一批先做 `FA-03B13.1` Auth proof adapter                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` production wiring preflight、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                                                                                                                                                     |
+| 目前批次                | `FA-03B13.1` Auth proof adapter 已完成；下一批做 `FA-03B13.2` default-off composition shell                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter、cleanup limiter foundation 與 Hosted additive migration 已完成；Hosted runtime 尚未啟用                                                                                                                                                                                                                                                                                                                   |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 production composition、SW、dispatcher 尚未接線 |
 | migration 變更          | 38 local／38 remote；13 份 FA-03 migration 已完整套用，最新皆為 `202609040001`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 下一步                  | 先做 `FA-03B13.1` Auth proof adapter；只補 B1 verified proof／revision／401 retry／failure notice 接口，不 import Push v2 composition、不改 UI、不填 production provider／key／timeout 值、不解除 Hosted gate                                                                                                                                                                                                                                                                                                                                                                   |
+| 下一步                  | 做 `FA-03B13.2` default-off composition shell；條件式載入並只在 app 層建立一次，接 B1／B9 與既有 dormant modules，但保持 UI、network、production 值與 Hosted gate 不變                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 查實際 Git 狀態：
 
@@ -99,15 +101,15 @@ git log --oneline --decorate -10
 
 ## 批次總表
 
-| 批次  | 內容                                                              | 狀態                                                                                                                                                                                                                                                                                                                                    | 完成條件                                                                                                                                                |
-| ----- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                                                                                                                    | 文件差異與 whitespace 檢查通過；無非文件變更                                                                                                            |
-| FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                                                                                                                    | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                                                                        |
-| FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                                                                                                              | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                                                                    |
-| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` production wiring preflight、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.3；runtime disabled | expand、DB、browser-to-local-DB、雙帳號測試通過；production wiring、dispatcher、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
-| FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 未開始                                                                                                                                                                                                                                                                                                                                  | gate 有 canary；清單有明確 scope                                                                                                                        |
-| FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 未開始                                                                                                                                                                                                                                                                                                                                  | before／after 可重現；未放寬未核可邊界                                                                                                                  |
-| FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 未開始                                                                                                                                                                                                                                                                                                                                  | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                                                             |
+| 批次  | 內容                                                              | 狀態                                                                                                                                                                                                                                                                                                                                      | 完成條件                                                                                                                                                                |
+| ----- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                                                                                                                      | 文件差異與 whitespace 檢查通過；無非文件變更                                                                                                                            |
+| FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                                                                                                                      | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                                                                                        |
+| FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                                                                                                                | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                                                                                    |
+| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter、cleanup limiter foundation、Hosted additive migration、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.3；runtime disabled | expand、DB、browser-to-local-DB、雙帳號測試通過；default-off／UI production wiring、dispatcher、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
+| FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 未開始                                                                                                                                                                                                                                                                                                                                    | gate 有 canary；清單有明確 scope                                                                                                                                        |
+| FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 未開始                                                                                                                                                                                                                                                                                                                                    | before／after 可重現；未放寬未核可邊界                                                                                                                                  |
+| FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 未開始                                                                                                                                                                                                                                                                                                                                    | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                                                                             |
 
 ## FA-00 實際內容
 
@@ -1755,6 +1757,42 @@ failure notice 接口；不 import v2 composition、不改 UI、不要求通知�
 
 完整盤點見 `frontend-architecture-fa-03b13-production-wiring-preflight-2026-09-07.md`。
 
+## FA-03B13.1 Auth proof adapter
+
+已完成：
+
+- B1 coordinator 暴露最小 verified Auth authority：讀目前 proof、依 owner／revision 精確讀取、檢查 revision／
+  proof 是否 current，以及 exact `401` 後 authoritative retry。
+- proof 只在記憶體保存 owner、access token 與 revision；每次讀取回 frozen copy。新 Auth event、登出、fail-closed
+  或 proof 替換會立即讓舊 proof 失效。
+- `401` 只有完全符合目前 verified owner／revision 才先關閉私人狀態再重驗；stale／foreign notice 不做事。
+- profile orchestration 在 Auth subscription 前交出 optional authority，並轉交既有 privacy-safe failure notice；
+  callback 錯誤不會破壞 Auth fail-closed。
+- 複查並修正 same-proof `TOKEN_REFRESHED` publication race：重複 fresh event 共用 apply，proof 收斂到最新 revision。
+
+精確邊界：
+
+- `src/main.js` 尚未提供 callback；Push v2 production graph 仍是零 importer／caller，legacy UI 行為不變。
+- 沒有 browser network、通知權限、storage、SW、dispatcher、migration 或 Hosted 變更。
+- production values 未填；Edge／DB server gates 保持關閉。
+
+本批驗證：
+
+```text
+targeted Auth／orchestration：34 top-level／37 tests passed
+npm run test:ci:frontend：Node 581 passed／2 skipped；Playwright 348 passed／4 skipped；build 509 modules
+npm run test:ci:supabase：DB 1,198／1,198；local API 4／4；desktop 45 passed／11 skipped；mobile 6／6；cleanup Edge 1／1；Push v2 browser-to-Edge 1／1
+production bundle：main 648,934／190,804；最大 lazy 16,476／4,830；total 851,558／260,967 raw/gzip
+bundle total：依 D8 report-only，較參考值多 1,597／1,905 raw/gzip bytes
+Hosted deploy／migration／env／secret／request／DB write：未執行
+```
+
+第一次補跑前確認 local DB 已累積 184 筆同場地測試 session，使既有 200 筆 discovery cap 無法保證帶回新
+fixture；使用 guarded script 只重設 `http://127.0.0.1:54321` 並從零重播 38 migrations。精確目前 source 的完整
+Supabase CI 隨後通過；不是 production drift，Hosted 未動。
+
+詳細證據見 `frontend-architecture-fa-03b13-auth-proof-adapter-2026-09-07.md`。
+
 ## FA-03 push-cleanup distributed limiter foundation（repo／local only）
 
 已完成：
@@ -2062,9 +2100,10 @@ Hosted deploy／secret／request／DB write：未執行
    B11.1 已依方案 A 完成 browser structure／server policy 拆分，B12.7.3 已完成 dormant 加密 HTTP transport，
    B12.7.4 已完成 local-only composition，B12.8 已完成 local-only Edge HTTP／CORS／authoritative Auth／DB port
    composition，B12.9 已驗證 browser → encryption → Edge → Auth → A4 DB RPC → local CAS。B13 production wiring
-   preflight 已查清 Auth adapter、runtime config、UI／SW importer、B1／B9 handoff 與 server-controlled gate；下一步先做
-   B13.1 Auth proof adapter。server-only origins 不得進 browser，也不得自行猜 production provider／key。cleanup hosted 完成前不得接
-   production；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
+   preflight 已查清 Auth adapter、runtime config、UI／SW importer、B1／B9 handoff 與 server-controlled gate；B13.1 已補
+   verified proof／revision／401 retry／failure callback authority，production main 尚未消費。下一步做 B13.2
+   default-off composition shell。server-only origins 不得進 browser，也不得自行猜 production provider／key。cleanup
+   Hosted 完成前不得接 production；未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -2125,3 +2164,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-07 | CI stabilization                 | B12.9 首次完整 CI 證明既有 court test 在 Me 頁初始 notification GET 完成前操作；改為逐筆等待 exact DB set＋UI count，isolated 連跑與完整 Supabase CI 通過；production code 未改，獨立 commit `6f7d98a`。                                                                                           |
 | 2026-09-07 | FA-03B12.9                       | 真實 Chromium／IndexedDB／WebCrypto 經 Vite key、跨 origin transport、本機 Edge、Auth `/user`、A4 enable／refresh RPC 回 local CAS；targeted 連跑與完整 CI 1／1，正式 App／provider／Hosted／migration 未動。                                                                                      |
 | 2026-09-07 | FA-03B13 preflight               | 唯讀確認 UI 仍走 legacy、B1 proof／revision 尚無 Push port、B9 零 caller、SW 無 subscription-change、Edge／DB 雙 server gate 仍關閉；下一批只做 Auth proof adapter，不改 UI／Hosted／migration／production values。                                                                                |
+| 2026-09-07 | FA-03B13.1                       | B1 verified proof／revision current-check、exact 401 retry 與 profile failure／authority seam 完成；same-proof publication race 收斂到最新 revision。Node 581／2 skipped、Playwright 348／4 skipped、DB 1,198／1,198 與完整 local Edge CI 通過；production main／UI／Hosted 未接。                 |

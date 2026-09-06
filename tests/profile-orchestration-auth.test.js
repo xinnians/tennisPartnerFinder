@@ -128,3 +128,45 @@ test("restoreAuth keeps cached auth callback events side-effect free until verif
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(verifyCalls, 2, "an early production online event survives the in-flight recoverable failure");
 });
+
+test("profile orchestration exposes the B1 authority and forwards only privacy-safe failure notices", async () => {
+  const authorities = [];
+  const failures = [];
+  let subscribed = false;
+  configureProfileOrchestrationFeature({
+    defaultProfile: () => ({ nickname: "" }),
+    getAppState: () => ({ authSession: null, courts: [], courtsReady: true, profile: null }),
+    getController: () => ({
+      capturePendingIntentVersion: () => 1,
+      clearPendingIntent: () => {},
+      clearPendingIntentIfUnchanged: () => {},
+    }),
+    invalidateAuthRequests: () => {},
+    onAuthVerificationAuthority: (authority) => {
+      assert.equal(subscribed, false, "the authority is installed before Auth events can arrive");
+      authorities.push(authority);
+    },
+    onAuthVerificationFailure: (failure) => failures.push(failure),
+    resetNotificationSettings: () => {},
+    resetPresenceTracking: () => {},
+    setAuthSession: () => {},
+    setProfile: () => {},
+    toast: () => {},
+  });
+
+  await restoreAuthWithPort({
+    subscribe: () => {
+      subscribed = true;
+      return () => {};
+    },
+    verifyCurrentSession: async () => ({ error: new Error("private error"), kind: "unavailable", session: null }),
+  });
+
+  assert.equal(authorities.length, 1);
+  assert.equal(authorities[0].isVerificationRevisionCurrent(0), true);
+  assert.equal(authorities[0].readCurrentVerifiedAuthProof(), null);
+  assert.equal(authorities[0].readVerifiedAuthProof({ authUserId: "account-a", revision: 0 }), null);
+  assert.deepEqual(failures, [{ kind: "unavailable", revision: 0 }]);
+  assert.deepEqual(Object.keys(failures[0]), ["kind", "revision"]);
+  assert.equal(JSON.stringify(failures).includes("private error"), false);
+});

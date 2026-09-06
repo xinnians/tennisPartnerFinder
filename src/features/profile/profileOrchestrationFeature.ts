@@ -18,7 +18,11 @@ import type {
   ControllerSurfaceHandle,
 } from "../../controllerContracts.ts";
 import type { Profile, SessionSummary, SurfaceCloseOptions, SurfaceLoadStatus } from "../../domainTypes.ts";
-import { createAuthRefreshCoordinator } from "../profile-auth/authRefreshCoordinator.ts";
+import {
+  createAuthRefreshCoordinator,
+  type AuthVerificationAuthority,
+  type AuthVerificationFailureNotice,
+} from "../profile-auth/authRefreshCoordinator.ts";
 import { sessionIdentity, validAuthSession } from "../profile-auth/profileAuthFeature.ts";
 
 type AuthProvider = Parameters<typeof signInWithOAuthProvider>[0];
@@ -77,6 +81,8 @@ interface ProfileOrchestrationDependencies {
   getController(): ControllerApi;
   invalidateAuthRequests(): void;
   localDemoUnavailable: string;
+  onAuthVerificationAuthority?(authority: AuthVerificationAuthority): void;
+  onAuthVerificationFailure?(failure: AuthVerificationFailureNotice): void;
   openLoginModal(options: LoginModalOptions): unknown;
   openProfileCompletionSheet(options: ProfileCompletionSheetOptions): ControllerSurfaceHandle | null | undefined;
   reconcilePageRouteOwner?(options?: { forcePublic?: boolean }): void;
@@ -346,10 +352,16 @@ export async function restoreAuthWithPort({
     applyCandidate: applyAuthCandidate,
     onConfirmedAnonymous: () => controller.clearPendingIntentIfUnchanged(bootstrapIntentVersion),
     onSignedOut: () => controller.clearPendingIntent(),
+    onVerificationFailure: (failure) => dependencies.onAuthVerificationFailure?.(failure),
     onVerified: resumeLinkReturn,
     ...(schedule ? { schedule } : {}),
     verifyCurrentSession,
   });
+  try {
+    dependencies.onAuthVerificationAuthority?.(coordinator);
+  } catch {
+    // Optional Push wiring must never change Auth's fail-closed behavior.
+  }
   subscribe((session, event) =>
     coordinator.recordAuthEvent(session as ControllerAuthSession | null | undefined, event)
   );

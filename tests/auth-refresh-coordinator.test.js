@@ -76,6 +76,67 @@ function createCoordinatorHarness(verifications, { onApplyCandidate } = {}) {
   };
 }
 
+test("verified Auth proof is readable only for the exact current verification revision", async () => {
+  const verification = deferred();
+  const accountA = authSession("account-a", "fresh-a");
+  const harness = createCoordinatorHarness([() => verification.promise]);
+
+  const restoring = harness.coordinator.restore();
+  harness.coordinator.recordAuthEvent(accountA, "TOKEN_REFRESHED");
+  verification.resolve({ kind: "verified", session: accountA });
+  await restoring;
+  await harness.flushScheduled();
+
+  const proof = harness.coordinator.readVerifiedAuthProof({ authUserId: "account-a", revision: 1 });
+  assert.deepEqual(proof, { accessToken: "fresh-a", authUserId: "account-a", revision: 1 });
+  assert.equal(Object.isFrozen(proof), true);
+  assert.deepEqual(harness.coordinator.readCurrentVerifiedAuthProof(), proof);
+  assert.notEqual(harness.coordinator.readCurrentVerifiedAuthProof(), proof, "each read returns a short-lived copy");
+  assert.equal(harness.coordinator.isVerificationRevisionCurrent(1), true);
+  assert.equal(harness.coordinator.isVerifiedAuthProofCurrent(proof), true);
+  assert.equal(harness.coordinator.readVerifiedAuthProof({ authUserId: "account-b", revision: 1 }), null);
+  assert.equal(harness.coordinator.readVerifiedAuthProof({ authUserId: "account-a", revision: 0 }), null);
+  assert.equal(harness.coordinator.isVerifiedAuthProofCurrent({ ...proof, accessToken: "cached-or-replaced" }), false);
+  assert.equal(harness.coordinator.isVerifiedAuthProofCurrent({ ...proof, extra: "not-an-exact-proof" }), false);
+
+  harness.coordinator.recordAuthEvent(accountA, "USER_UPDATED");
+  assert.equal(harness.coordinator.isVerificationRevisionCurrent(1), false);
+  assert.equal(harness.coordinator.isVerifiedAuthProofCurrent(proof), false);
+  assert.equal(harness.coordinator.readCurrentVerifiedAuthProof(), null);
+  assert.equal(harness.coordinator.readVerifiedAuthProof({ authUserId: "account-a", revision: 1 }), null);
+});
+
+test("an exact unauthorized notice re-verifies Auth and stale notices do nothing", async () => {
+  const firstVerification = deferred();
+  const secondVerification = deferred();
+  const accountA1 = authSession("account-a", "fresh-a-1");
+  const accountA2 = authSession("account-a", "fresh-a-2");
+  const harness = createCoordinatorHarness([() => firstVerification.promise, () => secondVerification.promise]);
+
+  const restoring = harness.coordinator.restore();
+  harness.coordinator.recordAuthEvent(accountA1, "TOKEN_REFRESHED");
+  firstVerification.resolve({ kind: "verified", session: accountA1 });
+  await restoring;
+  await harness.flushScheduled();
+
+  const retrying = harness.coordinator.notifyUnauthorized({ authUserId: "account-a", revision: 1 });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(harness.signals.verifyCalls, 2);
+  assert.equal(harness.coordinator.readVerifiedAuthProof({ authUserId: "account-a", revision: 1 }), null);
+  assert.equal(harness.applied.at(-1).candidate, null);
+
+  harness.coordinator.recordAuthEvent(accountA2, "TOKEN_REFRESHED");
+  secondVerification.resolve({ kind: "verified", session: accountA2 });
+  await retrying;
+  await harness.flushScheduled();
+
+  const refreshedProof = harness.coordinator.readVerifiedAuthProof({ authUserId: "account-a", revision: 2 });
+  assert.deepEqual(refreshedProof, { accessToken: "fresh-a-2", authUserId: "account-a", revision: 2 });
+  await harness.coordinator.notifyUnauthorized({ authUserId: "account-a", revision: 1 });
+  await harness.coordinator.notifyUnauthorized({ authUserId: "account-b", revision: 2 });
+  assert.equal(harness.signals.verifyCalls, 2, "stale or foreign notices cannot start another Auth request");
+});
+
 test("Auth failure notices expose only stable kind, revision, and an optional prior verified owner", async () => {
   const initial = deferred();
   const accountA = authSession("account-a", "fresh-a");
@@ -595,6 +656,11 @@ test("same-proof TOKEN_REFRESHED events share an in-flight candidate publication
     ["fresh-1", "fresh-2"]
   );
   assert.equal(harness.signals.verified, 2, "the duplicate does not emit a second verified signal");
+  assert.deepEqual(harness.coordinator.readCurrentVerifiedAuthProof(), {
+    accessToken: "fresh-2",
+    authUserId: "account-a",
+    revision: 3,
+  });
 });
 
 test("a stale scheduled cached event cannot clear a fresh candidate while its apply is pending", async () => {
