@@ -1233,7 +1233,12 @@ test("authenticated players persist the authoritative court subscription set wit
   await expect(page.locator("#notification-court-picker")).toBeVisible();
   // 細選兩座：逐一勾選，驗證非全選路徑也送得出正確的 id。
   for (const courtId of selectedCourtIds) {
-    await page.getByTestId(`notification-court-${courtId}`).check();
+    const court = page.getByTestId(`notification-court-${courtId}`);
+    await court.check();
+    // 每次勾選都會立即送一筆真實 DB 存檔並暫時停用整組控制項；
+    // 等該次 authoritative rerender 完成，才可進行下一筆互動。
+    await expect(court).toBeEnabled();
+    await expect(court).toBeChecked();
   }
   await expect(page.locator("#toast-root")).toContainText("球場訂閱已儲存");
   await expect(page.locator("#me-root")).toContainText(`已訂閱 ${selectedCourtIds.length} 座`);
