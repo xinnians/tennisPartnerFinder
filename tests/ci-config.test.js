@@ -169,6 +169,7 @@ test("frontend CI script contains every current non-database gate in order", () 
   const commands = scriptCommands("test:ci:frontend");
   const gates = [
     "node scripts/generate-courts-seed.mjs --check",
+    "npm run check:design-system",
     "npm run typecheck",
     "npm run lint",
     "npm run prettier:check",
@@ -179,6 +180,16 @@ test("frontend CI script contains every current non-database gate in order", () 
   ];
   assert.deepEqual(commands, gates);
   assert.match(WORKFLOW, /run: npm run test:ci:frontend/);
+});
+
+test("design-system artifacts have explicit sync and check commands", () => {
+  assert.equal(PACKAGE.scripts["sync:design-system"], "node scripts/designSystemBundle.mjs --write");
+  assert.equal(PACKAGE.scripts["check:design-system"], "node scripts/designSystemBundle.mjs --check");
+  assert.deepEqual(scriptCommands("pretest"), [
+    "node scripts/generate-courts-seed.mjs --check",
+    "npm run check:design-system",
+  ]);
+  assert.match(PACKAGE.scripts["test:session-unit"], /tests\/design-system-bundle\.test\.js/u);
 });
 
 test("development bundle checks report byte excesses while release checks enforce them", () => {

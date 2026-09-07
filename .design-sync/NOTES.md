@@ -1,5 +1,16 @@
 # design-sync 筆記
 
+## 2026-09-08 現行狀態
+
+- production 已是 React app；以下 2026-08 歷史中「無 React」只描述當時狀態，不再適用。
+- 品牌現為「球咖」。遠端專案沿用固定 `projectId`；本批沒有遠端 read-back，因此不宣稱遠端名稱或檔案已更新。
+- repo 目前實際有 9 張 HTML 卡片；歷史 Bricks 與 9 張 Screens 不在 repo，不當成目前可交付檔案。
+- `_ds_bundle.css` 與 `tokens/tokens.css` 改由 `scripts/designSystemBundle.mjs` 從 production 13 份 CSS 產生；
+  `npm run check:design-system` 會阻止 CSS 或 token 靜默漂移。
+- 卡片仍是 hand-authored，下一批要依現行 React／view owner 更新內容並重跑 desktop／390px 驗證。
+
+## 歷史紀錄
+
 - 2026-08-10 首次同步。此 repo 是原生 ES modules app(無 React、無 Storybook、無元件 dist),
   完整 converter 管線無原料可跑;經 user 確認走「手工基線包」:
   token/元件/畫面卡片手寫,樣式逐值抄自 `src/session.css`(計分板 token 層,批 A 產物),
@@ -39,7 +50,7 @@
 ## 2026-08-21 重新驗證既有 9 張卡片(repo HEAD 260ef16 起)
 
 - 背景:上次卡片內容基準是 08-11(v2 D1-D9),期間 repo 發生大規模 vanilla→React 遷移
-  (sessionViews.js 由 3990 行大量瘦身,新增 src/pages/*.tsx、src/sheets/*.tsx)。用戶要求
+  (sessionViews.js 由 3990 行大量瘦身,新增 src/pages/_.tsx、src/sheets/_.tsx)。用戶要求
   重新驗證剩下 8 張既有卡片(Bricks 除外,原生 CSS 磚無遷移疑慮)。
 - **第一輪驗證**(9 個平行 agent,含 Chips 因 schema 異常重跑一次):8 張回報有落差,
   只有 Bricks 完全準確。落差分佈:class 名稱本身無一被改名或刪除(視覺語彙撐過遷移),

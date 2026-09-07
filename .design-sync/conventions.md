@@ -1,47 +1,37 @@
-# 網球球局地圖設計系統 — 使用慣例(v2 計分板改版完成版)
+# 球咖設計同步慣例
 
-台北市網球公開球局 MVP(手機優先,QA 基準 390px)。視覺語言「計分板」:墨綠 ink、球場綠 court、optic 黃 signal、紙白底、1.5px 實線框(`--border-strong`)與 mono 數字。v2(D1–D9,2026-08-11)已全站落地。
+## 定位
 
-## 設定與包裹
+- production 是 React app；`ds-bundle/` 的純 HTML 卡片只負責設計同步與獨立預覽。
+- production source 是唯一正典。卡片不能覆蓋、推測或另創 runtime 狀態。
+- UI 文案使用品牌「球咖」；舊名稱只可留在有日期的歷史紀錄。
 
-不需要 provider 或框架。純 HTML+CSS:引入 `styles.css` 即可(closure:`tokens/tokens.css` + `_ds_bundle.css`)。字體 Noto Sans TC(內文 400/500/700)、IBM Plex Mono(數字,只有 500/600;`font-synthesis:none`,不要寫 700 mono)、Barlow Condensed(600/700,只用於 eyebrow 與品牌字)。
+## 樣式
 
-## 樣式語彙(唯一正典,不要發明新色值或新 class)
+- 手機優先，主要 QA viewport 為 390×844。
+- 視覺語言：墨綠 ink、球場綠 court、optic 黃 signal、紙白底、清楚實線框、等寬時間與數字。
+- 顏色、字級、間距、圓角、陰影與 z-index 使用既有 token，不新增近似色值。
+- 對比維持 WCAG AA；互動目標至少 44×44px。
+- 不移除 `:focus-visible`；動效必須保留 `prefers-reduced-motion` 降級。
+- 時間與數字使用 `--font-mono` 及 `font-variant-numeric: tabular-nums`。
 
-- 顏色一律走 token:`--color-ink`/`--color-court`/`--color-signal`(高亮,只配 ink 底或 ink 字)/`--color-surface-page`/`--color-surface-card`/`--color-text-secondary`/`--color-line`/`--color-danger(-bg)`/`--color-success(-bg)`/`--color-info-bg`/`--color-disabled-bg`/`--color-disabled-text`。深底(ink)上的非活躍字用 `#9db3a4`(慣例色,不循淺底映射)。
-- 字階 `--text-xs`…`--text-2xl`;間距 `--space-1`…`--space-8`;圓角 `--radius-sm/md/lg/xl/pill`;框線 `--border-strong`(1.5px ink)/`--border-thin`;動效 `--ease-brand` 配 keyframes `qmSheetUp/qmFade/qmPop/qmSlide/qmToast`。
-- **時間磚**:`.time-tile`(mono 時間+日期副行;`--compact` 58px、`--detail` 74px、`--ongoing` ink 反相)。**記分板條**:`.scoreboard-strip`(三格 `__cell`,`__eyebrow`+`__value`,`__cell--inverse` ink 反相格)。**NTRP 磚**:`.ntrp-brick`(ink 底 signal mono;`--sm` 內聯小磚)。
-- **chips**:`.chip`(基底;`--form` 表單選項、`--district` 小號、`--time` mono)、選中態 `.is-selected`(ink 反相);程度選項 `.band-option` 選中 `.is-active`。`.toggle-switch[aria-checked]`(52×31 軌+knob,熱區已擴 44px)。
-- 按鈕:`.session-primary`(ink 底 signal 字,每畫面至多一顆;`--instant` signal 底 ink 字)、`.session-secondary`、`.session-tertiary`(court 綠底線文字鈕)、`.filters-reset`、`.surface__close`。
-- 卡片:`.session-card`(`__body/__title/__court/__meta/__foot/__chevron`+`.slots-brick` 缺額磚)、`.my-session-brief`(薄卡列)+狀態章 `.my-status-chip(--info/--success/--danger/--host)`、badge `.session-badge(--instant/--ongoing/--candidate/--host)`。
-- 地圖首頁:`.map-topbar`(`__row`)、`.app-brand`(`__dot/__name/__code`)、`.city-chip`、`.topbar-icon-button`、`.map-toolbar`(chips 列)、`.level-popover`、`.map-zoom-controls`(44px 直欄)。
-- 抽屜/面板:`.nearby-peek`(收合條)與 `.nearby-drawer`(兩態,無 backdrop);`.surface`+`--sheet/--dialog`、`.surface__head/__eyebrow/__copy`;詳情 `.session-detail`(`__head/__court/__meta/__scoreboard`、`.host-row`、`.candidate-decide-panel`、CTA `.cta-row/.cta-status(--pending/--joined/--disabled)/.cta-text-action/.cta-footnote`);篩選 `.filter-sheet__grabber/__scroll/__footer`。
-- 全螢幕流:開球局 `.create-v2__*`(segmented/court-cell/stepper/固定底鈕漸層座)+成功頁;我的球局 `.my-sessions-v2__*`(segmented+空狀態);訊息頁 `.messages-*`;聊天室 `.chat-v2__*`+泡泡 `.chat-message`(他人)/`--self`(success-bg 右尖)/`--system`(pill)。
-- 導覽:`.bottom-navigation`(ink 底 h84)+`__item`+置中 `__create`(52px signal 方圓鈕上移)、`.my-sessions-badge`(數字)、`.my-sessions-unread-dot`(訊息格圓點)。
-- 回饋:`.toast`(ink 深底+signal 勾)、全域錯誤提示 `.app-error-notice`(可關閉,ink 深底,批 19 新增)、區塊級 fallback `.app-error-fallback`(React error boundary,批 19 新增)。
+## CSS 邊界
 
-## 不可破壞的規範
+- production CSS 的檔案與層疊順序由 `src/main.js` 決定。
+- `ds-bundle/_ds_bundle.css` 與 `ds-bundle/tokens/tokens.css` 是產生檔，不可直接修改。
+- 更新 production CSS 後執行 `npm run sync:design-system`；提交前執行 `npm run check:design-system`。
+- 卡片只引入 `ds-bundle/styles.css`，不各自複製 production declarations。
 
-- 對比一律過 WCAG AA;`--color-text-secondary` 不要調淡。
-- 觸控目標 ≥44px;focus 樣式是全域 `:focus-visible { outline: 3px solid var(--color-court) }`,元件不要寫 `outline:none`。
-- 動效走 `--ease-brand`;全域已有 `prefers-reduced-motion: reduce` 降級,不要繞過。
-- 時間與數字用 `--font-mono` + `font-variant-numeric: tabular-nums`。
+## 結構與說明
 
-## 真相所在
+- DOM、狀態與互動要逐項對照現行 `src/components/`、`src/pages/`、`src/sheets/` 與 `src/views/`。
+- source citation 使用檔案與 component／export 名稱，不使用固定行號。
+- 動態 class 要先查 template expression；不能因 repo 沒有完整字面就判成廢棄。
+- README 索引只列 repo 內實際存在的卡片。遠端是否仍有歷史 Screens，必須 read-back 後才能描述。
 
-樣式全文:`styles.css` → `tokens/tokens.css`(token 全表)+ `_ds_bundle.css`(app 實際 stylesheet 逐字複製,含全域基座)。組合示範見 `components/<群組>/<名稱>/` 卡片;`components/screens/` 是 mock 模式 390×844 實機截圖(地圖區為本機 fallback 底,正式站是 Google Maps)。
+## 驗證
 
-## 慣用寫法示範(取自實作)
-
-```html
-<button type="button" class="session-card">
-  <span class="time-tile"><span class="time-tile__start">19:00</span><span class="time-tile__date">08/12 三</span></span>
-  <span class="session-card__body">
-    <span class="session-card__title"><span class="session-card__court">大安運動中心網球場</span>
-      <span class="session-badge session-badge--instant">直接加入</span></span>
-    <span class="session-card__meta">雙打 · NTRP 3.0–4.0 · 主揪 阿哲 3.5</span>
-    <span class="session-card__foot"><span class="slots-brick">缺 2 位</span></span>
-  </span>
-  <span class="session-card__chevron" aria-hidden="true">›</span>
-</button>
-```
+- 每次同步至少驗 desktop 1280×900 與 mobile 390×844。
+- 確認內容非空、無錯誤遮罩、console/page/request error、橫向 overflow、重複 ID 或缺少 accessible name。
+- 至少操作一條受影響的互動流程；只有看 screenshot 不算完整互動驗證。
+- 測試截圖放在 repo 外的暫存目錄，除非另有明確交付需求。
