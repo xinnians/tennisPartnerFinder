@@ -243,8 +243,20 @@ select ok(
   current_setting('pgtap.fa03_d1_worker', true) is not null
     and pg_catalog.jsonb_typeof(
       current_setting('pgtap.fa03_d1_worker_begin')::jsonb -> 'generation'
+    ) = 'string'
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_worker_begin')::jsonb
+        -> 'requestDeadlineMs'
+    ) = 'string'
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_worker_begin')::jsonb
+        -> 'deliveryLeaseMs'
+    ) = 'string'
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_worker_begin')::jsonb
+        -> 'pushTtlSafetyBudgetMs'
     ) = 'string',
-  'configured current generation begins a worker without bigint JSON loss'
+  'worker policy bigints cross JSON only as canonical decimal strings'
 );
 
 select is(
@@ -589,10 +601,18 @@ select is(
     pg_catalog.jsonb_typeof(
       current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb
         -> 'transportVersion'
+    ),
+    pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb
+        -> 'requestDeadlineMs'
+    ),
+    pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb
+        -> 'pushTtlSafetyBudgetMs'
     )
   ),
-  'ready:session_updated:球局資訊已更新。:https://push.example.test/fa03-d1-recipient:string',
-  'prepare returns current event data and lossless transport version'
+  'ready:session_updated:球局資訊已更新。:https://push.example.test/fa03-d1-recipient:string:string:string',
+  'prepare returns current event data and lossless bigint policy values'
 );
 
 select is(

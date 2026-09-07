@@ -679,16 +679,16 @@ begin
     'databaseNow', database_now,
     'requestDeadlineMs',
       (extract(epoch from control_row.request_deadline_duration)
-        * 1000)::bigint,
+        * 1000)::bigint::text,
     'deliveryLeaseMs',
       (extract(epoch from control_row.delivery_lease_duration)
-        * 1000)::bigint,
+        * 1000)::bigint::text,
     'maxDeliveryAttempts', control_row.max_delivery_attempts,
     'pushTtlSafetyBudgetMs', case
       when control_row.push_ttl_safety_budget is null then null
       else (extract(
         epoch from control_row.push_ttl_safety_budget
-      ) * 1000)::bigint
+      ) * 1000)::bigint::text
     end
   );
 end;
@@ -1660,12 +1660,12 @@ begin
     'databaseNow', database_now,
     'requestDeadlineMs',
       (extract(epoch from control_row.request_deadline_duration)
-        * 1000)::bigint,
+        * 1000)::bigint::text,
     'pushTtlSafetyBudgetMs', case
       when control_row.push_ttl_safety_budget is null then null
       else (extract(
         epoch from control_row.push_ttl_safety_budget
-      ) * 1000)::bigint
+      ) * 1000)::bigint::text
     end
   );
 end;
