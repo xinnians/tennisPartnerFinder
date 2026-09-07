@@ -12,7 +12,7 @@ view 模組的接線。問題不是功能壞掉，而是「只要 import 這個�
 未來拆檔容易被讀檔名的測試擋住。
 
 這一階段會先讓測試從 manifest 得知真正 owner，再把 loader 與接線逐批搬出去。`sessionViews.js` 先保留
-相容用途，不一次改掉 86 個測試呼叫，因此不會用大爆改換取表面上的檔案變小。
+相容用途，不一次改掉 87 個測試呼叫，因此不會用大爆改換取表面上的檔案變小。
 
 ## 已核對的現況
 
@@ -51,7 +51,7 @@ view 模組的接線。問題不是功能壞掉，而是「只要 import 這個�
   declaration，不能改成依賴宣告順序的函式運算式。
 - 四個 `src/views/*` configure 模組彼此沒有互相 import；可依文件順序 discovery → session → profile →
   form 搬到專用 wiring 模組，由 `main.js` 明確啟動。
-- 瀏覽器規格目前有 86 次 `window.__importAppModule("sessionViews")`，分布於 11 個 spec 檔。這是最後評估
+- 瀏覽器規格目前有 87 次 `window.__importAppModule("sessionViews")`，分布於 12 個 spec 檔。這是最後評估
   facade 退役時的真實成本，本階段前半不改名。
 
 ### 不能遺失的獨立邊界
@@ -86,7 +86,7 @@ view 模組的接線。問題不是功能壞掉，而是「只要 import 這個�
 
 - 新增文件已指定的 `src/views/surfaceLoaders.js`，搬 14 個 dynamic import、mount binding、preloader 與
   `deferSurfaceOpen`。
-- `sessionViews.js` 先繼續提供既有 facade API；不改 86 個 harness calls。
+- `sessionViews.js` 先繼續提供既有 facade API；不改 87 個 harness calls。
 - 同批更新 surface manifest owner、HTML renderer inventory 與 mutation ledger，並用 AST 實掃值更新 baseline。
 
 ### 4.3 四個 configure
@@ -103,7 +103,7 @@ view 模組的接線。問題不是功能壞掉，而是「只要 import 這個�
 
 ### 4.5 Facade 評估
 
-- 前四批與完整回歸通過後，才重新量 86 個 harness calls 與 production imports。
+- 前四批與完整回歸通過後，才重新量 87 個 harness calls 與 production imports。
 - 只有每個新 owner 都已有直接測試、舊 bridge 可同批刪除時才退役 facade；否則保留，不為了檔案數硬拆。
 
 ## 每批驗收

@@ -61,7 +61,8 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 `frontend-architecture-fa-06-stage-4-1-manifest-gates-2026-09-07.md`；最新共用 loader 拆分證據在
 `frontend-architecture-fa-06-stage-4-2-surface-loaders-2026-09-07.md`；最新 configure wiring 拆分證據在
 `frontend-architecture-fa-06-stage-4-3-session-view-wiring-2026-09-07.md`；最新 app-module／preload wiring 證據在
-`frontend-architecture-fa-06-stage-4-4-app-module-preload-wiring-2026-09-07.md`。
+`frontend-architecture-fa-06-stage-4-4-app-module-preload-wiring-2026-09-07.md`；最新 facade 退役評估在
+`frontend-architecture-fa-06-stage-4-5-facade-evaluation-2026-09-07.md`。
 
 ## 目前狀態
 
@@ -69,12 +70,12 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 目前批次                | `FA-06 stage 4.4` 完成：app-module 狀態、login renderer、authenticated／named preloads 與 2 個 intent listeners 已搬到 `sessionViewWiring.js`；重複 configure 實測不重複綁 listener。main 改用真實 owner，facade 保留相容 re-export；完整 frontend CI 與 production preview 通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1／4.2／4.3／4.4 已完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                                         |
+| 目前批次                | `FA-06 stage 4.5` 完成：AST 與 Git 歷史確認 facade 有 40 exports、production 17 imports／1 importer、browser harness 87 calls／12 specs；真正 owner 均已存在，決定下一批用單一原子變更完整退役，不做 production direct import＋test-only facade 的半套狀態                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1／4.2／4.3／4.4／4.5 已完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                                    |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 UI、SW、Hosted active dispatcher 尚未接線 |
 | migration 變更          | 39 local／39 Hosted，最新皆為 `202609070001`；D1 套用後 role／commands／index／trigger、資料與 linked lint 驗證通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce，並報 raw／gzip／Brotli；Brotli 無門檻。required CI 跑 production preview Chromium；WebKit preview 留在非阻擋 job                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 下一步                  | 執行 `FA-06 stage 4.5` 唯讀 facade 評估：重新盤點 86 個 harness calls、production imports 與逐一 export caller；只有新 owner 已有直接測試且舊 bridge 可同批刪除才退役，否則明確保留。Hosted C 真實 Push 與 B13.3 UI 仍分別等待產品確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 下一步                  | 執行 `FA-06 stage 4.6` 原子 facade 退役：先加不可回復 gate，讓 production／Node／Playwright 直接使用真正 owner，搬 2 個 discovery DOM renderer 並同步三份 AST inventory，同批刪除 `sessionViews.js`；完整回歸不通過就不提交。Hosted C 真實 Push 與 B13.3 UI 仍分別等待產品確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 查實際 Git 狀態：
 
@@ -2283,7 +2284,7 @@ Hosted deploy／secret／request／DB write：未執行
   `sessionPresentation.ts` 的 `Object.freeze` 計數，以及 1 組歷史文件措辭斷言，不包含真正的 lazy、生命週期、
   可及性或隱私契約。
 - 現況精確為：`surfaceManifest.js` 81 行／3 consumers、14 lazy sheets、14 unmount registrations、
-  4 個頂層 configure、2 個頂層 preload listeners，以及 86 個分布於 11 支 spec 的 `sessionViews` harness calls。
+  4 個頂層 configure、2 個頂層 preload listeners，以及 87 個分布於 12 支 spec 的 `sessionViews` harness calls。
 - 下一批先讓 manifest 記錄 lazy loader、unmount wiring 與 auth preload 的真實 owner；測試不再寫死
   `sessionViews.js` 後，才依序搬 loader、4 個 configure、listener 與 app-module wiring。
 - `deferSurfaceOpen` 搬檔時必須同步更新 HTML renderer inventory、DOM mutation ledger；listener 搬檔時要同步
@@ -2311,7 +2312,7 @@ Hosted deploy／secret／request／DB write：未執行
 - 14 個 dynamic imports、14 個 mount bindings／preloaders、loading shell HTML 與 `deferSurfaceOpen` 已從
   `sessionViews.js` 搬到 `src/views/surfaceLoaders.js`；舊實作同步刪除。
 - `sessionViews.js` 只透過 `lazySurfaceMounts` 與 preloader 使用 loader 底座。4 個 configure、14 個 unmount
-  registrations、2 個 authenticated preload listeners 與 app-module wiring 尚未搬，86 個 browser harness calls 未改。
+  registrations、2 個 authenticated preload listeners 與 app-module wiring 尚未搬，87 個 browser harness calls 未改。
 - surface source owner、HTML renderer inventory 與 DOM mutation ledger 都已改指新檔；AST 基線實測為
   18 files／125 nodes／34 symbols／112 references，只有 owner file 數增加。
 - lazy lifecycle targeted 14／14、Node 638／5 skipped、Chromium 348／4 skipped、production preview 5／5，
@@ -2329,7 +2330,7 @@ Hosted deploy／secret／request／DB write：未執行
 - `PROFILE_PUBLIC_DISCLOSURE`、`sessionFormSheetRuntime` 已隨真實使用者搬移並保持 private；唯一
   `NTRP_SCALE_EXPLANATION` 定義也在 wiring owner，facade 只保留相容 re-export。
 - `sessionViews.js` 從 448 行降到 284 行，舊 configure calls 歸零；2 個 preload listeners、app-module wiring 與
-  86 個 browser harness calls 尚未搬。
+  87 個 browser harness calls 尚未搬。
 - 暫時移除 main explicit call 時 lifecycle 6／1 fail，還原後 7／7；targeted 151／151、lazy lifecycle 14／14、
   Node 638／5 skipped、Chromium 348／4 skipped、production preview 5／5，526 modules production build 與 bundle
   結構 gate 通過。
@@ -2345,7 +2346,7 @@ Hosted deploy／secret／request／DB write：未執行
   listeners 已搬到 `sessionViewWiring.js`；`main.js` 直接從真實 owner import。
 - `configureSessionViewModules` 內的 private installer 有 module-level guard。測試連續 configure 兩次，只記錄
   `pointerover` 與 `focusin` 各一次，並核對 passive option；既有 facade 以 re-export 保留相容名稱。
-- `sessionViews.js` 從 284 行降到 167 行；4 configure、14 unmount、14 lazy sheets、2 listeners 與 86 個
+- `sessionViews.js` 從 284 行降到 167 行；4 configure、14 unmount、14 lazy sheets、2 listeners 與 87 個
   browser harness calls 的契約數量都沒有改變。
 - browser port AST 實掃只把 facade 的 top-level document／`preloadForIntent::Element` 換成
   `sessionViewWiring` 的 installer document／`preloadForIntent::Element`，UI global 總數仍是 54。
@@ -2356,6 +2357,20 @@ Hosted deploy／secret／request／DB write：未執行
   enforce 未放寬。詳細證據見
   `frontend-architecture-fa-06-stage-4-4-app-module-preload-wiring-2026-09-07.md`。
 - 本批沒有 UI／資料 contract、migration、Hosted、secret、deploy 或 production 設定變更。
+
+## FA-06 stage 4.5 `sessionViews` facade 退役評估
+
+- AST 實掃確認 facade 現有 40 exports：27 個轉呼叫、11 個 re-export、2 個本檔 DOM renderer；真正 owner 均已存在。
+- production 只有 `main.js` 這 1 個 importer、17 個 named imports；全部可直接改用 form／session／discovery／
+  profile／presentation owner。
+- browser harness 現況為 87 calls／12 specs、實際使用 17 個 exports；3 支 Node 功能測試另使用 11 個 exports。
+- final-v3 的 86／11 是 FA-04 phase 0b 前的正確歷史基線；`63d38ea` 新增 live-root spec 與 1 次 import 後變成
+  87／12。FA-06 preflight 到 4.4 誤沿用舊數字，已更正；不改寫歷史 final-v3。
+- 不做 partial cleanup。下一批先加不可回復 gate，再讓 production 與測試直接 import 真正 owner、把最後 2 個
+  renderer 搬到 discovery owner、同步 HTML／mutation／browser-port inventory，並同批刪除 facade。
+- targeted Node baseline 210／210 通過。詳細證據見
+  `frontend-architecture-fa-06-stage-4-5-facade-evaluation-2026-09-07.md`；本批只有文件，沒有 runtime、UI、
+  migration、Hosted、secret、deploy 或 request 變更。
 
 ## 已知阻塞與風險
 
@@ -2445,8 +2460,9 @@ Hosted deploy／secret／request／DB write：未執行
    D1 Hosted migration、專用 DB credential、六個 canary-only Secret、獨立 canary deploy 與 no-write probe 都已完成。
    不要重做 Hosted B，也不要把 canary 設定改成 active 設定。Hosted C 的真實 browser fixture／`dispatch` 仍要產品確認；
    FA-04 phase 0a／0b 與 FA-05 phase 1／2／3 已完成；production preview／效能基線與 Bundle ADR 不要重做。
-   FA-06 階段 4 preflight、4.1 manifest、4.2 loader、4.3 configure 與 4.4 app-module／preload wiring 已完成；
-   下一步做 4.5 唯讀 facade 評估，先重算 production import 與 86 個 harness calls，不為減少檔案數硬拆。
+   FA-06 階段 4 preflight、4.1 manifest、4.2 loader、4.3 configure、4.4 app-module／preload wiring 與 4.5
+   facade 評估已完成；下一步做 4.6 原子 facade 退役。現況是 87 個 harness calls／12 specs；production、Node 與
+   browser tests 必須同批改用真正 owner，否則不提交半套狀態。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -2572,8 +2588,9 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-07 | FA-05 phase 1                    | 刪除 auth-null no-op preload，只留 verified identity transition；3 個檔內名稱改私有；13 個零 production caller 的 runtime re-export 與 10 組失效鷹架退場，2 個實用 helper re-export 保留。Node 639／5 skipped、Playwright 350／4 skipped、bundle gates 通過；production JS -21 raw／-32 gzip。               |
 | 2026-09-07 | FA-05 phase 2                    | production build＋preview 覆蓋 anonymous／authenticated／OAuth callback／390px Chromium 與 WebKit；private chunk 同 probe 有 negative／positive control，checker 新增 Brotli 報告。production-equivalent bundle 差異 0；frontend、local 與 preview 回歸通過。                                                |
 | 2026-09-07 | FA-05 phase 3                    | Bundle ADR 採 A 維持完整 client＋facade；B／C／D 不採，E 只保留條件式隔離 PoC。核對 9 個 production imports、boot 時序、package attribution、`setAuth` 實況與目前 14＋8 個 non-byte／Sentry provenance gates；只有文件變更。                                                                                 |
-| 2026-09-07 | FA-06 stage 4 preflight          | 唯讀核對 81 行／3 consumers 的 manifest、14 lazy sheets、14 unmount registrations、4 configure、2 preload listeners、86 個 facade harness calls 與 5 組可退役字面 gate；targeted 121／121，下一步先做 tests-only manifest 化。                                                                               |
+| 2026-09-07 | FA-06 stage 4 preflight          | 唯讀核對 81 行／3 consumers 的 manifest、14 lazy sheets、14 unmount registrations、4 configure、2 preload listeners、87 個 facade harness calls 與 5 組可退役字面 gate；targeted 121／121，下一步先做 tests-only manifest 化。                                                                               |
 | 2026-09-07 | FA-06 stage 4.1                  | manifest 新增 3 個 frozen structure owners；lazy／unmount／auth gate 不再寫死 facade。精確退役 5 組純字面凍結；missing-owner canary 紅、還原 7／7，Node 638／5 skipped、Chromium 348／4 skipped 與 bundle 結構 gate 通過；零 runtime 變更。                                                                  |
 | 2026-09-07 | FA-06 stage 4.2                  | 14 個 dynamic imports、mount bindings／preloaders、loading shell 與 `deferSurfaceOpen` 搬到 `surfaceLoaders.js`；manifest／HTML inventory／mutation ledger 同步換 owner。Node 638／5 skipped、Chromium 348／4 skipped、preview 5／5 與 bundle 結構 gate 通過；UI／資料／Hosted 未變。                        |
 | 2026-09-07 | FA-06 stage 4.3                  | 4 個 configure 與 14 個 unmount registrations 搬到 `sessionViewWiring.js`，main 明確呼叫並鎖 discovery → session → profile → form；facade 降至 284 行。Node 638／5 skipped、Chromium 348／4 skipped、preview 5／5，UI／資料／Hosted 未變。                                                                   |
 | 2026-09-07 | FA-06 stage 4.4                  | app-module state、login renderer、preloads 與 2 listeners 搬到 wiring；重複 configure 實測只綁 2 次。browser port 只換 owner，facade 降至 167 行。Node 639／5 skipped、Chromium 348／4 skipped、preview 5／5，UI／資料／Hosted 未變。                                                                        |
+| 2026-09-07 | FA-06 stage 4.5                  | AST／Git 歷史確認 facade 40 exports、production 17 imports／1 importer、browser 87 calls／12 specs。86／11 是 phase 0b 前基線；決定下一批直接 owner 化並同批刪 facade，不留 test-only bridge。targeted Node 210／210；本批只有文件。                                                                         |

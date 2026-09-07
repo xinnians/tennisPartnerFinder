@@ -37,7 +37,7 @@ Hosted 或 production 設定。
 | unmount registrations                | 14，仍由 `sessionViews.js` 擁有 |
 | 頂層 configure calls                 |  4，仍由 `sessionViews.js` 擁有 |
 | authenticated preload listeners      |  2，仍由 `sessionViews.js` 擁有 |
-| `sessionViews` browser harness calls |           86，分布於 11 支 spec |
+| `sessionViews` browser harness calls |           87，分布於 12 支 spec |
 
 正式 DOM mutation AST 基線變成 18 files／125 nodes／34 symbols／112 references。只有 owner file 數由 17 增為
 18；node、symbol 與 reference 數都沒有改變。這組數字來自 gate 的實際掃描結果，再據此更新 manifest，沒有預填猜測。
@@ -92,7 +92,7 @@ Production preview 實際覆蓋：
 ## 本批未做
 
 - 沒有搬 4 個 configure calls、unmount wiring、authenticated preload listeners 或 app-module wiring。
-- 沒有改 86 個 `sessionViews` browser harness calls。
+- 沒有改 87 個 `sessionViews` browser harness calls。
 - 沒有改 UI 文案、互動、導航、focus、資料 contract、migration、Supabase、Hosted、secret 或 deploy。
 - 沒有啟用 Push v2 runtime，也沒有執行 Hosted request。
 

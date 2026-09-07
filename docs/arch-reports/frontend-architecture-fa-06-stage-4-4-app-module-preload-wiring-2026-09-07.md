@@ -23,7 +23,7 @@ UI、資料、migration 或 Hosted 變更。
   - `pointerover` 仍保留 passive option，`focusin` 行為不變。
 - `main.js` 直接從 `sessionViewWiring.js` 匯入 7 個 wiring／bridge API；surface open／DOM adapter facade 仍從
   `sessionViews.js` 匯入。
-- `sessionViews.js` re-export 8 個相容 API，86 個 browser harness calls 不必改名。
+- `sessionViews.js` re-export 8 個相容 API，87 個 browser harness calls 不必改名。
 - `SURFACE_MANIFEST.structureSources.authenticatedPreload` 與 browser port manifest 都同步改指向真實 owner。
 
 ## 結構核對
@@ -34,7 +34,7 @@ UI、資料、migration 或 Hosted 變更。
 | configure calls／unmount registrations | 4／14，wiring owner |            4／14，wiring owner |
 | intent listeners                       |     2，facade owner |                2，wiring owner |
 | browser port entries                   |       54 UI globals | 54 UI globals，只換 2 個 owner |
-| `sessionViews` browser harness calls   |        86／11 specs |                   86／11 specs |
+| `sessionViews` browser harness calls   |        87／12 specs |                   87／12 specs |
 
 AST browser port gate 的第一次實掃只出現以下精確差異：
 
@@ -88,12 +88,12 @@ Production preview 再次覆蓋 anonymous／authenticated／OAuth callback，以
 
 ## 本批未做
 
-- 沒有改 `sessionViews` 的 86 個 browser harness calls，也沒有直接刪除 facade API。
+- 沒有改 `sessionViews` 的 87 個 browser harness calls，也沒有直接刪除 facade API。
 - 沒有改 preload 名冊、authenticated truthy gate、intent selector、UI、導航或 focus 行為。
 - 沒有改資料 contract、Push runtime、migration、Supabase、Hosted、secret、deploy 或 request。
 
 ## 下一步
 
-依 stage 4.5 先重新盤點 86 個 harness calls、production imports 與每個 facade export 的 caller。只有在新 owner
+依 stage 4.5 先重新盤點 87 個 harness calls、production imports 與每個 facade export 的 caller。只有在新 owner
 已有直接測試、production 能直接 import，且舊 bridge 可在同一批刪除時才退役 facade；若成本或風險不符，就保留
 facade 並把理由寫成明確結論，不為了減少檔案數硬改測試。

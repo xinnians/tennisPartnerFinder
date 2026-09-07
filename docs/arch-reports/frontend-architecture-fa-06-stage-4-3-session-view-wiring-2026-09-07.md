@@ -35,7 +35,7 @@ Hosted 或 production 設定。
 | `sessionViewWiring.js` surface configure |              0 |                4 |
 | unmount registrations                    |             14 |               14 |
 | authenticated preload listeners          | 2，位於 facade | 2，仍位於 facade |
-| `sessionViews` browser harness calls     |   86／11 specs |     86／11 specs |
+| `sessionViews` browser harness calls     |   87／12 specs |     87／12 specs |
 
 DOM mutation ledger 仍是 18 files／125 nodes／34 symbols／112 references；新 wiring 沒有新增直接 DOM mutation，
 因此不需要改動 mutation baseline。browser port manifest 也未改，因為 listener 與 `Element` 邊界尚未搬檔。
@@ -93,12 +93,12 @@ Production preview 再次覆蓋 anonymous／authenticated／OAuth callback，以
 
 - 沒有搬 `configureSessionViewModules`、app-module state、authenticated preloads、`pointerover`／`focusin`
   listeners 或 `Element` intent preloader。
-- 沒有改 86 個 facade browser harness calls。
+- 沒有改 87 個 facade browser harness calls。
 - 沒有改 UI、導航、focus、資料 contract、Push runtime、migration、Supabase、Hosted、secret、deploy 或 request。
 
 ## 下一步
 
 執行 stage 4.4：把 app-module wiring、authenticated preload state 與兩個 intent listeners 搬到專用 wiring owner，
 並把安裝 listener 做成可重複呼叫但不會重複註冊的明確函式。`main.js` 仍須在 controller 與首次 render 前完成一次
-接線；同批依 AST 實掃結果更新 browser port manifest。`sessionViews` facade 與 86 個 harness calls 留到 stage 4.5
+接線；同批依 AST 實掃結果更新 browser port manifest。`sessionViews` facade 與 87 個 harness calls 留到 stage 4.5
 再評估。
