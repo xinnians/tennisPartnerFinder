@@ -15,9 +15,11 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await page.evaluate(async () => {
     const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
+    const { createChatFeedHarness } = await import("/tests/fixtures/chatFeedHarness.ts");
     await preloadNonHomeViews("chat");
     window.__chatActions = [];
-    const sheet = openSessionChatSheet(
+    const chatFeed = createChatFeedHarness();
+    openSessionChatSheet(
       {
         court: "示範球場",
         courtDistrict: "大安區",
@@ -29,6 +31,7 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
       },
       {
         canWithdraw: true,
+        feed: chatFeed.feed,
         onBlock: (profileId) => window.__chatActions.push(["block", profileId]),
         onPost: (body) => window.__chatActions.push(["post", body]),
         onReport: (messageId) => window.__chatActions.push(["report", messageId]),
@@ -42,7 +45,7 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
     // 「訊息比可視區高、需要捲動」情境。
     feed.style.maxHeight = "1px";
     feed.style.overflow = "auto";
-    sheet.setState({
+    chatFeed.publish({
       messages: [
         {
           body: "球局資訊已更新",
@@ -82,7 +85,7 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
       ],
       status: "ready",
     });
-    window.__chatSheet = sheet;
+    window.__chatFeedHarness = chatFeed;
   });
 
   const chat = page.getByTestId("session-chat-sheet");
@@ -114,7 +117,7 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await expect(announcement).toHaveAttribute("aria-live", "polite");
   await expect(announcement).toHaveText("");
   await page.evaluate(() =>
-    window.__chatSheet.setState({
+    window.__chatFeedHarness.publish({
       messages: [
         {
           body: "這是刷新後的新訊息",
@@ -133,9 +136,9 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   );
   await expect(announcement).toHaveText("新增 1 則訊息");
 
-  await page.evaluate(() => window.__chatSheet.setState({ messages: [], roster: [], status: "ready" }));
+  await page.evaluate(() => window.__chatFeedHarness.publish({ messages: [], roster: [], status: "ready" }));
   await expect(chat).toContainText("目前還沒有訊息，從一句招呼開始吧。");
-  await page.evaluate(() => window.__chatSheet.setArchived());
+  await page.evaluate(() => window.__chatFeedHarness.feed.archive());
   await expect(chat.getByTestId("chat-message-input")).toBeDisabled();
   await expect(chat).toContainText("球局已封存");
   await expect(chat.locator("[data-chat-withdraw]")).toHaveCount(0);

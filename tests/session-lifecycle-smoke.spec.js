@@ -494,6 +494,7 @@ test("cancelling chat withdrawal keeps the action enabled and allows reopening c
   await page.evaluate(async () => {
     const { openSessionChatSheet, openWithdrawSessionConfirmation } =
       await window.__importAppModule("views/sessionSurfaceViews");
+    const { createChatFeedHarness } = await import("/tests/fixtures/chatFeedHarness.ts");
     window.__chatWithdrawConfirmationCount = 0;
     openSessionChatSheet(
       {
@@ -507,6 +508,7 @@ test("cancelling chat withdrawal keeps the action enabled and allows reopening c
       },
       {
         canWithdraw: true,
+        feed: createChatFeedHarness().feed,
         onWithdraw: () => {
           window.__chatWithdrawConfirmationCount += 1;
           return openWithdrawSessionConfirmation();
@@ -1220,6 +1222,7 @@ test("undecided candidate sessions keep their court list and time range across p
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
       const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
+      const { createChatFeedHarness } = await import("/tests/fixtures/chatFeedHarness.ts");
       const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
@@ -1259,7 +1262,7 @@ test("undecided candidate sessions keep their court list and time range across p
           upcoming: [session],
         },
       });
-      openSessionChatSheet(session, { courts: catalogue });
+      openSessionChatSheet(session, { courts: catalogue, feed: createChatFeedHarness().feed });
     },
     { candidateSession, courts }
   );
@@ -1371,6 +1374,7 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
   await page.evaluate(
     async ({ decidedSession: session, courts: catalogue }) => {
       const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
+      const { createChatFeedHarness } = await import("/tests/fixtures/chatFeedHarness.ts");
       const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
@@ -1390,7 +1394,7 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
           upcoming: [session],
         },
       });
-      openSessionChatSheet(session, { courts: catalogue });
+      openSessionChatSheet(session, { courts: catalogue, feed: createChatFeedHarness().feed });
     },
     { decidedSession, courts }
   );

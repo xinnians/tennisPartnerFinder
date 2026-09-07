@@ -665,7 +665,7 @@ export function createSessionController({
       return;
     }
     activeChat.session = session!;
-    if (MY_SESSION_FINAL_STATUSES.has(String(session!.status).toLowerCase())) activeChat.sheet?.setArchived?.();
+    if (MY_SESSION_FINAL_STATUSES.has(String(session!.status).toLowerCase())) activeChat.feed.archive();
   }
 
   async function commitPlayerVisibility(): Promise<void> {

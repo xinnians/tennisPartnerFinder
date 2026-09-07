@@ -378,8 +378,12 @@ function createHarness(overrides = {}) {
     },
     openChat: (openedSession, handlers) => {
       const detail = createSurface(handlers.onClose);
-      detail.archivedUpdates = [];
-      detail.setArchived = (message) => detail.archivedUpdates.push(message);
+      const unsubscribe = handlers.feed.subscribe(() => detail.stateUpdates.push(handlers.feed.getSnapshot()));
+      const close = detail.close.bind(detail);
+      detail.close = (options) => {
+        unsubscribe();
+        close(options);
+      };
       chatSheets.push({ detail, handlers, session: openedSession });
       return detail;
     },

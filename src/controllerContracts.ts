@@ -207,15 +207,21 @@ export interface ControllerRequestGate {
 }
 
 export interface ControllerChatFeedSnapshot {
+  archived: boolean;
+  errorMessage: string;
   messages: ChatMessage[];
+  revision: number;
   roster: SessionRosterEntry[];
+  status: SurfaceLoadStatus;
 }
 
 export interface ControllerChatFeedFacade {
+  archive(): void;
   getSnapshot(): Readonly<ControllerChatFeedSnapshot>;
   refresh(options?: { quiet?: boolean }): Promise<boolean>;
   start(): void;
   stop(): void;
+  subscribe(listener: () => void): () => void;
 }
 
 /** Imperative surface 的共同現況；不同 surface 只實作自己需要的命令。 */
@@ -228,7 +234,6 @@ export interface ControllerSurfaceHandle {
   setDirectory?(value: unknown): void;
   setInvitableSessions?(sessions?: MySessionSummary[] | null): void;
   setJoinPreview?(value: unknown): void;
-  setState?(value: unknown): void;
   setTerminal?(message: string): void;
 }
 

@@ -1,96 +1,164 @@
-import { createRef, forwardRef, useImperativeHandle, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+} from "react";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
-import type { ChatMessage, SessionRosterEntry } from "../domainTypes.ts";
+import type { ControllerChatFeedFacade, ControllerIdentifier } from "../controllerContracts.ts";
+import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { sessionChatSheetRuntime } from "../sessionPresentation.ts";
 import { mountSurfaceContent, type SurfaceContentLifecycle } from "../app/SurfaceHost.tsx";
 
-interface ChatRosterRow {
-  text: string;
-}
-
-interface ChatMessageRow {
-  body: string;
-  canGovern: boolean;
-  createdAt: string;
-  createdAtLabel: string;
-  isSelf: boolean;
-  kind: string;
-  messageId: string;
-  senderInitial: string;
-  senderNickname: string;
-  senderProfileId: string;
-  showAuthor: boolean;
-}
-
-export interface SessionChatContentContract {
-  setArchived(): void;
-  setContent(roster: readonly SessionRosterEntry[], messages: readonly ChatMessage[]): void;
-}
-
 interface SessionChatContentOptions {
-  archived: boolean;
   canWithdraw: boolean;
+  feed: ControllerChatFeedFacade;
   headerSub: string;
+  onBlock: (profileId: ControllerIdentifier) => unknown;
   onClose: () => void;
-  onFeedClick: (event: React.MouseEvent<HTMLElement>) => void;
+  onPost: (body: string) => unknown;
+  onReport: (messageId: ControllerIdentifier) => unknown;
+  onWithdraw: () => unknown;
   playType: string;
   venueBadge: string;
   venueCourt: string;
   venueTime: string;
 }
 
-interface SessionChatSheetProps extends SessionChatContentOptions {
-  contentRef: React.Ref<SessionChatContentContract>;
-}
-
-interface SessionChatRows {
-  messages: ChatMessageRow[] | null;
-  roster: ChatRosterRow[] | null;
-}
-
 function SessionChatSheet({
-  archived: initiallyArchived,
   canWithdraw,
-  contentRef,
+  feed,
   headerSub,
+  onBlock,
   onClose,
-  onFeedClick,
+  onPost,
+  onReport,
+  onWithdraw,
   playType,
   venueBadge,
   venueCourt,
   venueTime,
-}: SessionChatSheetProps) {
-  const [archived, setArchived] = useState(initiallyArchived);
-  // Legacy parity: mountSheet produced a roster container holding the "reading
-  // participants" line and a completely empty feed section, and only the first
-  // `setState()` replaced either of them. `null` reproduces that pre-setState
-  // shape, which is what a chat sheet shows until the chat feed owner resolves.
-  const [rows, setRows] = useState<SessionChatRows>({ messages: null, roster: null });
-  // The imperative sheet replaced both containers with innerHTML, so every
-  // refresh (including the 10s quiet poll) detached the previous roster chips and
-  // message nodes. Folding the refresh generation into the key recreates them the
-  // same way, keeping focus/selection loss and any future runAsyncAction
-  // `rerendered()` verdict identical to the string version. The two containers,
-  // the composer and every imperatively owned node stay outside the generation.
-  const [generation, setGeneration] = useState(0);
+}: SessionChatContentOptions) {
+  const subscribe = useCallback((listener: () => void) => feed.subscribe(listener), [feed]);
+  const getSnapshot = useCallback(() => feed.getSnapshot(), [feed]);
+  const feedState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const messages = useMemo(
+    () => sessionChatSheetRuntime.chatMessagesPresentation(feedState.messages),
+    [feedState.messages]
+  );
+  const roster = useMemo(() => sessionChatSheetRuntime.chatRosterPresentation(feedState.roster), [feedState.roster]);
+  const [actionError, setActionError] = useState("");
+  const [announcement, setAnnouncement] = useState("");
+  const [errorFocusRequest, setErrorFocusRequest] = useState(0);
+  const [posting, setPosting] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const feedRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const liveRef = useRef(true);
+  const knownMessageIdsRef = useRef<Set<string> | null>(null);
+  const nearBottomRef = useRef(true);
+  const postingRef = useRef(false);
+  const scrollRequestIdRef = useRef(0);
+  const previousArchivedRef = useRef(feedState.archived);
 
-  useImperativeHandle(
-    contentRef,
-    () => ({
-      setArchived() {
-        setArchived(true);
-      },
-      setContent(roster, messages) {
-        setRows({
-          messages: sessionChatSheetRuntime.chatMessagesPresentation(messages),
-          roster: sessionChatSheetRuntime.chatRosterPresentation(roster),
-        });
-        setGeneration((value) => value + 1);
-      },
-    }),
+  useEffect(
+    () => () => {
+      liveRef.current = false;
+      scrollRequestIdRef.current += 1;
+    },
     []
   );
+
+  // Every authoritative feed publication used to clear a previous surface
+  // action error. Keep that rule while React remains the only owner of the node.
+  useEffect(() => {
+    setActionError("");
+  }, [feedState.revision]);
+
+  useLayoutEffect(() => {
+    if (errorFocusRequest > 0) errorRef.current?.focus({ preventScroll: true });
+  }, [errorFocusRequest]);
+
+  const scrollFeedToLatest = useCallback(() => {
+    const target = feedRef.current;
+    if (!target) return;
+    const requestId = ++scrollRequestIdRef.current;
+    const scroll = () => {
+      if (requestId !== scrollRequestIdRef.current || feedRef.current !== target) return;
+      target.scrollTop = target.scrollHeight;
+      nearBottomRef.current = true;
+    };
+    scroll();
+    requestAnimationFrame(() => {
+      scroll();
+      requestAnimationFrame(scroll);
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    const becameArchived = !previousArchivedRef.current && feedState.archived;
+    previousArchivedRef.current = feedState.archived;
+    if (nearBottomRef.current || becameArchived) scrollFeedToLatest();
+  }, [feedState.archived, feedState.messages, scrollFeedToLatest]);
+
+  useEffect(() => {
+    if (feedState.status !== "ready") return;
+    const nextMessageIds = new Set(
+      feedState.messages.map((message) => String(message?.messageId ?? "")).filter(Boolean)
+    );
+    const knownMessageIds = knownMessageIdsRef.current;
+    const newMessageCount = knownMessageIds
+      ? [...nextMessageIds].filter((messageId) => !knownMessageIds.has(messageId)).length
+      : 0;
+    setAnnouncement(newMessageCount ? `新增 ${newMessageCount} 則訊息` : "");
+    knownMessageIdsRef.current = nextMessageIds;
+  }, [feedState.messages, feedState.status]);
+
+  function showActionError(message: string, { focus = false } = {}): void {
+    if (!liveRef.current) return;
+    setActionError(message);
+    if (focus) setErrorFocusRequest((value) => value + 1);
+  }
+
+  async function runGovernanceAction(action: () => unknown, fallback: string): Promise<void> {
+    setActionError("");
+    try {
+      await action();
+    } catch (error) {
+      showActionError(sessionActionMessage(error, fallback));
+    }
+  }
+
+  async function submitMessage(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (feedState.archived || postingRef.current) return;
+    const input = inputRef.current;
+    const body = String(input?.value ?? "").trim();
+    setActionError("");
+    if (!body || body.length > 1000) {
+      showActionError("請輸入 1 至 1000 字的純文字訊息。");
+      return;
+    }
+    postingRef.current = true;
+    setPosting(true);
+    try {
+      await onPost(body);
+      if (liveRef.current && input && inputRef.current === input) input.value = "";
+    } catch (error) {
+      showActionError(sessionActionMessage(error, "訊息暫時無法傳送，請稍後再試。"), { focus: true });
+    } finally {
+      postingRef.current = false;
+      if (liveRef.current) setPosting(false);
+    }
+  }
+
+  const errorMessage = actionError || feedState.errorMessage;
+  const archived = feedState.archived;
 
   return (
     <>
@@ -132,40 +200,46 @@ function SessionChatSheet({
         <section className="chat-roster" aria-labelledby="chat-roster-title">
           <h3 id="chat-roster-title">參加者</h3>
           <div data-chat-roster="">
-            {rows.roster === null ? (
-              <p key={`${generation}:roster-pending`} className="surface__copy">
-                正在讀取參加者…
-              </p>
-            ) : rows.roster.length === 0 ? (
-              <p key={`${generation}:roster-empty`} className="surface__copy">
-                參加者名單暫時沒有可顯示的資料。
-              </p>
+            {roster.length === 0 ? (
+              <p className="surface__copy">參加者名單暫時沒有可顯示的資料。</p>
             ) : (
-              rows.roster.map((row, index) => (
-                <span key={`${generation}:${index}`} className="chat-roster__member">
+              roster.map((row, index) => (
+                <span key={`${row.text}:${index}`} className="chat-roster__member">
                   {row.text}
                 </span>
               ))
             )}
           </div>
         </section>
-        {/* `hidden`/`textContent` on the next two nodes stay imperative: setState,
-            the composer validation branch and runAsyncAction keep
-            owning them, and React never declares a changing prop for either. */}
-        <p className="my-sessions-message" data-chat-loading="" role="status" aria-live="polite">
+        <p
+          className="my-sessions-message"
+          data-chat-loading=""
+          role="status"
+          aria-live="polite"
+          hidden={feedState.status !== "loading"}
+        >
           正在讀取群組訊息…
         </p>
-        <p className="form-error" data-chat-error="" role="alert" tabIndex={-1} hidden />
+        <p ref={errorRef} className="form-error" data-chat-error="" role="alert" tabIndex={-1} hidden={!errorMessage}>
+          {errorMessage}
+        </p>
       </div>
-      <section className="chat-feed qm-scroll" data-chat-feed="" aria-label="群組訊息" onClick={onFeedClick}>
-        {rows.messages === null ? null : rows.messages.length === 0 ? (
-          <p key={`${generation}:feed-empty`} className="surface__copy chat-feed__empty">
-            目前還沒有訊息，從一句招呼開始吧。
-          </p>
+      <section
+        ref={feedRef}
+        className="chat-feed qm-scroll"
+        data-chat-feed=""
+        aria-label="群組訊息"
+        onScroll={(event) => {
+          const target = event.currentTarget;
+          nearBottomRef.current = target.scrollHeight - target.scrollTop - target.clientHeight < 48;
+        }}
+      >
+        {messages.length === 0 ? (
+          <p className="surface__copy chat-feed__empty">目前還沒有訊息，從一句招呼開始吧。</p>
         ) : (
-          rows.messages.map((row, index) => (
+          messages.map((row, index) => (
             <article
-              key={`${generation}:${index}`}
+              key={`${row.messageId}:${index}`}
               className={`chat-message chat-message--${row.kind}${row.isSelf ? " chat-message--self" : ""}`}
               data-chat-message=""
               data-chat-message-id={row.messageId}
@@ -184,7 +258,12 @@ function SessionChatSheet({
                   <time dateTime={row.createdAt}>{row.createdAtLabel}</time>
                   {row.canGovern ? (
                     <>
-                      <button type="button" className="session-tertiary" data-chat-report={row.messageId}>
+                      <button
+                        type="button"
+                        className="session-tertiary"
+                        data-chat-report={row.messageId}
+                        onClick={() => void runGovernanceAction(() => onReport(row.messageId), "目前無法開啟檢舉。")}
+                      >
                         檢舉
                       </button>
                       <button
@@ -192,6 +271,12 @@ function SessionChatSheet({
                         className="session-tertiary"
                         data-chat-block={row.senderProfileId}
                         data-testid={`block-message-sender-${row.senderProfileId}`}
+                        onClick={() =>
+                          void runGovernanceAction(
+                            () => onBlock(row.senderProfileId),
+                            "封鎖設定暫時無法更新，請稍後再試。"
+                          )
+                        }
                       >
                         封鎖
                       </button>
@@ -203,30 +288,33 @@ function SessionChatSheet({
           ))
         )}
       </section>
-      {/* Announcement text is written by setState's new-message diff only. */}
-      <p className="visually-hidden" data-chat-announcement="" role="status" aria-live="polite" aria-atomic="true" />
+      <p className="visually-hidden" data-chat-announcement="" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
       <p className="chat-archived-note" data-chat-archived-note="" hidden={!archived}>
         球局已封存；你仍可查看先前訊息，但不能再傳送。
       </p>
-      {/* The composer keeps stable DOM identity across every refresh: runAsyncAction
-          watches these two controls, so recreating them mid-post would flip
-          `rerendered()` and reverse the disabled-restore semantics. React owns the
-          archived transition; runAsyncAction may temporarily write disabled while
-          an active post is pending. */}
-      <form className="chat-composer" data-chat-composer="">
+      <form className="chat-composer" data-chat-composer="" onSubmit={(event) => void submitMessage(event)}>
         <label htmlFor="chat-message-input" className="visually-hidden">
           傳送純文字訊息
         </label>
         <input
+          ref={inputRef}
           id="chat-message-input"
           data-testid="chat-message-input"
           type="text"
           autoComplete="off"
           maxLength={1000}
           placeholder="傳訊息給球局成員…"
-          disabled={archived}
+          disabled={archived || posting}
         />
-        <button type="submit" className="chat-v2__send" data-testid="chat-send" disabled={archived} aria-label="傳送">
+        <button
+          type="submit"
+          className="chat-v2__send"
+          data-testid="chat-send"
+          disabled={archived || posting}
+          aria-label="傳送"
+        >
           <svg
             width="18"
             height="18"
@@ -243,7 +331,7 @@ function SessionChatSheet({
         </button>
       </form>
       {canWithdraw && !archived ? (
-        <button type="button" className="session-tertiary chat-v2__withdraw" data-chat-withdraw="">
+        <button type="button" className="session-tertiary chat-v2__withdraw" data-chat-withdraw="" onClick={onWithdraw}>
           取消參加
         </button>
       ) : null}
@@ -251,41 +339,16 @@ function SessionChatSheet({
   );
 }
 
-const SessionChatSheetWithRef = forwardRef<SessionChatContentContract, SessionChatContentOptions>(
-  function SessionChatSheetWithRef(props, ref) {
-    return <SessionChatSheet {...props} contentRef={ref} />;
-  }
-);
-
-/** Mount React into mountSheet's surface contents and expose synchronous feed updates. */
+/** Mount the React-owned chat surface into the shared SurfaceHost portal. */
 export function mountSessionChatSheetContent(
   rootElement: HTMLElement,
   options: SessionChatContentOptions
-): SessionChatContentContract & SurfaceContentLifecycle {
+): SurfaceContentLifecycle {
   const surfaceContent = mountSurfaceContent(rootElement);
-  const contentRef = createRef<SessionChatContentContract>();
-  let boundaryFailed = false;
   surfaceContent.render(
-    <AppErrorBoundary
-      rootElement={rootElement}
-      surface="session-chat-sheet"
-      onError={() => {
-        boundaryFailed = true;
-      }}
-    >
-      <SessionChatSheetWithRef {...options} ref={contentRef} />
+    <AppErrorBoundary rootElement={rootElement} surface="session-chat-sheet">
+      <SessionChatSheet {...options} />
     </AppErrorBoundary>
   );
-  if (!contentRef.current && !boundaryFailed) throw new Error("SessionChatSheet content did not mount.");
-
-  return {
-    isSurfaceRootLive: surfaceContent.isSurfaceRootLive,
-    setArchived() {
-      surfaceContent.commit(() => contentRef.current?.setArchived());
-    },
-    setContent(roster, messages) {
-      surfaceContent.commit(() => contentRef.current?.setContent(roster, messages));
-    },
-    unmount: surfaceContent.unmount,
-  };
+  return surfaceContent;
 }

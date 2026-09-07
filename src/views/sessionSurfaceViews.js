@@ -1,5 +1,4 @@
 import { mountDialog, mountSheet } from "../sheets.ts";
-import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { sessionScheduleLabel, sessionVenuePresentation } from "../sessionPresentation.ts";
 
@@ -40,6 +39,7 @@ export function openSessionChatSheet(
   {
     canWithdraw = false,
     courts = [],
+    feed,
     onBlock = () => {},
     onClose = () => {},
     onPost = () => {},
@@ -53,13 +53,14 @@ export function openSessionChatSheet(
       label: "球局群組聊天",
       className: "session-chat-sheet",
       load: preloadSessionChatSheet,
-      methods: ["setArchived", "setState"],
       onClose,
       open: () =>
-        openSessionChatSheet(session, { canWithdraw, courts, onBlock, onClose, onPost, onReport, onWithdraw }),
+        openSessionChatSheet(session, { canWithdraw, courts, feed, onBlock, onClose, onPost, onReport, onWithdraw }),
     });
   }
-  let archived = ["cancelled", "expired", "played"].includes(String(session?.status).toLowerCase());
+  if (!feed || typeof feed.getSnapshot !== "function" || typeof feed.subscribe !== "function") {
+    throw new TypeError("Chat feed is unavailable.");
+  }
   const venue = sessionVenuePresentation(session, courts);
   // 批 D7:header 副行沿用抽取規格 §4 chatSub 語意(今天/明天/週X + 時刻 + 主揪
   // X/我),與既有 .chat-session-summary(下方保留,aria-label="球局資訊",供
@@ -73,129 +74,21 @@ export function openSessionChatSheet(
     html: "",
   });
   const content = lazyMounts.sessionChat(mounted.surface, {
-    archived,
     canWithdraw,
+    feed,
     headerSub,
+    onBlock,
     onClose: () => mounted.close(),
-    onFeedClick: (event) => handleFeedClick(event),
+    onPost,
+    onReport,
+    onWithdraw,
     playType: String(session.playType),
     venueBadge: venue.badge,
     venueCourt: venue.court,
     venueTime: venue.time,
   });
   registerChatContent(mounted, content);
-  const feed = mounted.root.querySelector("[data-chat-feed]");
-  const loading = mounted.root.querySelector("[data-chat-loading]");
-  const error = mounted.root.querySelector("[data-chat-error]");
-  const input = mounted.root.querySelector("[data-testid='chat-message-input']");
-  const send = mounted.root.querySelector("[data-testid='chat-send']");
-  const announcement = mounted.root.querySelector("[data-chat-announcement]");
-  let feedInitialized = false;
-  let knownMessageIds = new Set();
-  let scrollRequestId = 0;
-
-  function scrollFeedToLatest() {
-    const requestId = ++scrollRequestId;
-    const scroll = () => {
-      if (requestId !== scrollRequestId || !mounted.root.contains(feed)) return;
-      feed.scrollTop = feed.scrollHeight;
-    };
-    scroll();
-    requestAnimationFrame(() => {
-      scroll();
-      requestAnimationFrame(scroll);
-    });
-  }
-
-  function setArchived(message = "") {
-    archived = true;
-    // Keep React's DOM ownership coherent: the withdraw button is conditional
-    // React output, so the archived transition must remove it through a render.
-    // Imperatively detaching it makes a later root.unmount() call removeChild on
-    // an already-removed node (the batch-20 archived-chat close regression).
-    content.setArchived();
-    if (message) {
-      error.textContent = message;
-      error.hidden = false;
-      error.focus({ preventScroll: true });
-    }
-    scrollFeedToLatest();
-  }
-
-  function setState({ errorMessage = "", messages = [], roster: participants = [], status = "ready" } = {}) {
-    const safeMessages = Array.isArray(messages) ? messages : [];
-    loading.hidden = status !== "loading";
-    if (status === "loading") loading.textContent = "正在讀取群組訊息…";
-    error.textContent = errorMessage;
-    error.hidden = !errorMessage;
-    // 背景輪詢會週期重繪 feed:只有在使用者本來就貼近底部時才跟捲到底,回看歷史時
-    // 保留原捲動位置(React 以 generation key 重建全部訊息節點,與舊 innerHTML 置換
-    // 一樣會歸零 scrollTop,必須先量後還原)。
-    const nearBottom = !feedInitialized || feed.scrollHeight - feed.scrollTop - feed.clientHeight < 48;
-    const previousScrollTop = feed.scrollTop;
-    content.setContent(participants, safeMessages);
-    if (nearBottom) scrollFeedToLatest();
-    else feed.scrollTop = previousScrollTop;
-    if (status === "ready") {
-      const nextMessageIds = new Set(safeMessages.map((message) => String(message?.messageId ?? "")).filter(Boolean));
-      const newMessageCount = feedInitialized
-        ? [...nextMessageIds].filter((messageId) => !knownMessageIds.has(messageId)).length
-        : 0;
-      announcement.textContent = newMessageCount ? `新增 ${newMessageCount} 則訊息` : "";
-      knownMessageIds = nextMessageIds;
-      feedInitialized = true;
-    }
-  }
-
-  mounted.root.querySelector("[data-chat-composer]")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (archived || send.disabled) return;
-    const body = String(input.value ?? "").trim();
-    error.hidden = true;
-    if (!body || body.length > 1000) {
-      error.textContent = "請輸入 1 至 1000 字的純文字訊息。";
-      error.hidden = false;
-      return;
-    }
-    await runAsyncAction({
-      root: mounted.root,
-      callback: () => onPost(body),
-      controls: [send, input],
-      error,
-      clearError: false,
-      errorMessage: "訊息暫時無法傳送，請稍後再試。",
-      errorFocus: true,
-      onSuccess: () => {
-        input.value = "";
-      },
-      canRestoreControls: () => !archived,
-    });
-  });
-  // 委派語意不變:onClick 宣告在 [data-chat-feed] 上(React 18 的原生 listener 掛在
-  // createRoot 容器,feed 與容器之間無 stopPropagation),訊息節點被 generation key
-  // 重建也不需要重新綁定,`event.target.closest()` 的判準與舊 addEventListener 版
-  // 逐字相同。
-  const handleFeedClick = (event) => {
-    const reportButton = event.target.closest("[data-chat-report]");
-    const blockButton = event.target.closest("[data-chat-block]");
-    if (reportButton)
-      void Promise.resolve()
-        .then(() => onReport(reportButton.dataset.chatReport))
-        .catch((reportError) => {
-          error.textContent = sessionActionMessage(reportError, "目前無法開啟檢舉。");
-          error.hidden = false;
-        });
-    if (blockButton)
-      void Promise.resolve(onBlock(blockButton.dataset.chatBlock)).catch((blockError) => {
-        error.textContent = sessionActionMessage(blockError, "封鎖設定暫時無法更新，請稍後再試。");
-        error.hidden = false;
-      });
-  };
-  mounted.root.querySelector("[data-chat-withdraw]")?.addEventListener("click", () => {
-    onWithdraw();
-  });
-
-  return { ...mounted, setArchived, setState };
+  return mounted;
 }
 
 /**

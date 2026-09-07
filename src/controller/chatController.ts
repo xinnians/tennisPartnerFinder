@@ -1,7 +1,5 @@
 import { chatMemberSession, visibleChatMessage } from "../features/chat/chatFeature.ts";
 import { createChatFeedFacade } from "../features/chat/chatFeedFacade.ts";
-import { sessionActionMessage } from "../sessionActionMessages.ts";
-
 import type {
   ControllerAuthSnapshot,
   ControllerChatSurfaceContext,
@@ -36,6 +34,7 @@ interface ChatControllerDependencies {
     handlers: {
       canWithdraw: boolean;
       courts: unknown[];
+      feed: ControllerChatSurfaceContext["feed"];
       onBlock(profileId: ControllerIdentifier): Promise<true>;
       onClose(): void;
       onPost(body: unknown): Promise<unknown>;
@@ -144,7 +143,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
         isCurrentAuthSnapshot(context.authSnapshot) &&
         actionCode(error) === "SESSION_ARCHIVED"
       ) {
-        context.sheet?.setArchived?.(sessionActionMessage(error, ""));
+        context.feed.archive();
         await refreshMySessions();
       }
       throw error;
@@ -158,25 +157,26 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     }
     transitionSurfaces("openChat");
     let context = null as ControllerChatSurfaceContext | null;
+    const feed = createChatFeedFacade({
+      api,
+      authSnapshot,
+      clearUnread: clearMySessionUnread,
+      initiallyArchived: ["cancelled", "expired", "played"].includes(String(session.status).toLowerCase()),
+      intervalMs: chatPollIntervalMs,
+      isActive: () => surfaceRegistry.is("chat", context),
+      isCurrentAuthSnapshot,
+      sessionId: session.sessionId,
+      visibilityTarget,
+    });
     const sheet = openChat(session, {
       canWithdraw: Boolean(session.canWithdraw),
       courts: readCourts(),
+      feed,
       onBlock: (profileId) => blockChatSender(context as ControllerChatSurfaceContext, profileId),
       onClose: () => surfaceRegistry.release("chat", context),
       onPost: (body) => postActiveChatMessage(context as ControllerChatSurfaceContext, body),
       onReport: (messageId) => openChatMessageReport(context as ControllerChatSurfaceContext, messageId),
       onWithdraw: () => withdrawMySession(session.sessionId),
-    });
-    const feed = createChatFeedFacade({
-      api,
-      authSnapshot,
-      clearUnread: clearMySessionUnread,
-      intervalMs: chatPollIntervalMs,
-      isActive: () => surfaceRegistry.is("chat", context),
-      isCurrentAuthSnapshot,
-      publish: (state) => context?.sheet?.setState?.(state),
-      sessionId: session.sessionId,
-      visibilityTarget,
     });
     context = {
       authSnapshot,

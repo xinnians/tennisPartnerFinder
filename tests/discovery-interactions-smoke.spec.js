@@ -817,15 +817,20 @@ test("390px primary map, filter, and chat governance targets are at least 44px",
   await page.goto("/");
   await page.evaluate(async () => {
     const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
-    const chat = openSessionChatSheet({
-      court: "青年公園網球場",
-      courtDistrict: "萬華區",
-      playType: "雙打",
-      sessionId: 8812,
-      startAt: "2099-07-19T01:00:00.000Z",
-      status: "open",
-    });
-    chat.setState({
+    const { createChatFeedHarness } = await import("/tests/fixtures/chatFeedHarness.ts");
+    const chatFeed = createChatFeedHarness();
+    openSessionChatSheet(
+      {
+        court: "青年公園網球場",
+        courtDistrict: "萬華區",
+        playType: "雙打",
+        sessionId: 8812,
+        startAt: "2099-07-19T01:00:00.000Z",
+        status: "open",
+      },
+      { feed: chatFeed.feed }
+    );
+    chatFeed.publish({
       messages: [
         {
           body: "一起打球",

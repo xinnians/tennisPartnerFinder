@@ -43,13 +43,14 @@ function facadeHarness({ api, intervalMs = 0, visibilityTarget } = {}) {
       cleared.push(sessionId);
       return true;
     },
+    initiallyArchived: false,
     intervalMs,
     isActive: () => active,
     isCurrentAuthSnapshot: (snapshot) => snapshot.epoch === auth.epoch && snapshot.identity === auth.identity,
-    publish: (state) => published.push(state),
     sessionId: 731,
     visibilityTarget,
   });
+  facade.subscribe(() => published.push(facade.getSnapshot()));
   return {
     cleared,
     facade,
@@ -87,14 +88,26 @@ test("chat feed loads messages and roster in parallel, then publishes one immuta
     ["messages", 731],
     ["roster", 731],
   ]);
-  assert.deepEqual(harness.published, [{ messages: [], roster: [], status: "loading" }]);
+  assert.deepEqual(
+    harness.published.map(({ errorMessage, messages, roster: rows, status }) => ({
+      errorMessage,
+      messages,
+      roster: rows,
+      status,
+    })),
+    [{ errorMessage: "", messages: [], roster: [], status: "loading" }]
+  );
 
   messages.resolve([message(4)]);
   roster.resolve([{ nickname: "球友", participantId: 92 }]);
   assert.equal(await refresh, true);
   assert.deepEqual(harness.facade.getSnapshot(), {
+    archived: false,
+    errorMessage: "",
     messages: [message(4)],
+    revision: 2,
     roster: [{ nickname: "球友", participantId: 92 }],
+    status: "ready",
   });
   assert.equal(Object.isFrozen(harness.facade.getSnapshot()), true);
   assert.equal(Object.isFrozen(harness.facade.getSnapshot().messages), true);
@@ -211,7 +224,14 @@ test("stop invalidates a pending response even if the surrounding active predica
   messages.resolve([message(8)]);
   roster.resolve([{ nickname: "不應落地" }]);
   assert.equal(await refresh, false);
-  assert.deepEqual(harness.facade.getSnapshot(), { messages: [], roster: [] });
+  assert.deepEqual(harness.facade.getSnapshot(), {
+    archived: false,
+    errorMessage: "",
+    messages: [],
+    revision: 1,
+    roster: [],
+    status: "loading",
+  });
   assert.deepEqual(
     harness.published.map(({ status }) => status),
     ["loading"]
@@ -233,7 +253,14 @@ test("auth change rejects a late response without relying only on request genera
   messages.resolve([message(9)]);
   roster.resolve([]);
   assert.equal(await refresh, false);
-  assert.deepEqual(harness.facade.getSnapshot(), { messages: [], roster: [] });
+  assert.deepEqual(harness.facade.getSnapshot(), {
+    archived: false,
+    errorMessage: "",
+    messages: [],
+    revision: 1,
+    roster: [],
+    status: "loading",
+  });
 });
 
 test("surface identity change rejects a late response without relying on stop or auth change", async () => {
@@ -251,7 +278,32 @@ test("surface identity change rejects a late response without relying on stop or
   messages.resolve([message(10)]);
   roster.resolve([]);
   assert.equal(await refresh, false);
-  assert.deepEqual(harness.facade.getSnapshot(), { messages: [], roster: [] });
+  assert.deepEqual(harness.facade.getSnapshot(), {
+    archived: false,
+    errorMessage: "",
+    messages: [],
+    revision: 1,
+    roster: [],
+    status: "loading",
+  });
+});
+
+test("archive is observable, immutable, and idempotent", () => {
+  const harness = facadeHarness({ api: {} });
+  let notifications = 0;
+  const unsubscribe = harness.facade.subscribe(() => {
+    notifications += 1;
+  });
+
+  harness.facade.archive();
+  harness.facade.archive();
+  assert.equal(harness.facade.getSnapshot().archived, true);
+  assert.equal(Object.isFrozen(harness.facade.getSnapshot()), true);
+  assert.equal(notifications, 1);
+
+  unsubscribe();
+  harness.facade.archive();
+  assert.equal(notifications, 1);
 });
 
 test("start is idempotent and stop removes the owned visibility listener", async () => {
@@ -309,6 +361,30 @@ function legacyChatOwnerFindings({ chatController, contracts }) {
   return findings;
 }
 
+function legacyChatSurfaceCommandFindings({ chatController, sheet, view }) {
+  const findings = [];
+  const chatView = view.slice(
+    view.indexOf("export function openSessionChatSheet"),
+    view.indexOf("export function openSessionSheet")
+  );
+  const patterns = [
+    ["chatController.surfaceStateCommand", /\b(?:sheet|context\.sheet)\??\.(?:setArchived|setState)\b/],
+    ["SessionChatSheet.imperativeHandle", /\b(?:forwardRef|useImperativeHandle|SessionChatContentContract)\b/],
+    ["sessionSurfaceViews.chatDomQuery", /\bquerySelector(?:All)?\s*\(/],
+    ["sessionSurfaceViews.chatNativeListener", /\baddEventListener\s*\(/],
+    ["sessionSurfaceViews.chatStateCommand", /\b(?:setArchived|setState)\b/],
+  ];
+  for (const [name, pattern] of patterns) {
+    const source = name.startsWith("chatController")
+      ? chatController
+      : name.startsWith("SessionChatSheet")
+        ? sheet
+        : chatView;
+    if (pattern.test(source)) findings.push(name);
+  }
+  return findings;
+}
+
 test("chat feed ownership gate keeps controller query, cursor, gate, and poller owners retired", () => {
   const sources = {
     chatController: readFileSync(new URL("../src/controller/chatController.ts", import.meta.url), "utf8"),
@@ -332,4 +408,37 @@ test("chat feed ownership gate keeps controller query, cursor, gate, and poller 
 
   const canary = { ...sources, chatController: `${sources.chatController}\nfunction refreshActiveChat() {}` };
   assert.deepEqual(legacyChatOwnerFindings(canary), ["chatController.refreshActiveChat"]);
+});
+
+test("chat surface state boundary keeps legacy commands and native DOM ownership retired", () => {
+  const sources = {
+    chatController: readFileSync(new URL("../src/controller/chatController.ts", import.meta.url), "utf8"),
+    sheet: readFileSync(new URL("../src/sheets/SessionChatSheet.tsx", import.meta.url), "utf8"),
+    view: readFileSync(new URL("../src/views/sessionSurfaceViews.js", import.meta.url), "utf8"),
+  };
+  assert.deepEqual(legacyChatSurfaceCommandFindings(sources), []);
+  assert.match(sources.sheet, /useSyncExternalStore\(/);
+  assert.match(sources.view, /feed,\s*headerSub,/);
+
+  const controllerCanary = {
+    ...sources,
+    chatController: `${sources.chatController}\nfunction legacy(sheet) { sheet?.setState({}); }`,
+  };
+  assert.deepEqual(legacyChatSurfaceCommandFindings(controllerCanary), ["chatController.surfaceStateCommand"]);
+
+  const sheetCanary = { ...sources, sheet: `${sources.sheet}\nconst legacy = useImperativeHandle;` };
+  assert.deepEqual(legacyChatSurfaceCommandFindings(sheetCanary), ["SessionChatSheet.imperativeHandle"]);
+
+  const viewCanary = {
+    ...sources,
+    view: sources.view.replace(
+      "registerChatContent(mounted, content);",
+      'mounted.surface.querySelector("[data-chat-feed]")?.addEventListener("click", () => {});\n' +
+        "  registerChatContent(mounted, content);"
+    ),
+  };
+  assert.deepEqual(legacyChatSurfaceCommandFindings(viewCanary), [
+    "sessionSurfaceViews.chatDomQuery",
+    "sessionSurfaceViews.chatNativeListener",
+  ]);
 });

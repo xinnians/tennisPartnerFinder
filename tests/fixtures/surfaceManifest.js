@@ -65,7 +65,6 @@ export const SURFACE_MANIFEST = Object.freeze({
     "src/sheets/PlayerCardSheet.tsx",
     "src/sheets/PlayerDirectorySheet.tsx",
     "src/sheets/ProfileCompletionSheet.tsx",
-    "src/sheets/SessionChatSheet.tsx",
   ]),
   presentationConsumers: namedList([
     "src/components/Avatar.tsx",
