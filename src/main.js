@@ -85,7 +85,6 @@ import { createStore } from "./sessionStore.ts";
 // Eager React app boundary: react-surface-lifecycle.test.js scans this explicit browser-entry import.
 import * as appModule from "./app/App.tsx";
 import {
-  configureSessionViewModules,
   openCourtSessionDrawer,
   openCourtPlayersDrawer,
   openCreateSessionSheet,
@@ -100,13 +99,8 @@ import {
   openSessionSheet,
   openSessionUnavailableSheet,
   openWithdrawSessionConfirmation,
-  preloadAuthenticatedViewsForAuth,
-  configureMapFilterToolbar,
   renderMapDataStatus,
-  renderMapFilterToolbar,
-  renderBottomNavigation,
   renderPlayerLayerToggle,
-  renderToast,
   nearbySessionsSummaryText,
 } from "./sessionViews.js";
 import { openLoginModal } from "./sheets.ts";
@@ -138,7 +132,15 @@ import {
 import { eligibilityFromPrivateProfile } from "./profile.ts";
 import { createRequestGate } from "./requestGate.ts";
 import { sessionIdFromHash } from "./sessionRoute.js";
-import { configureSessionViewSurfaces } from "./views/sessionViewWiring.js";
+import {
+  configureMapFilterToolbar,
+  configureSessionViewModules,
+  configureSessionViewSurfaces,
+  preloadAuthenticatedViewsForAuth,
+  renderBottomNavigation,
+  renderMapFilterToolbar,
+  renderToast,
+} from "./views/sessionViewWiring.js";
 
 const configuredErrorTransport = configureSentryErrorTransport({
   dsn: import.meta.env.VITE_SENTRY_DSN ?? "",

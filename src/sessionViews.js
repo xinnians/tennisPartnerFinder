@@ -1,5 +1,4 @@
 import { BANDS, DEFAULT_FILTER_STATE } from "./filters.ts"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-import { configureLoginModalContent } from "./sheets.ts";
 import { esc } from "./util.js";
 import {
   runNotificationSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
@@ -10,22 +9,17 @@ import * as sessionFormViews from "./views/sessionFormViews.js";
 import * as discoverySurfaceViews from "./views/discoverySurfaceViews.js";
 import * as profileSurfaceView from "./views/profileSurfaceView.js";
 import * as sessionSurfaceViews from "./views/sessionSurfaceViews.js";
-import {
-  preloadCourtPlayersSheet,
-  preloadCreateSessionSheet,
-  preloadDecideSessionSheet,
-  preloadEditSessionSheet,
-  preloadFilterSheet,
-  preloadPlayerCardSheet,
-  preloadPlayerDirectorySheet,
-  preloadProfileCompletionSheet,
-  preloadReportDialog,
-  preloadSessionChatSheet,
-  preloadSessionDetailSheet,
-  preloadWithdrawSessionConfirmationDialog,
-} from "./views/surfaceLoaders.js";
 export { messagesFromGroups, nearbySessionsSummaryText } from "./sessionPresentation.ts";
-export { NTRP_SCALE_EXPLANATION } from "./views/sessionViewWiring.js";
+export {
+  configureMapFilterToolbar,
+  configureSessionViewModules,
+  NTRP_SCALE_EXPLANATION,
+  preloadAuthenticatedViewsForAuth,
+  preloadNonHomeViews,
+  renderBottomNavigation,
+  renderMapFilterToolbar,
+  renderToast,
+} from "./views/sessionViewWiring.js";
 
 export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
   return sessionFormViews.validateCreateSessionInput(input, { now });
@@ -169,116 +163,5 @@ export function renderMapDataStatus(
 // One-way boundary: this legacy adapter may mount React and consume presentation
 // helpers, while React modules import only sessionPresentation.ts and never reach
 // back into this file.
-
-// main.js owns the browser-only eager TSX imports. This legacy facade receives
-// them explicitly so Node unit tests can still import sessionViews.js without
-// teaching Node to execute TSX.
-let appModule = null;
-let preloadMePageInApp = null;
-
-export function configureSessionViewModules(modules) {
-  appModule = modules.appModule;
-  configureLoginModalContent(appModule.mountLoginModalContentInApp);
-  preloadMePageInApp = appModule.preloadMePageInApp;
-  if (typeof preloadMePageInApp !== "function") {
-    throw new Error("App module export is unavailable: preloadMePageInApp");
-  }
-  authenticatedViewPreloads[0] = preloadMePageInApp;
-  namedViewPreloads.me = preloadMePageInApp;
-}
-
-function requireAppExport(name) {
-  const value = appModule?.[name];
-  if (typeof value !== "function") throw new Error(`App module export is unavailable: ${name}`);
-  return value;
-}
-
-const preloadMessagesPageInApp = () => requireAppExport("preloadMessagesPageInApp")();
-const preloadMySessionsPageInApp = () => requireAppExport("preloadMySessionsPageInApp")();
-const showToastInApp = (...args) => requireAppExport("showToastInApp")(...args);
-const configureFilterToolbarInApp = (...args) => requireAppExport("configureFilterToolbarInApp")(...args);
-const syncFilterToolbarInApp = (...args) => requireAppExport("syncFilterToolbarInApp")(...args);
-const syncBottomNavigationInApp = (...args) => requireAppExport("syncBottomNavigationInApp")(...args);
-
-const authenticatedViewPreloads = [
-  preloadMePageInApp,
-  preloadMessagesPageInApp,
-  preloadMySessionsPageInApp,
-  preloadCreateSessionSheet,
-  preloadEditSessionSheet,
-  preloadCourtPlayersSheet,
-  preloadPlayerDirectorySheet,
-  preloadPlayerCardSheet,
-  preloadProfileCompletionSheet,
-  preloadDecideSessionSheet,
-  preloadSessionChatSheet,
-  preloadWithdrawSessionConfirmationDialog,
-  preloadReportDialog,
-];
-
-const namedViewPreloads = {
-  chat: preloadSessionChatSheet,
-  create: preloadCreateSessionSheet,
-  filter: preloadFilterSheet,
-  me: preloadMePageInApp,
-  mySessions: preloadMySessionsPageInApp,
-  withdraw: preloadWithdrawSessionConfirmationDialog,
-};
-
-export function preloadNonHomeViews(viewNames = Object.keys(namedViewPreloads)) {
-  const names = Array.isArray(viewNames) ? viewNames : [viewNames];
-  return Promise.all(names.map((name) => namedViewPreloads[name]?.()).filter(Boolean)).then(() => undefined);
-}
-
-export function renderToast(message) {
-  showToastInApp?.(String(message));
-}
-
-export function configureMapFilterToolbar(handlers) {
-  configureFilterToolbarInApp?.(handlers);
-}
-
-export function renderMapFilterToolbar(filters) {
-  syncFilterToolbarInApp?.(filters);
-}
-
-export function renderBottomNavigation(navigation) {
-  syncBottomNavigationInApp?.(navigation);
-}
-
-function warmView(preload) {
-  if (typeof preload === "function") void preload().catch(() => {});
-}
-
-function preloadAuthenticatedViews() {
-  for (const preload of authenticatedViewPreloads) warmView(preload);
-}
-
-export function preloadAuthenticatedViewsForAuth(authSession) {
-  if (authSession) preloadAuthenticatedViews();
-}
-
-function preloadForIntent(target) {
-  if (!(target instanceof Element)) return;
-  if (target.closest("#me-tab")) warmView(preloadMePageInApp);
-  if (target.closest("#messages-tab")) {
-    warmView(preloadMessagesPageInApp);
-    warmView(preloadSessionChatSheet);
-  }
-  if (target.closest("#my-sessions-tab")) warmView(preloadMySessionsPageInApp);
-  if (target.closest("#create-session-tab")) warmView(preloadCreateSessionSheet);
-  if (target.closest("#filter-sheet-open")) warmView(preloadFilterSheet);
-  if (target.closest('[data-testid="session-card"], [data-open-my-session], [title^="球局 · "]'))
-    warmView(preloadSessionDetailSheet);
-  if (target.closest("#player-directory-open")) {
-    warmView(preloadPlayerDirectorySheet);
-    warmView(preloadPlayerCardSheet);
-  }
-}
-
-if (typeof document !== "undefined") {
-  document.addEventListener("pointerover", (event) => preloadForIntent(event.target), { passive: true });
-  document.addEventListener("focusin", (event) => preloadForIntent(event.target));
-}
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.ts";

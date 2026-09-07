@@ -1,4 +1,5 @@
 import { taipeiCourts } from "../sessionPresentation.ts";
+import { configureLoginModalContent } from "../sheets.ts";
 import { taipeiClock, taipeiDateTimeLocalValue } from "../taipeiTime.ts";
 import { configureDiscoverySurfaceViews } from "./discoverySurfaceViews.js";
 import { configureProfileSurfaceView } from "./profileSurfaceView.js";
@@ -48,6 +49,118 @@ const sessionFormSheetRuntime = Object.freeze({
   taipeiDateTimeLocalValue,
   taipeiDateValue,
 });
+
+let appModule = null;
+let preloadMePageInApp = null;
+let preloadListenersInstalled = false;
+
+function requireAppExport(name) {
+  const value = appModule?.[name];
+  if (typeof value !== "function") throw new Error(`App module export is unavailable: ${name}`);
+  return value;
+}
+
+const preloadMessagesPageInApp = () => requireAppExport("preloadMessagesPageInApp")();
+const preloadMySessionsPageInApp = () => requireAppExport("preloadMySessionsPageInApp")();
+const showToastInApp = (...args) => requireAppExport("showToastInApp")(...args);
+const configureFilterToolbarInApp = (...args) => requireAppExport("configureFilterToolbarInApp")(...args);
+const syncFilterToolbarInApp = (...args) => requireAppExport("syncFilterToolbarInApp")(...args);
+const syncBottomNavigationInApp = (...args) => requireAppExport("syncBottomNavigationInApp")(...args);
+
+const authenticatedViewPreloads = [
+  preloadMePageInApp,
+  preloadMessagesPageInApp,
+  preloadMySessionsPageInApp,
+  preloadCreateSessionSheet,
+  preloadEditSessionSheet,
+  preloadCourtPlayersSheet,
+  preloadPlayerDirectorySheet,
+  preloadPlayerCardSheet,
+  preloadProfileCompletionSheet,
+  preloadDecideSessionSheet,
+  preloadSessionChatSheet,
+  preloadWithdrawSessionConfirmationDialog,
+  preloadReportDialog,
+];
+
+const namedViewPreloads = {
+  chat: preloadSessionChatSheet,
+  create: preloadCreateSessionSheet,
+  filter: preloadFilterSheet,
+  me: preloadMePageInApp,
+  mySessions: preloadMySessionsPageInApp,
+  withdraw: preloadWithdrawSessionConfirmationDialog,
+};
+
+function warmView(preload) {
+  if (typeof preload === "function") void preload().catch(() => {});
+}
+
+function preloadAuthenticatedViews() {
+  for (const preload of authenticatedViewPreloads) warmView(preload);
+}
+
+function preloadForIntent(target) {
+  if (!(target instanceof Element)) return;
+  if (target.closest("#me-tab")) warmView(preloadMePageInApp);
+  if (target.closest("#messages-tab")) {
+    warmView(preloadMessagesPageInApp);
+    warmView(preloadSessionChatSheet);
+  }
+  if (target.closest("#my-sessions-tab")) warmView(preloadMySessionsPageInApp);
+  if (target.closest("#create-session-tab")) warmView(preloadCreateSessionSheet);
+  if (target.closest("#filter-sheet-open")) warmView(preloadFilterSheet);
+  if (target.closest('[data-testid="session-card"], [data-open-my-session], [title^="球局 · "]'))
+    warmView(preloadSessionDetailSheet);
+  if (target.closest("#player-directory-open")) {
+    warmView(preloadPlayerDirectorySheet);
+    warmView(preloadPlayerCardSheet);
+  }
+}
+
+function installSessionViewPreloadListeners() {
+  if (preloadListenersInstalled || typeof document === "undefined") return;
+  preloadListenersInstalled = true;
+  document.addEventListener("pointerover", (event) => preloadForIntent(event.target), { passive: true });
+  document.addEventListener("focusin", (event) => preloadForIntent(event.target));
+}
+
+export function configureSessionViewModules(modules) {
+  appModule = modules.appModule;
+  configureLoginModalContent(appModule.mountLoginModalContentInApp);
+  preloadMePageInApp = appModule.preloadMePageInApp;
+  if (typeof preloadMePageInApp !== "function") {
+    throw new Error("App module export is unavailable: preloadMePageInApp");
+  }
+  authenticatedViewPreloads[0] = preloadMePageInApp;
+  namedViewPreloads.me = preloadMePageInApp;
+  installSessionViewPreloadListeners();
+}
+
+export function preloadNonHomeViews(viewNames = Object.keys(namedViewPreloads)) {
+  const names = Array.isArray(viewNames) ? viewNames : [viewNames];
+  return Promise.all(names.map((name) => namedViewPreloads[name]?.()).filter(Boolean)).then(() => undefined);
+}
+
+export function preloadAuthenticatedViewsForAuth(authSession) {
+  if (authSession) preloadAuthenticatedViews();
+}
+
+export function renderToast(message) {
+  showToastInApp?.(String(message));
+}
+
+export function configureMapFilterToolbar(handlers) {
+  configureFilterToolbarInApp?.(handlers);
+}
+
+export function renderMapFilterToolbar(filters) {
+  syncFilterToolbarInApp?.(filters);
+}
+
+export function renderBottomNavigation(navigation) {
+  syncBottomNavigationInApp?.(navigation);
+}
 
 /** Configure every legacy-to-React surface boundary from the browser composition root. */
 export function configureSessionViewSurfaces() {

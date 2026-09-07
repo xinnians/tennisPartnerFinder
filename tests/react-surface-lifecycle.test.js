@@ -210,6 +210,48 @@ test("low-risk helpers stay private and auth preload runs only at the verified i
     configureOffsets,
     [...configureOffsets].sort((left, right) => left - right)
   );
+  assert.doesNotMatch(SESSION_VIEWS, /function configureSessionViewModules\(/);
+  assert.doesNotMatch(SESSION_VIEWS, /function preloadForIntent\(/);
+  assert.doesNotMatch(SESSION_VIEWS, /document\.addEventListener\("(?:pointerover|focusin)"/);
+});
+
+test("session view module wiring installs intent preload listeners only once", async () => {
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const registrations = [];
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      addEventListener(type, listener, options) {
+        registrations.push({ listener, options, type });
+      },
+    },
+  });
+  try {
+    const { configureSessionViewModules } =
+      await import("../src/views/sessionViewWiring.js?idempotent-preload-listeners");
+    const appModule = {
+      mountLoginModalContentInApp() {},
+      preloadMePageInApp() {
+        return Promise.resolve();
+      },
+    };
+    configureSessionViewModules({ appModule });
+    configureSessionViewModules({ appModule });
+
+    assert.deepEqual(
+      registrations.map(({ type }) => type),
+      ["pointerover", "focusin"]
+    );
+    assert.equal(registrations[0].options?.passive, true);
+    assert.equal(registrations[1].options, undefined);
+    assert.equal(
+      registrations.every(({ listener }) => typeof listener === "function"),
+      true
+    );
+  } finally {
+    if (originalDocument) Object.defineProperty(globalThis, "document", originalDocument);
+    else delete globalThis.document;
+  }
 });
 
 test("AppShell preserves navigation, toast, popover, and Escape accessibility contracts", () => {

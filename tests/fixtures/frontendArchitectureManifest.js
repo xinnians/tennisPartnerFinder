@@ -493,8 +493,6 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/sessionActions.ts::runNotificationSettingAction::HTMLElement,document",
       "src/sessionActions.ts::runPresenceSettingAction::HTMLElement,document",
       "src/sessionPresentation.ts::showAvatarFallback::HTMLElement",
-      "src/sessionViews.js::<top-level>::document",
-      "src/sessionViews.js::preloadForIntent::Element",
       "src/sessionViews.js::renderPlayerLayerToggle::document",
       "src/sheets.ts::modalRoot::document",
       "src/sheets.ts::mountSurface::document",
@@ -502,6 +500,8 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/sheets/CreateSessionSheet.tsx::showDone::requestAnimationFrame",
       "src/views/sessionFormViews.js::openEditSessionSheet::FormData",
       "src/views/sessionSurfaceViews.js::scrollFeedToLatest::requestAnimationFrame",
+      "src/views/sessionViewWiring.js::installSessionViewPreloadListeners::document",
+      "src/views/sessionViewWiring.js::preloadForIntent::Element",
     ]),
     typeOnly: namedList([
       "src/app/App.tsx::<top-level>::HTMLElement,setTimeout",

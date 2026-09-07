@@ -2,7 +2,7 @@ const namedList = (values) => Object.freeze(values);
 
 export const SURFACE_MANIFEST = Object.freeze({
   structureSources: Object.freeze({
-    authenticatedPreload: "src/sessionViews.js",
+    authenticatedPreload: "src/views/sessionViewWiring.js",
     lazySurfaceLoaders: "src/views/surfaceLoaders.js",
     unmountRegistrations: "src/views/sessionViewWiring.js",
   }),
