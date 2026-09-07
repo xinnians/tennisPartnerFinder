@@ -8,11 +8,14 @@ import {
 } from "./features/session-lifecycle/sessionLifecycleFeature.ts";
 import { chatMemberSession } from "./features/chat/chatFeature.ts";
 import {
+  authSnapshotForState,
+  authSnapshotIsCurrent,
   browserIntentStore,
   profileIsPublic,
   profileIsReady,
   profileMeetsGate,
 } from "./features/profile-auth/profileAuthFeature.ts";
+import { createBlockedPlayersFacade } from "./features/blocked-players/blockedPlayersFacade.ts";
 import { createRequestGate } from "./requestGate.ts";
 import { isUndecidedCandidate } from "./sessionCriteria.ts";
 import { createStore } from "./sessionStore.ts";
@@ -41,6 +44,7 @@ import type { Store } from "./sessionStore.ts";
 import type { SurfaceRegistry } from "./controller/surfaceRegistry.ts";
 
 type AuthControllerOptions = Parameters<typeof createAuthController>[0];
+type BlockedPlayersFacadeOptions = Parameters<typeof createBlockedPlayersFacade>[0];
 type ChatControllerOptions = Parameters<typeof createChatController>[0];
 type DiscoveryMapControllerOptions = Parameters<typeof createDiscoveryMapController>[0];
 type IntentControllerOptions = Parameters<typeof createIntentController>[0];
@@ -49,6 +53,7 @@ type MySessionsControllerOptions = Parameters<typeof createMySessionsController>
 type PlayerDirectoryControllerOptions = Parameters<typeof createPlayerDirectoryController>[0];
 
 type SessionControllerDataPort = ChatControllerOptions["api"] &
+  NonNullable<BlockedPlayersFacadeOptions["api"]> &
   DiscoveryMapControllerOptions["api"] &
   IntentControllerOptions["api"] &
   LifecycleActionsControllerOptions["api"] &
@@ -200,9 +205,6 @@ export function createSessionController({
     mySessionsError: "",
     mySessionsStatus: "idle",
     mySessionRosters: new Map(),
-    blockedPlayers: [],
-    blockedPlayersError: "",
-    blockedPlayersStatus: "idle",
     playerLayerOn: false,
     playerLayerMessage: "",
     playerLayerStatus: "idle",
@@ -210,6 +212,11 @@ export function createSessionController({
   });
   /** 目前狀態快照。每次寫入都會換新的頂層物件,所以一律現讀,不跨 await 快取。 */
   const read = store.getState;
+  const blockedPlayers = createBlockedPlayersFacade({
+    api,
+    captureAuthSnapshot: () => authSnapshotForState(read()),
+    isCurrentAuthSnapshot: (snapshot) => authSnapshotIsCurrent(snapshot, read()),
+  });
   const discoveryGate = createRequestGate();
   const participationGate = createRequestGate();
   const rosterGate = createRequestGate();
@@ -217,7 +224,6 @@ export function createSessionController({
   const locationGate = createRequestGate();
   const playerGate = createRequestGate();
   const playerDirectoryGate = createRequestGate();
-  const blockedPlayerGate = createRequestGate();
   const playerCardGate = createRequestGate();
   const surfaceRegistry = createSurfaceRegistry({
     chat: {
@@ -301,7 +307,7 @@ export function createSessionController({
 
   const mySessionsController = createMySessionsController({
     api: api!,
-    blockedPlayerGate,
+    blockedPlayers,
     onMySessionsChange,
     participationGate,
     reconcileActiveChatParticipation,
@@ -320,7 +326,6 @@ export function createSessionController({
     lifecycleActionIsInFlight,
     mySessionGroups,
     notifyMySessions,
-    refreshMyPlayerBlocks,
     refreshMySessions,
     reloadParticipation,
     replaceMySessions,
@@ -466,7 +471,7 @@ export function createSessionController({
   } = lifecycleActionsController;
 
   const { setAuthSession, setAuthState, setProfile } = createAuthController({
-    blockedPlayerGate,
+    blockedPlayers,
     clearIntent,
     clearPlayerDirectory,
     clearPlayerLayer,
@@ -618,7 +623,7 @@ export function createSessionController({
     openChat,
     openReportForTarget,
     readCourts: () => read().courts,
-    refreshMyPlayerBlocks,
+    refreshBlockedPlayers: (snapshot) => blockedPlayers.refresh(snapshot),
     refreshMySessions,
     requireMySessionAction,
     surfaceRegistry,
@@ -787,6 +792,7 @@ export function createSessionController({
 
   return {
     attachMap,
+    blockedPlayers,
     cancelMySession,
     capturePendingIntentVersion,
     clearPendingIntent: () => clearIntent(),
@@ -818,7 +824,6 @@ export function createSessionController({
     openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,
-    refreshMyPlayerBlocks,
     refreshMySessions,
     respondInvite,
     reviewMySessionParticipant,

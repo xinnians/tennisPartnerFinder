@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 
 import type {
   ControllerApi,
@@ -223,9 +223,13 @@ export function useMessagesState(): MessagesState {
 }
 
 export function useMeState() {
-  const { sessionStore } = useAppServices().controller;
+  const { blockedPlayers, sessionStore } = useAppServices().controller;
   const current = sessionStore.getState();
-  return useStoreSelector(sessionStore, "me", selectMeState, selectMeState(current));
+  const meState = useStoreSelector(sessionStore, "me", selectMeState, selectMeState(current));
+  const subscribe = useCallback((listener: () => void) => blockedPlayers.subscribe(listener), [blockedPlayers]);
+  const getBlockedPlayersSnapshot = useCallback(() => blockedPlayers.getSnapshot(), [blockedPlayers]);
+  const blockedPlayersState = useSyncExternalStore(subscribe, getBlockedPlayersSnapshot, getBlockedPlayersSnapshot);
+  return useMemo(() => ({ ...meState, ...blockedPlayersState }), [blockedPlayersState, meState]);
 }
 
 export function useMeActions() {

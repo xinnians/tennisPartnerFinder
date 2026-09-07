@@ -202,6 +202,8 @@ test("a Me account switch clears a replaced node's stale pending and error state
     });
     const harness = renderMeAppHarness(document.getElementById("me-root"), {
       authSession: { user: { id: "me-account-a" } },
+      blockedPlayers: [{ blockedNickname: "帳號 A 封鎖資料", blockedProfileId: 71 }],
+      blockedPlayersStatus: "ready",
       onTogglePlayerVisibility: () => pendingAccountA,
       playerVisibility: false,
       profile: { nick: "帳號 A", ntrp: 3.5 },
@@ -221,6 +223,7 @@ test("a Me account switch clears a replaced node's stale pending and error state
   });
 
   const accountAToggle = page.getByTestId("player-visibility-toggle");
+  await expect(page.getByTestId("unblock-player-71")).toBeVisible();
   await accountAToggle.click();
   await expect(accountAToggle).toBeDisabled();
   await page.evaluate(() => window.__switchMeAccount());
@@ -228,6 +231,7 @@ test("a Me account switch clears a replaced node's stale pending and error state
   const accountBToggle = page.getByTestId("player-visibility-toggle");
   await expect(accountBToggle).toHaveAttribute("aria-checked", "true");
   await expect(accountBToggle).toBeEnabled();
+  await expect(page.getByTestId("unblock-player-71")).toHaveCount(0);
   await expect(page.locator("#me-root [data-my-sessions-error]")).toBeHidden();
 
   await page.evaluate(() => window.__rejectMeAccountA(new Error("帳號 A 的過期失敗")));

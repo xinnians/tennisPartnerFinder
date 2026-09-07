@@ -464,7 +464,7 @@ function showMePage({ focus = false, focusNotificationSettings = false, historyM
   setActivePage("me", { historyMode });
   if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
   void refreshNotificationSettings();
-  void controller.refreshMyPlayerBlocks();
+  void controller.blockedPlayers.refresh();
   if (focus)
     requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
   if (focusNotificationSettings) {

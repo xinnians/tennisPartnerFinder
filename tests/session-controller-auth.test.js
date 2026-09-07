@@ -8,6 +8,14 @@ function flush() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 test("auth identity only accepts a non-empty session user id", () => {
   const valid = { access_token: "token-a", user: { id: "account-a" } };
 
@@ -126,4 +134,51 @@ test("controller classifies auth identity once, resets before reconciliation, an
   assert.equal(participationLoads, 1, "same-account token refresh does not run participation reconciliation");
   assert.equal(meEmits, emitsBeforeRefresh + 1, "setAuthSession keeps its uncovered me-channel emit");
   assert.equal(controller.getAppState().authSession?.access_token, "token-a2");
+});
+
+test("an account switch clears blocked-player rows synchronously and rejects account A's late refresh", async () => {
+  const pending = deferred();
+  let blockLoads = 0;
+  const controller = createSessionController({
+    api: {
+      loadMyPlayerBlocks: async () => {
+        blockLoads += 1;
+        if (blockLoads === 1) return [{ blockedNickname: "帳號 A", blockedProfileId: 11 }];
+        return pending.promise;
+      },
+      loadMySessions: async () => [],
+    },
+    discoveryPollIntervalMs: 60 * 60 * 1000,
+    visibilityTarget: null,
+  });
+
+  await controller.setAuthState({ user: { id: "account-a" } }, null);
+  assert.equal(await controller.blockedPlayers.refresh(), true);
+  assert.equal(controller.blockedPlayers.getSnapshot().blockedPlayers[0]?.blockedProfileId, 11);
+  const observablePairs = [];
+  const capturePair = () =>
+    observablePairs.push({
+      blockedProfileIds: controller.blockedPlayers.getSnapshot().blockedPlayers.map((row) => row.blockedProfileId),
+      identity: controller.getAppState().authSession?.user?.id ?? null,
+    });
+  controller.sessionStore.subscribe("me", capturePair);
+  controller.blockedPlayers.subscribe(capturePair);
+  const lateRefresh = controller.blockedPlayers.refresh();
+
+  const accountSwitch = controller.setAuthState({ user: { id: "account-b" } }, null);
+  assert.deepEqual(controller.blockedPlayers.getSnapshot(), {
+    blockedPlayers: [],
+    blockedPlayersError: "",
+    blockedPlayersStatus: "idle",
+  });
+  assert.equal(
+    observablePairs.some((pair) => pair.identity === "account-b" && pair.blockedProfileIds.includes(11)),
+    false,
+    "no observable update may pair account B with account A's rows"
+  );
+
+  pending.resolve([{ blockedNickname: "帳號 A 延遲資料", blockedProfileId: 12 }]);
+  assert.equal(await lateRefresh, false);
+  await accountSwitch;
+  assert.deepEqual(controller.blockedPlayers.getSnapshot().blockedPlayers, []);
 });

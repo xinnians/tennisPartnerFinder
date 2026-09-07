@@ -62,13 +62,24 @@ export interface ControllerAppState {
   profile: Partial<Profile> | null;
 }
 
-/** `sessionController.ts` 唯一 `createStore({...})` 的 27 個初始欄位。 */
-export interface SessionControllerState {
-  authEpoch: number;
-  authSession: ControllerAuthSession | null;
+export interface BlockedPlayersSnapshot {
   blockedPlayers: MyPlayerBlock[];
   blockedPlayersError: string;
   blockedPlayersStatus: SurfaceLoadStatus;
+}
+
+export interface BlockedPlayersFacade {
+  clearForAccountChange(): void;
+  getSnapshot(): Readonly<BlockedPlayersSnapshot>;
+  load(authSnapshot?: ControllerAuthSnapshot): Promise<boolean>;
+  refresh(authSnapshot?: ControllerAuthSnapshot): Promise<boolean>;
+  subscribe(listener: (snapshot: Readonly<BlockedPlayersSnapshot>) => void): () => void;
+}
+
+/** `sessionController.ts` 唯一 `createStore({...})` 的 24 個初始欄位。 */
+export interface SessionControllerState {
+  authEpoch: number;
+  authSession: ControllerAuthSession | null;
   bounds: MapBounds;
   courts: DataCourt[];
   courtsReady: boolean;
@@ -111,9 +122,6 @@ export interface ControllerMySessionGroups {
 
 export interface ControllerMySessionsViewState {
   authenticated: boolean;
-  blockedPlayers: MyPlayerBlock[];
-  blockedPlayersError: string;
-  blockedPlayersStatus: SurfaceLoadStatus;
   error: string;
   groups: ControllerMySessionGroups;
   isPublic: boolean;
@@ -273,6 +281,7 @@ type ControllerSurfaceResult = ControllerSurfaceHandle | null | undefined | void
 /** `createSessionController()` return object 的公開方法，名稱與同步／非同步邊界照現況。 */
 export interface ControllerApi {
   attachMap(map: unknown): void;
+  blockedPlayers: BlockedPlayersFacade;
   cancelMySession: (sessionId: ControllerIdentifier) => Promise<unknown>;
   capturePendingIntentVersion(): number;
   clearPendingIntent(): boolean;
@@ -301,7 +310,6 @@ export interface ControllerApi {
   openSessionEdit: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
   openSessionFromLink(sessionId: ControllerIdentifier): Promise<ControllerOpenSessionResult>;
   openSessionReport: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
-  refreshMyPlayerBlocks(): Promise<boolean>;
   refreshMySessions(): Promise<boolean>;
   requestCurrentLocation(): void;
   resetFilters: () => void;

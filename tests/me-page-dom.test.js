@@ -30,9 +30,6 @@ function createMeStoreState() {
         user_metadata: { avatar_url: "https://example.test/avatar.png", picture: "ignored.png" },
       },
     },
-    blockedPlayers: [{ blockedNickname: "封鎖球友", blockedProfileId: 31, createdAt: "2026-08-01" }],
-    blockedPlayersError: "",
-    blockedPlayersStatus: "ready",
     bounds: { east: 121.7, north: 25.2, south: 24.9, west: 121.4 },
     courts: [{ city: "台北市", district: "大安區", id: 8, isActive: true, name: "大安運動中心" }],
     courtsReady: true,
@@ -65,6 +62,24 @@ function createMeStoreState() {
   };
 }
 
+function createBlockedPlayersSnapshot() {
+  return {
+    blockedPlayers: [{ blockedNickname: "封鎖球友", blockedProfileId: 31, createdAt: "2026-08-01" }],
+    blockedPlayersError: "",
+    blockedPlayersStatus: "ready",
+  };
+}
+
+function createBlockedPlayersFacade(snapshot = createBlockedPlayersSnapshot()) {
+  return {
+    clearForAccountChange: () => {},
+    getSnapshot: () => snapshot,
+    load: async () => true,
+    refresh: async () => true,
+    subscribe: () => () => {},
+  };
+}
+
 async function loadMeTestModules(t) {
   const vite = await createServer({
     appType: "custom",
@@ -85,6 +100,7 @@ async function loadMeTestModules(t) {
 
 function createController(sessionStore, overrides = {}) {
   return {
+    blockedPlayers: createBlockedPlayersFacade(),
     sessionStore,
     togglePlayerVisibility: () => {},
     unblockPlayer: () => {},
@@ -157,18 +173,22 @@ test("useMePageView 只投影 notificationSettings 與 presenceLocationStatus", 
   );
 });
 
-test("useMeState 與 selectMeState 產出同一份九欄切片", async (t) => {
+test("useMeState 合併六欄 session 切片與三欄 blockedPlayers snapshot", async (t) => {
   const { AppServicesProvider, createStore, selectMeState, useMeState } = await loadMeTestModules(t);
   const sessionStore = createStore(createMeStoreState());
+  const controller = createController(sessionStore);
   let observedState;
   function StateProbe() {
     observedState = useMeState();
     return null;
   }
-  renderToStaticMarkup(
-    createElement(AppServicesProvider, { controller: createController(sessionStore) }, createElement(StateProbe))
+  renderToStaticMarkup(createElement(AppServicesProvider, { controller }, createElement(StateProbe)));
+  await retryAssertion(() =>
+    assert.deepStrictEqual(observedState, {
+      ...selectMeState(sessionStore.getState()),
+      ...controller.blockedPlayers.getSnapshot(),
+    })
   );
-  await retryAssertion(() => assert.deepStrictEqual(observedState, selectMeState(sessionStore.getState())));
   assert.deepStrictEqual(Object.keys(observedState).sort(), [
     "authSession",
     "avatarUrl",

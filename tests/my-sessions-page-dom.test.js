@@ -24,9 +24,6 @@ function createMySessionsStoreState({ courts = [], mySessions = [] } = {}) {
   return {
     authEpoch: 7,
     authSession: { user: { id: "my-sessions-test-user" } },
-    blockedPlayers: [],
-    blockedPlayersError: "",
-    blockedPlayersStatus: "idle",
     courts,
     mySessionRosters: new Map(),
     mySessions,

@@ -22,9 +22,6 @@ function createMessagesHarnessState({ courts = [], mySessions = [] }: MessagesHa
   return {
     authEpoch: 1,
     authSession: { user: { id: "messages-harness-user" } },
-    blockedPlayers: [],
-    blockedPlayersError: "",
-    blockedPlayersStatus: "idle",
     bounds: { east: 121.7, north: 25.2, south: 24.9, west: 121.4 },
     courts,
     courtsReady: true,

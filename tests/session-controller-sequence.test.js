@@ -214,11 +214,9 @@ function createSequenceHarness() {
         "mySessions",
         `auth=${state.authenticated ? 1 : 0} status=${state.status} err="${state.error}" public=${
           state.isPublic ? 1 : 0
-        } gen=${state.viewGeneration} blocked=${state.blockedPlayers.length}:${state.blockedPlayersStatus}:"${
-          state.blockedPlayersError
-        }" needsAction=${state.groups.needsActionCount} upcoming=${idList(state.groups.upcoming)} history=${idList(
-          state.groups.history
-        )} unread=${state.groups.hasUnread ? 1 : 0}`
+        } gen=${state.viewGeneration} needsAction=${state.groups.needsActionCount} upcoming=${idList(
+          state.groups.upcoming
+        )} history=${idList(state.groups.history)} unread=${state.groups.hasUnread ? 1 : 0}`
       );
     },
     openCreateSession: (handlers) => {
@@ -237,6 +235,12 @@ function createSequenceHarness() {
     toast: (message) => recorder.push("toast", `"${message}"`),
   });
   controller.sessionStore.subscribe("me", recorder.pushMe);
+  controller.blockedPlayers.subscribe((state) => {
+    recorder.push(
+      "blockedPlayers",
+      `blocked=${state.blockedPlayers.length}:${state.blockedPlayersStatus}:"${state.blockedPlayersError}"`
+    );
+  });
   return { controller, createSheets, discoveryQueue, recorder };
 }
 
@@ -293,7 +297,7 @@ async function driveSequence(result = "entries") {
   controller.setCourts([], { ready: false });
 
   recorder.begin("blocks");
-  await controller.refreshMyPlayerBlocks();
+  await controller.blockedPlayers.refresh();
 
   recorder.begin("player-layer-on");
   await controller.togglePlayerLayer();
@@ -335,7 +339,7 @@ async function driveSequence(result = "entries") {
   const mySessionState = controller.getMySessionState();
   recorder.push(
     "getter:getMySessionState",
-    `auth=${mySessionState.authenticated ? 1 : 0} status=${mySessionState.status} gen=${mySessionState.viewGeneration} blocked=${mySessionState.blockedPlayers.length}`
+    `auth=${mySessionState.authenticated ? 1 : 0} status=${mySessionState.status} gen=${mySessionState.viewGeneration}`
   );
   const playerLayerState = controller.getPlayerLayerState();
   recorder.push(
@@ -398,14 +402,15 @@ const GOLDEN = [
   "filters|pins|[41,42]",
   'filters|players|on=0 status=idle msg="" groups=[]',
   "sign-in|step|--",
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
+  'sign-in|blockedPlayers|blocked=0:idle:""',
+  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 needsAction=0 upcoming=[] history=[] unread=0',
   'sign-in|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
   "sign-in|pins|[41,42]",
   'sign-in|players|on=0 status=idle msg="" groups=[]',
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in|mySessions|auth=1 status=ready err="" public=0 gen=1 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
+  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 needsAction=0 upcoming=[] history=[] unread=0',
+  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 needsAction=0 upcoming=[41] history=[] unread=0',
+  'sign-in|mySessions|auth=1 status=loading err="" public=0 gen=1 needsAction=0 upcoming=[41] history=[] unread=0',
+  'sign-in|mySessions|auth=1 status=ready err="" public=0 gen=1 needsAction=0 upcoming=[41] history=[] unread=0',
   'sign-in|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
   "sign-in|pins|[41,42]",
   'sign-in|players|on=0 status=idle msg="" groups=[]',
@@ -419,8 +424,8 @@ const GOLDEN = [
   "courts-channel-with-open-form|pins|[41,42]",
   'courts-channel-with-open-form|players|on=0 status=idle msg="" groups=[]',
   "blocks|step|--",
-  'blocks|mySessions|auth=1 status=ready err="" public=0 gen=1 blocked=0:loading:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'blocks|mySessions|auth=1 status=ready err="" public=0 gen=1 blocked=1:ready:"" needsAction=0 upcoming=[41] history=[] unread=0',
+  'blocks|blockedPlayers|blocked=0:loading:""',
+  'blocks|blockedPlayers|blocked=1:ready:""',
   "player-layer-on|step|--",
   'player-layer-on|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=idle:"" locMsg=""',
   "player-layer-on|pins|[41,42]",
@@ -464,22 +469,24 @@ const GOLDEN = [
   "getters|getter:getVisibleSessions|[]",
   "getters|getter:getMySessions|[41]",
   "getters|getter:getMySessionGroups|needsAction=0 upcoming=[41] history=[]",
-  "getters|getter:getMySessionState|auth=1 status=ready gen=1 blocked=1",
+  "getters|getter:getMySessionState|auth=1 status=ready gen=1",
   "getters|getter:getPlayerLayerState|on=0 status=idle groups=0",
   "sign-out|step|--",
-  'sign-out|mySessions|auth=0 status=idle err="" public=0 gen=2 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
+  'sign-out|blockedPlayers|blocked=0:idle:""',
+  'sign-out|mySessions|auth=0 status=idle err="" public=0 gen=2 needsAction=0 upcoming=[] history=[] unread=0',
   'sign-out|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
   "sign-out|pins|[]",
   'sign-out|players|on=0 status=idle msg="" groups=[]',
   "sign-in-other-account|step|--",
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
+  'sign-in-other-account|blockedPlayers|blocked=0:idle:""',
+  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 needsAction=0 upcoming=[] history=[] unread=0',
   'sign-in-other-account|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
   "sign-in-other-account|pins|[]",
   'sign-in-other-account|players|on=0 status=idle msg="" groups=[]',
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[] history=[] unread=0',
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
-  'sign-in-other-account|mySessions|auth=1 status=ready err="" public=0 gen=3 blocked=0:idle:"" needsAction=0 upcoming=[41] history=[] unread=0',
+  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 needsAction=0 upcoming=[] history=[] unread=0',
+  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 needsAction=0 upcoming=[41] history=[] unread=0',
+  'sign-in-other-account|mySessions|auth=1 status=loading err="" public=0 gen=3 needsAction=0 upcoming=[41] history=[] unread=0',
+  'sign-in-other-account|mySessions|auth=1 status=ready err="" public=0 gen=3 needsAction=0 upcoming=[41] history=[] unread=0',
   'sign-in-other-account|render|sessions=[] drawer=open userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[] map=warning:"地圖目前無法使用；你仍可瀏覽附近球局。" locMsg="無法取得位置；你仍可移動地圖或依球場尋找球局。"',
   "sign-in-other-account|pins|[]",
   'sign-in-other-account|players|on=0 status=idle msg="" groups=[]',
@@ -495,8 +502,6 @@ const ME_GOLDEN = [
   "sign-in|me",
   "courts-channel-with-open-form|me",
   "courts-channel-with-open-form|me",
-  "blocks|me",
-  "blocks|me",
   "sign-out|me",
   "sign-out|me",
   "sign-in-other-account|me",

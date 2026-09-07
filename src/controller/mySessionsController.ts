@@ -8,6 +8,7 @@ import {
 } from "../features/profile-auth/profileAuthFeature.ts";
 
 import type {
+  BlockedPlayersFacade,
   ControllerAuthSnapshot,
   ControllerEventName,
   ControllerIdentifier,
@@ -16,13 +17,10 @@ import type {
   ControllerRequestGate,
   SessionControllerState,
 } from "../controllerContracts.ts";
-// eslint-disable-next-line no-restricted-imports -- controller 既有 block 型別尚無 facade type export。
-import type { MyPlayerBlock } from "../data/mappers/profileMappers.ts";
 import type { MySessionSummary, SessionRosterEntry, SessionSummary } from "../domainTypes.ts";
 import type { Store } from "../sessionStore.ts";
 
 interface MySessionsDataApi {
-  loadMyPlayerBlocks?(): Promise<unknown>;
   loadMySessions?(): Promise<unknown>;
   loadSessionRoster?(sessionId: ControllerIdentifier): Promise<unknown>;
   setPlayerBlock?(profileId: number, blocked: boolean): Promise<unknown>;
@@ -49,7 +47,7 @@ export interface ControllerSessionAction {
 
 interface MySessionsControllerDependencies {
   api: MySessionsDataApi;
-  blockedPlayerGate: ControllerRequestGate;
+  blockedPlayers: Pick<BlockedPlayersFacade, "getSnapshot" | "refresh">;
   onMySessionsChange: (state: ControllerMySessionsViewState) => void;
   participationGate: ControllerRequestGate;
   reconcileActiveChatParticipation: () => void;
@@ -73,7 +71,6 @@ export interface MySessionsController {
   lifecycleActionIsInFlight: (sessionId: ControllerIdentifier) => boolean;
   mySessionGroups: () => ControllerMySessionGroups;
   notifyMySessions: () => void;
-  refreshMyPlayerBlocks: (snapshot?: ControllerAuthSnapshot) => Promise<boolean>;
   refreshMySessions: () => Promise<boolean>;
   reloadParticipation: (epoch?: number, identity?: string | null) => Promise<boolean>;
   replaceMySessions: (sessions: unknown) => void;
@@ -81,10 +78,10 @@ export interface MySessionsController {
   unblockPlayer: (profileId: ControllerIdentifier) => Promise<true>;
 }
 
-/** Owns private participation reads, roster hydration, blocks, and lifecycle in-flight gates. */
+/** Owns private participation reads, roster hydration, unblock commands, and lifecycle in-flight gates. */
 export function createMySessionsController({
   api,
-  blockedPlayerGate,
+  blockedPlayers,
   onMySessionsChange,
   participationGate,
   reconcileActiveChatParticipation,
@@ -192,29 +189,6 @@ export function createMySessionsController({
     return reloadParticipation(authSnapshot.epoch, authSnapshot.identity);
   }
 
-  async function refreshMyPlayerBlocks(authSnapshot = captureAuthSnapshot()): Promise<boolean> {
-    if (!isCurrentAuthSnapshot(authSnapshot)) return false;
-    if (typeof api.loadMyPlayerBlocks !== "function") return true;
-    const request = blockedPlayerGate.issue(() => isCurrentAuthSnapshot(authSnapshot));
-    store.setState({ blockedPlayersStatus: "loading", blockedPlayersError: "" });
-    notifyMySessions();
-    try {
-      const rows = await api.loadMyPlayerBlocks();
-      if (request.isStale()) return false;
-      store.setState({
-        blockedPlayers: Array.isArray(rows) ? (rows as MyPlayerBlock[]) : [],
-        blockedPlayersStatus: "ready",
-      });
-      notifyMySessions();
-      return true;
-    } catch {
-      if (request.isStale()) return false;
-      store.setState({ blockedPlayersError: "封鎖清單暫時無法載入。", blockedPlayersStatus: "error" });
-      notifyMySessions();
-      return false;
-    }
-  }
-
   async function unblockPlayer(profileId: ControllerIdentifier): Promise<true> {
     const authSnapshot = captureAuthSnapshot();
     const normalizedProfileId = Number(profileId);
@@ -225,13 +199,15 @@ export function createMySessionsController({
     ) {
       throw new Error("封鎖清單已更新，請重新整理後再試。");
     }
-    if (!read().blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)) {
+    if (
+      !blockedPlayers.getSnapshot().blockedPlayers.some((row) => Number(row.blockedProfileId) === normalizedProfileId)
+    ) {
       throw new Error("封鎖清單已更新，請重新整理後再試。");
     }
     if (typeof api.setPlayerBlock !== "function") throw new Error("目前無法更新封鎖清單。");
     await api.setPlayerBlock(normalizedProfileId, false);
     if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
-    if (!(await refreshMyPlayerBlocks(authSnapshot))) {
+    if (!(await blockedPlayers.refresh(authSnapshot))) {
       throw new Error("已解除封鎖，但清單暫時無法重新載入。");
     }
     toast("已解除封鎖。");
@@ -346,7 +322,6 @@ export function createMySessionsController({
     lifecycleActionIsInFlight,
     mySessionGroups,
     notifyMySessions,
-    refreshMyPlayerBlocks,
     refreshMySessions,
     reloadParticipation,
     replaceMySessions,

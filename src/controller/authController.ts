@@ -7,11 +7,11 @@ import {
 } from "../features/profile-auth/profileAuthFeature.ts";
 
 import type {
+  BlockedPlayersFacade,
   ControllerAuthSession,
   ControllerEventName,
   ControllerPendingIntent,
   ControllerProfileEligibility,
-  ControllerRequestGate,
   SessionControllerState,
 } from "../controllerContracts.ts";
 import type { Profile, SurfaceCloseOptions } from "../domainTypes.ts";
@@ -30,7 +30,7 @@ export interface AuthIdentityChange {
 export type AuthIdentityChangeHandler = (change: AuthIdentityChange) => ControllerProfileEligibility | null | undefined;
 
 interface AuthControllerDependencies {
-  blockedPlayerGate: ControllerRequestGate;
+  blockedPlayers: Pick<BlockedPlayersFacade, "clearForAccountChange">;
   clearIntent: () => boolean;
   clearPlayerDirectory: (options?: { closeReason?: string }) => void;
   clearPlayerLayer: (options?: { closeReason?: string }) => void;
@@ -56,7 +56,7 @@ const GATE_LEVELS = ["nickname", "ntrp", "directory"] as const;
 
 /** Owns auth identity classification and controller-side auth reconciliation. */
 export function createAuthController({
-  blockedPlayerGate,
+  blockedPlayers,
   clearIntent,
   clearPlayerDirectory,
   clearPlayerLayer,
@@ -124,6 +124,10 @@ export function createAuthController({
     if (authBoundaryChanged || gatesChanged || readinessChanged) store.setState({ authEpoch: read().authEpoch + 1 });
     const epoch = read().authEpoch;
 
+    // Clear account-owned block rows before the new auth identity can be observed.
+    // This prevents even one synchronous Me render from pairing account B with account A's rows.
+    if (authBoundaryChanged) blockedPlayers.clearForAccountChange();
+
     if (authCleared || accountChanged) clearIntent();
     if (authCleared || accountChanged || ntrpWasLost) {
       clearPlayerLayer({ closeReason: authCleared || accountChanged ? "account-change" : "ntrp-gate-lost" });
@@ -153,11 +157,7 @@ export function createAuthController({
     store.emit("me");
     if (authBoundaryChanged) {
       replaceMySessions([]);
-      blockedPlayerGate.invalidate();
       store.setState({
-        blockedPlayers: [],
-        blockedPlayersError: "",
-        blockedPlayersStatus: "idle",
         mySessionsError: "",
         mySessionsStatus: identity ? "loading" : "idle",
       });

@@ -24,9 +24,6 @@ function createMessagesStoreState({ courts = [], mySessions = [] } = {}) {
   return {
     authEpoch: 1,
     authSession: { user: { id: "messages-test-user" } },
-    blockedPlayers: [],
-    blockedPlayersError: "",
-    blockedPlayersStatus: "idle",
     courts,
     mySessionRosters: new Map(),
     mySessions,

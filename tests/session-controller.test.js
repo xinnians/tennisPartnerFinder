@@ -4253,12 +4253,16 @@ test("chat governance reports the exact visible message, blocks its sender, and 
 
   await harness.chatSheets.at(-1).handlers.onBlock(visibleMessage.senderProfileId);
   assert.deepEqual(blocks, [[92, true]]);
-  assert.equal(harness.controller.getMySessionState().blockedPlayers.length, 1, "the blocked-player scan is nonempty");
+  assert.equal(
+    harness.controller.blockedPlayers.getSnapshot().blockedPlayers.length,
+    1,
+    "the blocked-player scan is nonempty"
+  );
 
   await harness.controller.unblockPlayer(92);
   assert.deepEqual(blocks, [
     [92, true],
     [92, false],
   ]);
-  assert.deepEqual(harness.controller.getMySessionState().blockedPlayers, []);
+  assert.deepEqual(harness.controller.blockedPlayers.getSnapshot().blockedPlayers, []);
 });

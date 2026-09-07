@@ -32,9 +32,6 @@ export function selectControllerMapView(state: Readonly<SessionControllerState>)
 export function selectControllerMySessionsView(state: Readonly<SessionControllerState>): ControllerMySessionsViewState {
   return {
     authenticated: Boolean(state.authSession),
-    blockedPlayers: [...state.blockedPlayers],
-    blockedPlayersError: state.blockedPlayersError,
-    blockedPlayersStatus: state.blockedPlayersStatus,
     error: state.mySessionsError,
     groups: groupMySessions(sessionsWithRequests(state)),
     isPublic: profileIsPublic(state.profileEligibility),
@@ -43,15 +40,14 @@ export function selectControllerMySessionsView(state: Readonly<SessionController
   };
 }
 
-export function selectMeState(state: Readonly<SessionControllerState>): ControllerMeViewState {
+export function selectMeState(
+  state: Readonly<SessionControllerState>
+): Omit<ControllerMeViewState, "blockedPlayers" | "blockedPlayersError" | "blockedPlayersStatus"> {
   const mySessionsView = selectControllerMySessionsView(state);
   const metadata = state.authSession?.user?.user_metadata ?? {};
   return {
     authSession: state.authSession,
     avatarUrl: metadata.avatar_url ?? metadata.picture ?? "",
-    blockedPlayers: mySessionsView.blockedPlayers,
-    blockedPlayersError: mySessionsView.blockedPlayersError,
-    blockedPlayersStatus: mySessionsView.blockedPlayersStatus,
     courts: state.courts,
     linkedProviders: (state.authSession?.user?.identities ?? []).flatMap((identity) =>
       identity.provider ? [identity.provider] : []

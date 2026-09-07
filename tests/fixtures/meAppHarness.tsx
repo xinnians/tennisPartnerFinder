@@ -1,7 +1,13 @@
 import { createRoot, type Root } from "react-dom/client";
 
 import { AppServicesProvider, type MeAppActions } from "../../src/app/AppServicesProvider.tsx";
-import type { ControllerApi, ControllerIdentifier, SessionControllerState } from "../../src/controllerContracts.ts";
+import type {
+  BlockedPlayersFacade,
+  BlockedPlayersSnapshot,
+  ControllerApi,
+  ControllerIdentifier,
+  SessionControllerState,
+} from "../../src/controllerContracts.ts";
 import type { CourtSummary, NotificationPreferences, Profile } from "../../src/domainTypes.ts";
 import { MePage } from "../../src/pages/MePage.tsx";
 import type { PageNotificationSettings, PageViewState, PageViewStore } from "../../src/pageViewStore.ts";
@@ -19,9 +25,9 @@ interface HarnessAuthSession {
 interface MeAppHarnessOptions {
   authSession?: HarnessAuthSession | null;
   avatarUrl?: string;
-  blockedPlayers?: SessionControllerState["blockedPlayers"];
+  blockedPlayers?: BlockedPlayersSnapshot["blockedPlayers"];
   blockedPlayersError?: string;
-  blockedPlayersStatus?: string;
+  blockedPlayersStatus?: BlockedPlayersSnapshot["blockedPlayersStatus"];
   courts?: CourtSummary[] | null;
   lineProviderId?: string;
   linkedProviders?: string[] | null;
@@ -75,9 +81,6 @@ function createMeHarnessState(options: MeAppHarnessOptions): SessionControllerSt
   return {
     authEpoch: 1,
     authSession,
-    blockedPlayers: options.blockedPlayers ?? [],
-    blockedPlayersError: options.blockedPlayersError ?? "",
-    blockedPlayersStatus: (options.blockedPlayersStatus ?? "idle") as SessionControllerState["blockedPlayersStatus"],
     bounds: { east: 121.7, north: 25.2, south: 24.9, west: 121.4 },
     courts: options.courts ?? [],
     courtsReady: true,
@@ -125,6 +128,14 @@ function createMePageViewState(options: MeAppHarnessOptions): PageViewState {
   };
 }
 
+function createBlockedPlayersSnapshot(options: MeAppHarnessOptions): BlockedPlayersSnapshot {
+  return {
+    blockedPlayers: options.blockedPlayers ?? [],
+    blockedPlayersError: options.blockedPlayersError ?? "",
+    blockedPlayersStatus: options.blockedPlayersStatus ?? "idle",
+  };
+}
+
 function replaceAppOwnedRoot(rootElement: HTMLElement): HTMLElement {
   if (rootElement.id !== "me-root" || !rootElement.parentElement) return rootElement;
   const replacement = rootElement.cloneNode(false) as HTMLElement;
@@ -143,7 +154,20 @@ export function mountMeAppHarness(requestedRoot: HTMLElement, initialOptions: Me
   let options = initialOptions;
   const sessionStore = createStore(createMeHarnessState(options));
   const pageViewStore = createStore<PageViewState, "me" | "mySessions">(createMePageViewState(options));
+  let blockedPlayersSnapshot = createBlockedPlayersSnapshot(options);
+  const blockedPlayersListeners = new Set<(snapshot: Readonly<BlockedPlayersSnapshot>) => void>();
+  const blockedPlayers: BlockedPlayersFacade = {
+    clearForAccountChange: () => {},
+    getSnapshot: () => blockedPlayersSnapshot,
+    load: async () => true,
+    refresh: async () => true,
+    subscribe(listener) {
+      blockedPlayersListeners.add(listener);
+      return () => blockedPlayersListeners.delete(listener);
+    },
+  };
   const controller = {
+    blockedPlayers,
     sessionStore,
     togglePlayerVisibility: () => options.onTogglePlayerVisibility?.(),
     unblockPlayer: (profileId: ControllerIdentifier) => options.onUnblockPlayer?.(profileId),
@@ -186,9 +210,11 @@ export function mountMeAppHarness(requestedRoot: HTMLElement, initialOptions: Me
     update(nextOptions = {}) {
       options = nextOptions;
       sessionStore.setState(createMeHarnessState(options));
+      blockedPlayersSnapshot = createBlockedPlayersSnapshot(options);
       pageViewStore.setState(createMePageViewState(options));
       render();
       sessionStore.emit("me");
+      for (const listener of [...blockedPlayersListeners]) listener(blockedPlayersSnapshot);
       pageViewStore.emit("me");
     },
   };

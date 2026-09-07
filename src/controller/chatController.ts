@@ -45,7 +45,7 @@ interface ChatControllerDependencies {
   ) => ControllerSurfaceHandle | null | undefined;
   openReportForTarget: (target: ReportTarget) => unknown;
   readCourts: () => unknown[];
-  refreshMyPlayerBlocks: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
+  refreshBlockedPlayers: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
   refreshMySessions: () => Promise<boolean>;
   requireMySessionAction: (
     sessionId: ControllerIdentifier,
@@ -74,7 +74,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     openChat,
     openReportForTarget,
     readCourts,
-    refreshMyPlayerBlocks,
+    refreshBlockedPlayers,
     refreshMySessions,
     requireMySessionAction,
     surfaceRegistry,
@@ -174,7 +174,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     if (!surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
       throw new Error("登入狀態已變更，請重新整理後再試。");
     }
-    const [blocksReady] = await Promise.all([refreshMyPlayerBlocks(context.authSnapshot), refreshActiveChat(context)]);
+    const [blocksReady] = await Promise.all([refreshBlockedPlayers(context.authSnapshot), refreshActiveChat(context)]);
     if (!blocksReady) throw new Error("封鎖已生效，但清單暫時無法重新載入。");
     toast("已封鎖這位球友。");
     return true;
