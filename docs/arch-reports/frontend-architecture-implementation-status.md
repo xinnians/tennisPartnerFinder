@@ -70,7 +70,8 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 證據在 `frontend-architecture-fa-06-stage-6-0-unread-command-2026-09-07.md`；最新 Stage 6A Chat feed owner 證據在
 `frontend-architecture-fa-06-stage-6a-chat-feed-owner-2026-09-07.md`；最新 Stage 6B.1 Messages 專用 selector 與
 App services bridge 退役證據在
-`frontend-architecture-fa-06-stage-6b1-messages-selector-2026-09-07.md`。
+`frontend-architecture-fa-06-stage-6b1-messages-selector-2026-09-07.md`；最新 Stage 6B.2 page-route owner 證據在
+`frontend-architecture-fa-06-stage-6b2-page-route-owner-2026-09-07.md`。
 
 ## 目前狀態
 
@@ -78,12 +79,12 @@ App services bridge 退役證據在
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 目前批次                | `FA-06 stage 6B.1` 完成：Messages 已改用只讀 `mySessions`／`courts` 的專用 selector，App Context 的 Messages hooks 與舊分組轉接已刪除；下一步 6B.2 page-route owner                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1 已完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                             |
+| 目前批次                | `FA-06 stage 6B.2` 完成：零依賴 page-route owner 已集中四頁 hash／history owner／focus，Messages 的 main route 特例已刪；下一步 6B.3 只讀重驗 Chat surface adapter 退役邊界                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1／6B.2 已完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                      |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner，以及 Messages 專用資料邊界已落地；Push 登出 server cleanup、v2 UI、SW、Hosted active dispatcher 尚未接線 |
 | migration 變更          | 39 local／39 Hosted，最新皆為 `202609070001`；D1 套用後 role／commands／index／trigger、資料與 linked lint 驗證通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce，並報 raw／gzip／Brotli；Brotli 無門檻。required CI 跑 production preview Chromium；WebKit preview 留在非阻擋 job                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 下一步                  | 執行 `FA-06 stage 6B.2`：page-route owner 集中 deep link、bottom-nav click、back/forward 與 heading focus，並刪除 `main.js` 被取代的 Messages 路由特例；Hosted C 真實 Push 與 B13.3 UI 仍分別等待產品確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 下一步                  | 執行 `FA-06 stage 6B.3` 唯讀邊界重驗：依 preflight 與 final candidate 核對 `SessionChatSheet` imperative adapter／controller → surface 選擇的實際退役範圍；Hosted C 真實 Push 與 B13.3 UI 仍分別等待產品確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 查實際 Git 狀態：
 
@@ -160,7 +161,7 @@ git log --oneline --decorate -10
 | FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1／B13.2、dispatcher D0.1／D0.2／D1／D2／D3A、cleanup limiter foundation、39／39 Hosted migrations、cleanup C0、dormant C1 path、local stage diagnostic 與 source substage 完成；Hosted diagnostic 停在 `SOURCE` 且已復原；契約 v1.3；runtime disabled | expand、DB、browser-to-local-DB、雙帳號、dormant dispatcher core 與 local Edge canary tests 通過；UI／privacy、active dispatcher、source substage Hosted 重驗、production Edge 與不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 完成（phase 0a／0b）                                                                                                                                                                                                                                                                                                                                                   | gate 有 canary；清單有明確 scope                                                                                                                                                                          |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 完成（phase 1／2／3）                                                                                                                                                                                                                                                                                                                                                  | before／after 可重現；未放寬未核可邊界                                                                                                                                                                    |
-| FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 階段 4 preflight／4.1～4.6、stage 5 preflight／5.1、Stage 6 preflight／6.0／6A／6B.1 完成；下一步 6B.2 page-route owner                                                                                                                                                                                                                                           | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                                                                                                               |
+| FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 階段 4 preflight／4.1～4.6、stage 5 preflight／5.1、Stage 6 preflight／6.0／6A／6B.1／6B.2 完成；下一步 6B.3 Chat surface adapter 邊界重驗                                                                                                                                                                                                                          | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                                                                                                               |
 
 ## FA-00 實際內容
 
@@ -2487,6 +2488,21 @@ Hosted deploy／secret／request／DB write：未執行
 - 詳細證據見 `frontend-architecture-fa-06-stage-6b1-messages-selector-2026-09-07.md`。route owner、`main.js`
   Messages 路由特例退役與完整回歸屬 6B.2，本小步未宣告 Stage 6B 完成。
 
+## FA-06 stage 6B.2 page-route owner
+
+- 新增零 runtime dependency page-route owner，單一保存四頁 hash／root／tab／heading focus、active page、history
+  owner 與私人頁回 map 規則；browser API 經 `main.js` 具名薄介面注入。
+- Messages deep link、bottom-nav click、Back／Forward 與 heading focus 共用 `navigate()`；`main.js` 已刪
+  `PAGE_ROUTES`、`setActivePage()`、`showMessagesPage()` 與 Messages tab／heading 特例。
+- My Sessions 只保留 create／join 卡片 focus page-view wrapper；Me／My Sessions 的必要進頁資料刷新沒有被刪。
+- route source gate 有三個 negative canary；DOM mutation ledger 與 browser-port manifest 已換成實際 owner。
+- Node 659／5 skipped、desktop＋mobile Chromium 348／4 skipped、targeted route 19／19、navigation 32／32、
+  typecheck、lint、Prettier、build 與 bundle structural checks 通過。
+- production main 650,481／191,883／160,168，total 853,574／262,224／221,337 raw／gzip／Brotli；相較
+  6B.1 total +197／+256／+125 bytes，開發期 total raw／gzip 超額 3,613／3,162 bytes，依 D8 只報告。
+- 詳細證據見 `frontend-architecture-fa-06-stage-6b2-page-route-owner-2026-09-07.md`。依 Stage 6 preflight 與
+  final candidate，下一步仍要只讀重驗 Chat imperative adapter／controller → surface 選擇，不能提前宣告 6B 完成。
+
 ## 已知阻塞與風險
 
 - `FA-03B12.7` 的 browser provider-policy 契約衝突已依使用者選擇 A 解決：v1.3 與 B11.1 把 browser structure
@@ -2494,8 +2510,8 @@ Hosted deploy／secret／request／DB write：未執行
   B12.8 已完成 local-only Edge HTTP／Auth／DB，B12.9 已完成 real browser-to-local-DB composition。production
   provider policy secret 仍未設定；Hosted 4 筆現有 row 的 aggregate 都是 exact FCM origin，但正式設定前仍要重查，
   不得把這次 aggregate 外推成永久 provider 清單。
-- 最新一般 development build 的 main 為 650,284／191,609／160,037，total 為
-  853,377／261,968／221,212 raw／gzip／Brotli；raw／gzip 比目前參考值多 3,416／2,906 bytes。D8 允許開發期
+- 最新一般 development build 的 main 為 650,481／191,883／160,168，total 為
+  853,574／262,224／221,337 raw／gzip／Brotli；raw／gzip 比目前參考值多 3,613／3,162 bytes。D8 允許開發期
   report 繼續，release enforce 仍是 hard fail；第一個 production candidate 前須依 D9 用正式 hosting、裝置、網路
   與 Web Vitals 重訂 release 基線。本機 production preview 基線不是 production SLA。
 - 現行 production browser／Hosted dispatcher 仍只讀寫 legacy `push_subscriptions`；repo／本機已有 v2 transport metadata、
@@ -2578,9 +2594,11 @@ Hosted deploy／secret／request／DB write：未執行
    FA-06 階段 4 preflight、4.1 manifest、4.2 loader、4.3 configure、4.4 app-module／preload wiring、4.5 評估與
    4.6 facade 完整退役、stage 5 blockedPlayers preflight 與 5.1 facade 實作已完成；不要恢復 `sessionViews.js`、
    舊 harness name 或把 blocked 三欄放回 session store。Stage 6 Chat／Messages 唯讀 preflight、6.0 immutable
-   unread command、6A Chat feed owner 與 6B.1 Messages 專用 selector／App services bridge 退役已完成；不要恢復
+   unread command、6A Chat feed owner、6B.1 Messages 專用 selector／App services bridge 退役與 6B.2 page-route
+   owner 已完成；不要恢復
    原地修改 unread、Chat 直接 notify、controller 內的 feed／cursor／gate／poller owner、Messages Context hooks 或
-   roster coupling。下一步做 6B.2 page-route owner，並刪除 `main.js` 被取代的 Messages 路由特例。
+   roster coupling，也不要把 Messages route／tab／heading 特例放回 `main.js`。下一步做 6B.3 唯讀重驗
+   `SessionChatSheet` imperative adapter 與 controller → surface 實作選擇，再決定可驗證的最小退役批。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -2719,3 +2737,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-07 | FA-06 stage 6.0                  | My Sessions 新增 immutable unread command；Chat 刪除共用 session 原地 mutation 與直接 notify 依賴，AST negative canary 防倒退。targeted 129／129、Node 646／5 skipped、Chromium 348／4 skipped、preview 5／5、local API 4／4、desktop 44／11 skipped、mobile 6／6；WebKit 非阻擋 focus 164／3 skipped／9 failed。 |
 | 2026-09-07 | FA-06 stage 6A                   | Chat feed facade 接管 messages／roster／cursor／gate／poller；context 8→4 欄、controller 244→193 行，舊 owner 實際刪除。三層 stale guard、quiet/loud、stop、mark-read retry／monotonic cursor 均有測試；Node 655／5 skipped、Chromium 348／4 skipped、preview 5／5、local API 4／4、desktop 44／11 skipped、mobile 6／6；WebKit 維持 164／3／9。 |
 | 2026-09-07 | FA-06 stage 6B.1                 | Messages 改用只讀 `mySessions`／`courts` 的專用 selector，移除 App Context Messages hooks、舊 groups adapter 與 harness bridge；source gate 有三個 negative canary。typecheck／lint、targeted Node 80／80、desktop Chromium 16／16、build／bundle structural checks 通過；尚待 6B.2 route owner。 |
+| 2026-09-07 | FA-06 stage 6B.2                 | 零依賴 page-route owner 集中四頁 hash／history owner／private fallback／focus；Messages deep link、tab click、Back／Forward 共用 `navigate()`，main 專屬 route／tab／heading 特例已刪。Node 659／5 skipped、Chromium 348／4 skipped、route 19／19、navigation 32／32 與 gates 通過；尚待 6B.3 Chat surface 邊界重驗。 |

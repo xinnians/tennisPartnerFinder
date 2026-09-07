@@ -109,6 +109,7 @@ import {
   defaultNotificationSettings,
 } from "./features/notifications/notificationFeature.ts";
 import { createNotificationPushProductionShell } from "./notificationPushProductionShell.ts";
+import { createPageRouteOwner } from "./features/navigation/pageRouteOwner.ts";
 import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
 import {
   authIdentity,
@@ -185,17 +186,45 @@ function currentProfileEligibility(profile = getAppState().profile) {
     courtsStatus: courtCatalogueStatus,
   });
 }
-let activePage = "map";
-const PAGE_ROUTES = Object.freeze({
-  map: { elementId: "tab-map", hash: "#tab-map" },
-  "my-sessions": { elementId: "my-sessions-page", hash: "#tab-my-sessions" },
-  messages: { elementId: "messages-page", hash: "#tab-messages" },
-  me: { elementId: "me-page", hash: "#tab-me" },
-});
-
-function pageFromHash(hash = "") {
-  return Object.entries(PAGE_ROUTES).find(([, route]) => route.hash === hash)?.[0] ?? null;
+function currentRouteHash() {
+  return globalThis.location?.hash ?? "";
 }
+
+function historyPageOwnerIdentity() {
+  return globalThis.history?.state?.pageOwnerIdentity;
+}
+
+function writePageHistory(mode, state, hash) {
+  globalThis.history?.[mode === "replace" ? "replaceState" : "pushState"]?.(state, "", hash);
+}
+
+function setPageHidden(elementId, hidden) {
+  document.getElementById(elementId).hidden = hidden;
+}
+
+function schedulePageFocus({ preventScroll, selector }) {
+  requestAnimationFrame(() => document.querySelector(selector)?.focus({ preventScroll }));
+}
+
+function runPageEntryEffects(page) {
+  if (page === "my-sessions") void controller.refreshMySessions();
+  if (page !== "me") return;
+  if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
+  void refreshNotificationSettings();
+  void controller.blockedPlayers.refresh();
+}
+
+const pageRouteOwner = createPageRouteOwner({
+  collapseDrawer: () => controller.setDrawerState("collapsed"),
+  getAuthIdentity: () => authIdentity(getAppState().authSession),
+  getHash: currentRouteHash,
+  getHistoryOwnerIdentity: historyPageOwnerIdentity,
+  onEnter: runPageEntryEffects,
+  scheduleFocus: schedulePageFocus,
+  setPageHidden,
+  syncNavigation: () => syncBottomNavigation(),
+  writeHistory: writePageHistory,
+});
 
 let createdSessionFocusId = null;
 // 批 C3-3:createdSessionFocusId 現在同時服務 create 與 join 兩種來源
@@ -230,17 +259,17 @@ function toast(message) {
 configureShareFeature({ toast });
 
 async function openSessionHashRoute() {
-  const sessionId = sessionIdFromHash(globalThis.location?.hash);
+  const sessionId = sessionIdFromHash(currentRouteHash());
   if (!sessionId || !controller) return;
-  showMapPage({ historyMode: "none" });
+  pageRouteOwner.navigate("map", { historyMode: "none" });
   const result = await controller.openSessionFromLink(sessionId);
-  if (sessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
+  if (sessionId !== sessionIdFromHash(currentRouteHash())) return;
   if (result?.status !== "opened") openSessionUnavailableSheet();
 }
 
 async function openAuthReadySessionHashRoute(expectedSessionId) {
   await bootAuthReady;
-  if (expectedSessionId !== sessionIdFromHash(globalThis.location?.hash)) return;
+  if (expectedSessionId !== sessionIdFromHash(currentRouteHash())) return;
   await openSessionHashRoute();
 }
 
@@ -333,7 +362,7 @@ function syncBottomNavigation() {
   // 改由 messages-tab 承載,跟既有 #my-sessions-badge-status live region 的分工
   // 模式一致(各自 tab 自己的 aria-label 負責播報自己的聚合信號)。
   const hasUnread = mySessionState?.groups?.hasUnread === true;
-  renderBottomNavigation({ activePage, hasUnread, needsActionCount: count });
+  renderBottomNavigation({ activePage: pageRouteOwner.getActivePage(), hasUnread, needsActionCount: count });
 }
 
 function captureAuthRequest(isCurrent = () => true) {
@@ -381,7 +410,7 @@ configureProfileOrchestrationFeature({
   currentAuthAvatarUrl,
   currentProfileEligibility,
   defaultProfile,
-  getActivePage: () => activePage,
+  getActivePage: pageRouteOwner.getActivePage,
   getAppState,
   getController: () => controller,
   invalidateAuthRequests: () => authRequestGate.invalidate(),
@@ -392,7 +421,7 @@ configureProfileOrchestrationFeature({
   },
   openLoginModal,
   openProfileCompletionSheet,
-  reconcilePageRouteOwner,
+  reconcilePageRouteOwner: pageRouteOwner.reconcile,
   reconcilePresenceTracking,
   resetNotificationSettings: () => {
     notificationSettings = defaultNotificationSettings();
@@ -402,7 +431,7 @@ configureProfileOrchestrationFeature({
   seedAllTaipeiCourtSubscriptions: () => notificationFeature.seedAllTaipeiCourtSubscriptions(),
   setAuthSession: (session) => controller.setAuthSession(session),
   setProfile: (profile) => controller.setProfile(profile),
-  showMePage,
+  showMePage: () => pageRouteOwner.navigate("me"),
   toast,
 });
 
@@ -422,24 +451,6 @@ function enablePushNotifications() {
   return notificationFeature.enablePushNotifications();
 }
 
-function setActivePage(page, { historyMode = "push" } = {}) {
-  activePage = page;
-  for (const [candidate, { elementId }] of Object.entries(PAGE_ROUTES)) {
-    document.getElementById(elementId).hidden = candidate !== page;
-  }
-  syncBottomNavigation();
-  const hash = PAGE_ROUTES[page].hash;
-  if (historyMode !== "none" && globalThis.location?.hash !== hash) {
-    const state = { pageOwnerIdentity: authIdentity(getAppState().authSession) };
-    globalThis.history?.[historyMode === "replace" ? "replaceState" : "pushState"]?.(state, "", hash);
-  }
-}
-
-function showMapPage({ focus = false, historyMode = "push" } = {}) {
-  setActivePage("map", { historyMode });
-  if (focus) requestAnimationFrame(() => document.getElementById("map-tab")?.focus({ preventScroll: true }));
-}
-
 // 批 C3-3:第一參數泛化為 { sessionId, reason }(或 null/未傳＝無聚焦目標，例如底部
 // 導覽「我的球局」分頁鈕)。reason 只決定 My Sessions 是否顯示
 // create 專屬文案；卡片聚焦本身兩種 reason 都適用，見該函式內的 highlightSessionId。
@@ -449,66 +460,18 @@ function showMySessionsPage(focusTarget = null, { focus = false, historyMode = "
     createdSessionFocusReason = focusTarget.reason ?? null;
     publishPageView("mySessions");
   }
-  controller.setDrawerState("collapsed");
-  setActivePage("my-sessions", { historyMode });
-  void controller.refreshMySessions();
-  if (focus) {
-    requestAnimationFrame(() => {
-      document.querySelector("#my-sessions-root [data-my-sessions-heading]")?.focus({ preventScroll: true });
-    });
-  }
-}
-
-function showMePage({ focus = false, focusNotificationSettings = false, historyMode = "push" } = {}) {
-  controller.setDrawerState("collapsed");
-  setActivePage("me", { historyMode });
-  if (getAppState().authSession && isSupabaseConfigured) void reloadCurrentProfile().catch(() => {});
-  void refreshNotificationSettings();
-  void controller.blockedPlayers.refresh();
-  if (focus)
-    requestAnimationFrame(() => document.querySelector("#me-root [data-me-heading]")?.focus({ preventScroll: true }));
-  if (focusNotificationSettings) {
-    // React 保留標題節點；這顆 rAF 只負責 navigation intent 的初始落點與捲動。
-    requestAnimationFrame(() => {
-      document.querySelector("#me-root [data-notification-settings-heading]")?.focus({ preventScroll: false });
-    });
-  }
+  pageRouteOwner.navigate("my-sessions", { focusTarget: focus ? "page" : null, historyMode });
 }
 
 // 批 D7:訊息頁不新增 dataApi 呼叫——不像 showMySessionsPage 會另外
 // void controller.refreshMySessions()。setAuthState() 在登入/還原 session 時已經
 // 觸發過 reloadParticipation(見 sessionController.ts),訊息頁只讀那份既有 state,
 // 不重複打 RPC。
-function showMessagesPage({ focus = false, historyMode = "push" } = {}) {
-  controller.setDrawerState("collapsed");
-  setActivePage("messages", { historyMode });
-  if (focus) {
-    requestAnimationFrame(() => {
-      document.querySelector("#messages-root [data-messages-heading]")?.focus({ preventScroll: true });
-    });
-  }
-}
-
 function routeCurrentHash() {
-  const hash = globalThis.location?.hash ?? "";
+  const hash = currentRouteHash();
   const sessionId = sessionIdFromHash(hash);
   if (sessionId) return openAuthReadySessionHashRoute(sessionId);
-  const page = pageFromHash(hash) ?? (hash ? null : "map");
-  if (page === "map") return showMapPage({ historyMode: "none" });
-  if (page === "my-sessions") return showMySessionsPage(null, { historyMode: "none" });
-  if (page === "messages") return showMessagesPage({ historyMode: "none" });
-  if (page === "me") showMePage({ historyMode: "none" });
-}
-
-function reconcilePageRouteOwner({ forcePublic = false } = {}) {
-  const page = pageFromHash(globalThis.location?.hash);
-  const pageOwnerIdentity = globalThis.history?.state?.pageOwnerIdentity;
-  const mustLeavePrivatePage = forcePublic && page !== "map" && page !== "me";
-  const changedPageOwner =
-    !forcePublic && pageOwnerIdentity && pageOwnerIdentity !== authIdentity(getAppState().authSession);
-  if (page && (mustLeavePrivatePage || changedPageOwner)) {
-    showMapPage({ historyMode: "replace" });
-  }
+  return pageRouteOwner.routeCurrentHash();
 }
 
 function renderBaseCourtPins() {
@@ -677,7 +640,7 @@ function init() {
       supportHref: supportContactHref(),
     },
     mySessionsApp: {
-      onBack: () => showMapPage({ focus: true }),
+      onBack: () => pageRouteOwner.navigate("map", { focusTarget: "page" }),
       onCreatedSessionFocus: (expectedSessionId = createdSessionFocusId) => {
         if (createdSessionFocusId !== expectedSessionId) return false;
         createdSessionFocusId = null;
@@ -689,7 +652,7 @@ function init() {
       onSignIn: () => openSafeLogin({ action: "my-sessions" }),
     },
     nearbyDrawerApp: {
-      onSubscribe: () => showMePage({ focusNotificationSettings: true }),
+      onSubscribe: () => pageRouteOwner.navigate("me", { focusTarget: "notification-settings" }),
     },
     pageViewStore,
   });
@@ -707,17 +670,16 @@ function init() {
     if (event.target.closest("#player-directory-open")) controller.openPlayerDirectory();
     if (event.target.closest(".app-brand")) {
       event.preventDefault();
-      showMapPage({ focus: true });
+      pageRouteOwner.navigate("map", { focusTarget: "page" });
     }
   });
   document.getElementById("bottom-navigation-root").addEventListener("click", (event) => {
     if (!(event.target instanceof Element)) return;
     const destination = event.target.closest("button")?.id;
-    if (destination === "map-tab") showMapPage();
     if (destination === "create-session-tab") controller.openCreateIntent();
-    if (destination === "my-sessions-tab") showMySessionsPage();
-    if (destination === "messages-tab") showMessagesPage();
-    if (destination === "me-tab") showMePage();
+    const page = pageRouteOwner.pageFromTabId(destination);
+    if (page === "my-sessions") showMySessionsPage();
+    else if (page) pageRouteOwner.navigate(page);
   });
   globalThis.addEventListener("hashchange", () => {
     void routeCurrentHash();
