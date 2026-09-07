@@ -684,7 +684,7 @@ export function mountLoginModalContentInApp(
   return surfaceContent;
 }
 
-/** One React tree; legacy page containers remain stable portal targets while sessionViews owns native listeners. */
+/** One React tree; legacy page containers remain stable portal targets while sessionViewWiring owns native listeners. */
 export function App({ snapshot: current }: AppProps) {
   const messagesRoot = document.getElementById("messages-root");
   const toastRoot = document.getElementById("toast-root");

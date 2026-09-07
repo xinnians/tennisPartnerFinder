@@ -2633,10 +2633,10 @@ test("create session publish still refreshes public and private authority before
 });
 
 // 批 D5 決策 8/2/13/4-5 的純函式單元覆蓋(venueType 推導、NTRP band 映射、
-// canPublish 守門、日期＋時間組合)——sessionViews.js 是瀏覽器 ESM 模組但函式
+// canPublish 守門、日期＋時間組合)——sessionFormViews.js 是瀏覽器 ESM 模組但函式
 // 本身無 DOM 依賴,node:test 可直接 import 執行。
 test("D5 venueType derivation: fixed+booked=booked, fixed+not booked=walk_on, cand=candidates regardless of booked", async () => {
-  const { deriveCreateVenueType } = await import("../src/sessionViews.js");
+  const { deriveCreateVenueType } = await import("../src/views/sessionFormViews.js");
   assert.equal(deriveCreateVenueType("fixed", true), "booked");
   assert.equal(deriveCreateVenueType("fixed", false), "walk_on");
   assert.equal(deriveCreateVenueType("cand", true), "candidates");
@@ -2644,7 +2644,7 @@ test("D5 venueType derivation: fixed+booked=booked, fixed+not booked=walk_on, ca
 });
 
 test("D5 create-form NTRP band mapping: 'any' is null/null (unlimited), others are the labelled numeric range", async () => {
-  const { createNtrpRangeForBand } = await import("../src/sessionViews.js");
+  const { createNtrpRangeForBand } = await import("../src/views/sessionFormViews.js");
   assert.deepEqual(createNtrpRangeForBand("any"), { ntrpMax: null, ntrpMin: null });
   assert.deepEqual(createNtrpRangeForBand("lo"), { ntrpMax: 3, ntrpMin: 1 });
   assert.deepEqual(createNtrpRangeForBand("mid"), { ntrpMax: 4, ntrpMin: 3 });
@@ -2653,7 +2653,7 @@ test("D5 create-form NTRP band mapping: 'any' is null/null (unlimited), others a
 });
 
 test("D5 canPublish gate: fixed needs court+time, candidates needs >=2 courts and a slot", async () => {
-  const { createSessionFormCanPublish } = await import("../src/sessionViews.js");
+  const { createSessionFormCanPublish } = await import("../src/views/sessionFormViews.js");
   assert.equal(createSessionFormCanPublish({ court: null, mode: "fixed", time: "09:00" }), false);
   assert.equal(createSessionFormCanPublish({ court: 8, mode: "fixed", time: null }), false);
   assert.equal(createSessionFormCanPublish({ court: 8, mode: "fixed", time: "09:00" }), true);
@@ -2663,7 +2663,7 @@ test("D5 canPublish gate: fixed needs court+time, candidates needs >=2 courts an
 });
 
 test("D5 fixed-mode date+time combination converts to the datetime-local string validateCreateSessionInput expects", async () => {
-  const { createFixedStartAtLocal } = await import("../src/sessionViews.js");
+  const { createFixedStartAtLocal } = await import("../src/views/sessionFormViews.js");
   const now = new Date("2026-08-10T04:00:00.000Z"); // 2026-08-10 12:00 Taipei,週一
   assert.equal(createFixedStartAtLocal({ dateKey: "today", time: "19:00" }, now), "2026-08-10T19:00");
   assert.equal(createFixedStartAtLocal({ dateKey: "tomorrow", time: "06:30" }, now), "2026-08-11T06:30");
@@ -2677,7 +2677,7 @@ test("D5 fixed-mode date+time combination converts to the datetime-local string 
 });
 
 test("D5 candidate-mode date+slot combination derives both startAtLocal and rangeEndLocal from the same day", async () => {
-  const { createCandidateWindowLocal } = await import("../src/sessionViews.js");
+  const { createCandidateWindowLocal } = await import("../src/views/sessionFormViews.js");
   const now = new Date("2026-08-10T04:00:00.000Z");
   assert.deepEqual(createCandidateWindowLocal({ dateKey: "today", slot: "morning" }, now), {
     rangeEndLocal: "2026-08-10T10:00",
@@ -2694,7 +2694,7 @@ test("D5 candidate-mode date+slot combination derives both startAtLocal and rang
 });
 
 test("D5 custom start-time stepper clamps to 06:00-22:00 in 15-minute steps", async () => {
-  const { bumpCreateTimeMinutes } = await import("../src/sessionViews.js");
+  const { bumpCreateTimeMinutes } = await import("../src/views/sessionFormViews.js");
   assert.equal(bumpCreateTimeMinutes("19:30", 15), "19:45");
   assert.equal(bumpCreateTimeMinutes("19:30", -15), "19:15");
   assert.equal(bumpCreateTimeMinutes("05:50", -15), "06:00");

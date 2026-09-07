@@ -356,7 +356,7 @@ test("saving a profile before court options are ready preserves its existing cou
   await page.evaluate(
     async ({ nickname, savedCourt }) => {
       const { saveCurrentProfile } = await window.__importAppModule("dataApi");
-      const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+      const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
       openProfileCompletionSheet({
         courts: [],
         courtsReady: false,
@@ -512,7 +512,7 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   // 批 D9 backlog(A):D5 把建局表單改成 chip/segmented/stepper,球場改點選
   // create-court-{id} chip(session-court 現在只是外層 grid 容器,不是 <select>),
   // 開始時間改「日期 chip ＋開始時間 chip」兩段;09:00 是固定 preset(CREATE_TIME_PRESETS,
-  // sessionViews.js),不再能任填「09:30」——半點對這條測試要驗的 Taipei→UTC 轉換
+  // sessionFormViews.js),不再能任填「09:30」——半點對這條測試要驗的 Taipei→UTC 轉換
   // 邏輯無特殊意義,改用整點 preset 不影響驗證目的。
   await form.getByTestId(`create-court-${courtId}`).click();
   await form.getByTestId("create-date-custom").click();
@@ -543,7 +543,7 @@ test("a host creates a candidate session in the form and a guest joins it", asyn
   const secondCourtId = await courtIdByName(host.client, "青年公園網球場");
   const notes = `candidate-ui-${context.runId}`;
   // 批 D9:候選模式的開始時段改由「日期 chip ＋固定時段 chip(早上/下午/晚上)」
-  // 組成(見 sessionViews.js CREATE_SLOT_OPTIONS),不再能自由填任意 start/end——
+  // 組成(見 sessionFormViews.js CREATE_SLOT_OPTIONS),不再能自由填任意 start/end——
   // 這條測試本身不斷言精確時間,只要落在未來即可,選「下午」對應 14:00–17:00。
   const startDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
   const taipeiDateOnly = (date) => new Date(date.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -626,7 +626,7 @@ test("a host decides a candidate session into one solid pin and the database rec
   const firstCourtId = firstCourt.id;
   const secondCourtId = secondCourt.id;
   // 批 D9:候選模式的時段改由固定 slot chip(早上 06–10／下午 14–17／晚上 18–22,
-  // 見 sessionViews.js CREATE_SLOT_OPTIONS)決定,不再能自由填 start/end——改成
+  // 見 sessionFormViews.js CREATE_SLOT_OPTIONS)決定,不再能自由填 start/end——改成
   // 「先選 slot,再從 slot 反推 startAt/rangeEnd」,下游的 decision-time 斷言與
   // DB decided_at 比對都改用這組反推值,語意(72 小時後、候選需定案)不變。
   const targetDate = new Date(Date.now() + 72 * 60 * 60 * 1000);

@@ -21,8 +21,9 @@ test("four React-external live roots keep their DOM identity across updates and 
   }, LIVE_ROOT_IDS);
 
   await page.evaluate(async () => {
-    const { renderMapDataStatus, renderPlayerLayerToggle, renderToast } =
-      await globalThis.__importAppModule("sessionViews");
+    const { renderMapDataStatus, renderPlayerLayerToggle } =
+      await globalThis.__importAppModule("views/discoverySurfaceViews");
+    const { renderToast } = await globalThis.__importAppModule("views/sessionViewWiring");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
       message: "FA-04 球友狀態更新",
       on: true,

@@ -13,7 +13,8 @@ test("chat sheet escapes user bodies, separates system messages, and becomes arc
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openSessionChatSheet, preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     await preloadNonHomeViews("chat");
     window.__chatActions = [];
     const sheet = openSessionChatSheet(
@@ -229,7 +230,7 @@ test("the create form asks about the venue situation and offers three play types
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openCreateSessionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       onSubmit: async (input) => {
@@ -283,7 +284,7 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openEditSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openEditSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openEditSessionSheet(
       {
         courtId: 8,
@@ -309,7 +310,7 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   const editForm = page.getByTestId("session-edit-form");
   // 同一個「適合程度」欄位在建局有說明、編輯沒有是不一致;三處共用同一個匯出常數。
   const ntrpExplanation = await page.evaluate(
-    async () => (await window.__importAppModule("sessionViews")).NTRP_SCALE_EXPLANATION
+    async () => (await window.__importAppModule("views/sessionViewWiring")).NTRP_SCALE_EXPLANATION
   );
   await expect(editForm.locator("[data-ntrp-explanation]")).toHaveText(ntrpExplanation);
   const options = editForm.getByTestId("session-edit-play-type").locator("option");
@@ -334,7 +335,7 @@ test("edit sheet expands advanced settings by default when the session already h
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openEditSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openEditSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openEditSessionSheet(
       {
         courtId: 8,
@@ -369,7 +370,7 @@ test("the profile sheet still offers all four practice types", async ({ page }) 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       profile: { courts: new Set(), nick: "測試球友", ntrp: 3.5, slots: new Set(), types: new Set(["對拉"]) },
@@ -470,7 +471,7 @@ test("openFilterSheet mounts a dialog with six data-filter groups and closes on 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openFilterSheet } = await window.__importAppModule("sessionViews");
+    const { openFilterSheet } = await window.__importAppModule("views/discoverySurfaceViews");
     const { COURTS } = await window.__importAppModule("mockData");
     const { DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
     window.__filterSheetCloseCalls = 0;
@@ -510,7 +511,7 @@ test("the filter sheet applies a district change immediately to the background d
   await page.goto("/");
 
   const firstSummary = await page.evaluate(async () => {
-    const { openFilterSheet } = await window.__importAppModule("sessionViews");
+    const { openFilterSheet } = await window.__importAppModule("views/discoverySurfaceViews");
     const { MOCK_SESSIONS, COURTS } = await window.__importAppModule("mockData");
     const { filterSessions, DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
     const { renderNearbyDrawerAppHarness } = await import("/tests/fixtures/nearbyDrawerAppHarness.tsx");
@@ -586,7 +587,7 @@ test("closing and reopening the filter sheet three times does not stack delegate
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openFilterSheet } = await window.__importAppModule("sessionViews");
+    const { openFilterSheet } = await window.__importAppModule("views/discoverySurfaceViews");
     const { COURTS } = await window.__importAppModule("mockData");
     const { DEFAULT_FILTER_STATE } = await window.__importAppModule("filters");
     window.__filterSheetSetFilterCalls = 0;

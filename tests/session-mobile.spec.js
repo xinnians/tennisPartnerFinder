@@ -368,7 +368,7 @@ test("the filter sheet open button, filter sheet controls, and profile-completio
   expect(runtimeErrors).toEqual([]);
 });
 
-// 批 D9:批 D2 把抽屜改成「兩態 peek」(collapsed/open,見 sessionViews.js
+// 批 D9:批 D2 把抽屜改成「兩態 peek」(collapsed/open,見 discoverySurfaceViews.js
 // wireDrawerInteractions/renderNearbySessionsList),不再有三態(collapsed/half/full)
 // 與各自獨立的 drawer-expand/drawer-collapse 鈕——收合態的入口是 #nearby-sessions-toggle
 // 本身(peek 列全域可點,#nearby-sessions-summary 只是它內部一個 visually-hidden 摘要

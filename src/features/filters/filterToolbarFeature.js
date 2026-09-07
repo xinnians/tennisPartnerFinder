@@ -6,7 +6,7 @@ let openFilterSheet;
 let configureMapFilterToolbar;
 let renderMapFilterToolbar;
 
-/** Configure entry-owned state and the public sessionViews filter adapter. */
+/** Configure entry-owned state and the public session view wiring adapter. */
 export function configureFilterToolbarFeature(dependencies) {
   ({ configureMapFilterToolbar, getAppState, getController, openFilterSheet, renderMapFilterToolbar } = dependencies);
 }

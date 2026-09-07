@@ -168,7 +168,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       profile: { courts: new Set(), nick: "", ntrp: 3.5, slots: new Set(["we-m"]), types: new Set() },
@@ -180,7 +180,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
     "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
   // 兩個掛載點都比對「模組匯出的那一份」,任何一處寫死成不同文字都會紅。
   const ntrpExplanation = await page.evaluate(
-    async () => (await window.__importAppModule("sessionViews")).NTRP_SCALE_EXPLANATION
+    async () => (await window.__importAppModule("views/sessionViewWiring")).NTRP_SCALE_EXPLANATION
   );
   expect(ntrpExplanation).toContain("NTRP 是網球程度自評分級");
   const profile = page.locator("#profile-completion-sheet");
@@ -192,7 +192,7 @@ test("profile and create sheets disclose public nickname use and retain a local-
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openCreateSessionSheet({
       courts: [{ city: "台北市", id: 8, name: "示範球場" }],
       onSubmit: async () => {
@@ -243,7 +243,7 @@ test("the create form keeps date controls reachable above the sticky footer at p
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openCreateSessionSheet({
       courts: Array.from({ length: 61 }, (_, index) => ({
         city: "台北市",
@@ -438,7 +438,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       intent: { action: "create" },
       profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
@@ -452,7 +452,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       intent: { action: "create" },
       profile: { courts: new Set(), nick: "已有暱稱", ntrp: null, slots: new Set(), types: new Set() },
@@ -464,7 +464,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       intent: { action: "players" },
       profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
@@ -476,7 +476,7 @@ test("profile completion explains targeted gate requirements", async ({ page }) 
   await page.keyboard.press("Escape");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       intent: { action: "directory" },
       profile: { courts: new Set(), nick: "", ntrp: null, slots: new Set(), types: new Set() },
@@ -495,7 +495,7 @@ test("create sheet submits a walk-on session with one authoritative court", asyn
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__walkOnCreatePayload = null;
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -540,7 +540,7 @@ test("create sheet submits sensible defaults when only a court and start time ar
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__collapsedCreatePayload = null;
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -583,7 +583,7 @@ test("create sheet switches to candidate mode and submits up to three candidate 
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__stage4bCreatePayload = null;
     window.__stage4bToasts = [];
     openCreateSessionSheet({
@@ -650,7 +650,7 @@ test("create sheet blocks publish with guidance toast until the venue requiremen
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__blockedToasts = [];
     window.__blockedSubmitCount = 0;
     openCreateSessionSheet({
@@ -686,7 +686,7 @@ test("create sheet switches to its own success page after publish and routes 查
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__viewMySessionsCalls = [];
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -725,7 +725,7 @@ test("create sheet success page's 回到地圖 closes without triggering My Sess
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__viewMySessionsCalls = [];
     openCreateSessionSheet({
       courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }],
@@ -755,7 +755,7 @@ test("an existing one-decimal NTRP can save a nickname-only edit unchanged", asy
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     window.__savedOneDecimalProfile = null;
     openProfileCompletionSheet({
       onSave: async (draft) => {
@@ -793,7 +793,7 @@ test("profile NTRP accepts 1.0 and 7.0 but rejects excess precision and out-of-r
 
   const submitNtrp = async (value) => {
     await page.evaluate(async (nextValue) => {
-      const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+      const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
       window.__profileNtrpResults = window.__profileNtrpResults ?? [];
       openProfileCompletionSheet({
         onSave: async (draft) => {
@@ -836,7 +836,7 @@ test("a 390px profile sheet saves a nickname-only draft without horizontal overf
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       onSave: async (draft) => {
         window.__nicknameOnlyProfile = {
@@ -879,7 +879,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     window.__delayedProfileSheet = openProfileCompletionSheet({
       courts: [],
       courtsReady: false,
@@ -924,7 +924,7 @@ test("delayed Taipei court options hydrate open profile and create forms without
   // DOM——courts 延遲抵達時只重繪 grid 選項,不會動到其他欄位已寫入的 state,
   // 所以這裡改成驗證「courts 就緒前填的其他欄位在 setCourts 之後還在」。
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__delayedCreateSheet = openCreateSessionSheet({ courts: [], courtsReady: false });
   });
   const create = page.locator("#session-create-modal");
@@ -973,7 +973,7 @@ test("a mock profile save preserves existing courts while the catalogue has no o
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     window.__mockSavedProfileCourts = null;
     openProfileCompletionSheet({
       courts: [],
@@ -1006,7 +1006,7 @@ test("profile sheet saves selected home courts via checkboxes", async ({ page })
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     window.__savedProfileCourts = null;
     openProfileCompletionSheet({
       courts: [
@@ -1062,7 +1062,7 @@ test("mock online layer uses presence pins while the full directory list opens c
     const { createDataApi } = await window.__importAppModule("dataApi");
     const { createSessionController } = await window.__importAppModule("sessionController");
     const { openCourtPlayersDrawer, openPlayerCardSheet, openPlayerDirectoryList, renderPlayerLayerToggle } =
-      await window.__importAppModule("sessionViews");
+      await window.__importAppModule("views/discoverySurfaceViews");
     const map = new window.google.maps.Map(document.getElementById("map"), {
       center: { lat: 25.05, lng: 121.53 },
       zoom: 12,
@@ -1142,7 +1142,7 @@ test("player directory escapes every dynamic field before opening the selected p
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openPlayerDirectoryList } = await window.__importAppModule("sessionViews");
+    const { openPlayerDirectoryList } = await window.__importAppModule("views/discoverySurfaceViews");
     const sheet = openPlayerDirectoryList({
       onOpenPlayer: (player) => {
         window.__escapedDirectoryPlayer = player.profileId;

@@ -412,7 +412,7 @@ test("a pending join confirmation accepts only one intentional submission", asyn
   // 批 C3-2:join 確認併進同一張 detail sheet,不再開獨立 dialog——直接以
   // initialStage:"confirming" 開 sheet 驗證雙擊只送出一次。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     let releaseConfirmation;
     window.__joinConfirmationCalls = 0;
     window.__releaseJoinConfirmation = () => releaseConfirmation?.();
@@ -457,7 +457,7 @@ test("withdrawal requires an in-project confirmation that warns the member canno
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
+    const { openWithdrawSessionConfirmation } = await window.__importAppModule("views/sessionSurfaceViews");
     let releaseWithdrawal;
     window.__withdrawConfirmationCalls = 0;
     window.__releaseWithdrawal = () => releaseWithdrawal?.();
@@ -492,7 +492,8 @@ test("cancelling chat withdrawal keeps the action enabled and allows reopening c
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionChatSheet, openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
+    const { openSessionChatSheet, openWithdrawSessionConfirmation } =
+      await window.__importAppModule("views/sessionSurfaceViews");
     window.__chatWithdrawConfirmationCount = 0;
     openSessionChatSheet(
       {
@@ -535,7 +536,7 @@ test("cancelling My Sessions withdrawal keeps the action enabled and allows reop
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openWithdrawSessionConfirmation } = await window.__importAppModule("sessionViews");
+    const { openWithdrawSessionConfirmation } = await window.__importAppModule("views/sessionSurfaceViews");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     const root = document.getElementById("my-sessions-root");
     document.getElementById("tab-map").hidden = true;
@@ -592,7 +593,7 @@ test("join confirmation shares the sheet's own summary (no repeat) and becomes a
   // 批 C3-2:join 確認併進同一張 detail sheet,不再重複渲染球局摘要——detail 上方
   // 欄位只出現一次,confirming 態只加差異提示(join 型式)。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     openSessionSheet(
       {
         court: "青年公園網球場",
@@ -776,7 +777,7 @@ test("join and create success moments offer push only when the device can enable
   // 批 C3-2:join 成功卡併進同一張 detail sheet,不再開獨立 dialog——直接以
   // initialStage:"confirming" 開 sheet,點 join-confirm 進成功態。
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     window.__successPushCalls = [];
     openSessionSheet(sessionInput, {
@@ -834,7 +835,7 @@ test("join and create success moments offer push only when the device can enable
   ]) {
     await page.evaluate(
       async ({ sessionInput, settings: nextSettings }) => {
-        const { openSessionSheet } = await window.__importAppModule("sessionViews");
+        const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
         openSessionSheet(sessionInput, {
           action: { label: "申請加入", kind: "join", expectedAccepted: false },
           initialStage: "confirming",
@@ -851,7 +852,7 @@ test("join and create success moments offer push only when the device can enable
   }
 
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     openSessionSheet(sessionInput, {
       action: { label: "申請加入", kind: "join", expectedAccepted: false },
       initialStage: "confirming",
@@ -878,7 +879,7 @@ test("authenticated pre-join roster renders host first with escaped names, NTRP 
   // 批 C3-2:join preview 只在 detail sheet 出現一次(idle 態就已 hydrate,
   // confirming 沿用同一份),不再有獨立 confirmation surface 各自渲染一次。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     const session = {
       court: "青年公園網球場",
       courtDistrict: "萬華區",
@@ -941,7 +942,7 @@ test("profile completion previews the current Google avatar and explains that it
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+    const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
     openProfileCompletionSheet({
       avatarUrl: "https://lh5.googleusercontent.com/a/stage-t45-self",
       profile: { courts: new Set(), nick: "本人", ntrp: null, slots: new Set(), types: new Set() },
@@ -964,7 +965,7 @@ test("an expected instant outcome explains group chat and shows accepted success
   // 批 C3-2:instant join 也走兩段確認(spec 假設 4),同一張 detail sheet 內嵌
   // confirming/success,不再開獨立的「直接加入這場球局？」dialog。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     openSessionSheet(
       {
         court: "大佳河濱公園網球場",
@@ -1035,7 +1036,7 @@ test("a host viewing their own accepted session sees no withdraw affordance, unl
   };
 
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     openSessionSheet(sessionInput, { action: { label: "群組聊天", kind: "chat" }, isMine: true });
   }, session);
   const hostSheet = page.locator("#session-sheet");
@@ -1045,7 +1046,7 @@ test("a host viewing their own accepted session sees no withdraw affordance, unl
   await page.keyboard.press("Escape");
 
   await page.evaluate(async (sessionInput) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     openSessionSheet(sessionInput, { action: { label: "群組聊天", kind: "chat" }, isMine: false });
   }, session);
   const guestSheet = page.locator("#session-sheet");
@@ -1066,7 +1067,7 @@ test("join confirmation distinguishes both requested NTRP outcomes without losin
     ["OK_NTRP_OUT_OF_RANGE", "已送出申請；你的 NTRP 不在球局設定範圍內，等待主揪回覆。"],
   ]) {
     await page.evaluate(async (nextOutcome) => {
-      const { openSessionSheet } = await window.__importAppModule("sessionViews");
+      const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
       openSessionSheet(
         {
           court: "示範球場",
@@ -1136,7 +1137,7 @@ test("candidate session cards and details resolve every court until Boolean deci
   ];
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet } = await window.__importAppModule("sessionViews");
+      const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
       const { renderNearbyDrawerAppHarness } = await import("/tests/fixtures/nearbyDrawerAppHarness.tsx");
       renderNearbyDrawerAppHarness(document.getElementById("nearby-sessions-drawer"), {
         courts: catalogue,
@@ -1162,7 +1163,7 @@ test("candidate session cards and details resolve every court until Boolean deci
 
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet } = await window.__importAppModule("sessionViews");
+      const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
       openSessionSheet(
         {
           ...session,
@@ -1218,7 +1219,7 @@ test("undecided candidate sessions keep their court list and time range across p
   ];
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
+      const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
       const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;
@@ -1300,7 +1301,7 @@ test("undecided candidate sessions keep their court list and time range across p
   // 不再有獨立 confirmation surface 各自渲染一份。
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openSessionSheet } = await window.__importAppModule("sessionViews");
+      const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
       openSessionSheet(session, { action: { label: "申請加入" }, courts: catalogue });
     },
     { candidateSession, courts }
@@ -1316,7 +1317,7 @@ test("undecided candidate sessions keep their court list and time range across p
   await page.keyboard.press("Escape");
   await page.evaluate(
     async ({ candidateSession: session, courts: catalogue }) => {
-      const { openPlayerCardSheet } = await window.__importAppModule("sessionViews");
+      const { openPlayerCardSheet } = await window.__importAppModule("views/discoverySurfaceViews");
       openPlayerCardSheet(
         {
           courtDistrict: "中山區",
@@ -1369,7 +1370,7 @@ test("decided candidate sessions stay collapsed to one authoritative court and t
   ];
   await page.evaluate(
     async ({ decidedSession: session, courts: catalogue }) => {
-      const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
+      const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
       const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
       const root = document.getElementById("my-sessions-root");
       document.getElementById("tab-map").hidden = true;

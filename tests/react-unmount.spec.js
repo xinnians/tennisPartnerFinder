@@ -57,8 +57,9 @@ test("closing and replacing sheets unmount each SurfaceHost portal exactly once"
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet, openFilterSheet, preloadNonHomeViews } =
-      await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
+    const { openFilterSheet } = await window.__importAppModule("views/discoverySurfaceViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     await preloadNonHomeViews(["create", "filter"]);
     openCreateSessionSheet();
     openFilterSheet();
@@ -83,7 +84,7 @@ test("a pending join result cannot render after its detail sheet unmounts", asyn
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     let releaseJoin;
     const pendingJoin = new Promise((resolve) => {
       releaseJoin = resolve;
@@ -119,7 +120,7 @@ test("Escape closes a loading detail shell and load resolution cannot late-mount
   await page.goto("/");
 
   await page.evaluate(async (session) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     window.__detailCloseCalls = 0;
     openSessionSheet(session, {
       onClose: () => {
@@ -146,7 +147,7 @@ test("detail commands queued during loading replay into the replacement once", a
   await page.goto("/");
 
   await page.evaluate(async (session) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     const detail = openSessionSheet(session, {
       action: { expectedAccepted: false, kind: "join", label: "申請加入" },
       showJoinPreview: true,
@@ -176,7 +177,7 @@ test("replacing a loading detail shell does not call onClose and a real close ca
   await page.goto("/");
 
   await page.evaluate(async (session) => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     window.__detailCloseCalls = 0;
     openSessionSheet(session, {
       onClose: () => {

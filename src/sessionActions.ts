@@ -2,7 +2,7 @@ import { canReceiveFocus } from "./meFocus.js";
 import { sessionActionMessage } from "./sessionActionMessages.ts";
 
 // DOM-backed async state is intentionally separate from pure presentation. Both
-// sessionViews.js and React runtime facades consume this one shared action owner.
+// The dedicated surface modules and React runtime facades consume this one shared action owner.
 
 type ActionControl = HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 

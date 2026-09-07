@@ -39,7 +39,7 @@ test("Me owns player visibility while My Sessions omits both moved settings and 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["me", "mySessions"]);
@@ -372,7 +372,7 @@ test("the profile sheet keeps its gate framing but drops it in standalone mode",
   // 同一組輸入，只換 mode，差異才歸因得到 mode 本身。
   const openWith = (mode) =>
     page.evaluate(async (sheetMode) => {
-      const { openProfileCompletionSheet } = await window.__importAppModule("sessionViews");
+      const { openProfileCompletionSheet } = await window.__importAppModule("views/profileSurfaceView");
       openProfileCompletionSheet({
         courts: [{ city: "台北市", id: 8, name: "示範球場" }],
         intent: { action: "join" },
@@ -584,7 +584,7 @@ test("report dialog requires a reason, preserves failures, and acknowledges a su
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openReportDialog } = await window.__importAppModule("sessionViews");
+    const { openReportDialog } = await window.__importAppModule("views/sessionSurfaceViews");
     window.__reportReasons = [];
     openReportDialog({
       targetLabel: "青年公園網球場 · 週六上午",
@@ -659,7 +659,7 @@ test("closing a non-drawer report dialog after its trigger card disappears does 
   await expect(reportButton).toBeFocused();
 
   await page.evaluate(async () => {
-    const { openReportDialog } = await window.__importAppModule("sessionViews");
+    const { openReportDialog } = await window.__importAppModule("views/sessionSurfaceViews");
     openReportDialog({ targetLabel: "青年公園網球場 · 週六上午" });
   });
   await expect(page.locator("#report-dialog")).toBeVisible();
@@ -730,7 +730,7 @@ test("the non-drawer report dialog renders its full content and keeps it after t
 
   await page.getByTestId("report-session-424242").focus();
   await page.evaluate(async () => {
-    const { openReportDialog } = await window.__importAppModule("sessionViews");
+    const { openReportDialog } = await window.__importAppModule("views/sessionSurfaceViews");
     openReportDialog({ targetLabel: "青年公園網球場 · 週六上午" });
   });
 
@@ -774,8 +774,9 @@ test("a pending withdrawal accepts only one intentional submission", async ({ pa
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionSheet, openWithdrawSessionConfirmation, preloadNonHomeViews } =
-      await window.__importAppModule("sessionViews");
+    const { openSessionSheet, openWithdrawSessionConfirmation } =
+      await window.__importAppModule("views/sessionSurfaceViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     await preloadNonHomeViews("withdraw");
     let releaseWithdrawal;
     window.__withdrawalCalls = 0;

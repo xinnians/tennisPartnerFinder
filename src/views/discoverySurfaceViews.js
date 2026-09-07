@@ -1,5 +1,6 @@
 import { DEFAULT_FILTER_STATE } from "../filters.ts";
 import { mountSheet } from "../sheets.ts";
+import { esc } from "../util.js";
 
 let deferSurfaceOpen;
 let lazyMounts;
@@ -223,4 +224,41 @@ export function openPlayerCardSheet(
   });
   registerPlayerCardContent(mounted, content);
   return { ...mounted, setInvitableSessions: content.setInvitableSessions };
+}
+
+/** Keep the map's persistent player-layer controls in sync without replacing their live roots. */
+export function renderPlayerLayerToggle(button, { message = "", on = false, status = "idle" } = {}) {
+  if (!button) return;
+  button.setAttribute("aria-pressed", String(Boolean(on)));
+  button.classList.toggle("is-active", Boolean(on));
+  // 批 D3:toggle 改為控制直欄的 icon 鈕,可讀文字住在 visually-hidden span
+  //(佈局不吃字寬,測試與 SR 讀到的字不變);找不到 span 時退回整鈕文字。
+  const layerText = on ? "隱藏在線" : "顯示在線";
+  const layerTextNode = button.querySelector("[data-player-layer-text]");
+  if (layerTextNode) layerTextNode.textContent = layerText;
+  else button.textContent = layerText;
+  const statusRoot = document.getElementById("player-layer-status");
+  if (!statusRoot) return;
+  statusRoot.hidden = !message;
+  statusRoot.textContent = message;
+  statusRoot.setAttribute("role", status === "error" ? "alert" : "status");
+}
+
+/** Render the escaped map status and its retry action inside the persistent status root. */
+export function renderMapDataStatus(
+  root,
+  { kind = "idle", message = "", onRetry = () => {}, locationMessage = "" } = {}
+) {
+  const visible = kind !== "idle" || Boolean(locationMessage);
+  root.hidden = !visible;
+  if (!visible) {
+    root.innerHTML = "";
+    return;
+  }
+  root.className = `map-data-status map-data-status--${esc(kind)}`;
+  root.innerHTML = `
+    ${message ? `<p>${esc(message)}</p>` : ""}
+    ${kind === "error" ? '<button type="button" id="map-retry" class="session-secondary">重新載入</button>' : ""}
+    ${locationMessage ? `<p id="location-feedback" class="location-feedback">${esc(locationMessage)}</p>` : ""}`;
+  root.querySelector("#map-retry")?.addEventListener("click", onRetry);
 }

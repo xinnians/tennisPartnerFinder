@@ -3,12 +3,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
-import {
-  NTRP_SCALE_EXPLANATION,
-  taipeiLocalDateTimeToIso,
-  validateCreateSessionInput,
-  validateUpdateSessionInput,
-} from "../src/sessionViews.js";
+import { validateCreateSessionInput, validateUpdateSessionInput } from "../src/views/sessionFormViews.js";
+import { NTRP_SCALE_EXPLANATION } from "../src/views/sessionViewWiring.js";
+import { taipeiLocalDateTimeToIso } from "../src/taipeiTime.ts";
 
 const SRC_DIR = fileURLToPath(new URL("../src/", import.meta.url));
 const SOURCE_EXTENSIONS = [".js", ".ts", ".tsx"];

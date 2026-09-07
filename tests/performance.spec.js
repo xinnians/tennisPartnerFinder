@@ -226,7 +226,7 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   // openSessionSheet 的 initialStage:"confirming" 直接開一張已在確認態的 sheet,
   // 驗證 Tab trap 涵蓋「×」關閉鈕與 confirming 態的取消/確認送出兩鈕。
   await page.evaluate(async () => {
-    const { openSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     openSessionSheet(
       {
         court: "示範球場",
@@ -267,7 +267,7 @@ test("keyboard dialogs trap focus and return it to the trigger", async ({ page }
   await expect(createTrigger).toBeFocused();
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openCreateSessionSheet({ courts: [{ city: "台北市", district: "大安區", id: 8, name: "示範球場" }] });
   });
   // 批 D5:開球局改全螢幕殼,「×」變成左上 40px→44px 返回鈕,aria-label 沿用
@@ -401,7 +401,7 @@ test("a stale opening focus callback cannot steal focus after an immediate drawe
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     await preloadNonHomeViews("filter");
   });
 

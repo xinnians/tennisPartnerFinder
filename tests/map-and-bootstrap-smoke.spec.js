@@ -28,7 +28,7 @@ test("My Sessions segment switching redraws from the latest rendered snapshot", 
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews("mySessions");
     const root = document.getElementById("my-sessions-root");
@@ -341,7 +341,7 @@ test("decision sheet waits for the court catalogue and renders candidate buttons
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openDecideSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openDecideSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     window.__stage4cDecisionSheet = openDecideSessionSheet(
       {
         sessionId: 9005,
@@ -380,7 +380,7 @@ test("refreshing the court catalogue during an in-flight decide detaches the but
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openDecideSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openDecideSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     const { COURTS } = await window.__importAppModule("mockData");
     window.__decideGenerationCourts = COURTS;
     window.__decideGenerationCalls = [];

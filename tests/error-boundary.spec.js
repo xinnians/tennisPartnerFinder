@@ -12,7 +12,7 @@ test("a caught React sheet render failure shows a closable fallback without brea
   await page.goto("/");
 
   await page.evaluate(async () => {
-    const { openCreateSessionSheet } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
     openCreateSessionSheet();
   });
 

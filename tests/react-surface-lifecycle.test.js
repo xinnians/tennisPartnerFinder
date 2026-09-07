@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import test from "node:test";
 import { FRONTEND_ARCHITECTURE_MANIFEST } from "./fixtures/frontendArchitectureManifest.js";
@@ -10,7 +10,6 @@ const SRC_DIR = new URL("../src/", import.meta.url).pathname;
 const APP = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
 const INDEX = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const MAIN = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
-const SESSION_VIEWS = readFileSync(new URL("../src/sessionViews.js", import.meta.url), "utf8");
 const SURFACES = readFileSync(new URL("../src/sheets.ts", import.meta.url), "utf8");
 const SURFACE_HOST = readFileSync(new URL("../src/app/SurfaceHost.tsx", import.meta.url), "utf8");
 const SYNC_COMMIT = readFileSync(new URL("../src/syncCommit.ts", import.meta.url), "utf8");
@@ -183,6 +182,7 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
 
 test("low-risk helpers stay private and auth preload runs only at the verified identity transition", () => {
   const surfaceWiring = readStructureSource("unmountRegistrations").source;
+  assert.equal(existsSync(new URL("../src/sessionViews.js", import.meta.url)), false);
   assert.equal((MAIN.match(/\bpreloadAuthenticatedViewsForAuth\(/g) ?? []).length, 1);
   assert.match(MAIN, /onAuthIdentityChange: \(context\) => \{\s*preloadAuthenticatedViewsForAuth\(context\.session\);/);
   assert.equal((MAIN.match(/\bconfigureSessionViewSurfaces\(\);/g) ?? []).length, 1);
@@ -203,16 +203,16 @@ test("low-risk helpers stay private and auth preload runs only at the verified i
   ];
   const configureOffsets = configureNames.map((name) => {
     assert.equal((surfaceWiring.match(new RegExp(`\\b${name}\\(`, "g")) ?? []).length, 1);
-    assert.doesNotMatch(SESSION_VIEWS, new RegExp(`\\b${name}\\(`));
     return surfaceWiring.indexOf(`${name}(`);
   });
   assert.deepEqual(
     configureOffsets,
     [...configureOffsets].sort((left, right) => left - right)
   );
-  assert.doesNotMatch(SESSION_VIEWS, /function configureSessionViewModules\(/);
-  assert.doesNotMatch(SESSION_VIEWS, /function preloadForIntent\(/);
-  assert.doesNotMatch(SESSION_VIEWS, /document\.addEventListener\("(?:pointerover|focusin)"/);
+  assert.match(surfaceWiring, /function configureSessionViewModules\(/);
+  assert.match(surfaceWiring, /function preloadForIntent\(/);
+  assert.match(surfaceWiring, /document\.addEventListener\("pointerover"/);
+  assert.match(surfaceWiring, /document\.addEventListener\("focusin"/);
 });
 
 test("session view module wiring installs intent preload listeners only once", async () => {

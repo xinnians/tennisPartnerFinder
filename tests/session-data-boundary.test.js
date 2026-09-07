@@ -32,7 +32,7 @@ import {
 import { filterSessions, sortSessionsForDrawer } from "../src/filters.ts";
 import { MOCK_PLAYERS, MOCK_PLAYER_PRESENCE, MOCK_SESSIONS } from "../src/mockData.js";
 import { eligibilityFromPrivateProfile, formatNtrp } from "../src/profile.ts";
-import { messagesFromGroups } from "../src/sessionViews.js";
+import { messagesFromGroups } from "../src/sessionPresentation.ts";
 import {
   PENDING_SESSION_INTENT_KEY,
   clearPendingIntent,
@@ -505,7 +505,7 @@ test("main's bottom navigation sync reads the unread aggregate into an independe
   assert.match(appSource, /訊息\$\{hasUnread \? "，有未讀訊息"/, "React folds unread state into the tab label");
 });
 
-// 批 D7:訊息頁列表資料源——過濾規則見 sessionViews.js messagesFromGroups 的
+// 批 D7:訊息頁列表資料源——過濾規則見 sessionPresentation.ts messagesFromGroups 的
 // JSDoc:accepted(host/guest 皆可)且非 cancelled/expired,played/封存局仍照列,
 // 未接受的 needsAction 類(requested/invited/declined/withdrawn)一律不列。
 test("messagesFromGroups keeps only accepted, non-cancelled/expired sessions and sorts by start time", () => {

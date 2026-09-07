@@ -18,7 +18,7 @@ test("page adapter updates preserve focused React controls without main.js resto
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     const { renderMeAppHarness } = await import("/tests/fixtures/meAppHarness.tsx");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["me", "messages", "mySessions"]);
@@ -145,7 +145,8 @@ test("created-session focus follows the subscribed store path after the one-time
   await page.evaluate(async () => {
     const { createSessionController } = await window.__importAppModule("sessionController");
     const { createStore } = await import("/src/sessionStore.ts");
-    const { openCreateSessionSheet, preloadNonHomeViews } = await window.__importAppModule("sessionViews");
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
+    const { preloadNonHomeViews } = await window.__importAppModule("views/sessionViewWiring");
     const { renderMySessionsAppHarness } = await import("/tests/fixtures/mySessionsAppHarness.tsx");
     await preloadNonHomeViews(["mySessions"]);
 

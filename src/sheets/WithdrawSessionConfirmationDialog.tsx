@@ -8,7 +8,7 @@ interface WithdrawSessionConfirmationContentOptions {
 /**
  * Static content only. The confirm button's click handler, the submitting guard,
  * `runAsyncAction` and the `mounted.close({ reason: "complete" })` success path all
- * stay in `sessionViews.js`, and `[data-withdraw-error]`/`[data-confirm-withdraw]`
+ * stay in `sessionSurfaceViews.js`, and `[data-withdraw-error]`/`[data-confirm-withdraw]`
  * keep their legacy imperative writers: this component declares no state, so it
  * never re-renders and can never patch back what those writers changed.
  */

@@ -85,24 +85,24 @@ import { createStore } from "./sessionStore.ts";
 // Eager React app boundary: react-surface-lifecycle.test.js scans this explicit browser-entry import.
 import * as appModule from "./app/App.tsx";
 import {
-  openCourtSessionDrawer,
   openCourtPlayersDrawer,
-  openCreateSessionSheet,
-  openDecideSessionSheet,
-  openEditSessionSheet,
+  openCourtSessionDrawer,
   openFilterSheet,
-  openProfileCompletionSheet,
   openPlayerCardSheet,
   openPlayerDirectoryList,
+  renderMapDataStatus,
+  renderPlayerLayerToggle,
+} from "./views/discoverySurfaceViews.js";
+import { openCreateSessionSheet, openDecideSessionSheet, openEditSessionSheet } from "./views/sessionFormViews.js";
+import { openProfileCompletionSheet } from "./views/profileSurfaceView.js";
+import {
   openReportDialog,
   openSessionChatSheet,
   openSessionSheet,
   openSessionUnavailableSheet,
   openWithdrawSessionConfirmation,
-  renderMapDataStatus,
-  renderPlayerLayerToggle,
-  nearbySessionsSummaryText,
-} from "./sessionViews.js";
+} from "./views/sessionSurfaceViews.js";
+import { nearbySessionsSummaryText } from "./sessionPresentation.ts";
 import { openLoginModal } from "./sheets.ts";
 import {
   createNotificationFeature,

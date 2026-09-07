@@ -340,7 +340,7 @@ test("player drawer and card escape every public value and render self and empty
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     const player = {
       // eslint-disable-next-line no-useless-escape -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
       profileId: '\"><img id="profile-injection" src=x onerror=alert(1)>',
@@ -369,7 +369,7 @@ test("player drawer and card escape every public value and render self and empty
   expect(await page.evaluate(() => window.__selectedEscapedPlayer)).toContain("profile-injection");
 
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     views.openPlayerCardSheet?.({
       profileId: 88,
       nickname: '<img id="card-nickname-injection">',
@@ -389,7 +389,7 @@ test("player drawer and card escape every public value and render self and empty
   await expect(page.locator("#player-card-sheet [data-player-invite]")).toHaveCount(0);
 
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     window.__createFromPlayer = 0;
     views.openPlayerCardSheet?.(
       {
@@ -463,7 +463,7 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 球友名單列:結構對應資料,含一筆 NTRP null 反例 ──────────────────
   await page.evaluate(async () => {
-    const { openPlayerDirectoryList } = await window.__importAppModule("sessionViews");
+    const { openPlayerDirectoryList } = await window.__importAppModule("views/discoverySurfaceViews");
     const sheet = openPlayerDirectoryList({});
     sheet.setDirectory({
       players: [
@@ -495,7 +495,7 @@ test("D8 profile card, directory row, and player card render the avatar+NTRP-bri
 
   // ── 球友卡:頭部結構+NTRP 磚(null 反例)+逐字註腳+看球友名單觸發 onSeeDirectory ──
   await page.evaluate(async () => {
-    const { openPlayerCardSheet } = await window.__importAppModule("sessionViews");
+    const { openPlayerCardSheet } = await window.__importAppModule("views/discoverySurfaceViews");
     window.__d8SeeDirectoryCalls = 0;
     openPlayerCardSheet(
       { courtName: "第三球場", isSelf: false, nickname: "球友卡球友", ntrp: null, profileId: 703, slotCodes: ["wd-m"] },
@@ -523,7 +523,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     window.__inviteControls = {};
     window.__inviteCalls = [];
     const promise = new Promise((resolve, reject) => Object.assign(window.__inviteControls, { reject, resolve }));
@@ -566,7 +566,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   expect((await page.evaluate(() => window.__inviteCalls))[0]).toContain("session-id-injection");
 
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     views.openPlayerCardSheet?.(
       {
         profileId: 92,
@@ -601,7 +601,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   await expect(page.getByTestId("player-invite-submit")).toBeEnabled();
 
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     window.__staleInvite = {};
     const promise = new Promise((resolve) => {
       window.__staleInvite.resolve = resolve;
@@ -635,7 +635,7 @@ test("player invitation form escapes session fields and is pending-safe across s
   await page.getByTestId("player-invite-session").check();
   await page.getByTestId("player-invite-submit").click();
   await page.evaluate(async () => {
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     views.openCourtPlayersDrawer?.({ id: 8, name: "替代球場", district: "大安區" }, []);
     window.__staleInvite.resolve({ outcome: "OK" });
   });
@@ -652,7 +652,7 @@ test("SESSION_EXPIRED player invitation refreshes choices and renders an inline 
   await page.goto("/");
   await page.evaluate(async () => {
     const { createSessionController } = await window.__importAppModule("sessionController");
-    const views = await window.__importAppModule("sessionViews");
+    const views = await window.__importAppModule("views/discoverySurfaceViews");
     const hostSession = {
       sessionId: 71,
       viewerRole: "host",
@@ -714,7 +714,7 @@ test("390px map controls keep the player layer and status below the toolbar", as
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
   await expect(page.locator("#nearby-sessions-toggle")).toBeVisible();
   await page.evaluate(async () => {
-    const { renderPlayerLayerToggle } = await window.__importAppModule("sessionViews");
+    const { renderPlayerLayerToggle } = await window.__importAppModule("views/discoverySurfaceViews");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
       message: "球友資料暫時無法載入。",
       on: true,
@@ -816,7 +816,7 @@ test("390px primary map, filter, and chat governance targets are at least 44px",
   await installFakeMaps(page);
   await page.goto("/");
   await page.evaluate(async () => {
-    const { openSessionChatSheet } = await window.__importAppModule("sessionViews");
+    const { openSessionChatSheet } = await window.__importAppModule("views/sessionSurfaceViews");
     const chat = openSessionChatSheet({
       court: "青年公園網球場",
       courtDistrict: "萬華區",
@@ -871,7 +871,7 @@ test("medium-width map status stays below the complete player layer control", as
   await expect(page.locator("#map")).toHaveAttribute("data-fake-google-map", "ready");
   await expect(page.locator("#nearby-sessions-toggle")).toBeVisible();
   await page.evaluate(async () => {
-    const { renderPlayerLayerToggle } = await window.__importAppModule("sessionViews");
+    const { renderPlayerLayerToggle } = await window.__importAppModule("views/discoverySurfaceViews");
     renderPlayerLayerToggle(document.getElementById("player-layer-toggle"), {
       message: "球友資料暫時無法載入。",
       on: true,

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
@@ -7,32 +7,21 @@ import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 const SRC_DIR = fileURLToPath(new URL("../src", import.meta.url));
 const EXPLICIT_ANY = /:\s*any\b|\bas\s+any\b|\bany\s*\[\s*\]|<\s*any\s*>/;
 
-function readTsxTree(directory = SRC_DIR, prefix = "src") {
+function readCodeTree(directory = SRC_DIR, prefix = "src") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const entryUrl = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, pathToFileURL(`${directory}/`));
     const path = `${prefix}/${entry.name}`;
-    if (entry.isDirectory()) return readTsxTree(fileURLToPath(entryUrl), path);
-    return entry.name.endsWith(".tsx") ? [path] : [];
+    if (entry.isDirectory()) return readCodeTree(fileURLToPath(entryUrl), path);
+    return /\.(?:js|ts|tsx)$/.test(entry.name) ? [path] : [];
   });
 }
 
-const ALL_TSX = readTsxTree().sort();
-
-const RETIRED_RUNTIME_REEXPORTS = [
-  "avatarRuntime",
-  "courtPlayersSheetRuntime",
-  "decideSessionSheetRuntime",
-  "mePageRuntime",
-  "mySessionsPageRuntime",
-  "nearbySessionsDrawerRuntime",
-  "playerCardSheetRuntime",
-  "playerDirectorySheetRuntime",
-  "profileCompletionSheetRuntime",
-  "reportDialogRuntime",
-  "sessionCardRuntime",
-  "sessionChatSheetRuntime",
-  "sessionDetailSheetRuntime",
-];
+const ALL_SOURCE = readCodeTree().sort();
+const ALL_TSX = ALL_SOURCE.filter((path) => path.endsWith(".tsx"));
+const TEST_DIR = fileURLToPath(new URL("../tests", import.meta.url));
+const ALL_TEST_CODE = readCodeTree(TEST_DIR, "tests").filter(
+  (path) => path !== "tests/session-presentation-boundary.test.js"
+);
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -91,7 +80,7 @@ test("session action messages stay complete and exact in the UI layer", async ()
   assert.equal(sessionActionMessage(null, "fallback"), "fallback");
 });
 
-test("every TSX module stays outside the legacy sessionViews dependency edge", () => {
+test("every TSX module stays outside the retired session view facade dependency edge", () => {
   assert.ok(ALL_TSX.length >= 21, `TSX scan unexpectedly small: ${ALL_TSX.length}`);
   for (const path of ALL_TSX) {
     assert.doesNotMatch(source(path), /from ["'][^"']*sessionViews\.js["']/, `${path} recreates the reverse edge`);
@@ -107,7 +96,7 @@ test("all presentation consumers depend on the TypeScript boundary", () => {
   }
 });
 
-test("the presentation boundary cannot reach back into the legacy view adapter", () => {
+test("the presentation boundary cannot reach back into the retired view adapter", () => {
   const presentation = source("src/sessionPresentation.ts");
   assert.doesNotMatch(presentation, /sessionViews\.js|import\.meta\.glob|@ts-nocheck/);
   assert.doesNotMatch(presentation, EXPLICIT_ANY);
@@ -135,28 +124,16 @@ test("batch 27 guard rationale stays explicit", () => {
   assert.match(presentation, /player drawer and card escape every public value.*不可改計算方式/s);
 });
 
-test("sessionViews keeps only required presentation compatibility exports without redefining React runtimes", () => {
-  const views = source("src/sessionViews.js");
-  assert.match(views, /export \{ messagesFromGroups, nearbySessionsSummaryText \} from "\.\/sessionPresentation\.ts";/);
-  for (const name of RETIRED_RUNTIME_REEXPORTS) {
-    assert.doesNotMatch(views, new RegExp(`\\b${name}\\b`), `${name} returned to the legacy facade`);
+test("the legacy session view facade stays deleted from source and test imports", () => {
+  const legacyModuleName = ["session", "Views"].join("");
+  assert.equal(existsSync(new URL(`../src/${legacyModuleName}.js`, import.meta.url)), false);
+  const sourceImportPattern = new RegExp(`(?:from\\s*["'][^"']*|import\\(["'][^"']*)${legacyModuleName}\\.js`);
+  const harnessImportPattern = new RegExp(`__importAppModule\\(["']${legacyModuleName}["']\\)`);
+  for (const path of ALL_SOURCE) {
+    assert.doesNotMatch(source(path), sourceImportPattern, `${path} restores the deleted facade import`);
   }
-  assert.doesNotMatch(views, /F2D|prettier-ignore/);
-  assert.equal(
-    (views.match(/Object\.freeze/g) ?? []).length,
-    0,
-    "the create/edit form runtime belongs to the dedicated surface wiring owner"
-  );
-});
-
-test("sessionViews exposes only the two presentation helpers still used through the facade", async () => {
-  const [presentation, views] = await Promise.all([
-    import("../src/sessionPresentation.ts"),
-    import("../src/sessionViews.js"),
-  ]);
-  for (const name of RETIRED_RUNTIME_REEXPORTS) {
-    assert.equal(Object.hasOwn(views, name), false, `${name} remains exported by the legacy facade`);
+  for (const path of ALL_TEST_CODE) {
+    assert.doesNotMatch(source(path), sourceImportPattern, `${path} imports the deleted facade`);
+    assert.doesNotMatch(source(path), harnessImportPattern, `${path} restores the deleted facade harness name`);
   }
-  assert.equal(views.messagesFromGroups, presentation.messagesFromGroups);
-  assert.equal(views.nearbySessionsSummaryText, presentation.nearbySessionsSummaryText);
 });

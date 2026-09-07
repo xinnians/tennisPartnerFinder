@@ -54,7 +54,7 @@ export const BANDS = [
 
 // 批 D4a:v2 五欄篩選模型。「場地型 venueTypes」「指定球場 courtId」「日期 date
 // input」三組退場,district 單選改 districts 多選,新增 dateKey 列舉與 instantOnly
-// 布林。DEFAULT_FILTER_STATE 仍是全站唯一預設來源(sessionController/sessionViews
+// 布林。DEFAULT_FILTER_STATE 仍是全站唯一預設來源(sessionController/discoverySurfaceViews
 // 都從這裡衍生自己的 clone)。
 export const DEFAULT_FILTER_STATE = {
   dateKey: null,
