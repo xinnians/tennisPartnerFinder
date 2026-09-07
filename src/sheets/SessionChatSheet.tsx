@@ -65,7 +65,7 @@ function SessionChatSheet({
   // Legacy parity: mountSheet produced a roster container holding the "reading
   // participants" line and a completely empty feed section, and only the first
   // `setState()` replaced either of them. `null` reproduces that pre-setState
-  // shape, which is what a chat sheet shows until refreshActiveChat resolves.
+  // shape, which is what a chat sheet shows until the chat feed owner resolves.
   const [rows, setRows] = useState<SessionChatRows>({ messages: null, roster: null });
   // The imperative sheet replaced both containers with innerHTML, so every
   // refresh (including the 10s quiet poll) detached the previous roster chips and

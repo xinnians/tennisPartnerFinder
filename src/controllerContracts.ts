@@ -206,7 +206,15 @@ export interface ControllerRequestGate {
   issue(isCurrent?: () => boolean): { isStale(): boolean };
 }
 
-export interface ControllerPoller {
+export interface ControllerChatFeedSnapshot {
+  messages: ChatMessage[];
+  roster: SessionRosterEntry[];
+}
+
+export interface ControllerChatFeedFacade {
+  getSnapshot(): Readonly<ControllerChatFeedSnapshot>;
+  refresh(options?: { quiet?: boolean }): Promise<boolean>;
+  start(): void;
   stop(): void;
 }
 
@@ -226,11 +234,7 @@ export interface ControllerSurfaceHandle {
 
 export interface ControllerChatSurfaceContext {
   authSnapshot: ControllerAuthSnapshot;
-  lastMarkedMessageId: number | null;
-  messages: ChatMessage[];
-  poller: ControllerPoller | null;
-  requestGate: ControllerRequestGate;
-  roster: SessionRosterEntry[];
+  feed: ControllerChatFeedFacade;
   session: MySessionSummary;
   sheet: ControllerSurfaceHandle | null | undefined;
 }

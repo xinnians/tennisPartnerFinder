@@ -1,6 +1,6 @@
-import { chatMemberSession, latestChatMessageId, visibleChatMessage } from "../features/chat/chatFeature.ts";
+import { chatMemberSession, visibleChatMessage } from "../features/chat/chatFeature.ts";
+import { createChatFeedFacade } from "../features/chat/chatFeedFacade.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
-import { createForegroundPoller, createRequestGate } from "../requestGate.ts";
 
 import type {
   ControllerAuthSnapshot,
@@ -8,7 +8,7 @@ import type {
   ControllerIdentifier,
   ControllerSurfaceHandle,
 } from "../controllerContracts.ts";
-import type { ChatMessage, MySessionSummary, SessionRosterEntry } from "../domainTypes.ts";
+import type { ChatMessage, MySessionSummary } from "../domainTypes.ts";
 import type { SurfaceRegistry } from "./surfaceRegistry.ts";
 
 interface ChatDataApi {
@@ -62,7 +62,7 @@ function actionCode(error: unknown): unknown {
   return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
 }
 
-/** Owns the active chat surface, polling, read cursor, and chat mutations. */
+/** Orchestrates the active chat surface and mutations; the feed facade owns query lifecycle state. */
 export function createChatController(dependencies: ChatControllerDependencies): {
   openSessionChat: (sessionId: ControllerIdentifier) => ControllerSurfaceHandle | null | undefined;
 } {
@@ -84,63 +84,11 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     withdrawMySession,
   } = dependencies;
 
-  const activeChat = (): ControllerChatSurfaceContext | null =>
-    (surfaceRegistry.get("chat") as ControllerChatSurfaceContext | null) ?? null;
-
-  // 批 C4-2:已讀游標只掛在這次開聊天期間存活的 context 上,不是跨 session 的全域
-  // Map——每次 openSessionChat 重開都是新 context,重新標記一次也符合 RPC 冪等語意;
-  // 節流只為壓掉同一次開啟期間 visibilitychange 等高頻重跑造成的重複呼叫。
-  async function markActiveChatRead(context: ControllerChatSurfaceContext): Promise<void> {
-    if (typeof api.markSessionChatRead !== "function") return;
-    const latestId = latestChatMessageId(context.messages);
-    if (latestId == null || context.lastMarkedMessageId === latestId) return;
-    clearMySessionUnread(context.session.sessionId);
-    try {
-      await api.markSessionChatRead(context.session.sessionId);
-      context.lastMarkedMessageId = latestId;
-    } catch {
-      // Best-effort:失敗不可中斷已顯示的聊天內容,也不重丟例外。故意不還原上面的
-      // 樂觀清零(短暫顯示 0 屬可接受),也不設定 lastMarkedMessageId,讓下一次
-      // refreshActiveChat(例如下一次 visibilitychange)重試同一個 message id 的
-      // mark_session_chat_read;真正的權威數字則交由下一次 reloadParticipation 訂正。
-    }
-  }
-
-  async function refreshActiveChat(context = activeChat(), { quiet = false } = {}): Promise<boolean> {
-    if (!context || !surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) return false;
-    if (typeof api.loadSessionMessages !== "function" || typeof api.loadSessionRoster !== "function") return false;
-    const request = context.requestGate.issue(
-      () => surfaceRegistry.is("chat", context) && isCurrentAuthSnapshot(context.authSnapshot)
-    );
-    if (!quiet) context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "loading" });
-    try {
-      const [messages, roster] = await Promise.all([
-        api.loadSessionMessages(context.session.sessionId),
-        api.loadSessionRoster(context.session.sessionId),
-      ]);
-      if (request.isStale()) return false;
-      context.messages = Array.isArray(messages) ? messages : [];
-      context.roster = Array.isArray(roster) ? (roster as SessionRosterEntry[]) : [];
-      context.sheet?.setState?.({ messages: context.messages, roster: context.roster, status: "ready" });
-      await markActiveChatRead(context);
-      return true;
-    } catch {
-      if (request.isStale()) return false;
-      context.sheet?.setState?.({
-        errorMessage: "群組訊息暫時無法載入。",
-        messages: context.messages,
-        roster: context.roster,
-        status: "error",
-      });
-      return false;
-    }
-  }
-
   function openChatMessageReport(context: ControllerChatSurfaceContext, messageId: ControllerIdentifier): unknown {
     if (!context || !surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
       throw new Error("群組狀態已更新，請重新開啟後再試。");
     }
-    const message = visibleChatMessage(context, messageId);
+    const message = visibleChatMessage(context.feed.getSnapshot().messages, messageId);
     if (!message) throw new Error("這則訊息已無法查看。");
     return openReportForTarget({
       messageId: message.messageId,
@@ -155,13 +103,14 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     profileId: ControllerIdentifier
   ): Promise<true> {
     const normalizedProfileId = Number(profileId);
+    const messages = context?.feed.getSnapshot().messages ?? [];
     if (
       !context ||
       !surfaceRegistry.is("chat", context) ||
       !isCurrentAuthSnapshot(context.authSnapshot) ||
-      !context.messages.some(
+      !messages.some(
         (message) =>
-          Number(message.senderProfileId) === normalizedProfileId && visibleChatMessage(context, message.messageId)
+          Number(message.senderProfileId) === normalizedProfileId && visibleChatMessage(messages, message.messageId)
       )
     ) {
       throw new Error("群組狀態已更新，請重新開啟後再試。");
@@ -171,7 +120,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     if (!surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
       throw new Error("登入狀態已變更，請重新整理後再試。");
     }
-    const [blocksReady] = await Promise.all([refreshBlockedPlayers(context.authSnapshot), refreshActiveChat(context)]);
+    const [blocksReady] = await Promise.all([refreshBlockedPlayers(context.authSnapshot), context.feed.refresh()]);
     if (!blocksReady) throw new Error("封鎖已生效，但清單暫時無法重新載入。");
     toast("已封鎖這位球友。");
     return true;
@@ -187,7 +136,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
       if (!surfaceRegistry.is("chat", context) || !isCurrentAuthSnapshot(context.authSnapshot)) {
         throw new Error("登入狀態已變更，請重新整理後再試。");
       }
-      await refreshActiveChat(context);
+      await context.feed.refresh();
       return result;
     } catch (error) {
       if (
@@ -208,7 +157,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
       throw new Error("目前無法開啟群組聊天。");
     }
     transitionSurfaces("openChat");
-    let context: ControllerChatSurfaceContext | null = null;
+    let context = null as ControllerChatSurfaceContext | null;
     const sheet = openChat(session, {
       canWithdraw: Boolean(session.canWithdraw),
       courts: readCourts(),
@@ -218,25 +167,25 @@ export function createChatController(dependencies: ChatControllerDependencies): 
       onReport: (messageId) => openChatMessageReport(context as ControllerChatSurfaceContext, messageId),
       onWithdraw: () => withdrawMySession(session.sessionId),
     });
+    const feed = createChatFeedFacade({
+      api,
+      authSnapshot,
+      clearUnread: clearMySessionUnread,
+      intervalMs: chatPollIntervalMs,
+      isActive: () => surfaceRegistry.is("chat", context),
+      isCurrentAuthSnapshot,
+      publish: (state) => context?.sheet?.setState?.(state),
+      sessionId: session.sessionId,
+      visibilityTarget,
+    });
     context = {
       authSnapshot,
-      lastMarkedMessageId: null,
-      messages: [],
-      poller: null,
-      requestGate: createRequestGate(),
-      roster: [],
+      feed,
       session,
       sheet,
     };
     surfaceRegistry.set("chat", context);
-    context.poller = createForegroundPoller({
-      intervalMs: chatPollIntervalMs,
-      isActive: () => surfaceRegistry.is("chat", context),
-      onInterval: () => void refreshActiveChat(context, { quiet: true }),
-      onVisible: () => void refreshActiveChat(context),
-      visibilityTarget,
-    });
-    void refreshActiveChat(context);
+    feed.start();
     return sheet;
   }
 

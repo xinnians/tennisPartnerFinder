@@ -1,4 +1,4 @@
-import type { ControllerChatSurfaceContext, ControllerIdentifier } from "../../controllerContracts.ts";
+import type { ControllerIdentifier } from "../../controllerContracts.ts";
 import type { ChatMessage, MySessionSummary } from "../../domainTypes.ts";
 
 /** Highest messageId present in a chat feed batch, or null when the batch is empty/unusable. */
@@ -16,10 +16,10 @@ export function chatMemberSession(session: Partial<MySessionSummary> | null | un
 }
 
 export function visibleChatMessage(
-  context: Pick<ControllerChatSurfaceContext, "messages"> | null | undefined,
+  messages: readonly ChatMessage[] | null | undefined,
   messageId: ControllerIdentifier
 ): ChatMessage | undefined {
-  return context?.messages.find(
+  return messages?.find(
     (message) =>
       String(message.messageId) === String(messageId) &&
       message.kind === "user" &&

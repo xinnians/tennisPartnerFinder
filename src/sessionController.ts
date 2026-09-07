@@ -228,11 +228,7 @@ export function createSessionController({
   const surfaceRegistry = createSurfaceRegistry({
     chat: {
       close: (context, options) => (context as ControllerChatSurfaceContext).sheet?.close?.(options),
-      onRelease: (context) => {
-        (context as ControllerChatSurfaceContext).requestGate.invalidate();
-        (context as ControllerChatSurfaceContext).poller?.stop();
-        (context as ControllerChatSurfaceContext).poller = null;
-      },
+      onRelease: (context) => (context as ControllerChatSurfaceContext).feed.stop(),
     },
     courtDrawer: { emptyOptionsByDefault: false },
     createSession: {},

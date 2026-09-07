@@ -4120,7 +4120,7 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
   );
   assert.equal(unreadNotifications, 1, "a nonzero unread count publishes one optimistic clear");
 
-  // 同一批訊息(同一個最新 message id)重跑 refreshActiveChat(visibilitychange 等高頻
+  // 同一批訊息(同一個最新 message id)重跑 chat feed refresh(visibilitychange 等高頻
   // 重跑場景)不應重打 mark_session_chat_read——冪等節流以「這次開聊天期間已標過的最新
   // message id」為準,不是每次重跑都無條件再呼叫一次。
   visibilityTarget.dispatchEvent(new Event("visibilitychange"));
