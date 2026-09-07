@@ -4098,6 +4098,10 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
     { user: { id: "unread-clear-member" } },
     { directory: false, nickname: true, ntrp: true }
   );
+  let unreadNotifications = 0;
+  harness.controller.sessionStore.subscribe("mySessions", () => {
+    unreadNotifications += 1;
+  });
   harness.controller.openSessionChat(session.sessionId);
   await flush();
 
@@ -4108,6 +4112,13 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
     "the optimistic clear zeroes the unread count before the authoritative reload lands"
   );
   assert.equal(harness.controller.getMySessionState().groups.hasUnread, false);
+  assert.equal(session.unreadMessageCount, 2, "the API row object is never mutated in place");
+  assert.notEqual(
+    harness.controller.getMySessions().find((entry) => entry.sessionId === 731),
+    session,
+    "the unread command replaces only the stored session object"
+  );
+  assert.equal(unreadNotifications, 1, "a nonzero unread count publishes one optimistic clear");
 
   // 同一批訊息(同一個最新 message id)重跑 refreshActiveChat(visibilitychange 等高頻
   // 重跑場景)不應重打 mark_session_chat_read——冪等節流以「這次開聊天期間已標過的最新
@@ -4137,6 +4148,7 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
     [731, 731],
     "a newer message resets the throttle and triggers another mark-read call"
   );
+  assert.equal(unreadNotifications, 1, "an already-zero unread count does not publish again");
 });
 
 test("a failing mark-read RPC does not interrupt the chat sheet and is retried on the next refresh", async () => {

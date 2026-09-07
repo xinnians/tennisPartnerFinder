@@ -158,6 +158,25 @@ function assignedProperty(node) {
   return null;
 }
 
+function controllerUnreadAssignments(sourceFiles) {
+  const findings = [];
+  for (const candidate of sourceFiles.filter(({ relativePath }) => relativePath.startsWith("src/controller/"))) {
+    const parsed = sourceFile(candidate);
+    const visit = (node) => {
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        assignedProperty(node.left) === "unreadMessageCount"
+      ) {
+        findings.push(`${candidate.relativePath}::${node.left.getText(parsed)}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(parsed);
+  }
+  return findings.sort();
+}
+
 function valueKind(node) {
   if (ts.isStringLiteral(node)) {
     return node.text === "" ? "empty-string" : "string";
@@ -611,6 +630,19 @@ function assertBrowserPortManifest(program) {
 
 const sourceFiles = readSourceFiles();
 const mainSource = sourceFiles.find(({ relativePath }) => relativePath === "src/main.js")?.source;
+
+test("controller code cannot mutate unreadMessageCount in place", () => {
+  assert.deepEqual(controllerUnreadAssignments(sourceFiles), []);
+  const injected = sourceFiles.map((candidate) =>
+    candidate.relativePath === "src/controller/chatController.ts"
+      ? { ...candidate, source: `${candidate.source}\ncontext.session.unreadMessageCount = 0;` }
+      : candidate
+  );
+  assert.deepEqual(controllerUnreadAssignments(injected), [
+    "src/controller/chatController.ts::context.session.unreadMessageCount",
+  ]);
+  assert.deepEqual(controllerUnreadAssignments(sourceFiles), []);
+});
 
 test("HTML renderer inventory freezes six reviewed symbols without line-number allowlists", () => {
   const inventory = assertHtmlArchitecture(sourceFiles);

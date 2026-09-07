@@ -65,6 +65,7 @@ export interface MySessionsController {
     authSnapshot: ControllerAuthSnapshot
   ) => LifecycleActionToken | null;
   captureAuthSnapshot: () => ControllerAuthSnapshot;
+  clearMySessionUnread: (sessionId: ControllerIdentifier) => boolean;
   currentParticipation: (sessionId: ControllerIdentifier) => MySessionSummary | null;
   finishLifecycleAction: (token: LifecycleActionToken | null | undefined) => void;
   isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot | null | undefined) => boolean;
@@ -123,6 +124,17 @@ export function createMySessionsController({
   function notifyMySessions(): void {
     store.emit("mySessions");
     store.emit("me");
+  }
+
+  function clearMySessionUnread(sessionId: ControllerIdentifier): boolean {
+    const sessions = read().mySessions;
+    const index = sessions.findIndex((session) => sessionKey(session.sessionId) === sessionKey(sessionId));
+    if (index < 0 || Number(sessions[index].unreadMessageCount) === 0) return false;
+    const nextSessions = [...sessions];
+    nextSessions[index] = { ...sessions[index], unreadMessageCount: 0 };
+    store.setState({ mySessions: nextSessions });
+    notifyMySessions();
+    return true;
   }
 
   function replaceMySessions(sessions: unknown): void {
@@ -316,6 +328,7 @@ export function createMySessionsController({
     actionFor,
     beginLifecycleAction,
     captureAuthSnapshot,
+    clearMySessionUnread,
     currentParticipation,
     finishLifecycleAction,
     isCurrentAuthSnapshot,

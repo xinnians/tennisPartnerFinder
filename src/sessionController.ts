@@ -320,6 +320,7 @@ export function createSessionController({
     actionFor,
     beginLifecycleAction,
     captureAuthSnapshot,
+    clearMySessionUnread,
     currentParticipation,
     finishLifecycleAction,
     isCurrentAuthSnapshot,
@@ -618,8 +619,8 @@ export function createSessionController({
   const { openSessionChat } = createChatController({
     api: api!,
     chatPollIntervalMs,
+    clearMySessionUnread,
     isCurrentAuthSnapshot,
-    notifyMySessions,
     openChat,
     openReportForTarget,
     readCourts: () => read().courts,

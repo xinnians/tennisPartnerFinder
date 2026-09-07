@@ -29,8 +29,8 @@ interface ReportTarget {
 interface ChatControllerDependencies {
   api: ChatDataApi;
   chatPollIntervalMs: number;
+  clearMySessionUnread: (sessionId: ControllerIdentifier) => boolean;
   isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot) => boolean;
-  notifyMySessions: () => void;
   openChat: (
     session: MySessionSummary,
     handlers: {
@@ -69,8 +69,8 @@ export function createChatController(dependencies: ChatControllerDependencies): 
   const {
     api,
     chatPollIntervalMs,
+    clearMySessionUnread,
     isCurrentAuthSnapshot,
-    notifyMySessions,
     openChat,
     openReportForTarget,
     readCourts,
@@ -94,10 +94,7 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     if (typeof api.markSessionChatRead !== "function") return;
     const latestId = latestChatMessageId(context.messages);
     if (latestId == null || context.lastMarkedMessageId === latestId) return;
-    if (Number(context.session.unreadMessageCount) !== 0) {
-      context.session.unreadMessageCount = 0;
-      notifyMySessions();
-    }
+    clearMySessionUnread(context.session.sessionId);
     try {
       await api.markSessionChatRead(context.session.sessionId);
       context.lastMarkedMessageId = latestId;
