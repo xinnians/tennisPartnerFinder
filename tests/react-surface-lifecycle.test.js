@@ -164,6 +164,17 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
   assert.match(SESSION_VIEWS, /if \(authSession\) preloadAuthenticatedViews\(\)/);
 });
 
+test("low-risk helpers stay private and auth preload runs only at the verified identity transition", () => {
+  assert.equal((MAIN.match(/\bpreloadAuthenticatedViewsForAuth\(/g) ?? []).length, 1);
+  assert.match(MAIN, /onAuthIdentityChange: \(context\) => \{\s*preloadAuthenticatedViewsForAuth\(context\.session\);/);
+  assert.match(SURFACE_HOST, /\binterface SurfaceSlot \{/);
+  assert.doesNotMatch(SURFACE_HOST, /\bexport interface SurfaceSlot \{/);
+  assert.match(SESSION_VIEWS, /\bconst PROFILE_PUBLIC_DISCLOSURE\s*=/);
+  assert.doesNotMatch(SESSION_VIEWS, /\bexport const PROFILE_PUBLIC_DISCLOSURE\s*=/);
+  assert.match(SESSION_VIEWS, /\bconst sessionFormSheetRuntime\s*=\s*Object\.freeze\(/);
+  assert.doesNotMatch(SESSION_VIEWS, /\bexport const sessionFormSheetRuntime\s*=/);
+});
+
 test("AppShell preserves navigation, toast, popover, and Escape accessibility contracts", () => {
   const navDestinations = [...APP.matchAll(/activePage === "([^"]+)"/g)].map((match) => match[1]);
   assertExactNamedScan(navDestinations, SURFACE_MANIFEST.navDestinations, "React navigation destination");

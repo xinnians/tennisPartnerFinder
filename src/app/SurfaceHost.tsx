@@ -67,7 +67,7 @@ interface SurfaceFocusRegistry {
   restoreFocus(target: SurfaceRestoreTarget | null): void;
 }
 
-export interface SurfaceSlot {
+interface SurfaceSlot {
   children: ReactNode;
   id: number;
   rootElement: HTMLElement;

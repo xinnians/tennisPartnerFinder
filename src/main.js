@@ -689,7 +689,6 @@ function init() {
     },
     pageViewStore,
   });
-  preloadAuthenticatedViewsForAuth(getAppState().authSession);
   syncBottomNavigation();
   wireFilters();
   document.getElementById("use-my-location").addEventListener("click", () => controller.requestCurrentLocation());
