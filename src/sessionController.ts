@@ -78,7 +78,6 @@ interface SessionDetailHandlers {
   courts: SessionControllerState["courts"];
   initialStage: string;
   isMine: boolean;
-  onChat(): unknown;
   onClose(options?: SurfaceCloseOptions): void;
   onConfirmJoin(): unknown;
   onDecide(): unknown;
@@ -119,7 +118,6 @@ interface SessionControllerOptions {
   openCreateSession?: IntentControllerOptions["openCreateSession"];
   openDecideSession?: LifecycleActionsControllerOptions["openDecideSession"];
   openEditSession?: LifecycleActionsControllerOptions["openEditSession"];
-  openChat?: ChatControllerOptions["openChat"];
   openLogin?: IntentControllerOptions["openLogin"];
   openReport?: (handlers: ReportDialogHandlers) => ControllerSurfaceHandle | null | undefined;
   openWithdrawConfirmation?: LifecycleActionsControllerOptions["openWithdrawConfirmation"];
@@ -161,7 +159,6 @@ export function createSessionController({
   openCreateSession = () => {},
   openDecideSession = () => {},
   openEditSession = () => {},
-  openChat = () => {},
   openLogin = () => {},
   openReport = () => {},
   openWithdrawConfirmation = () => {},
@@ -227,7 +224,7 @@ export function createSessionController({
   const playerCardGate = createRequestGate();
   const surfaceRegistry = createSurfaceRegistry({
     chat: {
-      close: (context, options) => (context as ControllerChatSurfaceContext).sheet?.close?.(options),
+      close: (context, options) => (context as ControllerChatSurfaceContext).requestClose(options),
       onRelease: (context) => (context as ControllerChatSurfaceContext).feed.stop(),
     },
     courtDrawer: { emptyOptionsByDefault: false },
@@ -411,7 +408,6 @@ export function createSessionController({
     locationGate,
     openCreateSession,
     openLogin,
-    openSessionChat: (sessionId) => openSessionChat(sessionId),
     openSessionDetail,
     profilePrompt: promptProfile,
     publish,
@@ -543,7 +539,6 @@ export function createSessionController({
       initialStage,
       onDecide: () => openSessionDecision(session.sessionId),
       onEdit: () => openSessionEdit(session.sessionId),
-      onChat: () => openSessionChat(session.sessionId),
       onPrimary: () => startPrimaryAction(session as SessionSummary, detail),
       onConfirmJoin: () =>
         requestJoin(
@@ -612,12 +607,11 @@ export function createSessionController({
     }
   }
 
-  const { openSessionChat } = createChatController({
+  const { createSessionChat } = createChatController({
     api: api!,
     chatPollIntervalMs,
     clearMySessionUnread,
     isCurrentAuthSnapshot,
-    openChat,
     openReportForTarget,
     readCourts: () => read().courts,
     refreshBlockedPlayers: (snapshot) => blockedPlayers.refresh(snapshot),
@@ -817,7 +811,7 @@ export function createSessionController({
     openSessionFromLink,
     openSessionDecision,
     openSessionEdit,
-    openSessionChat,
+    createSessionChat,
     openSessionReport,
     openSession: openSessionById,
     requestCurrentLocation,

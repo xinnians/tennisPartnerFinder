@@ -51,11 +51,9 @@ export function mountMessagesAppHarness(
   options: MessagesHarnessOptions = {}
 ): MessagesHarness {
   const sessionStore = createStore(createMessagesHarnessState(options));
-  const controller = {
-    openSessionChat: (sessionId: string) => options.onOpenChat?.(sessionId, sessionStore),
-    sessionStore,
-  } as ControllerApi;
+  const controller = { sessionStore } as ControllerApi;
+  const openSessionChat = (sessionId: string) => options.onOpenChat?.(sessionId, sessionStore);
   const root = createRoot(rootElement);
-  root.render(<MessagesPage onOpenChat={controller.openSessionChat} sessionStore={sessionStore} />);
+  root.render(<MessagesPage onOpenChat={openSessionChat} sessionStore={sessionStore} />);
   return { root, sessionStore, unmount: () => root.unmount() } as MessagesHarness;
 }

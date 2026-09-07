@@ -224,6 +224,21 @@ export interface ControllerChatFeedFacade {
   subscribe(listener: () => void): () => void;
 }
 
+/** Authorized Chat model. App wiring chooses and owns the concrete surface. */
+export interface ControllerChatSession {
+  block: (profileId: ControllerIdentifier) => Promise<true>;
+  canWithdraw: boolean;
+  courts: DataCourt[];
+  feed: ControllerChatFeedFacade;
+  post: (body: unknown) => Promise<unknown>;
+  release: () => void;
+  report: (messageId: ControllerIdentifier) => unknown;
+  session: MySessionSummary;
+  start: () => void;
+  subscribeClose: (listener: (options?: SurfaceCloseOptions) => void) => () => void;
+  withdraw: () => unknown;
+}
+
 /** Imperative surface 的共同現況；不同 surface 只實作自己需要的命令。 */
 export interface ControllerSurfaceHandle {
   close(options?: SurfaceCloseOptions): void;
@@ -237,11 +252,9 @@ export interface ControllerSurfaceHandle {
   setTerminal?(message: string): void;
 }
 
-export interface ControllerChatSurfaceContext {
+export interface ControllerChatSurfaceContext extends ControllerChatSession {
   authSnapshot: ControllerAuthSnapshot;
-  feed: ControllerChatFeedFacade;
-  session: MySessionSummary;
-  sheet: ControllerSurfaceHandle | null | undefined;
+  requestClose: (options?: SurfaceCloseOptions) => void;
 }
 
 export type ControllerSurfaceName =
@@ -314,7 +327,7 @@ export interface ControllerApi {
     profileId: ControllerIdentifier
   ) => ControllerSurfaceResult;
   openSession: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
-  openSessionChat: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
+  createSessionChat: (sessionId: ControllerIdentifier) => ControllerChatSession | null | undefined;
   openSessionDecision: (sessionId: ControllerIdentifier) => Promise<ControllerSurfaceResult>;
   openSessionEdit: (sessionId: ControllerIdentifier) => ControllerSurfaceResult;
   openSessionFromLink(sessionId: ControllerIdentifier): Promise<ControllerOpenSessionResult>;

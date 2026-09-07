@@ -1,4 +1,4 @@
-import type { ControllerApi } from "../controllerContracts.ts";
+import type { ControllerApi, ControllerIdentifier } from "../controllerContracts.ts";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import {
   selectMessagesCourts,
@@ -9,6 +9,7 @@ import { sessionHostInitial, sessionScheduleLabel, sessionVenuePresentation } fr
 import { useStoreSelector } from "../sessionStore.ts";
 
 type PresentedMessagesSession = MessagesSession & Partial<Pick<SessionSummary, "candidateCourtIds">>;
+type OpenSessionChat = (sessionId: ControllerIdentifier) => unknown;
 
 function sessionCourtLabel(
   session: PresentedMessagesSession,
@@ -38,7 +39,7 @@ function MessageRow({
   session,
 }: {
   courts: CourtSummary[] | null;
-  onOpenChat: (sessionId: string) => void;
+  onOpenChat: OpenSessionChat;
   session: PresentedMessagesSession;
 }) {
   const venue = sessionVenuePresentation(session, courts);
@@ -74,7 +75,7 @@ export function MessagesPage({
   onOpenChat,
   sessionStore,
 }: {
-  onOpenChat: ControllerApi["openSessionChat"];
+  onOpenChat: OpenSessionChat;
   sessionStore: ControllerApi["sessionStore"];
 }) {
   const current = sessionStore.getState();

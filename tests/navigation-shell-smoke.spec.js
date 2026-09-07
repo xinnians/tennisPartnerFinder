@@ -231,7 +231,7 @@ test("bottom navigation renders five items in dc order and splits the badge/dot 
 
 // 批 D7:訊息頁列(dc §3)——未讀點只出現在 unreadMessageCount>0 的那一列,空清單
 // 時只見 dc dashed 空狀態框,兩者互斥;點列會呼叫 onOpenChat(既有
-// controller.openSessionChat 清未讀流程,這裡只驗接線本身)。
+// app-level openSessionChat 清未讀流程,這裡只驗接線本身)。
 test("messages page marks only the unread row, wires row clicks to onOpenChat, and mutually excludes its empty state", async ({
   page,
 }) => {

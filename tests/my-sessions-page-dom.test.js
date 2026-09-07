@@ -74,7 +74,6 @@ function createController(sessionStore, overrides = {}) {
     openCreateIntent: noop,
     openRosterParticipantReport: noop,
     openSession: noop,
-    openSessionChat: noop,
     openSessionDecision: noop,
     openSessionEdit: noop,
     openSessionReport: noop,
@@ -181,7 +180,7 @@ test("useMySessionsState 與既有 selector 產出同一份 state 切片", async
   });
 });
 
-test("useMySessionsActions 轉呼 14 個 controller 方法並綁定四個 decision payload", async (t) => {
+test("useMySessionsActions 轉呼 14 個 app/controller actions 並綁定四個 decision payload", async (t) => {
   const { AppServicesProvider, createStore, useMySessionsActions } = await loadMySessionsTestModules(t);
   const sessionStore = createStore(createMySessionsStoreState());
   const calls = [];
@@ -196,7 +195,6 @@ test("useMySessionsActions 轉呼 14 個 controller 方法並綁定四個 decisi
     openCreateIntent: record("openCreateIntent"),
     openRosterParticipantReport: record("openRosterParticipantReport"),
     openSession: record("openSession"),
-    openSessionChat: record("openSessionChat"),
     openSessionDecision: record("openSessionDecision"),
     openSessionEdit: record("openSessionEdit"),
     openSessionReport: record("openSessionReport"),
@@ -211,7 +209,13 @@ test("useMySessionsActions 轉呼 14 個 controller 方法並綁定四個 decisi
     return null;
   }
 
-  renderToStaticMarkup(createElement(AppServicesProvider, { controller }, createElement(ActionsProbe)));
+  renderToStaticMarkup(
+    createElement(
+      AppServicesProvider,
+      { controller, openSessionChat: record("openSessionChat") },
+      createElement(ActionsProbe)
+    )
+  );
   await retryAssertion(() => assert.equal(typeof actions?.onAccept, "function"));
   actions.onAccept("1", "2");
   actions.onAcceptInvite("3");

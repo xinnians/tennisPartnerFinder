@@ -49,7 +49,7 @@ interface LoginModalOptions {
 }
 
 interface AppProps {
-  messagesServices: Pick<AppServices["controller"], "openSessionChat" | "sessionStore">;
+  messagesServices: Pick<AppServices, "controller" | "openSessionChat">;
   snapshot: AppSnapshot;
 }
 
@@ -176,7 +176,7 @@ const MessagesDestination = memo(function MessagesDestination({
 }: {
   failed: boolean;
   loaded: boolean;
-  services: Pick<AppServices["controller"], "openSessionChat" | "sessionStore">;
+  services: Pick<AppServices, "controller" | "openSessionChat">;
 }) {
   useEffect(() => {
     if (!loaded && !failed) void loadMessagesPage().catch(() => {});
@@ -184,7 +184,7 @@ const MessagesDestination = memo(function MessagesDestination({
   if (!MessagesPageComponent) return <PageLoading label={failed ? "訊息載入失敗，請重新整理。" : "正在載入訊息…"} />;
   return (
     <AppErrorBoundary resetKey={0} surface="messages-page">
-      <MessagesPageComponent onOpenChat={services.openSessionChat} sessionStore={services.sessionStore} />
+      <MessagesPageComponent onOpenChat={services.openSessionChat} sessionStore={services.controller.sessionStore} />
     </AppErrorBoundary>
   );
 });
@@ -774,7 +774,7 @@ function renderApp(): void {
   if (!appServices) throw new Error("App services must be configured before the React root renders.");
   ensureAppRoot().render(
     <AppServicesProvider {...appServices}>
-      <App messagesServices={appServices.controller} snapshot={snapshot} />
+      <App messagesServices={appServices} snapshot={snapshot} />
     </AppServicesProvider>
   );
 }

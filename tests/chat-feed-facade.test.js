@@ -336,7 +336,7 @@ test("start is idempotent and stop removes the owned visibility listener", async
 });
 
 function interfaceBody(source, name) {
-  const match = source.match(new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`));
+  const match = source.match(new RegExp(`export interface ${name}(?: extends [^{]+)? \\{([\\s\\S]*?)\\n\\}`));
   assert.ok(match, `${name} must remain declared`);
   return match[1];
 }

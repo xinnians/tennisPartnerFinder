@@ -5,6 +5,7 @@ import type {
   ControllerIdentifier,
   ControllerMapViewPayload,
   ControllerMySessionGroups,
+  ControllerSurfaceHandle,
   SessionControllerState,
 } from "../controllerContracts.ts";
 import type { PageNotificationSettings, PageViewState, PageViewStore } from "../pageViewStore.ts";
@@ -43,6 +44,7 @@ export interface AppServices {
   meApp: MeAppActions;
   mySessionsApp: MySessionsAppActions;
   nearbyDrawerApp: NearbyDrawerAppActions;
+  openSessionChat: (sessionId: ControllerIdentifier) => ControllerSurfaceHandle | null | undefined;
   pageViewStore: PageViewStore;
 }
 
@@ -84,7 +86,6 @@ type MySessionsServices = Pick<
   | "openCreateIntent"
   | "openRosterParticipantReport"
   | "openSession"
-  | "openSessionChat"
   | "openSessionDecision"
   | "openSessionEdit"
   | "openSessionReport"
@@ -121,7 +122,7 @@ export interface MySessionsActions {
   onDecide: MySessionsServices["openSessionDecision"];
   onEdit: MySessionsServices["openSessionEdit"];
   onMarkPlayed: MySessionsServices["markMySessionPlayed"];
-  onOpenChat: MySessionsServices["openSessionChat"];
+  onOpenChat: AppServices["openSessionChat"];
   onOpenSession: MySessionsServices["openSession"];
   onRefresh: () => ReturnType<ControllerApi["refreshMySessions"]>;
   onReportParticipant: MySessionsServices["openRosterParticipantReport"];
@@ -134,10 +135,12 @@ interface AppServicesContextValue {
   meApp?: MeAppActions;
   mySessionsApp?: MySessionsAppActions;
   nearbyDrawerApp?: NearbyDrawerAppActions;
+  openSessionChat: AppServices["openSessionChat"];
   pageViewStore?: PageViewStore;
 }
 
 const AppServicesContext = createContext<AppServicesContextValue | null>(null);
+const unavailableOpenSessionChat: AppServices["openSessionChat"] = () => undefined;
 
 function useAppServices(): AppServicesContextValue {
   const services = useContext(AppServicesContext);
@@ -186,6 +189,7 @@ export function AppServicesProvider({
   meApp,
   mySessionsApp,
   nearbyDrawerApp,
+  openSessionChat = unavailableOpenSessionChat,
   pageViewStore,
 }: {
   children: ReactNode;
@@ -193,11 +197,12 @@ export function AppServicesProvider({
   meApp?: MeAppActions;
   mySessionsApp?: MySessionsAppActions;
   nearbyDrawerApp?: NearbyDrawerAppActions;
+  openSessionChat?: AppServices["openSessionChat"];
   pageViewStore?: PageViewStore;
 }) {
   const services = useMemo(
-    () => ({ controller, meApp, mySessionsApp, nearbyDrawerApp, pageViewStore }),
-    [controller, meApp, mySessionsApp, nearbyDrawerApp, pageViewStore]
+    () => ({ controller, meApp, mySessionsApp, nearbyDrawerApp, openSessionChat, pageViewStore }),
+    [controller, meApp, mySessionsApp, nearbyDrawerApp, openSessionChat, pageViewStore]
   );
   return <AppServicesContext.Provider value={services}>{children}</AppServicesContext.Provider>;
 }
@@ -294,7 +299,7 @@ export function useMySessionsState(): MySessionsState {
 }
 
 export function useMySessionsActions(): MySessionsActions {
-  const { controller } = useAppServices();
+  const { controller, openSessionChat } = useAppServices();
   return useMemo(
     () => ({
       onAccept: (sessionId, participantId) =>
@@ -309,14 +314,14 @@ export function useMySessionsActions(): MySessionsActions {
       onDecide: controller.openSessionDecision,
       onEdit: controller.openSessionEdit,
       onMarkPlayed: controller.markMySessionPlayed,
-      onOpenChat: controller.openSessionChat,
+      onOpenChat: openSessionChat,
       onOpenSession: controller.openSession,
       onRefresh: () => controller.refreshMySessions(),
       onReportParticipant: controller.openRosterParticipantReport,
       onReportSession: controller.openSessionReport,
       onWithdraw: controller.withdrawMySession,
     }),
-    [controller]
+    [controller, openSessionChat]
   );
 }
 

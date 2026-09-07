@@ -109,6 +109,7 @@ import {
   defaultNotificationSettings,
 } from "./features/notifications/notificationFeature.ts";
 import { createNotificationPushProductionShell } from "./notificationPushProductionShell.ts";
+import { createSessionChatOpener } from "./features/chat/chatSessionWiring.ts";
 import { createPageRouteOwner } from "./features/navigation/pageRouteOwner.ts";
 import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
 import {
@@ -451,6 +452,11 @@ function enablePushNotifications() {
   return notificationFeature.enablePushNotifications();
 }
 
+const openSessionChat = createSessionChatOpener({
+  createSessionChat: (sessionId) => controller.createSessionChat(sessionId),
+  openChatSurface: openSessionChatSheet,
+});
+
 // 批 C3-3:第一參數泛化為 { sessionId, reason }(或 null/未傳＝無聚焦目標，例如底部
 // 導覽「我的球局」分頁鈕)。reason 只決定 My Sessions 是否顯示
 // create 專屬文案；卡片聚焦本身兩種 reason 都適用，見該函式內的 highlightSessionId。
@@ -580,20 +586,24 @@ function init() {
     render: renderDiscovery,
     renderPins: renderSessionMarkers,
     renderPlayers: renderPlayerLayer,
-    openSession: (session, handlers) =>
+    openSession: (session, handlers) => {
       // 批 C3-2:join 確認/送出中/成功都內嵌同一張 detail sheet,不再有獨立的
       // openJoinConfirmation 接線——這裡把原本只給那條路徑的 notificationSettings/
       // onEnablePush/onViewMySessions 併入唯一的 openSession 接線。
-      openSessionSheet(session, {
+      const openChat = () => openSessionChat(session.sessionId);
+      return openSessionSheet(session, {
         ...handlers,
         notificationSettings,
         onCopyLink: () => copySessionShareLink(session.sessionId),
+        onChat: openChat,
         onEnablePush: enablePushNotifications,
+        onPrimary: handlers.action?.kind === "chat" ? openChat : handlers.onPrimary,
         // 批 C3-3:sheet 的成功 callback 把剛加入的 sessionId 交回來,
         // 用 reason:"joined" 聚焦新參與卡,不顯示 create 專屬的
         // 「球局已建立」文案——不再只聚焦頁面標題。
         onViewMySessions: (sessionId) => showMySessionsPage({ sessionId, reason: "joined" }),
-      }),
+      });
+    },
     openCourtDrawer: (court, sessions, handlers) => openCourtSessionDrawer(court, sessions, handlers),
     openCourtPlayersDrawer: (court, players, handlers) => openCourtPlayersDrawer(court, players, handlers),
     openPlayerDirectoryList: (handlers) => openPlayerDirectoryList(handlers),
@@ -601,7 +611,6 @@ function init() {
     openCreateSession,
     openDecideSession: openDecideSessionSheet,
     openEditSession: openEditSessionSheet,
-    openChat: openSessionChatSheet,
     openLogin: openSafeLogin,
     openReport: (context) => openReportDialog(context),
     openWithdrawConfirmation: openWithdrawSessionConfirmation,
@@ -626,6 +635,7 @@ function init() {
   });
   appModule.configureAppServicesInApp({
     controller,
+    openSessionChat,
     meApp: {
       lineProviderId: AUTH_LINE_PROVIDER_ID,
       onEditProfile: () => openProfileCompletion({ mode: "standalone" }),

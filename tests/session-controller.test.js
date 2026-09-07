@@ -320,7 +320,37 @@ function createHarness(overrides = {}) {
     withdrawFromSession: async () => ({ outcome: "OK", reloadRequired: false }),
     ...overrides.api,
   };
-  const rawController = createSessionController({
+  let rawController;
+  function openSessionChat(sessionId) {
+    const chat = rawController.createSessionChat(sessionId);
+    if (!chat) return chat;
+    let unsubscribeClose = () => {};
+    const handlers = {
+      canWithdraw: chat.canWithdraw,
+      courts: chat.courts,
+      feed: chat.feed,
+      onBlock: chat.block,
+      onClose: () => {
+        unsubscribeClose();
+        chat.release();
+      },
+      onPost: chat.post,
+      onReport: chat.report,
+      onWithdraw: chat.withdraw,
+    };
+    const detail = createSurface(handlers.onClose);
+    const unsubscribeFeed = chat.feed.subscribe(() => detail.stateUpdates.push(chat.feed.getSnapshot()));
+    const close = detail.close.bind(detail);
+    detail.close = (options) => {
+      unsubscribeFeed();
+      close(options);
+    };
+    unsubscribeClose = chat.subscribeClose((options) => detail.close(options));
+    chat.start();
+    chatSheets.push({ detail, handlers, session: chat.session });
+    return detail;
+  }
+  rawController = createSessionController({
     api,
     mapTools: overrides.mapTools,
     render: (view) => renders.push(view),
@@ -330,8 +360,14 @@ function createHarness(overrides = {}) {
       // 批 C3-2:join 確認/送出中/成功都併進這張 detail(handlers.onClose 是
       // openSessionDetail 新接的意圖清除/自我歸零 hook),不再有獨立的
       // openJoinConfirmation fake。
-      const detail = createSurface(handlers.onClose);
-      opened.push({ detail, handlers, session: openedSession });
+      const openChat = () => openSessionChat(openedSession.sessionId);
+      const appHandlers = {
+        ...handlers,
+        onChat: openChat,
+        onPrimary: handlers.action?.kind === "chat" ? openChat : handlers.onPrimary,
+      };
+      const detail = createSurface(appHandlers.onClose);
+      opened.push({ detail, handlers: appHandlers, session: openedSession });
       return detail;
     },
     openWithdrawConfirmation: overrides.openWithdrawConfirmation ?? ((handlers) => handlers.onConfirm()),
@@ -376,17 +412,6 @@ function createHarness(overrides = {}) {
       editSheets.push({ detail, handlers, session: openedSession });
       return detail;
     },
-    openChat: (openedSession, handlers) => {
-      const detail = createSurface(handlers.onClose);
-      const unsubscribe = handlers.feed.subscribe(() => detail.stateUpdates.push(handlers.feed.getSnapshot()));
-      const close = detail.close.bind(detail);
-      detail.close = (options) => {
-        unsubscribe();
-        close(options);
-      };
-      chatSheets.push({ detail, handlers, session: openedSession });
-      return detail;
-    },
     openLogin: (handlers) => {
       const detail = createSurface(handlers.onClose);
       loginPrompts.push({ detail, handlers });
@@ -423,6 +448,7 @@ function createHarness(overrides = {}) {
     editSheets,
     loginPrompts,
     mySessionChanges,
+    openSessionChat,
     opened,
     pinBatches,
     playerCards,
@@ -1771,7 +1797,7 @@ test("My Sessions and chat withdrawals use the same confirmation boundary", asyn
   await confirmations[0].onConfirm();
   assert.equal(withdrawalCalls, 1);
 
-  harness.controller.openSessionChat(acceptedSession.sessionId);
+  harness.openSessionChat(acceptedSession.sessionId);
   harness.chatSheets.at(-1).handlers.onWithdraw();
   assert.equal(confirmations.length, 2);
   assert.equal(withdrawalCalls, 1);
@@ -3869,7 +3895,7 @@ test("accepted members alone receive chat entry authority from private participa
   // eslint-disable-next-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   const requestedDetail = harness.controller.openSession(requestedSession.sessionId);
   assert.equal(harness.opened.at(-1).handlers.canChat, false);
-  assert.throws(() => harness.controller.openSessionChat(requestedSession.sessionId), /球局的狀態已更新/);
+  assert.throws(() => harness.openSessionChat(requestedSession.sessionId), /球局的狀態已更新/);
 });
 
 test("chat refreshes on foreground visibility and after posting", async () => {
@@ -3919,7 +3945,7 @@ test("chat refreshes on foreground visibility and after posting", async () => {
     { user: { id: "chat-refresh-member" } },
     { directory: false, nickname: true, ntrp: true }
   );
-  const sheet = harness.controller.openSessionChat(session.sessionId);
+  const sheet = harness.openSessionChat(session.sessionId);
   await flush();
   assert.deepEqual(messageLoads, [711]);
   assert.deepEqual(rosterLoads, [711]);
@@ -3974,7 +4000,7 @@ test("chat polls quietly for the other member's messages while open and stops af
     { user: { id: "chat-poll-member" } },
     { directory: false, nickname: true, ntrp: true }
   );
-  const sheet = harness.controller.openSessionChat(session.sessionId);
+  const sheet = harness.openSessionChat(session.sessionId);
   await flush();
   const initialLoads = messageLoads.length;
   assert.ok(initialLoads >= 1, "the initial chat load ran (nonempty scan)");
@@ -4106,7 +4132,7 @@ test("opening chat marks it read, optimistically zeroes the unread count, and th
   harness.controller.sessionStore.subscribe("mySessions", () => {
     unreadNotifications += 1;
   });
-  harness.controller.openSessionChat(session.sessionId);
+  harness.openSessionChat(session.sessionId);
   await flush();
 
   assert.deepEqual(markReadCalls, [731], "opening chat marks the session read exactly once");
@@ -4196,7 +4222,7 @@ test("a failing mark-read RPC does not interrupt the chat sheet and is retried o
     { user: { id: "unread-retry-member" } },
     { directory: false, nickname: true, ntrp: true }
   );
-  const sheet = harness.controller.openSessionChat(session.sessionId);
+  const sheet = harness.openSessionChat(session.sessionId);
   await flush();
 
   assert.equal(markReadCalls, 1, "the failing RPC is still attempted once");
@@ -4260,7 +4286,7 @@ test("chat governance reports the exact visible message, blocks its sender, and 
     { user: { id: "chat-governance-member" } },
     { directory: false, nickname: true, ntrp: true }
   );
-  harness.controller.openSessionChat(session.sessionId);
+  harness.openSessionChat(session.sessionId);
   await flush();
 
   harness.chatSheets.at(-1).handlers.onReport(visibleMessage.messageId);

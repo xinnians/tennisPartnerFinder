@@ -188,7 +188,6 @@ export function mountMySessionsAppHarness(
     openRosterParticipantReport: (sessionId: string, profileId: string) =>
       options.onReportParticipant?.(sessionId, profileId),
     openSession: (sessionId: string) => options.onOpenSession?.(sessionId),
-    openSessionChat: (sessionId: string) => options.onOpenChat?.(sessionId),
     openSessionDecision: (sessionId: string) => options.onDecide?.(sessionId),
     openSessionEdit: (sessionId: string) => options.onEdit?.(sessionId),
     openSessionReport: (sessionId: string) => options.onReportSession?.(sessionId),
@@ -200,6 +199,7 @@ export function mountMySessionsAppHarness(
     sessionStore,
     withdrawMySession: (sessionId: string) => options.onWithdraw?.(sessionId),
   } as unknown as ControllerApi;
+  const openSessionChat = (sessionId: ControllerIdentifier) => options.onOpenChat?.(String(sessionId ?? ""));
   const mySessionsApp = {
     onBack: () => options.onBack?.(),
     onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => options.onCreatedSessionFocus?.(sessionId) ?? true,
@@ -211,7 +211,12 @@ export function mountMySessionsAppHarness(
   const render = () => {
     syncCommit(() => {
       root.render(
-        <AppServicesProvider controller={controller} mySessionsApp={mySessionsApp} pageViewStore={pageViewStore}>
+        <AppServicesProvider
+          controller={controller}
+          mySessionsApp={mySessionsApp}
+          openSessionChat={openSessionChat}
+          pageViewStore={pageViewStore}
+        >
           <MySessionsPage rootElement={rootElement} />
         </AppServicesProvider>
       );

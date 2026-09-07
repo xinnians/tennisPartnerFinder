@@ -2,11 +2,11 @@ import { chatMemberSession, visibleChatMessage } from "../features/chat/chatFeat
 import { createChatFeedFacade } from "../features/chat/chatFeedFacade.ts";
 import type {
   ControllerAuthSnapshot,
+  ControllerChatSession,
   ControllerChatSurfaceContext,
   ControllerIdentifier,
-  ControllerSurfaceHandle,
 } from "../controllerContracts.ts";
-import type { ChatMessage, MySessionSummary } from "../domainTypes.ts";
+import type { ChatMessage, MySessionSummary, SurfaceCloseOptions } from "../domainTypes.ts";
 import type { SurfaceRegistry } from "./surfaceRegistry.ts";
 
 interface ChatDataApi {
@@ -29,21 +29,8 @@ interface ChatControllerDependencies {
   chatPollIntervalMs: number;
   clearMySessionUnread: (sessionId: ControllerIdentifier) => boolean;
   isCurrentAuthSnapshot: (snapshot: ControllerAuthSnapshot) => boolean;
-  openChat: (
-    session: MySessionSummary,
-    handlers: {
-      canWithdraw: boolean;
-      courts: unknown[];
-      feed: ControllerChatSurfaceContext["feed"];
-      onBlock(profileId: ControllerIdentifier): Promise<true>;
-      onClose(): void;
-      onPost(body: unknown): Promise<unknown>;
-      onReport(messageId: ControllerIdentifier): unknown;
-      onWithdraw(): unknown;
-    }
-  ) => ControllerSurfaceHandle | null | undefined;
   openReportForTarget: (target: ReportTarget) => unknown;
-  readCourts: () => unknown[];
+  readCourts: () => ControllerChatSession["courts"];
   refreshBlockedPlayers: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
   refreshMySessions: () => Promise<boolean>;
   requireMySessionAction: (
@@ -61,16 +48,15 @@ function actionCode(error: unknown): unknown {
   return typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
 }
 
-/** Orchestrates the active chat surface and mutations; the feed facade owns query lifecycle state. */
+/** Creates an authorized Chat model; app wiring owns the concrete surface selection. */
 export function createChatController(dependencies: ChatControllerDependencies): {
-  openSessionChat: (sessionId: ControllerIdentifier) => ControllerSurfaceHandle | null | undefined;
+  createSessionChat: (sessionId: ControllerIdentifier) => ControllerChatSession | null | undefined;
 } {
   const {
     api,
     chatPollIntervalMs,
     clearMySessionUnread,
     isCurrentAuthSnapshot,
-    openChat,
     openReportForTarget,
     readCourts,
     refreshBlockedPlayers,
@@ -150,13 +136,14 @@ export function createChatController(dependencies: ChatControllerDependencies): 
     }
   }
 
-  function openSessionChat(sessionId: ControllerIdentifier): ControllerSurfaceHandle | null | undefined {
+  function createSessionChat(sessionId: ControllerIdentifier): ControllerChatSession | null | undefined {
     const { authSnapshot, session } = requireMySessionAction(sessionId, chatMemberSession);
     if (typeof api.loadSessionMessages !== "function" || typeof api.loadSessionRoster !== "function") {
       throw new Error("目前無法開啟群組聊天。");
     }
     transitionSurfaces("openChat");
     let context = null as ControllerChatSurfaceContext | null;
+    const closeListeners = new Set<(options?: SurfaceCloseOptions) => void>();
     const feed = createChatFeedFacade({
       api,
       authSnapshot,
@@ -168,26 +155,31 @@ export function createChatController(dependencies: ChatControllerDependencies): 
       sessionId: session.sessionId,
       visibilityTarget,
     });
-    const sheet = openChat(session, {
+    context = {
+      authSnapshot,
+      block: (profileId) => blockChatSender(context as ControllerChatSurfaceContext, profileId),
       canWithdraw: Boolean(session.canWithdraw),
       courts: readCourts(),
       feed,
-      onBlock: (profileId) => blockChatSender(context as ControllerChatSurfaceContext, profileId),
-      onClose: () => surfaceRegistry.release("chat", context),
-      onPost: (body) => postActiveChatMessage(context as ControllerChatSurfaceContext, body),
-      onReport: (messageId) => openChatMessageReport(context as ControllerChatSurfaceContext, messageId),
-      onWithdraw: () => withdrawMySession(session.sessionId),
-    });
-    context = {
-      authSnapshot,
-      feed,
+      post: (body) => postActiveChatMessage(context as ControllerChatSurfaceContext, body),
+      release: () => {
+        surfaceRegistry.release("chat", context);
+      },
+      report: (messageId) => openChatMessageReport(context as ControllerChatSurfaceContext, messageId),
+      requestClose: (options) => {
+        for (const listener of closeListeners) listener(options);
+      },
       session,
-      sheet,
+      start: () => feed.start(),
+      subscribeClose(listener) {
+        closeListeners.add(listener);
+        return () => closeListeners.delete(listener);
+      },
+      withdraw: () => withdrawMySession(session.sessionId),
     };
     surfaceRegistry.set("chat", context);
-    feed.start();
-    return sheet;
+    return context;
   }
 
-  return { openSessionChat };
+  return { createSessionChat };
 }

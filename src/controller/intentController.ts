@@ -72,7 +72,6 @@ interface IntentControllerDependencies {
     onViewMySessions(sessionId: ControllerIdentifier): void;
   }) => ControllerSurfaceHandle | null | undefined;
   openLogin: (handlers: { action: string; onClose(options?: { reason?: string }): void }) => unknown;
-  openSessionChat: (sessionId: ControllerIdentifier) => unknown;
   openSessionDetail: (session: SessionSummary, options?: { initialStage?: string }) => unknown;
   profilePrompt: (context: {
     courts: unknown[];
@@ -138,7 +137,6 @@ export function createIntentController({
   locationGate,
   openCreateSession,
   openLogin,
-  openSessionChat,
   openSessionDetail,
   profilePrompt,
   publish,
@@ -277,7 +275,9 @@ export function createIntentController({
     const action = actionFor(session);
     if (action.disabled) return;
     const participation = currentParticipation(session.sessionId);
-    if (participation?.viewerParticipantStatus === "accepted") return openSessionChat(session.sessionId);
+    // The application wiring handles the accepted-member Chat action because
+    // the controller no longer selects a concrete Chat surface.
+    if (participation?.viewerParticipantStatus === "accepted") return;
     return requireSessionAction({ action: "join", sessionId: session.sessionId as number }, { detail, session });
   }
 
