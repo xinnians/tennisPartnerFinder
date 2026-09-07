@@ -97,7 +97,7 @@
 .nearby-sessions__cards > .session-card { content-visibility: auto; contain-intrinsic-size: auto 92px; }
 .nearby-sessions__status { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-2); border-radius: var(--radius-md); background: var(--color-info-bg); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
 .nearby-sessions__status p { margin: 0; overflow-wrap: anywhere; }
-.nearby-sessions__status .session-secondary { margin-top: var(--space-2); }
+.nearby-sessions__status .session-secondary { min-width: 44px; min-height: 44px; margin-top: var(--space-2); }
 
 /* 批 D2:v2 球局卡(dc L153-171)——左時間磚+右欄三行。 */
 .session-card { display: flex; gap: 12px; width: 100%; margin-bottom: 9px; padding: 12px; border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface-card); color: var(--color-ink); text-align: left; }
@@ -167,7 +167,7 @@
   font-size: var(--text-sm);
 }
 #map-data-status p { margin: 0; overflow-wrap: anywhere; }
-#map-data-status .session-secondary { margin-top: var(--space-2); min-height: 32px; background: var(--color-surface-card); color: var(--color-ink); }
+#map-data-status .session-secondary { min-width: 44px; min-height: 44px; margin-top: var(--space-2); background: var(--color-surface-card); color: var(--color-ink); }
 /* .map-data-status--loading/--warning 修飾規則已刪除:兩者 background 皆為 var(--color-ink),
    與基礎 #map-data-status 規則完全相同,是無效果的 no-op;sessionViews.js renderMapDataStatus
    仍會掛上這兩個 class(kind 語意仍在),只是本檔不再為它們重複宣告視覺。 */

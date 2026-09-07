@@ -105,10 +105,13 @@
   font-weight: 700;
 }
 
+/* 程度快選是獨立的手機觸控面；篩選 sheet 另有自己的 44px 規則。 */
+#band-options .band-option { min-height: 44px; }
+
 .session-primary { padding: 0 var(--space-4); background: var(--color-ink); color: var(--color-signal); }
 
 /* 登入 dialog 可能有 Google+LINE 兩顆 provider 按鈕;直排時保持一致間距。 */
-.auth-dialog [data-provider] { margin-top: var(--space-2); }
+.auth-dialog [data-provider] { min-width: 44px; min-height: 44px; margin-top: var(--space-2); }
 .auth-dialog [data-provider] + [data-provider] { margin-left: var(--space-2); }
 
 .map-page {

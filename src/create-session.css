@@ -142,3 +142,4 @@
 .app-error-notice__close { flex: none; min-width: 44px; min-height: 44px; border: 1px solid var(--color-signal); border-radius: var(--radius-md); background: transparent; color: var(--color-signal); font: inherit; cursor: pointer; }
 .app-error-fallback { display: grid; justify-items: start; gap: 14px; width: min(100%, 520px); margin: auto; padding: clamp(24px, 6vw, 48px); }
 .app-error-fallback h2, .app-error-fallback p { margin: 0; }
+.app-error-fallback .session-secondary { min-width: 44px; min-height: 44px; }

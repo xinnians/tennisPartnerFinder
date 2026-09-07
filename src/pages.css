@@ -188,6 +188,7 @@
 .my-action-card p { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
 .my-history-reason { margin: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: var(--text-sm); line-height: 1.5; }
 .my-session-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-1); }
+.my-session-card__actions :is(.session-primary, .session-secondary, .session-tertiary) { min-width: 44px; min-height: 44px; }
 /* 文字鈕契約(Task 4):.session-tertiary 比照 secondary 語意,無框;字色比照既有 .filters-reset
    的文字鈕前例採 court(可互動強調色),而非 text-secondary(純資訊態),因底線本身已標示可點擊。 */
 .session-tertiary { min-height: 34px; padding: 0 var(--space-1); border: 0; background: transparent; color: var(--color-court); font-size: var(--text-sm); font-weight: 700; text-decoration: underline; }
@@ -209,10 +210,10 @@
 .my-sessions-v2__title { margin: 0; color: var(--color-ink); font-size: 22px; font-weight: 700; }
 .my-sessions-v2__tool-btn { min-height: 44px; padding: 0 var(--space-3); font-size: var(--text-sm); }
 
-/* segmented(dc §2 逐字):1.5px ink 框、h44、radius-lg(=10px)、中線只在右格
-  (`+` 相鄰選擇器只加左格),選中態 ink 反相底+signal 字。 */
-.my-sessions-v2__segmented { display: flex; height: 44px; margin-top: 10px; border: var(--border-strong); border-radius: var(--radius-lg); overflow: hidden; }
-.my-sessions-v2__seg-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; }
+/* segmented(dc §2):真正可點的子按鈕至少 44px；外框另含上下 1.5px 邊線，故總高至少 47px。
+  radius-lg(=10px)、中線只在右格(`+` 相鄰選擇器只加左格)，選中態 ink 反相底+signal 字。 */
+.my-sessions-v2__segmented { display: flex; min-height: 47px; margin-top: 10px; border: var(--border-strong); border-radius: var(--radius-lg); overflow: hidden; }
+.my-sessions-v2__seg-btn { flex: 1; display: flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border: 0; background: var(--color-surface-card); color: var(--color-text-secondary); font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; }
 .my-sessions-v2__seg-btn + .my-sessions-v2__seg-btn { border-left: var(--border-strong); }
 .my-sessions-v2__seg-btn.is-active { background: var(--color-ink); color: var(--color-signal); font-weight: 700; }
 .my-sessions-v2__seg-count { font-family: var(--font-mono); font-weight: 600; font-size: 12.5px; }

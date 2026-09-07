@@ -78,7 +78,8 @@ slice 完成證據在 `frontend-architecture-fa-06-stage-6b5-chat-app-wiring-202
 `frontend-architecture-post-fa-06-completion-audit-2026-09-08.md`；最新 `ds-bundle/` 全量差異、18 次 render 與同步切法在
 `frontend-architecture-ds-bundle-preflight-2026-09-08.md`；最新 deterministic CSS mirror／drift gate 與文件同步證據在
 `frontend-architecture-ds-bundle-deterministic-sync-2026-09-08.md`；最新 9 張卡片校正、自動 integrity gate 與 render 複核在
-`frontend-architecture-ds-bundle-card-refresh-2026-09-08.md`。
+`frontend-architecture-ds-bundle-card-refresh-2026-09-08.md`；最新 production 44px 真實脈絡量測、修正與 card 假陽性分類在
+`frontend-architecture-production-touch-targets-2026-09-08.md`。
 
 ## 目前狀態
 
@@ -86,12 +87,12 @@ slice 完成證據在 `frontend-architecture-fa-06-stage-6b5-chat-app-wiring-202
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 目前批次                | `ds-bundle` 批次 B 完成：9 張卡片已對照目前 production owner 更新，viewport／重複 ID／Chat 狀態已修正；card integrity gate 與 18 次 render 通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 目前批次                | `ds-bundle` 批次 C 完成：390×844 的 16 個 production 狀態／99 筆可操作區域已實測，35 筆原始缺口完成 scoped 修正，修正後低於 44×44px 為 0；marker 因 mock 無法代表 Google runtime 而明確留待真實環境驗證                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1～6B.5 已完成；第一個 vertical slice 完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                          |
 | runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner、Messages 專用資料邊界與 app-owned Chat surface wiring 已落地；Push 登出 server cleanup、v2 UI、SW、Hosted active dispatcher 尚未接線 |
 | migration 變更          | 39 local／39 Hosted，最新皆為 `202609070001`；D1 套用後 role／commands／index／trigger、資料與 linked lint 驗證通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| bundle checker／CI 變更 | production checker 已分開 development report／release enforce 並報 raw／gzip／Brotli；design-system checker 鎖 13 份 CSS 順序、產生檔、50 tokens，以及 9 張卡的 viewport／ID／source citation integrity。required CI 跑兩個 checker與 production preview Chromium；WebKit preview 留在非阻擋 job                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| 下一步                  | `ds-bundle` 批次 C：把 card render 報出的低於 44px 控制項放回真實 production route／container 量測，先分清 demo context 假陽性與 production 真缺口；Hosted C 真實 Push 與 B13.3 UI 仍分別等待產品確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| bundle checker／CI 變更 | production checker 已分開 development report／release enforce 並報 raw／gzip／Brotli；design-system checker 鎖 13 份 CSS 順序、產生檔、50 tokens，以及 9 張卡的 viewport／ID／source citation integrity。新增 production root 對稱式 44px browser gate；required CI 跑兩個 checker與 production preview Chromium，WebKit preview 留在非阻擋 job                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 下一步                  | `ds-bundle` 批次 D：把 mobile card-only 的 16 筆 context 差異補成真正的 `#band-options`／`.filter-sheet-band-grid`／My Sessions action container，並加入 mobile computed-size card gate；Hosted C 真實 Push 與 B13.3 UI 仍分別受既定確認邊界限制                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 查實際 Git 狀態：
 
@@ -111,7 +112,7 @@ git log --oneline --decorate -10
 | D4  | Q6-A 已取代原本無法由現有 stack 證明的精確界線：只承諾 DB transaction 持續有效時的 quarantine/send 排序；載入記憶體仍不算 handoff                                                                                                                                                                                                    | 已核可 current-stack 條件式邊界；殘餘斷線空檔需保留監控與測試                                                                                                                                                 |
 | D5  | quarantine 的重新確認、保存期限與到期處理由 `FA-02` 提案後再核可；不先猜 30／90 天                                                                                                                                                                                                                                                   | Q1-A 已核可：不設日曆期限，只依 server provider 證據解除                                                                                                                                                      |
 | D6  | session 缺少 `user.id` 時 fail-closed：視為無效、清私人狀態並要求重新登入                                                                                                                                                                                                                                                            | `FA-03B0` 已完成；controller 與 orchestration 都只接受非空 `user.id`                                                                                                                                          |
-| D7  | `ds-bundle/` 與 `.design-sync/` 保留並持續使用於 UI/UX 優化                                                                                                                                                                                                                                                                          | 全量 preflight、批次 A／B 完成；CSS／token 由 deterministic generator 同步，9 張 hand-authored 卡片另有 viewport／ID／source citation gate                                                                  |
+| D7  | `ds-bundle/` 與 `.design-sync/` 保留並持續使用於 UI/UX 優化                                                                                                                                                                                                                                                                          | 全量 preflight、批次 A／B／C 完成；CSS／token 由 deterministic generator 同步，9 張 hand-authored 卡片有 integrity gate，production 44px 缺口已修正；下一批處理 card-only context                           |
 | D8  | 開發期 bundle bytes 只報告、不阻擋 CI；demo／E2E hook／隱私與拆包邊界仍 hard fail                                                                                                                                                                                                                                                    | `FA-01` 已完成                                                                                                                                                                                                |
 | D9  | 第一個 production release candidate 前，依 route、裝置、網路、gzip／Brotli 與 Web Vitals 基線重訂並啟用 hard byte limits                                                                                                                                                                                                             | 本機 production preview 基線已完成；正式裝置／網路／hosting 與 Web Vitals 基線仍待 release candidate                                                                                                          |
 | D10 | 刪帳時清除 consent/device/token、transport、outbox/delivery/payload；只留 algorithm/hash/state/reason/version 的 ownerless deny registry row，時間欄清空                                                                                                                                                                             | `FA-03A3` dormant schema／真實 FK 測試完成；待 compatible runtime                                                                                                                                             |
@@ -2627,6 +2628,26 @@ Hosted deploy／secret／request／DB write：未執行
 - 詳細證據見 `frontend-architecture-ds-bundle-card-refresh-2026-09-08.md`。本批沒有修改 production UI／CSS、
   migration、Hosted、secret、deployment、request、runtime control 或資料。
 
+## `ds-bundle` 批次 C production 觸控尺寸
+
+- 以 390×844 真實 production root 重量 card report：掃描可見且未 disabled 的 button／link／form control／label／
+  switch，並把 `::before` 透明熱區納入；動畫穩定後才取 `getBoundingClientRect()`。
+- 16 個狀態共發現 35 筆低於 44px：程度快選 5、登入 1、Chat 1、兩種 error retry 各 1、My Sessions
+  joined／hosted／invite 8／7／5、Report 5、React fallback 1。底部導覽、FilterSheet、一般 drawer、SessionDetail、
+  withdraw confirmation 與 global notice 原本即為 0。
+- 只在已證實的畫面範圍補 44px，不直接放大全站 `.session-*` 基底：涉及 6 份 production CSS；同步產生
+  `_ds_bundle.css`。修正後相同 16 個狀態共 99 筆量測，低於 44px 為 0，runtime error 為 0。
+- 新增 `tests/touch-targets-smoke.spec.js` 對稱式掃描 gate；desktop Chromium／mobile Chromium／mobile WebKit
+  共 9／9。完整 frontend CI 為 Node 672／5 skipped、mock Chromium 354／4 skipped，build／bundle checks 通過。
+- WebKit 全量剩 8 個既有 focus 斷言失敗；同 8 項在 clean `9643fe3` snapshot 單工重跑仍 8／8 失敗，證明不是
+  本批改動造成，但本批不猜根因。新增的三個 WebKit 觸控 gate 全部通過。
+- mock Maps 的 `.test-marker` button 直接採 marker 圖案寬高，無法代表 production Google
+  `AdvancedMarkerElement`／legacy Marker hit area；18 筆 mock marker 小尺寸不列為 production 結論，保留真實 runtime 待驗。
+- 卡片重跑的精確結果為 desktop 37／mobile 16 筆小尺寸；mobile 只剩 Buttons 10／Chips 6，都是未放入真實
+  production container 的 card context。下一批 D 修卡片脈絡並加 mobile computed-size gate。
+- 詳細證據見 `frontend-architecture-production-touch-targets-2026-09-08.md`。本批沒有 migration、Hosted、secret、
+  deployment、request、runtime control 或資料變更。
+
 ## 已知阻塞與風險
 
 - `FA-03B12.7` 的 browser provider-policy 契約衝突已依使用者選擇 A 解決：v1.3 與 B11.1 把 browser structure
@@ -2634,8 +2655,8 @@ Hosted deploy／secret／request／DB write：未執行
   B12.8 已完成 local-only Edge HTTP／Auth／DB，B12.9 已完成 real browser-to-local-DB composition。production
   provider policy secret 仍未設定；Hosted 4 筆現有 row 的 aggregate 都是 exact FCM origin，但正式設定前仍要重查，
   不得把這次 aggregate 外推成永久 provider 清單。
-- 最新一般 development build 的 main 為 649,121／191,413／159,896，total 為
-  853,560／262,410／221,605 raw／gzip／Brotli；raw／gzip 比目前參考值多 3,599／3,348 bytes。D8 允許開發期
+- 最新一般 development build 的 main 為 649,121／191,412／159,724，total 為
+  853,560／262,415／221,459 raw／gzip／Brotli；raw／gzip 比目前參考值多 3,599／3,353 bytes。D8 允許開發期
   report 繼續，release enforce 仍是 hard fail；第一個 production candidate 前須依 D9 用正式 hosting、裝置、網路
   與 Web Vitals 重訂 release 基線。本機 production preview 基線不是 production SLA。
 - 現行 production browser／Hosted dispatcher 仍只讀寫 legacy `push_subscriptions`；repo／本機已有 v2 transport metadata、
@@ -2702,9 +2723,9 @@ Hosted deploy／secret／request／DB write：未執行
   module／local sender 完成不代表 production v2 enable／refresh 已可接收 endpoint；active provider 值仍未設定。
 - Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
   side-effect-free healthcheck，因此本輪刻意沒有直接呼叫 hosted dispatcher。
-- `ds-bundle` 的 CSS／token mirror、9 張卡片校正與 integrity gate 已完成；card render 仍量到 desktop 47／mobile
-  25 個低於 44px 的展示控制項。這批數字混有缺少 production container 的假陽性，也可能含真實基底缺口；下一批
-  必須以真實 route／container 分類，不能把 card context 數字直接冒充 production 違規數。
+- `ds-bundle` 的 CSS／token mirror、9 張卡片校正、integrity gate 與批次 C production 觸控修正已完成。390×844
+  的 16 個 production 狀態／99 筆量測皆無小於 44px；mock marker 不冒充 Google runtime。card 精確剩餘 desktop
+  37／mobile 16 筆，mobile 全在 Buttons／Chips 缺 production container 的展示脈絡；下一批 D 修卡片與加 size gate。
 - C1 Hosted diagnostic 已停在 `SOURCE` 並完整復原；local source substage 已完成。再次 Hosted deploy／secret／
   request 前仍須取得新核可；最小範圍是 2 secrets、2 requests、零 DB write。
 
@@ -2727,9 +2748,10 @@ Hosted deploy／secret／request／DB write：未執行
    view DOM mutation、native listener 或 controller → concrete Chat callback 放回去。Stage 6B 與第一個 vertical slice
    已完成；post-FA-06 completion audit 與 `ds-bundle` 全量 drift preflight 也已完成，不要重跑舊的粗略 byte-only
    比對。`ds-bundle` 批次 A deterministic CSS／token generator、drift gate 與品牌／React／索引文件同步，以及批次 B
-   的 9-card owner／state 校正、viewport／ID／citation gate 與 18 次 render 都已完成；不要手改 `_ds_bundle.css` 或
-   `tokens/tokens.css`，production CSS 變更後要跑 `npm run sync:design-system`。下一步做批次 C：以真實 production
-   route／container 重量 44px 控制項，先把 card context 假陽性和 production 真缺口分開，不先猜 CSS 修法。
+   的 9-card owner／state 校正、viewport／ID／citation gate、18 次 render，以及批次 C 的真實 production 44px
+   量測與 scoped 修正都已完成；不要手改 `_ds_bundle.css` 或 `tokens/tokens.css`，production CSS 變更後要跑
+   `npm run sync:design-system`。下一步做批次 D：只修 Buttons／Chips 卡片缺少的 production container 脈絡，並把
+   mobile computed-size 納入 card gate；不要再改已經 0 違規的 production 規則，也不要把 mock marker 當正式結果。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -2876,3 +2898,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-08 | `ds-bundle` drift preflight      | 9 張卡片、13 個 bundle files、49 source refs、171 classes、13 份 production CSS 全量盤點；50 tokens 全等，CSS 4 changed／2 bundle-only／15 production-only。desktop＋390px 共 18/18 正常渲染、零 console/page/request error 與 overflow；下一批先做 deterministic CSS mirror／gate 與文件真相同步。                                              |
 | 2026-09-08 | `ds-bundle` deterministic sync   | 從 `src/main.js` 真實順序產生 13 份 CSS／50 tokens，加入 sync/check commands、三個 drift tests 與 CI gate；semantic drift 21→0，更新品牌／React／repo-only 索引。Node 670／5 skipped、Chromium 348／4 skipped、卡片 render 18/18 與完整 frontend CI 通過；production UI／CSS 未改。                                                              |
 | 2026-09-08 | `ds-bundle` card refresh         | 9 張卡片逐張對照現行 owner，修 viewport／Toast ID／Chat states／React ownership；新增 9-card metadata／ID／citation gate 與三種 canary。42 source refs 全存在、175 classes 已分類、render 18／18，Node 672／5 skipped、Chromium 348／4 skipped；production UI／CSS 未改。                                                        |
+| 2026-09-08 | production touch targets         | 390×844 的 16 個真實狀態／99 筆可操作區域完成量測；35 筆原始缺口以 scoped CSS 修正後為 0。新增三瀏覽器對稱式 gate 9／9，完整 frontend CI Node 672／5、Chromium 354／4；mock marker 明確不冒充 Google runtime，card 精確剩 mobile 16 筆 context 差異待批次 D。                                  |

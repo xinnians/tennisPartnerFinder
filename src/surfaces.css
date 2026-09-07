@@ -158,4 +158,5 @@
 .join-session-form,
 .report-form { display: grid; gap: 12px; }
 .join-session-summary { margin-top: 2px; }
-.report-form .form-fieldset label { display: flex; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.report-form .form-fieldset label { display: flex; min-height: 44px; align-items: center; gap: var(--space-2); color: var(--color-ink); font-size: var(--text-sm); font-weight: 700; }
+.report-form .session-primary { min-width: 44px; min-height: 44px; }
