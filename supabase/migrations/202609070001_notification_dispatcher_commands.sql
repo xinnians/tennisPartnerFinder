@@ -623,7 +623,7 @@ begin
       'version', 1,
       'kind', 'disabled',
       'code', 'dispatch_disabled',
-      'generation', control_row.worker_generation
+      'generation', control_row.worker_generation::text
     );
   end if;
 
@@ -632,7 +632,7 @@ begin
       'version', 1,
       'kind', 'stale',
       'code', 'worker_generation_changed',
-      'generation', control_row.worker_generation
+      'generation', control_row.worker_generation::text
     );
   end if;
 
@@ -648,7 +648,7 @@ begin
       'version', 1,
       'kind', 'unavailable',
       'code', 'runtime_policy_incomplete',
-      'generation', control_row.worker_generation
+      'generation', control_row.worker_generation::text
     );
   end if;
 
@@ -670,7 +670,7 @@ begin
     'version', 1,
     'kind', 'ready',
     'workerToken', worker_row.worker_token::text,
-    'generation', worker_row.generation,
+    'generation', worker_row.generation::text,
     'runtimeMode', control_row.new_runtime_mode,
     'legacyWritesEnabled', control_row.legacy_writes_enabled,
     'legacyOutboxHandled', control_row.legacy_outbox_handled,
@@ -769,7 +769,7 @@ begin
     'version', 1,
     'kind', 'finished',
     'workerToken', worker_row.worker_token::text,
-    'generation', worker_row.generation,
+    'generation', worker_row.generation::text,
     'state', worker_row.state,
     'resultCode', worker_row.result_code,
     'finishedAt', worker_row.finished_at,
@@ -834,7 +834,7 @@ begin
   return pg_catalog.jsonb_build_object(
     'version', 1,
     'kind', 'expired',
-    'generation', p_generation,
+    'generation', p_generation::text,
     'count', expired_count,
     'databaseNow', database_now
   );
@@ -915,7 +915,7 @@ begin
       'version', 1,
       'kind', 'stale',
       'code', 'worker_generation_changed',
-      'generation', control_row.worker_generation
+      'generation', control_row.worker_generation::text
     );
   end if;
 
@@ -1014,8 +1014,8 @@ begin
       'version', 1,
       'kind', 'terminalized',
       'code', 'event_expired',
-      'deliveryId', candidate_row.id,
-      'outboxId', candidate_row.outbox_id
+      'deliveryId', candidate_row.id::text,
+      'outboxId', candidate_row.outbox_id::text
     );
   end if;
 
@@ -1032,8 +1032,8 @@ begin
       'version', 1,
       'kind', 'terminalized',
       'code', 'attempts_exhausted',
-      'deliveryId', candidate_row.id,
-      'outboxId', candidate_row.outbox_id
+      'deliveryId', candidate_row.id::text,
+      'outboxId', candidate_row.outbox_id::text
     );
   end if;
 
@@ -1057,8 +1057,8 @@ begin
       'version', 1,
       'kind', 'terminalized',
       'code', 'event_expired',
-      'deliveryId', candidate_row.id,
-      'outboxId', candidate_row.outbox_id
+      'deliveryId', candidate_row.id::text,
+      'outboxId', candidate_row.outbox_id::text
     );
   end if;
 
@@ -1076,9 +1076,9 @@ begin
   return pg_catalog.jsonb_build_object(
     'version', 1,
     'kind', 'claimed',
-    'deliveryId', candidate_row.id,
-    'outboxId', candidate_row.outbox_id,
-    'recipientProfileId', candidate_row.recipient_profile_id,
+    'deliveryId', candidate_row.id::text,
+    'outboxId', candidate_row.outbox_id::text,
+    'recipientProfileId', candidate_row.recipient_profile_id::text,
     'claimToken', candidate_row.claim_token::text,
     'notificationId', candidate_row.notification_id::text,
     'attempt', candidate_row.attempts,
@@ -1593,8 +1593,8 @@ begin
       'version', 1,
       'kind', 'cancelled',
       'code', cancellation_code,
-      'deliveryId', locked_delivery.id,
-      'outboxId', locked_delivery.outbox_id
+      'deliveryId', locked_delivery.id::text,
+      'outboxId', locked_delivery.outbox_id::text
     );
   end if;
 
@@ -1630,16 +1630,16 @@ begin
       'version', 1,
       'kind', 'failed',
       'code', 'payload_invalid',
-      'deliveryId', locked_delivery.id,
-      'outboxId', locked_delivery.outbox_id
+      'deliveryId', locked_delivery.id::text,
+      'outboxId', locked_delivery.outbox_id::text
     );
   end if;
 
   return pg_catalog.jsonb_build_object(
     'version', 1,
     'kind', 'ready',
-    'deliveryId', locked_delivery.id,
-    'outboxId', locked_delivery.outbox_id,
+    'deliveryId', locked_delivery.id::text,
+    'outboxId', locked_delivery.outbox_id::text,
     'eventType', outbox_row.event_type,
     'claimToken', locked_delivery.claim_token::text,
     'notificationId', locked_delivery.notification_id::text,
@@ -1654,7 +1654,7 @@ begin
     'vapidFingerprintAlgorithm', transport_row.vapid_fingerprint_algorithm,
     'vapidFingerprintHex',
       pg_catalog.encode(transport_row.vapid_fingerprint, 'hex'),
-    'transportVersion', transport_row.transport_version,
+    'transportVersion', transport_row.transport_version::text,
     'payload', safe_payload,
     'expiresAt', outbox_row.expires_at,
     'databaseNow', database_now,
@@ -1875,8 +1875,8 @@ begin
       'kind', 'completed',
       'state', 'cancelled',
       'code', 'provider_endpoint_inactive',
-      'deliveryId', locked_delivery.id,
-      'outboxId', locked_delivery.outbox_id,
+      'deliveryId', locked_delivery.id::text,
+      'outboxId', locked_delivery.outbox_id::text,
       'databaseNow', database_now
     );
   end if;
@@ -1972,8 +1972,8 @@ begin
     'kind', 'completed',
     'state', final_state,
     'code', final_error_code,
-    'deliveryId', locked_delivery.id,
-    'outboxId', locked_delivery.outbox_id,
+    'deliveryId', locked_delivery.id::text,
+    'outboxId', locked_delivery.outbox_id::text,
     'databaseNow', database_now
   );
 end;
@@ -2027,7 +2027,7 @@ begin
     return pg_catalog.jsonb_build_object(
       'version', 1,
       'kind', 'finalized',
-      'outboxId', outbox_row.id,
+      'outboxId', outbox_row.id::text,
       'outcome', outbox_row.outcome,
       'outcomeCode', outbox_row.outcome_code,
       'outcomeAt', outbox_row.outcome_at
@@ -2050,7 +2050,7 @@ begin
       'version', 1,
       'kind', 'incomplete',
       'code', 'frozen_outbox_without_delivery',
-      'outboxId', outbox_row.id
+      'outboxId', outbox_row.id::text
     );
   end if;
 
@@ -2059,7 +2059,7 @@ begin
       'version', 1,
       'kind', 'pending',
       'code', 'deliveries_nonterminal',
-      'outboxId', outbox_row.id,
+      'outboxId', outbox_row.id::text,
       'nonterminalCount', nonterminal_count
     );
   end if;
@@ -2085,7 +2085,7 @@ begin
   return pg_catalog.jsonb_build_object(
     'version', 1,
     'kind', 'finalized',
-    'outboxId', outbox_row.id,
+    'outboxId', outbox_row.id::text,
     'outcome', outbox_row.outcome,
     'outcomeCode', outbox_row.outcome_code,
     'outcomeAt', outbox_row.outcome_at

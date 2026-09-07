@@ -228,14 +228,23 @@ set new_runtime_mode = 'enabled',
 where singleton_id = 1;
 
 select set_config(
+  'pgtap.fa03_d1_worker_begin',
+  notification_dispatcher_api.begin_notification_dispatch_worker(1)::text,
+  true
+);
+
+select set_config(
   'pgtap.fa03_d1_worker',
-  notification_dispatcher_api.begin_notification_dispatch_worker(1) ->> 'workerToken',
+  current_setting('pgtap.fa03_d1_worker_begin')::jsonb ->> 'workerToken',
   true
 );
 
 select ok(
-  current_setting('pgtap.fa03_d1_worker', true) is not null,
-  'configured current generation can begin a worker'
+  current_setting('pgtap.fa03_d1_worker', true) is not null
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_worker_begin')::jsonb -> 'generation'
+    ) = 'string',
+  'configured current generation begins a worker without bigint JSON loss'
 );
 
 select is(
@@ -519,10 +528,22 @@ select set_config(
   true
 );
 
-select is(
-  current_setting('pgtap.fa03_d1_claim_accepted')::jsonb ->> 'kind',
-  'claimed',
-  'claim reserves one ready delivery'
+select ok(
+  current_setting('pgtap.fa03_d1_claim_accepted')::jsonb ->> 'kind'
+      = 'claimed'
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_claim_accepted')::jsonb
+        -> 'deliveryId'
+    ) = 'string'
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_claim_accepted')::jsonb
+        -> 'outboxId'
+    ) = 'string'
+    and pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_claim_accepted')::jsonb
+        -> 'recipientProfileId'
+    ) = 'string',
+  'claim reserves one ready delivery with canonical bigint JSON strings'
 );
 
 select is(
@@ -564,10 +585,14 @@ select is(
     current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb ->> 'eventType',
     current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb
       #>> '{payload,message}',
-    current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb ->> 'endpoint'
+    current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb ->> 'endpoint',
+    pg_catalog.jsonb_typeof(
+      current_setting('pgtap.fa03_d1_prepare_accepted')::jsonb
+        -> 'transportVersion'
+    )
   ),
-  'ready:session_updated:球局資訊已更新。:https://push.example.test/fa03-d1-recipient',
-  'prepare returns the event, current payload, and locked v2 transport'
+  'ready:session_updated:球局資訊已更新。:https://push.example.test/fa03-d1-recipient:string',
+  'prepare returns current event data and lossless transport version'
 );
 
 select is(

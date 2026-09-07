@@ -1936,6 +1936,8 @@ Hosted deploy／migration／env／secret／request／DB write 均未執行。這
   `notification_dispatcher` login role 與 7 個 worker／delivery／finalizer commands。
 - dispatcher role 沒有 elevated attribute、role membership、raw table grant 或 private schema usage；在 project
   schemas 中只可呼叫 7 個 reviewed security-definer commands。
+- command JSON 的 generation、delivery／outbox／profile ID 與 transport version 都使用 canonical decimal string，
+  不會先進 JavaScript number；這項 v1.3 boundary 已由 D1.1 補正並重測。
 - worker begin／finish／expire、generation 與 lease 檢查、canary filter、`FOR UPDATE SKIP LOCKED` delivery claim、
   send 前 fresh-check、固定 completion shape 與 idempotent outbox finalizer 已落地。
 - preference、player block、court subscription 三個 absence race 改用 deterministic transaction advisory guard；既有
@@ -2339,3 +2341,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-07 | FA-03 dispatcher D0.1            | dormant server policy／IANA public A＋AAAA／pinned `https.Agent`／evidence-only TTL core 完成；targeted 44／44、完整 frontend／Supabase CI 通過。active dispatcher hash 與 production bundle 不變；Hosted／migration 未動。                                                                                  |
 | 2026-09-07 | FA-03 dispatcher D0.2            | dormant fixed outcome／strict Retry-After／total deadline／redacted log 完成；local Edge 證明 Node Agent lookup 不適用，Deno native pinned TCP→startTLS canary 回 204。Node 604／3 skipped、Playwright 348／4 skipped、DB 1,198／1,198 與三支 Edge 通過；active dispatcher／bundle／Hosted／migration 未動。 |
 | 2026-09-07 | FA-03 dispatcher D1              | 使用者核可 additive migration；專用 command schema／最小權限 passwordless role、7 commands、absence guards、delivery lease index 與 v2 outbox immutability 完成。targeted 52＋14＋26、DB 1,290／1,290 與完整 CI 通過；39 local migrations，Hosted／Prod 未套用。                                                |
+| 2026-09-07 | FA-03 dispatcher D1.1            | D2 adapter 前查出 D1 command 的 bigint JSON 尚未 cast text；已將 generation、各 ID 與 transport version 全部改成 canonical decimal string，避免 JavaScript 精度流失。39 migrations 從零重播、lint、52 targeted 與 DB 1,290／1,290 通過；本批未碰 Hosted。                                            |

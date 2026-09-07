@@ -26,6 +26,8 @@ dispatcher，也沒有啟用 Push v2。
   5. `prepare_notification_delivery_send`
   6. `complete_notification_delivery`
   7. `finalize_notification_outbox`
+- command JSON 中的 generation、delivery／outbox／profile ID 與 transport version 都先 cast 成 canonical decimal
+  string，符合 v1.3 的 bigint boundary，不經 JavaScript number。
 - delivery claim 使用 `FOR UPDATE SKIP LOCKED`；過期的 processing lease 有對應 partial index。
 - v2 outbox 的事件身分不可改；既有 fan-out 仍可做一次 `open → frozen`，frozen 後只能寫入已驗證的最終 outcome。
 - notification preference、player block、court subscription 都加入同一組 transaction advisory guard。這讓
