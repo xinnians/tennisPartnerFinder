@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { join, posix } from "node:path";
+import { dirname, join, posix, relative, resolve } from "node:path";
 import test from "node:test";
 
 import ts from "typescript";
@@ -8,6 +8,58 @@ import ts from "typescript";
 import { FRONTEND_ARCHITECTURE_MANIFEST } from "./fixtures/frontendArchitectureManifest.js";
 
 const SRC_DIR = new URL("../src/", import.meta.url).pathname;
+const PROJECT_ROOT = new URL("../", import.meta.url).pathname;
+
+const DOM_ANY_ASSIGNMENT_PROPERTIES = new Set([
+  "alt",
+  "async",
+  "checked",
+  "className",
+  "disabled",
+  "draggable",
+  "hidden",
+  "href",
+  "id",
+  "inert",
+  "innerHTML",
+  "name",
+  "onerror",
+  "open",
+  "outerHTML",
+  "readOnly",
+  "required",
+  "scrollLeft",
+  "scrollTop",
+  "selected",
+  "selectedIndex",
+  "src",
+  "tabIndex",
+  "textContent",
+  "title",
+  "type",
+  "value",
+]);
+const DOM_MUTATION_METHODS = new Set([
+  "after",
+  "append",
+  "appendChild",
+  "before",
+  "insertAdjacentElement",
+  "insertAdjacentText",
+  "insertBefore",
+  "prepend",
+  "remove",
+  "removeAttribute",
+  "removeChild",
+  "replaceChildren",
+  "replaceWith",
+  "setAttribute",
+  "toggleAttribute",
+]);
+const DOM_TOKEN_MUTATION_METHODS = new Set(["add", "remove", "replace", "toggle"]);
+const BROWSER_RUNTIME_NAMES = new Set(FRONTEND_ARCHITECTURE_MANIFEST.browserPortScope.runtimeNames);
+const BROWSER_PLATFORM_ADAPTER_FILES = new Set(FRONTEND_ARCHITECTURE_MANIFEST.browserPortScope.platformAdapterFiles);
+const INJECTED_CONTROLLER_BROWSER_PORT = FRONTEND_ARCHITECTURE_MANIFEST.browserPortScope.injectedControllerPort;
 
 function readSourceFiles(directory = SRC_DIR, relativeDirectory = "") {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -27,6 +79,30 @@ function scriptKind(relativePath) {
 
 function sourceFile({ relativePath, source }) {
   return ts.createSourceFile(relativePath, source, ts.ScriptTarget.Latest, true, scriptKind(relativePath));
+}
+
+function createProjectProgram(extraFiles = {}) {
+  const configPath = resolve(PROJECT_ROOT, "tsconfig.json");
+  const rawConfig = ts.readConfigFile(configPath, ts.sys.readFile);
+  assert.equal(rawConfig.error, undefined, "tsconfig could not be read");
+  const config = ts.parseJsonConfigFileContent(rawConfig.config, ts.sys, dirname(configPath));
+  const additions = new Map(
+    Object.entries(extraFiles).map(([relativePath, source]) => [resolve(PROJECT_ROOT, relativePath), source])
+  );
+  const host = ts.createCompilerHost(config.options);
+  const originalFileExists = host.fileExists.bind(host);
+  const originalReadFile = host.readFile.bind(host);
+  const originalGetSourceFile = host.getSourceFile.bind(host);
+  host.fileExists = (fileName) => additions.has(fileName) || originalFileExists(fileName);
+  host.readFile = (fileName) => additions.get(fileName) ?? originalReadFile(fileName);
+  host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
+    const injected = additions.get(fileName);
+    if (injected !== undefined) {
+      return ts.createSourceFile(fileName, injected, languageVersion, true, scriptKind(fileName));
+    }
+    return originalGetSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+  };
+  return ts.createProgram([...config.fileNames, ...additions.keys()], config.options, host);
 }
 
 function nodeName(node, source) {
@@ -66,6 +142,18 @@ function memberAccess(node, source) {
     (ts.isStringLiteral(node.argumentExpression) || ts.isNoSubstitutionTemplateLiteral(node.argumentExpression))
   ) {
     return { name: node.argumentExpression.text, target: node.expression.getText(source) };
+  }
+  return null;
+}
+
+function assignedProperty(node) {
+  if (ts.isPropertyAccessExpression(node)) return node.name.text;
+  if (
+    ts.isElementAccessExpression(node) &&
+    node.argumentExpression &&
+    (ts.isStringLiteral(node.argumentExpression) || ts.isNoSubstitutionTemplateLiteral(node.argumentExpression))
+  ) {
+    return node.argumentExpression.text;
   }
   return null;
 }
@@ -257,6 +345,270 @@ function assertCssImportOrder(source) {
   assert.deepEqual(imports, FRONTEND_ARCHITECTURE_MANIFEST.cssImportOrder);
 }
 
+function projectSourcePath(fileName) {
+  return relative(PROJECT_ROOT, fileName).replaceAll("\\", "/");
+}
+
+function domTargetInfo(checker, domNodeType, expression) {
+  const targetType = checker.getNonNullableType(checker.getTypeAtLocation(expression));
+  const unresolved = Boolean(targetType.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown));
+  return {
+    isDomNode: !unresolved && checker.isTypeAssignableTo(targetType, domNodeType),
+    unresolved,
+  };
+}
+
+function scanDomMutationLedger(program) {
+  const checker = program.getTypeChecker();
+  const nodeSymbol = checker.resolveName("Node", undefined, ts.SymbolFlags.Type, false);
+  assert.ok(nodeSymbol, "TypeScript DOM Node type is unavailable");
+  const domNodeType = checker.getDeclaredTypeOfSymbol(nodeSymbol);
+  const grouped = new Map();
+  let astNodes = 0;
+  let mutationNodes = 0;
+
+  const record = (file, symbol, api, target) => {
+    mutationNodes += 1;
+    const key = `${file}::${symbol}`;
+    const entries = grouped.get(key) ?? new Set();
+    entries.add(`${api}::${target}`);
+    grouped.set(key, entries);
+  };
+
+  for (const parsed of program.getSourceFiles()) {
+    const file = projectSourcePath(parsed.fileName);
+    if (!file.startsWith("src/")) continue;
+    const symbols = [];
+    const visit = (node) => {
+      astNodes += 1;
+      const symbol = nodeName(node, parsed);
+      if (symbol) symbols.push(symbol);
+      let api = null;
+      let target = null;
+
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        (ts.isPropertyAccessExpression(node.left) || ts.isElementAccessExpression(node.left))
+      ) {
+        const property = assignedProperty(node.left);
+        const receiver = node.left.expression;
+        const receiverInfo = domTargetInfo(checker, domNodeType, receiver);
+        if (
+          property &&
+          (receiverInfo.isDomNode || (receiverInfo.unresolved && DOM_ANY_ASSIGNMENT_PROPERTIES.has(property)))
+        ) {
+          api = property;
+          target = receiver.getText(parsed);
+        } else if (ts.isPropertyAccessExpression(receiver) && receiver.name.text === "style") {
+          const baseInfo = domTargetInfo(checker, domNodeType, receiver.expression);
+          if (baseInfo.isDomNode || baseInfo.unresolved) {
+            api = `style.${property ?? "[computed]"}`;
+            target = receiver.expression.getText(parsed);
+          }
+        } else if (ts.isPropertyAccessExpression(receiver) && receiver.name.text === "dataset") {
+          const baseInfo = domTargetInfo(checker, domNodeType, receiver.expression);
+          if (baseInfo.isDomNode || baseInfo.unresolved) {
+            api = `dataset.${property ?? "[computed]"}`;
+            target = receiver.expression.getText(parsed);
+          }
+        }
+      } else if (
+        ts.isCallExpression(node) &&
+        (ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression))
+      ) {
+        const method = assignedProperty(node.expression);
+        const receiver = node.expression.expression;
+        const receiverInfo = domTargetInfo(checker, domNodeType, receiver);
+        if (method && DOM_MUTATION_METHODS.has(method) && (receiverInfo.isDomNode || receiverInfo.unresolved)) {
+          api = method;
+          target = receiver.getText(parsed);
+        } else if (
+          method &&
+          DOM_TOKEN_MUTATION_METHODS.has(method) &&
+          ts.isPropertyAccessExpression(receiver) &&
+          receiver.name.text === "classList"
+        ) {
+          const baseInfo = domTargetInfo(checker, domNodeType, receiver.expression);
+          if (baseInfo.isDomNode || baseInfo.unresolved) {
+            api = `classList.${method}`;
+            target = receiver.expression.getText(parsed);
+          }
+        } else if (
+          method &&
+          ["removeProperty", "setProperty"].includes(method) &&
+          ts.isPropertyAccessExpression(receiver) &&
+          receiver.name.text === "style"
+        ) {
+          const baseInfo = domTargetInfo(checker, domNodeType, receiver.expression);
+          if (baseInfo.isDomNode || baseInfo.unresolved) {
+            api = `style.${method}`;
+            target = receiver.expression.getText(parsed);
+          }
+        }
+      } else if (ts.isJsxAttribute(node) && propertyName(node.name, parsed) === "dangerouslySetInnerHTML") {
+        api = "dangerouslySetInnerHTML";
+        target = "jsx";
+      } else if (ts.isPropertyAssignment(node) && propertyName(node.name, parsed) === "dangerouslySetInnerHTML") {
+        api = "dangerouslySetInnerHTML";
+        target = "property";
+      }
+
+      if (api && target) record(file, symbols.at(-1) ?? "<top-level>", api, target);
+      ts.forEachChild(node, visit);
+      if (symbol) symbols.pop();
+    };
+    visit(parsed);
+  }
+
+  return {
+    astNodes,
+    mutationNodes,
+    symbols: [...grouped]
+      .map(([key, mutations]) => ({ key, mutations: [...mutations].sort() }))
+      .sort(({ key: left }, { key: right }) => left.localeCompare(right)),
+  };
+}
+
+function assertDomMutationLedger(program) {
+  const inventory = scanDomMutationLedger(program);
+  assert.ok(inventory.astNodes > 0, "DOM mutation ledger parsed no source AST nodes");
+  assert.ok(inventory.mutationNodes > 0, "DOM mutation ledger found no mutation nodes");
+  assert.deepEqual(
+    inventory.symbols,
+    FRONTEND_ARCHITECTURE_MANIFEST.mutationSymbols.map(({ key, mutations }) => ({ key, mutations: [...mutations] }))
+  );
+  const fileCount = new Set(inventory.symbols.map(({ key }) => key.slice(0, key.indexOf("::")))).size;
+  const referenceCount = inventory.symbols.reduce((sum, { mutations }) => sum + mutations.length, 0);
+  assert.deepEqual(
+    {
+      files: fileCount,
+      nodes: inventory.mutationNodes,
+      references: referenceCount,
+      symbols: inventory.symbols.length,
+    },
+    FRONTEND_ARCHITECTURE_MANIFEST.mutationBaseline
+  );
+  return inventory;
+}
+
+function isDomLibrarySymbol(symbol) {
+  return Boolean(
+    symbol
+      ?.getDeclarations?.()
+      ?.some((declaration) =>
+        /lib\.(?:dom|dom\.iterable|webworker|webworker\.iterable)\.d\.ts$/u.test(declaration.getSourceFile().fileName)
+      )
+  );
+}
+
+function isTypeOnlyReference(node) {
+  let current = node.parent;
+  while (current) {
+    if (ts.isTypeNode(current) || ts.isInterfaceDeclaration(current) || ts.isTypeAliasDeclaration(current)) {
+      return true;
+    }
+    if (ts.isExpression(current) || ts.isStatement(current) || ts.isSourceFile(current)) return false;
+    current = current.parent;
+  }
+  return false;
+}
+
+function browserReference(node, checker) {
+  if (
+    ts.isPropertyAccessExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    node.expression.text === "globalThis" &&
+    isDomLibrarySymbol(checker.getSymbolAtLocation(node.name))
+  ) {
+    return { form: `globalThis.${node.name.text}`, name: node.name.text };
+  }
+  if (
+    ts.isIdentifier(node) &&
+    node.text !== "globalThis" &&
+    !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
+    !(ts.isQualifiedName(node.parent) && node.parent.right === node) &&
+    isDomLibrarySymbol(checker.getSymbolAtLocation(node))
+  ) {
+    return { form: node.text, name: node.text };
+  }
+  return null;
+}
+
+function groupedBrowserReferences(entries) {
+  const grouped = new Map();
+  for (const { file, form, symbol } of entries) {
+    const key = `${file}::${symbol}`;
+    const forms = grouped.get(key) ?? new Set();
+    forms.add(form);
+    grouped.set(key, forms);
+  }
+  return [...grouped].map(([key, forms]) => `${key}::${[...forms].sort().join(",")}`).sort();
+}
+
+function scanBrowserPorts(program) {
+  const checker = program.getTypeChecker();
+  const runtime = [];
+  const typeOnly = [];
+  let astNodes = 0;
+
+  for (const parsed of program.getSourceFiles()) {
+    const file = projectSourcePath(parsed.fileName);
+    if (!file.startsWith("src/")) continue;
+    const symbols = [];
+    const visit = (node) => {
+      astNodes += 1;
+      const symbol = nodeName(node, parsed);
+      if (symbol) symbols.push(symbol);
+      const reference = browserReference(node, checker);
+      if (reference) {
+        const entry = { file, form: reference.form, symbol: symbols.at(-1) ?? "<top-level>" };
+        if (isTypeOnlyReference(node)) typeOnly.push(entry);
+        else if (BROWSER_RUNTIME_NAMES.has(reference.name)) runtime.push(entry);
+      }
+      ts.forEachChild(node, visit);
+      if (symbol) symbols.pop();
+    };
+    visit(parsed);
+  }
+
+  const categories = {
+    controllerDirect: [],
+    platformAdapters: [],
+    typeOnly: groupedBrowserReferences(typeOnly),
+    uiGlobals: [],
+  };
+  for (const entry of groupedBrowserReferences(runtime)) {
+    const [file, symbol] = entry.split("::");
+    const key = `${file}::${symbol}`;
+    if (
+      (file.startsWith("src/controller/") || file === "src/sessionController.ts") &&
+      key !== INJECTED_CONTROLLER_BROWSER_PORT &&
+      !BROWSER_PLATFORM_ADAPTER_FILES.has(file)
+    ) {
+      categories.controllerDirect.push(entry);
+    } else if (BROWSER_PLATFORM_ADAPTER_FILES.has(file) || key === INJECTED_CONTROLLER_BROWSER_PORT) {
+      categories.platformAdapters.push(entry);
+    } else {
+      categories.uiGlobals.push(entry);
+    }
+  }
+  return { astNodes, ...categories };
+}
+
+function assertBrowserPortManifest(program) {
+  const inventory = scanBrowserPorts(program);
+  assert.ok(inventory.astNodes > 0, "browser port scan parsed no source AST nodes");
+  for (const category of ["controllerDirect", "platformAdapters", "uiGlobals", "typeOnly"]) {
+    assert.ok(inventory[category].length > 0, `${category} browser port scope is unexpectedly empty`);
+    assert.deepEqual(inventory[category], FRONTEND_ARCHITECTURE_MANIFEST.browserPorts[category]);
+    for (const entry of inventory[category]) {
+      assert.doesNotMatch(entry, /:\d+(?::|$)/u, `${entry} depends on a source line number`);
+    }
+  }
+  return inventory;
+}
+
 const sourceFiles = readSourceFiles();
 const mainSource = sourceFiles.find(({ relativePath }) => relativePath === "src/main.js")?.source;
 
@@ -333,4 +685,45 @@ test("CSS imports pass, swapping two fails, and restored main source passes", ()
     .replace('import "./__css_swap__.css"', 'import "./map-page.css"');
   assert.throws(() => assertCssImportOrder(drifted), { name: "AssertionError" });
   assertCssImportOrder(mainSource);
+});
+
+test("the formal DOM mutation ledger has a reviewed owner and lifecycle for every symbol", () => {
+  const inventory = assertDomMutationLedger(createProjectProgram());
+  assert.equal(inventory.symbols.length, 34);
+  for (const entry of FRONTEND_ARCHITECTURE_MANIFEST.mutationSymbols) {
+    assert.ok(entry.reference.length > 0, `${entry.key} has no selector or ref source`);
+    assert.ok(entry.owner.length > 0, `${entry.key} has no owner`);
+    assert.ok(entry.reason.length > 0, `${entry.key} has no retention reason`);
+    assert.ok(entry.retirement.length > 0, `${entry.key} has no retirement decision`);
+    assert.doesNotMatch(entry.key, /:\d+(?::|$)/u, `${entry.key} depends on a source line number`);
+  }
+});
+
+test("adding an unreviewed DOM mutation turns the formal ledger red and restoring source turns it green", () => {
+  const currentProgram = createProjectProgram();
+  assertDomMutationLedger(currentProgram);
+  const injectedProgram = createProjectProgram({
+    "src/__dom_mutation_ledger_canary.ts":
+      "export function mutationCanary(root: any) { root.value = 'unreviewed'; root.style.opacity = '0'; }",
+  });
+  assert.throws(() => assertDomMutationLedger(injectedProgram), { name: "AssertionError" });
+  assertDomMutationLedger(currentProgram);
+});
+
+test("the browser port manifest separates controller debt, adapters, UI globals, and type-only references", () => {
+  const inventory = assertBrowserPortManifest(createProjectProgram());
+  assert.deepEqual(inventory.controllerDirect, [
+    "src/controller/intentController.ts::requestCurrentLocation::globalThis.navigator",
+  ]);
+});
+
+test("adding a direct controller browser global turns the port manifest red and restoring source turns it green", () => {
+  const currentProgram = createProjectProgram();
+  assertBrowserPortManifest(currentProgram);
+  const injectedProgram = createProjectProgram({
+    "src/controller/__browser_port_manifest_canary.ts":
+      "export function browserPortCanary() { return globalThis.document.visibilityState; }",
+  });
+  assert.throws(() => assertBrowserPortManifest(injectedProgram), { name: "AssertionError" });
+  assertBrowserPortManifest(currentProgram);
 });
