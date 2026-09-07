@@ -18,7 +18,7 @@ function readTsxTree(directory = SRC_DIR, prefix = "src") {
 
 const ALL_TSX = readTsxTree().sort();
 
-const RUNTIME_EXPORTS = [
+const RETIRED_RUNTIME_REEXPORTS = [
   "avatarRuntime",
   "courtPlayersSheetRuntime",
   "decideSessionSheetRuntime",
@@ -144,12 +144,13 @@ test("batch 27 guard rationale and corrected acceptance claims stay explicit", (
   assert.match(batch22, /所有 `src\/\*\*\/\*\.tsx` 零反向 import/);
 });
 
-test("sessionViews keeps compatibility exports without redefining React runtimes", () => {
+test("sessionViews keeps only required presentation compatibility exports without redefining React runtimes", () => {
   const views = source("src/sessionViews.js");
-  assert.match(
-    views,
-    /export \{[\s\S]*avatarRuntime[\s\S]*sessionDetailSheetRuntime[\s\S]*from "\.\/sessionPresentation\.ts";/
-  );
+  assert.match(views, /export \{ messagesFromGroups, nearbySessionsSummaryText \} from "\.\/sessionPresentation\.ts";/);
+  for (const name of RETIRED_RUNTIME_REEXPORTS) {
+    assert.doesNotMatch(views, new RegExp(`\\b${name}\\b`), `${name} returned to the legacy facade`);
+  }
+  assert.doesNotMatch(views, /F2D|prettier-ignore/);
   assert.equal(
     (views.match(/Object\.freeze/g) ?? []).length,
     1,
@@ -157,12 +158,14 @@ test("sessionViews keeps compatibility exports without redefining React runtimes
   );
 });
 
-test("sessionViews re-exports the exact presentation runtime objects", async () => {
+test("sessionViews exposes only the two presentation helpers still used through the facade", async () => {
   const [presentation, views] = await Promise.all([
     import("../src/sessionPresentation.ts"),
     import("../src/sessionViews.js"),
   ]);
-  for (const name of RUNTIME_EXPORTS) assert.equal(views[name], presentation[name], `${name} was duplicated`);
+  for (const name of RETIRED_RUNTIME_REEXPORTS) {
+    assert.equal(Object.hasOwn(views, name), false, `${name} remains exported by the legacy facade`);
+  }
   assert.equal(views.messagesFromGroups, presentation.messagesFromGroups);
   assert.equal(views.nearbySessionsSummaryText, presentation.nearbySessionsSummaryText);
 });

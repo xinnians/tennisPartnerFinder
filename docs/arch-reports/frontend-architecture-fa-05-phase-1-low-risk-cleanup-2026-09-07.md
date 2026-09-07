@@ -5,8 +5,9 @@
 
 ## 白話結論
 
-這批刪掉一個開機時必定什麼都不做的預載呼叫，並把三個只有檔案內部會用到的名稱取消對外 export。登入後真正會預載畫面的
-路徑仍保留，UI、資料流程與 Hosted 設定都沒有改變。
+這批刪掉一個開機時必定什麼都不做的預載呼叫、把三個只有檔案內部會用到的名稱取消對外 export，並移除 13 個只為舊
+相容性測試保留的 presentation runtime re-export 與 10 組失效格式鷹架。登入後真正會預載畫面的路徑仍保留，UI、資料流程
+與 Hosted 設定都沒有改變。
 
 ## 查證與修改
 
@@ -26,19 +27,41 @@
 - `sessionFormSheetRuntime`：仍在 `sessionViews.js` 內傳給 `configureSessionFormViews`，repository 內沒有外部 import。
 - 新增 source gate，確認三者仍存在且保持私有，避免之後不小心重新擴大 facade API。
 
+### 3. 收掉 13 個 presentation runtime re-export
+
+- 全庫查證 13 個 runtime 的 production consumers 全都直接 import `sessionPresentation.ts`；`sessionViews.js` 的 re-export 只剩
+  `session-presentation-boundary.test.js` 自己在讀，沒有 production caller 或其他功能測試 caller。
+- 移除這 13 個 facade re-export，並把舊相容性測試改成反向 gate：確認它們不會再回到 legacy facade。
+- 保留 `messagesFromGroups` 與 `nearbySessionsSummaryText` 兩個仍有實際 facade consumer 的 helper re-export。
+- `sessionPresentation.ts` 內 13 個 `Object.freeze` runtime 本體完全沒有刪除，React consumers 也沒有改路徑。
+
+### 4. 清除失效 F2D／Prettier 鷹架
+
+- `src/sessionViews.js` 原有 10 組 `F2D` 註解加 `prettier-ignore`，但全庫測試已沒有 F2D export declaration scan。
+- 移除 10 組鷹架並重新跑 Prettier；wrapper 只變成標準格式，參數與委派目標不變。
+- 新 gate 會阻止 `F2D` 或 `prettier-ignore` 回到這個 facade。
+
+### 5. 本批刻意不改的項目
+
+- `authenticatedViewPreloads` 清單未調整。下載時機會影響登入後網路行為，依 final-v3 應先由 phase 2 production preview 與效能
+  基線取得數字後再決定，不能把它當成純 dead-code 清理。
+- `ds-bundle/` 與 `.design-sync/` 依既定決策保留，本批沒有修改。
+
 ## Before／after
 
 | 項目 | 修改前 | 修改後 |
 | --- | ---: | ---: |
 | `main.js` auth preload calls | 2 | 1（只留 verified identity transition） |
-| 對外 export | 3 | 0 |
+| 檔內 helper／type 的多餘 export | 3 | 0 |
+| facade presentation runtime re-export | 13 | 0（兩個仍有 consumer 的 helper re-export 保留） |
+| F2D＋`prettier-ignore` 鷹架 | 10 組 | 0 |
 | production JS raw total | 852,758 bytes | 852,737 bytes（-21） |
 | production JS gzip total | 261,346 bytes | 261,314 bytes（-32） |
 | main raw／gzip | 650,134／191,175 bytes | 650,113／191,175 bytes |
 
 ## 驗證結果
 
-- targeted architecture／React lifecycle：16／16 通過。
+- targeted architecture／React lifecycle／presentation boundary：24／24 通過。
 - 完整 frontend CI：通過；Node 639 tests／634 passed／5 skipped，Playwright 354 tests／350 passed／4 skipped，
   production build 通過。
 - production bundle structural gates：通過；仍為 32 files，development E2E hook 只存在 development build、12 個 demo

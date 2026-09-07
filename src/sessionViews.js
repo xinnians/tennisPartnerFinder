@@ -26,23 +26,7 @@ import { configureProfileSurfaceView } from "./views/profileSurfaceView.js";
 import * as profileSurfaceView from "./views/profileSurfaceView.js";
 import { configureSessionSurfaceViews } from "./views/sessionSurfaceViews.js";
 import * as sessionSurfaceViews from "./views/sessionSurfaceViews.js";
-export {
-  avatarRuntime,
-  courtPlayersSheetRuntime,
-  decideSessionSheetRuntime,
-  mePageRuntime,
-  messagesFromGroups,
-  mySessionsPageRuntime,
-  nearbySessionsDrawerRuntime,
-  nearbySessionsSummaryText,
-  playerCardSheetRuntime,
-  playerDirectorySheetRuntime,
-  profileCompletionSheetRuntime,
-  reportDialogRuntime,
-  sessionCardRuntime,
-  sessionChatSheetRuntime,
-  sessionDetailSheetRuntime,
-} from "./sessionPresentation.ts";
+export { messagesFromGroups, nearbySessionsSummaryText } from "./sessionPresentation.ts";
 
 const PROFILE_PUBLIC_DISCLOSURE =
   "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
@@ -57,19 +41,11 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
   return sessionFormViews.validateUpdateSessionInput(input, { now });
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openSessionChatSheet(
-  ...args
-) {
+export function openSessionChatSheet(...args) {
   return sessionSurfaceViews.openSessionChatSheet(...args);
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openSessionSheet(
-  ...args
-) {
+export function openSessionSheet(...args) {
   return sessionSurfaceViews.openSessionSheet(...args);
 }
 
@@ -85,25 +61,13 @@ export function openReportDialog({ targetLabel = "這個項目", onClose = () =>
   return sessionSurfaceViews.openReportDialog({ targetLabel, onClose, onSubmit });
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openProfileCompletionSheet({
-  ...options
-} = {}) {
+export function openProfileCompletionSheet({ ...options } = {}) {
   return profileSurfaceView.openProfileCompletionSheet(options);
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export const CREATE_SLOT_OPTIONS = [
-  ...sessionFormViews.CREATE_SLOT_OPTIONS,
-];
+export const CREATE_SLOT_OPTIONS = [...sessionFormViews.CREATE_SLOT_OPTIONS];
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export const CREATE_NTRP_BANDS = [
-  ...sessionFormViews.CREATE_NTRP_BANDS,
-];
+export const CREATE_NTRP_BANDS = [...sessionFormViews.CREATE_NTRP_BANDS];
 
 export function deriveCreateVenueType(mode, booked) {
   return sessionFormViews.deriveCreateVenueType(mode, booked);
@@ -141,27 +105,15 @@ export function createSessionFormRawInput(form, now = new Date()) {
   return sessionFormViews.createSessionFormRawInput(form, now);
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openCreateSessionSheet({
-  ...options
-} = {}) {
+export function openCreateSessionSheet({ ...options } = {}) {
   return sessionFormViews.openCreateSessionSheet(options);
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openDecideSessionSheet(
-  ...args
-) {
+export function openDecideSessionSheet(...args) {
   return sessionFormViews.openDecideSessionSheet(...args);
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openEditSessionSheet(
-  ...args
-) {
+export function openEditSessionSheet(...args) {
   return sessionFormViews.openEditSessionSheet(...args);
 }
 
@@ -177,19 +129,11 @@ export function openPlayerDirectoryList({ onClose = () => {}, onOpenPlayer = () 
   return discoverySurfaceViews.openPlayerDirectoryList({ onClose, onOpenPlayer, onRetry });
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openFilterSheet({
-  ...options
-} = {}) {
+export function openFilterSheet({ ...options } = {}) {
   return discoverySurfaceViews.openFilterSheet(options);
 }
 
-// F2D freezes the facade's top-level export declaration scan.
-// prettier-ignore
-export function openPlayerCardSheet(
-  ...args
-) {
+export function openPlayerCardSheet(...args) {
   return discoverySurfaceViews.openPlayerCardSheet(...args);
 }
 
