@@ -1,7 +1,7 @@
 # FA-03 dispatcher D3B canary Secret 隔離
 
 日期：2026-09-07
-狀態：repo／local 完成；尚未設定 Hosted credential／Secret 或部署 Function
+狀態：repo／local 完成；Hosted 六個 canary-only Secret、專用 credential、獨立 Function 與 no-write probe 已另批完成
 
 ## 白話結論
 
@@ -50,3 +50,6 @@ sender adapter 只把第五、六項映射到既有 sender core 所需的抽象�
 沒有 migration、Hosted DB write、credential、Secret mutation、Function deploy、request、runtime control、cron、generation、
 legacy cutoff 或使用者資料變更。下一批必須先用專用 role 實際驗證平台 DB connection，再設定上述六個 Secret 並只部署
 `notification-outbox-dispatch-v2-canary`；部署後只送 `database-probe`，不送 `dispatch`、不切換正式流量。
+
+後續已按上述邊界完成，結果見
+`frontend-architecture-fa-03-dispatcher-d3-hosted-environment-result-2026-09-07.md`；`dispatch` 仍未呼叫。

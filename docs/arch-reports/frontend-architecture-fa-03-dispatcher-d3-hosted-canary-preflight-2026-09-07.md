@@ -1,8 +1,9 @@
 # FA-03 dispatcher D3 Hosted canary 前置確認
 
 日期：2026-09-07
-狀態：前置盤點保留；D1 migration 已於 2026-09-07 套用並驗證，結果見
-`frontend-architecture-fa-03-dispatcher-d1-hosted-apply-2026-09-07.md`
+狀態：前置盤點保留；D1 migration 與 B 階段 Hosted canary 執行環境已於 2026-09-07 完成，結果分別見
+`frontend-architecture-fa-03-dispatcher-d1-hosted-apply-2026-09-07.md` 與
+`frontend-architecture-fa-03-dispatcher-d3-hosted-environment-result-2026-09-07.md`
 
 ## 白話結論
 
@@ -16,18 +17,18 @@ Function，也不會自動送 request。
 
 ## 目前已查實的 Hosted 基線
 
-| 項目 | 唯讀結果 |
-| --- | --- |
-| migration | 39 local／38 remote；只缺 `202609070001` |
-| dry-run | 只會套 `202609070001_notification_dispatcher_commands.sql`；沒有 seed／roles file |
-| Function | 只有 `notification-outbox-dispatch`，ACTIVE、version 14、`verify_jwt=false` |
-| runtime | generation 1、enabled、mode disabled、legacy writes true、legacy handled false；policy 全 null |
-| 新工作資料 | worker／canary／delivery／v2 outbox／v2 transport 全 0 |
-| 既有資料 | legacy Push 4、outbox 7、pending outbox 0 |
-| provider origin | 4 筆都是 exact `https://fcm.googleapis.com`；invalid scheme／host 0 |
-| D3 secret names | DB URL／generation／mode／provider policy／transport／canary secret 全部不存在 |
-| 現有 secret names | cron 與三個 VAPID 名稱存在；沒有讀取 value |
-| cron | 現有 legacy dispatcher 每分鐘執行；當下 running 0、pg_net queue 0 |
+| 項目              | 唯讀結果                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| migration         | 39 local／38 remote；只缺 `202609070001`                                                       |
+| dry-run           | 只會套 `202609070001_notification_dispatcher_commands.sql`；沒有 seed／roles file              |
+| Function          | 只有 `notification-outbox-dispatch`，ACTIVE、version 14、`verify_jwt=false`                    |
+| runtime           | generation 1、enabled、mode disabled、legacy writes true、legacy handled false；policy 全 null |
+| 新工作資料        | worker／canary／delivery／v2 outbox／v2 transport 全 0                                         |
+| 既有資料          | legacy Push 4、outbox 7、pending outbox 0                                                      |
+| provider origin   | 4 筆都是 exact `https://fcm.googleapis.com`；invalid scheme／host 0                            |
+| D3 secret names   | DB URL／generation／mode／provider policy／transport／canary secret 全部不存在                 |
+| 現有 secret names | cron 與三個 VAPID 名稱存在；沒有讀取 value                                                     |
+| cron              | 現有 legacy dispatcher 每分鐘執行；當下 running 0、pg_net queue 0                              |
 
 running 0 與 queue 0 只代表查詢當下，不代表外部 request 絕對為零，因此本階段也不做切換。
 
@@ -47,7 +48,7 @@ running 0 與 queue 0 只代表查詢當下，不代表外部 request 絕對為�
 不允許的動作：設定 role password、secret、deploy、發 request、改 runtime control、generation、canary profile、cron、
 legacy cutoff 或任何使用者 Push row。
 
-### B. 再建立 Hosted canary 執行環境（A 成功後另行核可）
+### B. 再建立 Hosted canary 執行環境（已完成）
 
 預計需要：
 
@@ -58,7 +59,13 @@ legacy cutoff 或任何使用者 Push row。
 - 沿用目前已存在的 VAPID secret，不讀出或寫入文件。
 - 只部署獨立 `notification-outbox-dispatch-v2-canary`，不部署 active dispatcher、不改現行 cron。
 
-這些 secret 更新、role password 與 deploy 都不包含在 A。
+這些 secret 更新、role password 與 deploy 都不包含在 A；後續已按獨立 B 範圍完成，並且只執行新增的 no-write
+`database-probe`，沒有呼叫 `dispatch`。
+
+實際執行時，Supavisor 在快速密碼輪替後出現官方文件所述的暫時驗證問題；本機又沒有可用的 direct IPv6 route。因此改用
+Supabase 官方 direct connection 格式 `db.<project-ref>.supabase.co:5432` 與 `sslmode=require`，再由 Hosted Edge 的
+`database-probe` 實際證明 DNS／TLS／credential／role 均可用。這個經 probe 驗證的結果取代原本「不能自行假設」的前置
+限制，沒有把未驗證的字串當成完成證據。
 
 ### C. 建立真正可回收的 browser canary（B 後另行核可）
 
@@ -100,7 +107,9 @@ active dispatcher deploy、generation rotation、canary profile、正式 retry/b
 先前 Hosted cleanup diagnostic 曾讓 dispatcher version metadata 增加但 source hash不變，因此未來回復判斷要比對下載
 source hash與實際 Function list，不能只用版本號推斷程式內容。
 
-## 本文件沒有授權的事
+## 本文件原本沒有授權的事
 
 沒有 Hosted DB write、role credential、secret/env、Function deploy、request、canary profile、runtime control、generation、
 cron 或 legacy cutoff 變更。本文件完成當時只等待 A 階段同意；A 現已完成。B～D 仍未被 migration 的持續授權涵蓋。
+
+後續 B 已依獨立同意完成；C／D 仍未執行，也不由 migration 持續授權自動涵蓋。

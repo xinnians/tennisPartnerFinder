@@ -4,7 +4,9 @@
 狀態：repo 與 local 驗證完成；Hosted migration、secret、deploy、request 與 runtime control 都未變更
 
 後續狀態：使用者已授權所有 migration；D1 migration 於同日套用 Hosted 並完成驗證，結果見
-`frontend-architecture-fa-03-dispatcher-d1-hosted-apply-2026-09-07.md`。本文件以下 Hosted 內容保留 D3A commit 前快照。
+`frontend-architecture-fa-03-dispatcher-d1-hosted-apply-2026-09-07.md`。獨立 Hosted canary 執行環境與 no-write probe 也已另批
+完成，結果見 `frontend-architecture-fa-03-dispatcher-d3-hosted-environment-result-2026-09-07.md`；active D2／D3A source
+仍未部署。本文件以下 Hosted 內容保留 D3A commit 前快照。
 
 ## 白話結論
 
