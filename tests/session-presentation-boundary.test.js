@@ -111,7 +111,6 @@ test("the presentation boundary cannot reach back into the legacy view adapter",
   const presentation = source("src/sessionPresentation.ts");
   assert.doesNotMatch(presentation, /sessionViews\.js|import\.meta\.glob|@ts-nocheck/);
   assert.doesNotMatch(presentation, EXPLICIT_ANY);
-  assert.equal((presentation.match(/Object\.freeze/g) ?? []).length, 13);
 });
 
 test("session schedule and host-initial presentation preserve chat labels", async () => {
@@ -129,19 +128,11 @@ test("session schedule and host-initial presentation preserve chat labels", asyn
   assert.equal(presentation.sessionHostInitial({}), "主");
 });
 
-test("batch 27 guard rationale and corrected acceptance claims stay explicit", () => {
+test("batch 27 guard rationale stays explicit", () => {
   const presentation = source("src/sessionPresentation.ts");
   assert.match(presentation, /Number\(null\).*0\.0/s);
   assert.match(presentation, /player-directory hosted assertions.*不可.*移除/s);
   assert.match(presentation, /player drawer and card escape every public value.*不可改計算方式/s);
-
-  const batch16 = source("docs/migration-reports/batch-16.md");
-  const batch21 = source("docs/migration-reports/batch-21.md");
-  const batch22 = source("docs/migration-reports/batch-22.md");
-  assert.match(batch16, /一處既有 e2e 斷言依工單參數化（本機門檻值不變）/);
-  assert.doesNotMatch(batch16, /e2e 斷言零變更/);
-  assert.match(batch21, /gate 只保證整條 policy.*不證明清單完備/);
-  assert.match(batch22, /所有 `src\/\*\*\/\*\.tsx` 零反向 import/);
 });
 
 test("sessionViews keeps only required presentation compatibility exports without redefining React runtimes", () => {

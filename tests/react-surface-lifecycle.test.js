@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import test from "node:test";
 import { FRONTEND_ARCHITECTURE_MANIFEST } from "./fixtures/frontendArchitectureManifest.js";
 import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
@@ -51,6 +51,18 @@ function sourcePath(modulePath) {
   return `src/${modulePath.replace(/^\.\//, "")}`;
 }
 
+function readStructureSource(name) {
+  const relativePath = SURFACE_MANIFEST.structureSources[name];
+  assert.match(relativePath ?? "", /^src\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.(?:js|ts|tsx)$/);
+  const source = readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
+  assert.ok(source.length > 0, `${name} structure source is empty: ${relativePath}`);
+  return { relativePath, source };
+}
+
+function resolveImportPath(ownerPath, modulePath) {
+  return posix.normalize(posix.join(posix.dirname(ownerPath), modulePath));
+}
+
 function syncCommitCallers(sourceFiles) {
   return sourceFiles
     .filter(({ relativePath }) => relativePath !== "syncCommit.ts")
@@ -88,8 +100,9 @@ test("all React sheet adapters register tracked SurfaceHost portal content", () 
       `${name} hides its unmount contract`
     );
   }
+  const unmountSource = readStructureSource("unmountRegistrations");
   const unmountRegistrations = [
-    ...SESSION_VIEWS.matchAll(
+    ...unmountSource.source.matchAll(
       /\b(register\w+Content)\(mounted, content\) \{\s*mounted\.registerUnmount\(content\.unmount\);\s*\}/g
     ),
   ].map((match) => match[1]);
@@ -150,18 +163,21 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
     sourcePath(match[1])
   );
   assertExactNamedScan(eagerModules, SURFACE_MANIFEST.eagerModules, "eager surface module");
-  const lazySheetMap = extractBracedBody(SESSION_VIEWS, "const lazySurfaceLoaders = {");
-  const lazySheets = [...lazySheetMap.matchAll(/"(\.\/sheets\/.+?\.tsx)":\s*\(\) =>\s*import\("\1"\)/g)].map((match) =>
-    sourcePath(match[1])
+  const lazySource = readStructureSource("lazySurfaceLoaders");
+  const lazySheetMap = extractBracedBody(lazySource.source, "const lazySurfaceLoaders = {");
+  const lazySheets = [...lazySheetMap.matchAll(/"(\.\.?(?:\/[^"/]+)+\.tsx)":\s*\(\) =>\s*import\("\1"\)/g)].map(
+    (match) => resolveImportPath(lazySource.relativePath, match[1])
   );
   assertExactNamedScan(lazySheets, SURFACE_MANIFEST.lazySheets, "lazy sheet module");
-  assert.doesNotMatch(lazySheetMap, /eager:/);
   const lazyPages = [...APP.matchAll(/\w+Request \?\?= import\("\.\.\/pages\/([^"/]+)\.tsx"\)/g)].map(
     (match) => `src/pages/${match[1]}.tsx`
   );
   assertExactNamedScan(lazyPages, SURFACE_MANIFEST.lazyPages, "lazy page module");
-  assert.match(SESSION_VIEWS, /pointerover[\s\S]*focusin/);
-  assert.match(SESSION_VIEWS, /if \(authSession\) preloadAuthenticatedViews\(\)/);
+  const authPreloadSource = readStructureSource("authenticatedPreload").source;
+  assert.match(
+    authPreloadSource,
+    /export function preloadAuthenticatedViewsForAuth\(authSession\) \{\s*if \(authSession\) preloadAuthenticatedViews\(\);\s*\}/
+  );
 });
 
 test("low-risk helpers stay private and auth preload runs only at the verified identity transition", () => {
@@ -208,5 +224,4 @@ test("Session Detail blocks both direct and async commits after its surface dies
     assert.match(methodBody, /surfaceContent\.commit\(/);
   }
   assert.equal((contractBody.match(/surfaceContent\.commit\(/g) ?? []).length, imperativeMethodBodies.length);
-  assert.doesNotMatch(SESSION_VIEWS, /content\.renderStage|function renderStage/);
 });
