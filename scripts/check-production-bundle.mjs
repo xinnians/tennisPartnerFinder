@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
+import { brotliCompressSync, gzipSync } from "node:zlib";
 import { build } from "vite";
 
 import {
@@ -85,13 +85,20 @@ const entryScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="\/([^"]+\.js)"
 assert.deepEqual(entryScripts.length, 1, `expected one production entry script, found ${entryScripts.length}`);
 const [mainChunkPath] = entryScripts;
 const mainChunk = readFileSync(new URL(`../dist/${mainChunkPath}`, import.meta.url));
+const mainChunkBrotliBytes = brotliCompressSync(mainChunk).length;
 const mainChunkGzipBytes = gzipSync(mainChunk).length;
 const mainChunkFile = fileURLToPath(new URL(mainChunkPath, DIST_DIR));
 const javascriptChunks = outputFiles
   .filter((file) => file.endsWith(".js"))
   .map((file) => {
     const source = readFileSync(file);
-    return { file, gzipBytes: gzipSync(source).length, rawBytes: source.length, source };
+    return {
+      brotliBytes: brotliCompressSync(source).length,
+      file,
+      gzipBytes: gzipSync(source).length,
+      rawBytes: source.length,
+      source,
+    };
   });
 assert.ok(
   javascriptChunks.length >= 4,
@@ -146,6 +153,7 @@ for (const chunk of javascriptChunks.filter(({ file }) => file !== mainChunkFile
 
 const totalJavaScriptRawBytes = javascriptChunks.reduce((total, chunk) => total + chunk.rawBytes, 0);
 const totalJavaScriptGzipBytes = javascriptChunks.reduce((total, chunk) => total + chunk.gzipBytes, 0);
+const totalJavaScriptBrotliBytes = javascriptChunks.reduce((total, chunk) => total + chunk.brotliBytes, 0);
 byteChecks.push(
   {
     actualBytes: totalJavaScriptRawBytes,
@@ -168,5 +176,5 @@ const largestApplicationLazyChunk = javascriptChunks
   .sort((left, right) => right.rawBytes - left.rawBytes)[0];
 
 console.log(
-  `production bundle structural checks passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; byte mode ${byteLimitMode}, ${exceededByteLimits.length} exceeded; main ${mainChunk.length}/${mainChunkGzipBytes} budget ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}; largest app lazy ${largestApplicationLazyChunk.file.split("/").at(-1)} ${largestApplicationLazyChunk.rawBytes}/${largestApplicationLazyChunk.gzipBytes} budget ${LAZY_CHUNK_RAW_LIMIT_BYTES}/${LAZY_CHUNK_GZIP_LIMIT_BYTES}; total JS ${totalJavaScriptRawBytes}/${totalJavaScriptGzipBytes} budget ${TOTAL_JS_RAW_LIMIT_BYTES}/${TOTAL_JS_GZIP_LIMIT_BYTES}; private repository: ${privateDataChunks[0].file.split("/").at(-1)}; Sentry: ${sentryChunks.map(({ file }) => file.split("/").at(-1)).join(", ")}`
+  `production bundle structural checks passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; byte mode ${byteLimitMode}, ${exceededByteLimits.length} exceeded; sizes raw/gzip/brotli; main ${mainChunk.length}/${mainChunkGzipBytes}/${mainChunkBrotliBytes} budget raw/gzip ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}; largest app lazy ${largestApplicationLazyChunk.file.split("/").at(-1)} ${largestApplicationLazyChunk.rawBytes}/${largestApplicationLazyChunk.gzipBytes}/${largestApplicationLazyChunk.brotliBytes} budget raw/gzip ${LAZY_CHUNK_RAW_LIMIT_BYTES}/${LAZY_CHUNK_GZIP_LIMIT_BYTES}; total JS ${totalJavaScriptRawBytes}/${totalJavaScriptGzipBytes}/${totalJavaScriptBrotliBytes} budget raw/gzip ${TOTAL_JS_RAW_LIMIT_BYTES}/${TOTAL_JS_GZIP_LIMIT_BYTES}; private repository: ${privateDataChunks[0].file.split("/").at(-1)}; Sentry: ${sentryChunks.map(({ file }) => file.split("/").at(-1)).join(", ")}`
 );

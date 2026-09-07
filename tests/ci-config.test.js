@@ -7,6 +7,7 @@ import { ESLint } from "eslint";
 import { build as buildVite } from "vite";
 
 import { createPlaywrightConfig } from "../playwright.config.js";
+import productionPreviewConfig from "../playwright.preview.config.js";
 import {
   createPushCleanupPublicKeyAssetPlugin,
   createPushCleanupPublicKeyAssetSource,
@@ -35,6 +36,16 @@ const PACKAGE_LOCK = JSON.parse(readFileSync(new URL("../package-lock.json", imp
 const NVMRC = readFileSync(new URL("../.nvmrc", import.meta.url), "utf8").trim();
 const WORKFLOW = readFileSync(new URL("../.github/workflows/quality-gate.yml", import.meta.url), "utf8");
 const PERFORMANCE_SPEC = readFileSync(new URL("./performance.spec.js", import.meta.url), "utf8");
+const PRODUCTION_BUNDLE_CHECKER = readFileSync(
+  new URL("../scripts/check-production-bundle.mjs", import.meta.url),
+  "utf8"
+);
+const PRODUCTION_PREVIEW_BUILD = readFileSync(
+  new URL("../scripts/build-production-preview.mjs", import.meta.url),
+  "utf8"
+);
+const PRODUCTION_PREVIEW_FIXTURE = readFileSync(new URL("./fixtures/productionPreview.js", import.meta.url), "utf8");
+const PRODUCTION_PREVIEW_SPEC = readFileSync(new URL("./production-preview.spec.js", import.meta.url), "utf8");
 const FAKE_MAPS = readFileSync(new URL("./fixtures/fakeMaps.js", import.meta.url), "utf8");
 const SMOKE_SPECS = readdirSync(new URL("./", import.meta.url))
   .filter((name) => name.endsWith("-smoke.spec.js"))
@@ -106,6 +117,34 @@ function assertWorkflowDevelopmentBranchFilters(workflow) {
   );
 }
 
+function assertProductionPreviewConfig(config, packageJson = PACKAGE) {
+  assert.equal(
+    packageJson.scripts["test:preview"],
+    "npm run build:preview-test && playwright test --config=playwright.preview.config.js"
+  );
+  assert.equal(packageJson.scripts["build:preview-test"], "node scripts/build-production-preview.mjs");
+  assert.equal(
+    packageJson.scripts["test:preview:chromium"],
+    "npm run build:preview-test && playwright test --config=playwright.preview.config.js --project=preview-desktop-chromium --project=preview-mobile-chromium"
+  );
+  assert.equal(
+    packageJson.scripts["test:preview:webkit"],
+    "npm run build:preview-test && playwright test --config=playwright.preview.config.js --project=preview-mobile-webkit"
+  );
+  assert.equal(config.workers, 1);
+  assert.equal(config.webServer.command, "npm run preview -- --host 127.0.0.1 --port 4174");
+  assert.equal(config.webServer.reuseExistingServer, false);
+  assert.deepEqual(
+    config.projects.map(({ name }) => name),
+    ["preview-desktop-chromium", "preview-mobile-chromium", "preview-mobile-webkit"]
+  );
+  assert.ok(config.projects[0].testMatch.test("production-preview.spec.js"));
+  for (const project of config.projects.slice(1)) {
+    assert.ok(project.testMatch.test("production-preview-mobile.spec.js"));
+    assert.deepEqual(project.use.viewport, { height: 844, width: 390 });
+  }
+}
+
 test("Node runtime declarations require 22.18 or newer and stay semantically aligned", () => {
   const minimum = parseMinimumNodeVersion(PACKAGE.engines?.node);
   assert.ok(compareVersions(minimum, REQUIRED_NODE_VERSION) >= 0, "Node engine minimum must be at least 22.18");
@@ -173,6 +212,12 @@ test("development bundle checks report byte excesses while release checks enforc
   );
 });
 
+test("bundle reports Brotli alongside raw and gzip without inventing a development limit", () => {
+  assert.match(PRODUCTION_BUNDLE_CHECKER, /import \{ brotliCompressSync, gzipSync \} from "node:zlib"/);
+  assert.match(PRODUCTION_BUNDLE_CHECKER, /sizes raw\/gzip\/brotli/);
+  assert.doesNotMatch(PRODUCTION_BUNDLE_CHECKER, /BROTLI_LIMIT/u);
+});
+
 test("Sentry size allowance follows Vite module provenance instead of a text marker", () => {
   const wrapper = {
     code: "sentry_version",
@@ -227,12 +272,40 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
   );
+});
+
+test("production preview runs a real production bundle against local-only integrations", () => {
+  assertProductionPreviewConfig(productionPreviewConfig);
+  assert.match(PRODUCTION_PREVIEW_BUILD, /loadLocalSupabaseConfig\(\)/);
+  for (const safeOverride of [
+    'PUSH_CLEANUP_PUBLIC_JWK_JSON: ""',
+    'PUSH_SUBSCRIPTION_PUBLIC_JWK_JSON: ""',
+    'VITE_SENTRY_DSN: ""',
+    'VITE_WEB_PUSH_VAPID_PUBLIC_KEY: ""',
+  ]) {
+    assert.ok(PRODUCTION_PREVIEW_BUILD.includes(safeOverride), `preview build misses safe override: ${safeOverride}`);
+  }
+  assert.match(PRODUCTION_PREVIEW_BUILD, /await build\(\{ mode: "production" \}\)/);
+});
+
+test("production preview config canary fails when a required browser project disappears", () => {
+  assert.throws(() => assertProductionPreviewConfig({ ...productionPreviewConfig, projects: [] }));
+});
+
+test("production private-chunk assertion has an authenticated positive control", () => {
+  assert.doesNotMatch(PERFORMANCE_SPEC, /src\/data\/repositories\/privateDataRepository\.ts/);
+  assert.match(PRODUCTION_PREVIEW_FIXTURE, /tennis_private_data_repository_v1/);
+  assert.ok(
+    (PRODUCTION_PREVIEW_SPEC.match(/installPrivateDataChunkProbe\(page\)/g) ?? []).length >= 2,
+    "anonymous and authenticated cases must use the same production marker probe"
+  );
+  assert.match(PRODUCTION_PREVIEW_SPEC, /privateChunkRequests\.length\)\.toBeGreaterThan\(0\)/);
 });
 
 test("ESLint applies real JS and TypeScript rules to Push Edge and dispatcher boundaries", async () => {
@@ -567,6 +640,7 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
     "npm run test:db",
     "npm run test:local",
     "npm run test:local:mobile",
+    "npm run test:preview:chromium",
     "npm run test:local:push-cleanup-edge",
     "npm run test:local:push-subscription-v2-edge",
     "npm run test:local:notification-dispatch-v2-edge",
@@ -574,6 +648,8 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
     "git diff --check",
   ]);
   assert.match(supabaseJob, /run: npm run test:ci:supabase/);
+  assert.match(supabaseJob, /npx playwright install --with-deps chromium/);
+  assert.doesNotMatch(supabaseJob, /playwright install --with-deps chromium webkit/);
   assert.match(supabaseJob, /CONFIRM_LOCAL_DB_RESET=1 npm run db:reset:test/);
   assert.match(supabaseJob, /if: always\(\)[\s\S]*npx supabase stop --no-backup/);
   const orderedCommands = [
@@ -621,7 +697,7 @@ test("CI widens only the timing budget while mock WebKit stays outside the requi
   );
 });
 
-test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workflow", () => {
+test("mobile WebKit mirrors mobile Chromium coverage and keeps preview outside required jobs", () => {
   const config = createPlaywrightConfig({ mode: "mock" });
   const chromium = config.projects.find(({ name }) => name === "mobile-chromium");
   const webkit = config.projects.find(({ name }) => name === "mobile-webkit");
@@ -646,7 +722,7 @@ test("mobile WebKit mirrors mobile Chromium coverage but cannot block the workfl
   assert.match(
     WORKFLOW,
     // eslint-disable-next-line no-regex-spaces -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-    /webkit:\n    name: Mobile WebKit \(non-blocking\)[\s\S]*?continue-on-error: true[\s\S]*?playwright install --with-deps webkit[\s\S]*?npm run test:mock:webkit/
+    /webkit:\n    name: Mobile WebKit signals \(non-blocking\)[\s\S]*?continue-on-error: true[\s\S]*?playwright install --with-deps webkit[\s\S]*?npm run test:mock:webkit[\s\S]*?npx supabase start[\s\S]*?npm run test:preview:webkit[\s\S]*?npx supabase stop --no-backup/
   );
 });
 
