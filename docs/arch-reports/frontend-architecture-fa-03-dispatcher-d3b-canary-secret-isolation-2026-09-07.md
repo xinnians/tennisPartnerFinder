@@ -11,6 +11,10 @@
 本批已把這四個值改成 canary 專用名稱。獨立 canary 現在只共享原本就由兩條 sender 共用的三個 VAPID Secret，其他
 未列入白名單的環境值一律讀不到。
 
+此外，canary request 現在一定要明確指定動作：`database-probe` 只驗證專用 role 能否連線，成功只回
+`{"kind":"ready","version":1}`，不建立 worker、不讀取工作、不寫 DB，也不送推播；只有明確指定 `dispatch` 才能進入
+派送流程。缺少或拼錯動作一律回 400。
+
 ## Exact Hosted Secret 契約
 
 canary 後續只使用以下六個專用名稱：
@@ -29,9 +33,11 @@ sender adapter 只把第五、六項映射到既有 sender core 所需的抽象�
 
 ## 驗證結果
 
-- canary unit：4／4；包含通用值無法覆蓋 canary 專用值、未列入白名單的 `PUSH_TEST_URL` 回空值。
+- canary unit：5／5；包含通用值無法覆蓋 canary 專用值、未列入白名單的 `PUSH_TEST_URL` 回空值，以及動作名稱只接受
+  exact `database-probe`／`dispatch`。
 - local dispatcher Deno DNS／TLS canary：1／1。
-- local outbox dispatcher：mock transaction-lock 1／1；Deno-native encrypted sender 1／1。
+- local outbox dispatcher：mock transaction-lock 1／1；Deno-native encrypted sender 1／1。整合測試先執行
+  `database-probe` 並確認 worker 仍為 0，再用 explicit `dispatch` 完成既有兩條派送情境。
 - 完整 frontend CI：通過；Playwright 348 passed／4 skipped；build 與 bundle structural gate 通過。
 - 完整 Supabase CI：DB 1,290／1,290、local API 4／4、desktop 45 passed／11 skipped、mobile 6／6，四組
   Edge 為 1／1、1／1、1／1、2／2。
@@ -43,4 +49,4 @@ sender adapter 只把第五、六項映射到既有 sender core 所需的抽象�
 
 沒有 migration、Hosted DB write、credential、Secret mutation、Function deploy、request、runtime control、cron、generation、
 legacy cutoff 或使用者資料變更。下一批必須先用專用 role 實際驗證平台 DB connection，再設定上述六個 Secret 並只部署
-`notification-outbox-dispatch-v2-canary`；仍不送 canary request 或切換正式流量。
+`notification-outbox-dispatch-v2-canary`；部署後只送 `database-probe`，不送 `dispatch`、不切換正式流量。

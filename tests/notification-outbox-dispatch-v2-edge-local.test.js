@@ -829,10 +829,36 @@ test(
       stage = "runtime startup";
       await waitUntilReady(functionUrl, child, () => spawnFailed);
 
+      stage = "database role probe";
+      const probeResponse = await fetchWithTimeout(
+        functionUrl,
+        {
+          headers: {
+            "x-notification-v2-canary-action": "database-probe",
+            "x-notification-v2-canary-secret": canarySecret,
+          },
+          method: "POST",
+        },
+        30_000
+      );
+      const probeText = await probeResponse.text();
+      assert.equal(probeResponse.status, 200, probeText);
+      assert.deepEqual(JSON.parse(probeText), { kind: "ready", version: 1 });
+      assert.equal(
+        runLocalDatabaseSql("select count(*)::text from private.notification_dispatch_workers;").stdout.trim(),
+        "0"
+      );
+
       stage = "encrypted Web Push send";
       const response = await fetchWithTimeout(
         functionUrl,
-        { headers: { "x-notification-v2-canary-secret": canarySecret }, method: "POST" },
+        {
+          headers: {
+            "x-notification-v2-canary-action": "dispatch",
+            "x-notification-v2-canary-secret": canarySecret,
+          },
+          method: "POST",
+        },
         30_000
       );
       const responseText = await response.text();

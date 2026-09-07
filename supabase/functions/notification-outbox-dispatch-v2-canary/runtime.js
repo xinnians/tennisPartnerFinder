@@ -69,3 +69,8 @@ export function createDispatcherV2HostedCanarySenderEnvironment(readEnvironment)
     return "";
   });
 }
+
+export function readDispatcherV2HostedCanaryAction(value) {
+  if (value === "database-probe" || value === "dispatch") return value;
+  return null;
+}

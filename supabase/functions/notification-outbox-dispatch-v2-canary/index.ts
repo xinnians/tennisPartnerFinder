@@ -7,6 +7,7 @@ import { runDispatcherV2Batch, safeDispatcherV2RuntimeErrorCode } from "../notif
 import {
   createDispatcherV2HostedCanarySenderEnvironment,
   dispatcherV2HostedCanaryAccess,
+  readDispatcherV2HostedCanaryAction,
   readDispatcherV2HostedCanaryConfig,
 } from "./runtime.js";
 
@@ -39,6 +40,20 @@ Deno.serve(async (request) => {
   if (request.headers.get("x-notification-v2-canary-secret") !== runtimeConfig.canarySecret) {
     return json({ error: "UNAUTHORIZED" }, 401);
   }
+  const canaryAction = readDispatcherV2HostedCanaryAction(request.headers.get("x-notification-v2-canary-action"));
+  if (!canaryAction) return json({ error: "DISPATCH_V2_CANARY_ACTION_INVALID" }, 400);
+
+  if (canaryAction === "database-probe") {
+    try {
+      return await withNotificationDispatcherDatabase({
+        connectionString: runtimeConfig.connectionString,
+        operation: async () => json({ kind: "ready", version: 1 }),
+      });
+    } catch (error) {
+      return json({ error: safeDispatcherV2RuntimeErrorCode(error) }, 500);
+    }
+  }
+  if (canaryAction !== "dispatch") return json({ error: "DISPATCH_V2_CANARY_ACTION_INVALID" }, 400);
 
   try {
     const canarySenderEnvironment = createDispatcherV2HostedCanarySenderEnvironment(env);

@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   createDispatcherV2HostedCanarySenderEnvironment,
   dispatcherV2HostedCanaryAccess,
+  readDispatcherV2HostedCanaryAction,
   readDispatcherV2HostedCanaryConfig,
 } from "../supabase/functions/notification-outbox-dispatch-v2-canary/runtime.js";
 
@@ -92,6 +93,14 @@ test("hosted canary maps sender policy to canary-only names and shares only VAPI
   assert.throws(() => createDispatcherV2HostedCanarySenderEnvironment(null), /DISPATCH_V2_CANARY_CONFIG_INVALID/u);
 });
 
+test("hosted canary requires an exact no-write probe or dispatch action", () => {
+  assert.equal(readDispatcherV2HostedCanaryAction("database-probe"), "database-probe");
+  assert.equal(readDispatcherV2HostedCanaryAction("dispatch"), "dispatch");
+  for (const value of [null, "", "probe", " dispatch", "DISPATCH"]) {
+    assert.equal(readDispatcherV2HostedCanaryAction(value), null);
+  }
+});
+
 test("canary entrypoint gates runtime, method, configuration, and secret before database or sender work", () => {
   const source = readFileSync(
     new URL("../supabase/functions/notification-outbox-dispatch-v2-canary/index.ts", import.meta.url),
@@ -102,15 +111,22 @@ test("canary entrypoint gates runtime, method, configuration, and secret before 
     'if (request.method !== "POST")',
     "runtimeConfig = readDispatcherV2HostedCanaryConfig(env)",
     'request.headers.get("x-notification-v2-canary-secret")',
+    'request.headers.get("x-notification-v2-canary-action")',
+    'if (canaryAction === "database-probe")',
+    'if (canaryAction !== "dispatch")',
     "createDispatcherV2HostedCanarySenderEnvironment(env)",
     "await createDispatcherV2DenoWebPushSender",
-    "await withNotificationDispatcherDatabase",
   ].map((marker) => source.indexOf(marker));
   assert.ok(ordered.every((index) => index >= 0));
   assert.deepEqual(
     ordered,
     [...ordered].sort((left, right) => left - right)
   );
+  const probeDatabase = source.indexOf("return await withNotificationDispatcherDatabase");
+  const sender = source.indexOf("await createDispatcherV2DenoWebPushSender");
+  const dispatchDatabase = source.indexOf("const result = await withNotificationDispatcherDatabase");
+  assert.ok(probeDatabase > ordered[4] && probeDatabase < sender);
+  assert.ok(dispatchDatabase > sender);
   assert.doesNotMatch(source, /NOTIFICATION_CRON_SECRET|webpush\.sendNotification|\bfetch\s*\(/u);
   assert.doesNotMatch(source, /\b(?:console|logger|Sentry)\./u);
   assert.match(source, /return Deno\.env\.get\(name\) \?\? "";/u);
