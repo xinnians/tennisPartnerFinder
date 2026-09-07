@@ -1,62 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { test } from "@playwright/test";
 
 import { installAppModuleImporter, installAppTestHooks } from "./fixtures/appRuntime.js";
 import { installFakeMaps } from "./fixtures/fakeMaps.js";
+import { expectTouchTargets } from "./fixtures/touchTargets.js";
 
 test.beforeEach(async ({ page }) => installAppModuleImporter(page));
-
-function createTouchTargetScanner(page) {
-  return async (root) =>
-    page.locator(root).evaluateAll((roots) => {
-      const effectiveBox = (element) => {
-        const box = element.getBoundingClientRect();
-        const before = getComputedStyle(element, "::before");
-        if (before.content === "none" || (before.position !== "absolute" && before.position !== "fixed")) return box;
-        const expand = (value) => Math.max(0, -(Number.parseFloat(value) || 0));
-        return {
-          height: box.height + expand(before.top) + expand(before.bottom),
-          width: box.width + expand(before.left) + expand(before.right),
-        };
-      };
-
-      return roots
-        .flatMap((node) => [
-          ...node.querySelectorAll("button, a[href], input, select, textarea, label, [role='switch']"),
-        ])
-        .filter((element) => element.checkVisibility())
-        .filter((element) => !element.matches(":disabled"))
-        .filter((element) => {
-          const wrappingLabel = element.closest("label");
-          if (element.tagName !== "LABEL" && wrappingLabel && wrappingLabel !== element) return false;
-          return element.tagName !== "LABEL" || Boolean(element.querySelector("input, select, textarea"));
-        })
-        .map((element) => {
-          const box = effectiveBox(element);
-          return {
-            height: Math.round(box.height * 100) / 100,
-            name:
-              element.getAttribute("aria-label") ||
-              element.getAttribute("data-testid") ||
-              element.id ||
-              element.textContent?.trim().replace(/\s+/gu, " ") ||
-              element.tagName.toLowerCase(),
-            width: Math.round(box.width * 100) / 100,
-          };
-        });
-    });
-}
-
-async function expectTouchTargets(page, root, minimumCount, message) {
-  const measure = createTouchTargetScanner(page);
-  await expect
-    .poll(async () => (await measure(root)).length, { message: `${message}掃描集不得為空` })
-    .toBeGreaterThanOrEqual(minimumCount);
-  await expect
-    .poll(async () => (await measure(root)).filter(({ height, width }) => height < 44 || width < 44), {
-      message: `${message}全部點擊目標必須至少 44×44px`,
-    })
-    .toEqual([]);
-}
 
 test("production discovery and dialog surfaces keep audited touch targets at least 44px", async ({ page }) => {
   await installFakeMaps(page);
@@ -212,4 +160,29 @@ test("the React error fallback close control stays at least 44px", async ({ page
     openCreateSessionSheet();
   });
   await expectTouchTargets(page, "[data-testid='app-error-fallback']", 1, "React 錯誤備援");
+});
+
+test("the production edit-session form keeps actionable controls at least 44px", async ({ page }) => {
+  await installFakeMaps(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { openEditSessionSheet } = await window.__importAppModule("views/sessionFormViews");
+    openEditSessionSheet(
+      {
+        courtId: 8,
+        feeNote: "",
+        notes: "",
+        ntrpMax: null,
+        ntrpMin: null,
+        playType: "雙打",
+        sessionId: 4242,
+        slotsTotal: 4,
+        startAt: "2099-07-18T01:30:00.000Z",
+        venueType: "booked",
+      },
+      { courts: [{ city: "台北市", id: 8, name: "示範球場" }] }
+    );
+  });
+
+  await expectTouchTargets(page, "#session-edit-sheet", 9, "編輯球局表單");
 });

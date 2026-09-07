@@ -53,15 +53,15 @@
 
   <section>
     <h2>程度選項 .band-option — 兩個並存脈絡</h2>
-    <p class="demo-note">src/app/App.tsx 的 MapTopbar 版多一顆 .band-option__check SVG；src/sheets/FilterSheet.tsx 的 FilterControls 版是純文字。兩者都有 aria-pressed，並共用 src/filters.ts 的 BANDS：全部／≤ 3.0／3.0–4.0／4.0–5.0／5.0 +。</p>
+    <p class="demo-note">src/app/App.tsx 的 MapTopbar 版放在 #band-options，並多一顆 .band-option__check SVG；src/sheets/FilterSheet.tsx 的 FilterControls 版放在 .filter-sheet-band-grid，內容是純文字。兩者都有 aria-pressed，並共用 src/filters.ts 的 BANDS：全部／≤ 3.0／3.0–4.0／4.0–5.0／5.0 +。</p>
     <p class="demo-note" style="margin-top:var(--space-2);">地圖頂列版(帶勾勾)：</p>
-    <div class="demo-row" style="max-width:240px; display:grid; gap:var(--space-1);">
+    <div id="band-options" class="demo-row" style="max-width:240px; display:grid; gap:var(--space-1);">
       <button type="button" class="band-option" aria-pressed="false"><span>≤ 3.0</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
       <button type="button" class="band-option is-active" aria-pressed="true"><span>3.0–4.0</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
       <button type="button" class="band-option" aria-pressed="false"><span>全部</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
     </div>
     <p class="demo-note" style="margin-top:var(--space-2);">篩選 sheet 版(React,無勾勾)：</p>
-    <div class="demo-row" style="max-width:240px; display:grid; gap:var(--space-1);">
+    <div class="filter-sheet-band-grid" style="max-width:240px;">
       <button type="button" class="band-option" aria-pressed="false">≤ 3.0</button>
       <button type="button" class="band-option is-active" aria-pressed="true">3.0–4.0</button>
       <button type="button" class="band-option" aria-pressed="false">全部</button>

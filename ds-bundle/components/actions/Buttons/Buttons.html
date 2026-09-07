@@ -18,10 +18,10 @@
 <div class="demo">
   <section>
     <h2>主要動作 .session-primary</h2>
-    <p class="demo-note">ink 深底 + signal 黃字:每個畫面最多一顆的高亮主動作。</p>
-    <div class="demo-row">
-      <button type="button" class="session-primary">建立球局</button>
-      <button type="button" class="session-primary">申請加入</button>
+    <p class="demo-note">ink 深底 + signal 黃字。這裡使用 src/pages/MySessionsPage.tsx 的 .my-session-card__actions 實際容器；src/pages.css 由該容器把卡片動作補到至少 44px。</p>
+    <div class="demo-row my-session-card__actions">
+      <button type="button" class="session-primary">群組聊天</button>
+      <button type="button" class="session-primary">接受邀請</button>
       <button type="button" class="session-primary" disabled>送出中…</button>
     </div>
   </section>
@@ -39,17 +39,17 @@
 
   <section>
     <h2>次要動作 .session-secondary</h2>
-    <p class="demo-note">透明底 + 1.5px ink 實線框(--border-strong)：與主動作並列的替代動作。示範取自 src/pages/MySessionsPage.tsx 的重新整理按鈕，以及 src/sheets/SessionDetailSheet.tsx 的 CopyLinkButton。</p>
-    <div class="demo-row">
-      <button type="button" class="session-secondary">重新整理</button>
-      <button type="button" class="session-secondary">複製連結</button>
+    <p class="demo-note">透明底 + 1.5px ink 實線框(--border-strong)：與主動作並列的替代動作。這裡使用 src/pages/MySessionsPage.tsx 的 .my-session-card__actions 實際容器。</p>
+    <div class="demo-row my-session-card__actions">
+      <button type="button" class="session-secondary">查看球局</button>
+      <button type="button" class="session-secondary">取消參加</button>
     </div>
   </section>
 
   <section>
     <h2>文字鈕 .session-tertiary</h2>
-    <p class="demo-note">無框、court 綠、底線標示可點：卡片內的低權重動作。src/sheets/SessionDetailSheet.tsx 的 ReportButton 用它呈現「檢舉此球局」。</p>
-    <div class="demo-row">
+    <p class="demo-note">無框、court 綠、底線標示可點：卡片內的低權重動作。src/pages/MySessionsPage.tsx 在 .my-session-card__actions 內用它呈現「檢舉此球局」。</p>
+    <div class="demo-row my-session-card__actions">
       <button type="button" class="session-tertiary">檢舉此球局</button>
     </div>
   </section>
@@ -76,17 +76,17 @@
     <h2>工具鈕與篩選 chip</h2>
     <p class="demo-note">src/app/App.tsx 的 MapTopbar 以 React 產生人像工具鈕、日期 chip、篩選 chip 與程度 popover；日期選中態用 is-selected，程度選中態用 is-active。地圖 popover 帶勾勾，src/sheets/FilterSheet.tsx 的 FilterControls 則是純文字。兩邊共用 src/filters.ts 的 BANDS。</p>
     <div class="demo-row">
-      <button type="button" class="topbar-icon-button" aria-label="球友名單"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="8" r="3.6"/><path d="M22 21v-1.8a4 4 0 0 0-3-3.85M16.2 4.3a3.6 3.6 0 0 1 0 7.1"/></svg></button>
+      <button type="button" id="player-directory-open" data-testid="player-directory-open" class="topbar-icon-button" aria-label="球友名單"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="8" r="3.6"/><path d="M22 21v-1.8a4 4 0 0 0-3-3.85M16.2 4.3a3.6 3.6 0 0 1 0 7.1"/></svg></button>
       <button type="button" class="chip filter-chip" aria-label="篩選"><span class="filter-chip__badge">⋅2</span></button>
       <button type="button" class="chip is-selected" data-date-chip="today" aria-pressed="true">今天</button>
     </div>
-    <p class="demo-note">地圖頂列 MapTopbar 版(帶 checkmark)：</p>
-    <div class="demo-row" style="max-width:200px; display:grid; gap:var(--space-1);">
+    <p class="demo-note">地圖頂列 MapTopbar 版(帶 checkmark)：外層 #band-options 與 src/app/App.tsx 相同。</p>
+    <div id="band-options" class="demo-row" style="max-width:200px; display:grid; gap:var(--space-1);">
       <button type="button" class="band-option" aria-pressed="false"><span>全部</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
       <button type="button" class="band-option is-active" aria-pressed="true"><span>3.0–4.0</span><svg class="band-option__check" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-signal)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></button>
     </div>
-    <p class="demo-note">篩選 sheet 版(React,無 checkmark)：</p>
-    <div class="demo-row" style="max-width:200px; display:grid; gap:var(--space-1);">
+    <p class="demo-note">篩選 sheet 版(React,無 checkmark)：外層 .filter-sheet-band-grid 與 src/sheets/FilterSheet.tsx 相同。</p>
+    <div class="filter-sheet-band-grid" style="max-width:200px;">
       <button type="button" class="band-option" aria-pressed="false">全部</button>
       <button type="button" class="band-option is-active" aria-pressed="true">3.0–4.0</button>
     </div>

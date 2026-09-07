@@ -511,6 +511,9 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .create-session-sheet .form-field input,
 .create-session-sheet .form-field select,
 .create-session-sheet .form-field textarea { min-height: 44px; }
+/* Playwright WebKit 實測：原生 select 只吃到 22px，沒有把上面的 min-height 反映到可見高度；
+   height 只限這個已確認的 sheet 表單脈絡，Chromium 與 WebKit 都固定為 44px。 */
+.create-session-sheet .form-field select { height: 44px; }
 .create-session-sheet .session-primary,
 .create-session-sheet .session-secondary { min-height: 44px; }
 .create-session-sheet .form-fieldset > label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
