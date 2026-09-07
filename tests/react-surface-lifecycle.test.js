@@ -164,6 +164,7 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
   );
   assertExactNamedScan(eagerModules, SURFACE_MANIFEST.eagerModules, "eager surface module");
   const lazySource = readStructureSource("lazySurfaceLoaders");
+  assert.match(lazySource.source, /export function deferSurfaceOpen\(/);
   const lazySheetMap = extractBracedBody(lazySource.source, "const lazySurfaceLoaders = {");
   const lazySheets = [...lazySheetMap.matchAll(/"(\.\.?(?:\/[^"/]+)+\.tsx)":\s*\(\) =>\s*import\("\1"\)/g)].map(
     (match) => resolveImportPath(lazySource.relativePath, match[1])

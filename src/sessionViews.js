@@ -1,5 +1,5 @@
 import { BANDS, DEFAULT_FILTER_STATE } from "./filters.ts"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-import { configureLoginModalContent, mountDialog, mountSheet } from "./sheets.ts";
+import { configureLoginModalContent } from "./sheets.ts";
 import { taipeiClock, taipeiDateTimeLocalValue } from "./taipeiTime.ts";
 import { esc } from "./util.js";
 import {
@@ -26,6 +26,24 @@ import { configureProfileSurfaceView } from "./views/profileSurfaceView.js";
 import * as profileSurfaceView from "./views/profileSurfaceView.js";
 import { configureSessionSurfaceViews } from "./views/sessionSurfaceViews.js";
 import * as sessionSurfaceViews from "./views/sessionSurfaceViews.js";
+import {
+  deferSurfaceOpen,
+  lazySurfaceMounts,
+  preloadCourtPlayersSheet,
+  preloadCourtSessionSheet,
+  preloadCreateSessionSheet,
+  preloadDecideSessionSheet,
+  preloadEditSessionSheet,
+  preloadFilterSheet,
+  preloadPlayerCardSheet,
+  preloadPlayerDirectorySheet,
+  preloadProfileCompletionSheet,
+  preloadReportDialog,
+  preloadSessionChatSheet,
+  preloadSessionDetailSheet,
+  preloadSessionUnavailableSheet,
+  preloadWithdrawSessionConfirmationDialog,
+} from "./views/surfaceLoaders.js";
 export { messagesFromGroups, nearbySessionsSummaryText } from "./sessionPresentation.ts";
 
 const PROFILE_PUBLIC_DISCLOSURE =
@@ -206,141 +224,23 @@ const configureFilterToolbarInApp = (...args) => requireAppExport("configureFilt
 const syncFilterToolbarInApp = (...args) => requireAppExport("syncFilterToolbarInApp")(...args);
 const syncBottomNavigationInApp = (...args) => requireAppExport("syncBottomNavigationInApp")(...args);
 
-const lazySurfaceLoaders = {
-  "./sheets/CourtPlayersSheet.tsx": () => import("./sheets/CourtPlayersSheet.tsx"),
-  "./sheets/CourtSessionSheet.tsx": () => import("./sheets/CourtSessionSheet.tsx"),
-  "./sheets/CreateSessionSheet.tsx": () => import("./sheets/CreateSessionSheet.tsx"),
-  "./sheets/DecideSessionSheet.tsx": () => import("./sheets/DecideSessionSheet.tsx"),
-  "./sheets/EditSessionSheet.tsx": () => import("./sheets/EditSessionSheet.tsx"),
-  "./sheets/FilterSheet.tsx": () => import("./sheets/FilterSheet.tsx"),
-  "./sheets/PlayerCardSheet.tsx": () => import("./sheets/PlayerCardSheet.tsx"),
-  "./sheets/PlayerDirectorySheet.tsx": () => import("./sheets/PlayerDirectorySheet.tsx"),
-  "./sheets/ProfileCompletionSheet.tsx": () => import("./sheets/ProfileCompletionSheet.tsx"),
-  "./sheets/ReportDialog.tsx": () => import("./sheets/ReportDialog.tsx"),
-  "./sheets/SessionChatSheet.tsx": () => import("./sheets/SessionChatSheet.tsx"),
-  "./sheets/SessionDetailSheet.tsx": () => import("./sheets/SessionDetailSheet.tsx"),
-  "./sheets/SessionUnavailableSheet.tsx": () => import("./sheets/SessionUnavailableSheet.tsx"),
-  "./sheets/WithdrawSessionConfirmationDialog.tsx": () => import("./sheets/WithdrawSessionConfirmationDialog.tsx"),
-};
-
-let mountCreateSessionSheetContent;
-let mountEditSessionSheetContent;
-let mountSessionUnavailableSheetContent;
-let mountCourtSessionSheetContent;
-let mountCourtPlayersSheetContent;
-let mountFilterSheetContent;
-let mountPlayerDirectorySheetContent;
-let mountPlayerCardSheetContent;
-let mountProfileCompletionSheetContent;
-let mountDecideSessionSheetContent;
-let mountSessionChatSheetContent;
-let mountSessionDetailSheetContent;
-let mountWithdrawSessionConfirmationDialogContent;
-let mountReportDialogContent;
-
-function createMountPreloader(modulePath, exportName, assign) {
-  let request = null;
-  return () => {
-    if (request) return request;
-    const load = lazySurfaceLoaders[modulePath];
-    if (!load) return Promise.reject(new Error(`Lazy surface module is unavailable: ${modulePath}`));
-    request = load().then((module) => {
-      const mount = module?.[exportName];
-      if (typeof mount !== "function") throw new Error(`Lazy surface export is unavailable: ${exportName}`);
-      assign(mount);
-    });
-    return request;
-  };
-}
-
-const preloadCreateSessionSheet = createMountPreloader(
-  "./sheets/CreateSessionSheet.tsx",
-  "mountCreateSessionSheetContent",
-  (mount) => (mountCreateSessionSheetContent = mount)
-);
-const preloadEditSessionSheet = createMountPreloader(
-  "./sheets/EditSessionSheet.tsx",
-  "mountEditSessionSheetContent",
-  (mount) => (mountEditSessionSheetContent = mount)
-);
-const preloadSessionUnavailableSheet = createMountPreloader(
-  "./sheets/SessionUnavailableSheet.tsx",
-  "mountSessionUnavailableSheetContent",
-  (mount) => (mountSessionUnavailableSheetContent = mount)
-);
-const preloadCourtSessionSheet = createMountPreloader(
-  "./sheets/CourtSessionSheet.tsx",
-  "mountCourtSessionSheetContent",
-  (mount) => (mountCourtSessionSheetContent = mount)
-);
-const preloadCourtPlayersSheet = createMountPreloader(
-  "./sheets/CourtPlayersSheet.tsx",
-  "mountCourtPlayersSheetContent",
-  (mount) => (mountCourtPlayersSheetContent = mount)
-);
-const preloadFilterSheet = createMountPreloader(
-  "./sheets/FilterSheet.tsx",
-  "mountFilterSheetContent",
-  (mount) => (mountFilterSheetContent = mount)
-);
-const preloadPlayerDirectorySheet = createMountPreloader(
-  "./sheets/PlayerDirectorySheet.tsx",
-  "mountPlayerDirectorySheetContent",
-  (mount) => (mountPlayerDirectorySheetContent = mount)
-);
-const preloadPlayerCardSheet = createMountPreloader(
-  "./sheets/PlayerCardSheet.tsx",
-  "mountPlayerCardSheetContent",
-  (mount) => (mountPlayerCardSheetContent = mount)
-);
-const preloadProfileCompletionSheet = createMountPreloader(
-  "./sheets/ProfileCompletionSheet.tsx",
-  "mountProfileCompletionSheetContent",
-  (mount) => (mountProfileCompletionSheetContent = mount)
-);
-const preloadDecideSessionSheet = createMountPreloader(
-  "./sheets/DecideSessionSheet.tsx",
-  "mountDecideSessionSheetContent",
-  (mount) => (mountDecideSessionSheetContent = mount)
-);
-const preloadSessionChatSheet = createMountPreloader(
-  "./sheets/SessionChatSheet.tsx",
-  "mountSessionChatSheetContent",
-  (mount) => (mountSessionChatSheetContent = mount)
-);
-const preloadSessionDetailSheet = createMountPreloader(
-  "./sheets/SessionDetailSheet.tsx",
-  "mountSessionDetailSheetContent",
-  (mount) => (mountSessionDetailSheetContent = mount)
-);
-const preloadWithdrawSessionConfirmationDialog = createMountPreloader(
-  "./sheets/WithdrawSessionConfirmationDialog.tsx",
-  "mountWithdrawSessionConfirmationDialogContent",
-  (mount) => (mountWithdrawSessionConfirmationDialogContent = mount)
-);
-const preloadReportDialog = createMountPreloader(
-  "./sheets/ReportDialog.tsx",
-  "mountReportDialogContent",
-  (mount) => (mountReportDialogContent = mount)
-);
-
 configureSessionSurfaceViews({
   deferSurfaceOpen,
   lazyMounts: {
     get reportDialog() {
-      return mountReportDialogContent;
+      return lazySurfaceMounts.reportDialog;
     },
     get sessionChat() {
-      return mountSessionChatSheetContent;
+      return lazySurfaceMounts.sessionChat;
     },
     get sessionDetail() {
-      return mountSessionDetailSheetContent;
+      return lazySurfaceMounts.sessionDetail;
     },
     get sessionUnavailable() {
-      return mountSessionUnavailableSheetContent;
+      return lazySurfaceMounts.sessionUnavailable;
     },
     get withdrawConfirmation() {
-      return mountWithdrawSessionConfirmationDialogContent;
+      return lazySurfaceMounts.withdrawConfirmation;
     },
   },
   preloadReportDialog,
@@ -369,7 +269,7 @@ configureProfileSurfaceView({
   deferSurfaceOpen,
   lazyMounts: {
     get profileCompletion() {
-      return mountProfileCompletionSheetContent;
+      return lazySurfaceMounts.profileCompletion;
     },
   },
   ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
@@ -384,19 +284,19 @@ configureDiscoverySurfaceViews({
   deferSurfaceOpen,
   lazyMounts: {
     get courtPlayers() {
-      return mountCourtPlayersSheetContent;
+      return lazySurfaceMounts.courtPlayers;
     },
     get courtSession() {
-      return mountCourtSessionSheetContent;
+      return lazySurfaceMounts.courtSession;
     },
     get filter() {
-      return mountFilterSheetContent;
+      return lazySurfaceMounts.filter;
     },
     get playerCard() {
-      return mountPlayerCardSheetContent;
+      return lazySurfaceMounts.playerCard;
     },
     get playerDirectory() {
-      return mountPlayerDirectorySheetContent;
+      return lazySurfaceMounts.playerDirectory;
     },
   },
   preloadCourtPlayersSheet,
@@ -420,70 +320,6 @@ configureDiscoverySurfaceViews({
     mounted.registerUnmount(content.unmount);
   },
 });
-
-function lazySurfaceHtml(label) {
-  return `<div class="surface__head">
-    <div><p class="surface__eyebrow">LOADING</p><h2>${esc(label)}</h2></div>
-    <button type="button" class="surface__close" data-surface-close aria-label="關閉">×</button>
-  </div>
-  <p class="surface__copy" data-lazy-surface-status role="status" aria-live="polite" aria-atomic="true">正在載入…</p>`;
-}
-
-function deferSurfaceOpen({ className = "", id, label, load, methods = [], onClose = () => {}, open, type = "sheet" }) {
-  let active = null;
-  let live = true;
-  let readyHandle = null;
-  let replacing = false;
-  const pendingCalls = [];
-  const mount = type === "dialog" ? mountDialog : mountSheet;
-  active = mount({
-    id,
-    label,
-    className,
-    html: lazySurfaceHtml(label),
-    onClose: (detail) => {
-      if (replacing) return;
-      live = false;
-      onClose(detail);
-    },
-  });
-
-  const deferred = {
-    close(options) {
-      return active.close(options);
-    },
-    get root() {
-      return active.root;
-    },
-    get surface() {
-      return active.surface;
-    },
-  };
-  for (const method of methods) {
-    deferred[method] = (...args) => {
-      if (readyHandle) return readyHandle[method]?.(...args);
-      pendingCalls.push([method, args]);
-    };
-  }
-
-  void load()
-    .then(() => {
-      if (!live) return;
-      replacing = true;
-      const next = open();
-      replacing = false;
-      active = next;
-      readyHandle = next;
-      for (const [method, args] of pendingCalls.splice(0)) readyHandle[method]?.(...args);
-    })
-    .catch(() => {
-      replacing = false;
-      if (!live) return;
-      const status = active.root.querySelector("[data-lazy-surface-status]");
-      if (status) status.textContent = "載入失敗，請關閉後再試。";
-    });
-  return deferred;
-}
 
 const authenticatedViewPreloads = [
   preloadMePageInApp,
@@ -585,13 +421,13 @@ configureSessionFormViews({
   deferSurfaceOpen,
   lazyMounts: {
     get createSession() {
-      return mountCreateSessionSheetContent;
+      return lazySurfaceMounts.createSession;
     },
     get decideSession() {
-      return mountDecideSessionSheetContent;
+      return lazySurfaceMounts.decideSession;
     },
     get editSession() {
-      return mountEditSessionSheetContent;
+      return lazySurfaceMounts.editSession;
     },
   },
   ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,

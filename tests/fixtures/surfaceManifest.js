@@ -3,7 +3,7 @@ const namedList = (values) => Object.freeze(values);
 export const SURFACE_MANIFEST = Object.freeze({
   structureSources: Object.freeze({
     authenticatedPreload: "src/sessionViews.js",
-    lazySurfaceLoaders: "src/sessionViews.js",
+    lazySurfaceLoaders: "src/views/surfaceLoaders.js",
     unmountRegistrations: "src/sessionViews.js",
   }),
   sheetAdapters: namedList([

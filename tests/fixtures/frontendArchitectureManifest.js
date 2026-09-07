@@ -77,13 +77,13 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
   ]),
   htmlRenderers: namedList([
     "src/app/SurfaceHost.tsx::SurfaceShell::dangerouslySetInnerHTML::property::object",
-    "src/sessionViews.js::deferSurfaceOpen::surface-html::mount::call:lazySurfaceHtml",
+    "src/views/surfaceLoaders.js::deferSurfaceOpen::surface-html::mount::call:lazySurfaceHtml",
     "src/sessionViews.js::renderMapDataStatus::innerHTML::root::empty-string",
     "src/sessionViews.js::renderMapDataStatus::innerHTML::root::template",
     "src/sheets.ts::closeSurface::innerHTML::root::empty-string",
     "src/views/sessionSurfaceViews.js::openSessionSheet::surface-html::mountSheet::template",
   ]),
-  mutationBaseline: Object.freeze({ files: 17, nodes: 125, references: 112, symbols: 34 }),
+  mutationBaseline: Object.freeze({ files: 18, nodes: 125, references: 112, symbols: 34 }),
   mutationSymbols: namedList(
     [
       {
@@ -265,14 +265,6 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
         retirement: "retain until every avatar caller owns equivalent React state",
       },
       {
-        key: "src/sessionViews.js::deferSurfaceOpen",
-        mutations: ["textContent::status"],
-        reference: "[data-lazy-surface-status] in the deferred surface",
-        owner: "legacy lazy-surface bridge",
-        reason: "Shows the fixed lazy-load failure message inside an already-open shell.",
-        retirement: "FA-06",
-      },
-      {
         key: "src/sessionViews.js::renderMapDataStatus",
         mutations: ["className::root", "hidden::root", "innerHTML::root"],
         reference: "#map-data-status supplied by main.js",
@@ -414,6 +406,14 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
         owner: "legacy chat surface adapter",
         reason: "Coordinates React feed commits with stable status nodes and scroll preservation.",
         retirement: "FA-06",
+      },
+      {
+        key: "src/views/surfaceLoaders.js::deferSurfaceOpen",
+        mutations: ["textContent::status"],
+        reference: "[data-lazy-surface-status] in the deferred surface",
+        owner: "shared lazy-surface loader",
+        reason: "Shows the fixed lazy-load failure message inside an already-open shell.",
+        retirement: "review after every deferred legacy surface is retired",
       },
     ].map(ledgerEntry)
   ),
