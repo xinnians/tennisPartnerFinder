@@ -24,7 +24,7 @@
 <div class="demo">
   <section>
     <h2>色彩 Color</h2>
-    <p class="demo-note">墨綠 ink(主文字/深底)+ 球場綠 court(強調/可互動)+ optic 黃 signal(高亮訊號),紙白 page 底。全部組合已過 WCAG AA。</p>
+    <p class="demo-note">墨綠 ink(主文字/深底)+ 球場綠 court(強調/可互動)+ optic 黃 signal(高亮訊號),紙白 page 底。tests/contrast-tokens.test.js 目前實算 11 組指定文字配色與 5 個次要文字底色，門檻都是 WCAG AA 4.5:1。</p>
     <div class="demo-swatches">
       <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-ink)"></div><div class="demo-swatch__label"><strong>--color-ink</strong>#12291c</div></div>
       <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-court)"></div><div class="demo-swatch__label"><strong>--color-court</strong>#1c5c3c</div></div>
@@ -80,11 +80,11 @@
       <div class="demo-elev" style="box-shadow:var(--elevation-1)">--elevation-1<br><span style="color:var(--color-danger)">目前無消費端(死碼)</span></div>
       <div class="demo-elev" style="box-shadow:var(--elevation-2)">--elevation-2<br>surface(sheet/dialog)/toast/導覽列</div>
     </div>
-    <p class="demo-note">--elevation-1 的 token 仍定義著,但 src/*.css 與 .tsx 目前查無任何消費端(grep 零命中)——曾用於 #player-directory-open 與程度 popover,批 D4a 篩選改版時被移除或改成硬寫數值,未收斂回 token。新設計不應假設它仍在生效。--elevation-2 實際消費端是 .surface(sheet/dialog 共用基底)、.toast、.app-error-notice 與底部導覽列;附近球局抽屜 .nearby-drawer 是硬寫自己的陰影值,不吃這個 token。</p>
+    <p class="demo-note">--elevation-1 只定義在 src/session.css，目前 production source 沒有 var(--elevation-1) 消費端。--elevation-2 的消費端可在 src/surfaces.css、src/create-session.css、src/discovery.css 與 src/navigation.css 查到，包括 surface、toast、全域錯誤提示、地圖狀態與底部導覽。</p>
   </section>
 
   <section>
-    <h2>停用態 Disabled(批 D1 新增)</h2>
+    <h2>停用態 Disabled</h2>
     <p class="demo-note">--color-disabled-bg/--color-disabled-text 雙 token,依 WCAG 停用控件對比豁免。除了 .cta-status--disabled 與真正的 :disabled 表單控件外,src/create-session.css 的 .create-v2__publish 也借用同一組色值作為「尚未就緒」的預設外觀——但該鈕本身 pointer-events:auto、並非原生 disabled,只是視覺上借用停用色階,不是嚴格的停用控件豁免情境。</p>
     <div class="demo-swatches">
       <div class="demo-swatch"><div class="demo-swatch__chip" style="background:var(--color-disabled-bg)"></div><div class="demo-swatch__label"><strong>--color-disabled-bg</strong>#e3e6dc</div></div>
@@ -97,7 +97,7 @@
 
   <section>
     <h2>動效 Motion</h2>
-    <p class="demo-note">--ease-brand:cubic-bezier(0.22, 0.61, 0.36, 1),品牌 easing。keyframes qmSheetUp/qmPop/qmSlide/qmToast 皆有實際消費端;qmFade 目前定義著但全 repo 查無任何 animation: 引用(死碼)。全域已有 prefers-reduced-motion: reduce 降級,元件不應繞過。</p>
+    <p class="demo-note">--ease-brand 是 cubic-bezier(0.22, 0.61, 0.36, 1)。src/motion.css 定義 qmSheetUp、qmFade、qmPop、qmSlide、qmToast；目前 qmFade 沒有 animation 消費端，其餘四個有。該檔也用 prefers-reduced-motion 統一縮短動畫與 transition。</p>
     <div class="demo-row">
       <code style="font-family:var(--font-mono); font-size:var(--text-sm); background:var(--color-info-bg); padding:var(--space-2) var(--space-3); border-radius:var(--radius-sm);">transition: transform 0.2s var(--ease-brand);</code>
     </div>

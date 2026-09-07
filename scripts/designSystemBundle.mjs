@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,6 +9,17 @@ const MAIN_SOURCE_PATH = "src/main.js";
 
 export const DESIGN_SYSTEM_BUNDLE_PATH = "ds-bundle/_ds_bundle.css";
 export const DESIGN_SYSTEM_TOKENS_PATH = "ds-bundle/tokens/tokens.css";
+export const DESIGN_SYSTEM_CARD_PATHS = Object.freeze([
+  "ds-bundle/components/actions/Buttons/Buttons.html",
+  "ds-bundle/components/actions/Chips/Chips.html",
+  "ds-bundle/components/cards/SessionCard/SessionCard.html",
+  "ds-bundle/components/chat/Chat/Chat.html",
+  "ds-bundle/components/feedback/ErrorStates/ErrorStates.html",
+  "ds-bundle/components/feedback/Toast/Toast.html",
+  "ds-bundle/components/foundations/Tokens/Tokens.html",
+  "ds-bundle/components/navigation/BottomNav/BottomNav.html",
+  "ds-bundle/components/surfaces/Sheet/Sheet.html",
+]);
 
 const normalizeSource = (source) =>
   source
@@ -62,6 +73,58 @@ export function createDesignSystemArtifacts(cssSources) {
   return { bundle, sourcePaths, tokenCount: tokenNames.length, tokens };
 }
 
+export function loadDesignSystemCards({ root = PROJECT_ROOT } = {}) {
+  return DESIGN_SYSTEM_CARD_PATHS.map((path) => ({ path, source: readFileSync(resolve(root, path), "utf8") }));
+}
+
+export function assertDesignSystemCardsValid(cards, { root = PROJECT_ROOT } = {}) {
+  assert.deepEqual(
+    cards.map(({ path }) => path),
+    DESIGN_SYSTEM_CARD_PATHS,
+    "design-system card inventory must stay explicit and ordered"
+  );
+
+  for (const { path, source } of cards) {
+    assert.match(source, /^<!-- @dsCard\b[^\n]* -->\n<!doctype html>/u, `${path} must declare @dsCard and HTML5`);
+    assert.match(
+      source,
+      /<meta\s+name="viewport"\s+content="width=device-width, initial-scale=1">/u,
+      `${path} needs the shared viewport meta`
+    );
+    assert.match(
+      source,
+      /<link\s+rel="stylesheet"\s+href="\.\.\/\.\.\/\.\.\/styles\.css">/u,
+      `${path} must load the generated design-system styles`
+    );
+
+    const ids = [...source.matchAll(/\sid="([^"]+)"/gu)].map(([, id]) => id);
+    const duplicateIds = [...new Set(ids.filter((id, index) => ids.indexOf(id) !== index))];
+    assert.deepEqual(duplicateIds, [], `${path} contains duplicate id values: ${duplicateIds.join(", ")}`);
+
+    const fixedLineReferences = [...source.matchAll(/src\/[A-Za-z0-9_./-]+\.(?:css|tsx|ts|js):\d+/gu)].map(
+      ([reference]) => reference
+    );
+    assert.deepEqual(
+      fixedLineReferences,
+      [],
+      `${path} contains brittle source line references: ${fixedLineReferences.join(", ")}`
+    );
+    assert.doesNotMatch(source, /src\/[A-Za-z0-9_./-]*\*/u, `${path} must cite concrete source files, not globs`);
+
+    const sourceReferences = [
+      ...new Set([...source.matchAll(/src\/[A-Za-z0-9_./-]+\.(?:css|tsx|ts|js)/gu)].map(([reference]) => reference)),
+    ];
+    assert.ok(sourceReferences.length > 0, `${path} must name at least one production source file`);
+    const missingReferences = sourceReferences.filter((reference) => !existsSync(resolve(root, reference)));
+    assert.deepEqual(
+      missingReferences,
+      [],
+      `${path} cites missing production source files: ${missingReferences.join(", ")}`
+    );
+    assert.doesNotMatch(source, /components\/screens\//u, `${path} must not cite retired design-system screen cards`);
+  }
+}
+
 export function loadDesignSystemSnapshot({ root = PROJECT_ROOT } = {}) {
   const mainSource = readFileSync(resolve(root, MAIN_SOURCE_PATH), "utf8");
   const sourcePaths = productionCssSourcePaths(mainSource);
@@ -70,6 +133,7 @@ export function loadDesignSystemSnapshot({ root = PROJECT_ROOT } = {}) {
   return {
     actualBundle: readFileSync(resolve(root, DESIGN_SYSTEM_BUNDLE_PATH), "utf8"),
     actualTokens: readFileSync(resolve(root, DESIGN_SYSTEM_TOKENS_PATH), "utf8"),
+    cards: loadDesignSystemCards({ root }),
     cssSources,
     expected,
     root,
@@ -86,7 +150,13 @@ function firstDifferentLine(actual, expected) {
   return null;
 }
 
-export function assertDesignSystemArtifactsCurrent({ actualBundle, actualTokens, expected }) {
+export function assertDesignSystemArtifactsCurrent({
+  actualBundle,
+  actualTokens,
+  cards,
+  expected,
+  root = PROJECT_ROOT,
+}) {
   const differences = [
     [DESIGN_SYSTEM_BUNDLE_PATH, actualBundle, expected.bundle],
     [DESIGN_SYSTEM_TOKENS_PATH, actualTokens, expected.tokens],
@@ -99,6 +169,7 @@ export function assertDesignSystemArtifactsCurrent({ actualBundle, actualTokens,
     [],
     `design-system artifacts drifted at ${differences.join(", ")}; run npm run sync:design-system`
   );
+  assertDesignSystemCardsValid(cards, { root });
 }
 
 export function writeDesignSystemArtifacts({ root = PROJECT_ROOT } = {}) {
@@ -108,6 +179,7 @@ export function writeDesignSystemArtifacts({ root = PROJECT_ROOT } = {}) {
   const artifacts = createDesignSystemArtifacts(cssSources);
   writeFileSync(resolve(root, DESIGN_SYSTEM_BUNDLE_PATH), artifacts.bundle);
   writeFileSync(resolve(root, DESIGN_SYSTEM_TOKENS_PATH), artifacts.tokens);
+  assertDesignSystemCardsValid(loadDesignSystemCards({ root }), { root });
   return artifacts;
 }
 
@@ -127,7 +199,7 @@ function main(arguments_) {
   const snapshot = loadDesignSystemSnapshot();
   assertDesignSystemArtifactsCurrent(snapshot);
   console.log(
-    `design-system artifacts are current (${snapshot.expected.sourcePaths.length} CSS sources, ${snapshot.expected.tokenCount} tokens)`
+    `design-system artifacts are current (${snapshot.expected.sourcePaths.length} CSS sources, ${snapshot.expected.tokenCount} tokens, ${snapshot.cards.length} cards)`
   );
 }
 

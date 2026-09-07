@@ -28,7 +28,8 @@ npm run check:design-system
 ```
 
 同步指令會從 `src/main.js` 讀出 production CSS 的真實順序，再逐檔產生 standalone bundle。檢查指令會在任何
-production CSS、順序或 token 已變、但產生檔未更新時失敗。
+production CSS、順序或 token 已變、但產生檔未更新時失敗。它也會驗證 9 張卡片的固定清單、viewport、stylesheet、
+唯一 ID、現存 source 引用，並禁止容易漂移的固定行號與已退役 screen 引用。
 
 ## 視覺原則
 

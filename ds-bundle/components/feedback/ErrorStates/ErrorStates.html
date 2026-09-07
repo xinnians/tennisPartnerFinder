@@ -1,4 +1,4 @@
-<!-- @dsCard group="回饋 Feedback" name="錯誤狀態 Error States" subtitle="全域錯誤提示 .app-error-notice / 區塊級 fallback .app-error-fallback(批 19)" -->
+<!-- @dsCard group="回饋 Feedback" name="錯誤狀態 Error States" subtitle="全域錯誤提示 .app-error-notice / 區塊級 fallback .app-error-fallback" -->
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -20,7 +20,7 @@
 <div class="demo">
   <section style="display:grid; gap:var(--space-2);">
     <h2>全域錯誤提示 .app-error-notice</h2>
-    <p class="demo-note">非 React 例外(window error / unhandled rejection)的可關閉 toast;不揭露錯誤細節,只提示「再試一次」。逐字取自 src/appErrors.ts 的 showGlobalErrorNotice。ink 深底,沿用 --z-toast 與 bottom nav 同側偏移,與 .toast 共用視覺語彙但 markup 獨立(id 而非 #toast-root 容器)。</p>
+    <p class="demo-note">window error 或 unhandled rejection 的可關閉提示；不揭露錯誤細節。結構與文字逐字取自 src/appErrors.ts 的 showGlobalErrorNotice。</p>
     <div class="demo-notice-frame">
       <aside id="app-error-notice" class="app-error-notice" role="alert" aria-label="網頁錯誤提醒">
         <span>剛才的操作沒有完整完成，請再試一次。</span>
@@ -31,7 +31,7 @@
 
   <section style="display:grid; gap:var(--space-2);">
     <h2>區塊級 fallback .app-error-fallback</h2>
-    <p class="demo-note">React error boundary 攔截 render 例外後顯示,只影響該畫面區塊、不整頁掛掉。逐字取自 src/components/AppErrorBoundary.tsx;關閉鈕沿用既有 .session-secondary。</p>
+    <p class="demo-note">src/components/AppErrorBoundary.tsx 的 AppErrorBoundary 攔截 React render 例外，只替換失敗區塊；關閉鈕沿用 .session-secondary。</p>
     <div class="demo-fallback-frame">
       <section class="app-error-fallback" role="alert" data-testid="app-error-fallback">
         <h2 tabindex="-1">這個畫面暫時無法顯示</h2>

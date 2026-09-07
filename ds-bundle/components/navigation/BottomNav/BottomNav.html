@@ -19,7 +19,7 @@
 <div class="demo">
   <section style="display:grid; gap:var(--space-2);">
     <h2>頂列 .map-topbar + 品牌</h2>
-    <p class="demo-note">首頁頂部 overlay:品牌磚 .app-brand + 城市 chip .city-chip + 球友名單圖示鈕 .topbar-icon-button。品牌文案於 2026-08-15 改名工程(commit 64c35d2)由「球局地圖」改為「球咖」,aria-label 同步改為「球咖首頁」。此區塊全部仍是 index.html 靜態標記 + src/main.js vanilla DOM,未遷移 React。</p>
+    <p class="demo-note">src/app/App.tsx 的 MapTopbar 以 React 產生品牌磚 .app-brand、城市 chip .city-chip、球友名單按鈕，以及下方日期與篩選工具列。品牌顯示「球咖」，連結回 #tab-map，aria-label 是「球咖首頁」。</p>
     <div class="map-topbar">
       <div class="map-topbar__row">
         <a class="app-brand" href="#tab-map" aria-label="球咖首頁">
@@ -31,7 +31,7 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/></svg>
           <span>台北市</span>
         </div>
-        <button type="button" class="topbar-icon-button" aria-label="球友名單">
+        <button type="button" id="player-directory-open" data-testid="player-directory-open" class="topbar-icon-button" aria-label="球友名單">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="8" r="3.6"/><path d="M22 21v-1.8a4 4 0 0 0-3-3.85M16.2 4.3a3.6 3.6 0 0 1 0 7.1"/></svg>
         </button>
       </div>
@@ -40,35 +40,36 @@
 
   <section style="display:grid; gap:var(--space-2);">
     <h2>底部導覽 .bottom-navigation(五格)</h2>
-    <p class="demo-note">深底契約:固定 ink 不透明底;非活躍字 #9db3a4、活躍態 signal 黃。四顆 .bottom-navigation__item(找球局/我的球局/訊息/我)+ 置中一顆獨立視覺的 .bottom-navigation__create(52px signal 方圓鈕上移)。執行期 src/main.js 的 syncBottomNavigation() 會把非啟用格的 aria-current 屬性整個移除(而非設為 "false")——下方示範採執行後的真實狀態。</p>
+    <p class="demo-note">src/app/App.tsx 的 BottomNavigation 以 React 產生四顆一般項目與中央開球局鈕。src/main.js 的 syncBottomNavigation 計算目前頁面、待處理數與未讀狀態，再交給 React；非目前頁面不會輸出 aria-current。</p>
     <nav class="bottom-navigation" aria-label="主要導覽">
-      <button type="button" class="bottom-navigation__item" aria-current="page">
+      <button type="button" id="map-tab" data-testid="map-tab" class="bottom-navigation__item" aria-controls="tab-map" aria-current="page">
         <span class="bottom-navigation__icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
         <span>找球局</span>
       </button>
-      <button type="button" class="bottom-navigation__item" aria-label="我的球局">
+      <button type="button" id="my-sessions-tab" data-testid="my-sessions-tab" class="bottom-navigation__item" aria-controls="my-sessions-page" aria-label="我的球局，2 項待處理">
         <span class="bottom-navigation__icon" aria-hidden="true">
           <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16"/></svg>
-          <span class="my-sessions-badge">2</span>
+          <span id="my-sessions-badge" class="my-sessions-badge" aria-hidden="true">2</span>
         </span>
         <span>我的球局</span>
       </button>
-      <button type="button" class="bottom-navigation__create" aria-haspopup="dialog">
+      <button type="button" id="create-session-tab" data-testid="create-session-tab" class="bottom-navigation__create" aria-controls="sheet-root" aria-haspopup="dialog">
         <span class="bottom-navigation__create-badge" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
         <span class="bottom-navigation__create-label">開球局</span>
       </button>
-      <button type="button" class="bottom-navigation__item" aria-label="訊息">
+      <button type="button" id="messages-tab" data-testid="messages-tab" class="bottom-navigation__item" aria-controls="messages-page" aria-label="訊息，有未讀訊息">
         <span class="bottom-navigation__icon" aria-hidden="true">
           <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.6 0-3.1-.4-4.4-1.2L3 20l1.2-5.1A8.5 8.5 0 1 1 21 11.5z"/></svg>
-          <span class="my-sessions-unread-dot"></span>
+          <span id="my-sessions-unread-dot" class="my-sessions-unread-dot" aria-hidden="true"></span>
         </span>
         <span>訊息</span>
       </button>
-      <button type="button" class="bottom-navigation__item">
+      <button type="button" id="me-tab" data-testid="me-tab" class="bottom-navigation__item" aria-controls="me-page">
         <span class="bottom-navigation__icon" aria-hidden="true"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6.2 8-6.2s8 2.2 8 6.2"/></svg></span>
         <span>我</span>
       </button>
     </nav>
+    <span id="my-sessions-badge-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true">2 項待處理</span>
   </section>
 </div>
 </body>
