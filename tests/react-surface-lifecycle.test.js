@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { FRONTEND_ARCHITECTURE_MANIFEST } from "./fixtures/frontendArchitectureManifest.js";
 import { SURFACE_MANIFEST } from "./fixtures/surfaceManifest.js";
 
 const SHEETS_DIR = new URL("../src/sheets/", import.meta.url).pathname;
@@ -48,6 +49,23 @@ function assertExactNamedScan(actual, expected, label) {
 
 function sourcePath(modulePath) {
   return `src/${modulePath.replace(/^\.\//, "")}`;
+}
+
+function syncCommitCallers(sourceFiles) {
+  return sourceFiles
+    .filter(({ relativePath }) => relativePath !== "syncCommit.ts")
+    .filter(({ source }) => /\bsyncCommit\(/.test(source))
+    .sort(({ relativePath: left }, { relativePath: right }) => left.localeCompare(right));
+}
+
+function assertApprovedSyncCommitCallers(sourceFiles) {
+  const callers = syncCommitCallers(sourceFiles);
+  assert.ok(callers.length > 0, "syncCommit caller scan unexpectedly found no call sites");
+  assert.deepEqual(
+    callers.map(({ relativePath }) => `src/${relativePath}`),
+    FRONTEND_ARCHITECTURE_MANIFEST.syncCommitCallers
+  );
+  return callers;
 }
 
 test("all React sheet adapters register tracked SurfaceHost portal content", () => {
@@ -106,16 +124,7 @@ test("synchronous React commits stay behind one fail-closed helper and approved 
   assert.match(helper.source, /export function syncCommit\(update: \(\) => void\): void \{/);
   assert.match(helper.source, /reactDomFlushSync\(update\);/);
 
-  const approvedCallers = ["app/SurfaceHost.tsx", "sessionStore.ts"];
-  const callers = sourceFiles
-    .filter(({ relativePath }) => relativePath !== "syncCommit.ts")
-    .filter(({ source }) => /\bsyncCommit\(/.test(source))
-    .sort(({ relativePath: left }, { relativePath: right }) => left.localeCompare(right));
-  assert.ok(callers.length > 0, "syncCommit caller scan unexpectedly found no call sites");
-  assert.deepEqual(
-    callers.map(({ relativePath }) => relativePath),
-    approvedCallers
-  );
+  const callers = assertApprovedSyncCommitCallers(sourceFiles);
   for (const { relativePath, source } of callers) {
     assert.match(
       source,
@@ -123,6 +132,17 @@ test("synchronous React commits stay behind one fail-closed helper and approved 
       `${relativePath} hides its import`
     );
   }
+
+  assert.throws(
+    () =>
+      assertApprovedSyncCommitCallers([
+        ...sourceFiles,
+        { relativePath: "__sync_commit_canary.ts", source: "syncCommit(() => {});" },
+      ]),
+    { name: "AssertionError" },
+    "a third syncCommit caller stayed green"
+  );
+  assertApprovedSyncCommitCallers(sourceFiles);
 });
 
 test("non-home pages and sheets stay behind explicit preloadable module boundaries", () => {
