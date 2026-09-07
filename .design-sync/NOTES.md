@@ -7,7 +7,10 @@
 - repo 目前實際有 9 張 HTML 卡片；歷史 Bricks 與 9 張 Screens 不在 repo，不當成目前可交付檔案。
 - `_ds_bundle.css` 與 `tokens/tokens.css` 改由 `scripts/designSystemBundle.mjs` 從 production 13 份 CSS 產生；
   `npm run check:design-system` 會阻止 CSS 或 token 靜默漂移。
-- 卡片仍是 hand-authored，下一批要依現行 React／view owner 更新內容並重跑 desktop／390px 驗證。
+- 卡片仍是 hand-authored，但 9 張內容已依現行 React／view owner 重驗；metadata、viewport、ID、source citation
+  與 retired screen reference 有 static gate。
+- 390×844 的 9 張卡片共有 browser computed-size gate；production 與卡片共用 scanner，會排除 disabled 控制項、
+  合併 wrapping label，並計入 `::before` 擴大的有效熱區。desktop 密度仍以 render／互動複核，不硬套 44px。
 
 ## 歷史紀錄
 

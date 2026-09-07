@@ -32,6 +32,7 @@
 ## 驗證
 
 - 每次同步至少驗 desktop 1280×900 與 mobile 390×844。
+- `tests/design-system-cards-smoke.spec.js` 是 390×844 可操作項目的 computed-size gate；新增或調整控制項時不得略過。
 - 確認內容非空、無錯誤遮罩、console/page/request error、橫向 overflow、重複 ID 或缺少 accessible name。
 - 至少操作一條受影響的互動流程；只有看 screenshot 不算完整互動驗證。
 - 測試截圖放在 repo 外的暫存目錄，除非另有明確交付需求。

@@ -29,7 +29,8 @@ npm run check:design-system
 
 同步指令會從 `src/main.js` 讀出 production CSS 的真實順序，再逐檔產生 standalone bundle。檢查指令會在任何
 production CSS、順序或 token 已變、但產生檔未更新時失敗。它也會驗證 9 張卡片的固定清單、viewport、stylesheet、
-唯一 ID、現存 source 引用，並禁止容易漂移的固定行號與已退役 screen 引用。
+唯一 ID、現存 source 引用，並禁止容易漂移的固定行號與已退役 screen 引用。行動版實際尺寸另由
+`tests/design-system-cards-smoke.spec.js` 在瀏覽器中計算；它與 production 觸控測試共用同一個 scanner。
 
 ## 視覺原則
 
@@ -95,6 +96,8 @@ read-back 證據，所以不把它們列為目前可交付內容，也不拿舊�
 2. 執行 `npm run sync:design-system`。
 3. 依 production component／view 更新受影響的 HTML 卡片。
 4. 執行 `npm run check:design-system` 與相關 Node tests。
-5. 用 desktop 1280×900、mobile 390×844 重跑卡片 render、console、focus、overflow 與互動檢查。
+5. 執行 `npm run test:mock`；它會在 Chromium 以 390×844 檢查 9 張卡片的可操作項目是否至少 44×44px。
+6. 另外用 mobile WebKit 跑 `tests/design-system-cards-smoke.spec.js`，並以 desktop 1280×900、mobile 390×844
+   複核受影響卡片的 render、console、focus、overflow 與互動。
 
 不要從卡片反向猜 production 行為；缺少的狀態必須回到現行 source 確認。
