@@ -56,13 +56,22 @@ function statusFromError(error: unknown) {
 
 async function runLocalV2Dispatch() {
   try {
-    const [{ withNotificationDispatcherDatabase }, localMock] = await Promise.all([
+    const transport = env("WEB_PUSH_TRANSPORT");
+    const senderModulePromise =
+      transport === "mock"
+        ? import("./v2-local-mock.js")
+        : transport === "deno-native-web-push-v1"
+          ? import("./v2-deno-web-push.ts")
+          : Promise.reject(new Error("DISPATCH_V2_RUNTIME_CONFIG_INVALID"));
+    const [{ withNotificationDispatcherDatabase }, senderModule] = await Promise.all([
       import("./v2-database.ts"),
-      import("./v2-local-mock.js"),
+      senderModulePromise,
     ]);
     const config = readDispatcherV2LocalConfig(env);
-    const mockConfig = localMock.readDispatcherV2LocalMockConfig(env);
-    const sendPrepared = await localMock.createDispatcherV2LocalMockSender(mockConfig);
+    const sendPrepared =
+      transport === "mock"
+        ? await senderModule.createDispatcherV2LocalMockSender(senderModule.readDispatcherV2LocalMockConfig(env))
+        : await senderModule.createDispatcherV2DenoWebPushSender(senderModule.readDispatcherV2DenoWebPushConfig(env));
     const result = await withNotificationDispatcherDatabase({
       connectionString: env("NOTIFICATION_DISPATCH_DATABASE_URL"),
       operation: (database) =>
@@ -88,7 +97,7 @@ Deno.serve(async (request) => {
 
   const runtimeAccess = dispatcherV2RuntimeAccess(env);
   if (runtimeAccess.localTestEnabled) return runLocalV2Dispatch();
-  if (env("WEB_PUSH_TRANSPORT") === "mock") return json({ error: "WEB_PUSH_MOCK_FORBIDDEN" }, 500);
+  if (env("WEB_PUSH_TRANSPORT")) return json({ error: "WEB_PUSH_V2_TRANSPORT_FORBIDDEN" }, 500);
 
   const supabaseUrl = env("SUPABASE_URL");
   const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY");

@@ -400,7 +400,7 @@ test("B11 ports are exact, inert, and only reviewed dispatcher policy adapters m
     /push-cleanup-protocol|PUSH_CLEANUP_PUBLIC|PUSH_CLEANUP_PRIVATE/u
   );
 
-  const dispatcherPolicyFiles = ["v2-egress.js", "v2-local-mock.js"];
+  const dispatcherPolicyFiles = ["v2-deno-web-push.ts", "v2-egress.js", "v2-local-mock.js"];
   const productionSources = ["../src/", "../supabase/functions/notification-outbox-dispatch/"]
     .flatMap((root) => {
       const rootUrl = new URL(root, import.meta.url);

@@ -390,6 +390,11 @@ deno_version = 2
 [functions.notification-outbox-dispatch]
 verify_jwt = false
 
+# Temporary v2 canary uses its own application-layer manual-run secret and is
+# unavailable unless the exact local or separately approved Hosted mode is set.
+[functions.notification-outbox-dispatch-v2-canary]
+verify_jwt = false
+
 # Sessionless cleanup is authorized by an application-layer encrypted,
 # cleanup-only bearer. The handler is hard-disabled on hosted Supabase until
 # the separately approved distributed rate limiter is implemented.

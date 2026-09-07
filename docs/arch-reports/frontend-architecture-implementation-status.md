@@ -46,6 +46,9 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 `frontend-architecture-fa-03-dispatcher-d1-database-barrier-2026-09-07.md`。
 最新 dispatcher D2 compatible source 與真實 local Edge／DB／mock composition 證據在
 `frontend-architecture-fa-03-dispatcher-d2-compatible-source-2026-09-07.md`。
+最新 dispatcher D3A Deno-native sender／獨立 manual canary source 證據在
+`frontend-architecture-fa-03-dispatcher-d3a-deno-sender-2026-09-07.md`；Hosted 分段操作界線在
+`frontend-architecture-fa-03-dispatcher-d3-hosted-canary-preflight-2026-09-07.md`。
 
 ## 目前狀態
 
@@ -53,12 +56,12 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 目前批次                | dispatcher D2 compatible source 已在 repo／local 完成；下一步先做 D3 Hosted 唯讀重查與 production sender 前置實作，不會未經核可操作 Hosted。B13.3 UI 另等待產品決策                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2 local composition、cleanup limiter foundation 與先前 Hosted additive migration 已完成；D1 migration 與 D2 source 皆未套用／部署 Hosted，Hosted runtime 未啟用                                                                                                                                                                                                                                                           |
-| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant dispatcher egress／outcome core、local-only dispatcher Edge canary、local D1 DB barrier 與 local-only D2 Edge／DB／mock composition，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 UI、SW、production dispatcher 尚未接線 |
-| migration 變更          | 39 local，最新為 `202609070001`；Hosted 最後一次已驗證基線為 38／`202609040001`，本批未重新查詢或套用 D1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 目前批次                | dispatcher D3A Deno-native encrypted sender 與獨立 manual canary source 已在 repo／local 完成；Hosted 唯讀重查與 dry-run 完成，下一步等待只套 D1 migration 的獨立核可。B13.3 UI 另等待產品決策                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation 與先前 Hosted additive migration 已完成；dispatcher D1 migration 與 D2／D3A source 尚未套用／部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                  |
+| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender與 default-unavailable 獨立 canary，以及 local-only cleanup limiter composition 已落地；Push 登出 server cleanup、v2 UI、SW、Hosted dispatcher 尚未接線 |
+| migration 變更          | 39 local，最新為 `202609070001`；2026-09-07 最新唯讀重查為 Hosted 38／`202609040001`，dry-run 只列出 D1 一支 pending migration，尚未套用                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | bundle checker／CI 變更 | checker 已分成開發期 report 與 release enforce；CI 仍走 report                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 下一步                  | D3 先唯讀重查 Hosted 與完成 production Deno-native sender 的 repo／local 證據；Hosted migration、credential／secret、deploy、control write 與 canary request 必須另行核可。另等待 B13.3 產品確認                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 下一步                  | 先取得核可，只套 `202609070001_notification_dispatcher_commands.sql`，完成 Hosted catalog／資料／Function／secret 唯讀驗證後停下；credential、secret、deploy、control write 與 canary request 仍須後續分開核可。另等待 B13.3 產品確認                                                                                                                                                                                                                                                                                                                                                                                     |
 
 查實際 Git 狀態：
 
@@ -104,8 +107,9 @@ git log --oneline --decorate -10
 | D30 | Supabase 方案為 Free；接受平台保存 raw source-IP headers 1 天，並核可 C0 只暫時部署 hard-gated cleanup、送 2 次空 body POST、唯讀驗證後立即刪除                                                                                                                                                                                      | 使用者於 2026-09-04 確認；2 次 exact 503／RETRY、2 筆一致來源 header log、DB 零變動，Function 已刪除                                                                                                          |
 | D31 | C1 核可 4 個臨時 secrets、單一 cleanup deploy、最多 1 未授權＋20 授權空 body POST、不重試、固定 rollback；不包含 production policy／cleanup／key／browser／privacy／hard-gate 移除                                                                                                                                                   | 使用者於 2026-09-04 選 A；實際 1 未授權符合、首筆授權缺 ALLOW marker即停，19 筆取消；Function／secrets／limiter 已復原，C1 未通過                                                                             |
 | D32 | browser 不持有 Push provider origins；只驗 canonical endpoint 與 key 結構。Edge 解密後與 dispatcher send-time 才用 server-only exact allowlist 完整重驗                                                                                                                                                                              | 使用者於 2026-09-06 選 A；B11.1 shared API／雙預期 corpus、B12.8 local Edge 與 B12.9 browser-to-DB 重驗已完成；production graph／Hosted 未接                                                                  |
-| D33 | Supabase local Edge 實測不會呼叫 Node `https.Agent.lookup`；dispatcher 的 Edge DNS pinning 改採 Deno 原生 resolve → public-IP 驗證 → connect exact IP → 原 hostname startTLS，同一 socket 不重用                                                                                                                                     | D0.2 local-only canary 已回 HTTPS 204，並驗 actual remote IP 等於選定 IP；D2 local mock composition 不會取代 production sender，fixture endpoint／resolver／8 秒 deadline 都不是 production policy，D3 Hosted canary 尚未做 |
-| D34 | D2 direct DB client 採 exact `jsr:@db/postgres@0.19.5` 與 checked-out `PoolClient`；prepare、provider request、complete 必須在同一筆 transaction。只提供 local exact mode，不能使用 Hosted marker 或正式 mock transport                                                                                                                                                                     | active repo source 與真實 local Edge／DB／mock composition 已完成；production sender、Hosted credential／migration／deploy／control／canary 均未執行                                                       |
+| D33 | Supabase local Edge 實測不會呼叫 Node `https.Agent.lookup`；dispatcher 的 Edge DNS pinning 改採 Deno 原生 resolve → public-IP 驗證 → connect exact IP → 原 hostname startTLS，同一 socket 不重用                                                                                                                                     | D0.2 transport canary 與 D3A encrypted sender 都在 local Edge 收到 HTTPS 204，並驗 actual remote IP；Google endpoint、8 秒 deadline 與其他 fixture 數字都不是 production policy，Hosted canary 尚未做         |
+| D34 | D2 direct DB client 採 exact `jsr:@db/postgres@0.19.5` 與 checked-out `PoolClient`；prepare、provider request、complete 必須在同一筆 transaction。只提供 local exact mode，不能使用 Hosted marker 或正式 mock transport                                                                                                                                                                     | active repo source 與真實 local Edge／DB／mock composition 已完成；D3A sender 也已走同一 transaction 完成 accepted；Hosted credential／migration／deploy／control／canary 均未執行                           |
+| D35 | Hosted dispatcher canary 使用獨立、預設 unavailable 的 Function 與 manual-run secret，不改現行 cron 或先部署 active dispatcher；token 本身不宣稱 cryptographic one-shot，request 數由核可操作流程限制                                                                                                                        | repo／local source 與 2 條 integration 已完成；Hosted 先只等待 D1 migration 核可，Function／secret／request／runtime policy 另行確認                                                                          |
 
 ## 授權邊界
 
@@ -1985,8 +1989,43 @@ mobile 6／6 與四支 Edge 各 1／1。DB lint 0 schema error、`git diff --che
 驗證後 runtime 回到 generation 1、enabled、mode disabled、legacy writes true、legacy handled false，其餘 policy null；
 D2 worker／canary／delivery／v2 outbox／v2 transport 與 fixture users／profiles 都是 0，dedicated role password 為 null。
 本批沒有 migration、Hosted read／write、deploy、secret、control write、正式 provider request 或 production policy。
-production Deno-native encrypted sender 仍未實作。完整證據見
+這是 D2 完成當下的紀錄；production-compatible Deno-native encrypted sender 已由下一節 D3A 完成。完整證據見
 `frontend-architecture-fa-03-dispatcher-d2-compatible-source-2026-09-07.md`。
+
+## FA-03 dispatcher D3A Deno-native sender（repo／local only）
+
+已完成：
+
+- exact `npm:web-push@3.6.7` 只負責 `generateRequestDetails`；固定 `aes128gcm`、DB-derived TTL、normal urgency 與
+  per-call VAPID，不使用 global VAPID state 或 library network sender。
+- Deno sender 重新驗 canonical subscription、endpoint／VAPID fingerprint、server provider policy 與全部 A＋AAAA；
+  只連 public exact IP，再以原 hostname 做 TLS，自己寫固定 HTTP/1.1 request、關閉 socket、不跟 redirect。
+- request／response header shape 都被限縮；response header 最多 16,384 bytes，與本機 Node runtime 實查及 Node
+  官方預設一致。總 deadline 包住 crypto、DNS、TCP、TLS、write 與 response。
+- active repo dispatcher 的 v2 route 仍只允許 local exact mode；Hosted 看到任何 v2 transport env 都 fail-closed，
+  legacy route 仍只讀 format 1。
+- 新增獨立 `notification-outbox-dispatch-v2-canary` source：Hosted 必須 exact manual-canary mode、專用 secret、
+  direct DB URL 與 generation，batch 固定 1；預設 503，不使用 cron secret，也不會被現行 cron 呼叫。
+- local 真實 composition 使用隨機 P-256 subscription／VAPID 與 Google `generate_204`，走 Edge→dedicated
+  Postgres role→同 transaction fresh-check→encrypted POST→pinned IP/TLS→HTTP 204→accepted/finalized；legacy row
+  保持不變。這只證明傳輸與 DB 結構，不是正式 FCM 或使用者收件驗收。
+- output 敏感值掃描未命中；fixture／env file／runtime／role password 全部清除或還原。
+
+驗證：targeted 55／55；本批 Edge／DB integration 2／2；完整 frontend CI 為 Node 627 total、622 passed／5 skipped，
+Playwright 348 passed／4 skipped、build 通過；完整 Supabase CI 為 DB 1,290／1,290、local API 4／4、desktop
+45／11 skipped、mobile 6／6，四組 Edge 為 1／1、1／1、1／1、2／2。DB lint 0 schema error、`git diff --check`
+通過。bundle 與 D2 相同，開發期仍只報告。
+
+2026-09-07 Hosted 唯讀重查：39 local／38 remote，dry-run 只列 D1 migration；Hosted 仍只有 version 14 legacy
+dispatcher，新 canary 未部署。runtime／4 legacy Push／7 outbox 與 v2 零資料基線不變；D3 secret 名稱都不存在。
+
+驗證後 local runtime 回到 `1|true|disabled|true|false` 且其餘 policy null；worker／canary／delivery／v2 outbox／v2
+transport 是 `0|0|0|0|0`，dedicated role password null、search path empty。
+
+下一步只等待「套 D1 migration」核可。role credential、D3 secrets、Function deploy、browser fixture、runtime policy、
+canary request、generation／cron／legacy cutoff 均未核可。完整證據與 Hosted 分段界線見
+`frontend-architecture-fa-03-dispatcher-d3a-deno-sender-2026-09-07.md`、
+`frontend-architecture-fa-03-dispatcher-d3-hosted-canary-preflight-2026-09-07.md`。
 
 ## FA-03 push-cleanup distributed limiter foundation（repo／local only）
 
@@ -2183,7 +2222,8 @@ Hosted deploy／secret／request／DB write：未執行
 - `FA-03B12.7` 的 browser provider-policy 契約衝突已依使用者選擇 A 解決：v1.3 與 B11.1 把 browser structure
   validator 和 server provider-policy 拆開；B12.7.3 browser HTTP transport 與 B12.7.4 local composition 也已完成。
   B12.8 已完成 local-only Edge HTTP／Auth／DB，B12.9 已完成 real browser-to-local-DB composition。production
-  provider origins 仍沒有實值，正式 wiring 與 dispatcher send-time policy 仍待實作；不得自行猜 provider 值。
+  provider policy secret 仍未設定；Hosted 4 筆現有 row 的 aggregate 都是 exact FCM origin，但正式設定前仍要重查，
+  不得把這次 aggregate 外推成永久 provider 清單。
 - 最新 development bundle 的 main 650,134／191,175 raw/gzip 仍在現有門檻；total 852,758／261,346 比目前
   參考值多 2,797／2,284 bytes。D8 允許開發期 report 繼續，release enforce 仍是 hard fail；第一個 production
   candidate 前須依 D9 用正式裝置、網路與 Web Vitals 重訂 release 基線。
@@ -2193,8 +2233,8 @@ Hosted deploy／secret／request／DB write：未執行
   production send。
 - outbox source/fanout/outcome、control/worker、account-delete audit、no-op source version，以及 D1 worker／delivery／
   finalizer DB barrier 已在 repo／local 完成 migration 與測試。先前 additive schema 已套 Hosted，但最新 D1 migration
-  沒有在 D2 查詢或套用；D2 compatible dispatcher 已接 repo 的 local-only route 並通過真實 Edge／DB／mock 測試，
-  但 production sender 與 Hosted route 尚未接線。
+  經 D3A 重查仍只在 local；D2 compatible dispatcher 與 D3A encrypted sender 已通過真實 local Edge／DB／network
+  測試，但 Hosted route 尚未接線。
 - 現行一般登出的 Auth session 已在 `FA-03B10.1` 改為 local scope，B10.2 也已建立 dormant browser
   capture／unsubscribe／reread seam；但 production importer、server-first cleanup 與 durable quarantine 尚未接線，
   所以 D2 仍未完整。
@@ -2218,8 +2258,8 @@ Hosted deploy／secret／request／DB write：未執行
   commands 並通過 transaction-lock integration，但尚未部署，不能把 local 證據誤稱成 production barrier 已啟用。
 - Web Push 與 PostgreSQL 沒有共同 transaction；Q6-A 已核可較弱但可實作的條件式邊界，仍須測試、
   監控並明列無法完全消除的斷線空檔。
-- 現行 web-push 預設 TTL 四週且沒有明確 timeout；endpoint 可控制 Edge outbound target。兩者都是
-  FA-03 deployment blocker，不能沿用隱含預設。
+- 現行 Hosted legacy dispatcher 的 web-push 仍是預設 TTL 四週且沒有明確 timeout；repo D3A sender 已改用
+  DB-derived TTL、總 deadline 與 send-time DNS/IP pinning，但尚未部署，不能把 local 修正誤稱為 production 已生效。
 - Hosted public-schema default privileges 對 app roles 過寬；`011` 已在 migration 內把 subscription ACL
   精確重設為 authenticated 無 raw 權限、service role 只有舊 dispatcher 必需的 SELECT／DELETE，Hosted 實查已
   符合。其他後續 public schema 物件仍須維持相同部署邊界。
@@ -2247,9 +2287,9 @@ Hosted deploy／secret／request／DB write：未執行
 - Supabase 官方 logging 文件與 C0 都證明 platform logs 會保存 `cf-connecting-ip` 與 `x-real-ip`；DB 只存 HMAC
   digest 無法去除平台層 raw IP。使用者已確認方案為 Free 並接受 1 天 retention。現行 privacy 頁只說 Vercel
   Analytics 不留 IP，沒有揭露 Supabase access logs；正式開放前必須另批更新。
-- `FA-03B11` 已建立 `canonical-endpoint-policy-v1` shared module，但 production provider-origin 實值、實機
-  release evidence 與 send-time DNS/socket 綁定仍不存在。module 完成不代表 production v2 enable／refresh 已可接收
-  endpoint，也不解除 destructive contract blocker。
+- `FA-03B11` 已建立 `canonical-endpoint-policy-v1` shared module；D3A 也完成 local send-time DNS/socket 綁定。
+  Hosted provider secret、真正 browser canary subscription 與 release evidence 仍不存在，因此 module／local sender 完成
+  不代表 production v2 enable／refresh 已可接收 endpoint，也不解除部署核可邊界。
 - Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
   side-effect-free healthcheck，因此本輪刻意沒有直接呼叫 hosted dispatcher。
 - `ds-bundle/` 是人工同步資料包；繼續使用前要確認與目前 UI/CSS 一致。
@@ -2260,10 +2300,10 @@ Hosted deploy／secret／request／DB write：未執行
 
 1. 確認分支為 `codex/frontend-architecture-execution`，先讀本文件、`FA-03B10` Push v2 contract v1.3、
    `frontend-architecture-fa-03-hosted-migration-apply-2026-09-04.md`、A4 handoff、FA-02 設計與 FA-03 preflight。
-   A4、B11、cleanup limiter、dispatcher D0.1／D0.2／D1／D2 local composition 與先前 Hosted additive migration 已完成；
-   不要重做、重套 migration 或自行填 production 值。D1／D2 可證明的範圍只有 repo／local；下一步先做 Hosted
-   唯讀重查與 production Deno-native sender 的 repo／local 證據。Hosted D1 migration、DB credential／secret、deploy、
-   control write 與 canary request 都要另行確認。
+   A4、B11、cleanup limiter、dispatcher D0.1／D0.2／D1／D2／D3A local composition 與先前 Hosted additive
+   migration 已完成；不要重做、重套 migration 或自行填 production 值。D3A 唯讀重查與 sender repo／local 證據也已
+   完成；下一步只等待套用 D1 migration 的明確核可。DB credential／secret、deploy、control write 與 canary request
+   仍要後續另行確認。
 2. 確認 `FA-03A2` contract、`FA-03A3` dormant schema、`FA-03A3.1` hotfix、`FA-03B1` Auth gate、
    `FA-03B2` quarantine DB boundary、`FA-03B3` local-only encrypted Edge、`FA-03B4` public-key asset、
    `FA-03B5` dormant IndexedDB storage、`FA-03B6` bounded browser cleanup transport 與 `FA-03B7` dormant
@@ -2280,7 +2320,7 @@ Hosted deploy／secret／request／DB write：未執行
    capture → unsubscribe → reread classification。
 3. 以 `npm run test:db` 的 1,290／1,290 作為 compatible runtime 的最新 local DB 基線；39 migration 從零重播、
    DB lint clean 與 local `public`／`private`／`notification_dispatcher_api` schema diff 空白是本機證據。Hosted 在
-   先前 apply 文件中已驗到 38／38；本批沒有重新查詢或套用 D1，因此不能寫成 remote 39。
+   2026-09-07 D3A 已重新查到 38 remote，dry-run 只列 `202609070001`；尚未套用，因此不能寫成 remote 39。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
    coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 v1.3 契約，A4 DB command、B11／B11.1 shared
    validator／hybrid envelope／independent key asset／Edge structural ports，以及 Postgres distributed limiter
@@ -2305,9 +2345,9 @@ Hosted deploy／secret／request／DB write：未執行
    verified proof／revision／401 retry／failure callback authority，B13.2 已由 production main 接上 hard-coded disabled
    shell，重型 runtime 未進 production 產物。B13.3 已查明 v2 實際有八種技術狀態，不能直接壓成四種；下一步先
    確認顯示分組、異常恢復與 privacy 已查證範圍。server-only origins 不得進 browser，也不得自行猜 production
-   provider／key。D1 local DB barrier 與 D2 local-only compatible source 已完成，但 production Deno-native sender、
-   Hosted D1 與 canary 尚未完成；此前不得接 Hosted v2 真實 request。未決定 timeout、排程與 backoff 前不可自行
-   填數字或加入 scheduler。
+   provider／key。D1 local DB barrier、D2 local-only compatible source 與 D3A Deno-native sender／獨立 canary source
+   已完成，但 Hosted D1 與 canary 尚未完成；此前不得接 Hosted v2 真實 request。未決定 timeout、排程與 backoff 前
+   不可自行填數字或加入 scheduler。
 5. contract 前重跑 hosted canonical／影響筆數；未再次確認前不得擦除、批次取消或直接 push 遠端。
 
 ## 進度紀錄
@@ -2378,3 +2418,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-07 | FA-03 dispatcher D1.1            | D2 adapter 前查出 D1 command 的 bigint JSON 尚未 cast text；已將 generation、各 ID 與 transport version 全部改成 canonical decimal string，避免 JavaScript 精度流失。39 migrations 從零重播、lint、52 targeted 與 DB 1,290／1,290 通過；本批未碰 Hosted。                                            |
 | 2026-09-07 | FA-03 dispatcher D1.2            | D2 parser 盤點續查出 request／delivery lease 與 TTL 毫秒欄位也是 bigint；已一併改為 canonical decimal string，測試明確檢查 JSON type。這是同一契約修正的完整收尾；本批未碰 Hosted。                                                                                                                          |
 | 2026-09-07 | FA-03 dispatcher D2              | active repo source 新增 local-only v2 Edge／dedicated DB role／mock provider composition；真實 send transaction lock、401 無 worker、accepted completion、legacy isolation 與完整 cleanup 均通過。Node 613／4 skipped、Playwright 348／4 skipped、DB 1,290／1,290 與四支 Edge 各 1／1；Hosted／Prod 未動。 |
+| 2026-09-07 | FA-03 dispatcher D3A             | Deno-native encrypted sender、16 KiB bounded response parser 與獨立 default-unavailable manual canary source 完成；local 真實 pinned IP／TLS／Web Push→204→DB accepted，完整 CI 通過。Hosted 仍 38 migrations／version 14 legacy dispatcher；等待只套 D1 migration 的核可。                                                       |

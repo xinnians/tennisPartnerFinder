@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createECDH, createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -199,8 +199,14 @@ function startHeldMockProvider() {
   };
 }
 
-function seedFixture({ hostUserId, recipientUserId }) {
-  const endpoint = `${PROVIDER_ORIGIN}/send/${randomUUID()}`;
+function seedFixture({
+  auth = "auth-d2-fixture",
+  endpoint = `${PROVIDER_ORIGIN}/send/${randomUUID()}`,
+  hostUserId,
+  p256dh = "p256dh-d2-fixture",
+  recipientUserId,
+  vapidFingerprintHex = randomBytes(32).toString("hex"),
+}) {
   const result = runLocalDatabaseSql(`
     begin;
 
@@ -299,9 +305,9 @@ function seedFixture({ hostUserId, recipientUserId }) {
         ${sqlLiteral(randomUUID())}::uuid,
         ${sqlLiteral(randomBytes(32).toString("hex"))},
         ${sqlLiteral(endpoint)},
-        'p256dh-d2-fixture',
-        'auth-d2-fixture',
-        ${sqlLiteral(randomBytes(32).toString("hex"))}
+        ${sqlLiteral(p256dh)},
+        ${sqlLiteral(auth)},
+        ${sqlLiteral(vapidFingerprintHex)}
       );
       if enable_result ->> 'kind' <> 'committed' then
         raise exception 'D2_PUSH_FIXTURE_FAILED';
@@ -717,5 +723,216 @@ test(
     }
     if (cleanupErrors.length === 1) throw cleanupErrors[0];
     if (cleanupErrors.length > 1) throw new AggregateError(cleanupErrors, "Local dispatcher v2 teardown failed.");
+  }
+);
+
+test(
+  "local dispatcher encrypts and sends one Deno-native pinned Web Push request",
+  { skip: !RUN_LOCAL_EDGE_TEST, timeout: TEST_TIMEOUT_MS },
+  async () => {
+    const { apiUrl } = loadLocalSupabaseConfig();
+    const functionUrl = `${apiUrl}/functions/v1/notification-outbox-dispatch-v2-canary`;
+    const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "qiuka-notification-dispatch-web-push-"));
+    const environmentPath = path.join(temporaryDirectory, "function.env");
+    const rolePassword = randomBytes(24).toString("hex");
+    const canarySecret = randomBytes(24).toString("hex");
+    const hostUserId = randomUUID();
+    const recipientUserId = randomUUID();
+    const subscriptionCurve = createECDH("prime256v1");
+    const subscriptionPublicKey = subscriptionCurve.generateKeys();
+    const subscriptionAuth = randomBytes(16).toString("base64url");
+    const vapidCurve = createECDH("prime256v1");
+    const vapidPublicKeyBytes = vapidCurve.generateKeys();
+    const vapidPublicKey = vapidPublicKeyBytes.toString("base64url");
+    const vapidPrivateKey = vapidCurve.getPrivateKey().toString("base64url");
+    const vapidFingerprintHex = createHash("sha256").update(vapidPublicKeyBytes).digest("hex");
+    const endpoint = "https://www.google.com/generate_204";
+    const runtimeSnapshot = runtimeControlSnapshot();
+    let fixture;
+    let child;
+    let childClosePromise;
+    let output = "";
+    let spawnFailed = false;
+    let testError;
+    let stage = "fixture setup";
+
+    try {
+      runLocalDatabaseSql(`
+        alter role notification_dispatcher password ${sqlLiteral(rolePassword)};
+        update private.notification_runtime_control
+        set worker_generation = ${TEST_GENERATION}::bigint,
+            dispatch_enabled = true,
+            new_runtime_mode = 'canary',
+            worker_lease_duration = interval '20 seconds',
+            request_deadline_duration = interval '8 seconds',
+            delivery_lease_duration = interval '15 seconds',
+            max_delivery_attempts = 3,
+            push_ttl_safety_budget = interval '0 seconds'
+        where singleton_id = 1;
+      `);
+      stage = "domain fixture setup";
+      fixture = seedFixture({
+        auth: subscriptionAuth,
+        endpoint,
+        hostUserId,
+        p256dh: subscriptionPublicKey.toString("base64url"),
+        recipientUserId,
+        vapidFingerprintHex,
+      });
+
+      const environment = [
+        "NOTIFICATION_DISPATCH_V2_CANARY_MODE=local-test-v1",
+        `NOTIFICATION_DISPATCH_V2_CANARY_SECRET=${canarySecret}`,
+        `NOTIFICATION_DISPATCH_V2_EXPECTED_GENERATION=${TEST_GENERATION}`,
+        `NOTIFICATION_DISPATCH_DATABASE_URL=postgresql://notification_dispatcher:${rolePassword}@host.docker.internal:54322/postgres?sslmode=disable`,
+        "WEB_PUSH_TRANSPORT=deno-native-web-push-v1",
+        'PUSH_PROVIDER_ORIGINS_V1=["https://www.google.com"]',
+        "WEB_PUSH_VAPID_SUBJECT=mailto:push-canary@example.test",
+        `WEB_PUSH_VAPID_PUBLIC_KEY=${vapidPublicKey}`,
+        `WEB_PUSH_VAPID_PRIVATE_KEY=${vapidPrivateKey}`,
+        "",
+      ].join("\n");
+      await writeFile(environmentPath, environment, { mode: 0o600 });
+      assert.equal((await stat(environmentPath)).mode & 0o777, 0o600);
+
+      child = spawn(
+        process.execPath,
+        [
+          SUPABASE_CLI,
+          "functions",
+          "serve",
+          "notification-outbox-dispatch-v2-canary",
+          "--no-verify-jwt",
+          "--env-file",
+          environmentPath,
+        ],
+        {
+          cwd: REPOSITORY_ROOT,
+          detached: true,
+          env: { ...process.env, SUPABASE_NO_UPDATE_NOTIFIER: "1" },
+          stdio: ["ignore", "pipe", "pipe"],
+        }
+      );
+      child.on("error", () => {
+        spawnFailed = true;
+      });
+      childClosePromise = new Promise((resolve) => {
+        child.once("close", (code, signal) => resolve({ code, signal }));
+      });
+      for (const stream of [child.stdout, child.stderr]) {
+        stream.setEncoding("utf8");
+        stream.on("data", (chunk) => {
+          output = `${output}${chunk}`.slice(-1024 * 1024);
+        });
+      }
+
+      stage = "runtime startup";
+      await waitUntilReady(functionUrl, child, () => spawnFailed);
+
+      stage = "encrypted Web Push send";
+      const response = await fetchWithTimeout(
+        functionUrl,
+        { headers: { "x-notification-v2-canary-secret": canarySecret }, method: "POST" },
+        30_000
+      );
+      const responseText = await response.text();
+      assert.equal(response.status, 200, responseText);
+      assert.deepEqual(JSON.parse(responseText), {
+        accepted: 1,
+        batchExhausted: true,
+        cancelled: 0,
+        claimed: 1,
+        failed: 0,
+        finalized: 1,
+        kind: "completed",
+        terminalized: 0,
+        version: 1,
+      });
+
+      stage = "database verification";
+      assert.equal(
+        runLocalDatabaseSql(`
+          select delivery_row.state || '|' || outbox_row.outcome || '|' || outbox_row.outcome_code
+          from private.notification_deliveries delivery_row
+          join public.notification_outbox outbox_row on outbox_row.id = delivery_row.outbox_id
+          where outbox_row.id = ${fixture.v2OutboxId}::bigint;
+        `).stdout.trim(),
+        "accepted|completed|deliveries_terminal_with_acceptance"
+      );
+      assert.equal(
+        runLocalDatabaseSql(`
+          select concat_ws('|', attempts::text, coalesce(sent_at::text, 'null'), outbox_format_version::text)
+          from public.notification_outbox where id = ${fixture.legacyOutboxId}::bigint;
+        `).stdout.trim(),
+        "0|null|1"
+      );
+
+      stage = "secret log scan";
+      await stopRuntime(child, childClosePromise);
+      child = undefined;
+      for (const sensitive of [
+        rolePassword,
+        canarySecret,
+        endpoint,
+        subscriptionAuth,
+        vapidPrivateKey,
+        vapidPublicKey,
+      ]) {
+        assert.equal(output.includes(sensitive), false, "Dispatcher output must not contain sender material.");
+      }
+    } catch (error) {
+      testError = new Error(
+        `Local dispatcher encrypted Web Push flow failed at ${stage}: ${String(error?.message ?? "unknown failure")}`,
+        { cause: error }
+      );
+    }
+
+    const cleanupErrors = [];
+    try {
+      if (child && childClosePromise) await stopRuntime(child, childClosePromise);
+    } catch (error) {
+      cleanupErrors.push(new Error("Encrypted sender runtime cleanup failed.", { cause: error }));
+    }
+    try {
+      cleanupFixture({ hostUserId, recipientUserId });
+    } catch (error) {
+      cleanupErrors.push(new Error("Encrypted sender database fixture cleanup failed.", { cause: error }));
+    }
+    try {
+      restoreRuntimeControl(runtimeSnapshot);
+    } catch (error) {
+      cleanupErrors.push(new Error("Encrypted sender runtime-control restore failed.", { cause: error }));
+    }
+    try {
+      runLocalDatabaseSql("alter role notification_dispatcher password null;");
+      assert.equal(
+        runLocalDatabaseSql(`
+          select (rolpassword is null)::text from pg_authid where rolname = 'notification_dispatcher';
+        `).stdout.trim(),
+        "true"
+      );
+    } catch (error) {
+      cleanupErrors.push(new Error("Encrypted sender role credential cleanup failed.", { cause: error }));
+    }
+    try {
+      await rm(temporaryDirectory, { force: true, recursive: true });
+    } catch (error) {
+      cleanupErrors.push(new Error("Encrypted sender temporary-file cleanup failed.", { cause: error }));
+    }
+
+    if (testError && cleanupErrors.length) {
+      throw new AggregateError([testError, ...cleanupErrors], "Encrypted sender test and teardown failed.");
+    }
+    if (testError) {
+      throw new Error(
+        `${testError.message}\nRuntime output:\n${output
+          .replaceAll(rolePassword, "<redacted>")
+          .replaceAll(canarySecret, "<redacted>")
+          .replaceAll(vapidPrivateKey, "<redacted>")}`,
+        { cause: testError }
+      );
+    }
+    if (cleanupErrors.length === 1) throw cleanupErrors[0];
+    if (cleanupErrors.length > 1) throw new AggregateError(cleanupErrors, "Encrypted sender teardown failed.");
   }
 );

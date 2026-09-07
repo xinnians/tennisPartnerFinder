@@ -409,9 +409,10 @@ test("mock configuration is exact and runtime errors never expose arbitrary text
   );
 });
 
-test("active source keeps hosted mock closed and legacy reads pinned to format 1", () => {
+test("active source keeps every v2 transport local-only and legacy reads pinned to format 1", () => {
   assert.match(INDEX_SOURCE, /\.eq\("outbox_format_version", 1\)/u);
-  assert.match(INDEX_SOURCE, /WEB_PUSH_TRANSPORT[\s\S]*WEB_PUSH_MOCK_FORBIDDEN/u);
+  assert.match(INDEX_SOURCE, /WEB_PUSH_TRANSPORT[\s\S]*WEB_PUSH_V2_TRANSPORT_FORBIDDEN/u);
+  assert.match(INDEX_SOURCE, /deno-native-web-push-v1/u);
   assert.match(INDEX_SOURCE, /NOTIFICATION_DISPATCH_DATABASE_URL/u);
   assert.doesNotMatch(INDEX_SOURCE, /connectionString:\s*env\("SUPABASE_DB_URL"\)/u);
 });
