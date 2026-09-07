@@ -182,14 +182,34 @@ test("non-home pages and sheets stay behind explicit preloadable module boundari
 });
 
 test("low-risk helpers stay private and auth preload runs only at the verified identity transition", () => {
+  const surfaceWiring = readStructureSource("unmountRegistrations").source;
   assert.equal((MAIN.match(/\bpreloadAuthenticatedViewsForAuth\(/g) ?? []).length, 1);
   assert.match(MAIN, /onAuthIdentityChange: \(context\) => \{\s*preloadAuthenticatedViewsForAuth\(context\.session\);/);
+  assert.equal((MAIN.match(/\bconfigureSessionViewSurfaces\(\);/g) ?? []).length, 1);
+  assert.ok(
+    MAIN.indexOf("configureSessionViewSurfaces();") < MAIN.indexOf("configureSessionViewModules({ appModule });")
+  );
   assert.match(SURFACE_HOST, /\binterface SurfaceSlot \{/);
   assert.doesNotMatch(SURFACE_HOST, /\bexport interface SurfaceSlot \{/);
-  assert.match(SESSION_VIEWS, /\bconst PROFILE_PUBLIC_DISCLOSURE\s*=/);
-  assert.doesNotMatch(SESSION_VIEWS, /\bexport const PROFILE_PUBLIC_DISCLOSURE\s*=/);
-  assert.match(SESSION_VIEWS, /\bconst sessionFormSheetRuntime\s*=\s*Object\.freeze\(/);
-  assert.doesNotMatch(SESSION_VIEWS, /\bexport const sessionFormSheetRuntime\s*=/);
+  assert.match(surfaceWiring, /\bconst PROFILE_PUBLIC_DISCLOSURE\s*=/);
+  assert.doesNotMatch(surfaceWiring, /\bexport const PROFILE_PUBLIC_DISCLOSURE\s*=/);
+  assert.match(surfaceWiring, /\bconst sessionFormSheetRuntime\s*=\s*Object\.freeze\(/);
+  assert.doesNotMatch(surfaceWiring, /\bexport const sessionFormSheetRuntime\s*=/);
+  const configureNames = [
+    "configureDiscoverySurfaceViews",
+    "configureSessionSurfaceViews",
+    "configureProfileSurfaceView",
+    "configureSessionFormViews",
+  ];
+  const configureOffsets = configureNames.map((name) => {
+    assert.equal((surfaceWiring.match(new RegExp(`\\b${name}\\(`, "g")) ?? []).length, 1);
+    assert.doesNotMatch(SESSION_VIEWS, new RegExp(`\\b${name}\\(`));
+    return surfaceWiring.indexOf(`${name}(`);
+  });
+  assert.deepEqual(
+    configureOffsets,
+    [...configureOffsets].sort((left, right) => left - right)
+  );
 });
 
 test("AppShell preserves navigation, toast, popover, and Escape accessibility contracts", () => {

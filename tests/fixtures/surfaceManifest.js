@@ -4,7 +4,7 @@ export const SURFACE_MANIFEST = Object.freeze({
   structureSources: Object.freeze({
     authenticatedPreload: "src/sessionViews.js",
     lazySurfaceLoaders: "src/views/surfaceLoaders.js",
-    unmountRegistrations: "src/sessionViews.js",
+    unmountRegistrations: "src/views/sessionViewWiring.js",
   }),
   sheetAdapters: namedList([
     "src/sheets/CourtPlayersSheet.tsx",

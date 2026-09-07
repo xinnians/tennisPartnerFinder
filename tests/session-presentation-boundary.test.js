@@ -144,8 +144,8 @@ test("sessionViews keeps only required presentation compatibility exports withou
   assert.doesNotMatch(views, /F2D|prettier-ignore/);
   assert.equal(
     (views.match(/Object\.freeze/g) ?? []).length,
-    1,
-    "only the create/edit form runtime remains legacy-owned"
+    0,
+    "the create/edit form runtime belongs to the dedicated surface wiring owner"
   );
 });
 

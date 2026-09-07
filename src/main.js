@@ -138,6 +138,7 @@ import {
 import { eligibilityFromPrivateProfile } from "./profile.ts";
 import { createRequestGate } from "./requestGate.ts";
 import { sessionIdFromHash } from "./sessionRoute.js";
+import { configureSessionViewSurfaces } from "./views/sessionViewWiring.js";
 
 const configuredErrorTransport = configureSentryErrorTransport({
   dsn: import.meta.env.VITE_SENTRY_DSN ?? "",
@@ -160,6 +161,7 @@ let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle"
 let controller;
 const authRequestGate = createRequestGate();
 const notificationPushV2Shell = createNotificationPushProductionShell({ mode: "disabled" });
+configureSessionViewSurfaces();
 configureSessionViewModules({ appModule });
 function getAppState() {
   return controller?.getAppState?.() ?? { authSession: null, courts: [], courtsReady: false, profile: null };

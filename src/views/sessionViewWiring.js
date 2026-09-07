@@ -1,0 +1,180 @@
+import { taipeiCourts } from "../sessionPresentation.ts";
+import { taipeiClock, taipeiDateTimeLocalValue } from "../taipeiTime.ts";
+import { configureDiscoverySurfaceViews } from "./discoverySurfaceViews.js";
+import { configureProfileSurfaceView } from "./profileSurfaceView.js";
+import {
+  bumpCreateTimeMinutes,
+  configureSessionFormViews,
+  createCandidateWindowLocal,
+  createFixedStartAtLocal,
+  createSessionDonePresentation,
+  createSessionFormCanPublish,
+  taipeiDateValue,
+} from "./sessionFormViews.js";
+import { configureSessionSurfaceViews } from "./sessionSurfaceViews.js";
+import {
+  deferSurfaceOpen,
+  lazySurfaceMounts,
+  preloadCourtPlayersSheet,
+  preloadCourtSessionSheet,
+  preloadCreateSessionSheet,
+  preloadDecideSessionSheet,
+  preloadEditSessionSheet,
+  preloadFilterSheet,
+  preloadPlayerCardSheet,
+  preloadPlayerDirectorySheet,
+  preloadProfileCompletionSheet,
+  preloadReportDialog,
+  preloadSessionChatSheet,
+  preloadSessionDetailSheet,
+  preloadSessionUnavailableSheet,
+  preloadWithdrawSessionConfirmationDialog,
+} from "./surfaceLoaders.js";
+
+const PROFILE_PUBLIC_DISCLOSURE =
+  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
+export const NTRP_SCALE_EXPLANATION =
+  "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
+
+/** Shared pure/runtime dependencies injected into the strict React form sheets. */
+const sessionFormSheetRuntime = Object.freeze({
+  bumpCreateTimeMinutes,
+  createCandidateWindowLocal,
+  createFixedStartAtLocal,
+  createSessionDonePresentation,
+  createSessionFormCanPublish,
+  taipeiClock,
+  taipeiCourts,
+  taipeiDateTimeLocalValue,
+  taipeiDateValue,
+});
+
+/** Configure every legacy-to-React surface boundary from the browser composition root. */
+export function configureSessionViewSurfaces() {
+  configureDiscoverySurfaceViews({
+    deferSurfaceOpen,
+    lazyMounts: {
+      get courtPlayers() {
+        return lazySurfaceMounts.courtPlayers;
+      },
+      get courtSession() {
+        return lazySurfaceMounts.courtSession;
+      },
+      get filter() {
+        return lazySurfaceMounts.filter;
+      },
+      get playerCard() {
+        return lazySurfaceMounts.playerCard;
+      },
+      get playerDirectory() {
+        return lazySurfaceMounts.playerDirectory;
+      },
+    },
+    preloadCourtPlayersSheet,
+    preloadCourtSessionSheet,
+    preloadFilterSheet,
+    preloadPlayerCardSheet,
+    preloadPlayerDirectorySheet,
+    registerCourtPlayersContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerCourtSessionContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerFilterContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerPlayerCardContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerPlayerDirectoryContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+  });
+
+  configureSessionSurfaceViews({
+    deferSurfaceOpen,
+    lazyMounts: {
+      get reportDialog() {
+        return lazySurfaceMounts.reportDialog;
+      },
+      get sessionChat() {
+        return lazySurfaceMounts.sessionChat;
+      },
+      get sessionDetail() {
+        return lazySurfaceMounts.sessionDetail;
+      },
+      get sessionUnavailable() {
+        return lazySurfaceMounts.sessionUnavailable;
+      },
+      get withdrawConfirmation() {
+        return lazySurfaceMounts.withdrawConfirmation;
+      },
+    },
+    preloadReportDialog,
+    preloadSessionChatSheet,
+    preloadSessionDetailSheet,
+    preloadSessionUnavailableSheet,
+    preloadWithdrawSessionConfirmationDialog,
+    registerChatContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerDetailContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerReportContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerUnavailableContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerWithdrawContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+  });
+
+  configureProfileSurfaceView({
+    deferSurfaceOpen,
+    lazyMounts: {
+      get profileCompletion() {
+        return lazySurfaceMounts.profileCompletion;
+      },
+    },
+    ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
+    preloadProfileCompletionSheet,
+    profilePublicDisclosure: PROFILE_PUBLIC_DISCLOSURE,
+    registerProfileContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+  });
+
+  configureSessionFormViews({
+    deferSurfaceOpen,
+    lazyMounts: {
+      get createSession() {
+        return lazySurfaceMounts.createSession;
+      },
+      get decideSession() {
+        return lazySurfaceMounts.decideSession;
+      },
+      get editSession() {
+        return lazySurfaceMounts.editSession;
+      },
+    },
+    ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
+    preloadCreateSessionSheet,
+    preloadDecideSessionSheet,
+    preloadEditSessionSheet,
+    profilePublicDisclosure: PROFILE_PUBLIC_DISCLOSURE,
+    registerCreateContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerDecideContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    registerEditContent(mounted, content) {
+      mounted.registerUnmount(content.unmount);
+    },
+    sessionFormSheetRuntime,
+  });
+}

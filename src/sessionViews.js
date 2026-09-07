@@ -1,36 +1,17 @@
 import { BANDS, DEFAULT_FILTER_STATE } from "./filters.ts"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 import { configureLoginModalContent } from "./sheets.ts";
-import { taipeiClock, taipeiDateTimeLocalValue } from "./taipeiTime.ts";
 import { esc } from "./util.js";
 import {
   runNotificationSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
   runPresenceSettingAction, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 } from "./sessionActions.ts";
-import {
-  taipeiCourts,
-  taipeiDayWord, // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
-} from "./sessionPresentation.ts";
-import {
-  bumpCreateTimeMinutes as bumpCreateTimeMinutesImpl,
-  configureSessionFormViews,
-  createCandidateWindowLocal as createCandidateWindowLocalImpl,
-  createFixedStartAtLocal as createFixedStartAtLocalImpl,
-  createSessionDonePresentation,
-  createSessionFormCanPublish as createSessionFormCanPublishImpl,
-  taipeiDateValue,
-} from "./views/sessionFormViews.js";
+import { taipeiDayWord } from "./sessionPresentation.ts"; // eslint-disable-line no-unused-vars -- 既有 JS lint 債；本批只擴大守門範圍，不改執行語意。
 import * as sessionFormViews from "./views/sessionFormViews.js";
-import { configureDiscoverySurfaceViews } from "./views/discoverySurfaceViews.js";
 import * as discoverySurfaceViews from "./views/discoverySurfaceViews.js";
-import { configureProfileSurfaceView } from "./views/profileSurfaceView.js";
 import * as profileSurfaceView from "./views/profileSurfaceView.js";
-import { configureSessionSurfaceViews } from "./views/sessionSurfaceViews.js";
 import * as sessionSurfaceViews from "./views/sessionSurfaceViews.js";
 import {
-  deferSurfaceOpen,
-  lazySurfaceMounts,
   preloadCourtPlayersSheet,
-  preloadCourtSessionSheet,
   preloadCreateSessionSheet,
   preloadDecideSessionSheet,
   preloadEditSessionSheet,
@@ -41,15 +22,10 @@ import {
   preloadReportDialog,
   preloadSessionChatSheet,
   preloadSessionDetailSheet,
-  preloadSessionUnavailableSheet,
   preloadWithdrawSessionConfirmationDialog,
 } from "./views/surfaceLoaders.js";
 export { messagesFromGroups, nearbySessionsSummaryText } from "./sessionPresentation.ts";
-
-const PROFILE_PUBLIC_DISCLOSURE =
-  "開球局後，這個暱稱與你的 NTRP 會顯示給瀏覽該球局的人；加入球局後，主揪與已接受球友可使用球局群組聊天。";
-export const NTRP_SCALE_EXPLANATION =
-  "NTRP 是網球程度自評分級：1.0 初學、2.5 能來回對打、3.5 能穩定控球、4.5 以上具比賽水準。";
+export { NTRP_SCALE_EXPLANATION } from "./views/sessionViewWiring.js";
 
 export function validateCreateSessionInput(input = {}, { now = new Date() } = {}) {
   return sessionFormViews.validateCreateSessionInput(input, { now });
@@ -224,103 +200,6 @@ const configureFilterToolbarInApp = (...args) => requireAppExport("configureFilt
 const syncFilterToolbarInApp = (...args) => requireAppExport("syncFilterToolbarInApp")(...args);
 const syncBottomNavigationInApp = (...args) => requireAppExport("syncBottomNavigationInApp")(...args);
 
-configureSessionSurfaceViews({
-  deferSurfaceOpen,
-  lazyMounts: {
-    get reportDialog() {
-      return lazySurfaceMounts.reportDialog;
-    },
-    get sessionChat() {
-      return lazySurfaceMounts.sessionChat;
-    },
-    get sessionDetail() {
-      return lazySurfaceMounts.sessionDetail;
-    },
-    get sessionUnavailable() {
-      return lazySurfaceMounts.sessionUnavailable;
-    },
-    get withdrawConfirmation() {
-      return lazySurfaceMounts.withdrawConfirmation;
-    },
-  },
-  preloadReportDialog,
-  preloadSessionChatSheet,
-  preloadSessionDetailSheet,
-  preloadSessionUnavailableSheet,
-  preloadWithdrawSessionConfirmationDialog,
-  registerChatContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerDetailContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerReportContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerUnavailableContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerWithdrawContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-});
-
-configureProfileSurfaceView({
-  deferSurfaceOpen,
-  lazyMounts: {
-    get profileCompletion() {
-      return lazySurfaceMounts.profileCompletion;
-    },
-  },
-  ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
-  preloadProfileCompletionSheet,
-  profilePublicDisclosure: PROFILE_PUBLIC_DISCLOSURE,
-  registerProfileContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-});
-
-configureDiscoverySurfaceViews({
-  deferSurfaceOpen,
-  lazyMounts: {
-    get courtPlayers() {
-      return lazySurfaceMounts.courtPlayers;
-    },
-    get courtSession() {
-      return lazySurfaceMounts.courtSession;
-    },
-    get filter() {
-      return lazySurfaceMounts.filter;
-    },
-    get playerCard() {
-      return lazySurfaceMounts.playerCard;
-    },
-    get playerDirectory() {
-      return lazySurfaceMounts.playerDirectory;
-    },
-  },
-  preloadCourtPlayersSheet,
-  preloadCourtSessionSheet,
-  preloadFilterSheet,
-  preloadPlayerCardSheet,
-  preloadPlayerDirectorySheet,
-  registerCourtPlayersContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerCourtSessionContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerFilterContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerPlayerCardContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerPlayerDirectoryContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-});
-
 const authenticatedViewPreloads = [
   preloadMePageInApp,
   preloadMessagesPageInApp,
@@ -403,46 +282,3 @@ if (typeof document !== "undefined") {
 }
 
 export { taipeiLocalDateTimeToIso } from "./taipeiTime.ts";
-
-/** Shared pure/runtime dependencies injected into the strict React form sheets. */
-const sessionFormSheetRuntime = Object.freeze({
-  bumpCreateTimeMinutes: bumpCreateTimeMinutesImpl,
-  createCandidateWindowLocal: createCandidateWindowLocalImpl,
-  createFixedStartAtLocal: createFixedStartAtLocalImpl,
-  createSessionDonePresentation,
-  createSessionFormCanPublish: createSessionFormCanPublishImpl,
-  taipeiClock,
-  taipeiCourts,
-  taipeiDateTimeLocalValue,
-  taipeiDateValue,
-});
-
-configureSessionFormViews({
-  deferSurfaceOpen,
-  lazyMounts: {
-    get createSession() {
-      return lazySurfaceMounts.createSession;
-    },
-    get decideSession() {
-      return lazySurfaceMounts.decideSession;
-    },
-    get editSession() {
-      return lazySurfaceMounts.editSession;
-    },
-  },
-  ntrpScaleExplanation: NTRP_SCALE_EXPLANATION,
-  preloadCreateSessionSheet,
-  preloadDecideSessionSheet,
-  preloadEditSessionSheet,
-  profilePublicDisclosure: PROFILE_PUBLIC_DISCLOSURE,
-  registerCreateContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerDecideContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  registerEditContent(mounted, content) {
-    mounted.registerUnmount(content.unmount);
-  },
-  sessionFormSheetRuntime,
-});
