@@ -4,7 +4,11 @@ import {
   readDispatcherV2DenoWebPushConfig,
 } from "../notification-outbox-dispatch/v2-deno-web-push.ts";
 import { runDispatcherV2Batch, safeDispatcherV2RuntimeErrorCode } from "../notification-outbox-dispatch/v2-runtime.js";
-import { dispatcherV2HostedCanaryAccess, readDispatcherV2HostedCanaryConfig } from "./runtime.js";
+import {
+  createDispatcherV2HostedCanarySenderEnvironment,
+  dispatcherV2HostedCanaryAccess,
+  readDispatcherV2HostedCanaryConfig,
+} from "./runtime.js";
 
 function env(name: string) {
   return Deno.env.get(name) ?? "";
@@ -37,7 +41,10 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const sendPrepared = await createDispatcherV2DenoWebPushSender(readDispatcherV2DenoWebPushConfig(env));
+    const canarySenderEnvironment = createDispatcherV2HostedCanarySenderEnvironment(env);
+    const sendPrepared = await createDispatcherV2DenoWebPushSender(
+      readDispatcherV2DenoWebPushConfig(canarySenderEnvironment)
+    );
     const result = await withNotificationDispatcherDatabase({
       connectionString: runtimeConfig.connectionString,
       operation: (database) =>

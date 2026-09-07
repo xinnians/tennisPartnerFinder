@@ -1,5 +1,14 @@
 const HOSTED_RUNTIME_MARKERS = Object.freeze(["DENO_DEPLOYMENT_ID", "SB_REGION"]);
 const POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807n;
+const CANARY_SENDER_ENVIRONMENT = Object.freeze({
+  PUSH_PROVIDER_ORIGINS_V1: "NOTIFICATION_DISPATCH_V2_CANARY_PROVIDER_ORIGINS_V1",
+  WEB_PUSH_TRANSPORT: "NOTIFICATION_DISPATCH_V2_CANARY_TRANSPORT",
+});
+const SHARED_VAPID_ENVIRONMENT = new Set([
+  "WEB_PUSH_VAPID_PRIVATE_KEY",
+  "WEB_PUSH_VAPID_PUBLIC_KEY",
+  "WEB_PUSH_VAPID_SUBJECT",
+]);
 
 function fixedError(code) {
   return new Error(code);
@@ -36,8 +45,8 @@ export function dispatcherV2HostedCanaryAccess(readEnvironment) {
 export function readDispatcherV2HostedCanaryConfig(readEnvironment) {
   const access = dispatcherV2HostedCanaryAccess(readEnvironment);
   const canarySecret = readEnvironment("NOTIFICATION_DISPATCH_V2_CANARY_SECRET");
-  const connectionString = readEnvironment("NOTIFICATION_DISPATCH_DATABASE_URL");
-  const expectedGeneration = readEnvironment("NOTIFICATION_DISPATCH_V2_EXPECTED_GENERATION");
+  const connectionString = readEnvironment("NOTIFICATION_DISPATCH_V2_CANARY_DATABASE_URL");
+  const expectedGeneration = readEnvironment("NOTIFICATION_DISPATCH_V2_CANARY_EXPECTED_GENERATION");
   if (
     !access.enabled ||
     !boundedSecret(canarySecret) ||
@@ -49,4 +58,14 @@ export function readDispatcherV2HostedCanaryConfig(readEnvironment) {
     throw fixedError("DISPATCH_V2_CANARY_CONFIG_INVALID");
   }
   return Object.freeze({ canarySecret, connectionString, expectedGeneration });
+}
+
+export function createDispatcherV2HostedCanarySenderEnvironment(readEnvironment) {
+  if (typeof readEnvironment !== "function") throw fixedError("DISPATCH_V2_CANARY_CONFIG_INVALID");
+  return Object.freeze((name) => {
+    const canaryName = CANARY_SENDER_ENVIRONMENT[name];
+    if (canaryName) return readEnvironment(canaryName);
+    if (SHARED_VAPID_ENVIRONMENT.has(name)) return readEnvironment(name);
+    return "";
+  });
 }
