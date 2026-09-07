@@ -49,6 +49,7 @@ interface LoginModalOptions {
 }
 
 interface AppProps {
+  messagesServices: Pick<AppServices["controller"], "openSessionChat" | "sessionStore">;
   snapshot: AppSnapshot;
 }
 
@@ -171,9 +172,11 @@ const MeDestination = memo(function MeDestination({
 const MessagesDestination = memo(function MessagesDestination({
   failed,
   loaded,
+  services,
 }: {
   failed: boolean;
   loaded: boolean;
+  services: Pick<AppServices["controller"], "openSessionChat" | "sessionStore">;
 }) {
   useEffect(() => {
     if (!loaded && !failed) void loadMessagesPage().catch(() => {});
@@ -181,7 +184,7 @@ const MessagesDestination = memo(function MessagesDestination({
   if (!MessagesPageComponent) return <PageLoading label={failed ? "訊息載入失敗，請重新整理。" : "正在載入訊息…"} />;
   return (
     <AppErrorBoundary resetKey={0} surface="messages-page">
-      <MessagesPageComponent />
+      <MessagesPageComponent onOpenChat={services.openSessionChat} sessionStore={services.sessionStore} />
     </AppErrorBoundary>
   );
 });
@@ -685,7 +688,7 @@ export function mountLoginModalContentInApp(
 }
 
 /** One React tree; legacy page containers remain stable portal targets while sessionViewWiring owns native listeners. */
-export function App({ snapshot: current }: AppProps) {
+export function App({ messagesServices, snapshot: current }: AppProps) {
   const messagesRoot = document.getElementById("messages-root");
   const toastRoot = document.getElementById("toast-root");
   const topbarRoot = document.getElementById("map-topbar-root");
@@ -701,7 +704,11 @@ export function App({ snapshot: current }: AppProps) {
         : null}
       {messagesRoot
         ? createPortal(
-            <MessagesDestination failed={messagesPageLoadFailed} loaded={Boolean(MessagesPageComponent)} />,
+            <MessagesDestination
+              failed={messagesPageLoadFailed}
+              loaded={Boolean(MessagesPageComponent)}
+              services={messagesServices}
+            />,
             messagesRoot,
             "messages"
           )
@@ -767,7 +774,7 @@ function renderApp(): void {
   if (!appServices) throw new Error("App services must be configured before the React root renders.");
   ensureAppRoot().render(
     <AppServicesProvider {...appServices}>
-      <App snapshot={snapshot} />
+      <App messagesServices={appServices.controller} snapshot={snapshot} />
     </AppServicesProvider>
   );
 }

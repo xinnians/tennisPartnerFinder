@@ -542,18 +542,6 @@ export const sessionChatSheetRuntime = Object.freeze({
   chatRosterPresentation,
 });
 
-export function messagesFromGroups(groups: Pick<MySessionsGroups, "history" | "upcoming"> = {}): SessionInput[] {
-  const upcoming = Array.isArray(groups?.upcoming) ? groups.upcoming : [];
-  const history = Array.isArray(groups?.history) ? groups.history : [];
-  return [...upcoming, ...history]
-    .filter((session) => {
-      const participantStatus = String(session?.viewerParticipantStatus ?? "").toLowerCase();
-      const status = String(session?.status ?? "").toLowerCase();
-      return participantStatus === "accepted" && status !== "cancelled" && status !== "expired";
-    })
-    .sort((left, right) => String(left?.startAt ?? "").localeCompare(String(right?.startAt ?? "")));
-}
-
 export function joinConfirmHintText(expectedAccepted: boolean): string {
   return expectedAccepted
     ? "確認後將直接加入這場球局，加入後即可在球局群組聊天協調細節。"

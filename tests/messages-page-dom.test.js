@@ -5,21 +5,6 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 
-async function retryAssertion(assertion, { timeoutMs = 1000 } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError;
-  while (Date.now() < deadline) {
-    try {
-      assertion();
-      return;
-    } catch (error) {
-      lastError = error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  throw lastError;
-}
-
 function createMessagesStoreState({ courts = [], mySessions = [] } = {}) {
   return {
     authEpoch: 1,
@@ -33,6 +18,20 @@ function createMessagesStoreState({ courts = [], mySessions = [] } = {}) {
   };
 }
 
+function legacyMessagesBoundaryFindings({ feature, page, provider }) {
+  const findings = [];
+  if (/\b(?:useMessagesState|useMessagesActions|MessagesServices|MessagesActions)\b/.test(provider)) {
+    findings.push("app-services-messages-bridge");
+  }
+  if (/AppServicesProvider|\buseMessages(?:State|Actions)\b/.test(page)) {
+    findings.push("messages-page-context-bridge");
+  }
+  if (/\b(?:mySessionRosters|groupMySessions|selectControllerMySessionsView)\b/.test(feature)) {
+    findings.push("messages-selector-roster-coupling");
+  }
+  return findings;
+}
+
 async function loadMessagesTestModules(t) {
   const vite = await createServer({
     appType: "custom",
@@ -42,25 +41,22 @@ async function loadMessagesTestModules(t) {
     server: { middlewareMode: true },
   });
   t.after(() => vite.close());
-  const [{ AppServicesProvider, useMessagesActions, useMessagesState }, { MessagesPage }, { createStore }, selectors] =
-    await Promise.all([
-      vite.ssrLoadModule("/src/app/AppServicesProvider.tsx"),
-      vite.ssrLoadModule("/src/pages/MessagesPage.tsx"),
-      vite.ssrLoadModule("/src/sessionStore.ts"),
-      vite.ssrLoadModule("/src/sessionSelectors.ts"),
-    ]);
+  const [{ MessagesPage }, { createStore }, messagesFeature] = await Promise.all([
+    vite.ssrLoadModule("/src/pages/MessagesPage.tsx"),
+    vite.ssrLoadModule("/src/sessionStore.ts"),
+    vite.ssrLoadModule("/src/features/messages/messagesFeature.ts"),
+  ]);
   return {
-    AppServicesProvider,
     createStore,
     MessagesPage,
-    selectControllerMySessionsView: selectors.selectControllerMySessionsView,
-    useMessagesActions,
-    useMessagesState,
+    messagesFromSessions: messagesFeature.messagesFromSessions,
+    selectMessagesCourts: messagesFeature.selectMessagesCourts,
+    selectMessagesSessions: messagesFeature.selectMessagesSessions,
   };
 }
 
 test("MessagesPage 輸出訊息標題、可開啟的球局列與未讀提示", async (t) => {
-  const { AppServicesProvider, createStore, MessagesPage } = await loadMessagesTestModules(t);
+  const { createStore, MessagesPage } = await loadMessagesTestModules(t);
   const sessionStore = createStore(
     createMessagesStoreState({
       courts: [{ id: 1, name: "大安運動中心" }],
@@ -79,9 +75,7 @@ test("MessagesPage 輸出訊息標題、可開啟的球局列與未讀提示", a
       ],
     })
   );
-  const controller = { openSessionChat: () => {}, sessionStore };
-
-  const html = renderToStaticMarkup(createElement(AppServicesProvider, { controller }, createElement(MessagesPage)));
+  const html = renderToStaticMarkup(createElement(MessagesPage, { onOpenChat: () => {}, sessionStore }));
 
   assert.match(html, /<h1[^>]*>訊息<\/h1>/);
   assert.match(html, /data-testid="messages-row-42"/);
@@ -90,9 +84,8 @@ test("MessagesPage 輸出訊息標題、可開啟的球局列與未讀提示", a
   assert.match(html, /aria-label="大安運動中心，[^\"]*，2 則未讀訊息"/);
 });
 
-test("useMessagesState 與既有 selector 產出同一份 Messages state 切片", async (t) => {
-  const { AppServicesProvider, createStore, selectControllerMySessionsView, useMessagesState } =
-    await loadMessagesTestModules(t);
+test("Messages 專用 selectors 只讀 mySessions 與 courts，且 roster 變動不影響結果", async (t) => {
+  const { createStore, selectMessagesCourts, selectMessagesSessions } = await loadMessagesTestModules(t);
   const sessionStore = createStore(
     createMessagesStoreState({
       courts: [{ id: 8, name: "訂閱測試球場" }],
@@ -109,46 +102,52 @@ test("useMessagesState 與既有 selector 產出同一份 Messages state 切片"
       ],
     })
   );
-  let observedState;
-  function StateProbe() {
-    observedState = useMessagesState();
-    return null;
-  }
-
-  renderToStaticMarkup(
-    createElement(
-      AppServicesProvider,
-      { controller: { openSessionChat: () => {}, sessionStore } },
-      createElement(StateProbe)
-    )
-  );
-
-  await retryAssertion(() => {
-    assert.deepStrictEqual(observedState, {
-      courts: sessionStore.getState().courts,
-      groups: selectControllerMySessionsView(sessionStore.getState()).groups,
-    });
+  const before = {
+    courts: selectMessagesCourts(sessionStore.getState()),
+    sessions: selectMessagesSessions(sessionStore.getState()),
+  };
+  sessionStore.setState({
+    mySessionRosters: new Map([["8842", [{ participantId: 99, role: "guest", status: "requested" }]]]),
   });
+  const after = {
+    courts: selectMessagesCourts(sessionStore.getState()),
+    sessions: selectMessagesSessions(sessionStore.getState()),
+  };
+
+  assert.deepStrictEqual(after, before);
+  assert.deepStrictEqual(
+    after.sessions.map((session) => session.sessionId),
+    [8842]
+  );
 });
 
-test("useMessagesActions 保留 ControllerApi openSessionChat 轉呼契約", async (t) => {
-  const { AppServicesProvider, createStore, useMessagesActions } = await loadMessagesTestModules(t);
+test("MessagesPage 直接使用 onOpenChat prop，不再經過 App services bridge", async (t) => {
+  const { createStore, MessagesPage } = await loadMessagesTestModules(t);
   const sessionStore = createStore(createMessagesStoreState());
-  const opened = [];
-  let actions;
-  function ActionsProbe() {
-    actions = useMessagesActions();
-    return null;
-  }
+  const html = renderToStaticMarkup(createElement(MessagesPage, { onOpenChat: () => {}, sessionStore }));
 
-  renderToStaticMarkup(
-    createElement(
-      AppServicesProvider,
-      { controller: { openSessionChat: (sessionId) => opened.push(sessionId), sessionStore } },
-      createElement(ActionsProbe)
-    )
+  assert.match(html, /data-messages-heading/);
+  const { readFile } = await import("node:fs/promises");
+  const sources = {
+    feature: await readFile(new URL("../src/features/messages/messagesFeature.ts", import.meta.url), "utf8"),
+    page: await readFile(new URL("../src/pages/MessagesPage.tsx", import.meta.url), "utf8"),
+    provider: await readFile(new URL("../src/app/AppServicesProvider.tsx", import.meta.url), "utf8"),
+  };
+  assert.deepStrictEqual(legacyMessagesBoundaryFindings(sources), []);
+
+  assert.deepStrictEqual(
+    legacyMessagesBoundaryFindings({
+      ...sources,
+      provider: `${sources.provider}\nexport function useMessagesState() {}`,
+    }),
+    ["app-services-messages-bridge"]
   );
-  await retryAssertion(() => assert.equal(typeof actions?.openSessionChat, "function"));
-  actions.openSessionChat("42");
-  await retryAssertion(() => assert.deepStrictEqual(opened, ["42"]));
+  assert.deepStrictEqual(
+    legacyMessagesBoundaryFindings({ ...sources, page: `${sources.page}\nuseMessagesActions();` }),
+    ["messages-page-context-bridge"]
+  );
+  assert.deepStrictEqual(
+    legacyMessagesBoundaryFindings({ ...sources, feature: `${sources.feature}\nstate.mySessionRosters;` }),
+    ["messages-selector-roster-coupling"]
+  );
 });

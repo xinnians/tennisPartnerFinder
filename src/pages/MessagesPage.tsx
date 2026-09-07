@@ -1,15 +1,19 @@
-import { useMessagesActions, useMessagesState } from "../app/AppServicesProvider.tsx";
-import type { CourtSummary, MySessionSummary, SessionSummary } from "../domainTypes.ts";
+import type { ControllerApi } from "../controllerContracts.ts";
+import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
 import {
-  messagesFromGroups,
-  sessionHostInitial,
-  sessionScheduleLabel,
-  sessionVenuePresentation,
-} from "../sessionPresentation.ts";
+  selectMessagesCourts,
+  selectMessagesSessions,
+  type MessagesSession,
+} from "../features/messages/messagesFeature.ts";
+import { sessionHostInitial, sessionScheduleLabel, sessionVenuePresentation } from "../sessionPresentation.ts";
+import { useStoreSelector } from "../sessionStore.ts";
 
-type MessagesSession = MySessionSummary & Partial<Pick<SessionSummary, "candidateCourtIds">>;
+type PresentedMessagesSession = MessagesSession & Partial<Pick<SessionSummary, "candidateCourtIds">>;
 
-function sessionCourtLabel(session: MessagesSession, venue: ReturnType<typeof sessionVenuePresentation>): string {
+function sessionCourtLabel(
+  session: PresentedMessagesSession,
+  venue: ReturnType<typeof sessionVenuePresentation>
+): string {
   const candidateNames = venue.candidateNames ?? [];
   return venue.undecidedCandidates
     ? `${candidateNames[0] ?? "候選球場待確認"}${candidateNames.length > 1 ? ` 等 ${candidateNames.length} 館候選` : ""}`
@@ -35,7 +39,7 @@ function MessageRow({
 }: {
   courts: CourtSummary[] | null;
   onOpenChat: (sessionId: string) => void;
-  session: MessagesSession;
+  session: PresentedMessagesSession;
 }) {
   const venue = sessionVenuePresentation(session, courts);
   const courtLabel = sessionCourtLabel(session, venue);
@@ -66,10 +70,16 @@ function MessageRow({
   );
 }
 
-export function MessagesPage() {
-  const { courts, groups } = useMessagesState();
-  const { openSessionChat } = useMessagesActions();
-  const rows = messagesFromGroups(groups) as MessagesSession[];
+export function MessagesPage({
+  onOpenChat,
+  sessionStore,
+}: {
+  onOpenChat: ControllerApi["openSessionChat"];
+  sessionStore: ControllerApi["sessionStore"];
+}) {
+  const current = sessionStore.getState();
+  const rows = useStoreSelector(sessionStore, "mySessions", selectMessagesSessions, selectMessagesSessions(current));
+  const courts = useStoreSelector(sessionStore, "courts", selectMessagesCourts, selectMessagesCourts(current));
   return (
     <>
       <div className="messages-page__head">
@@ -81,12 +91,7 @@ export function MessagesPage() {
       <div className="messages-page__list">
         {rows.length ? (
           rows.map((session) => (
-            <MessageRow
-              key={String(session.sessionId)}
-              session={session}
-              courts={courts}
-              onOpenChat={openSessionChat}
-            />
+            <MessageRow key={String(session.sessionId)} session={session} courts={courts} onOpenChat={onOpenChat} />
           ))
         ) : (
           <MessagesEmptyState />

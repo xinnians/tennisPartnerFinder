@@ -13,8 +13,6 @@ import { selectControllerMapView, selectControllerMySessionsView } from "../sess
 import { selectMeState } from "../sessionSelectors.ts";
 import { useStoreSelector } from "../sessionStore.ts";
 
-type MessagesServices = Pick<ControllerApi, "openSessionChat" | "sessionStore">;
-
 export interface MySessionsAppActions {
   onBack: () => unknown;
   onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => boolean;
@@ -58,12 +56,6 @@ export interface MePageView {
   notificationSettings: PageNotificationSettings;
   presenceLocationStatus: PageViewState["presenceLocationStatus"];
 }
-
-export type MessagesState = Pick<SessionControllerState, "courts"> & {
-  groups: ControllerMySessionGroups;
-};
-
-export type MessagesActions = Pick<MessagesServices, "openSessionChat">;
 
 type NearbyDrawerServices = Pick<
   ControllerApi,
@@ -153,10 +145,6 @@ function useAppServices(): AppServicesContextValue {
   return services;
 }
 
-function selectMessagesGroups(state: Readonly<SessionControllerState>): ControllerMySessionGroups {
-  return selectControllerMySessionsView(state).groups;
-}
-
 function selectMessagesCourts(state: Readonly<SessionControllerState>): SessionControllerState["courts"] {
   return state.courts;
 }
@@ -214,14 +202,6 @@ export function AppServicesProvider({
   return <AppServicesContext.Provider value={services}>{children}</AppServicesContext.Provider>;
 }
 
-export function useMessagesState(): MessagesState {
-  const { sessionStore } = useAppServices().controller;
-  const current = sessionStore.getState();
-  const groups = useStoreSelector(sessionStore, "mySessions", selectMessagesGroups, selectMessagesGroups(current));
-  const courts = useStoreSelector(sessionStore, "courts", selectMessagesCourts, selectMessagesCourts(current));
-  return { courts, groups };
-}
-
 export function useMeState() {
   const { blockedPlayers, sessionStore } = useAppServices().controller;
   const current = sessionStore.getState();
@@ -269,11 +249,6 @@ export function composeMePresence(
     openToGreeting: profile?.openToGreeting === true,
     sharePresence: profile?.sharePresence === true,
   };
-}
-
-export function useMessagesActions(): MessagesActions {
-  const { controller } = useAppServices();
-  return useMemo(() => ({ openSessionChat: controller.openSessionChat }), [controller]);
 }
 
 export function useNearbyDrawerState(): NearbyDrawerState {

@@ -1,6 +1,5 @@
 import { createRoot, type Root } from "react-dom/client";
 
-import { AppServicesProvider } from "../../src/app/AppServicesProvider.tsx";
 import type { ControllerApi, SessionControllerState } from "../../src/controllerContracts.ts";
 import type { CourtSummary, MySessionSummary } from "../../src/domainTypes.ts";
 import { MessagesPage } from "../../src/pages/MessagesPage.tsx";
@@ -57,10 +56,6 @@ export function mountMessagesAppHarness(
     sessionStore,
   } as ControllerApi;
   const root = createRoot(rootElement);
-  root.render(
-    <AppServicesProvider controller={controller}>
-      <MessagesPage />
-    </AppServicesProvider>
-  );
+  root.render(<MessagesPage onOpenChat={controller.openSessionChat} sessionStore={sessionStore} />);
   return { root, sessionStore, unmount: () => root.unmount() } as MessagesHarness;
 }
