@@ -1,7 +1,8 @@
 # FA-03 dispatcher D3 Hosted canary 前置確認
 
 日期：2026-09-07
-狀態：唯讀盤點與 repo／local sender 驗證完成；等待「只套 D1 migration」的獨立核可
+狀態：前置盤點保留；D1 migration 已於 2026-09-07 套用並驗證，結果見
+`frontend-architecture-fa-03-dispatcher-d1-hosted-apply-2026-09-07.md`
 
 ## 白話結論
 
@@ -102,4 +103,4 @@ source hash與實際 Function list，不能只用版本號推斷程式內容。
 ## 本文件沒有授權的事
 
 沒有 Hosted DB write、role credential、secret/env、Function deploy、request、canary profile、runtime control、generation、
-cron 或 legacy cutoff 變更。本次只等待 A 階段的明確同意。
+cron 或 legacy cutoff 變更。本文件完成當時只等待 A 階段同意；A 現已完成。B～D 仍未被 migration 的持續授權涵蓋。

@@ -3,6 +3,9 @@
 日期：2026-09-07
 狀態：repo 與 local 驗證完成；Hosted migration、secret、deploy、request 與 runtime control 都未變更
 
+後續狀態：使用者已授權所有 migration；D1 migration 於同日套用 Hosted 並完成驗證，結果見
+`frontend-architecture-fa-03-dispatcher-d1-hosted-apply-2026-09-07.md`。本文件以下 Hosted 內容保留 D3A commit 前快照。
+
 ## 白話結論
 
 新版 dispatcher 的正式 Web Push 傳送程式已完成，但目前只存在 repo，尚未部署到正式環境。
@@ -110,7 +113,7 @@ role search_path: empty
 
 ## 還不能宣稱完成的部分
 
-- D1 migration 尚未套到 Hosted，所以 Hosted 還沒有 command schema 與專用 role。
+- 本文件完成當時 D1 migration 尚未套到 Hosted；後續已套用並另有驗證文件。
 - 沒有 Hosted 專用 role credential、direct connection string、D3 secret、provider policy 或 production runtime policy。
 - 沒有 disposable browser canary subscription；Google `generate_204` 只證明傳輸結構，不證明真實 Push service 收件。
 - 沒有部署 active dispatcher 或獨立 canary Function，沒有送 Hosted request，也沒有 generation rotation。
