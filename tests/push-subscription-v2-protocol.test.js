@@ -377,7 +377,7 @@ test("the request body bound is derived from a valid 4096-byte endpoint fixture"
   assert.equal(textEncoder.encode(JSON.stringify(envelope)).byteLength, PUSH_SUBSCRIPTION_ENVELOPE_MAX_BYTES);
 });
 
-test("B11 ports are exact, inert, and only the dormant dispatcher core may import the shared policy", () => {
+test("B11 ports are exact, inert, and only reviewed dispatcher policy adapters may import the shared policy", () => {
   const noop = () => {};
   const ports = {
     enableCommand: noop,
@@ -400,7 +400,7 @@ test("B11 ports are exact, inert, and only the dormant dispatcher core may impor
     /push-cleanup-protocol|PUSH_CLEANUP_PUBLIC|PUSH_CLEANUP_PRIVATE/u
   );
 
-  const dormantDispatcherFile = "v2-egress.js";
+  const dispatcherPolicyFiles = ["v2-egress.js", "v2-local-mock.js"];
   const productionSources = ["../src/", "../supabase/functions/notification-outbox-dispatch/"]
     .flatMap((root) => {
       const rootUrl = new URL(root, import.meta.url);
@@ -411,7 +411,7 @@ test("B11 ports are exact, inert, and only the dormant dispatcher core may impor
             ? !["notificationPushSubscriptionLocalComposition.ts", "notificationPushSubscriptionTransport.ts"].includes(
                 path
               )
-            : path !== dormantDispatcherFile
+            : !dispatcherPolicyFiles.includes(path)
         )
         .map((path) => readFileSync(new URL(path, rootUrl), "utf8"));
     })
@@ -424,8 +424,11 @@ test("B11 ports are exact, inert, and only the dormant dispatcher core may impor
     .filter((path) =>
       /push-subscription-v2|pushSubscriptionV2/u.test(readFileSync(new URL(path, dispatcherDirectory), "utf8"))
     );
-  assert.deepEqual(dispatcherV2References, [dormantDispatcherFile]);
-  const dormantDispatcherSource = readFileSync(new URL(dormantDispatcherFile, dispatcherDirectory), "utf8");
-  assert.match(dormantDispatcherSource, /\.\.\/_shared\/push-subscription-v2-protocol\.js/u);
-  assert.doesNotMatch(dormantDispatcherSource, /Deno\.serve\s*\(|\bfetch\s*\(|sendNotification\s*\(|console\./u);
+  assert.deepEqual(dispatcherV2References.sort(), dispatcherPolicyFiles);
+  const dormantEgressSource = readFileSync(new URL("v2-egress.js", dispatcherDirectory), "utf8");
+  const localMockSource = readFileSync(new URL("v2-local-mock.js", dispatcherDirectory), "utf8");
+  assert.match(dormantEgressSource, /\.\.\/_shared\/push-subscription-v2-protocol\.js/u);
+  assert.match(localMockSource, /\.\.\/_shared\/push-subscription-v2-protocol\.js/u);
+  assert.doesNotMatch(dormantEgressSource, /Deno\.serve\s*\(|\bfetch\s*\(|sendNotification\s*\(|console\./u);
+  assert.doesNotMatch(localMockSource, /Deno\.serve\s*\(|sendNotification\s*\(|console\./u);
 });

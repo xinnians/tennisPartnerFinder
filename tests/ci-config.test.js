@@ -227,25 +227,33 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/v2-*.js" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/v2-*.js" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
   );
 });
 
-test("ESLint applies real JS and TypeScript rules to Push Edge and dormant dispatcher boundaries", async () => {
+test("ESLint applies real JS and TypeScript rules to Push Edge and dispatcher boundaries", async () => {
   const eslint = new ESLint({ cwd: REPOSITORY_ROOT });
-  const [sharedConfig, javascriptConfig, subscriptionConfig, dispatcherConfig, outcomeConfig, typescriptConfig] =
-    await Promise.all([
-      eslint.calculateConfigForFile("supabase/functions/_shared/push-cleanup-protocol.js"),
-      eslint.calculateConfigForFile("supabase/functions/push-cleanup/crypto.js"),
-      eslint.calculateConfigForFile("supabase/functions/push-subscription-v2/crypto.js"),
-      eslint.calculateConfigForFile("supabase/functions/notification-outbox-dispatch/v2-egress.js"),
-      eslint.calculateConfigForFile("supabase/functions/notification-outbox-dispatch/v2-outcome.js"),
-      eslint.calculateConfigForFile("supabase/functions/push-cleanup/index.ts"),
-    ]);
+  const [
+    sharedConfig,
+    javascriptConfig,
+    subscriptionConfig,
+    dispatcherConfig,
+    outcomeConfig,
+    typescriptConfig,
+    dispatcherDatabaseConfig,
+  ] = await Promise.all([
+    eslint.calculateConfigForFile("supabase/functions/_shared/push-cleanup-protocol.js"),
+    eslint.calculateConfigForFile("supabase/functions/push-cleanup/crypto.js"),
+    eslint.calculateConfigForFile("supabase/functions/push-subscription-v2/crypto.js"),
+    eslint.calculateConfigForFile("supabase/functions/notification-outbox-dispatch/v2-egress.js"),
+    eslint.calculateConfigForFile("supabase/functions/notification-outbox-dispatch/v2-outcome.js"),
+    eslint.calculateConfigForFile("supabase/functions/push-cleanup/index.ts"),
+    eslint.calculateConfigForFile("supabase/functions/notification-outbox-dispatch/v2-database.ts"),
+  ]);
 
   assert.equal(sharedConfig?.rules?.["no-undef"]?.[0], 2);
   assert.equal(javascriptConfig?.rules?.["no-undef"]?.[0], 2);
@@ -254,6 +262,8 @@ test("ESLint applies real JS and TypeScript rules to Push Edge and dormant dispa
   assert.equal(outcomeConfig?.rules?.["no-undef"]?.[0], 2);
   assert.equal(typescriptConfig?.languageOptions?.parser?.meta?.name, "typescript-eslint/parser");
   assert.equal(typescriptConfig?.rules?.["@typescript-eslint/no-unused-vars"]?.[0], 2);
+  assert.equal(dispatcherDatabaseConfig?.languageOptions?.parser?.meta?.name, "typescript-eslint/parser");
+  assert.equal(dispatcherDatabaseConfig?.rules?.["@typescript-eslint/no-unused-vars"]?.[0], 2);
 });
 
 test("the session unit aggregate registers every top-level unit test except the local API suite", () => {
@@ -548,6 +558,10 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
     PACKAGE.scripts["test:local:notification-dispatch-v2-edge"],
     "RUN_LOCAL_NOTIFICATION_DISPATCH_V2_CANARY_TEST=1 node --test --test-concurrency=1 tests/notification-dispatch-v2-edge-local.test.js"
   );
+  assert.equal(
+    PACKAGE.scripts["test:local:notification-outbox-dispatch-v2-edge"],
+    "RUN_LOCAL_NOTIFICATION_OUTBOX_DISPATCH_V2_EDGE_TEST=1 node --test --test-concurrency=1 tests/notification-outbox-dispatch-v2-edge-local.test.js"
+  );
   assert.deepEqual(scriptCommands("test:ci:supabase"), [
     "node scripts/generate-courts-seed.mjs --check",
     "npm run test:db",
@@ -556,6 +570,7 @@ test("Supabase CI owns reset, pgTAP, desktop, and mobile browser journeys", () =
     "npm run test:local:push-cleanup-edge",
     "npm run test:local:push-subscription-v2-edge",
     "npm run test:local:notification-dispatch-v2-edge",
+    "npm run test:local:notification-outbox-dispatch-v2-edge",
     "git diff --check",
   ]);
   assert.match(supabaseJob, /run: npm run test:ci:supabase/);

@@ -2,6 +2,12 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.0";
 import webpush from "npm:web-push@3.6.7";
 
 import { classifyPushStatus, notificationTitle, safePushPayload, toWebPushSubscription } from "./dispatch.js";
+import {
+  dispatcherV2RuntimeAccess,
+  readDispatcherV2LocalConfig,
+  runDispatcherV2Batch,
+  safeDispatcherV2RuntimeErrorCode,
+} from "./v2-runtime.js";
 
 const MAX_BATCH_SIZE = 100;
 
@@ -28,17 +34,6 @@ function pushMessage(eventType: string, payload: Record<string, unknown>) {
   };
 }
 
-async function sendMockPush(subscription: Record<string, unknown>, message: Record<string, unknown>) {
-  const mockUrl = env("PUSH_TEST_URL");
-  if (!mockUrl) throw new Error("PUSH_TEST_URL_REQUIRED");
-  const response = await fetch(mockUrl, {
-    body: JSON.stringify({ message, subscription }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-  return response.status;
-}
-
 async function sendWebPush(subscription: Record<string, unknown>, message: Record<string, unknown>) {
   const subject = env("WEB_PUSH_VAPID_SUBJECT");
   const publicKey = env("WEB_PUSH_VAPID_PUBLIC_KEY");
@@ -51,7 +46,6 @@ async function sendWebPush(subscription: Record<string, unknown>, message: Recor
 }
 
 async function sendPush(subscription: Record<string, unknown>, message: Record<string, unknown>) {
-  if (env("WEB_PUSH_TRANSPORT") === "mock") return sendMockPush(subscription, message);
   return sendWebPush(subscription, message);
 }
 
@@ -60,11 +54,41 @@ function statusFromError(error: unknown) {
   return Number.isInteger(status) ? status : null;
 }
 
+async function runLocalV2Dispatch() {
+  try {
+    const [{ withNotificationDispatcherDatabase }, localMock] = await Promise.all([
+      import("./v2-database.ts"),
+      import("./v2-local-mock.js"),
+    ]);
+    const config = readDispatcherV2LocalConfig(env);
+    const mockConfig = localMock.readDispatcherV2LocalMockConfig(env);
+    const sendPrepared = await localMock.createDispatcherV2LocalMockSender(mockConfig);
+    const result = await withNotificationDispatcherDatabase({
+      connectionString: env("NOTIFICATION_DISPATCH_DATABASE_URL"),
+      operation: (database) =>
+        runDispatcherV2Batch({
+          ...config,
+          database,
+          sendPrepared,
+        }),
+    });
+    return json(result);
+  } catch (error) {
+    const code = safeDispatcherV2RuntimeErrorCode(error);
+    console.error(JSON.stringify({ code, count: 1, statusCode: null }));
+    return json({ error: code }, 500);
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "METHOD_NOT_ALLOWED" }, 405);
   if (request.headers.get("x-notification-cron-secret") !== env("NOTIFICATION_CRON_SECRET")) {
     return json({ error: "UNAUTHORIZED" }, 401);
   }
+
+  const runtimeAccess = dispatcherV2RuntimeAccess(env);
+  if (runtimeAccess.localTestEnabled) return runLocalV2Dispatch();
+  if (env("WEB_PUSH_TRANSPORT") === "mock") return json({ error: "WEB_PUSH_MOCK_FORBIDDEN" }, 500);
 
   const supabaseUrl = env("SUPABASE_URL");
   const serviceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY");
@@ -74,6 +98,7 @@ Deno.serve(async (request) => {
   const { data: outboxRows, error: outboxError } = await client
     .from("notification_outbox")
     .select("id,event_type,recipient_profile_id,session_id,payload,attempts")
+    .eq("outbox_format_version", 1)
     .is("sent_at", null)
     .lt("attempts", 3)
     .order("created_at", { ascending: true })
@@ -83,10 +108,7 @@ Deno.serve(async (request) => {
 
   const recipientIds = [...new Set((outboxRows ?? []).map((row) => row.recipient_profile_id))];
   const { data: subscriptionRows, error: subscriptionError } = recipientIds.length
-    ? await client
-        .from("push_subscriptions")
-        .select("profile_id,endpoint,p256dh,auth")
-        .in("profile_id", recipientIds)
+    ? await client.from("push_subscriptions").select("profile_id,endpoint,p256dh,auth").in("profile_id", recipientIds)
     : { data: [], error: null };
   if (subscriptionError) return json({ error: "SUBSCRIPTION_READ_FAILED" }, 500);
 
@@ -133,7 +155,7 @@ Deno.serve(async (request) => {
           "[dispatch] send failed:",
           String(err?.name ?? "Error"),
           Number(err?.statusCode) || null,
-          String(err?.message ?? "").slice(0, 160),
+          String(err?.message ?? "").slice(0, 160)
         );
         result = classifyPushStatus(statusFromError(error));
       }

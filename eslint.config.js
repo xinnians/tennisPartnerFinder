@@ -68,7 +68,7 @@ export default tseslint.config(
   {
     files: [
       "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.js",
-      "supabase/functions/notification-outbox-dispatch/v2-*.js",
+      "supabase/functions/notification-outbox-dispatch/*.js",
     ],
     extends: [js.configs.recommended],
     languageOptions: {
@@ -76,7 +76,10 @@ export default tseslint.config(
     },
   },
   {
-    files: ["supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.ts"],
+    files: [
+      "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary}/**/*.ts",
+      "supabase/functions/notification-outbox-dispatch/*.ts",
+    ],
     extends: [...tseslint.configs.recommended],
     languageOptions: {
       globals: globals.denoBuiltin,
