@@ -7,6 +7,7 @@ import {
   NotificationPushProductionShellError,
   PUSH_PRODUCTION_SHELL_ERROR_CODES,
 } from "../src/notificationPushProductionShell.ts";
+import { createNotificationPushSignOutContinuation } from "../src/notificationPushSignOutContinuation.ts";
 import { createNotificationPushRuntimeComposition } from "../src/notificationPushRuntimeComposition.ts";
 import { encodeBase64Url } from "../supabase/functions/_shared/push-cleanup-protocol.js";
 
@@ -75,8 +76,50 @@ test("the production shell is statically wired disabled and never loads the Push
   assert.match(mainSource, /createNotificationPushProductionShell\(\{ mode: "disabled" \}\)/u);
   assert.match(mainSource, /onAuthVerificationAuthority/u);
   assert.match(mainSource, /onAuthVerificationFailure/u);
+  assert.match(mainSource, /createNotificationPushSignOutContinuation\(\{/u);
+  assert.match(
+    mainSource,
+    /processPushSignOut: \(input\) => notificationPushV2Shell\.processCurrentDeviceSignOut\(input\)/u
+  );
+  assert.match(mainSource, /onSignOut: notificationPushSignOutContinuation\.processCurrentDeviceSignOut/u);
   assert.doesNotMatch(mainSource, /notificationPushRuntimeComposition/u);
   assert.match(shellSource, /return import\("\.\/notificationPushRuntimeComposition\.ts"\)/u);
+});
+
+test("the production outer continuation single-flights Auth while the disabled shell stays dormant", async () => {
+  let authCalls = 0;
+  let releaseAuth;
+  let runtimeLoads = 0;
+  const authPending = new Promise((resolve) => {
+    releaseAuth = resolve;
+  });
+  const shell = createNotificationPushProductionShell({
+    loadRuntime: async () => {
+      runtimeLoads += 1;
+      throw new Error("disabled shell must not load runtime");
+    },
+    mode: "disabled",
+  });
+  const continuation = createNotificationPushSignOutContinuation({
+    processPushSignOut: (input) => shell.processCurrentDeviceSignOut(input),
+    signOutCurrentDevice: () => {
+      authCalls += 1;
+      return authPending;
+    },
+  });
+
+  const first = continuation.processCurrentDeviceSignOut();
+  const duplicate = continuation.processCurrentDeviceSignOut();
+  assert.equal(first, duplicate);
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(authCalls, 1);
+  assert.equal(runtimeLoads, 0);
+
+  releaseAuth();
+  await first;
+  assert.equal(authCalls, 1);
+  assert.equal(runtimeLoads, 0);
 });
 
 test("an enabled shell lazy-loads once, shares one runtime, and replaces it only for a new Auth authority", async () => {

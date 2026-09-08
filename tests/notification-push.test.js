@@ -45,6 +45,7 @@ const PUSH_SIGN_OUT_CONTINUATION_URL = new URL("../src/notificationPushSignOutCo
 const PUSH_SIGN_OUT_CONTINUATION_SOURCE = readFileSync(PUSH_SIGN_OUT_CONTINUATION_URL, "utf8");
 const PUSH_PRODUCTION_SHELL_URL = new URL("../src/notificationPushProductionShell.ts", import.meta.url);
 const PUSH_RUNTIME_COMPOSITION_URL = new URL("../src/notificationPushRuntimeComposition.ts", import.meta.url);
+const PRODUCTION_MAIN_URL = new URL("../src/main.js", import.meta.url);
 
 function sourceFiles(directoryUrl) {
   return readdirSync(directoryUrl, { withFileTypes: true }).flatMap((entry) => {
@@ -221,6 +222,14 @@ test("the Push sign-out coordinator is referenced only by the lazy production co
     .filter((sourceUrl) => /notificationPushSignOutCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
   assert.deepEqual(references, [PUSH_PRODUCTION_SHELL_URL, PUSH_RUNTIME_COMPOSITION_URL]);
+});
+
+test("the sign-out continuation is referenced only by the hard-coded default-off production main", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SIGN_OUT_CONTINUATION_URL.href)
+    .filter((sourceUrl) => /notificationPushSignOutContinuation/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, [PRODUCTION_MAIN_URL]);
 });
 
 test("the abortable operation helper is referenced only by dormant Push boundaries and the disabled shell", () => {

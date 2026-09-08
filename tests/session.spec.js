@@ -1196,7 +1196,16 @@ test("the authenticated Me identity card shows the profile and signing out resto
   await expect(page.locator("[data-link-provider='custom:line']")).toBeVisible();
   const signOutButton = page.getByTestId("me-sign-out");
   await expect(signOutButton).toBeVisible();
-  await signOutButton.click();
+  let logoutRequests = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/auth/v1/logout") {
+      logoutRequests += 1;
+    }
+  });
+  await signOutButton.evaluate((button) => {
+    button.click();
+    button.click();
+  });
 
   await expect(page.getByTestId("me-sign-in")).toBeVisible();
   await expect(page.getByTestId("me-sign-out")).toHaveCount(0);
@@ -1205,6 +1214,7 @@ test("the authenticated Me identity card shows the profile and signing out resto
     page.locator(`#my-upcoming-sessions [data-open-my-session][data-session-id='${sessionId}']`)
   ).toHaveCount(0);
   await expect(page.locator("#toast-root")).toContainText("已登出");
+  expect(logoutRequests).toBe(1);
 });
 
 test("authenticated players persist the authoritative court subscription set without district migration UI", async ({

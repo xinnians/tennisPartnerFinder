@@ -109,6 +109,7 @@ import {
   defaultNotificationSettings,
 } from "./features/notifications/notificationFeature.ts";
 import { createNotificationPushProductionShell } from "./notificationPushProductionShell.ts";
+import { createNotificationPushSignOutContinuation } from "./notificationPushSignOutContinuation.ts";
 import { createSessionChatOpener } from "./features/chat/chatSessionWiring.ts";
 import { createPageRouteOwner } from "./features/navigation/pageRouteOwner.ts";
 import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
@@ -165,6 +166,10 @@ let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle"
 let controller;
 const authRequestGate = createRequestGate();
 const notificationPushV2Shell = createNotificationPushProductionShell({ mode: "disabled" });
+const notificationPushSignOutContinuation = createNotificationPushSignOutContinuation({
+  processPushSignOut: (input) => notificationPushV2Shell.processCurrentDeviceSignOut(input),
+  signOutCurrentDevice: handleSignOut,
+});
 configureSessionViewSurfaces();
 configureSessionViewModules({ appModule });
 function getAppState() {
@@ -646,7 +651,7 @@ function init() {
       onSetOpenToGreeting: updateOpenToGreetingSetting,
       onSetPresenceSharing: updatePresenceSharing,
       onSignIn: () => openSafeLogin({ action: "me" }),
-      onSignOut: handleSignOut,
+      onSignOut: notificationPushSignOutContinuation.processCurrentDeviceSignOut,
       supportHref: supportContactHref(),
     },
     mySessionsApp: {
