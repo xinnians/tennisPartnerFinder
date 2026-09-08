@@ -29,6 +29,7 @@ import {
   PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES,
   PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER,
   PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER,
+  PUSH_CLEANUP_SOURCE_PROBE_RESULTS,
 } from "../supabase/functions/push-cleanup/handler.js";
 import {
   canonicalIpAddress,
@@ -40,6 +41,7 @@ import {
   parseCanonicalRateLimitPolicy,
   PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER,
   PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES,
+  PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER,
   PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES,
   PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION,
   trustedHostedClientAddress,
@@ -816,6 +818,85 @@ test("hosted limiter canary requires its exact POST token and never reaches body
       limiterCalls: 2,
       quarantineCalls: 0,
     }
+  );
+});
+
+test("authorized hosted source probe returns only a fixed comparison result and bypasses all mutable paths", async () => {
+  let bodyReads = 0;
+  let keyLoads = 0;
+  let limiterCalls = 0;
+  let quarantineCalls = 0;
+  const handler = createPushCleanupHandler({
+    allowedOrigin: ALLOWED_ORIGIN,
+    authorizeHostedLimiterCanary: (request) =>
+      matchesHostedLimiterCanaryToken(FIXED_TOKEN, request.headers.get(PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER)),
+    consumeRateLimit: async () => {
+      limiterCalls += 1;
+      return "ALLOW";
+    },
+    hostedLimiterCanaryEnabled: true,
+    hostedRuntime: true,
+    loadKeyRing: async () => {
+      keyLoads += 1;
+      return testKeyRing;
+    },
+    localTestEnabled: false,
+    quarantineByDigest: async () => {
+      quarantineCalls += 1;
+      return "OK";
+    },
+  });
+  const sourceProbeRequest = ({ cloudflareAddress, probeAddress, token = FIXED_TOKEN }) => ({
+    get body() {
+      bodyReads += 1;
+      throw new Error("body must remain unread");
+    },
+    headers: new Headers({
+      "cf-connecting-ip": cloudflareAddress,
+      [PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER]: token,
+      [PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER]: probeAddress,
+    }),
+    method: "POST",
+  });
+
+  const cases = [
+    {
+      cloudflareAddress: "203.0.113.8",
+      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.CLIENT_VALUE,
+      probeAddress: "203.0.113.8",
+    },
+    {
+      cloudflareAddress: "203.0.113.9",
+      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.NOT_CLIENT_VALUE,
+      probeAddress: "203.0.113.8",
+    },
+    {
+      cloudflareAddress: "2001:db8::1",
+      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.CLIENT_VALUE,
+      probeAddress: "2001:0DB8:0:0::1",
+    },
+    {
+      cloudflareAddress: "203.0.113.8",
+      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.INVALID,
+      probeAddress: "not-an-ip",
+    },
+  ];
+  for (const { cloudflareAddress, expectedStage, probeAddress } of cases) {
+    assert.deepEqual(await responseShape(await handler(sourceProbeRequest({ cloudflareAddress, probeAddress }))), {
+      ...expectedResponse("RETRY", 503, null),
+      canaryStage: expectedStage,
+    });
+  }
+
+  assert.deepEqual(
+    await responseShape(
+      await handler(sourceProbeRequest({ cloudflareAddress: "203.0.113.8", probeAddress: "203.0.113.8", token: "" }))
+    ),
+    expectedResponse("RETRY", 503, null)
+  );
+  assert.deepEqual(
+    { bodyReads, keyLoads, limiterCalls, quarantineCalls },
+    { bodyReads: 0, keyLoads: 0, limiterCalls: 0, quarantineCalls: 0 }
   );
 });
 
