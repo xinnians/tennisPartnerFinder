@@ -131,6 +131,8 @@ production cleanup 的實際 caller、build、Hosted 現況與可用流量依據
 `frontend-architecture-fa-03b13-6e-hosted-staged-deploy-preflight-2026-09-08.md`。
 最新第 40 支 Hosted migration 套用、DB no-op、ACL／hash／aggregate 驗證在
 `frontend-architecture-fa-03b13-6f-hosted-disabled-noop-migration-2026-09-08.md`。
+最新 Git／Vercel／五支 Hosted Function 的 default-off production rollout、HTTP／browser／cron／DB 驗證在
+`frontend-architecture-fa-03b13-6g-production-default-off-rollout-2026-09-08.md`。
 
 ## 目前狀態
 
@@ -138,12 +140,12 @@ production cleanup 的實際 caller、build、Hosted 現況與可用流量依據
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 目前批次                | `FA-03B13.6f` Hosted 停點 M 完成：唯一 pending `202609080001` 已套用，現為 40／40；local／Hosted function definition MD5 相同，disabled begin 實測回 no-op 且 worker 0。runtime／資料／Function 版本／Secret／cron 全部維持基線                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell／B13.3 dormant UI mapping＋privacy／B13.4 dormant sign-out cleanup／B13.5 timeout preflight／B13.5a～B13.5d／B13.6 activation audit／B13.6a Hosted subscription source gate／B13.6b dispatcher topology／B13.6c dedicated v2 source／B13.6d disabled no-op／B13.6e staged deploy preflight／B13.6f Hosted migration、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 40 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1～6B.5 已完成；第一個 vertical slice 完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                                             |
-| runtime 變更            | Auth gate、current-device local sign-out、default-off sign-out outer single-flight、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／sign-out cleanup coordinator／sign-out continuation／AbortSignal 接縫／owner RPC adapter／`getRegistration()` sign-out read／shell current-owner check／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、Hosted-compatible 但 default-off 的 Push v2 entrypoint、default-off app composition shell、dormant 8-state presentation mapping、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 default-off v2 dispatcher entry、DB／runtime disabled no-op、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner、Messages 專用資料邊界與 app-owned Chat surface wiring 已落地；active Auth sign-out Push cleanup、v2 active UI、SW、Hosted active dispatcher 尚未完成 |
+| 目前批次                | `FA-03B13.6g` default-off production rollout 完成：`origin/main` 與 `qiuka.tw` 都是 `1a3a4cb`，40／40 migration 與五支 Function 已部署；legacy cron 16／16 HTTP 200，三支 v2 probe 都在 hard gate 回 503，DB aggregate 不變                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell／B13.3 dormant UI mapping＋privacy／B13.4 dormant sign-out cleanup／B13.5 timeout preflight／B13.5a～B13.5d／B13.6 activation audit／B13.6a～B13.6g default-off production rollout、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 40 份 Hosted migration、五支 production Function 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A～6B.5 已完成；第一個 vertical slice 完成；v2 capability 已部署但 runtime／UI／cron／keys 仍停用                                                                                                                                                                                                                                                                                                                            |
+| runtime 變更            | Auth gate、current-device local sign-out、default-off sign-out outer single-flight、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／sign-out cleanup coordinator／sign-out continuation／AbortSignal 接縫／owner RPC adapter／`getRegistration()` sign-out read／shell current-owner check／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、default-off app composition shell、dormant 8-state presentation mapping、dispatcher egress／outcome core、D1 DB barrier、D2 compatible source、D3A Deno-native sender、獨立 v2 dispatcher entry、DB／runtime disabled no-op、Hosted canary、cleanup limiter、Chat feed owner、Messages 資料邊界與 app-owned Chat surface wiring 已落地；相關 server capability 已部署 Hosted，但 active Auth sign-out cleanup、v2 UI、public-key assets、v2 cron 與 runtime 仍未啟用 |
 | migration 變更          | 40 local／40 Hosted，最新皆為 `202609080001`；linked dry-run up to date。disabled begin local／Hosted 定義 MD5 相同，ACL／lint／aggregate 驗證通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | bundle checker／CI 變更 | production checker 已分開 development report／release enforce 並報 raw／gzip／Brotli；design-system checker 鎖 13 份 CSS 順序、產生檔、50 tokens、9 張卡的 viewport／ID／source citation integrity，並在 390×844 實際量全部可操作項目。production root 與卡片共用同一個對稱式 44px scanner；required CI 跑兩個 checker，WebKit 由獨立 targeted run 驗證                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 下一步                  | 等待確認外部停點 A：只 deploy active legacy dispatcher，使它明確只查 format 1；動作前保存 version 41 source，動作後驗 exact source hash／Function HTTP log／DB aggregate。不同時部署 v2、不改 Secret／cron／runtime                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 下一步                  | 先補 production policy／timeout／lease／attempt／TTL、active keys 與 v2 cron 的可追溯依據；再做 browser/provider canary，最後依既定順序啟用 runtime／UI 與 legacy cutoff。目前 default-off deployment 已完成，不重 deploy、不猜數字                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 查實際 Git 狀態：
 
@@ -2255,7 +2257,7 @@ Hosted apply、Function deploy、Secret／cron／request／DB write／runtime co
 本批只有 Hosted metadata／source／Secret name／DB aggregate／cron history 唯讀查證；沒有 migration apply、deploy、request、
 Secret／cron／runtime／資料變更，也沒有 push remote。
 
-下一步等待確認，只做停點 M。M 通過後才另做 A；不一次推全部 production 變更。
+後續 M／A／B 已因使用者要求加速，在 B13.6f／B13.6g 完成並逐項驗收；本段只保留當時的 preflight 基線。
 
 ## FA-03B13.6f Hosted disabled no-op migration
 
@@ -2279,7 +2281,33 @@ Hosted apply 的既有 platform ACL baseline 完全相同。完整證據與並�
 本批唯一外部寫入是第 40 支 migration。沒有 Function deploy／request、Secret value read／mutation、cron／runtime／資料、
 Git remote 或 Vercel 變更。
 
-下一步：外部停點 A 只更新 legacy dispatcher，會被現有每分鐘 cron 自動呼叫，仍須獨立確認；不和 v2 deploy 合併。
+後續：使用者要求加速後，停點 A 與 default-off B 已在 B13.6g 完成並分項驗收；本段保留 migration 批次本身的結果。
+
+## FA-03B13.6g production default-off rollout
+
+已完成：
+
+- 依使用者明確要求加速並推送全部安全變更，`origin/main` fast-forward 到 `1a3a4cb`；Vercel production
+  deployment `dpl_BbdDasmg61cgydN1wmwTi2ZgJoiw` 為 `READY`，`qiuka.tw` 已指向該 deployment。
+- production root、CSS／JS／manifest／icon／SW 都是 HTTP 200。desktop 1280×900 與 mobile 390×844 的 Chromium
+  冒煙測試都能載入實際內容並開啟篩選面板，framework overlay 0、HTTP >= 400 為 0。
+- legacy dispatcher 更新為 version 42；dedicated v2、subscription v2、cleanup 也已 default-off 部署，五個 Hosted
+  Function directory 和 repo 逐檔相同。
+- 三個 data-free production probe 都在 hard gate 停止：dispatcher v2 503／`DISPATCH_V2_UNAVAILABLE`、subscription
+  v2 503／`unavailable`、cleanup 503／`RETRY`。
+- 部署後 Hosted DB 查到唯一 active HTTP cron 是 legacy dispatcher、v2 cron 0；固定時間窗 16 個 response 全是 HTTP
+  200、無 timeout/error，最新五筆全為 0 claim／0 send／0 stale。
+- migration 仍為 40／40、dry-run up to date。runtime mode disabled、所有 policy null；workers／deliveries／consents／
+  registry／limiter／v2 data 都是 0，4 legacy Push 與 7 sent legacy outbox 保持不變。
+- production 兩個 v2 public-key asset 因 env 未設定而 404＋`no-store`；這是已驗證的 fail-closed 狀態，不冒充 active
+  v2 已啟用。
+
+本批沒有設定 Secret value、production policy、v2 cron 或 runtime；沒有建立 browser subscription、送 provider Push、
+清資料或切 legacy cutoff。完整 deployment ID、Function hash、HTTP／browser／cron／DB 證據見
+`frontend-architecture-fa-03b13-6g-production-default-off-rollout-2026-09-08.md`。
+
+下一步不是重 deploy，而是先取得 lease／deadline／attempt／TTL／limiter policy、active keys 與 v2 schedule 的可追溯
+依據，再做 browser/provider canary，最後才啟用 runtime／UI 與 legacy cutoff。
 
 ## FA-03 dispatcher generation／canary barrier 前置盤點
 
@@ -3096,13 +3124,13 @@ Hosted deploy／secret／request／DB write：未執行
 - `FA-03B11` 已建立 `canonical-endpoint-policy-v1` shared module；D3A 也完成 local send-time DNS/socket 綁定。
   Hosted B 已設定 canary-only provider secret，但真正 browser canary subscription 與 release evidence 仍不存在，因此
   module／local sender 完成不代表 production v2 enable／refresh 已可接收 endpoint；active provider 值仍未設定。
-- Vault 與 Edge 的 cron secret 目前只證明兩邊存在，metadata 不能證明值相同；現行 function 沒有
-  side-effect-free healthcheck，因此本輪刻意沒有直接呼叫 hosted dispatcher。
+- B13.6g 已由唯一 active HTTP cron 的 16 個實際 response 證明 legacy Vault／Edge cron secret 可用：16／16 HTTP 200、
+  最新五筆全是 0 claim／0 send／0 stale。Secret value 仍未被讀出或寫入。
 - `ds-bundle` 的 CSS／token mirror、9 張卡片校正、integrity gate 與批次 C production 觸控修正已完成。390×844
   的 16 個 production 狀態／99 筆量測皆無小於 44px；mock marker 不冒充 Google runtime。card 精確剩餘 desktop
   37／mobile 16 筆，mobile 全在 Buttons／Chips 缺 production container 的展示脈絡；下一批 D 修卡片與加 size gate。
-- C1 Hosted diagnostic 已停在 `SOURCE` 並完整復原；local source substage 已完成。再次 Hosted deploy／secret／
-  request 前仍須取得新核可；最小範圍是 2 secrets、2 requests、零 DB write。
+- C1 Hosted diagnostic 的歷史 temporary resource 已完整復原；B13.6g 現已把 final `push-cleanup` source default-off 部署，
+  無 production policy／key 時固定 503／RETRY，limiter row 仍是 0。
 
 ## 下一個 session 的起點
 
@@ -3111,7 +3139,8 @@ Hosted deploy／secret／request／DB write：未執行
    A4、B11、cleanup limiter、dispatcher D0.1／D0.2／D1／D2／D3A local composition 與先前 Hosted additive
    migration 已完成；不要重做、重套 migration 或自行填 production 值。D3A 唯讀重查、sender repo／local 證據與
    D1 Hosted migration、專用 DB credential、六個 canary-only Secret、獨立 canary deploy 與 no-write probe 都已完成。
-   不要重做 Hosted B，也不要把 canary 設定改成 active 設定。Hosted C 的真實 browser fixture／`dispatch` 仍要產品確認；
+   B13.6g 已把五支 final Function default-off 部署，不要重做 Hosted B，也不要把 canary 設定改成 active 設定；
+   Hosted C 的真實 browser fixture／provider `dispatch` 仍待具體測試材料與 policy；
    FA-04 phase 0a／0b 與 FA-05 phase 1／2／3 已完成；production preview／效能基線與 Bundle ADR 不要重做。
    FA-06 階段 4 preflight、4.1 manifest、4.2 loader、4.3 configure、4.4 app-module／preload wiring、4.5 評估與
    4.6 facade 完整退役、stage 5 blockedPlayers preflight 與 5.1 facade 實作已完成；不要恢復 `sessionViews.js`、
@@ -3145,14 +3174,16 @@ Hosted deploy／secret／request／DB write：未執行
 3. 以 `npm run test:db` 的 1,294／1,294 作為 compatible runtime 的最新 local DB 基線；40 migration 從零重播、
    DB lint clean 是本機證據。第 40 支 `202609080001` 已完成 dispatcher disabled no-op 與 local Edge 驗證，並於 B13.6f
    依持續 migration 授權套 Hosted；現為 40／40、dry-run up to date，local／Hosted function definition MD5 相同。
-   Hosted rollback transaction 回 exact disabled、worker 0，runtime／資料／Function／Secret／cron 基線不變；不要重套。
+   Hosted rollback transaction 回 exact disabled、worker 0；B13.6g 後 migration 仍 40／40、dry-run clean，runtime／資料
+   aggregate 不變。五支 Function 已 default-off 部署且逐檔符合 repo；不要重套 migration 或重 deploy 同一 source。
 4. `FA-03B5`～`FA-03B9` 已建立 dormant storage、bounded cleanup transport、owner RPC adapter、single-attempt
    coordinator 與 Auth-failure handoff seam；`FA-03B10` 已固定 v1.3 契約，A4 DB command、B11／B11.1 shared
    validator／hybrid envelope／independent key asset／Edge structural ports，以及 Postgres distributed limiter
    foundation 已完成。2026-09-04 Hosted 已套完 13 份 migration，4 筆 legacy Push row 保留、1 筆 reminder
    sentinel update 完成，runtime 仍 disabled。Cleanup C0、C1 stage diagnostic、三次 source probe、D45 source trust
    與 D46 limiter canary 都已完成並復原；最新 Hosted limiter 證據為 1 未授權＋20 授權、1 ALLOW／19 LIMIT、
-   exact 2 limiter rows 與 Function／RPC log exact 21／20，最後 `push-cleanup`、cleanup Secret 與 limiter row 全為 0。
+   exact 2 limiter rows 與 Function／RPC log exact 21／20，當時 temporary `push-cleanup`、cleanup Secret 與 limiter row 全為
+   0；B13.6g 已重新部署 final default-off `push-cleanup`，Secret／policy／limiter row 仍為 0。
    production wiring／流量盤點也已完成：現有 build 的 client trigger 為 0，一次未來 action 最多 2 POST；沒有
    live rollout 證據前不能猜 production policy／timeout，也不能移除 hard gate。
    `FA-03B12.1` 已完成 exact `auth-unverified` → `subscription_changed` pending cleanup 的原子 B5 action；B12.2
@@ -3175,11 +3206,12 @@ Hosted deploy／secret／request／DB write：未執行
    B13.5c dormant continuation core 已完成，B13.5d 已接 hard-coded disabled production outer wiring，真實雙擊只送一次 Auth
    logout 且 Push browser／network 副作用為 0。active cleanup、deadline、endpoint 與 runtime 仍未接；不得為了接線自行猜數字。
    server-only origins 不得進 browser，也不得
-   自行猜 production provider／key。D1 local DB barrier、D2 local-only compatible source 與 D3A Deno-native sender／獨立 canary source、
-   Hosted D1 與 Hosted B no-write probe 都已完成；active source 未部署、`dispatch` 未呼叫、browser fixture 未建立、runtime
+   自行猜 production provider／key。D1 DB barrier、D2 compatible source、D3A Deno-native sender／獨立 canary source 與
+   Hosted no-write probe 都已完成；B13.6g 已部署 source，但 browser fixture 未建立、provider `dispatch` 未呼叫、runtime
    未啟用。未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
-5. 所有 migration 已獲持續授權，不再逐支詢問；每次仍須先重跑 hosted canonical／影響筆數並在套用後驗證。未再次確認前
-   不得擦除資料、批次取消、直接 push 遠端，或執行 deploy／secret／runtime／request／legacy cutoff。
+5. 所有 migration 已獲持續授權；使用者也已明確授權本次 Git／Vercel／Function default-off rollout。後續每次仍須先驗
+   canonical／影響範圍並在動作後驗證；不得自行擦除資料、批次取消、填入無依據 production 值、啟用 v2 runtime 或切
+   legacy cutoff。
 
 ## 進度紀錄
 
@@ -3308,4 +3340,5 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-08 | FA-03B13.6c                      | 新增獨立 default-off v2 dispatcher：Hosted／local exact mode、bounded cron auth、canonical generation／batch 與 namespaced config fail-closed；授權前零 sender／DB，Hosted 禁 mock。unit 8／8、local Edge 2／2、Node 738（733／5）、Chromium 386（382／4）、build 535，bundle 不變。程式 `25cd2ea`；Hosted／migration／cron／Secret／request 未動。                                           |
 | 2026-09-08 | FA-03B13.6d                      | 第 40 支 additive migration 讓 DB dispatch／runtime mode 停用都在 worker insert 前回 no-op；runtime 零 claim／sender／finish，entrypoint lazy sender。40 migrations 重播、pgTAP 56、DB 1,294、local Edge 2、Node 741（736／5）、Chromium 386（382／4）全過。程式 `da44bab`；Hosted 實查仍 39，dry-run 只差本支，未 apply／deploy／改 Secret／cron／runtime。                                  |
 | 2026-09-08 | FA-03B13.6e                      | Hosted 唯讀重驗 40 local／39 remote、唯一 pending `202609080001`；legacy 41／canary 25、正式 v2 Function／cron 0，runtime disabled、worker／delivery／v2 data 0。legacy `dispatch.js` byte-identical，index 差異皆為已知隔離改動；固定 M／A／B 三停點。本批未 apply／deploy／request／改 Secret／cron／runtime。                                                                              |
-| 2026-09-08 | FA-03B13.6f                      | 依持續 migration 授權完成停點 M：唯一 `202609080001` 套用後 40／40、dry-run clean，local／Hosted function MD5 相同；Hosted begin exact disabled、worker 0。lint clean，strict diff 與既有 ACL baseline 完全相同；runtime／資料／Function 41／25、17 Secrets、cron 皆不變。下一步停點 A 仍待 deploy 確認。                                                                                     |
+| 2026-09-08 | FA-03B13.6f                      | 依持續 migration 授權完成停點 M：唯一 `202609080001` 套用後 40／40、dry-run clean，local／Hosted function MD5 相同；Hosted begin exact disabled、worker 0。lint clean，strict diff 與既有 ACL baseline 完全相同；runtime／資料／Function 41／25、17 Secrets、cron 皆不變。後續 deploy 已記於 B13.6g。                                                                                         |
+| 2026-09-08 | FA-03B13.6g                      | 依使用者加速要求完成 default-off production rollout：`origin/main`／`qiuka.tw` 為 `1a3a4cb`，Vercel READY；40／40 migration、五支 Function deployed 且逐檔符合 repo。legacy cron 16／16 HTTP 200；三支 v2 probe exact 503，runtime/policy/DB data 不變。desktop/mobile 正式站載入與篩選互動通過；active keys／cron／UI／runtime 仍關閉。                                              |
