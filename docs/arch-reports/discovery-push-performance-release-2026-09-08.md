@@ -1,6 +1,6 @@
 # 探索完整性、推播啟用與效能驗收
 
-日期：2026-09-08。狀態：探索已上線；Hosted 推播收件與 deep link 通過、登出修正版待實機複驗；效能驗收完成，慢速手機 LCP 未達標。
+日期：2026-09-08。狀態：探索已上線；Android 推播收件、deep link、登出清理均通過，v2 已正式啟用；效能驗收完成，慢速手機 LCP 未達標。
 
 ## 已確認的範圍
 
@@ -33,10 +33,12 @@
 - Vercel production 已設公開 v2 flag 與兩組獨立 RSA 公鑰資產；Edge 私鑰、限流 HMAC 與專用 dispatcher DB 憑證只存服務端。cleanup policy 的 canonical JSON 順序已修正，真實加密未知 capability 請求回覆 200／OK。
 - Ian 指定帳號經 runtime status 開放灰度，Android Chrome 訂閱成功；使用專用 QA 主揪經真實 `invite_to_session` RPC 產生事件，frozen fanout 派送 1 台装置。
 - Hosted worker 回覆 accepted 1／failed 0，delivery ledger 為 accepted、attempts 1、error_code null；claim 至 finalize 約 650ms，整次 Edge 請求約 2.8 秒。這是一筆實測，不能推導延遲 p95。
-- 使用者確認 Android 收到邀請且點擊開啟正確球局。首次登出暴露上述按鈕問題，未將這次失敗記為通過，也尚未全面啟用。
+- 使用者確認 Android 收到邀請且點擊開啟正確球局。首次登出暴露上述按鈕問題，修正後再次由 Android 完成登入與登出；後端確認 `state=paused`、`reason_code=user_logout`、對應 transport 數為 0，登出清理複驗通過。
 - 舊 transport 由 4 筆降至 3 筆，原因是 Android 原 endpoint 轉為 v2。剩下舊訂閱繼續使用 legacy dispatcher；pending legacy 與重試耗盡均為 0。
+- 正式 runtime 已切至 `enabled`，generation 1；v2 與 legacy 排程均 active。2026-09-08 17:45（台北）v2 cron 實際觸發，HTTP 200、timed_out=false，worker `completed / normal_exit`。空佇列的 claimed／failed 均 0；真實通知派送則由前述 Android 邀請驗收涵蓋。
+- 已移除唯一驗收球局與兩個專用 QA Auth 帳號、檔案及其連帶資料，保留 Ian 與其他既有帳號。正式開局流程在測試建立球局的同一交易內移除該測試球局的初始通知，避免向其他球場訂閱者發出驗收訊息。
 
-完成登出複驗後，執行 `npx supabase db query --linked --file scripts/enable-notification-dispatch-v2.sql`。此操作檢查既有灰度參數和 Vault 設定，建立每分鐘 v2 排程，再改 runtime 為 enabled；保留 legacy writes 與原排程。pg_net deadline 明確設為 90 秒，容納每批至多 50 秒的 provider 等待，避免使用預設 5 秒而誤報逾時。後續必須確認排程實際啟動 worker 及 HTTP 200。
+登出複驗後已執行 `npx supabase db query --linked --file scripts/enable-notification-dispatch-v2.sql`。此操作檢查既有灰度參數和 Vault 設定，建立每分鐘 v2 排程，再改 runtime 為 enabled；保留 legacy writes 與原排程。pg_net deadline 明確設為 90 秒，容納每批至多 50 秒的 provider 等待，避免使用預設 5 秒而誤報逾時；已確認排程實際啟動 worker 及 HTTP 200。
 
 初始灰度參數是待實測校準的操作上限，不能視為 production latency 測量結果：每批 5 筆、provider deadline 10 秒、delivery lease 30 秒、worker lease 120 秒、最多 3 次嘗試、TTL 安全量 1 秒。單批 provider 最壞等待 50 秒，保留 DB／排程餘裕並低於平台 150 秒 free wall-clock 上限。cleanup 限流初值 global burst 30／每秒回補 1，來源 burst 3／20 秒回補 1，閒置 600 秒。事件有效期：聊天至多 1 小時，其他事件至多 24 小時，均受球局開始後 2 小時限制；提醒到開始時間為止。
 
