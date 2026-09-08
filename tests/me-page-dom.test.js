@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createElement } from "react";
+import { act, createElement } from "react";
+import { Window } from "happy-dom";
+import { createRoot } from "react-dom/client";
+import { createNotificationPushSignOutContinuation } from "../src/notificationPushSignOutContinuation.ts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 
@@ -153,6 +156,50 @@ test("MePage 輸出登入身分、設定區與服務連結", async (t) => {
   assert.match(html, /data-testid="player-visibility-toggle"/);
   assert.match(html, /data-testid="blocked-player-list"/);
   assert.match(html, /mailto:support@example\.test/);
+});
+
+test("MePage 真實登出點擊先清理推播，不把 React event 傳入 continuation", async (t) => {
+  const window = new Window({ url: "http://localhost/" });
+  const globals = { window, document: window.document, IS_REACT_ACT_ENVIRONMENT: true };
+  const originals = new Map(Object.keys(globals).map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  Object.assign(globalThis, globals);
+  const { AppServicesProvider, createStore, MePage } = await loadMeTestModules(t);
+  const rootElement = window.document.createElement("div");
+  window.document.body.append(rootElement);
+  const root = createRoot(rootElement);
+  t.after(async () => {
+    await act(async () => root.unmount());
+    for (const [key, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
+    }
+    window.close();
+  });
+  const calls = [];
+  const continuation = createNotificationPushSignOutContinuation({
+    processPushSignOut: async () => {
+      calls.push("push-cleanup");
+      return { kind: "completed" };
+    },
+    signOutCurrentDevice: async () => {
+      calls.push("auth-sign-out");
+    },
+  });
+  await act(async () =>
+    root.render(
+      createElement(
+        AppServicesProvider,
+        {
+          controller: createController(createStore(createMeStoreState())),
+          meApp: createMeApp({ onSignOut: continuation.processCurrentDeviceSignOut }),
+          pageViewStore: createPageViewStore(createStore),
+        },
+        createElement(MePage, { rootElement })
+      )
+    )
+  );
+  await act(async () => rootElement.querySelector('[data-testid="me-sign-out"]').click());
+  assert.deepEqual(calls, ["push-cleanup", "auth-sign-out"]);
 });
 
 test("useMePageView 只投影 notificationSettings 與 presenceLocationStatus", async (t) => {

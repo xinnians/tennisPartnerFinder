@@ -736,7 +736,14 @@ export function MePage(props: MePageProps) {
       ) : null}
       <ServiceLinks supportHref={supportHref} />
       {authenticated ? (
-        <button type="button" className="me-sign-out-action" data-testid="me-sign-out" onClick={onSignOut}>
+        <button
+          type="button"
+          className="me-sign-out-action"
+          data-testid="me-sign-out"
+          onClick={() => {
+            void onSignOut();
+          }}
+        >
           登出
         </button>
       ) : null}
