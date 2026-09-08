@@ -532,6 +532,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/notificationPushOwnerQuarantineRpc.ts::<top-level>::AbortSignal",
       "src/notificationPushProductionShell.ts::processCurrentDeviceSignOut::AbortSignal",
       "src/notificationPushProductionShell.ts::validSignOutInput::AbortSignal",
+      "src/notificationPushSignOutContinuation.ts::<top-level>::AbortSignal",
       "src/notificationPushSignOutCoordinator.ts::<top-level>::AbortSignal",
       "src/notificationPushSignOutCoordinator.ts::isAborted::AbortSignal",
       "src/notificationPushStorage.ts::<top-level>::Crypto,IDBFactory",

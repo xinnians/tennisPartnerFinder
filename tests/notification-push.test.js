@@ -41,6 +41,8 @@ const PUSH_OWNER_QUARANTINE_RPC_URL = new URL("../src/notificationPushOwnerQuara
 const PUSH_OWNER_QUARANTINE_RPC_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_RPC_URL, "utf8");
 const PUSH_SIGN_OUT_COORDINATOR_URL = new URL("../src/notificationPushSignOutCoordinator.ts", import.meta.url);
 const PUSH_SIGN_OUT_COORDINATOR_SOURCE = readFileSync(PUSH_SIGN_OUT_COORDINATOR_URL, "utf8");
+const PUSH_SIGN_OUT_CONTINUATION_URL = new URL("../src/notificationPushSignOutContinuation.ts", import.meta.url);
+const PUSH_SIGN_OUT_CONTINUATION_SOURCE = readFileSync(PUSH_SIGN_OUT_CONTINUATION_URL, "utf8");
 const PUSH_PRODUCTION_SHELL_URL = new URL("../src/notificationPushProductionShell.ts", import.meta.url);
 const PUSH_RUNTIME_COMPOSITION_URL = new URL("../src/notificationPushRuntimeComposition.ts", import.meta.url);
 
@@ -231,6 +233,7 @@ test("the abortable operation helper is referenced only by dormant Push boundari
     PUSH_OWNER_QUARANTINE_URL,
     PUSH_OWNER_QUARANTINE_RPC_URL,
     PUSH_PRODUCTION_SHELL_URL,
+    PUSH_SIGN_OUT_CONTINUATION_URL,
     PUSH_SIGN_OUT_COORDINATOR_URL,
   ]);
 });
@@ -553,4 +556,28 @@ test("the dormant sign-out coordinator has no direct runtime, network, persisten
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
   assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
+});
+
+test("the dormant sign-out continuation has no direct Auth, runtime, network, persistence, logging, or timer dependency", () => {
+  const importSources = [...PUSH_SIGN_OUT_CONTINUATION_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(importSources, ["./abortableOperation.ts"]);
+  assert.doesNotMatch(PUSH_SIGN_OUT_CONTINUATION_SOURCE, /^\s*import\s+"/gmu);
+  assert.doesNotMatch(PUSH_SIGN_OUT_CONTINUATION_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_SIGN_OUT_CONTINUATION_SOURCE,
+    /\b(?:dataApi|authApi|supabaseClient|notificationPushProductionShell|notificationPushStorage)\b/u
+  );
+  assert.doesNotMatch(
+    PUSH_SIGN_OUT_CONTINUATION_SOURCE,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u
+  );
+  assert.doesNotMatch(PUSH_SIGN_OUT_CONTINUATION_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_SIGN_OUT_CONTINUATION_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_SIGN_OUT_CONTINUATION_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+  assert.doesNotMatch(PUSH_SIGN_OUT_CONTINUATION_SOURCE, /\b(?:for|while)\s*\(/u);
 });
