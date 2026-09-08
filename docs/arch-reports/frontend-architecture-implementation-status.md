@@ -105,6 +105,8 @@ Hosted limiter canary 的 1 ALLOW／19 LIMIT、DB／log 證據與完整復原結
 `frontend-architecture-fa-03-cleanup-limiter-hosted-result-2026-09-08.md`。
 production cleanup 的實際 caller、build、Hosted 現況與可用流量依據在
 `frontend-architecture-fa-03-cleanup-production-wiring-audit-2026-09-08.md`。
+最新 default-off 登出 cleanup coordinator、真實 IndexedDB 與完整前端 CI 證據在
+`frontend-architecture-fa-03b13-4-sign-out-cleanup-coordinator-2026-09-08.md`。
 
 ## 目前狀態
 
@@ -112,12 +114,12 @@ production cleanup 的實際 caller、build、Hosted 現況與可用流量依據
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 目前批次                | production cleanup wiring／流量依據唯讀盤點完成：現有 build 的 v2 cleanup trigger 0、一次未來 action 的 transport 上限 2 POST；Hosted `push-cleanup`／cleanup Secret／v2 rows 全 0，runtime disabled。缺少正式 rollout 與真實使用量，不能由 canary 數字猜 production policy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell／B13.3 dormant UI mapping＋privacy、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1～6B.5 已完成；第一個 vertical slice 完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                                    |
-| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant 8-state presentation mapping、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner、Messages 專用資料邊界與 app-owned Chat surface wiring 已落地；Push 登出 server cleanup、v2 active UI、SW、Hosted active dispatcher 尚未接線 |
+| 目前批次                | `FA-03B13.4` default-off 登出 cleanup coordinator 完成：先留下 durable attempt，再做 owner quarantine／token fallback，最後 browser deactivation；真實 IndexedDB 與完整前端 CI 通過。正式 `handleSignOut()`、endpoint、timeout 與 runtime 仍未接線                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell／B13.3 dormant UI mapping＋privacy／B13.4 dormant sign-out cleanup、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1～6B.5 已完成；第一個 vertical slice 完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                                    |
+| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／sign-out cleanup coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant 8-state presentation mapping、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner、Messages 專用資料邊界與 app-owned Chat surface wiring 已落地；正式 Auth 登出 Push 接線、v2 active UI、SW、Hosted active dispatcher 尚未完成 |
 | migration 變更          | 39 local／39 Hosted，最新皆為 `202609070001`；D1 套用後 role／commands／index／trigger、資料與 linked lint 驗證通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | bundle checker／CI 變更 | production checker 已分開 development report／release enforce 並報 raw／gzip／Brotli；design-system checker 鎖 13 份 CSS 順序、產生檔、50 tokens、9 張卡的 viewport／ID／source citation integrity，並在 390×844 實際量全部可操作項目。production root 與卡片共用同一個對稱式 44px scanner；required CI 跑兩個 checker，WebKit 由獨立 targeted run 驗證                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 下一步                  | 先做 default-off sign-out cleanup coordinator：固定 server-first quarantine、browser deactivation、token fallback 與 Auth sign-out 不受阻擋的 ordering contract；不啟用 shell、不配置 production endpoint／key／policy／timeout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 下一步                  | 先做 Auth sign-out 接線與 timeout／可觀測性唯讀 preflight：查明哪些步驟可中止或延後，並固定「timeout 後 Auth 一定繼續、durable attempt 不遺失」的契約；不啟用 shell、不猜 production endpoint／key／policy／timeout                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 查實際 Git 狀態：
 
@@ -132,7 +134,7 @@ git log --oneline --decorate -10
 | ID  | 決策                                                                                                                                                                                                                                                                                                                                 | 實作狀態                                                                                                                                                                                                      |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | D1  | Push 同意採「帳號＋裝置」opt-in；換帳號必須重新同意                                                                                                                                                                                                                                                                                  | `FA-03A4` DB command 與 B12.9 browser-to-DB local composition 已完成；production wiring 尚未接線                                                                                                              |
-| D2  | 一般登出只停止目前裝置的登入與推播；其他裝置不受影響                                                                                                                                                                                                                                                                                 | `FA-03B10.1` 已固定 production Auth local scope；`FA-03B10.2` 已完成 dormant capture／unsubscribe／reread 分類，production 與 server cleanup 尚未接線                                                         |
+| D2  | 一般登出只停止目前裝置的登入與推播；其他裝置不受影響                                                                                                                                                                                                                                                                                 | `FA-03B10.1` 已固定 production Auth local scope；B10.2 deactivation 與 B13.4 durable local → owner／token cleanup → browser 順序已在 dormant runtime 完成，正式 `handleSignOut()`、timeout 與 server endpoint 尚未接線 |
 | D3  | Push cleanup 結果不明時採 durable quarantine；dispatcher 送出前重查狀態                                                                                                                                                                                                                                                              | quarantine DB／Edge foundation 與 A4 共用 residue helper 已完成；repo／local dispatcher 已完成送出前重查與 transaction lock，Hosted source 尚未部署                                                           |
 | D4  | Q6-A 已取代原本無法由現有 stack 證明的精確界線：只承諾 DB transaction 持續有效時的 quarantine/send 排序；載入記憶體仍不算 handoff                                                                                                                                                                                                    | 已核可 current-stack 條件式邊界；殘餘斷線空檔需保留監控與測試                                                                                                                                                 |
 | D5  | quarantine 的重新確認、保存期限與到期處理由 `FA-02` 提案後再核可；不先猜 30／90 天                                                                                                                                                                                                                                                   | Q1-A 已核可：不設日曆期限，只依 server provider 證據解除                                                                                                                                                      |
@@ -177,6 +179,7 @@ git log --oneline --decorate -10
 | D44 | 用 Google 官方確認的 `8.8.8.8` 作第二個獨立 header sentinel；沿用同一 data-free code 與 D43 exact scope，不向該 IP 連線、不增加 request 或 DB write                                                                                                                                                                                  | 已完成並復原；Cloudflare 403／`cf-ray` present、Function／limiter log 0，version 29／13→33／17、hash 與 DB 基線不變                                                                                           |
 | D45 | Hosted source trust 以 canonical `cf-connecting-ip` 為必要條件；`x-real-ip` 缺少可接受，存在則必須 canonical 且相同。移除短期 probe code，再用 no-policy canary 確認 source 已通過但 DB 仍為 0                                                                                                                                       | 完成；Hosted exact 503／RETRY／`POLICY`，Function log 1、limiter RPC／row 0，完整復原；production policy／正式 cleanup 仍未啟用                                                                               |
 | D46 | Hosted limiter 重驗沿用已核可的 canary-only policy；1 未授權＋20 授權、預期 1 ALLOW／19 LIMIT、exact 2 rows，以 DB server timestamp 與 row shape transaction guard 復原；測試數值不得當 production policy                                                                                                                            | 完成；20 授權 0 failure、p95 450 ms，Function／RPC log exact 21／20，2 rows 與 4 Secrets 全部移除；既有 Function hash、Push／outbox／runtime 基線不變                                                         |
+| D47 | B13.4 登出 cleanup 先保存 exact durable attempt，再嘗試 owner quarantine；未完成才用 token fallback 一次，browser deactivation 固定最後。沒有實測依據前不猜 timeout，也不把可能永久等待的流程直接接進 Auth sign-out                                                                                                                | dormant coordinator、lazy composition、browser read port 與真實 IndexedDB 測試完成；coordinator 不取代 Auth 驗證，production shell 仍 disabled，正式 `handleSignOut()` 與 Hosted 未改                         |
 
 ## 授權邊界
 
@@ -197,7 +200,7 @@ git log --oneline --decorate -10
 | FA-00 | 建立進度單一來源、回填已確認決策                                  | 完成                                                                                                                                                                                                                                                                                                                                                                | 文件差異與 whitespace 檢查通過；無非文件變更                                                                                                                                                                |
 | FA-01 | 文件／rules 對齊；bundle 結構 hard gate 與開發期 size report 分流 | 完成                                                                                                                                                                                                                                                                                                                                                                | 非 byte 邊界仍可翻紅；bytes 可報告；release enforcement 路徑存在                                                                                                                                            |
 | FA-02 | Push lifecycle、quarantine、consent、local sign-out 詳細設計      | 完成並核可                                                                                                                                                                                                                                                                                                                                                          | state machine、資料模型、到期方案、RPC／SW／dispatcher／測試矩陣完整；十項決策已記錄                                                                                                                        |
-| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1～B13.3、dispatcher D0.1／D0.2／D1／D2／D3A、cleanup limiter foundation、39／39 Hosted migrations、cleanup C0、dormant C1 path、local stage diagnostic、source trust 與 limiter Hosted canary 完成；1 ALLOW／19 LIMIT；契約 v1.3；runtime disabled | expand、DB、browser-to-local-DB、雙帳號、dormant UI、dispatcher core、local Edge、Hosted source 與 limiter canary tests 通過；active dispatcher、production cleanup Edge／policy 與不可逆 contract 另行確認 |
+| FA-03 | Push runtime 與 migration                                         | preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1～B13.4、dispatcher D0.1／D0.2／D1／D2／D3A、cleanup limiter foundation、39／39 Hosted migrations、cleanup C0、dormant C1 path、local stage diagnostic、source trust 與 limiter Hosted canary 完成；1 ALLOW／19 LIMIT；契約 v1.3；runtime disabled | expand、DB、browser-to-local-DB、雙帳號、dormant UI、dormant sign-out cleanup、dispatcher core、local Edge、Hosted source 與 limiter canary tests 通過；active dispatcher、production cleanup Edge／policy 與不可逆 contract 另行確認 |
 | FA-04 | DOM／ownership gates 與正式 ledger／browser manifest              | 完成（phase 0a／0b）                                                                                                                                                                                                                                                                                                                                                | gate 有 canary；清單有明確 scope                                                                                                                                                                            |
 | FA-05 | 低風險清理、production preview、效能基線、Bundle ADR              | 完成（phase 1／2／3）                                                                                                                                                                                                                                                                                                                                               | before／after 可重現；未放寬未核可邊界                                                                                                                                                                      |
 | FA-06 | `sessionViews` wiring、blockedPlayers、Chat／Messages ownership   | 階段 4 preflight／4.1～4.6、stage 5 preflight／5.1、Stage 6 preflight／6.0／6A／6B.1～6B.5 完成；第一個 vertical slice 完成                                                                                                                                                                                                                                         | 每個新 owner 都伴隨舊 bridge 刪除與完整回歸                                                                                                                                                                 |
@@ -1947,6 +1950,35 @@ preview 4／4、四組 Edge 1／1、1／1、1／1、2／2。production main 651,
 前置內容見 `frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`；完整完成證據見
 `frontend-architecture-fa-03b13-ui-privacy-mapping-2026-09-08.md`。
 
+## FA-03B13.4 default-off 登出 cleanup coordinator
+
+已完成：
+
+- 新增零 import、零 timer 的 sign-out coordinator；只接受注入的 B5 storage、B7 owner quarantine、B8 token cleanup
+  與 B10.2 browser deactivation port。
+- 有效 binding 先由 B5 suspend 並保存 exact immutable pending attempt；有 server consent 時先嘗試 owner quarantine，
+  只有 stale／pending／錯誤才把同一筆 attempt 交給 token fallback 一次。coordinator 不取代 caller 的 Auth current-check。
+- owner exact completed 時不送 token request，只完成同一筆本機 attempt；沒有 server consent 的 provisioning 才直接走
+  token fallback。
+- browser capture／unsubscribe／reread 固定最後執行；有限 throw 不會抹除已完成 server／local 結果。result 只有
+  `completed／pending`，不含 endpoint、token、binding 或 response detail。
+- browser subscription port 補上只讀目前 subscription 的方法；只等待既有 `serviceWorker.ready` 並讀
+  `getSubscription()`，不 register、不要求權限、不新建 subscription。
+- lazy runtime composition 接上 deactivation、owner adapter 與 sign-out coordinator；production shell 只驗 runtime shape，
+  沒有公開 sign-out caller，`main.js` 仍 hard-coded disabled。
+- 真實 Chromium 以 WebCrypto＋IndexedDB 建立 enabled binding 後執行 coordinator，驗證
+  `suspend → owner → local-complete → browser`、最後 disabled、pending 0、logical device 保留。
+
+驗證：focused Node 58／58；targeted real IndexedDB Chromium 1／1；完整 frontend CI Node 697 tests（692 passed／5
+skipped）、Playwright 384 tests（380 passed／4 skipped）、build 533 modules。production main
+651,502／192,166／160,314 raw／gzip／Brotli；total 855,998／263,196／222,038 依 D8 report-only。production assets 的
+sign-out coordinator、owner RPC 與 cleanup endpoint 字串命中 0，legacy RPC 命中 1。沒有 Hosted、migration、Secret、
+request、DB write 或 runtime control 變更。程式 commit `bff84e7`；完整證據見
+`frontend-architecture-fa-03b13-4-sign-out-cleanup-coordinator-2026-09-08.md`。
+
+尚未完成：底層 RPC、fetch 或 `serviceWorker.ready` 若永久等待，coordinator 也會等待。因此正式 `handleSignOut()` 尚未
+接線；下一批先唯讀固定可中止／可延後步驟、Auth 一定繼續的邊界與 data-free rollout observability，不猜 timeout 數字。
+
 ## FA-03 dispatcher generation／canary barrier 前置盤點
 
 已完成：
@@ -2692,8 +2724,8 @@ Hosted deploy／secret／request／DB write：未執行
   B12.8 已完成 local-only Edge HTTP／Auth／DB，B12.9 已完成 real browser-to-local-DB composition。production
   provider policy secret 仍未設定；Hosted 4 筆現有 row 的 aggregate 都是 exact FCM origin，但正式設定前仍要重查，
   不得把這次 aggregate 外推成永久 provider 清單。
-- 最新一般 development build 的 main 為 649,121／191,412／159,724，total 為
-  853,560／262,415／221,459 raw／gzip／Brotli；raw／gzip 比目前參考值多 3,599／3,353 bytes。D8 允許開發期
+- 最新一般 development build 的 main 為 651,502／192,166／160,314，total 為
+  855,998／263,196／222,038 raw／gzip／Brotli；total raw／gzip 比目前參考值多 6,037／4,134 bytes。D8 允許開發期
   report 繼續，release enforce 仍是 hard fail；第一個 production candidate 前須依 D9 用正式 hosting、裝置、網路
   與 Web Vitals 重訂 release 基線。本機 production preview 基線不是 production SLA。
 - 現行 production browser／Hosted dispatcher 仍只讀寫 legacy `push_subscriptions`；repo／本機已有 v2 transport metadata、
@@ -2703,8 +2735,9 @@ Hosted deploy／secret／request／DB write：未執行
 - outbox source/fanout/outcome、control/worker、account-delete audit、no-op source version，以及 D1 worker／delivery／
   finalizer DB barrier 已在 repo／local 完成 migration 與測試，D1 migration 也已套 Hosted 並驗證。D2 compatible
   dispatcher 與 D3A encrypted sender 已通過真實 local Edge／DB／network 測試，但 Hosted route 尚未接線。
-- 現行一般登出的 Auth session 已在 `FA-03B10.1` 改為 local scope，B10.2 也已建立 dormant browser
-  capture／unsubscribe／reread seam；但 production importer、server-first cleanup 與 durable quarantine 尚未接線，
+- 現行一般登出的 Auth session 已在 `FA-03B10.1` 改為 local scope，B10.2 已建立 dormant browser
+  capture／unsubscribe／reread seam，B13.4 也已把 durable attempt → owner quarantine／token fallback → browser
+  deactivation 組成單一 dormant coordinator；但 production `handleSignOut()`、timeout／abort 與 server endpoint 尚未接線，
   所以 D2 仍未完整。
 - B12.1 已完成 `auth-unverified` 手動重新啟用的原子 storage 起點與跨 tab 收斂；B12.2 已完成 B1 failure notice 的
   revision／prior-owner 出口；B12.3 已完成 dormant B1 → B9 correlation adapter；B12.4 已完成 B8 cleanup → 新
@@ -2713,12 +2746,13 @@ Hosted deploy／secret／request／DB write：未執行
   coordinator core；B12.7.2 已完成 provider-neutral browser subscription acquisition；B11.1 已完成可直接供 browser
   使用的 structure validator；B12.7.3 已完成 encrypted HTTP transport；B12.7.4 已完成 subscription local
   composition；B12.8 已完成 local-only Edge HTTP／Auth／DB；B12.9 已讓 browser composition 直連 real local Edge
-  與 DB。B1 callback、production Auth／config 與正式 importer 仍未做；production Push 仍不會呼叫它們。
-- D6、Q9-A Auth boot gate、quarantine DB digest boundary、local-only encrypted Edge 與 B9 dormant handoff seam
-  已完成；但 B1 rejected result 尚無可信舊 owner correlation，production 對 B9 為零 caller，explicit rejection
-  也尚未由 browser 呼叫 Edge。`auth_unavailable` 已決策為「驗證成功仍不自動恢復，必須手動重新啟用」，但
-  local coordinator、browser acquisition、encrypted transport 與 browser-to-local-DB 已實作，但 production wiring
-  與 UI 尚未實作；SW/private Push 與 dispatcher gate 也未完成，因此 Q9 整體仍未完成。
+  與 DB。B1 failure callback 與 hard-coded disabled shell 已接 production main；active runtime config、正式 UI／Auth
+  sign-out caller 與 endpoint 仍未做，production Push 仍不會呼叫 v2 runtime。
+- D6、Q9-A Auth boot gate、quarantine DB digest boundary、local-only encrypted Edge、B9 dormant handoff、B12.3
+  可信舊 owner correlation 與 B13.1 verified proof／failure callback 已完成；production callback 目前只進 hard-coded
+  disabled shell，explicit rejection 尚未由 browser 呼叫 Edge。`auth_unavailable` 已決策為「驗證成功仍不自動恢復，
+  必須手動重新啟用」；local coordinator、browser acquisition、encrypted transport 與 browser-to-local-DB 已實作，
+  但 active production wiring 與 UI 尚未實作；SW/private Push 與 Hosted dispatcher gate 也未完成，因此 Q9 整體仍未完成。
 - Auth 跨頁安全依賴符合規格的 Web Locks 與目前固定的 auth-js 2.110.0 call shape；舊版 tab／外部 client
   不受新 lock 約束。`-1` 無期限等待避免 timeout-steal，但持鎖 request 若永久 pending 也會讓後續 auth/data
   等待；目前沒有未經證據自行設定 network timeout。
@@ -2732,9 +2766,11 @@ Hosted deploy／secret／request／DB write：未執行
   精確重設為 authenticated 無 raw 權限、service role 只有舊 dispatcher 必需的 SELECT／DELETE，Hosted 實查已
   符合。其他後續 public schema 物件仍須維持相同部署邊界。
 - cleanup raw-token codec、application-layer encryption、local Edge、本機 log 去敏、build-time public-key
-  asset、dormant IndexedDB、bounded browser transport、owner-quarantine adapter、single-attempt coordinator 與
-  Auth-failure handoff 已完成；lazy composition 存在，但 hard-coded disabled shell 讓 production build 沒有 v2
-  runtime，Auth failure／登出／SW 也沒有 cleanup caller。distributed limiter DB schema 已套 Hosted；source trust
+  asset、dormant IndexedDB、bounded browser transport、owner-quarantine adapter、single-attempt coordinator、
+  Auth-failure handoff 與 sign-out cleanup coordinator 已完成；lazy composition 存在，但 hard-coded disabled shell 讓
+  production build 沒有 v2 runtime，Auth failure／正式登出／SW 也沒有 cleanup caller。sign-out coordinator 對有限錯誤
+  fail closed，但任一底層 promise 永久等待時仍會等待，不能在沒有 timeout／abort 證據時直接阻塞 Auth sign-out。
+  distributed limiter DB schema 已套 Hosted；source trust
   與 limiter canary 都已完成，20 次授權 request 為 1 ALLOW／19 LIMIT、p95 450 ms 且已完整復原。這只能證明受控
   canary 技術路徑，仍缺真實 rollout 的 action count、共享來源尖峰、failure distribution 與 production timeout／
   policy 證據；正式 cleanup 因此維持未部署、runtime disabled，不能外推為 production API 已啟用。
@@ -2828,8 +2864,11 @@ Hosted deploy／secret／request／DB write：未執行
    verified proof／revision／401 retry／failure callback authority，B13.2 已由 production main 接上 hard-coded disabled
    shell，重型 runtime 未進 production 產物。B13.3 四項方案已核可並完成：八種 state 經 data-free 契約進入單一
    dormant presentation mapping，legacy 三入口行為不變，privacy 只補 Edge IP 與 IndexedDB 已查證範圍；v2 仍無
-   production caller。server-only origins 不得進 browser，也不得自行猜 production
-   provider／key。D1 local DB barrier、D2 local-only compatible source 與 D3A Deno-native sender／獨立 canary source、
+   production caller。B13.4 已完成 dormant sign-out cleanup coordinator：先保存 exact durable attempt，再走 owner
+   quarantine／必要時 token fallback，browser deactivation 固定最後；真實 IndexedDB 與完整 frontend CI 已通過，
+   但正式 `handleSignOut()`、timeout／abort、endpoint 與 active runtime 尚未接。下一批先做 Auth sign-out 接線與
+   timeout／data-free observability 唯讀 preflight；不得為了接線自行猜數字。server-only origins 不得進 browser，也不得
+   自行猜 production provider／key。D1 local DB barrier、D2 local-only compatible source 與 D3A Deno-native sender／獨立 canary source、
    Hosted D1 與 Hosted B no-write probe 都已完成；active source 未部署、`dispatch` 未呼叫、browser fixture 未建立、runtime
    未啟用。未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
 5. 所有 migration 已獲持續授權，不再逐支詢問；每次仍須先重跑 hosted canonical／影響筆數並在套用後驗證。未再次確認前
@@ -2950,3 +2989,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-08 | cleanup limiter retry preflight  | 沿用已核可 canary policy，固定 1 未授權＋20 授權、預期 1 ALLOW／19 LIMIT、exact 2 rows 與 DB-server-time transaction guard；guard 已在 local temporary table 驗 delete 2／remaining 0／rollback。本批只有文件與本機驗證，Hosted 尚未執行。                                                                                                       |
 | 2026-09-08 | cleanup limiter Hosted result    | 未授權 1 次維持 limiter 0；授權 20 次為 1 ALLOW／19 LIMIT／0 failure，p95 450 ms。DB exact 1 global＋1 source，Function／RPC log exact 21／20；mode／Function／2 rows／4 Secrets 完整移除，既有 Function 37／21→41／25 且 hash 不變，Push／outbox／runtime 基線不變。                                                                            |
 | 2026-09-08 | cleanup production wiring audit  | repo production build 的 v2 cleanup trigger 0、未來單次 action 最多 2 POST；Hosted `push-cleanup`／cleanup Secret／v2 mutable rows 皆 0，runtime disabled。targeted Node 79／79、production build 530 modules；缺真實 rollout／部署 provenance／共享來源尖峰，production policy 與 timeout 不猜值。                                              |
+| 2026-09-08 | FA-03B13.4                       | 完成 default-off sign-out cleanup coordinator：exact durable attempt → owner quarantine／必要時 token fallback → browser deactivation；lazy runtime 已組合但正式 shell 仍 disabled。focused Node 58／58、真實 IndexedDB Chromium 1／1、完整 frontend CI Node 697 tests（692／5）、Playwright 384 tests（380／4）、build 533 modules；程式 commit `bff84e7`，Hosted／migration／request 未動。 |
