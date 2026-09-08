@@ -1,0 +1,124 @@
+{
+  "measuredAt": "2026-09-08T09:39:38.371Z",
+  "url": "https://qiuka.tw/",
+  "browser": "149.0.7827.55",
+  "conditions": {
+    "mobileCpuSlowdown": 4,
+    "mobileRttMs": 150,
+    "mobileDownloadBytesPerSecond": 200000,
+    "cache": "disabled"
+  },
+  "limitations": "Lab measurements, not field p75 or INP. Map container readiness does not certify all tiles loaded. LCP is observed until two seconds after map container and fonts are ready, before interaction.",
+  "summary": [
+    {
+      "mobile": false,
+      "medianLcpMs": 600,
+      "medianShellReadyMs": 171.80000019073486,
+      "medianMapContainerReadyMs": 254.5,
+      "medianFilterOpenMs": 109.25908299999901,
+      "maxCls": 0.0003423070907592774,
+      "pageErrors": 0
+    },
+    {
+      "mobile": true,
+      "medianLcpMs": 8176,
+      "medianShellReadyMs": 2996.3999996185303,
+      "medianMapContainerReadyMs": 6806.099999427795,
+      "medianFilterOpenMs": 97.34450000000288,
+      "maxCls": 0.0011851665209201188,
+      "pageErrors": 0
+    }
+  ],
+  "samples": [
+    {
+      "mobile": false,
+      "run": 1,
+      "shellReadyMs": 767.9000005722046,
+      "mapContainerReadyMs": 944.9000005722046,
+      "filterOpenMs": 91.23237500000005,
+      "lcpMs": 1244,
+      "lcpElement": {
+        "tag": "IMG",
+        "id": ""
+      },
+      "cls": 0.00011410236358642579,
+      "maxObservedInteractionMs": 56,
+      "pageErrors": 0
+    },
+    {
+      "mobile": false,
+      "run": 2,
+      "shellReadyMs": 166.60000038146973,
+      "mapContainerReadyMs": 252.60000038146973,
+      "filterOpenMs": 109.59983300000022,
+      "lcpMs": 580,
+      "lcpElement": {
+        "tag": "IMG",
+        "id": ""
+      },
+      "cls": 0.0003423070907592774,
+      "maxObservedInteractionMs": 64,
+      "pageErrors": 0
+    },
+    {
+      "mobile": false,
+      "run": 3,
+      "shellReadyMs": 171.80000019073486,
+      "mapContainerReadyMs": 254.5,
+      "filterOpenMs": 109.25908299999901,
+      "lcpMs": 600,
+      "lcpElement": {
+        "tag": "IMG",
+        "id": ""
+      },
+      "cls": 0.0003423070907592774,
+      "maxObservedInteractionMs": 56,
+      "pageErrors": 0
+    },
+    {
+      "mobile": true,
+      "run": 1,
+      "shellReadyMs": 2989.9000005722046,
+      "mapContainerReadyMs": 6796.5,
+      "filterOpenMs": 97.34450000000288,
+      "lcpMs": 8176,
+      "lcpElement": {
+        "tag": "IMG",
+        "id": ""
+      },
+      "cls": 0.0011851665209201188,
+      "maxObservedInteractionMs": 80,
+      "pageErrors": 0
+    },
+    {
+      "mobile": true,
+      "run": 2,
+      "shellReadyMs": 2996.3999996185303,
+      "mapContainerReadyMs": 6806.099999427795,
+      "filterOpenMs": 111.99212499999703,
+      "lcpMs": 8204,
+      "lcpElement": {
+        "tag": "IMG",
+        "id": ""
+      },
+      "cls": 0.0011851665209201188,
+      "maxObservedInteractionMs": 88,
+      "pageErrors": 0
+    },
+    {
+      "mobile": true,
+      "run": 3,
+      "shellReadyMs": 3002.9000005722046,
+      "mapContainerReadyMs": 6812.5,
+      "filterOpenMs": 96.07512500000303,
+      "lcpMs": 8176,
+      "lcpElement": {
+        "tag": "IMG",
+        "id": ""
+      },
+      "cls": 0.0011851665209201188,
+      "maxObservedInteractionMs": 80,
+      "pageErrors": 0
+    }
+  ]
+}

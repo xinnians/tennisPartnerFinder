@@ -17,7 +17,11 @@ const runs = Number(values.runs);
 if (!["http:", "https:"].includes(target.protocol) || !Number.isInteger(runs) || runs < 1 || runs > 10) {
   throw new Error("Use an HTTP(S) URL and 1–10 runs.");
 }
-const median = (numbers) => [...numbers].sort((left, right) => left - right)[Math.floor(numbers.length / 2)];
+const median = (numbers) => {
+  const sorted = [...numbers].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
 const browser = await chromium.launch();
 const samples = [];
 try {
@@ -131,7 +135,7 @@ await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
 console.log(JSON.stringify({ output, summary }, null, 2));
 if (
   values["enforce-lab-targets"] &&
-  summary.some((row) => row.medianLcpMs > 2500 || row.maxCls > 0.1 || row.pageErrors)
+  summary.some((row) => row.medianLcpMs <= 0 || row.medianLcpMs > 2500 || row.maxCls > 0.1 || row.pageErrors)
 ) {
   process.exitCode = 1;
 }
