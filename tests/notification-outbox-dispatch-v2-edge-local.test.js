@@ -465,11 +465,11 @@ function cleanupFixture({ hostUserId, recipientUserId }) {
 }
 
 test(
-  "local dispatcher holds the send recheck transaction across mock I/O and preserves legacy work",
+  "dedicated local v2 dispatcher holds the send recheck transaction and preserves legacy work",
   { skip: !RUN_LOCAL_EDGE_TEST, timeout: TEST_TIMEOUT_MS },
   async () => {
     const { apiUrl } = loadLocalSupabaseConfig();
-    const functionUrl = `${apiUrl}/functions/v1/notification-outbox-dispatch`;
+    const functionUrl = `${apiUrl}/functions/v1/notification-outbox-dispatch-v2`;
     const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "qiuka-notification-dispatch-v2-"));
     const environmentPath = path.join(temporaryDirectory, "function.env");
     const rolePassword = randomBytes(24).toString("hex");
@@ -511,11 +511,11 @@ test(
         "NOTIFICATION_DISPATCH_V2_RUNTIME_MODE=local-test-v1",
         `NOTIFICATION_CRON_SECRET=${cronSecret}`,
         `NOTIFICATION_DISPATCH_V2_EXPECTED_GENERATION=${TEST_GENERATION}`,
-        "NOTIFICATION_OUTBOX_BATCH_SIZE=1",
-        `NOTIFICATION_DISPATCH_DATABASE_URL=postgresql://notification_dispatcher:${rolePassword}@host.docker.internal:54322/postgres?sslmode=disable`,
-        "WEB_PUSH_TRANSPORT=mock",
-        `PUSH_TEST_URL=http://host.docker.internal:${mockPort}/push`,
-        `PUSH_PROVIDER_ORIGINS_V1=${JSON.stringify([PROVIDER_ORIGIN])}`,
+        "NOTIFICATION_DISPATCH_V2_BATCH_SIZE=1",
+        `NOTIFICATION_DISPATCH_V2_DATABASE_URL=postgresql://notification_dispatcher:${rolePassword}@host.docker.internal:54322/postgres?sslmode=disable`,
+        "NOTIFICATION_DISPATCH_V2_TRANSPORT=mock",
+        `NOTIFICATION_DISPATCH_V2_TEST_URL=http://host.docker.internal:${mockPort}/push`,
+        `NOTIFICATION_DISPATCH_V2_PROVIDER_ORIGINS_V1=${JSON.stringify([PROVIDER_ORIGIN])}`,
         "",
       ].join("\n");
       await writeFile(environmentPath, environment, { mode: 0o600 });
@@ -527,7 +527,7 @@ test(
           SUPABASE_CLI,
           "functions",
           "serve",
-          "notification-outbox-dispatch",
+          "notification-outbox-dispatch-v2",
           "--no-verify-jwt",
           "--env-file",
           environmentPath,

@@ -390,6 +390,11 @@ deno_version = 2
 [functions.notification-outbox-dispatch]
 verify_jwt = false
 
+# The dedicated format-2 worker has a separate exact runtime mode and cron
+# authorization gate. It is unavailable by default and is not scheduled here.
+[functions.notification-outbox-dispatch-v2]
+verify_jwt = false
+
 # Temporary v2 canary uses its own application-layer manual-run secret and is
 # unavailable unless the exact local or separately approved Hosted mode is set.
 [functions.notification-outbox-dispatch-v2-canary]

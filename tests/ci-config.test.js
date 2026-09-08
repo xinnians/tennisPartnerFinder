@@ -283,11 +283,11 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
   );
 });
 
