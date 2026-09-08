@@ -34,8 +34,8 @@ composition 證據在 `frontend-architecture-fa-03b12-edge-handler-local-2026-09
 `frontend-architecture-fa-03b13-auth-proof-adapter-2026-09-07.md`。
 最新 default-off production composition 證據在
 `frontend-architecture-fa-03b13-default-off-composition-2026-09-07.md`。
-最新 UI／隱私狀態盤點與待確認項目在
-`frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`。
+最新 UI／隱私狀態盤點在 `frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`；四項決策與完成證據在
+`frontend-architecture-fa-03b13-ui-privacy-mapping-2026-09-08.md`。
 最新 dispatcher generation／canary barrier 唯讀盤點在
 `frontend-architecture-fa-03-dispatcher-barrier-preflight-2026-09-07.md`。
 最新 dispatcher dormant egress core 證據在
@@ -89,12 +89,12 @@ gate 與 WebKit select 修正在 `frontend-architecture-ds-bundle-touch-gate-202
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 工作分支                | `codex/frontend-architecture-execution`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 開發基準                | `51dde9c`（16 份前端架構審查文件首次入版）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 目前批次                | `ds-bundle` completion audit 完成：P7 本機工作已閉環，13 份 production CSS／50 tokens deterministic sync、9-card static integrity 與 mobile computed-size gate 均有持續防線；遠端設計專案與 Google marker 未因缺證據而誤報完成                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1～6B.5 已完成；第一個 vertical slice 完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                                                                                                                          |
-| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner、Messages 專用資料邊界與 app-owned Chat surface wiring 已落地；Push 登出 server cleanup、v2 UI、SW、Hosted active dispatcher 尚未接線 |
+| 目前批次                | `FA-03B13.3` 完成：使用者核可四項方案後，8-state dormant Push v2 presentation mapping、三個 legacy 入口共用顯示邊界與已查證範圍的隱私更新已落地；production v2 shell 仍固定 disabled                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 整體狀態                | `FA-00`、`FA-01`、`FA-02` 完成；FA-03 preflight、`FA-03A0`～`FA-03A4`、`FA-03B0`～`FA-03B11.1`、`FA-03B12.1`～`FA-03B12.9`、`FA-03B13` preflight／B13.1 Auth adapter／B13.2 disabled shell／B13.3 dormant UI mapping＋privacy、dispatcher D0.1／D0.2／D1／D2／D3A local composition、cleanup limiter foundation、全部 39 份 Hosted migration 與獨立 Hosted canary 執行環境、`FA-04 phase 0a／0b`、`FA-05 phase 1／2／3`、`FA-06 stage 4` preflight／4.1～4.6、stage 5 preflight／5.1、stage 6 preflight／6.0／6A／6B.1～6B.5 已完成；第一個 vertical slice 完成；active D2／D3A source 尚未部署 Hosted，Hosted v2 runtime 未啟用                                                                                                                                          |
+| runtime 變更            | Auth gate、current-device local sign-out、DB dormant command、本機 cleanup Edge、兩套獨立 public-key build boundary、dormant IndexedDB／cleanup transport／owner adapter／coordinator／Auth handoff／Push deactivation／manual re-enable coordinator／pre-network cancel／refresh commit／subscription browser／transport／local composition、dormant Push v2 validator／hybrid crypto／Edge ports、local-only Push v2 HTTP／Auth／DB handler、default-off app composition shell、dormant 8-state presentation mapping、dormant dispatcher egress／outcome core、local D1 DB barrier、local-only D2 Edge／DB／mock、D3A Deno-native sender、獨立 Hosted canary no-write probe、local-only cleanup limiter composition、Chat feed owner、Messages 專用資料邊界與 app-owned Chat surface wiring 已落地；Push 登出 server cleanup、v2 active UI、SW、Hosted active dispatcher 尚未接線 |
 | migration 變更          | 39 local／39 Hosted，最新皆為 `202609070001`；D1 套用後 role／commands／index／trigger、資料與 linked lint 驗證通過                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | bundle checker／CI 變更 | production checker 已分開 development report／release enforce 並報 raw／gzip／Brotli；design-system checker 鎖 13 份 CSS 順序、產生檔、50 tokens、9 張卡的 viewport／ID／source citation integrity，並在 390×844 實際量全部可操作項目。production root 與卡片共用同一個對稱式 44px scanner；required CI 跑兩個 checker，WebKit 由獨立 targeted run 驗證                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 下一步                  | 需要使用者確認 B13.3 四項產品／隱私決策後，才做 dormant Push UI mapping 與已查證範圍的隱私更新；Hosted C 真實 Push、production runtime、legacy cutoff 與真實 Google marker 仍遵守既定確認／證據邊界                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 下一步                  | 先以唯讀方式重驗 cleanup C1 source substage 與 dispatcher canary 的最新 Hosted 前提；若要 deploy、寫 secret、送 Hosted request、改 runtime control 或 legacy cutoff，先列 exact scope 取得確認。migration 已有持續授權                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 查實際 Git 狀態：
 
@@ -148,6 +148,7 @@ git log --oneline --decorate -10
 | D38 | Hosted canary request 必須明確指定 exact action；`database-probe` 只驗證專用 role 連線並回固定 ready，不建立 worker／不寫 DB／不送 Push；只有 `dispatch` 能進派送流程                                                                                                                                                                | D3C repo／local 與 Hosted B 完成；Hosted probe exact 200／ready，worker／delivery／v2 row 仍為 0，`dispatch` 未呼叫                                                                                           |
 | D39 | Hosted B 只設定專用 role credential、六個 canary-only Secret、部署獨立 Function 並呼叫一次 no-write probe；失敗必須精確復原，不碰 active dispatcher／cron／runtime／使用者資料                                                                                                                                                       | 已完成；第一次本機 shell 中斷後完整復原，第二次成功；10 個 deployed source byte-identical，legacy bundle hash 不變                                                                                            |
 | D40 | Bundle ADR 採 A：維持完整 Supabase client 與現有 facade；B／C／D 現階段不採。E 只有在正式效能證據成立時才做隔離 App-level PoC，且須另以 ADR 決定是否接受 runtime migration                                                                                                                                                           | `FA-05 phase 3` 已完成；沒有 dependency、runtime、gate 或 alias 變更                                                                                                                                          |
+| D41 | B13.3 採完整建議：兩個 cleanup state 同畫面分組、其他 state 分開；先做 dormant mapping＋已查證隱私更新；`invalid` 只有支援、不提供刪除重設；legacy 保留且 Push v2 維持 disabled                                                                                                                                                        | 使用者於 2026-09-08 回覆四項都同意；8-state typed mapping、三入口 legacy 共用邊界、隱私頁與 browser／CI 驗證已完成，production v2 無 caller                                                                    |
 
 ## 授權邊界
 
@@ -1886,7 +1887,7 @@ Hosted deploy／migration／env／secret／request／DB write：未執行
 
 完整證據見 `frontend-architecture-fa-03b13-default-off-composition-2026-09-07.md`。
 
-## FA-03B13.3 UI／隱私前置盤點
+## FA-03B13.3 UI／隱私 mapping 與更新
 
 已完成：
 
@@ -1901,16 +1902,22 @@ Hosted deploy／migration／env／secret／request／DB write：未執行
   consent 原始資料帶進 UI，也不靠 React effect 複製狀態。
 - 查明隱私頁目前只列 localStorage／sessionStorage，尚未涵蓋 v2 IndexedDB；Supabase 說明也未涵蓋 C0 已實測的
   Edge 平台 raw source-IP log。文件只引用本專案已完成證據，不外推所有 Supabase 服務。
+- 使用者於 2026-09-08 核可四項方案：`cleanup-required`／`cleanup-pending` 同畫面分組、其他 state 分開；先做
+  dormant mapping＋隱私更新；`invalid` 只有聯絡支援；隱私只寫已查證範圍。
+- 新增 data-free、type-only 8-state contract；storage 與 presentation 共用，但 presentation 不依賴 IndexedDB owner。
+- `sessionPresentation.ts` 加入單一 legacy／v2 mapping；v2 只接受 state 名稱並只回傳文案／動作。Me、建立成功與
+  加入成功三入口共用同一顯示邊界，現行動作仍是 legacy。
+- v2 `enabled` 只有 explicit `deliveryReady=true` 才能顯示「此裝置已開啟」；production 無 v2 caller，不能自行
+  宣稱已送達。`invalid` exact action 只有 `contact-support`，沒有 delete／reset。
+- 隱私頁加入 Edge source-IP 平台短期紀錄、Free 方案 1 天、DB 只保存 HMAC 限流識別，以及未來主動開啟 v2 後
+  IndexedDB 保存的四類管理資料；未外推其他 Supabase 服務。
 
-待確認：
-
-- 八種狀態的顯示分組與操作。
-- 是否先做 dormant UI mapping＋隱私更新，legacy 正式功能與 v2 disabled 都保持不變。
-- `invalid` 先只顯示支援資訊，或未來提供會刪除本機 Push 資料的重設流程。
-- 隱私頁是否只寫已查證的 Edge source-IP log 與 v2 IndexedDB 範圍。
-
-精確邊界：本批只新增盤點文件；沒有改 runtime、UI、隱私頁、測試、migration、Hosted 或設定。完整內容見
-`frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`。
+驗證：targeted Node 64／64、三 browser project 9／9；完整 frontend CI Node 679 passed／5 skipped、Chromium
+378 passed／4 skipped；完整 Supabase CI DB 1,290／1,290、local API 4／4、desktop 44／11 skipped、mobile 6／6、
+preview 4／4、四組 Edge 1／1、1／1、1／1、2／2。production main 651,502／192,166 raw／gzip 在預算內；total
+855,998／263,196 依 D8 report-only。沒有 migration、Hosted、secret、request、runtime control、資料清除或 cutoff。
+前置內容見 `frontend-architecture-fa-03b13-ui-privacy-preflight-2026-09-07.md`；完整完成證據見
+`frontend-architecture-fa-03b13-ui-privacy-mapping-2026-09-08.md`。
 
 ## FA-03 dispatcher generation／canary barrier 前置盤點
 
@@ -2794,8 +2801,9 @@ Hosted deploy／secret／request／DB write：未執行
    composition，B12.9 已驗證 browser → encryption → Edge → Auth → A4 DB RPC → local CAS。B13 production wiring
    preflight 已查清 Auth adapter、runtime config、UI／SW importer、B1／B9 handoff 與 server-controlled gate；B13.1 已補
    verified proof／revision／401 retry／failure callback authority，B13.2 已由 production main 接上 hard-coded disabled
-   shell，重型 runtime 未進 production 產物。B13.3 已查明 v2 實際有八種技術狀態，不能直接壓成四種；下一步先
-   確認顯示分組、異常恢復與 privacy 已查證範圍。server-only origins 不得進 browser，也不得自行猜 production
+   shell，重型 runtime 未進 production 產物。B13.3 四項方案已核可並完成：八種 state 經 data-free 契約進入單一
+   dormant presentation mapping，legacy 三入口行為不變，privacy 只補 Edge IP 與 IndexedDB 已查證範圍；v2 仍無
+   production caller。server-only origins 不得進 browser，也不得自行猜 production
    provider／key。D1 local DB barrier、D2 local-only compatible source 與 D3A Deno-native sender／獨立 canary source、
    Hosted D1 與 Hosted B no-write probe 都已完成；active source 未部署、`dispatch` 未呼叫、browser fixture 未建立、runtime
    未啟用。未決定 timeout、排程與 backoff 前不可自行填數字或加入 scheduler。
@@ -2904,3 +2912,4 @@ Hosted deploy／secret／request／DB write：未執行
 | 2026-09-08 | production touch targets         | 390×844 的 16 個真實狀態／99 筆可操作區域完成量測；35 筆原始缺口以 scoped CSS 修正後為 0。新增三瀏覽器對稱式 gate 9／9，完整 frontend CI Node 672／5、Chromium 354／4；mock marker 明確不冒充 Google runtime，card 精確剩 mobile 16 筆 context 差異待批次 D。                                  |
 | 2026-09-08 | `ds-bundle` mobile touch gate    | Buttons／Chips 補回四種 production container，mobile 9 cards／84 controls／0 undersized；三瀏覽器 card＋production gate 39／39。新增 gate 另在 WebKit 卡片與正式 EditSession 都重現兩個 select 22px，scoped 修成 44px。完整 frontend CI Node 672／5、Chromium 374／4；Hosted／migration 未動。                                      |
 | 2026-09-08 | `ds-bundle` completion audit     | P7 本機工作閉環：13 CSS／50 tokens exact、9-card static＋mobile size gate 完整，補 43px canary 與現行 NOTES／README。Node 672／5、Chromium 376／4、三瀏覽器 card 30／30；遠端設計專案、Google marker、Push／Hosted 邊界未冒充完成，下一步需確認 B13.3 四項產品／隱私決策。                                       |
+| 2026-09-08 | FA-03B13.3                       | 使用者核可四項方案後完成 data-free 8-state contract、dormant v2 presentation、三個 legacy 入口共用邊界與 Edge IP／IndexedDB 隱私更新。Node 679／5、Chromium 378／4、DB 1,290／1,290 與完整 local／preview／Edge CI 通過；v2 shell 仍 disabled，Hosted／migration／secret／request／資料清除均未執行。                              |

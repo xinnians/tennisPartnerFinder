@@ -11,6 +11,8 @@ const PUBLIC_DIR = fileURLToPath(new URL("../public", import.meta.url));
 
 const SCAN_PATHS = ["manifest.webmanifest", "icon.svg", "privacy.html"];
 const FILES = SCAN_PATHS.map((name) => [name, readFileSync(new URL(`../public/${name}`, import.meta.url), "utf8")]);
+const PRIVACY_HTML = FILES.find(([name]) => name === "privacy.html")?.[1] ?? "";
+const PRIVACY_TEXT = PRIVACY_HTML.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
 
 // 舊 navy/blue 品牌色與其對應底色 token;新增舊值前先讀
 // docs/superpowers/specs 計分板換皮 spec 確認未被其他情境合法使用。
@@ -48,4 +50,13 @@ test("manifest theme_color 與 index.html theme-color meta 一致", () => {
     match[1],
     `manifest theme_color(${manifest.theme_color}) 與 index.html theme-color meta(${match[1]}) 不一致`
   );
+});
+
+test("隱私頁只揭露已查證的 Edge IP 與 dormant Push v2 本機資料範圍", () => {
+  assert.match(PRIVACY_TEXT, /生效日期：2026 年 9 月 8 日/u);
+  assert.match(PRIVACY_TEXT, /Supabase Edge Function.*請求來源 IP/u);
+  assert.match(PRIVACY_TEXT, /Free 方案.*保留 1 天/u);
+  assert.match(PRIVACY_TEXT, /HMAC.*不保存原始 IP.*不會移除 Supabase 平台本身的短期紀錄/u);
+  assert.match(PRIVACY_TEXT, /新版推播目前尚未正式啟用/u);
+  assert.match(PRIVACY_TEXT, /IndexedDB.*邏輯識別.*推播訂閱.*清理憑證.*推播同意狀態/u);
 });

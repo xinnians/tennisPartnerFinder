@@ -6,6 +6,10 @@ import { enableBrowserPush, vapidPublicKeyBytes } from "../src/notificationPush.
 
 const PUSH_STORAGE_URL = new URL("../src/notificationPushStorage.ts", import.meta.url);
 const PUSH_STORAGE_SOURCE = readFileSync(PUSH_STORAGE_URL, "utf8");
+const PUSH_STATE_CONTRACT_SOURCE = readFileSync(
+  new URL("../src/notificationPushStateContract.ts", import.meta.url),
+  "utf8"
+);
 const PUSH_CLEANUP_TRANSPORT_URL = new URL("../src/notificationPushCleanupTransport.ts", import.meta.url);
 const PUSH_CLEANUP_TRANSPORT_SOURCE = readFileSync(PUSH_CLEANUP_TRANSPORT_URL, "utf8");
 const PUSH_CLEANUP_COORDINATOR_URL = new URL("../src/notificationPushCleanupCoordinator.ts", import.meta.url);
@@ -198,12 +202,26 @@ test("the Push storage foundation has no network, Supabase, or unsafe fallback b
   const importSources = [...PUSH_STORAGE_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
   const sideEffectImports = [...PUSH_STORAGE_SOURCE.matchAll(/^\s*import\s+"([^"]+)";/gmu)].map((match) => match[1]);
 
-  assert.deepEqual(importSources, ["../supabase/functions/_shared/push-cleanup-protocol.js"]);
+  assert.deepEqual(importSources, [
+    "../supabase/functions/_shared/push-cleanup-protocol.js",
+    "./notificationPushStateContract.ts",
+  ]);
   assert.deepEqual(sideEffectImports, []);
+  assert.match(PUSH_STORAGE_SOURCE, /import type \{ NotificationPushRuntimeStateView \}/u);
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\bimport\s*\(/u);
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:dataApi|supabaseClient)\b/u);
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u);
   assert.doesNotMatch(PUSH_STORAGE_SOURCE, /\b(?:localStorage|sessionStorage|Math\.random)\b/u);
+});
+
+test("the shared Push state contract stays data-free and type-only", () => {
+  assert.doesNotMatch(PUSH_STATE_CONTRACT_SOURCE, /^\s*import\s/gmu);
+  assert.doesNotMatch(PUSH_STATE_CONTRACT_SOURCE, /\bexport\s+(?:class|const|function)\b/u);
+  assert.match(
+    PUSH_STATE_CONTRACT_SOURCE,
+    /interface NotificationPushRuntimeStateView\s*\{\s*readonly kind: NotificationPushRuntimeStateKind;\s*\}/u
+  );
+  assert.doesNotMatch(PUSH_STATE_CONTRACT_SOURCE, /\b(?:fetch|indexedDB|localStorage|sessionStorage|supabase)\b/iu);
 });
 
 test("the dormant cleanup transport imports only public shared modules and never persists or logs secrets", () => {

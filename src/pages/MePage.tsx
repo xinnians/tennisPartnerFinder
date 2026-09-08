@@ -449,10 +449,14 @@ function NotificationSettings({
   const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
     (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
   );
-  const enablePushDisabled =
-    !notification.webPushConfigured ||
-    notification.pushStatus === "enabled" ||
-    notification.pushStatus === "unsupported";
+  const pushPresentation = mePageRuntime.notificationPushPresentation({
+    settings: {
+      pushStatus: notification.pushStatus,
+      webPushConfigured: notification.webPushConfigured,
+    },
+    source: "legacy",
+  });
+  const enablePushDisabled = pushPresentation.source !== "legacy" || pushPresentation.controlDisabled;
   return (
     <section className="notification-settings" aria-labelledby="notification-settings-title">
       <div className="notification-settings__head">
@@ -474,10 +478,10 @@ function NotificationSettings({
             void mePageRuntime.runNotificationSettingAction(rootElement, onEnablePush);
           }}
         >
-          {notification.pushStatus === "enabled" ? "此裝置已開啟" : "開啟推播"}
+          {pushPresentation.source === "legacy" ? pushPresentation.controlLabel : "開啟推播"}
         </button>
       </div>
-      <p className="form-hint notification-settings__hint">{mePageRuntime.notificationPushHint(notification)}</p>
+      <p className="form-hint notification-settings__hint">{pushPresentation.hint}</p>
       <p className="form-hint">推播開關只影響這台裝置；下方的事件偏好套用到你的帳號。</p>
       <p className="form-hint notification-settings__ios-hint">
         若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。

@@ -1,7 +1,8 @@
 # FA-03B13.3 Push UI／隱私前置確認
 
 日期：2026-09-07
-狀態：唯讀盤點完成；尚未改 UI／隱私文案
+狀態：四項方案已於 2026-09-08 核可並完成本機實作；證據見
+`frontend-architecture-fa-03b13-ui-privacy-mapping-2026-09-08.md`
 
 ## 白話結論
 
@@ -108,7 +109,13 @@
 
 在以上項目核可前，不修改 UI 與隱私文案，也不自行猜 production 文案。
 
-## 本批邊界
+## 2026-09-08 決策結果
+
+使用者回覆「四項都同意」。實作依上列四項完成：兩個 cleanup state 同畫面分組、其他 state 分開；先做 dormant
+mapping 與隱私更新；`invalid` 只有支援動作；隱私頁只加入已查證的 Edge source-IP 與 IndexedDB 範圍。legacy
+正式功能與 Push v2 disabled 均保持不變。
+
+## 前置盤點當批邊界
 
 - 沒有修改 runtime、React UI、隱私頁、測試、migration、Service Worker 或設定。
 - 沒有 Hosted deploy、env／secret、request 或 DB write。

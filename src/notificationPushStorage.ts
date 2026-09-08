@@ -3,6 +3,7 @@ import {
   decodeCanonicalCleanupToken,
   encodeBase64Url,
 } from "../supabase/functions/_shared/push-cleanup-protocol.js";
+import type { NotificationPushRuntimeStateView } from "./notificationPushStateContract.ts";
 
 export const PUSH_STORAGE_DATABASE_NAME = "tennis-partner-finder-push";
 export const PUSH_STORAGE_DATABASE_VERSION = 1;
@@ -177,13 +178,15 @@ type PushBindingRuntimeState =
   | { binding: SafeEnabledBinding; deviceId: string; kind: "enabled" }
   | { binding: SafeProvisioningBinding; deviceId: string; kind: "provisioning" };
 
-export type PushRuntimeState =
-  | { deviceId: null; kind: "disabled" }
-  | { deviceId: string; kind: "disabled" }
-  | { deviceId: string; kind: "cleanup-pending"; pendingCount: 1 }
-  | PushBindingRuntimeState
-  | { kind: "invalid" }
-  | { kind: "unavailable" };
+export type PushRuntimeState = NotificationPushRuntimeStateView &
+  (
+    | { deviceId: null; kind: "disabled" }
+    | { deviceId: string; kind: "disabled" }
+    | { deviceId: string; kind: "cleanup-pending"; pendingCount: 1 }
+    | PushBindingRuntimeState
+    | { kind: "invalid" }
+    | { kind: "unavailable" }
+  );
 
 export class NotificationPushStorageError extends Error {
   readonly code: string;

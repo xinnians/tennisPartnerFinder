@@ -8,6 +8,10 @@ import type {
 } from "./domainTypes.ts";
 import { canReceiveFocus } from "./meFocus.js";
 import { notificationPreferencesForRead } from "./notificationPreferences.ts";
+import type {
+  NotificationPushRuntimeStateKind,
+  NotificationPushRuntimeStateView,
+} from "./notificationPushStateContract.ts";
 import { formatNtrp, validProfileNtrp } from "./profile.ts";
 import { isUndecidedCandidate } from "./sessionCriteria.ts";
 import { runMySessionAction, runNotificationSettingAction, runPresenceSettingAction } from "./sessionActions.ts";
@@ -333,7 +337,39 @@ export function normalizedNotificationSettings(settings: NotificationSettingsInp
   };
 }
 
-export function notificationPushHint({
+export type NotificationPushV2ActionKind = "contact-support" | "enable" | "manual-reenable" | "retry-provisioning";
+
+export type NotificationPushV2StateGroup =
+  "auth-unverified" | "cleanup" | "disabled" | "enabled" | "invalid" | "provisioning" | "unavailable";
+
+export interface NotificationPushV2Presentation {
+  readonly action: { readonly kind: NotificationPushV2ActionKind; readonly label: string } | null;
+  readonly hint: string;
+  readonly source: "v2";
+  readonly state: NotificationPushRuntimeStateKind;
+  readonly stateGroup: NotificationPushV2StateGroup;
+  readonly statusLabel: string;
+}
+
+export interface LegacyNotificationPushPresentation {
+  readonly controlDisabled: boolean;
+  readonly controlLabel: string;
+  readonly hint: string;
+  readonly showSuccessPrompt: boolean;
+  readonly source: "legacy";
+}
+
+export type NotificationPushPresentation = LegacyNotificationPushPresentation | NotificationPushV2Presentation;
+
+type NotificationPushPresentationInput =
+  | { readonly settings: NotificationSettingsInput; readonly source: "legacy" }
+  | {
+      readonly deliveryReady: boolean;
+      readonly source: "v2";
+      readonly state: NotificationPushRuntimeStateView;
+    };
+
+function legacyNotificationPushHint({
   pushStatus,
   webPushConfigured,
 }: Pick<ReturnType<typeof normalizedNotificationSettings>, "pushStatus" | "webPushConfigured">): string {
@@ -344,6 +380,106 @@ export function notificationPushHint({
   return "開啟後，只有這個裝置會收到你選擇的通知。";
 }
 
+function legacyNotificationPushPresentation(settings: NotificationSettingsInput): LegacyNotificationPushPresentation {
+  const notification = normalizedNotificationSettings(settings);
+  return Object.freeze({
+    controlDisabled: !notification.webPushConfigured || ["enabled", "unsupported"].includes(notification.pushStatus),
+    controlLabel: notification.pushStatus === "enabled" ? "此裝置已開啟" : "開啟推播",
+    hint: legacyNotificationPushHint(notification),
+    showSuccessPrompt: notification.webPushConfigured && !["enabled", "unsupported"].includes(notification.pushStatus),
+    source: "legacy" as const,
+  });
+}
+
+function v2NotificationPushPresentation(
+  state: NotificationPushRuntimeStateView,
+  deliveryReady: boolean
+): NotificationPushV2Presentation {
+  switch (state.kind) {
+    case "disabled":
+      return Object.freeze({
+        action: Object.freeze({ kind: "enable", label: "開啟推播" }),
+        hint: "這台裝置尚未設定新版推播。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "disabled",
+        statusLabel: "尚未開啟",
+      });
+    case "enabled":
+      return Object.freeze({
+        action: null,
+        hint: deliveryReady ? "此裝置已開啟推播通知。" : "這台裝置的本機設定已完成；推播服務尚未正式啟用。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "enabled",
+        statusLabel: deliveryReady ? "此裝置已開啟" : "本機設定已完成",
+      });
+    case "auth-unverified":
+      return Object.freeze({
+        action: Object.freeze({ kind: "manual-reenable", label: "重新開啟" }),
+        hint: "目前無法確認登入狀態。若要恢復，請由你再次開啟推播。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "auth-unverified",
+        statusLabel: "已暫停",
+      });
+    case "cleanup-required":
+    case "cleanup-pending":
+      return Object.freeze({
+        action: null,
+        hint: "舊推播正在清理，完成前不能重新開啟。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "cleanup",
+        statusLabel: "正在停止舊推播",
+      });
+    case "provisioning":
+      return Object.freeze({
+        action: Object.freeze({ kind: "retry-provisioning", label: "繼續開啟" }),
+        hint: "上次開啟流程尚未完成；只有你再次操作時才會重試。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "provisioning",
+        statusLabel: "尚未完成開啟",
+      });
+    case "invalid":
+      return Object.freeze({
+        action: Object.freeze({ kind: "contact-support", label: "聯絡支援" }),
+        hint: "目前無法安全使用這份推播設定，請聯絡支援協助處理。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "invalid",
+        statusLabel: "此裝置的推播資料異常",
+      });
+    case "unavailable":
+      return Object.freeze({
+        action: null,
+        hint: "瀏覽器目前無法讀取這台裝置的推播設定。",
+        source: "v2",
+        state: state.kind,
+        stateGroup: "unavailable",
+        statusLabel: "此裝置目前無法讀取推播設定",
+      });
+  }
+}
+
+/**
+ * Legacy 與 Push v2 共用的純顯示邊界。v2 只接受中立契約中的 state 名稱，
+ * 並只回傳文案與動作種類；binding、cleanup token、consent 與裝置 ID 都不會進入 React props。
+ */
+export function notificationPushPresentation(input: NotificationPushPresentationInput): NotificationPushPresentation {
+  return input.source === "legacy"
+    ? legacyNotificationPushPresentation(input.settings)
+    : v2NotificationPushPresentation(input.state, input.deliveryReady);
+}
+
+export function notificationPushHint({
+  pushStatus,
+  webPushConfigured,
+}: Pick<ReturnType<typeof normalizedNotificationSettings>, "pushStatus" | "webPushConfigured">): string {
+  return legacyNotificationPushHint({ pushStatus, webPushConfigured });
+}
+
 export const IOS_PUSH_INSTALL_HINT =
   "若使用 iPhone／iPad，請先在 Safari 的分享選單選擇「加入主畫面」，再從主畫面開啟本網站以使用推播通知。";
 
@@ -351,8 +487,8 @@ export function successPushPromptPresentation(
   settings: NotificationSettingsInput,
   { message, testId }: { message: string; testId: string }
 ) {
-  const notification = normalizedNotificationSettings(settings);
-  if (!notification.webPushConfigured || ["enabled", "unsupported"].includes(notification.pushStatus)) return null;
+  const notification = notificationPushPresentation({ settings, source: "legacy" });
+  if (notification.source !== "legacy" || !notification.showSuccessPrompt) return null;
   return { iosHint: IOS_PUSH_INSTALL_HINT, message, testId };
 }
 
@@ -382,6 +518,7 @@ export const mePageRuntime = Object.freeze({
   normalizedNotificationSettings,
   normalizedPresenceSettings,
   notificationPushHint,
+  notificationPushPresentation,
   ntrpBrickValue,
   playerSlotLabels,
   presenceLocationHint,
@@ -450,6 +587,7 @@ export const mySessionsPageRuntime = Object.freeze({
   mySessionsSplitBySegment,
   normalizedNotificationSettings,
   notificationPushHint,
+  notificationPushPresentation,
   ntrpRange,
   resolveMySessionsSegment,
   runMySessionAction,
