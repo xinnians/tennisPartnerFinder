@@ -4,14 +4,12 @@ export const PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES = 32;
 export const PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION = 1;
 export const PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER = "x-qiuka-cleanup-limiter-canary";
 export const PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES = 32;
-export const PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER = "x-qiuka-cleanup-source-probe";
 export const HOSTED_CLIENT_ADDRESS_FAILURES = Object.freeze({
   CF_INVALID: "CF_INVALID",
   CF_MISSING: "CF_MISSING",
   HEADERS: "HEADERS",
   MISMATCH: "MISMATCH",
   REAL_INVALID: "REAL_INVALID",
-  REAL_MISSING: "REAL_MISSING",
 });
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
@@ -148,9 +146,7 @@ export function inspectTrustedHostedClientAddress(headers) {
   }
 
   const realValue = headers.get("x-real-ip");
-  if (!realValue) {
-    return Object.freeze({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.REAL_MISSING });
-  }
+  if (!realValue) return Object.freeze({ address: cloudflareAddress, failure: "" });
   const realAddress = canonicalIpAddress(realValue);
   if (!realAddress) {
     return Object.freeze({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.REAL_INVALID });

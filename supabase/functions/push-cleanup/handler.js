@@ -1,15 +1,9 @@
 import { canonicalCleanupEnvelopeJson, CLEANUP_ENVELOPE_BYTES, digestForCleanupEnvelope } from "./crypto.js";
-import { canonicalIpAddress, PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER } from "./rate-limit.js";
 
 export { CLEANUP_ENVELOPE_BYTES };
 
 export const PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER = "x-qiuka-cleanup-limiter-outcome";
 export const PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER = "x-qiuka-cleanup-limiter-stage";
-export const PUSH_CLEANUP_SOURCE_PROBE_RESULTS = Object.freeze({
-  CLIENT_VALUE: "SOURCE_CF_CLIENT_VALUE",
-  INVALID: "SOURCE_PROBE_INVALID",
-  NOT_CLIENT_VALUE: "SOURCE_CF_NOT_CLIENT_VALUE",
-});
 export const PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES = Object.freeze({
   BUCKET_HASH: "BUCKET_HASH",
   HMAC_KEY: "HMAC_KEY",
@@ -24,7 +18,6 @@ export const PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES = Object.freeze({
   SOURCE_HEADERS: "SOURCE_HEADERS",
   SOURCE_MISMATCH: "SOURCE_MISMATCH",
   SOURCE_REAL_INVALID: "SOURCE_REAL_INVALID",
-  SOURCE_REAL_MISSING: "SOURCE_REAL_MISSING",
   UNCLASSIFIED: "UNCLASSIFIED",
 });
 
@@ -42,16 +35,6 @@ export function hostedLimiterCanaryFailure(stage) {
 function hostedLimiterCanaryFailureStage(error) {
   const stage = error && typeof error === "object" ? CANARY_FAILURE_STAGE_BY_ERROR.get(error) : null;
   return CANARY_FAILURE_STAGE_VALUES.has(stage) ? stage : PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES.UNCLASSIFIED;
-}
-
-function hostedSourceProbeResult(headers) {
-  if (!headers || typeof headers.get !== "function") return PUSH_CLEANUP_SOURCE_PROBE_RESULTS.INVALID;
-  const probeAddress = canonicalIpAddress(headers.get(PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER));
-  const cloudflareAddress = canonicalIpAddress(headers.get("cf-connecting-ip"));
-  if (!probeAddress || !cloudflareAddress) return PUSH_CLEANUP_SOURCE_PROBE_RESULTS.INVALID;
-  return probeAddress === cloudflareAddress
-    ? PUSH_CLEANUP_SOURCE_PROBE_RESULTS.CLIENT_VALUE
-    : PUSH_CLEANUP_SOURCE_PROBE_RESULTS.NOT_CLIENT_VALUE;
 }
 
 const BASE_HEADERS = Object.freeze({
@@ -163,11 +146,9 @@ export function createPushCleanupHandler({
   return async function pushCleanupHandler(request) {
     const corsOrigin = request.headers.get("origin") === allowedOrigin && allowedOrigin ? allowedOrigin : null;
 
-    // Hosted canary mode is deliberately limited to one authenticated POST.
-    // The optional source probe only compares two canonical addresses and stops;
-    // the normal canary continues through the limiter. Neither path can read the
-    // body, load cleanup keys, decrypt, or call the quarantine command. All other
-    // hosted traffic stays hard-gated.
+    // Hosted canary mode is deliberately limited to one authenticated POST
+    // through the limiter. It cannot read the body, load cleanup keys, decrypt,
+    // or call the quarantine command. All other hosted traffic stays hard-gated.
     if (hostedRuntime) {
       let canaryAuthorized;
       try {
@@ -177,12 +158,6 @@ export function createPushCleanupHandler({
         return retryResponse(corsOrigin);
       }
       if (!canaryAuthorized) return retryResponse(corsOrigin);
-
-      if (request.headers.get(PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER) !== null) {
-        return retryResponse(corsOrigin, {
-          [PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER]: hostedSourceProbeResult(request.headers),
-        });
-      }
 
       try {
         const limiterOutcome = await consumeRateLimit(request);

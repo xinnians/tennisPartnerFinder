@@ -29,7 +29,6 @@ import {
   PUSH_CLEANUP_LIMITER_CANARY_FAILURE_STAGES,
   PUSH_CLEANUP_LIMITER_CANARY_OUTCOME_HEADER,
   PUSH_CLEANUP_LIMITER_CANARY_STAGE_HEADER,
-  PUSH_CLEANUP_SOURCE_PROBE_RESULTS,
 } from "../supabase/functions/push-cleanup/handler.js";
 import {
   canonicalIpAddress,
@@ -41,7 +40,6 @@ import {
   parseCanonicalRateLimitPolicy,
   PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER,
   PUSH_CLEANUP_LIMITER_CANARY_TOKEN_BYTES,
-  PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER,
   PUSH_CLEANUP_RATE_LIMIT_KEY_BYTES,
   PUSH_CLEANUP_RATE_LIMIT_POLICY_VERSION,
   trustedHostedClientAddress,
@@ -534,7 +532,7 @@ test("hosted limiter canary token requires two exact canonical 32-byte values", 
   }
 });
 
-test("client address parser canonicalizes IP only and requires matching hosted gateway headers", () => {
+test("client address parser requires Cloudflare IP and validates x-real-ip only when present", () => {
   assert.equal(canonicalIpAddress("203.0.113.8"), "203.0.113.8");
   assert.equal(canonicalIpAddress("2001:0DB8:0:0::1"), "2001:db8::1");
   assert.equal(canonicalIpAddress("::ffff:192.0.2.1"), "::ffff:c000:201");
@@ -558,12 +556,17 @@ test("client address parser canonicalizes IP only and requires matching hosted g
   });
   assert.deepEqual(inspectTrustedHostedClientAddress(matchingHeaders), { address: "2001:db8::1", failure: "" });
   assert.equal(trustedHostedClientAddress(matchingHeaders), "2001:db8::1");
+  const cloudflareOnlyHeaders = new Headers({ "cf-connecting-ip": "2001:0DB8:0:0::1" });
+  assert.deepEqual(inspectTrustedHostedClientAddress(cloudflareOnlyHeaders), {
+    address: "2001:db8::1",
+    failure: "",
+  });
+  assert.equal(trustedHostedClientAddress(cloudflareOnlyHeaders), "2001:db8::1");
 
   const failures = [
     [null, HOSTED_CLIENT_ADDRESS_FAILURES.HEADERS],
     [new Headers(), HOSTED_CLIENT_ADDRESS_FAILURES.CF_MISSING],
     [new Headers({ "cf-connecting-ip": "bad", "x-real-ip": "203.0.113.8" }), HOSTED_CLIENT_ADDRESS_FAILURES.CF_INVALID],
-    [new Headers({ "cf-connecting-ip": "203.0.113.8" }), HOSTED_CLIENT_ADDRESS_FAILURES.REAL_MISSING],
     [
       new Headers({ "cf-connecting-ip": "203.0.113.8", "x-real-ip": "bad" }),
       HOSTED_CLIENT_ADDRESS_FAILURES.REAL_INVALID,
@@ -594,7 +597,7 @@ test("rate-limit client maps each internal boundary to a fixed canary-only stage
   };
   const validRequest = () =>
     new Request("https://project.supabase.co/functions/v1/push-cleanup", {
-      headers: { "cf-connecting-ip": "203.0.113.8", "x-real-ip": "203.0.113.8" },
+      headers: { "cf-connecting-ip": "203.0.113.8" },
       method: "POST",
     });
   const consumer = (overrides = {}) => {
@@ -675,12 +678,6 @@ test("rate-limit client maps each internal boundary to a fixed canary-only stage
       "SOURCE_CF_INVALID",
       consumer({
         inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.CF_INVALID }),
-      }),
-    ],
-    [
-      "SOURCE_REAL_MISSING",
-      consumer({
-        inspectClientAddress: () => ({ address: "", failure: HOSTED_CLIENT_ADDRESS_FAILURES.REAL_MISSING }),
       }),
     ],
     [
@@ -818,85 +815,6 @@ test("hosted limiter canary requires its exact POST token and never reaches body
       limiterCalls: 2,
       quarantineCalls: 0,
     }
-  );
-});
-
-test("authorized hosted source probe returns only a fixed comparison result and bypasses all mutable paths", async () => {
-  let bodyReads = 0;
-  let keyLoads = 0;
-  let limiterCalls = 0;
-  let quarantineCalls = 0;
-  const handler = createPushCleanupHandler({
-    allowedOrigin: ALLOWED_ORIGIN,
-    authorizeHostedLimiterCanary: (request) =>
-      matchesHostedLimiterCanaryToken(FIXED_TOKEN, request.headers.get(PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER)),
-    consumeRateLimit: async () => {
-      limiterCalls += 1;
-      return "ALLOW";
-    },
-    hostedLimiterCanaryEnabled: true,
-    hostedRuntime: true,
-    loadKeyRing: async () => {
-      keyLoads += 1;
-      return testKeyRing;
-    },
-    localTestEnabled: false,
-    quarantineByDigest: async () => {
-      quarantineCalls += 1;
-      return "OK";
-    },
-  });
-  const sourceProbeRequest = ({ cloudflareAddress, probeAddress, token = FIXED_TOKEN }) => ({
-    get body() {
-      bodyReads += 1;
-      throw new Error("body must remain unread");
-    },
-    headers: new Headers({
-      "cf-connecting-ip": cloudflareAddress,
-      [PUSH_CLEANUP_LIMITER_CANARY_REQUEST_HEADER]: token,
-      [PUSH_CLEANUP_SOURCE_PROBE_REQUEST_HEADER]: probeAddress,
-    }),
-    method: "POST",
-  });
-
-  const cases = [
-    {
-      cloudflareAddress: "203.0.113.8",
-      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.CLIENT_VALUE,
-      probeAddress: "203.0.113.8",
-    },
-    {
-      cloudflareAddress: "203.0.113.9",
-      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.NOT_CLIENT_VALUE,
-      probeAddress: "203.0.113.8",
-    },
-    {
-      cloudflareAddress: "2001:db8::1",
-      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.CLIENT_VALUE,
-      probeAddress: "2001:0DB8:0:0::1",
-    },
-    {
-      cloudflareAddress: "203.0.113.8",
-      expectedStage: PUSH_CLEANUP_SOURCE_PROBE_RESULTS.INVALID,
-      probeAddress: "not-an-ip",
-    },
-  ];
-  for (const { cloudflareAddress, expectedStage, probeAddress } of cases) {
-    assert.deepEqual(await responseShape(await handler(sourceProbeRequest({ cloudflareAddress, probeAddress }))), {
-      ...expectedResponse("RETRY", 503, null),
-      canaryStage: expectedStage,
-    });
-  }
-
-  assert.deepEqual(
-    await responseShape(
-      await handler(sourceProbeRequest({ cloudflareAddress: "203.0.113.8", probeAddress: "203.0.113.8", token: "" }))
-    ),
-    expectedResponse("RETRY", 503, null)
-  );
-  assert.deepEqual(
-    { bodyReads, keyLoads, limiterCalls, quarantineCalls },
-    { bodyReads: 0, keyLoads: 0, limiterCalls: 0, quarantineCalls: 0 }
   );
 });
 
