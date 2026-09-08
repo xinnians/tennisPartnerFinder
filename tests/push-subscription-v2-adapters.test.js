@@ -5,7 +5,11 @@ import test from "node:test";
 import { encodeBase64Url } from "../supabase/functions/_shared/push-cleanup-protocol.js";
 import { pushSubscriptionRsaThumbprint } from "../supabase/functions/_shared/push-subscription-v2-protocol.js";
 import { createPushSubscriptionV2RuntimePorts } from "../supabase/functions/push-subscription-v2/adapters.js";
-import { pushSubscriptionV2RuntimeAccess } from "../supabase/functions/push-subscription-v2/runtime.js";
+import { createPushSubscriptionV2Entrypoint } from "../supabase/functions/push-subscription-v2/entrypoint.js";
+import {
+  PUSH_SUBSCRIPTION_V2_HOSTED_RUNTIME_MODE,
+  pushSubscriptionV2RuntimeAccess,
+} from "../supabase/functions/push-subscription-v2/runtime.js";
 
 const SUPABASE_URL = "https://project.supabase.co";
 const AUTH_USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -62,40 +66,96 @@ function ports(fetchRef, source = environment) {
   });
 }
 
-test("runtime access permits only the exact local mode without hosted markers", () => {
+test("runtime access permits only the exact local or hosted mode for its runtime", () => {
   const access = (values) => pushSubscriptionV2RuntimeAccess((name) => values[name] ?? "");
   assert.deepEqual(access({ PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "local-test-v1" }), {
+    hostedEnabled: false,
     hostedRuntime: false,
     localTestEnabled: true,
   });
   assert.deepEqual(access({ PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "local-test-v1", SB_REGION: "local" }), {
+    hostedEnabled: false,
     hostedRuntime: true,
     localTestEnabled: false,
   });
-  assert.deepEqual(access({ PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "enabled" }), {
+  assert.deepEqual(access({ DENO_DEPLOYMENT_ID: "deployment-id", PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "hosted-v1" }), {
+    hostedEnabled: true,
+    hostedRuntime: true,
+    localTestEnabled: false,
+  });
+  assert.deepEqual(access({ PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "hosted-v1" }), {
+    hostedEnabled: false,
     hostedRuntime: false,
     localTestEnabled: false,
   });
+  assert.deepEqual(access({ SB_REGION: "region", PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "hosted-v1 " }), {
+    hostedEnabled: false,
+    hostedRuntime: true,
+    localTestEnabled: false,
+  });
+  assert.equal(PUSH_SUBSCRIPTION_V2_HOSTED_RUNTIME_MODE, "hosted-v1");
 });
 
-test("the Edge entrypoint owns authoritative Auth, stays hosted-disabled, and has no logging", () => {
+test("the Edge entrypoint owns authoritative Auth, defaults disabled, and has no logging", () => {
   const directory = new URL("../supabase/functions/push-subscription-v2/", import.meta.url);
-  const sources = ["adapters.js", "handler.js", "index.ts", "runtime.js"].map((name) =>
+  const sources = ["adapters.js", "entrypoint.js", "handler.js", "index.ts", "runtime.js"].map((name) =>
     readFileSync(new URL(name, directory), "utf8")
   );
-  const [adaptersSource, handlerSource, indexSource, runtimeSource] = sources;
+  const [adaptersSource, entrypointSource, handlerSource, indexSource, runtimeSource] = sources;
   const config = readFileSync(new URL("../supabase/config.toml", import.meta.url), "utf8");
 
   assert.match(adaptersSource, /\/auth\/v1\/user/u);
   assert.match(adaptersSource, /enable_push_device_v2/u);
   assert.match(adaptersSource, /refresh_push_transport_v2/u);
-  assert.match(indexSource, /pushSubscriptionV2RuntimeAccess/u);
-  assert.match(indexSource, /if \(!localTestEnabled\)/u);
+  assert.match(entrypointSource, /pushSubscriptionV2RuntimeAccess/u);
+  assert.match(entrypointSource, /if \(!hostedEnabled && !localTestEnabled\)/u);
+  assert.match(indexSource, /createPushSubscriptionV2Entrypoint/u);
   assert.match(runtimeSource, /DENO_DEPLOYMENT_ID/u);
   assert.match(runtimeSource, /SB_REGION/u);
+  assert.match(runtimeSource, /hosted-v1/u);
   assert.match(config, /\[functions\.push-subscription-v2\]\nverify_jwt = false/u);
-  assert.doesNotMatch(`${adaptersSource}\n${handlerSource}\n${indexSource}\n${runtimeSource}`, /\bconsole\./u);
+  assert.doesNotMatch(
+    `${adaptersSource}\n${entrypointSource}\n${handlerSource}\n${indexSource}\n${runtimeSource}`,
+    /\bconsole\./u
+  );
   assert.doesNotMatch(indexSource, /PUSH_PROVIDER_ORIGINS_V1\s*\|\||WEB_PUSH_VAPID_PUBLIC_KEY\s*\|\|/u);
+});
+
+test("the Edge entrypoint stays unavailable unless runtime and origin gates are exact", async () => {
+  const request = new Request("https://project.supabase.co/functions/v1/push-subscription-v2", {
+    headers: { origin: "https://qiuka.tw" },
+  });
+  const invoke = (values) =>
+    createPushSubscriptionV2Entrypoint({
+      readEnvironment: (name) => values[name] ?? "",
+    })(request.clone());
+
+  for (const values of [
+    {},
+    { PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "local-test-v1", SB_REGION: "region" },
+    { PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "hosted-v1" },
+    { PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "hosted-v1", SB_REGION: "region" },
+  ]) {
+    const response = await invoke(values);
+    assert.equal(response.status, 503);
+    assert.equal(await response.text(), '{"kind":"unavailable","version":1}');
+  }
+
+  for (const values of [
+    {
+      PUSH_SUBSCRIPTION_V2_ALLOWED_ORIGIN: "https://qiuka.tw",
+      PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "hosted-v1",
+      SB_REGION: "region",
+    },
+    {
+      PUSH_SUBSCRIPTION_V2_ALLOWED_ORIGIN: "https://qiuka.tw",
+      PUSH_SUBSCRIPTION_V2_RUNTIME_MODE: "local-test-v1",
+    },
+  ]) {
+    const response = await invoke(values);
+    assert.equal(response.status, 400);
+    assert.equal(await response.text(), '{"kind":"invalid","version":1}');
+  }
 });
 
 test("Auth adapter performs one authoritative user lookup and never treats an API key as identity", async () => {
