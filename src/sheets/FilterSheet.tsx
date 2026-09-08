@@ -179,7 +179,13 @@ function FilterFooter({ onApply, onReset, resultCount }: FilterFooterProps) {
         重設
       </button>
       <button type="button" className="session-primary filter-sheet__apply" data-filter="apply" onClick={onApply}>
-        看 <span data-filter-count="">{resultCount}</span> 場球局
+        {resultCount === "…" ? (
+          "查看篩選結果"
+        ) : (
+          <>
+            看 <span data-filter-count="">{resultCount}</span> 場球局
+          </>
+        )}
       </button>
     </div>
   );
@@ -194,7 +200,9 @@ function FilterSheet({
   resultCount,
 }: FilterSheetProps) {
   const [filters, setFilters] = useState(() => cloneSheetFilters(initialFilters));
-  const [resultCountLabel, setResultCountLabel] = useState(() => String(resultCount));
+  const [resultCountLabel, setResultCountLabel] = useState(() =>
+    resultCount == null ? "…" : String(Math.max(0, Number(resultCount) || 0))
+  );
   const filtersRef = useRef(filters);
 
   const commitFilters = useCallback((nextFilters: FilterSheetFilters) => {
@@ -209,7 +217,7 @@ function FilterSheet({
         commitFilters(cloneSheetFilters(nextFilters));
       },
       setResultCount(count) {
-        setResultCountLabel(String(Math.max(0, Number(count) || 0)));
+        setResultCountLabel(count == null ? "…" : String(Math.max(0, Number(count) || 0)));
       },
     }),
     [commitFilters]

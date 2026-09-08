@@ -13,6 +13,7 @@ export function configureFilterToolbarFeature(dependencies) {
 
 // openFilters() 開啟篩選 sheet 時的資料來源,亦是 renderFilters 判斷 badge N 的依據。
 let latestFilters = DEFAULT_FILTER_STATE;
+let latestResultCount = null;
 
 // 批 C1 Task 3:目前開著的篩選 sheet(未開時為 null)。renderFilters 靠它把地圖控件
 // 的每次變動鏡像進 sheet;sheet 自己的變動已在 openFilterSheet 內部同步。
@@ -34,7 +35,7 @@ function openFilters(handlers = {}) {
   return openFilterSheet({
     filters: latestFilters ?? undefined,
     courts: getAppState().courts,
-    resultCount: getController()?.getVisibleSessions?.().length ?? 0,
+    resultCount: latestResultCount,
     onSetFilter: (field, value) => getController().setFilter(field, value),
     onReset: () => getController().resetFilters(),
     onClose: (detail) => {
@@ -58,6 +59,7 @@ export function wireFilters() {
 /** Synchronize the toolbar, open sheet, and result count from one controller snapshot. */
 export function syncFilterToolbar(filters, resultCount) {
   latestFilters = filters;
+  latestResultCount = resultCount;
   renderFilters(filters);
   activeFilterSheet?.setResultCount(resultCount);
 }

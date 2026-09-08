@@ -11,7 +11,7 @@ interface Band {
   max: number;
 }
 
-interface FilterState {
+export interface FilterState {
   dateKey: string | null;
   band: string;
   instantOnly: boolean;

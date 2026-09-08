@@ -117,7 +117,11 @@ Deno.serve(async (request) => {
 
   const recipientIds = [...new Set((outboxRows ?? []).map((row) => row.recipient_profile_id))];
   const { data: subscriptionRows, error: subscriptionError } = recipientIds.length
-    ? await client.from("push_subscriptions").select("profile_id,endpoint,p256dh,auth").in("profile_id", recipientIds)
+    ? await client
+        .from("push_subscriptions")
+        .select("profile_id,endpoint,p256dh,auth")
+        .is("consent_id", null)
+        .in("profile_id", recipientIds)
     : { data: [], error: null };
   if (subscriptionError) return json({ error: "SUBSCRIPTION_READ_FAILED" }, 500);
 
@@ -170,7 +174,7 @@ Deno.serve(async (request) => {
       }
 
       if (result.removeSubscription) {
-        await client.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint);
+        await client.from("push_subscriptions").delete().eq("endpoint", subscription.endpoint).is("consent_id", null);
         staleSubscriptions += 1;
       }
       delivered ||= result.delivered;

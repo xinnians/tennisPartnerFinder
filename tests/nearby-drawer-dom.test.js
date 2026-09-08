@@ -163,6 +163,22 @@ test("NearbySessionsDrawer renders the peek row, session card, and empty state f
   assert.match(emptyHtml, /這個範圍暫時沒有可加入的球局/);
 });
 
+test("overflow remains distinct from empty and never renders partial rows or a zero count", async (t) => {
+  const modules = await loadNearbyDrawerTestModules(t);
+  const sessionStore = modules.createStore(
+    createNearbyStoreState({
+      discoveryStatus: "overflow",
+      drawerState: "open",
+      sessions: [],
+    })
+  );
+  const html = renderDrawer({ ...modules, controller: createController(sessionStore), nearbyDrawerApp: {} });
+  assert.match(html, /id="discovery-overflow"/);
+  assert.match(html, /id="discovery-narrow"/);
+  assert.match(html, /請縮小範圍/);
+  assert.doesNotMatch(html, /id="discovery-empty"|data-session-id|>0<|沒有符合/);
+});
+
 test("useNearbyDrawerState matches the six-field selectControllerMapView slice", async (t) => {
   const { AppServicesProvider, NearbyDrawerFocusProvider, createStore, selectControllerMapView, useNearbyDrawerState } =
     await loadNearbyDrawerTestModules(t);

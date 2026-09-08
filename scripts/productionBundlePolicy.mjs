@@ -18,9 +18,14 @@ export const BUNDLE_SIZE_LIMITS = Object.freeze({
   // Sentry is intentionally isolated but substantially larger than application lazy chunks.
   sentryRawBytes: 90_000,
   sentryGzipBytes: 31_000,
-  // F4-3 total JS (including push-sw.js) is 841,545/256,497. A 1% ceiling prevents split-induced growth.
-  totalRawBytes: 849_961,
-  totalGzipBytes: 259_062,
+  // Activated Push v2 owns encrypted enrollment, consent storage and cleanup.
+  // It is lazy and receives its own budget; ordinary surfaces and initial JS
+  // retain their existing limits. See the September 8 release acceptance.
+  pushRawBytes: 75_000,
+  pushGzipBytes: 17_000,
+  // Prior release budget plus 80 KB / 18 KB for Push v2 and its facade wiring.
+  totalRawBytes: 929_961,
+  totalGzipBytes: 277_062,
 });
 
 export function parseByteLimitMode(arguments_) {

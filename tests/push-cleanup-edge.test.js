@@ -408,38 +408,45 @@ test("runtime gate requires exact local mode and treats deployment or region mar
   const access = (environment) => cleanupRuntimeAccess((name) => environment[name] ?? "");
 
   assert.deepEqual(access({}), {
+    hostedProductionEnabled: false,
     hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: false,
   });
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "local-test" }), {
+    hostedProductionEnabled: false,
     hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: false,
   });
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "local-test-v1" }), {
+    hostedProductionEnabled: false,
     hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: true,
   });
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "local-test-v1", SB_EXECUTION_ID: "local-isolate" }), {
+    hostedProductionEnabled: false,
     hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: true,
   });
   for (const marker of ["DENO_DEPLOYMENT_ID", "SB_REGION"]) {
     assert.deepEqual(access({ [marker]: "hosted", PUSH_CLEANUP_RUNTIME_MODE: "local-test-v1" }), {
+      hostedProductionEnabled: false,
       hostedLimiterCanaryEnabled: false,
       hostedRuntime: true,
       localTestEnabled: false,
     });
     assert.deepEqual(access({ [marker]: "hosted", PUSH_CLEANUP_RUNTIME_MODE: "hosted-limiter-canary-v1" }), {
+      hostedProductionEnabled: false,
       hostedLimiterCanaryEnabled: true,
       hostedRuntime: true,
       localTestEnabled: false,
     });
   }
   assert.deepEqual(access({ PUSH_CLEANUP_RUNTIME_MODE: "hosted-limiter-canary-v1" }), {
+    hostedProductionEnabled: false,
     hostedLimiterCanaryEnabled: false,
     hostedRuntime: false,
     localTestEnabled: false,
@@ -1157,4 +1164,35 @@ test("Edge source has no application logging and only the approved RPC name", ()
 
   const configSource = readFileSync(new URL("../../config.toml", FUNCTION_DIRECTORY), "utf8");
   assert.match(configSource, /\[functions\.push-cleanup\]\s*verify_jwt\s*=\s*false/u);
+});
+
+test("explicit hosted production mode performs encrypted cleanup and retains limiter/CORS gates", async () => {
+  assert.equal(
+    cleanupRuntimeAccess(
+      (name) => ({ SB_REGION: "ap-southeast-1", PUSH_CLEANUP_RUNTIME_MODE: "hosted-v1" })[name] ?? ""
+    ).hostedProductionEnabled,
+    true
+  );
+  assert.equal(
+    cleanupRuntimeAccess((name) => ({ PUSH_CLEANUP_RUNTIME_MODE: "hosted-v1" })[name] ?? "").hostedProductionEnabled,
+    false
+  );
+  const envelope = await encryptCleanupTokenEnvelope(FIXED_TOKEN, testKeys.publicJwk);
+  const { calls, handler } = handlerHarness({
+    hostedRuntime: true,
+    hostedProductionEnabled: true,
+    localTestEnabled: false,
+  });
+  assert.deepEqual(await responseShape(await handler(jsonRequest(envelope))), expectedResponse("OK", 200));
+  assert.deepEqual(calls, [FIXED_DIGEST]);
+  const blocked = handlerHarness({
+    hostedRuntime: true,
+    hostedProductionEnabled: true,
+    localTestEnabled: false,
+    consumeRateLimit: async () => "LIMIT",
+  });
+  assert.equal((await blocked.handler(jsonRequest(envelope))).status, 503);
+  assert.deepEqual(blocked.calls, []);
+  await handler(jsonRequest(envelope, { origin: "https://untrusted.example" }));
+  assert.deepEqual(calls, [FIXED_DIGEST]);
 });

@@ -2269,6 +2269,7 @@ test("base-court drawers receive the same locally filtered session set as pins a
   });
   await harness.controller.loadDiscovery();
   harness.controller.setFilter("types", new Set(["單打"]));
+  await Promise.resolve();
   harness.controller.openCourt({ id: 8, name: "示範球場" });
   assert.deepEqual(
     harness.courtDrawers.at(-1).sessions.map((item) => item.sessionId),

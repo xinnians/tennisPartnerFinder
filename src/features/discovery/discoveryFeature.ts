@@ -112,6 +112,8 @@ export function selectVisibleSessions(state: DiscoveryState, now = new Date()): 
 export function mapStatusForState(
   state: Pick<DiscoveryState, "discoveryStatus" | "mapUnavailable">
 ): ControllerMapStatus {
+  if (state.discoveryStatus === "overflow")
+    return { kind: "overflow", message: "這個範圍的球局較多，請放大地圖或縮小篩選範圍，以查看完整球局。" };
   if (state.mapUnavailable) return { kind: "warning", message: "地圖目前無法使用；你仍可瀏覽附近球局。" };
   if (state.discoveryStatus === "loading") return { kind: "loading", message: "正在載入球局資料…" };
   if (state.discoveryStatus === "error") return { kind: "error", message: "球局資料暫時無法載入。" };

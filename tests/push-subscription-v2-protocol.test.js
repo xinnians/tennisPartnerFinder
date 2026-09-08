@@ -408,9 +408,11 @@ test("B11 ports are exact, inert, and only reviewed dispatcher policy adapters m
         .filter((path) => /\.(?:js|ts|tsx)$/u.test(path))
         .filter((path) =>
           root === "../src/"
-            ? !["notificationPushSubscriptionLocalComposition.ts", "notificationPushSubscriptionTransport.ts"].includes(
-                path
-              )
+            ? ![
+                "main.js",
+                "notificationPushSubscriptionLocalComposition.ts",
+                "notificationPushSubscriptionTransport.ts",
+              ].includes(path)
             : !dispatcherPolicyFiles.includes(path)
         )
         .map((path) => readFileSync(new URL(path, rootUrl), "utf8"));

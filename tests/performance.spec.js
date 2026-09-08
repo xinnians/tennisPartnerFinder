@@ -405,14 +405,16 @@ test("a stale opening focus callback cannot steal focus after an immediate drawe
     await preloadNonHomeViews("filter");
   });
 
-  // 批 D4a:退場的 #date-filter 曾在同一個同步 evaluate 區塊內把「篩選出零結果」與
-  // 「開抽屜→聚焦並點擊 reset」串在一起,刻意不讓任何一步跨到下一個 tick,重現這個
-  // race。改用篩選 sheet(行政區 chip「文山區」保證零命中,理由同上方 helper)完成
-  // 同一件事,一樣全部留在同一個同步區塊內。
+  // Server filtering is asynchronous. First wait for the authoritative empty
+  // result; opening the drawer, focusing reset, and resetting still share one
+  // synchronous turn so the original stale-opening focus race stays covered.
   await page.evaluate(() => {
     document.querySelector("#filter-sheet-open")?.click();
     document.querySelector('#filters-sheet [data-filter="districts"][data-value="文山區"]')?.click();
     document.querySelector("#filters-sheet [data-surface-close]")?.click();
+  });
+  await expect(page.locator("#nearby-sessions-toggle")).toContainText("沒有符合的球局");
+  await page.evaluate(() => {
     document.querySelector("#nearby-sessions-toggle")?.click();
     const reset = document.querySelector("#discovery-reset");
     reset?.focus();
@@ -493,4 +495,45 @@ test("390px map toolbar renders as a single row", async ({ page }) => {
   const box = await toolbar.boundingBox();
   expect(box.height).toBeLessThanOrEqual(110);
   expect(runtimeErrors).toEqual([]);
+});
+
+test("overflow narrows to the matching 201st session without showing a partial or empty result", async ({ page }) => {
+  test.skip(isLocalHarness, "The overflow fixture is isolated to mock data.");
+  await installFakeMaps(page);
+  await page.goto("/");
+  await expect(page.locator("#map-data-status")).toBeHidden();
+  await page.evaluate(async () => {
+    const { MOCK_SESSIONS } = await globalThis.__importAppModule("mockData");
+    const base = MOCK_SESSIONS[0];
+    MOCK_SESSIONS.splice(
+      0,
+      MOCK_SESSIONS.length,
+      ...Array.from({ length: 201 }, (_, index) => ({
+        ...base,
+        sessionId: 90000 + index,
+        startAt: new Date(Date.now() + 3600000 + index * 1000).toISOString(),
+        playType: index === 200 ? "單打" : "雙打",
+        status: "open",
+        slotsRemaining: 1,
+      }))
+    );
+  });
+  await setFakeMapBounds(page, { south: 24.9, west: 121.4, north: 25.2, east: 121.7 });
+  await expect(page.locator("#nearby-sessions-toggle")).toContainText("請縮小範圍");
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("#discovery-overflow")).toBeVisible();
+  await expect(page.locator("#discovery-empty")).toHaveCount(0);
+  await expect(page.locator("[data-testid='session-card']")).toHaveCount(0);
+  const box = await page.locator("#discovery-narrow").boundingBox();
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: `/tmp/qiuka-release-20260908/overflow-${test.info().project.name}.png` });
+  await page.locator("#discovery-narrow").click();
+  await expect(page.locator("#nearby-sessions-toggle")).toBeFocused();
+  await page.locator("#filter-sheet-open").click();
+  await page.locator('#filters-sheet [data-filter="types"][data-value="單打"]').click();
+  await expect(page.locator("#filters-sheet")).toContainText("看 1 場球局");
+  await page.locator("#filters-sheet [data-surface-close]").click();
+  await page.locator("#nearby-sessions-toggle").click();
+  await expect(page.locator("[data-session-id='90200']")).toBeVisible();
+  await expect(page.locator("[data-testid='session-card']")).toHaveCount(1);
 });

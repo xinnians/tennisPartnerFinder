@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { LAUNCH_CITY } from "../../config.ts";
 import type { SessionSummary } from "../../domainTypes.ts";
+import { filterSessions } from "../../filters.ts";
 import { getE2ETestHooks } from "../../e2eTestHooks.ts";
 import {
   COURTS,
@@ -14,7 +15,7 @@ import { isSupabaseConfigured, supabase } from "../../supabaseClient.js";
 import type { Database } from "../databaseTypes.ts";
 import { DataApiError, DataApiUnavailableError, asDataApiError } from "../dataErrors.ts";
 import { mapCourt } from "../mappers/profileMappers.ts";
-import { discoveryQuery, withinDiscoveryQuery } from "../mappers/queryMappers.ts";
+import { discoveryFilterExpression, discoveryQuery, withinDiscoveryQuery } from "../mappers/queryMappers.ts";
 import type { DiscoveryQueryInput } from "../mappers/queryMappers.ts";
 import { mapMockSessionSummary, mapSessionSummary } from "../mappers/sessionMappers.ts";
 import type { PrivateDataApi, PrivateDataRepositoryOptions, RepositoryDatabase } from "./privateDataRepository.ts";
@@ -50,9 +51,9 @@ function rowsOrEmpty<Row>(value: Row[] | null): Row[] {
   return Array.isArray(value) ? value : [];
 }
 
-function warnIfDiscoveryIsCapped(rowCount: number): void {
-  if (import.meta.env?.DEV && rowCount === SESSION_DISCOVERY_LIMIT) {
-    console.warn(`[data] session discovery reached its ${SESSION_DISCOVERY_LIMIT}-row safety cap`);
+function requireCompleteDiscovery(rowCount: number): void {
+  if (rowCount > SESSION_DISCOVERY_LIMIT) {
+    throw new DataApiError("這個範圍的球局較多，請放大地圖或縮小篩選範圍。", { code: "DISCOVERY_TOO_BROAD" });
   }
 }
 
@@ -105,22 +106,26 @@ export function createDataApi({
   }
 
   async function loadSessionDiscovery(input: DiscoveryQueryInput = {}) {
-    const query = discoveryQuery(input, currentTime());
+    const now = currentTime();
+    const query = discoveryQuery(input, now);
     if (!configured) {
       await runMockDataTestHook("loadSessionDiscovery");
-      const sessions = mockSessions
+      const candidates = mockSessions
         .filter((session) => withinDiscoveryQuery(session as Partial<SessionSummary>, query))
-        .map(mapMockSessionSummary)
+        .map(mapMockSessionSummary);
+      const sessions = (
+        input.filters ? (filterSessions(candidates, input.filters, now) as SessionSummary[]) : candidates
+      )
         .sort(
           (left, right) => left.startAt.localeCompare(right.startAt) || Number(left.sessionId) - Number(right.sessionId)
         )
-        .slice(0, SESSION_DISCOVERY_LIMIT);
-      warnIfDiscoveryIsCapped(sessions.length);
+        .slice(0, SESSION_DISCOVERY_LIMIT + 1);
+      requireCompleteDiscovery(sessions.length);
       return sessions;
     }
 
     const activeClient = requireClient();
-    const { data, error } = await activeClient
+    let request = activeClient
       .from("session_discovery")
       .select(SESSION_DISCOVERY_SELECT)
       .gte("court_lat", query.bounds.south)
@@ -128,13 +133,16 @@ export function createDataApi({
       .gte("court_lng", query.bounds.west)
       .lte("court_lng", query.bounds.east)
       .gt("start_at", query.startAfter)
-      .lt("start_at", query.startBefore)
+      .lt("start_at", query.startBefore);
+    const expression = discoveryFilterExpression(input, query, now);
+    if (expression) request = request.or(expression);
+    const { data, error } = await request
       .order("start_at", { ascending: true })
       .order("session_id", { ascending: true })
-      .limit(SESSION_DISCOVERY_LIMIT);
+      .limit(SESSION_DISCOVERY_LIMIT + 1);
     if (error) throw asDataApiError(error);
     const sessions = rowsOrEmpty(data).map(mapSessionSummary);
-    warnIfDiscoveryIsCapped(sessions.length);
+    requireCompleteDiscovery(sessions.length);
     return sessions;
   }
 

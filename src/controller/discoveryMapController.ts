@@ -5,6 +5,7 @@ import {
   TAIPEI_CITY_BOUNDS,
 } from "../config.ts";
 import { DEFAULT_FILTER_STATE } from "../filters.ts";
+import { DataApiError } from "../dataApi.ts";
 import {
   cloneBounds,
   cloneFilters,
@@ -37,7 +38,7 @@ const EXPLICIT_VIEWPORT_IDLE_GRACE_MS = MAP_IDLE_DEBOUNCE_MS * 8;
 const MAX_EXPECTED_EXPLICIT_VIEWPORTS = 6;
 
 interface DiscoveryDataApi {
-  loadSessionDiscovery(input: { bounds: MapBounds }): Promise<unknown>;
+  loadSessionDiscovery(input: { bounds: MapBounds; filters: ControllerFilters }): Promise<unknown>;
 }
 
 interface MapTools {
@@ -140,16 +141,20 @@ export function createDiscoveryMapController({
     const playerRefresh = read().playerLayerOn ? loadPlayers(nextBounds) : null;
     publish();
     try {
-      const sessions = await api.loadSessionDiscovery({ bounds: nextBounds });
+      const sessions = await api.loadSessionDiscovery({ bounds: nextBounds, filters: { ...read().filters } });
       if (request.isStale()) return false;
       store.setState({
         sessions: Array.isArray(sessions) ? (sessions as SessionSummary[]) : [],
         discoveryStatus: "ready",
       });
       reconcileActiveDetail(nextBounds);
-    } catch {
+    } catch (error) {
       if (request.isStale()) return;
-      store.setState({ sessions: [], discoveryStatus: "error", discoveryMessage: "球局資料暫時無法載入。" });
+      store.setState({
+        sessions: [],
+        discoveryStatus: error instanceof DataApiError && error.code === "DISCOVERY_TOO_BROAD" ? "overflow" : "error",
+        discoveryMessage: "球局資料暫時無法載入。",
+      });
       surfaceRegistry.close("detail");
       publish();
       return false;
@@ -177,7 +182,7 @@ export function createDiscoveryMapController({
   async function quietRefreshDiscovery(): Promise<boolean> {
     const request = discoveryGate.issue();
     try {
-      const sessions = await api.loadSessionDiscovery({ bounds: read().bounds });
+      const sessions = await api.loadSessionDiscovery({ bounds: read().bounds, filters: { ...read().filters } });
       if (request.isStale()) return false;
       store.setState({
         sessions: Array.isArray(sessions) ? (sessions as SessionSummary[]) : [],
@@ -186,7 +191,12 @@ export function createDiscoveryMapController({
       });
       publish();
       return true;
-    } catch {
+    } catch (error) {
+      if (request.isStale()) return false;
+      if (error instanceof DataApiError && error.code === "DISCOVERY_TOO_BROAD") {
+        store.setState({ sessions: [], discoveryStatus: "overflow" });
+        publish();
+      }
       return false;
     }
   }
@@ -223,12 +233,12 @@ export function createDiscoveryMapController({
         : value;
     Object.assign(filters, { [key]: nextValue });
     store.setState({ filters });
-    publish();
+    void loadDiscovery();
   }
 
   function resetFilters(): void {
     store.setState({ filters: cloneFilters() });
-    publish();
+    void loadDiscovery();
   }
 
   function setMapUnavailable(): void {

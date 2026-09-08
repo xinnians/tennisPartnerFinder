@@ -89,6 +89,19 @@ test(
     assert.equal("lineId" in summary, false);
     assert.equal("profileId" in summary, false);
 
+    // Exercise the actual PostgREST grammar (quoted Chinese values and nested
+    // OR predicates), rather than only asserting a query-builder mock.
+    const matching = { band: "mid", types: new Set(["單打"]), districts: new Set([court.district]) };
+    const includesSession = async (filters) =>
+      (await guestApi.loadSessionDiscovery({ filters })).some((item) => item.sessionId === sessionId);
+    assert.equal(await includesSession(matching), true);
+    assert.equal(await includesSession({ ...matching, types: new Set(["雙打"]) }), false);
+    assert.equal(await includesSession({ ...matching, instantOnly: true }), false);
+    assert.equal(await includesSession({ ...matching, band: "hi" }), false);
+    const weekday = new Date(Date.parse(startAt) + 8 * 3600000).getUTCDay();
+    assert.equal(await includesSession({ ...matching, dateKey: "weekend" }), weekday === 0 || weekday === 6);
+    assert.equal(await includesSession({ ...matching, dateKey: "tomorrow" }), false);
+
     assert.deepEqual(await guestApi.requestToJoinSession(sessionId), {
       outcome: "OK",
       accepted: false,

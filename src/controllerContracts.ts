@@ -84,7 +84,7 @@ export interface SessionControllerState {
   courts: DataCourt[];
   courtsReady: boolean;
   discoveryMessage: string;
-  discoveryStatus: SurfaceLoadStatus;
+  discoveryStatus: SurfaceLoadStatus | "overflow";
   drawerState: ControllerDrawerState;
   filters: ControllerFilters;
   locationBlocked: boolean;
@@ -161,7 +161,7 @@ export interface ControllerPlayerLayerViewState {
 }
 
 export interface ControllerMapStatus {
-  kind: "error" | "idle" | "loading" | "warning";
+  kind: "error" | "idle" | "loading" | "warning" | "overflow";
   message: string;
 }
 

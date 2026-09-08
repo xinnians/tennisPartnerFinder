@@ -111,10 +111,10 @@ select ok(
   to_regclass('public.notification_outbox_reminder_once_idx') is not null
     and position('(session_id, recipient_profile_id, event_type)' in pg_get_indexdef('public.notification_outbox_reminder_once_idx'::regclass)) > 0
     and position(
-      'WHERE (event_type = ANY (ARRAY['
+      'WHERE ((outbox_format_version = 1) AND (event_type = ANY (ARRAY['
       in pg_get_indexdef('public.notification_outbox_reminder_once_idx'::regclass)
     ) > 0,
-  'the legacy reminder dedupe keeps the original three-column predicate'
+  'legacy reminder dedupe is isolated to format 1'
 );
 select ok(
   to_regclass('public.notification_outbox_v2_reminder_once_idx') is not null
@@ -943,7 +943,7 @@ select is(
   1::bigint,
   'a single format 2 reminder row is insertable before the compatible batch switches the runtime'
 );
-select throws_ok(
+select lives_ok(
   format(
     $query$
       insert into public.notification_outbox (
@@ -987,9 +987,7 @@ select throws_ok(
     )::text,
     current_setting('pgtap.fa03_outbox_session_id')::bigint
   ),
-  '23505',
-  null,
-  'the unchanged legacy reminder dedupe still blocks a second format 2 reminder row'
+  'a changed schedule produces a new v2 reminder without colliding with legacy dedupe'
 );
 
 select * from finish();

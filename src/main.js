@@ -25,7 +25,15 @@ if (import.meta.env.PROD) {
   });
 }
 
-import { AUTH_LINE_PROVIDER_ID, GOOGLE_MAPS_API_KEY, SUPPORT_EMAIL } from "./config.ts";
+import {
+  AUTH_LINE_PROVIDER_ID,
+  GOOGLE_MAPS_API_KEY,
+  SUPPORT_EMAIL,
+  PUSH_V2_ENABLED,
+  PUSH_FUNCTIONS_URL,
+  WEB_PUSH_VAPID_PUBLIC_KEY,
+} from "./config.ts";
+import { quarantinePushDevice } from "./dataApi.ts";
 import { joinableSessionCount } from "./filters.ts";
 import {
   configureFilterToolbarFeature,
@@ -165,9 +173,22 @@ let courtCatalogueStatus = "loading";
 let latestPlayerLayerView = { groups: [], message: "", on: false, status: "idle" };
 let controller;
 const authRequestGate = createRequestGate();
-const notificationPushV2Shell = createNotificationPushProductionShell({ mode: "disabled" });
+const notificationPushV2Shell = createNotificationPushProductionShell(
+  PUSH_V2_ENABLED
+    ? {
+        mode: "enabled",
+        runtimeOptions: {
+          subscriptionEndpoint: `${PUSH_FUNCTIONS_URL}/push-subscription-v2`,
+          cleanupEndpoint: `${PUSH_FUNCTIONS_URL}/push-cleanup`,
+          vapidPublicKey: WEB_PUSH_VAPID_PUBLIC_KEY,
+          quarantineRpc: quarantinePushDevice,
+        },
+      }
+    : { mode: "disabled" }
+);
 const notificationPushSignOutContinuation = createNotificationPushSignOutContinuation({
-  processPushSignOut: (input) => notificationPushV2Shell.processCurrentDeviceSignOut(input),
+  processPushSignOut: (input) =>
+    notificationPushV2Shell.processCurrentDeviceSignOut({ signal: input?.signal ?? AbortSignal.timeout(15000) }),
   signOutCurrentDevice: handleSignOut,
 });
 configureSessionViewSurfaces();
@@ -340,7 +361,8 @@ function renderPlayerLayer(view) {
 }
 
 function renderDiscovery(view) {
-  syncFilterToolbar(view.filters, view.sessions.length);
+  const discoveryComplete = view.mapStatus.kind === "idle" || view.mapStatus.kind === "warning";
+  syncFilterToolbar(view.filters, discoveryComplete ? view.sessions.length : null);
   // 篩選 sheet footer 主鈕「看 N 場球局」與 peek/抽屜同一份 view.sessions,
   // 篩選一改就即時跟隨(dc L469)。
   renderMapDataStatus(document.getElementById("map-data-status"), {
@@ -355,7 +377,9 @@ function renderDiscovery(view) {
   // 摧毀重建的節點上,新節點帶著 aria-live 屬性一起被建立時,AT 不保證會註冊到它。
   const countStatus = document.getElementById("nearby-sessions-count-status");
   if (countStatus)
-    countStatus.textContent = nearbySessionsSummaryText(joinableSessionCount(view.sessions), view.hasUserLocation);
+    countStatus.textContent = discoveryComplete
+      ? nearbySessionsSummaryText(joinableSessionCount(view.sessions), view.hasUserLocation)
+      : view.mapStatus.message;
 }
 
 function syncBottomNavigation() {
@@ -400,6 +424,7 @@ configurePresenceFeature({
 });
 
 const notificationFeature = createNotificationFeature({
+  pushV2: notificationPushV2Shell,
   captureAuthRequest,
   getAuthSession: () => getAppState().authSession,
   getCourts: () => getAppState().courts,

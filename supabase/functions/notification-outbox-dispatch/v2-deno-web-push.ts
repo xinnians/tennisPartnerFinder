@@ -191,6 +191,7 @@ export async function createDispatcherV2DenoWebPushSender(config: {
         });
         const message = JSON.stringify({
           ...safePushPayload(prepared.payload),
+          notificationId: prepared.notificationId,
           title: notificationTitle(String(prepared.eventType ?? "")),
         });
         const request = createValidatedWebPushRequest({

@@ -15,6 +15,7 @@ const DRAWER_CLOSE_FOCUS = "__drawer-close__";
 const DRAWER_ACTION_FOCUS_PREFIX = "__drawer-action__:";
 
 const DRAWER_ACTION_IDS = new Set([
+  "discovery-narrow",
   "discovery-reset",
   "drawer-map-retry",
   "discovery-expand",
@@ -94,6 +95,7 @@ function drawerRecoveryTarget(root: HTMLElement): HTMLElement | null {
   const panel = activeDrawerPanel(root);
   if (!panel) return null;
   return (
+    panel.querySelector<HTMLElement>("#discovery-narrow") ??
     panel.querySelector<HTMLElement>("#drawer-map-retry") ??
     panel.querySelector<HTMLElement>("[data-session-id]") ??
     panel.querySelector<HTMLElement>("#discovery-expand") ??

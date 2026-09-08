@@ -135,6 +135,7 @@ function DrawerContent({
   onReset,
   onRetry,
   onSubscribe,
+  onNarrow,
   sessions,
 }: {
   count: number;
@@ -149,8 +150,19 @@ function DrawerContent({
   onReset?: () => unknown;
   onRetry?: () => unknown;
   onSubscribe?: () => unknown;
+  onNarrow: () => void;
   sessions: NearbySession[];
 }) {
+  if (mapStatus.kind === "overflow") {
+    return (
+      <div id="discovery-overflow" className="nearby-sessions__status" role="status" aria-live="polite">
+        <p>{mapStatus.message}</p>
+        <button type="button" id="discovery-narrow" className="session-secondary" onClick={onNarrow}>
+          回到地圖調整範圍
+        </button>
+      </div>
+    );
+  }
   if (loading) {
     return (
       <div className="nearby-sessions__status" role="status" aria-live="polite" aria-atomic="true">
@@ -195,6 +207,7 @@ export function NearbySessionsDrawer() {
   const filtersActive = !isDefaultFilters(filters);
   const loading = resolvedMapStatus.kind === "loading";
   const error = resolvedMapStatus.kind === "error";
+  const overflow = resolvedMapStatus.kind === "overflow";
   const collapse = () => {
     onToggle("collapsed");
     requestAnimationFrame(() => {
@@ -254,7 +267,7 @@ export function NearbySessionsDrawer() {
 
   return (
     <>
-      {count || loading || error ? (
+      {count || loading || error || overflow ? (
         <button
           type="button"
           id="nearby-sessions-toggle"
@@ -265,13 +278,13 @@ export function NearbySessionsDrawer() {
           onClick={() => onToggle(isOpen ? "collapsed" : "open")}
         >
           <span id="nearby-sessions-summary" className="visually-hidden">
-            {summary}
+            {overflow ? resolvedMapStatus.message : summary}
           </span>
           <span className="nearby-peek__count" aria-hidden="true">
-            {loading || error ? "…" : count}
+            {loading || error || overflow ? "…" : count}
           </span>
           <span className="nearby-peek__label" aria-hidden="true">
-            {loading ? "載入中" : error ? "載入失敗" : "場可加入"}
+            {overflow ? "請縮小範圍" : loading ? "載入中" : error ? "載入失敗" : "場可加入"}
           </span>
           {!loading && !error && nextLabel ? <span className="nearby-peek__next">{nextLabel}</span> : null}
           <PeekArrow />
@@ -322,8 +335,8 @@ export function NearbySessionsDrawer() {
           <div>
             <p className="nearby-drawer__eyebrow">NEARBY MATCHES</p>
             <div className="nearby-drawer__countrow">
-              <span className="nearby-drawer__count">{loading || error ? "…" : count}</span>
-              <span className="nearby-drawer__unit">場可加入</span>
+              <span className="nearby-drawer__count">{loading || error || overflow ? "…" : count}</span>
+              <span className="nearby-drawer__unit">{overflow ? "請縮小範圍" : "場可加入"}</span>
             </div>
           </div>
           <button
@@ -356,6 +369,7 @@ export function NearbySessionsDrawer() {
               onReset={onReset}
               onRetry={onRetry}
               onSubscribe={onSubscribe}
+              onNarrow={collapse}
               sessions={sessions}
             />
           </div>

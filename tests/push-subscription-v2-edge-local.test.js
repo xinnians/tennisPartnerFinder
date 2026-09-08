@@ -447,12 +447,30 @@ test(
               binding: enabledRuntime.binding,
             });
             const finalRuntime = await composition.storage.readPushRuntimeState();
+            const { createNotificationPushUserActions } = await import("/src/notificationPushUserActions.ts");
+            const actions = createNotificationPushUserActions({
+              auth: { readCurrentVerifiedAuthProof: () => proof, isVerifiedAuthProofCurrent: () => true },
+              storage: composition.storage,
+              subscription: composition.coordinator,
+              manualReenable: {
+                startManualPushReenable: async () => {
+                  throw new Error("unexpected re-enable");
+                },
+              },
+              cleanup: {
+                processPendingPushCleanup: async () => {
+                  throw new Error("unexpected cleanup");
+                },
+              },
+            });
+            const userVisibleState = await actions.readState();
             return {
               calls,
               cleanupToken: provisioning.cleanupToken,
               enableOutcome,
               enabledRuntime,
               finalRuntime,
+              userVisibleState,
               postBodiesHideEndpoint: postBodies.every((body) => !body.includes(subscription.endpoint)),
               postBodiesHideToken: postBodies.every((body) => !body.includes(provisioning.cleanupToken)),
               postCount: postBodies.length,
@@ -478,10 +496,22 @@ test(
       assert.equal(browserResult.enabledRuntime.kind, "enabled");
       assert.equal(browserResult.finalRuntime.kind, "enabled");
       assert.deepEqual(browserResult.finalRuntime.binding, browserResult.enabledRuntime.binding);
-      assert.equal(browserResult.postCount, 2);
+      assert.equal(browserResult.postCount, 3);
+      assert.deepEqual(browserResult.userVisibleState, { kind: "enabled" });
       assert.equal(browserResult.postBodiesHideEndpoint, true);
       assert.equal(browserResult.postBodiesHideToken, true);
-      assert.deepEqual(browserResult.calls, ["/push-sw.js", "subscribe", "GET", "POST", "/push-sw.js", "GET", "POST"]);
+      assert.deepEqual(browserResult.calls, [
+        "/push-sw.js",
+        "subscribe",
+        "GET",
+        "POST",
+        "/push-sw.js",
+        "GET",
+        "POST",
+        "/push-sw.js",
+        "GET",
+        "POST",
+      ]);
 
       stage = "database verification";
       assert.equal(

@@ -90,7 +90,7 @@ function validSignOutInput(value: unknown): value is { readonly signal?: AbortSi
   );
 }
 
-function bindingFromRuntimeState(value: unknown, authUserId: string): PushSignOutBindingSnapshot | null {
+function bindingFromRuntimeState(value: unknown, authUserId?: string): PushSignOutBindingSnapshot | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const state = value as { binding?: unknown; kind?: unknown };
   if (
@@ -103,7 +103,9 @@ function bindingFromRuntimeState(value: unknown, authUserId: string): PushSignOu
   }
   if (!state.binding || typeof state.binding !== "object" || Array.isArray(state.binding)) return null;
   const binding = state.binding as { authUserId?: unknown; state?: unknown };
-  return binding.authUserId === authUserId && binding.state === state.kind
+  return typeof binding.authUserId === "string" &&
+    (!authUserId || binding.authUserId === authUserId) &&
+    binding.state === state.kind
     ? (state.binding as PushSignOutBindingSnapshot)
     : null;
 }
@@ -221,22 +223,35 @@ export function createNotificationPushProductionShell(options: NotificationPushP
     } catch {
       return PENDING_RESULT;
     }
-    if (!proof || !capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)) return PENDING_RESULT;
+    // Explicit sign-out must still close the device when Auth is unavailable.
+    // In that case only the captured local binding's cleanup capability is
+    // used; a newly verified account arriving during the await invalidates it.
+    const contextIsCurrent = () =>
+      proof
+        ? capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)
+        : authority === capturedAuthority &&
+          authorityGeneration === capturedGeneration &&
+          capturedAuthority.readCurrentVerifiedAuthProof() === null;
+    if (!contextIsCurrent()) return PENDING_RESULT;
 
     const runtimeResult = await settleAbortableOperation(() => readEnabledRuntime(), signal);
     if (runtimeResult.kind !== "completed" || !runtimeResult.value) return PENDING_RESULT;
     const runtime = runtimeResult.value;
-    if (!capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)) return PENDING_RESULT;
+    if (!contextIsCurrent()) return PENDING_RESULT;
 
     const stateResult = await settleAbortableOperation(() => runtime.storage.readPushRuntimeState(), signal);
     if (stateResult.kind !== "completed") return PENDING_RESULT;
-    const binding = bindingFromRuntimeState(stateResult.value, proof.authUserId);
-    if (!binding || !capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)) return PENDING_RESULT;
+    const binding = bindingFromRuntimeState(stateResult.value, proof?.authUserId);
+    if (!binding)
+      return contextIsCurrent() && (stateResult.value as { kind?: unknown })?.kind === "disabled"
+        ? COMPLETED_RESULT
+        : PENDING_RESULT;
+    if (!contextIsCurrent()) return PENDING_RESULT;
 
     const cleanupResult = await settleAbortableOperation(
       () =>
         runtime.signOutCleanup.processCurrentDeviceSignOut({
-          authUserId: proof.authUserId,
+          authUserId: binding.authUserId,
           binding,
           ...(signal ? { signal } : {}),
         }),
@@ -247,6 +262,20 @@ export function createNotificationPushProductionShell(options: NotificationPushP
   }
 
   return Object.freeze({
+    async readState(signal?: AbortSignal) {
+      const result = await settleAbortableOperation(async () => {
+        const runtime = await readEnabledRuntime();
+        return runtime ? runtime.userActions.readState(signal) : { kind: "unavailable" as const };
+      }, signal);
+      return result.kind === "completed" ? result.value : { kind: "unavailable" as const };
+    },
+    async enable(signal?: AbortSignal) {
+      const result = await settleAbortableOperation(async () => {
+        const runtime = await readEnabledRuntime();
+        return runtime ? runtime.userActions.enable(signal) : { kind: "unavailable" as const };
+      }, signal);
+      return result.kind === "completed" ? result.value : { kind: "unavailable" as const };
+    },
     installAuthVerificationAuthority,
     processAuthVerificationFailure,
     processCurrentDeviceSignOut,

@@ -6,6 +6,9 @@ import { enableBrowserPush, vapidPublicKeyBytes } from "../src/notificationPush.
 
 const ABORTABLE_OPERATION_URL = new URL("../src/abortableOperation.ts", import.meta.url);
 const ABORTABLE_OPERATION_SOURCE = readFileSync(ABORTABLE_OPERATION_URL, "utf8");
+const PUSH_USER_ACTIONS_URL = new URL("../src/notificationPushUserActions.ts", import.meta.url);
+const PUSH_REPOSITORY_URL = new URL("../src/data/repositories/notificationPushRepository.ts", import.meta.url);
+const DATA_API_URL = new URL("../src/dataApi.ts", import.meta.url);
 const PUSH_STORAGE_URL = new URL("../src/notificationPushStorage.ts", import.meta.url);
 const PUSH_STORAGE_SOURCE = readFileSync(PUSH_STORAGE_URL, "utf8");
 const PUSH_STATE_CONTRACT_SOURCE = readFileSync(
@@ -114,7 +117,7 @@ test("the Push storage foundation stays outside the production runtime graph", (
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushStorage/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_USER_ACTIONS_URL]);
 });
 
 test("the Push cleanup transport is referenced only by the lazy production composition", () => {
@@ -162,7 +165,7 @@ test("the Push manual re-enable coordinator is referenced only by the lazy produ
     .filter((sourceUrl) => sourceUrl.href !== PUSH_MANUAL_REENABLE_URL.href)
     .filter((sourceUrl) => /notificationPushManualReenableCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL, PUSH_USER_ACTIONS_URL]);
 });
 
 test("the Push subscription coordinator stays outside the production runtime graph", () => {
@@ -171,7 +174,7 @@ test("the Push subscription coordinator stays outside the production runtime gra
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL.href)
     .filter((sourceUrl) => /notificationPushSubscriptionCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_USER_ACTIONS_URL]);
 });
 
 test("the Push browser subscription port stays outside the production runtime graph", () => {
@@ -205,7 +208,12 @@ test("the Push owner-quarantine adapter is referenced only by the lazy productio
     .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_URL.href)
     .filter((sourceUrl) => /notificationPushOwnerQuarantine/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, [PUSH_OWNER_QUARANTINE_RPC_URL, PUSH_RUNTIME_COMPOSITION_URL]);
+  assert.deepEqual(references, [
+    PUSH_REPOSITORY_URL,
+    DATA_API_URL,
+    PUSH_OWNER_QUARANTINE_RPC_URL,
+    PUSH_RUNTIME_COMPOSITION_URL,
+  ]);
 });
 
 test("the exact owner-quarantine RPC adapter stays outside the production runtime graph", () => {
@@ -213,7 +221,7 @@ test("the exact owner-quarantine RPC adapter stays outside the production runtim
     .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_RPC_URL.href)
     .filter((sourceUrl) => /notificationPushOwnerQuarantineRpc/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_REPOSITORY_URL]);
 });
 
 test("the Push sign-out coordinator is referenced only by the lazy production composition", () => {

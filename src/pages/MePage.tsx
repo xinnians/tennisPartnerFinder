@@ -449,14 +449,24 @@ function NotificationSettings({
   const notificationCourts = (Array.isArray(courts) ? courts : []).filter(
     (court) => court?.city === "台北市" && Number.isSafeInteger(Number(court?.id)) && Number(court.id) > 0
   );
-  const pushPresentation = mePageRuntime.notificationPushPresentation({
-    settings: {
-      pushStatus: notification.pushStatus,
-      webPushConfigured: notification.webPushConfigured,
-    },
-    source: "legacy",
-  });
-  const enablePushDisabled = pushPresentation.source !== "legacy" || pushPresentation.controlDisabled;
+  const pushPresentation = mePageRuntime.notificationPushPresentation(
+    notification.pushV2
+      ? {
+          source: "v2",
+          ...notification.pushV2,
+        }
+      : {
+          settings: {
+            pushStatus: notification.pushStatus,
+            webPushConfigured: notification.webPushConfigured,
+          },
+          source: "legacy",
+        }
+  );
+  const enablePushDisabled =
+    pushPresentation.source === "legacy"
+      ? pushPresentation.controlDisabled
+      : !pushPresentation.action || pushPresentation.action.kind === "contact-support";
   return (
     <section className="notification-settings" aria-labelledby="notification-settings-title">
       <div className="notification-settings__head">
@@ -478,7 +488,9 @@ function NotificationSettings({
             void mePageRuntime.runNotificationSettingAction(rootElement, onEnablePush);
           }}
         >
-          {pushPresentation.source === "legacy" ? pushPresentation.controlLabel : "開啟推播"}
+          {pushPresentation.source === "legacy"
+            ? pushPresentation.controlLabel
+            : (pushPresentation.action?.label ?? pushPresentation.statusLabel)}
         </button>
       </div>
       <p className="form-hint notification-settings__hint">{pushPresentation.hint}</p>

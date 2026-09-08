@@ -1,9 +1,11 @@
-import { WEB_PUSH_VAPID_PUBLIC_KEY } from "../../config.ts";
+import { WEB_PUSH_VAPID_PUBLIC_KEY, PUSH_V2_ENABLED } from "../../config.ts";
+import type { NotificationPushRuntimeStateView } from "../../notificationPushStateContract.ts";
 import type { ControllerAuthSession } from "../../controllerContracts.ts";
 import {
   isSupabaseConfigured,
   loadCourtSubscriptions,
   loadNotificationPreferences,
+  loadNotificationPushRuntimeStatus,
   saveCourtSubscriptions,
   saveNotificationPreferences,
   savePushSubscription,
@@ -17,6 +19,7 @@ import { enableBrowserPush } from "../../notificationPush.js";
 export type NotificationPushStatus = "denied" | "enabled" | "idle" | "unsupported";
 
 export interface NotificationSettings {
+  pushV2?: { state: NotificationPushRuntimeStateView; deliveryReady: boolean };
   courtIds: number[];
   errorMessage: string;
   prefs: NotificationPreferences;
@@ -38,6 +41,10 @@ interface BrowserPushResult {
 }
 
 interface NotificationFeatureOptions {
+  pushV2?: {
+    readState(signal?: AbortSignal): Promise<NotificationPushRuntimeStateView>;
+    enable(signal?: AbortSignal): Promise<NotificationPushRuntimeStateView>;
+  };
   captureAuthRequest(): NotificationAuthRequest;
   getAuthSession(): ControllerAuthSession | null;
   getCourts(): readonly DataCourt[];
@@ -74,12 +81,21 @@ export function createNotificationFeature(options: NotificationFeatureOptions): 
     const request = options.captureAuthRequest();
     if (!request.identity || !options.getAuthSession() || !isSupabaseConfigured) return false;
     try {
-      const [prefs, courtIds] = await Promise.all([loadNotificationPreferences(), loadCourtSubscriptions()]);
+      const [prefs, courtIds, v2Enabled] = await Promise.all([
+        loadNotificationPreferences(),
+        loadCourtSubscriptions(),
+        PUSH_V2_ENABLED ? loadNotificationPushRuntimeStatus() : false,
+      ]);
+      const pushV2 =
+        v2Enabled && options.pushV2
+          ? { state: await options.pushV2.readState(AbortSignal.timeout(15000)), deliveryReady: true }
+          : undefined;
       if (request.isStale()) return false;
       updateSettings({
         courtIds,
         errorMessage: "",
         prefs,
+        pushV2,
         webPushConfigured: Boolean(WEB_PUSH_VAPID_PUBLIC_KEY.trim()),
       });
     } catch {
@@ -156,6 +172,21 @@ export function createNotificationFeature(options: NotificationFeatureOptions): 
   async function enablePushNotifications(): Promise<NotificationPushStatus | undefined> {
     const request = options.captureAuthRequest();
     if (!request.identity || !options.getAuthSession()) throw new Error("請先登入後再開啟推播。");
+    if (PUSH_V2_ENABLED && options.pushV2) {
+      // Recheck the server gate at the action boundary so stale settings cannot
+      // enroll an account outside the rollout scope.
+      const enabled = await loadNotificationPushRuntimeStatus();
+      if (request.isStale()) return;
+      if (enabled) {
+        const state = await options.pushV2.enable(AbortSignal.timeout(15000));
+        if (request.isStale()) return;
+        const pushStatus = state.kind === "enabled" ? "enabled" : "idle";
+        updateSettings({ pushV2: { state, deliveryReady: true }, pushStatus, errorMessage: "" });
+        options.rerenderVisibleSettings();
+        if (pushStatus === "enabled") options.toast("已開啟推播通知。");
+        return pushStatus;
+      }
+    }
     if (!WEB_PUSH_VAPID_PUBLIC_KEY.trim()) {
       updateSettings({ pushStatus: "unsupported" });
       options.rerenderVisibleSettings();

@@ -50,7 +50,7 @@ function fakeRuntime({
   });
 }
 
-test("the production shell is statically wired disabled and never loads the Push v2 runtime", async () => {
+test("the production shell defaults off and only explicit configuration can load Push v2", async () => {
   let loads = 0;
   const shell = createNotificationPushProductionShell({
     loadRuntime: async () => {
@@ -73,14 +73,12 @@ test("the production shell is statically wired disabled and never loads the Push
     readFile(new URL("../src/main.js", import.meta.url), "utf8"),
     readFile(new URL("../src/notificationPushProductionShell.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(mainSource, /createNotificationPushProductionShell\(\{ mode: "disabled" \}\)/u);
+  assert.match(mainSource, /createNotificationPushProductionShell\(\s*PUSH_V2_ENABLED/u);
+  assert.match(mainSource, /: \{ mode: "disabled" \}/u);
   assert.match(mainSource, /onAuthVerificationAuthority/u);
   assert.match(mainSource, /onAuthVerificationFailure/u);
   assert.match(mainSource, /createNotificationPushSignOutContinuation\(\{/u);
-  assert.match(
-    mainSource,
-    /processPushSignOut: \(input\) => notificationPushV2Shell\.processCurrentDeviceSignOut\(input\)/u
-  );
+  assert.match(mainSource, /processPushSignOut: \(input\) =>\s*notificationPushV2Shell\.processCurrentDeviceSignOut/u);
   assert.match(mainSource, /onSignOut: notificationPushSignOutContinuation\.processCurrentDeviceSignOut/u);
   assert.doesNotMatch(mainSource, /notificationPushRuntimeComposition/u);
   assert.match(shellSource, /return import\("\.\/notificationPushRuntimeComposition\.ts"\)/u);
@@ -350,6 +348,7 @@ test("the runtime composition connects B1, B9, cleanup, subscription, and manual
   });
 
   assert.deepEqual(Object.keys(runtime), [
+    "userActions",
     "authCorrelation",
     "manualReenable",
     "signOutCleanup",
@@ -378,4 +377,52 @@ test("the shell rejects malformed construction and Auth authority inputs with on
 
   const shell = createNotificationPushProductionShell({ mode: "disabled" });
   assert.throws(() => shell.installAuthVerificationAuthority({}), NotificationPushProductionShellError);
+});
+
+test("explicit sign-out closes the captured local device even while Auth verification is unavailable", async () => {
+  let cleaned = false;
+  const shell = createNotificationPushProductionShell({
+    mode: "enabled",
+    runtimeOptions: {},
+    loadRuntime: async () => ({
+      createNotificationPushRuntimeComposition: () =>
+        fakeRuntime({
+          readState: async () => ({ kind: "enabled", binding: SIGN_OUT_BINDING }),
+          onSignOut: async ({ authUserId, binding }) => {
+            assert.equal(authUserId, AUTH_USER_ID);
+            assert.equal(binding, SIGN_OUT_BINDING);
+            cleaned = true;
+            return { kind: "completed" };
+          },
+        }),
+    }),
+  });
+  shell.installAuthVerificationAuthority(authority({ readCurrentVerifiedAuthProof: () => null }));
+  assert.deepEqual(await shell.processCurrentDeviceSignOut(), { kind: "completed" });
+  assert.equal(cleaned, true);
+});
+
+test("a newly verified account invalidates an unverified sign-out snapshot", async () => {
+  let proof = null;
+  let cleaned = false;
+  const shell = createNotificationPushProductionShell({
+    mode: "enabled",
+    runtimeOptions: {},
+    loadRuntime: async () => ({
+      createNotificationPushRuntimeComposition: () =>
+        fakeRuntime({
+          readState: async () => {
+            proof = { authUserId: AUTH_USER_ID, revision: 2, accessToken: "new" };
+            return { kind: "enabled", binding: SIGN_OUT_BINDING };
+          },
+          onSignOut: async () => {
+            cleaned = true;
+            return { kind: "completed" };
+          },
+        }),
+    }),
+  });
+  shell.installAuthVerificationAuthority(authority({ readCurrentVerifiedAuthProof: () => proof }));
+  assert.deepEqual(await shell.processCurrentDeviceSignOut(), { kind: "pending" });
+  assert.equal(cleaned, false);
 });

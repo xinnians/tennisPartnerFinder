@@ -1847,6 +1847,7 @@ export type Database = {
         Returns: string;
       };
       mark_session_played: { Args: { p_session_id: number }; Returns: string };
+      notification_push_runtime_status: { Args: never; Returns: Json };
       owns_notification_profile: {
         Args: { p_profile_id: number };
         Returns: boolean;

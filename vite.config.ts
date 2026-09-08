@@ -27,6 +27,10 @@ function subscriptionPublicJwk(mode: string): string {
 }
 
 export default defineConfig(({ command, mode }) => ({
+  build: {
+    minify: "terser",
+    terserOptions: { compress: { passes: 2 } },
+  },
   define: {
     __TENNIS_E2E_TEST_HOOKS__: JSON.stringify(command !== "build" || mode !== "production"),
     __TENNIS_DEPLOY_ENVIRONMENT__: JSON.stringify(process.env.VERCEL_ENV === "production" ? "production" : "preview"),

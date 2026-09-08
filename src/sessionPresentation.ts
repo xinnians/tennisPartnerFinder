@@ -44,6 +44,7 @@ interface ProfileInput {
 }
 
 interface NotificationSettingsInput {
+  pushV2?: { state: NotificationPushRuntimeStateView; deliveryReady: boolean };
   courtIds?: Identifier[];
   errorMessage?: string;
   prefs?: Partial<NotificationPreferences>;
@@ -325,6 +326,7 @@ export function mySessionReason(session: SessionInput): string {
 
 export function normalizedNotificationSettings(settings: NotificationSettingsInput = {}) {
   return {
+    pushV2: settings.pushV2,
     courtIds: new Set(
       (Array.isArray(settings?.courtIds) ? settings.courtIds : [])
         .map(Number)

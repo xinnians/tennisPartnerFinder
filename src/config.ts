@@ -9,6 +9,8 @@ interface AppImportMetaEnv extends ImportMetaEnv {
   readonly VITE_GOOGLE_MAPS_MAP_ID?: string;
   readonly VITE_SUPPORT_EMAIL?: string;
   readonly VITE_WEB_PUSH_VAPID_PUBLIC_KEY?: string;
+  readonly VITE_PUSH_V2_ENABLED?: string;
+  readonly VITE_SUPABASE_URL?: string;
 }
 
 const env: AppImportMetaEnv = import.meta.env ?? {};
@@ -36,6 +38,8 @@ export const DISCOVERY_POLL_INTERVAL_MS = 60000;
 export const SUPPORT_EMAIL: string = env.VITE_SUPPORT_EMAIL ?? "";
 // 僅含 VAPID 公鑰；私鑰只存在 Edge Function 的 secrets。
 export const WEB_PUSH_VAPID_PUBLIC_KEY: string = env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY ?? "";
+export const PUSH_V2_ENABLED = env.VITE_PUSH_V2_ENABLED === "true";
+export const PUSH_FUNCTIONS_URL = `${(env.VITE_SUPABASE_URL ?? "").replace(/\/+$/u, "")}/functions/v1`;
 // LINE 登入的 Supabase custom provider 識別符(如 "custom:line")。留空(預設)時登入視窗
 // 不顯示 LINE 按鈕;必須等對應 Supabase 專案設好同名 provider 才可設定,避免按鈕指向
 // 不存在的 provider。LINE 登入只作身分驗證,聯絡面退役紅線不變。

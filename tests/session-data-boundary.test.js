@@ -1220,6 +1220,10 @@ function configuredDiscoveryClient(result) {
       calls.push(["order", column, options]);
       return this;
     },
+    or(expression) {
+      calls.push(["or", expression]);
+      return this;
+    },
     limit(value) {
       calls.push(["limit", value]);
       return Promise.resolve(result);
@@ -1264,7 +1268,7 @@ test("configured discovery stays empty and uses explicit bounds/time selects", a
   assert.deepEqual(client.calls.slice(-3), [
     ["order", "start_at", { ascending: true }],
     ["order", "session_id", { ascending: true }],
-    ["limit", 200],
+    ["limit", 201],
   ]);
 });
 
@@ -1323,7 +1327,7 @@ test("mock discovery keeps both undecided and decided candidate timestamps", asy
   assert.ok(candidates.some((summary) => !Number.isNaN(Date.parse(summary.decidedAt))));
 });
 
-test("mock discovery applies the same stable 200-row cap as the configured query", async () => {
+test("mock discovery rejects an incomplete result instead of silently returning the first 200 rows", async () => {
   const mockSessions = Array.from({ length: 205 }, (_, index) => {
     const sessionId = 205 - index;
     return session({ sessionId, startAt: "2026-07-18T01:30:00.000Z" });
@@ -1334,10 +1338,18 @@ test("mock discovery applies the same stable 200-row cap as the configured query
     now: new Date("2026-07-17T00:00:00.000Z"),
   });
 
-  const discovery = await api.loadSessionDiscovery({
-    startAfter: "2026-07-17T00:00:00.000Z",
-    startBefore: "2026-07-31T00:00:00.000Z",
-  });
+  await assert.rejects(
+    api.loadSessionDiscovery({
+      startAfter: "2026-07-17T00:00:00.000Z",
+      startBefore: "2026-07-31T00:00:00.000Z",
+    }),
+    { code: "DISCOVERY_TOO_BROAD" }
+  );
+  const discovery = await createDataApi({
+    configured: false,
+    mockSessions: mockSessions.slice(5),
+    now: new Date("2026-07-17T00:00:00.000Z"),
+  }).loadSessionDiscovery();
   assert.equal(discovery.length, 200);
   assert.equal(discovery[0].sessionId, 1);
   assert.equal(discovery.at(-1).sessionId, 200);
@@ -2393,4 +2405,50 @@ test("browser source keeps raw lifecycle, chat, block, and report tables outside
     /\.from\(\s*["'](?:sessions|session_participants|reports|profiles|profile_courts|profile_play_types|profile_slots)["']\s*\)\s*\.(?:insert|update|delete)\b/
   );
   assert.doesNotMatch(source, /\.from\(\s*["'](?:session_messages|player_blocks|reports)["']\s*\)/);
+});
+
+test("discovery filters before its budget so the 201st matching weekend session remains discoverable", async () => {
+  const now = new Date("2026-09-08T00:00:00.000Z");
+  const mockSessions = Array.from({ length: 200 }, (_, i) =>
+    session({ sessionId: i + 1, startAt: "2026-09-08T04:00:00.000Z" })
+  );
+  mockSessions.push(session({ sessionId: 201, startAt: "2026-09-12T04:00:00.000Z" }));
+  const api = createDataApi({ configured: false, mockSessions, now });
+  await assert.rejects(api.loadSessionDiscovery(), { code: "DISCOVERY_TOO_BROAD" });
+  const rows = await api.loadSessionDiscovery({ filters: { dateKey: "weekend" } });
+  assert.deepEqual(
+    rows.map((row) => row.sessionId),
+    [201]
+  );
+});
+
+test("configured discovery combines all filters before limit and keeps Taipei midnight inclusive", async () => {
+  const client = configuredDiscoveryClient({ data: [], error: null });
+  const api = createDataApi({ configured: true, client, now: new Date("2026-09-08T15:59:00.000Z") });
+  await api.loadSessionDiscovery({
+    filters: {
+      dateKey: "tomorrow",
+      band: "mid",
+      instantOnly: true,
+      types: new Set(["單打"]),
+      districts: new Set(["大安區"]),
+    },
+  });
+  const expression = client.calls.find((call) => call[0] === "or")[1];
+  assert.ok(expression.includes("start_at.gte.2026-09-08T16:00:00.000Z"));
+  assert.ok(expression.includes("start_at.lt.2026-09-09T16:00:00.000Z"));
+  assert.ok(expression.includes("or(ntrp_min.is.null,ntrp_max.is.null,and(ntrp_max.gt.3,ntrp_min.lt.4))"));
+  assert.ok(expression.includes('play_type.in.("單打")'));
+  assert.ok(expression.includes('court_district.in.("大安區")'));
+  assert.ok(expression.includes("join_mode.eq.instant"));
+  assert.equal(client.calls.at(-1)[1], 201);
+});
+
+test("configured discovery refuses overflowing results without returning a partial map", async () => {
+  const client = configuredDiscoveryClient({
+    data: Array.from({ length: 201 }, (_, i) => ({ session_id: i + 1 })),
+    error: null,
+  });
+  const api = createDataApi({ configured: true, client });
+  await assert.rejects(api.loadSessionDiscovery(), { code: "DISCOVERY_TOO_BROAD" });
 });

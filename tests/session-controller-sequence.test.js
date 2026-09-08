@@ -283,9 +283,13 @@ async function driveSequence(result = "entries") {
 
   recorder.begin("filters");
   controller.setFilter("band", "mid");
+  await flush();
   controller.setFilter("types", new Set(["單打"]));
+  await flush();
   controller.setFilter("districts", new Set(["大安區"]));
+  await flush();
   controller.resetFilters();
+  await flush();
 
   recorder.begin("sign-in");
   await controller.setAuthState({ user: { id: "sequence-viewer" } }, NTRP_PROFILE);
@@ -389,14 +393,26 @@ const GOLDEN = [
   "drawer|pins|[41,42]",
   'drawer|players|on=0 status=idle msg="" groups=[]',
   "filters|step|--",
+  'filters|render|sessions=[] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[] districts=[] courts=[8,9] map=loading:"正在載入球局資料…" locMsg=""',
+  "filters|pins|[]",
+  'filters|players|on=0 status=idle msg="" groups=[]',
   'filters|render|sessions=[41] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
   "filters|pins|[41]",
+  'filters|players|on=0 status=idle msg="" groups=[]',
+  'filters|render|sessions=[] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[單打] districts=[] courts=[8,9] map=loading:"正在載入球局資料…" locMsg=""',
+  "filters|pins|[]",
   'filters|players|on=0 status=idle msg="" groups=[]',
   'filters|render|sessions=[41] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[單打] districts=[] courts=[8,9] map=idle:"" locMsg=""',
   "filters|pins|[41]",
   'filters|players|on=0 status=idle msg="" groups=[]',
+  'filters|render|sessions=[] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[單打] districts=[大安區] courts=[8,9] map=loading:"正在載入球局資料…" locMsg=""',
+  "filters|pins|[]",
+  'filters|players|on=0 status=idle msg="" groups=[]',
   'filters|render|sessions=[41] drawer=collapsed userLoc=0 date=null band=mid instant=0 types=[單打] districts=[大安區] courts=[8,9] map=idle:"" locMsg=""',
   "filters|pins|[41]",
+  'filters|players|on=0 status=idle msg="" groups=[]',
+  'filters|render|sessions=[] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=loading:"正在載入球局資料…" locMsg=""',
+  "filters|pins|[]",
   'filters|players|on=0 status=idle msg="" groups=[]',
   'filters|render|sessions=[41,42] drawer=collapsed userLoc=0 date=null band=all instant=0 types=[] districts=[] courts=[8,9] map=idle:"" locMsg=""',
   "filters|pins|[41,42]",

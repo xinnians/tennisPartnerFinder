@@ -8,7 +8,8 @@ function env(name: string) {
   return Deno.env.get(name) ?? "";
 }
 
-const { hostedLimiterCanaryEnabled, hostedRuntime, localTestEnabled } = cleanupRuntimeAccess(env);
+const { hostedLimiterCanaryEnabled, hostedProductionEnabled, hostedRuntime, localTestEnabled } =
+  cleanupRuntimeAccess(env);
 const allowedOrigin = exactHttpOrigin(env("PUSH_CLEANUP_ALLOWED_ORIGIN"));
 
 let keyRingSource = "";
@@ -58,6 +59,7 @@ Deno.serve(
     authorizeHostedLimiterCanary,
     consumeRateLimit,
     hostedLimiterCanaryEnabled,
+    hostedProductionEnabled,
     hostedRuntime,
     loadKeyRing: configuredKeyRing,
     localTestEnabled,

@@ -8,6 +8,7 @@ import { createNotificationPushManualReenableCoordinator } from "./notificationP
 import { createNotificationPushOwnerQuarantine } from "./notificationPushOwnerQuarantine.ts";
 import { createNotificationPushSignOutCoordinator } from "./notificationPushSignOutCoordinator.ts";
 import { createNotificationPushSubscriptionLocalComposition } from "./notificationPushSubscriptionLocalComposition.ts";
+import { createNotificationPushUserActions } from "./notificationPushUserActions.ts";
 
 type SubscriptionCompositionOptions = Parameters<typeof createNotificationPushSubscriptionLocalComposition>[0];
 type OwnerQuarantineOptions = Parameters<typeof createNotificationPushOwnerQuarantine>[0];
@@ -61,6 +62,13 @@ export function createNotificationPushRuntimeComposition(options: NotificationPu
   });
 
   return Object.freeze({
+    userActions: createNotificationPushUserActions({
+      auth,
+      storage: subscription.storage,
+      subscription: subscription.coordinator,
+      manualReenable,
+      cleanup,
+    }),
     authCorrelation,
     manualReenable,
     signOutCleanup,

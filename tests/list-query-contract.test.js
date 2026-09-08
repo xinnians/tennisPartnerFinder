@@ -30,7 +30,7 @@ const CAPPED_LIST_CONTRACTS = [
   {
     file: "dataRepository.ts",
     functionName: "loadSessionDiscovery",
-    limit: "SESSION_DISCOVERY_LIMIT",
+    limit: "SESSION_DISCOVERY_LIMIT + 1",
     orders: ['.order("start_at", { ascending: true })', '.order("session_id", { ascending: true })'],
     table: "session_discovery",
   },
@@ -121,7 +121,7 @@ test("list-query scanner fails closed when a limit is removed or an unknown quer
   const missingLimit = new Map(REPOSITORY_SOURCES);
   missingLimit.set(
     "dataRepository.ts",
-    missingLimit.get("dataRepository.ts").replace(".limit(SESSION_DISCOVERY_LIMIT)", "")
+    missingLimit.get("dataRepository.ts").replace(".limit(SESSION_DISCOVERY_LIMIT + 1)", "")
   );
   assert.throws(() => validateListQueryContracts(missingLimit), /loadSessionDiscovery is missing its safety limit/);
 

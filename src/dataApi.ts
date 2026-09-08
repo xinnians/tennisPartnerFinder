@@ -113,3 +113,15 @@ export const markSessionChatRead = (...args: Parameters<DataApi["markSessionChat
 export const setPlayerBlock = (...args: Parameters<DataApi["setPlayerBlock"]>) =>
   defaultDataApi.setPlayerBlock(...args);
 export const createReport = (...args: Parameters<DataApi["createReport"]>) => defaultDataApi.createReport(...args);
+
+export async function loadNotificationPushRuntimeStatus() {
+  const api = await import("./data/repositories/notificationPushRepository.ts");
+  return api.loadNotificationPushRuntimeStatus();
+}
+
+export const quarantinePushDevice: import("./notificationPushOwnerQuarantine.ts").PushOwnerQuarantineRpc = async (
+  ...args
+) => {
+  const api = await import("./data/repositories/notificationPushRepository.ts");
+  return api.quarantinePushDevice(...args);
+};

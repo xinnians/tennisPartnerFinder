@@ -65,6 +65,23 @@ const productionOutputs = (Array.isArray(productionBuild) ? productionBuild : [p
   ({ output }) => output
 );
 const sentryOutputChunk = identifySentryChunk(productionOutputs.filter((output) => output.type === "chunk"));
+const pushOutputChunks = productionOutputs.filter(
+  (output) => output.type === "chunk" && output.facadeModuleId?.endsWith("/src/notificationPushRuntimeComposition.ts")
+);
+assert.equal(pushOutputChunks.length, 1, "Push runtime must remain one identifiable lazy entry");
+const pushOutputChunk = pushOutputChunks[0];
+assert.equal(pushOutputChunk.isDynamicEntry, true, "Push runtime must load on demand");
+assert.ok(
+  !productionOutputs.some(
+    (output) =>
+      output.type === "chunk" &&
+      output.isEntry &&
+      Object.keys(output.modules).some((id) =>
+        /\/src\/notificationPush(?:Storage|UserActions|RuntimeComposition)\.ts$/u.test(id)
+      )
+  ),
+  "Push runtime or storage leaked into initial JavaScript"
+);
 
 const outputFiles = readdirSync(DIST_DIR, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile())
@@ -142,8 +159,17 @@ const byteChecks = [
 ];
 for (const chunk of javascriptChunks.filter(({ file }) => file !== mainChunkFile)) {
   const isSentry = sentryChunks.includes(chunk);
-  const rawLimit = isSentry ? SENTRY_CHUNK_RAW_LIMIT_BYTES : LAZY_CHUNK_RAW_LIMIT_BYTES;
-  const gzipLimit = isSentry ? SENTRY_CHUNK_GZIP_LIMIT_BYTES : LAZY_CHUNK_GZIP_LIMIT_BYTES;
+  const isPush = chunk.file === fileURLToPath(new URL(pushOutputChunk.fileName, DIST_DIR));
+  const rawLimit = isSentry
+    ? SENTRY_CHUNK_RAW_LIMIT_BYTES
+    : isPush
+      ? BUNDLE_SIZE_LIMITS.pushRawBytes
+      : LAZY_CHUNK_RAW_LIMIT_BYTES;
+  const gzipLimit = isSentry
+    ? SENTRY_CHUNK_GZIP_LIMIT_BYTES
+    : isPush
+      ? BUNDLE_SIZE_LIMITS.pushGzipBytes
+      : LAZY_CHUNK_GZIP_LIMIT_BYTES;
   const name = chunk.file.split("/").at(-1);
   byteChecks.push(
     { actualBytes: chunk.rawBytes, limitBytes: rawLimit, name: `production lazy chunk raw (${name})` },
@@ -172,7 +198,12 @@ const exceededByteLimits = applyByteLimitPolicy(byteChecks, {
 });
 
 const largestApplicationLazyChunk = javascriptChunks
-  .filter((chunk) => chunk.file !== mainChunkFile && !sentryChunks.includes(chunk))
+  .filter(
+    (chunk) =>
+      chunk.file !== mainChunkFile &&
+      !sentryChunks.includes(chunk) &&
+      chunk.file !== fileURLToPath(new URL(pushOutputChunk.fileName, DIST_DIR))
+  )
   .sort((left, right) => right.rawBytes - left.rawBytes)[0];
 
 console.log(

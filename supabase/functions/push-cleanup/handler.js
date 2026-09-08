@@ -137,6 +137,7 @@ export function createPushCleanupHandler({
   authorizeHostedLimiterCanary,
   consumeRateLimit,
   hostedLimiterCanaryEnabled,
+  hostedProductionEnabled = false,
   cryptoRef = globalThis.crypto,
   hostedRuntime,
   loadKeyRing,
@@ -149,7 +150,7 @@ export function createPushCleanupHandler({
     // Hosted canary mode is deliberately limited to one authenticated POST
     // through the limiter. It cannot read the body, load cleanup keys, decrypt,
     // or call the quarantine command. All other hosted traffic stays hard-gated.
-    if (hostedRuntime) {
+    if (hostedRuntime && !hostedProductionEnabled) {
       let canaryAuthorized;
       try {
         canaryAuthorized =
@@ -176,7 +177,7 @@ export function createPushCleanupHandler({
       }
     }
 
-    if (!localTestEnabled) return retryResponse(corsOrigin);
+    if (!(hostedRuntime ? hostedProductionEnabled : localTestEnabled)) return retryResponse(corsOrigin);
 
     // This is a browser-only boundary. Missing, null, suffix-matched, and
     // reflected origins stop before body, key, crypto, or database work.
