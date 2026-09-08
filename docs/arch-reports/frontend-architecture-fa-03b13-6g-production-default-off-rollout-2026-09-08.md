@@ -14,11 +14,16 @@ Function 都已更新。正式網站可正常開啟，舊推播排程持續成�
 
 ### Git 與 Vercel
 
-- `origin/main` 已 fast-forward 到 `1a3a4cb6cda89ed18ac7518b69ef8391c8a32de6`。
-- `qiuka.tw` 已指向 Vercel production deployment `dpl_BbdDasmg61cgydN1wmwTi2ZgJoiw`。
+- application code 已 fast-forward 推到 `origin/main`，production application baseline 是
+  `1a3a4cb6cda89ed18ac7518b69ef8391c8a32de6`；本報告的後續 docs-only commit 不算新的 application baseline。
+- application rollout 是 Vercel production deployment `dpl_BbdDasmg61cgydN1wmwTi2ZgJoiw`，驗收時 `qiuka.tw` 已指向它。
 - deployment URL：`tennis-partner-finder-d4i4iow74-xinnians-projects-c513dbd3.vercel.app`。
 - 建立時間：2026-09-08 15:34:20（Asia/Taipei）；狀態 `READY`；Git SHA 是上述 `1a3a4cb`。
 - aliases 包含 `qiuka.tw`、`www.qiuka.tw` 與 production／main aliases。
+- 本報告推上 Git 後觸發的第一個 docs-only deployment 也已 READY；它與 application rollout 的 HTML、JS、CSS
+  SHA-256 分別同為 `d42b1603f02ce8104b6289313a260bf714923ab0c26718c33eff3e0c93181a98`、
+  `d0213c196031857e73bf2667d76377b6ae7169e78ca8f8a042d2c791eeff7e8c`、
+  `45da655488cc4f89d36059550bf1293539acf1b31d32aa914e7e66b1273f60d0`。因此後續 alias 移動沒有改變實際前端產物。
 
 正式站 HTTP 實測：
 
