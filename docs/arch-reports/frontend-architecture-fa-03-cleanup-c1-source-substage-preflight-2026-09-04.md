@@ -2,7 +2,7 @@
 
 最後更新：2026-09-08
 
-狀態：**本機 source substage 與完整 CI 已通過；2026-09-08 Hosted 唯讀基線通過，診斷仍未核可、尚未執行。**
+狀態：**已核可並於 2026-09-08 完成；授權 request 回 `SOURCE_REAL_MISSING`，Hosted 已完整復原。**
 
 ## 白話結論
 
@@ -94,4 +94,5 @@ project-wide secrets mutation 會再次增加既有 dispatcher 的 Hosted versio
 
 ## 尚未核可
 
-在使用者明確同意上方精確範圍與 dispatcher version metadata 副作用前，不部署、不設定 secrets、不送 Hosted request。
+本節原為執行前 gate。使用者已於 2026-09-08 核可，結果與復原證據見
+`frontend-architecture-fa-03-cleanup-c1-source-substage-result-2026-09-08.md`；本文件不再代表待執行工作。
