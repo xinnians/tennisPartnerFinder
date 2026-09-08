@@ -64,9 +64,14 @@ export function createDispatcherV2ScheduledEntrypoint({
     try {
       const senderEnvironment = createDispatcherV2ScheduledSenderEnvironment(readEnvironment);
       const localMock = access.localTestEnabled && senderEnvironment("WEB_PUSH_TRANSPORT") === "mock";
-      const sendPrepared = localMock
-        ? await createLocalMockSender(readLocalMockConfig(senderEnvironment))
-        : await createDenoSender(readDenoSenderConfig(senderEnvironment));
+      let senderPromise;
+      const sendPrepared = async (prepared) => {
+        senderPromise ??= localMock
+          ? createLocalMockSender(readLocalMockConfig(senderEnvironment))
+          : createDenoSender(readDenoSenderConfig(senderEnvironment));
+        const sender = await senderPromise;
+        return sender(prepared);
+      };
       const result = await withDatabase({
         connectionString: runtimeConfig.connectionString,
         operation: (database) =>

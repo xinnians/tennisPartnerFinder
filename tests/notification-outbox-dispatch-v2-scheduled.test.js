@@ -9,6 +9,7 @@ import {
   NOTIFICATION_DISPATCH_V2_HOSTED_RUNTIME_MODE,
   readDispatcherV2ScheduledConfig,
 } from "../supabase/functions/notification-outbox-dispatch-v2/runtime.js";
+import { runDispatcherV2Batch } from "../supabase/functions/notification-outbox-dispatch/v2-runtime.js";
 
 const GENERATION = "9223372036854775000";
 const CRON_SECRET = "a".repeat(64);
@@ -32,7 +33,7 @@ function validEnvironment(overrides = {}) {
   };
 }
 
-function dependencies(calls = []) {
+function dependencies(calls = [], { invokeSender = true } = {}) {
   return {
     async createDenoSender(config) {
       calls.push(["create-deno-sender", config]);
@@ -65,6 +66,7 @@ function dependencies(calls = []) {
           sendPreparedType: typeof values.sendPrepared,
         },
       ]);
+      if (invokeSender) await values.sendPrepared({ kind: "prepared" });
       return { claimed: 0, kind: "completed", version: 1 };
     },
     safeErrorCode() {
@@ -226,6 +228,16 @@ test("authorized local execution maps only namespaced config into the existing D
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { claimed: 0, kind: "completed", version: 1 });
   assert.deepEqual(calls, [
+    ["with-database", CONNECTION_STRING],
+    [
+      "run-batch",
+      {
+        batchSize: 3,
+        database: { kind: "database-port" },
+        expectedGeneration: GENERATION,
+        sendPreparedType: "function",
+      },
+    ],
     [
       "read-local-mock-config",
       {
@@ -242,17 +254,51 @@ test("authorized local execution maps only namespaced config into the existing D
         transport: "mock",
       },
     ],
-    ["with-database", CONNECTION_STRING],
-    [
-      "run-batch",
-      {
-        batchSize: 3,
-        database: { kind: "database-port" },
-        expectedGeneration: GENERATION,
-        sendPreparedType: "function",
-      },
-    ],
   ]);
+});
+
+test("disabled database mode opens no sender and stops after begin", async () => {
+  const entrypointCalls = [];
+  const databaseCalls = [];
+  const unexpected = async () => {
+    databaseCalls.push("unexpected");
+    throw new Error("unexpected database call");
+  };
+  const database = {
+    async beginWorker(generation) {
+      databaseCalls.push(["begin", generation]);
+      return {
+        code: "runtime_mode_disabled",
+        databaseNow: "2026-09-08T00:00:00+00:00",
+        generation,
+        kind: "disabled",
+        version: 1,
+      };
+    },
+    claimDelivery: unexpected,
+    finalizeOutbox: unexpected,
+    finishWorker: unexpected,
+    withSendTransaction: unexpected,
+  };
+  const handler = createDispatcherV2ScheduledEntrypoint({
+    ...dependencies(entrypointCalls, { invokeSender: false }),
+    readEnvironment: environment(validEnvironment()),
+    runBatch: runDispatcherV2Batch,
+    async withDatabase({ operation }) {
+      entrypointCalls.push(["with-database", CONNECTION_STRING]);
+      return operation(database);
+    },
+  });
+  const response = await handler(
+    new Request("http://localhost/functions/v1/notification-outbox-dispatch-v2", {
+      headers: { "x-notification-cron-secret": CRON_SECRET },
+      method: "POST",
+    })
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { kind: "disabled", version: 1 });
+  assert.deepEqual(databaseCalls, [["begin", GENERATION]]);
+  assert.deepEqual(entrypointCalls, [["with-database", CONNECTION_STRING]]);
 });
 
 test("hosted execution can never select the local mock sender", async () => {

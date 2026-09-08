@@ -213,11 +213,57 @@ select is(
 
 select is(
   notification_dispatcher_api.begin_notification_dispatch_worker(1) ->> 'code',
-  'runtime_policy_incomplete',
-  'worker begin fails closed while policy values are still unset'
+  'runtime_mode_disabled',
+  'worker begin is a no-op while the new runtime mode is disabled'
 );
 
+select is(
+  (
+    select count(*)::bigint
+    from private.notification_dispatch_workers
+  ),
+  0::bigint,
+  'runtime-mode-disabled worker begin creates no worker row'
+);
+
+update private.notification_runtime_control
+set dispatch_enabled = false
+where singleton_id = 1;
+
+select is(
+  notification_dispatcher_api.begin_notification_dispatch_worker(1) ->> 'code',
+  'dispatch_disabled',
+  'worker begin is a no-op while dispatch is disabled'
+);
+
+select is(
+  (
+    select count(*)::bigint
+    from private.notification_dispatch_workers
+  ),
+  0::bigint,
+  'dispatch-disabled worker begin creates no worker row'
+);
+
+update private.notification_runtime_control
+set dispatch_enabled = true
+where singleton_id = 1;
+
 -- All durations below are isolated test fixtures and roll back with this file.
+update private.notification_runtime_control
+set new_runtime_mode = 'canary',
+    worker_lease_duration = interval '1 minute',
+    request_deadline_duration = interval '2 minutes',
+    delivery_lease_duration = interval '3 minutes',
+    max_delivery_attempts = 1
+where singleton_id = 1;
+
+select is(
+  notification_dispatcher_api.begin_notification_dispatch_worker(1) ->> 'code',
+  'runtime_policy_incomplete',
+  'worker begin still fails closed when active-mode lease relationships are unsafe'
+);
+
 update private.notification_runtime_control
 set new_runtime_mode = 'enabled',
     worker_lease_duration = interval '10 minutes',

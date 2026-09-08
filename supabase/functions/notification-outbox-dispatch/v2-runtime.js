@@ -97,6 +97,16 @@ function requireDatabasePort(database) {
 
 function validateBeginResult(value, expectedGeneration) {
   if (
+    isObject(value) &&
+    value.version === 1 &&
+    value.kind === "disabled" &&
+    ["dispatch_disabled", "runtime_mode_disabled"].includes(value.code) &&
+    isPositiveBigintString(value.generation) &&
+    isTimestampString(value.databaseNow)
+  ) {
+    return Object.freeze({ kind: "disabled" });
+  }
+  if (
     !isObject(value) ||
     value.version !== 1 ||
     value.kind !== "ready" ||
@@ -381,6 +391,7 @@ export async function runDispatcherV2Batch({ batchSize, database, expectedGenera
   }
 
   const begin = validateBeginResult(await database.beginWorker(expectedGeneration), expectedGeneration);
+  if (begin.kind === "disabled") return Object.freeze({ kind: "disabled", version: 1 });
   const workerToken = begin.workerToken;
   const counts = { accepted: 0, cancelled: 0, claimed: 0, failed: 0, finalized: 0, terminalized: 0 };
   let batchExhausted = true;

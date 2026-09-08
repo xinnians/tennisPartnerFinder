@@ -96,13 +96,13 @@ function preparedResult() {
   };
 }
 
-function databaseFixture({ prepare = preparedResult(), providerState = "accepted" } = {}) {
+function databaseFixture({ begin = beginResult(), prepare = preparedResult(), providerState = "accepted" } = {}) {
   const calls = [];
   let claimCount = 0;
   const database = {
     async beginWorker(generation) {
       calls.push(["begin", generation]);
-      return beginResult();
+      return begin;
     },
     async claimDelivery(workerToken) {
       calls.push(["claim", workerToken]);
@@ -238,6 +238,59 @@ test("accepted work stays on one transaction port and every database result is c
     ["claim", WORKER_TOKEN],
     ["finish", WORKER_TOKEN, true],
   ]);
+});
+
+test("a disabled database begin is a clean no-op without claim, sender, or finish", async () => {
+  for (const code of ["dispatch_disabled", "runtime_mode_disabled"]) {
+    const { calls, database } = databaseFixture({
+      begin: {
+        code,
+        databaseNow: "2026-09-07T00:00:00+00:00",
+        generation: MAX_BIGINT,
+        kind: "disabled",
+        version: 1,
+      },
+    });
+    let sends = 0;
+    assert.deepEqual(
+      await runDispatcherV2Batch({
+        batchSize: 2,
+        database,
+        expectedGeneration: MAX_BIGINT,
+        sendPrepared: async () => {
+          sends += 1;
+          return { kind: "accepted" };
+        },
+      }),
+      { kind: "disabled", version: 1 }
+    );
+    assert.equal(sends, 0);
+    assert.deepEqual(calls, [["begin", MAX_BIGINT]]);
+  }
+});
+
+test("disabled begin still rejects an incomplete or unknown database contract", async () => {
+  for (const begin of [
+    { code: "runtime_mode_disabled", generation: MAX_BIGINT, kind: "disabled", version: 1 },
+    {
+      code: "unknown_disabled_reason",
+      databaseNow: "2026-09-07T00:00:00+00:00",
+      generation: MAX_BIGINT,
+      kind: "disabled",
+      version: 1,
+    },
+  ]) {
+    const { database } = databaseFixture({ begin });
+    await assert.rejects(
+      runDispatcherV2Batch({
+        batchSize: 1,
+        database,
+        expectedGeneration: MAX_BIGINT,
+        sendPrepared: async () => ({ kind: "accepted" }),
+      }),
+      /DISPATCH_V2_DATABASE_CONTRACT_INVALID/u
+    );
+  }
 });
 
 test("prepare cancellation commits without invoking a provider or completion command", async () => {

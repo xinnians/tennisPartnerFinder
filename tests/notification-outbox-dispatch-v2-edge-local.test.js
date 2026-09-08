@@ -465,7 +465,7 @@ function cleanupFixture({ hostUserId, recipientUserId }) {
 }
 
 test(
-  "dedicated local v2 dispatcher holds the send recheck transaction and preserves legacy work",
+  "dedicated local v2 dispatcher no-ops when disabled, then holds the send transaction without touching legacy work",
   { skip: !RUN_LOCAL_EDGE_TEST, timeout: TEST_TIMEOUT_MS },
   async () => {
     const { apiUrl } = loadLocalSupabaseConfig();
@@ -506,6 +506,16 @@ test(
       `);
       stage = "domain fixture setup";
       fixture = seedFixture({ hostUserId, recipientUserId });
+      runLocalDatabaseSql(`
+        update private.notification_runtime_control
+        set new_runtime_mode = 'disabled',
+            worker_lease_duration = null,
+            request_deadline_duration = null,
+            delivery_lease_duration = null,
+            max_delivery_attempts = null,
+            push_ttl_safety_budget = null
+        where singleton_id = 1;
+      `);
 
       const environment = [
         "NOTIFICATION_DISPATCH_V2_RUNTIME_MODE=local-test-v1",
@@ -570,6 +580,38 @@ test(
         `).stdout.trim(),
         workerCountBefore
       );
+
+      stage = "disabled database no-op";
+      const disabledResponse = await fetchWithTimeout(
+        functionUrl,
+        { headers: { "x-notification-cron-secret": cronSecret }, method: "POST" },
+        30_000
+      );
+      const disabledText = await disabledResponse.text();
+      assert.equal(disabledResponse.status, 200, disabledText);
+      assert.deepEqual(JSON.parse(disabledText), { kind: "disabled", version: 1 });
+      assert.equal(
+        runLocalDatabaseSql(`
+          select count(*)::text from private.notification_dispatch_workers
+          where generation = ${TEST_GENERATION}::bigint;
+        `).stdout.trim(),
+        workerCountBefore
+      );
+      assert.equal(
+        await Promise.race([mockProvider.requestPromise.then(() => true), delay(200).then(() => false)]),
+        false
+      );
+
+      runLocalDatabaseSql(`
+        update private.notification_runtime_control
+        set new_runtime_mode = 'canary',
+            worker_lease_duration = interval '20 seconds',
+            request_deadline_duration = interval '5 seconds',
+            delivery_lease_duration = interval '10 seconds',
+            max_delivery_attempts = 3,
+            push_ttl_safety_budget = interval '0 seconds'
+        where singleton_id = 1;
+      `);
 
       stage = "held send transaction";
       const dispatchPromise = fetchWithTimeout(
