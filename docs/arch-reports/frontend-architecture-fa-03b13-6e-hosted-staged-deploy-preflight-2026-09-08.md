@@ -6,6 +6,11 @@
 
 狀態：**只讀前置檢查完成；尚未套 Hosted migration、部署 Function、改 Secret／cron／runtime，也沒有發 Function request。**
 
+後續狀態：停點 M 已於 B13.6f 完成。實際驗證因 begin function 內含既有 `SELECT ... FOR SHARE`，改用一般 transaction
+呼叫後 rollback，而非本文件原定的 read-only transaction；完整結果見
+`frontend-architecture-fa-03b13-6f-hosted-disabled-noop-migration-2026-09-08.md`。本文件其餘 40 local／39 Hosted 數字保留為
+執行前基線。
+
 ## 白話結論
 
 現在不應把所有變更一次推到 production。
