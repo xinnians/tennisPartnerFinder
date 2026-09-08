@@ -1,7 +1,10 @@
 import type {
   AuthVerificationAuthority,
   AuthVerificationFailureNotice,
+  VerifiedAuthProof,
 } from "./features/profile-auth/authRefreshCoordinator.ts";
+import { isUsableAbortSignal, settleAbortableOperation } from "./abortableOperation.ts";
+import type { PushSignOutBindingSnapshot } from "./notificationPushSignOutCoordinator.ts";
 import type {
   createNotificationPushRuntimeComposition,
   NotificationPushRuntimeComposition,
@@ -38,6 +41,7 @@ export class NotificationPushProductionShellError extends Error {
 }
 
 const IGNORED_RESULT = Object.freeze({ kind: "ignored" } as const);
+const COMPLETED_RESULT = Object.freeze({ kind: "completed" } as const);
 const PENDING_RESULT = Object.freeze({ kind: "pending" } as const);
 
 function shellError(): NotificationPushProductionShellError {
@@ -70,6 +74,47 @@ function validRuntime(value: unknown): value is NotificationPushRuntimeCompositi
     typeof runtime.storage.readPushRuntimeState === "function" &&
     runtime.subscriptionCoordinator &&
     typeof runtime.subscriptionCoordinator.enableProvisioning === "function"
+  );
+}
+
+function validSignOutInput(value: unknown): value is { readonly signal?: AbortSignal } {
+  if (value === undefined) return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Reflect.ownKeys(value);
+  if (keys.length === 0) return true;
+  return (
+    keys.length === 1 &&
+    keys[0] === "signal" &&
+    ((value as { signal?: unknown }).signal === undefined ||
+      isUsableAbortSignal((value as { signal?: unknown }).signal))
+  );
+}
+
+function bindingFromRuntimeState(value: unknown, authUserId: string): PushSignOutBindingSnapshot | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const state = value as { binding?: unknown; kind?: unknown };
+  if (
+    state.kind !== "auth-unverified" &&
+    state.kind !== "cleanup-required" &&
+    state.kind !== "enabled" &&
+    state.kind !== "provisioning"
+  ) {
+    return null;
+  }
+  if (!state.binding || typeof state.binding !== "object" || Array.isArray(state.binding)) return null;
+  const binding = state.binding as { authUserId?: unknown; state?: unknown };
+  return binding.authUserId === authUserId && binding.state === state.kind
+    ? (state.binding as PushSignOutBindingSnapshot)
+    : null;
+}
+
+function exactKind(value: unknown, kind: string): boolean {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Reflect.ownKeys(value).length === 1 &&
+    (value as { kind?: unknown }).kind === kind
   );
 }
 
@@ -146,9 +191,65 @@ export function createNotificationPushProductionShell(options: NotificationPushP
     }
   }
 
+  function capturedProofIsCurrent(
+    capturedAuthority: AuthVerificationAuthority,
+    capturedGeneration: number,
+    proof: VerifiedAuthProof
+  ): boolean {
+    try {
+      return (
+        authority === capturedAuthority &&
+        authorityGeneration === capturedGeneration &&
+        capturedAuthority.isVerifiedAuthProofCurrent(proof)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async function processCurrentDeviceSignOut(input?: { readonly signal?: AbortSignal }) {
+    if (options.mode === "disabled") return IGNORED_RESULT;
+    if (!validSignOutInput(input)) return PENDING_RESULT;
+    const signal = input?.signal;
+    const capturedAuthority = authority;
+    const capturedGeneration = authorityGeneration;
+    if (!capturedAuthority) return PENDING_RESULT;
+
+    let proof: VerifiedAuthProof | null;
+    try {
+      proof = capturedAuthority.readCurrentVerifiedAuthProof();
+    } catch {
+      return PENDING_RESULT;
+    }
+    if (!proof || !capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)) return PENDING_RESULT;
+
+    const runtimeResult = await settleAbortableOperation(() => readEnabledRuntime(), signal);
+    if (runtimeResult.kind !== "completed" || !runtimeResult.value) return PENDING_RESULT;
+    const runtime = runtimeResult.value;
+    if (!capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)) return PENDING_RESULT;
+
+    const stateResult = await settleAbortableOperation(() => runtime.storage.readPushRuntimeState(), signal);
+    if (stateResult.kind !== "completed") return PENDING_RESULT;
+    const binding = bindingFromRuntimeState(stateResult.value, proof.authUserId);
+    if (!binding || !capturedProofIsCurrent(capturedAuthority, capturedGeneration, proof)) return PENDING_RESULT;
+
+    const cleanupResult = await settleAbortableOperation(
+      () =>
+        runtime.signOutCleanup.processCurrentDeviceSignOut({
+          authUserId: proof.authUserId,
+          binding,
+          ...(signal ? { signal } : {}),
+        }),
+      signal
+    );
+    if (cleanupResult.kind !== "completed") return PENDING_RESULT;
+    return exactKind(cleanupResult.value, "completed") ? COMPLETED_RESULT : PENDING_RESULT;
+  }
+
   return Object.freeze({
     installAuthVerificationAuthority,
     processAuthVerificationFailure,
+    processCurrentDeviceSignOut,
     readEnabledRuntime,
   });
 }

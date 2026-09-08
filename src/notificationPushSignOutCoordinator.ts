@@ -1,3 +1,5 @@
+import { isUsableAbortSignal, settleAbortableOperation } from "./abortableOperation.ts";
+
 export const PUSH_SIGN_OUT_COORDINATOR_ERROR_CODES = Object.freeze({
   INVALID_CONFIGURATION: "PUSH_SIGN_OUT_COORDINATOR_INVALID_CONFIGURATION",
 });
@@ -20,7 +22,7 @@ interface PushServerConsentSnapshot {
   readonly consentVersion: string;
 }
 
-interface PushSignOutBindingSnapshot {
+export interface PushSignOutBindingSnapshot {
   readonly authUserId: string;
   readonly bindingId: string;
   readonly deviceId: string;
@@ -45,6 +47,7 @@ interface PushSignOutOwnerQuarantinePort {
     consentEpoch: string;
     consentVersion: string;
     deviceId: string;
+    signal?: AbortSignal;
   }) => PromiseLike<unknown>;
 }
 
@@ -53,7 +56,7 @@ interface PushSignOutCleanupPort<Attempt extends object> {
 }
 
 interface PushSignOutBrowserPort {
-  deactivateCurrentSubscription: () => PromiseLike<unknown>;
+  deactivateCurrentSubscription: (input?: { signal?: AbortSignal }) => PromiseLike<unknown>;
 }
 
 interface PushSignOutCoordinatorOptions<Attempt extends object> {
@@ -191,11 +194,15 @@ function validInput<Binding extends PushSignOutBindingSnapshot>(
     return false;
   }
   if (value.authUserId !== value.binding.authUserId) return false;
-  return (
-    !Reflect.ownKeys(value).includes("signal") ||
-    value.signal === undefined ||
-    (isRecord(value.signal) && typeof value.signal.aborted === "boolean")
-  );
+  return !Reflect.ownKeys(value).includes("signal") || value.signal === undefined || isUsableAbortSignal(value.signal);
+}
+
+function isAborted(signal: AbortSignal | undefined): boolean {
+  try {
+    return signal?.aborted === true;
+  } catch {
+    return true;
+  }
 }
 
 function expectedReason(binding: PushSignOutBindingSnapshot): string {
@@ -276,60 +283,81 @@ export function createNotificationPushSignOutCoordinator<
     let attempt: Attempt | null = null;
     let result: PushSignOutCoordinatorResult = PENDING_RESULT;
     try {
-      try {
-        const suspension = await storage.suspendCurrentPushBinding({
-          authUserId,
-          bindingId: binding.bindingId,
-          expectedLocalRevision: binding.localRevision,
-          reason: "user_logout",
-        });
-        attempt = exactSuspension<Attempt>(suspension, binding);
-      } catch {
+      const suspensionResult = await settleAbortableOperation(
+        () =>
+          storage.suspendCurrentPushBinding({
+            authUserId,
+            bindingId: binding.bindingId,
+            expectedLocalRevision: binding.localRevision,
+            reason: "user_logout",
+          }),
+        signal
+      );
+      if (suspensionResult.kind === "completed") {
+        attempt = exactSuspension<Attempt>(suspensionResult.value, binding);
+      } else if (suspensionResult.kind === "failed") {
         // A valid owner snapshot can still close the server side. Without an
         // exact attempt, however, local completion must remain pending.
       }
 
-      if (binding.serverConsent) {
-        try {
-          const ownerResult = await owner.quarantineOwnedPushDevice({
-            consentEpoch: binding.serverConsent.consentEpoch,
-            consentVersion: binding.serverConsent.consentVersion,
-            deviceId: binding.deviceId,
-          });
-          if (hasExactKind(ownerResult, "completed")) {
-            if (attempt) {
-              const localCompletion = await storage.completePendingPushCleanup(attempt);
-              if (typeof localCompletion === "boolean") result = COMPLETED_RESULT;
-            }
-          } else if (attempt) {
-            const cleanupResult = await cleanup.processPendingPushCleanup({ attempt, signal });
-            if (hasExactKind(cleanupResult, "completed")) result = COMPLETED_RESULT;
-          }
-        } catch {
+      const consent = binding.serverConsent;
+      if (!isAborted(signal) && consent) {
+        const ownerResult = await settleAbortableOperation(
+          () =>
+            owner.quarantineOwnedPushDevice({
+              consentEpoch: consent.consentEpoch,
+              consentVersion: consent.consentVersion,
+              deviceId: binding.deviceId,
+              ...(signal ? { signal } : {}),
+            }),
+          signal
+        );
+        if (ownerResult.kind === "completed" && hasExactKind(ownerResult.value, "completed")) {
           if (attempt) {
-            try {
-              const cleanupResult = await cleanup.processPendingPushCleanup({ attempt, signal });
-              if (hasExactKind(cleanupResult, "completed")) result = COMPLETED_RESULT;
-            } catch {
-              // The durable attempt remains available for a later retry.
+            const capturedAttempt = attempt;
+            const localCompletion = await settleAbortableOperation(
+              () => storage.completePendingPushCleanup(capturedAttempt),
+              signal
+            );
+            if (localCompletion.kind === "completed" && typeof localCompletion.value === "boolean") {
+              result = COMPLETED_RESULT;
+            } else if (localCompletion.kind === "failed" && !isAborted(signal)) {
+              const cleanupResult = await settleAbortableOperation(
+                () => cleanup.processPendingPushCleanup({ attempt: capturedAttempt, signal }),
+                signal
+              );
+              if (cleanupResult.kind === "completed" && hasExactKind(cleanupResult.value, "completed")) {
+                result = COMPLETED_RESULT;
+              }
             }
+          }
+        } else if (!isAborted(signal) && attempt) {
+          const capturedAttempt = attempt;
+          const cleanupResult = await settleAbortableOperation(
+            () => cleanup.processPendingPushCleanup({ attempt: capturedAttempt, signal }),
+            signal
+          );
+          if (cleanupResult.kind === "completed" && hasExactKind(cleanupResult.value, "completed")) {
+            result = COMPLETED_RESULT;
           }
         }
-      } else if (attempt) {
-        try {
-          const cleanupResult = await cleanup.processPendingPushCleanup({ attempt, signal });
-          if (hasExactKind(cleanupResult, "completed")) result = COMPLETED_RESULT;
-        } catch {
-          // The durable attempt remains available for a later retry.
+      } else if (!isAborted(signal) && attempt) {
+        const capturedAttempt = attempt;
+        const cleanupResult = await settleAbortableOperation(
+          () => cleanup.processPendingPushCleanup({ attempt: capturedAttempt, signal }),
+          signal
+        );
+        if (cleanupResult.kind === "completed" && hasExactKind(cleanupResult.value, "completed")) {
+          result = COMPLETED_RESULT;
         }
       }
     } finally {
-      try {
-        await browser.deactivateCurrentSubscription();
-      } catch {
-        // Server closure and the durable retry record are authoritative. A
-        // browser failure must not erase either result.
-      }
+      await settleAbortableOperation(
+        () => browser.deactivateCurrentSubscription(signal ? { signal } : undefined),
+        signal
+      );
+      // Server closure and the durable retry record are authoritative. A
+      // browser failure or caller abort must not erase either result.
     }
     return result;
   }

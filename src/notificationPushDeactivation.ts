@@ -1,3 +1,5 @@
+import { isUsableAbortSignal, settleAbortableOperation } from "./abortableOperation.ts";
+
 export const PUSH_DEACTIVATION_ERROR_CODES = Object.freeze({
   INVALID_CONFIGURATION: "PUSH_DEACTIVATION_INVALID_CONFIGURATION",
 });
@@ -23,6 +25,10 @@ interface PushSubscriptionReader {
 
 interface PushDeactivationOptions {
   browser: PushSubscriptionReader;
+}
+
+interface PushDeactivationInput {
+  readonly signal?: AbortSignal;
 }
 
 export type PushUnsubscribeEvidence = "already-inactive" | "deactivation-started" | "unknown";
@@ -62,6 +68,19 @@ function unsubscribeEvidence(value: unknown): PushUnsubscribeEvidence {
   return "unknown";
 }
 
+function validInput(value: unknown): value is PushDeactivationInput {
+  if (value === undefined) return true;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Reflect.ownKeys(value);
+  if (keys.length === 0) return true;
+  return (
+    keys.length === 1 &&
+    keys[0] === "signal" &&
+    ((value as PushDeactivationInput).signal === undefined ||
+      isUsableAbortSignal((value as PushDeactivationInput).signal))
+  );
+}
+
 export function createNotificationPushDeactivation<Subscription extends BrowserPushSubscriptionHandle>(
   options: PushDeactivationOptions
 ) {
@@ -70,33 +89,37 @@ export function createNotificationPushDeactivation<Subscription extends BrowserP
     throw deactivationError(PUSH_DEACTIVATION_ERROR_CODES.INVALID_CONFIGURATION);
   }
 
-  async function deactivateCurrentSubscription(): Promise<PushDeactivationResult<Subscription>> {
-    let capturedValue: unknown;
-    try {
-      capturedValue = await browser.readCurrentSubscription();
-    } catch {
-      return UNKNOWN_WITHOUT_CAPTURE;
-    }
+  async function deactivateCurrentSubscription(
+    input?: PushDeactivationInput
+  ): Promise<PushDeactivationResult<Subscription>> {
+    if (!validInput(input)) return UNKNOWN_WITHOUT_CAPTURE;
+    const signal = input?.signal;
+    const capturedRead = await settleAbortableOperation(() => browser.readCurrentSubscription(), signal);
+    if (capturedRead.kind !== "completed") return UNKNOWN_WITHOUT_CAPTURE;
+    const capturedValue = capturedRead.value;
 
     if (capturedValue === null) return ABSENT_RESULT;
     if (!isSubscriptionHandle(capturedValue)) return UNKNOWN_WITHOUT_CAPTURE;
     const captured = capturedValue as Subscription;
 
     let evidence: PushUnsubscribeEvidence = "unknown";
-    try {
-      evidence = unsubscribeEvidence(await captured.unsubscribe());
-    } catch {
+    const unsubscribeResult = await settleAbortableOperation(() => captured.unsubscribe(), signal);
+    if (unsubscribeResult.kind === "aborted") {
+      return Object.freeze({ captured, evidence, kind: "unknown" });
+    }
+    if (unsubscribeResult.kind === "completed") {
+      evidence = unsubscribeEvidence(unsubscribeResult.value);
+    } else {
       // A thrown result is not evidence that deactivation failed. The required
       // second read below remains authoritative when it can prove absence or
       // replacement.
     }
 
-    let currentValue: unknown;
-    try {
-      currentValue = await browser.readCurrentSubscription();
-    } catch {
+    const currentRead = await settleAbortableOperation(() => browser.readCurrentSubscription(), signal);
+    if (currentRead.kind !== "completed") {
       return Object.freeze({ captured, evidence, kind: "unknown" });
     }
+    const currentValue = currentRead.value;
 
     if (currentValue === null) {
       return Object.freeze({ captured, evidence, kind: "deactivated" });

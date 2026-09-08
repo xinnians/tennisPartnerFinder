@@ -1,3 +1,5 @@
+import { isUsableAbortSignal, settleAbortableOperation } from "./abortableOperation.ts";
+
 const CANONICAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const POSTGRES_BIGINT_MAX = "9223372036854775807";
 
@@ -18,28 +20,32 @@ export class NotificationPushOwnerQuarantineError extends Error {
   }
 }
 
-interface OwnerQuarantineRpcArguments {
+export interface OwnerQuarantineRpcArguments {
   p_consent_epoch: string;
   p_device_id: string;
   p_expected_version: string;
 }
 
-interface OwnerQuarantineRpcResponse {
+export interface OwnerQuarantineRpcResponse {
   data?: unknown;
   error?: unknown;
 }
 
+export type PushOwnerQuarantineRpc = (
+  functionName: typeof PUSH_OWNER_QUARANTINE_RPC_NAME,
+  arguments_: OwnerQuarantineRpcArguments,
+  signal?: AbortSignal
+) => PromiseLike<OwnerQuarantineRpcResponse>;
+
 interface PushOwnerQuarantineOptions {
-  rpc: (
-    functionName: typeof PUSH_OWNER_QUARANTINE_RPC_NAME,
-    arguments_: OwnerQuarantineRpcArguments
-  ) => PromiseLike<OwnerQuarantineRpcResponse>;
+  rpc: PushOwnerQuarantineRpc;
 }
 
 interface QuarantineOwnedPushDeviceInput {
   consentEpoch: string;
   consentVersion: string;
   deviceId: string;
+  signal?: AbortSignal;
 }
 
 export type PushOwnerQuarantineResult = { kind: "completed" } | { kind: "pending" } | { kind: "stale" };
@@ -74,23 +80,35 @@ export function createNotificationPushOwnerQuarantine(options: PushOwnerQuaranti
     const consentEpoch = input?.consentEpoch;
     const consentVersion = input?.consentVersion;
     const deviceId = input?.deviceId;
-    if (!isCanonicalUuid(deviceId) || !isCanonicalUuid(consentEpoch) || !isPositivePostgresBigint(consentVersion)) {
+    const signal = input?.signal;
+    if (
+      !isCanonicalUuid(deviceId) ||
+      !isCanonicalUuid(consentEpoch) ||
+      !isPositivePostgresBigint(consentVersion) ||
+      (signal !== undefined && !isUsableAbortSignal(signal))
+    ) {
       throw ownerQuarantineError(PUSH_OWNER_QUARANTINE_ERROR_CODES.INVALID_INPUT);
     }
 
-    try {
-      const response = await rpc(PUSH_OWNER_QUARANTINE_RPC_NAME, {
-        p_consent_epoch: consentEpoch,
-        p_device_id: deviceId,
-        p_expected_version: consentVersion,
-      });
-      if (!response || typeof response !== "object" || response.error !== null) return PENDING_RESULT;
-      if (response.data === "OK") return COMPLETED_RESULT;
-      if (response.data === "STALE_PUSH_DEVICE") return STALE_RESULT;
-      return PENDING_RESULT;
-    } catch {
-      return PENDING_RESULT;
-    }
+    const rpcResult = await settleAbortableOperation(
+      () =>
+        rpc(
+          PUSH_OWNER_QUARANTINE_RPC_NAME,
+          {
+            p_consent_epoch: consentEpoch,
+            p_device_id: deviceId,
+            p_expected_version: consentVersion,
+          },
+          signal
+        ),
+      signal
+    );
+    if (rpcResult.kind !== "completed") return PENDING_RESULT;
+    const response = rpcResult.value;
+    if (!response || typeof response !== "object" || response.error !== null) return PENDING_RESULT;
+    if (response.data === "OK") return COMPLETED_RESULT;
+    if (response.data === "STALE_PUSH_DEVICE") return STALE_RESULT;
+    return PENDING_RESULT;
   }
 
   return Object.freeze({ quarantineOwnedPushDevice });

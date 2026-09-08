@@ -48,9 +48,10 @@ test("construction is dormant and rejects a missing RPC boundary with one fixed 
 
 test("an exact OK calls the owner RPC once and preserves the maximum bigint as a string", async () => {
   const calls = [];
+  const abortController = new AbortController();
   const ownerQuarantine = createNotificationPushOwnerQuarantine({
-    rpc: async (functionName, arguments_) => {
-      calls.push({ arguments_, functionName });
+    rpc: async (functionName, arguments_, signal) => {
+      calls.push({ arguments_, functionName, signal });
       return { data: "OK", error: null };
     },
   });
@@ -60,6 +61,7 @@ test("an exact OK calls the owner RPC once and preserves the maximum bigint as a
       consentEpoch: CONSENT_EPOCH,
       consentVersion: MAX_POSTGRES_BIGINT,
       deviceId: DEVICE_ID,
+      signal: abortController.signal,
     }),
     { kind: "completed" }
   );
@@ -71,9 +73,54 @@ test("an exact OK calls the owner RPC once and preserves the maximum bigint as a
         p_expected_version: MAX_POSTGRES_BIGINT,
       },
       functionName: PUSH_OWNER_QUARANTINE_RPC_NAME,
+      signal: abortController.signal,
     },
   ]);
   assert.equal(typeof calls[0].arguments_.p_expected_version, "string");
+});
+
+test("an already-aborted signal skips the RPC and a later abort releases a non-cooperative RPC", async () => {
+  const alreadyAborted = new AbortController();
+  alreadyAborted.abort();
+  let calls = 0;
+  const skipped = createNotificationPushOwnerQuarantine({
+    rpc: async () => {
+      calls += 1;
+      return { data: "OK", error: null };
+    },
+  });
+  assert.deepEqual(
+    await skipped.quarantineOwnedPushDevice({
+      consentEpoch: CONSENT_EPOCH,
+      consentVersion: "1",
+      deviceId: DEVICE_ID,
+      signal: alreadyAborted.signal,
+    }),
+    { kind: "pending" }
+  );
+  assert.equal(calls, 0);
+
+  const duringRpc = new AbortController();
+  let capturedSignal;
+  const interrupted = createNotificationPushOwnerQuarantine({
+    rpc: (_functionName, _arguments, signal) => {
+      calls += 1;
+      capturedSignal = signal;
+      duringRpc.abort();
+      return new Promise(() => {});
+    },
+  });
+  assert.deepEqual(
+    await interrupted.quarantineOwnedPushDevice({
+      consentEpoch: CONSENT_EPOCH,
+      consentVersion: "1",
+      deviceId: DEVICE_ID,
+      signal: duringRpc.signal,
+    }),
+    { kind: "pending" }
+  );
+  assert.equal(calls, 1);
+  assert.equal(capturedSignal, duringRpc.signal);
 });
 
 test("the exact stale outcome is returned without retrying", async () => {
@@ -164,6 +211,7 @@ test("invalid UUID or bigint input fails before the RPC with no supplied detail"
     { consentEpoch: CONSENT_EPOCH, consentVersion: "+1", deviceId: DEVICE_ID },
     { consentEpoch: CONSENT_EPOCH, consentVersion: "1.0", deviceId: DEVICE_ID },
     { consentEpoch: CONSENT_EPOCH, consentVersion: "9223372036854775808", deviceId: DEVICE_ID },
+    { consentEpoch: CONSENT_EPOCH, consentVersion: "1", deviceId: DEVICE_ID, signal: { aborted: false } },
   ];
 
   for (const input of invalidInputs) {

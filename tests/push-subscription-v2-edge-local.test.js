@@ -413,6 +413,7 @@ test(
             },
             navigatorRef: {
               serviceWorker: {
+                getRegistration: async () => registration,
                 ready: Promise.resolve(registration),
                 register: async (scriptUrl) => {
                   calls.push(scriptUrl);

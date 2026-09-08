@@ -4,6 +4,8 @@ import test from "node:test";
 
 import { enableBrowserPush, vapidPublicKeyBytes } from "../src/notificationPush.js";
 
+const ABORTABLE_OPERATION_URL = new URL("../src/abortableOperation.ts", import.meta.url);
+const ABORTABLE_OPERATION_SOURCE = readFileSync(ABORTABLE_OPERATION_URL, "utf8");
 const PUSH_STORAGE_URL = new URL("../src/notificationPushStorage.ts", import.meta.url);
 const PUSH_STORAGE_SOURCE = readFileSync(PUSH_STORAGE_URL, "utf8");
 const PUSH_STATE_CONTRACT_SOURCE = readFileSync(
@@ -35,8 +37,11 @@ const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL = new URL(
 const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE = readFileSync(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
+const PUSH_OWNER_QUARANTINE_RPC_URL = new URL("../src/notificationPushOwnerQuarantineRpc.ts", import.meta.url);
+const PUSH_OWNER_QUARANTINE_RPC_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_RPC_URL, "utf8");
 const PUSH_SIGN_OUT_COORDINATOR_URL = new URL("../src/notificationPushSignOutCoordinator.ts", import.meta.url);
 const PUSH_SIGN_OUT_COORDINATOR_SOURCE = readFileSync(PUSH_SIGN_OUT_COORDINATOR_URL, "utf8");
+const PUSH_PRODUCTION_SHELL_URL = new URL("../src/notificationPushProductionShell.ts", import.meta.url);
 const PUSH_RUNTIME_COMPOSITION_URL = new URL("../src/notificationPushRuntimeComposition.ts", import.meta.url);
 
 function sourceFiles(directoryUrl) {
@@ -197,7 +202,15 @@ test("the Push owner-quarantine adapter is referenced only by the lazy productio
     .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_URL.href)
     .filter((sourceUrl) => /notificationPushOwnerQuarantine/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
+  assert.deepEqual(references, [PUSH_OWNER_QUARANTINE_RPC_URL, PUSH_RUNTIME_COMPOSITION_URL]);
+});
+
+test("the exact owner-quarantine RPC adapter stays outside the production runtime graph", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_RPC_URL.href)
+    .filter((sourceUrl) => /notificationPushOwnerQuarantineRpc/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, []);
 });
 
 test("the Push sign-out coordinator is referenced only by the lazy production composition", () => {
@@ -205,7 +218,21 @@ test("the Push sign-out coordinator is referenced only by the lazy production co
     .filter((sourceUrl) => sourceUrl.href !== PUSH_SIGN_OUT_COORDINATOR_URL.href)
     .filter((sourceUrl) => /notificationPushSignOutCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
+  assert.deepEqual(references, [PUSH_PRODUCTION_SHELL_URL, PUSH_RUNTIME_COMPOSITION_URL]);
+});
+
+test("the abortable operation helper is referenced only by dormant Push boundaries and the disabled shell", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== ABORTABLE_OPERATION_URL.href)
+    .filter((sourceUrl) => /abortableOperation/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, [
+    PUSH_DEACTIVATION_URL,
+    PUSH_OWNER_QUARANTINE_URL,
+    PUSH_OWNER_QUARANTINE_RPC_URL,
+    PUSH_PRODUCTION_SHELL_URL,
+    PUSH_SIGN_OUT_COORDINATOR_URL,
+  ]);
 });
 
 test("the Push storage foundation has no network, Supabase, or unsafe fallback boundary", () => {
@@ -232,6 +259,18 @@ test("the shared Push state contract stays data-free and type-only", () => {
     /interface NotificationPushRuntimeStateView\s*\{\s*readonly kind: NotificationPushRuntimeStateKind;\s*\}/u
   );
   assert.doesNotMatch(PUSH_STATE_CONTRACT_SOURCE, /\b(?:fetch|indexedDB|localStorage|sessionStorage|supabase)\b/iu);
+});
+
+test("the abortable operation helper has no runtime, network, persistence, logging, or timer dependency", () => {
+  assert.doesNotMatch(ABORTABLE_OPERATION_SOURCE, /^\s*import\s/gmu);
+  assert.doesNotMatch(ABORTABLE_OPERATION_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(ABORTABLE_OPERATION_SOURCE, /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u);
+  assert.doesNotMatch(ABORTABLE_OPERATION_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(ABORTABLE_OPERATION_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    ABORTABLE_OPERATION_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
 });
 
 test("the dormant cleanup transport imports only public shared modules and never persists or logs secrets", () => {
@@ -281,8 +320,9 @@ test("the dormant cleanup coordinator has no direct runtime, scheduling, or logg
 });
 
 test("the dormant Push deactivation seam has no runtime, network, persistence, logging, or timer dependency", () => {
-  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
-  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /^\s*import\s+["']/gmu);
+  const importSources = [...PUSH_DEACTIVATION_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
+  assert.deepEqual(importSources, ["./abortableOperation.ts"]);
+  assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /^\s*import\s+"/gmu);
   assert.doesNotMatch(PUSH_DEACTIVATION_SOURCE, /\bimport\s*\(/u);
   assert.doesNotMatch(
     PUSH_DEACTIVATION_SOURCE,
@@ -454,8 +494,9 @@ test("the dormant local composition has no provider policy, logging, timer, or d
 });
 
 test("the dormant owner-quarantine adapter has no secret, storage, network, logging, or timer dependency", () => {
-  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
-  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /^\s*import\s+["']/gmu);
+  const importSources = [...PUSH_OWNER_QUARANTINE_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map((match) => match[1]);
+  assert.deepEqual(importSources, ["./abortableOperation.ts"]);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /^\s*import\s+"/gmu);
   assert.doesNotMatch(PUSH_OWNER_QUARANTINE_SOURCE, /\bimport\s*\(/u);
   assert.doesNotMatch(
     PUSH_OWNER_QUARANTINE_SOURCE,
@@ -470,9 +511,32 @@ test("the dormant owner-quarantine adapter has no secret, storage, network, logg
   );
 });
 
+test("the owner-quarantine RPC adapter exposes only the exact PostgREST abort boundary", () => {
+  const importSources = [...PUSH_OWNER_QUARANTINE_RPC_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(importSources, ["./abortableOperation.ts", "./notificationPushOwnerQuarantine.ts"]);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_RPC_SOURCE, /^\s*import\s+"/gmu);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_RPC_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_RPC_SOURCE, /\b(?:dataApi|supabaseClient|notificationPushStorage)\b/u);
+  assert.doesNotMatch(
+    PUSH_OWNER_QUARANTINE_RPC_SOURCE,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u
+  );
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_RPC_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_OWNER_QUARANTINE_RPC_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_OWNER_QUARANTINE_RPC_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+});
+
 test("the dormant sign-out coordinator has no direct runtime, network, persistence, logging, or timer dependency", () => {
-  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
-  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /^\s*import\s+["']/gmu);
+  const importSources = [...PUSH_SIGN_OUT_COORDINATOR_SOURCE.matchAll(/\bfrom\s+"([^"]+)";/gu)].map(
+    (match) => match[1]
+  );
+  assert.deepEqual(importSources, ["./abortableOperation.ts"]);
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /^\s*import\s+"/gmu);
   assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\bimport\s*\(/u);
   assert.doesNotMatch(
     PUSH_SIGN_OUT_COORDINATOR_SOURCE,

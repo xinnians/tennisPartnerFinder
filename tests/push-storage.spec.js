@@ -41,6 +41,34 @@ async function createEnabledBinding(page) {
   );
 }
 
+test("sign-out browser read returns absent through real getRegistration without creating a worker", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const before = await navigator.serviceWorker.getRegistration();
+    const pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    const bytes = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    const vapidPublicKey = btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "");
+    const { createNotificationPushBrowserSubscription } = await import("/src/notificationPushBrowserSubscription.ts");
+    const browser = createNotificationPushBrowserSubscription({
+      validateSubscription: async (subscription) => subscription,
+      vapidPublicKey,
+    });
+    const subscription = await browser.readCurrentSubscription();
+    const after = await navigator.serviceWorker.getRegistration();
+    return {
+      afterRegistration: after === undefined,
+      beforeRegistration: before === undefined,
+      subscriptionAbsent: subscription === null,
+    };
+  });
+
+  expect(result).toEqual({ afterRegistration: true, beforeRegistration: true, subscriptionAbsent: true });
+});
+
 test("sign-out cleanup closes real IndexedDB work before browser deactivation", async ({ page }) => {
   await page.goto("/");
   const enabled = await createEnabledBinding(page);

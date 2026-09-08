@@ -53,6 +53,91 @@ test("a failed first read fails closed without a captured subscription", async (
   });
 });
 
+test("an already-aborted signal touches no browser port", async () => {
+  let reads = 0;
+  const abortController = new AbortController();
+  abortController.abort();
+  const deactivation = createNotificationPushDeactivation({
+    browser: {
+      readCurrentSubscription: async () => {
+        reads += 1;
+        return null;
+      },
+    },
+  });
+
+  assert.deepEqual(await deactivation.deactivateCurrentSubscription({ signal: abortController.signal }), {
+    captured: null,
+    evidence: "unknown",
+    kind: "unknown",
+  });
+  assert.equal(reads, 0);
+});
+
+test("abort releases a never-settling subscription read without a timer", async () => {
+  const abortController = new AbortController();
+  let reads = 0;
+  const deactivation = createNotificationPushDeactivation({
+    browser: {
+      readCurrentSubscription: () => {
+        reads += 1;
+        abortController.abort();
+        return new Promise(() => {});
+      },
+    },
+  });
+
+  assert.deepEqual(await deactivation.deactivateCurrentSubscription({ signal: abortController.signal }), {
+    captured: null,
+    evidence: "unknown",
+    kind: "unknown",
+  });
+  assert.equal(reads, 1);
+});
+
+test("abort during unsubscribe returns unknown without a second browser read", async () => {
+  const abortController = new AbortController();
+  let reads = 0;
+  const captured = subscription("https://push.example/subscription-a", () => {
+    abortController.abort();
+    return new Promise(() => {});
+  });
+  const deactivation = createNotificationPushDeactivation({
+    browser: {
+      readCurrentSubscription: async () => {
+        reads += 1;
+        return captured;
+      },
+    },
+  });
+
+  assert.deepEqual(await deactivation.deactivateCurrentSubscription({ signal: abortController.signal }), {
+    captured,
+    evidence: "unknown",
+    kind: "unknown",
+  });
+  assert.equal(reads, 1);
+});
+
+test("a malformed signal fails closed before reading", async () => {
+  let reads = 0;
+  const deactivation = createNotificationPushDeactivation({
+    browser: {
+      readCurrentSubscription: async () => {
+        reads += 1;
+        return null;
+      },
+    },
+  });
+
+  assert.deepEqual(await deactivation.deactivateCurrentSubscription({ signal: { aborted: false } }), {
+    captured: null,
+    evidence: "unknown",
+    kind: "unknown",
+  });
+  assert.equal(reads, 0);
+});
+
 for (const [returned, evidence] of [
   [true, "deactivation-started"],
   [false, "already-inactive"],

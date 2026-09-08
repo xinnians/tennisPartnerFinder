@@ -32,6 +32,7 @@ interface BrowserPushManagerLike {
 
 interface BrowserServiceWorkerContainerLike {
   readonly ready: PromiseLike<unknown>;
+  getRegistration(clientURL?: string): PromiseLike<unknown>;
   register(scriptUrl: string): PromiseLike<unknown>;
 }
 
@@ -205,8 +206,11 @@ export function createNotificationPushBrowserSubscription(
 
   async function readCurrentSubscription(): Promise<unknown> {
     const serviceWorker = navigatorRef?.serviceWorker;
-    if (!serviceWorker) throw browserSubscriptionError(PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES.INVALID_CONFIGURATION);
-    const registration = await serviceWorker.ready;
+    if (!serviceWorker || typeof serviceWorker.getRegistration !== "function") {
+      throw browserSubscriptionError(PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES.INVALID_CONFIGURATION);
+    }
+    const registration = await serviceWorker.getRegistration();
+    if (registration === undefined) return null;
     const pushManager = pushManagerFromRegistration(registration);
     if (!pushManager) throw browserSubscriptionError(PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES.INVALID_CONFIGURATION);
     return pushManager.getSubscription();

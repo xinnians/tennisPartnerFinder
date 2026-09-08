@@ -23,6 +23,7 @@ interface BrowserNotificationLike {
 
 interface BrowserServiceWorkerContainerLike {
   readonly ready: PromiseLike<unknown>;
+  getRegistration(clientURL?: string): PromiseLike<unknown>;
   register(scriptUrl: string): PromiseLike<unknown>;
 }
 

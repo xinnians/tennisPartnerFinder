@@ -38,6 +38,7 @@ function createHarness({
   existing = [null],
   permission = "granted",
   promptResult = "granted",
+  registrationResult,
   subscribed = subscription(),
   subscribeAction,
   validateSubscription = async (candidate) => candidate,
@@ -57,6 +58,10 @@ function createHarness({
   };
   const readyRegistration = { pushManager };
   const serviceWorker = {
+    getRegistration: async () => {
+      calls.push("get-registration");
+      return registrationResult === undefined ? readyRegistration : registrationResult;
+    },
     get ready() {
       calls.push("ready");
       return Promise.resolve(readyRegistration);
@@ -113,12 +118,39 @@ test("construction is dormant and rejects invalid fixed dependencies", () => {
   }
 });
 
-test("reading the current subscription waits for the existing registration without registering", async () => {
+test("reading the current subscription queries an existing registration without waiting for ready or registering", async () => {
   const current = subscription();
   const harness = createHarness({ existing: [current] });
 
   assert.equal(await harness.port.readCurrentSubscription(), current);
-  assert.deepEqual(harness.calls, ["ready", "get-subscription"]);
+  assert.deepEqual(harness.calls, ["get-registration", "get-subscription"]);
+});
+
+test("reading without a matching registration returns absent without touching serviceWorker.ready", async () => {
+  const calls = [];
+  const port = createNotificationPushBrowserSubscription({
+    navigatorRef: {
+      serviceWorker: {
+        getRegistration: async () => {
+          calls.push("get-registration");
+          return undefined;
+        },
+        get ready() {
+          calls.push("ready");
+          return new Promise(() => {});
+        },
+        register: async () => {
+          calls.push("register");
+        },
+      },
+    },
+    notificationRef: { permission: "granted", requestPermission: async () => "granted" },
+    validateSubscription: async (candidate) => candidate,
+    vapidPublicKey: VAPID_PUBLIC_KEY,
+  });
+
+  assert.equal(await port.readCurrentSubscription(), null);
+  assert.deepEqual(calls, ["get-registration"]);
 });
 
 test("enable requests permission before browser activity and only exact refusal cancels provisioning", async () => {

@@ -193,8 +193,8 @@ test("owner stale or pending uses the durable token fallback exactly once before
             },
           },
           owner: {
-            quarantineOwnedPushDevice: async () => {
-              calls.push("owner");
+            quarantineOwnedPushDevice: async (input) => {
+              calls.push(["owner", input]);
               return { kind: ownerKind };
             },
           },
@@ -219,11 +219,198 @@ test("owner stale or pending uses the durable token fallback exactly once before
         calls.slice(0, 3).map((call) => (Array.isArray(call) ? call[0] : call)),
         ["suspend", "owner", "token-cleanup"]
       );
+      assert.equal(calls[1][1].signal, abortController.signal);
       assert.equal(calls[2][1].attempt, ATTEMPT);
       assert.equal(calls[2][1].signal, abortController.signal);
       assert.equal(calls[3], "browser");
     });
   }
+});
+
+test("abort releases a never-settling storage suspension and skips every later port", async () => {
+  const calls = [];
+  const abortController = new AbortController();
+  const coordinator = createNotificationPushSignOutCoordinator(
+    ports({
+      browser: {
+        deactivateCurrentSubscription: async () => {
+          calls.push("browser");
+          return { kind: "absent" };
+        },
+      },
+      cleanup: {
+        processPendingPushCleanup: async () => {
+          calls.push("token-cleanup");
+          return { kind: "completed" };
+        },
+      },
+      owner: {
+        quarantineOwnedPushDevice: async () => {
+          calls.push("owner");
+          return { kind: "completed" };
+        },
+      },
+      storage: {
+        suspendCurrentPushBinding: () => {
+          calls.push("suspend");
+          abortController.abort();
+          return new Promise(() => {});
+        },
+      },
+    })
+  );
+
+  assertSafeResult(
+    await coordinator.processCurrentDeviceSignOut({
+      authUserId: AUTH_USER_ID,
+      binding: BINDING,
+      signal: abortController.signal,
+    }),
+    "pending"
+  );
+  assert.deepEqual(calls, ["suspend"]);
+});
+
+test("abort releases a non-cooperative owner port after the durable attempt is captured", async () => {
+  const calls = [];
+  const abortController = new AbortController();
+  const coordinator = createNotificationPushSignOutCoordinator(
+    ports({
+      browser: {
+        deactivateCurrentSubscription: async () => {
+          calls.push("browser");
+          return { kind: "absent" };
+        },
+      },
+      cleanup: {
+        processPendingPushCleanup: async () => {
+          calls.push("token-cleanup");
+          return { kind: "completed" };
+        },
+      },
+      owner: {
+        quarantineOwnedPushDevice: (input) => {
+          calls.push(["owner", input]);
+          abortController.abort();
+          return new Promise(() => {});
+        },
+      },
+      storage: {
+        suspendCurrentPushBinding: async () => {
+          calls.push("suspend");
+          return { attempt: ATTEMPT, state: suspendedState() };
+        },
+      },
+    })
+  );
+
+  assertSafeResult(
+    await coordinator.processCurrentDeviceSignOut({
+      authUserId: AUTH_USER_ID,
+      binding: BINDING,
+      signal: abortController.signal,
+    }),
+    "pending"
+  );
+  assert.deepEqual(
+    calls.map((call) => (Array.isArray(call) ? call[0] : call)),
+    ["suspend", "owner"]
+  );
+  assert.equal(calls[1][1].signal, abortController.signal);
+});
+
+test("abort releases a non-cooperative token fallback and leaves the durable attempt pending", async () => {
+  const calls = [];
+  const abortController = new AbortController();
+  const coordinator = createNotificationPushSignOutCoordinator(
+    ports({
+      browser: {
+        deactivateCurrentSubscription: async () => {
+          calls.push("browser");
+          return { kind: "absent" };
+        },
+      },
+      cleanup: {
+        processPendingPushCleanup: (input) => {
+          calls.push(["token-cleanup", input]);
+          abortController.abort();
+          return new Promise(() => {});
+        },
+      },
+      owner: {
+        quarantineOwnedPushDevice: async () => {
+          calls.push("owner");
+          return { kind: "stale" };
+        },
+      },
+      storage: {
+        suspendCurrentPushBinding: async () => {
+          calls.push("suspend");
+          return { attempt: ATTEMPT, state: suspendedState() };
+        },
+      },
+    })
+  );
+
+  assertSafeResult(
+    await coordinator.processCurrentDeviceSignOut({
+      authUserId: AUTH_USER_ID,
+      binding: BINDING,
+      signal: abortController.signal,
+    }),
+    "pending"
+  );
+  assert.deepEqual(
+    calls.map((call) => (Array.isArray(call) ? call[0] : call)),
+    ["suspend", "owner", "token-cleanup"]
+  );
+  assert.equal(calls[2][1].signal, abortController.signal);
+});
+
+test("abort releases a non-cooperative final browser port without erasing server completion", async () => {
+  const calls = [];
+  const abortController = new AbortController();
+  const coordinator = createNotificationPushSignOutCoordinator(
+    ports({
+      browser: {
+        deactivateCurrentSubscription: (input) => {
+          calls.push(["browser", input]);
+          abortController.abort();
+          return new Promise(() => {});
+        },
+      },
+      owner: {
+        quarantineOwnedPushDevice: async () => {
+          calls.push("owner");
+          return { kind: "completed" };
+        },
+      },
+      storage: {
+        completePendingPushCleanup: async () => {
+          calls.push("local-complete");
+          return true;
+        },
+        suspendCurrentPushBinding: async () => {
+          calls.push("suspend");
+          return { attempt: ATTEMPT, state: suspendedState() };
+        },
+      },
+    })
+  );
+
+  assertSafeResult(
+    await coordinator.processCurrentDeviceSignOut({
+      authUserId: AUTH_USER_ID,
+      binding: BINDING,
+      signal: abortController.signal,
+    }),
+    "completed"
+  );
+  assert.deepEqual(
+    calls.map((call) => (Array.isArray(call) ? call[0] : call)),
+    ["suspend", "owner", "local-complete", "browser"]
+  );
+  assert.equal(calls[3][1].signal, abortController.signal);
 });
 
 test("a provisioning binding skips owner RPC and cleans its token attempt before browser deactivation", async () => {
@@ -369,6 +556,48 @@ test("owner errors keep the exact attempt for one token fallback and browser fai
   assert.deepEqual(calls, ["suspend", "owner", "token-cleanup", "browser"]);
 });
 
+test("a local completion error after owner closure keeps the existing token fallback", async () => {
+  const calls = [];
+  const coordinator = createNotificationPushSignOutCoordinator(
+    ports({
+      browser: {
+        deactivateCurrentSubscription: async () => {
+          calls.push("browser");
+          return { kind: "absent" };
+        },
+      },
+      cleanup: {
+        processPendingPushCleanup: async () => {
+          calls.push("token-cleanup");
+          return { kind: "completed" };
+        },
+      },
+      owner: {
+        quarantineOwnedPushDevice: async () => {
+          calls.push("owner");
+          return { kind: "completed" };
+        },
+      },
+      storage: {
+        completePendingPushCleanup: async () => {
+          calls.push("local-complete");
+          throw new Error("opaque local failure");
+        },
+        suspendCurrentPushBinding: async () => {
+          calls.push("suspend");
+          return { attempt: ATTEMPT, state: suspendedState() };
+        },
+      },
+    })
+  );
+
+  assertSafeResult(
+    await coordinator.processCurrentDeviceSignOut({ authUserId: AUTH_USER_ID, binding: BINDING }),
+    "completed"
+  );
+  assert.deepEqual(calls, ["suspend", "owner", "local-complete", "token-cleanup", "browser"]);
+});
+
 test("invalid identity or binding data stays pending before every port", async () => {
   let calls = 0;
   const coordinator = createNotificationPushSignOutCoordinator(
@@ -393,6 +622,7 @@ test("invalid identity or binding data stays pending before every port", async (
     { authUserId: AUTH_USER_ID, binding: { ...BINDING, bindingId: "invalid" } },
     { authUserId: AUTH_USER_ID, binding: { ...BINDING, serverConsent: null } },
     { authUserId: AUTH_USER_ID, binding: BINDING, extra: FIXED_CLEANUP_TOKEN },
+    { authUserId: AUTH_USER_ID, binding: BINDING, signal: { aborted: false } },
     withSymbol,
   ]) {
     assertSafeResult(await coordinator.processCurrentDeviceSignOut(input), "pending");

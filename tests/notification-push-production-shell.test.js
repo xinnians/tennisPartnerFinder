@@ -11,23 +11,40 @@ import { createNotificationPushRuntimeComposition } from "../src/notificationPus
 import { encodeBase64Url } from "../supabase/functions/_shared/push-cleanup-protocol.js";
 
 const AUTH_USER_ID = "11111111-1111-4111-8111-111111111111";
+const SIGN_OUT_BINDING = Object.freeze({
+  authUserId: AUTH_USER_ID,
+  bindingId: "22222222-2222-4222-8222-222222222222",
+  deviceId: "33333333-3333-4333-8333-333333333333",
+  localRevision: "44444444-4444-4444-8444-444444444444",
+  serverConsent: Object.freeze({
+    consentEpoch: "55555555-5555-4555-8555-555555555555",
+    consentId: "1",
+    consentVersion: "1",
+  }),
+  state: "enabled",
+});
 
-function authority() {
+function authority(overrides = {}) {
   return {
     isVerificationRevisionCurrent: () => true,
     isVerifiedAuthProofCurrent: () => true,
     notifyUnauthorized: async () => {},
     readCurrentVerifiedAuthProof: () => ({ accessToken: "memory-only", authUserId: AUTH_USER_ID, revision: 1 }),
     readVerifiedAuthProof: () => ({ accessToken: "memory-only", authUserId: AUTH_USER_ID, revision: 1 }),
+    ...overrides,
   };
 }
 
-function fakeRuntime(onFailure = async () => ({ kind: "ignored" })) {
+function fakeRuntime({
+  onFailure = async () => ({ kind: "ignored" }),
+  onSignOut = async () => ({ kind: "pending" }),
+  readState = async () => ({ kind: "disabled" }),
+} = {}) {
   return Object.freeze({
     authCorrelation: Object.freeze({ processAuthFailureNotice: onFailure }),
     manualReenable: Object.freeze({ startManualPushReenable: async () => ({ kind: "pending" }) }),
-    signOutCleanup: Object.freeze({ processCurrentDeviceSignOut: async () => ({ kind: "pending" }) }),
-    storage: Object.freeze({ readPushRuntimeState: async () => ({ kind: "disabled" }) }),
+    signOutCleanup: Object.freeze({ processCurrentDeviceSignOut: onSignOut }),
+    storage: Object.freeze({ readPushRuntimeState: readState }),
     subscriptionCoordinator: Object.freeze({ enableProvisioning: async () => ({ kind: "pending" }) }),
   });
 }
@@ -47,6 +64,8 @@ test("the production shell is statically wired disabled and never loads the Push
   assert.deepEqual(await shell.processAuthVerificationFailure({ kind: "unavailable", revision: 0 }), {
     kind: "ignored",
   });
+  assert.deepEqual(await shell.processCurrentDeviceSignOut(), { kind: "ignored" });
+  assert.deepEqual(await shell.processCurrentDeviceSignOut({ signal: { aborted: false } }), { kind: "ignored" });
   assert.equal(loads, 0);
 
   const [mainSource, shellSource] = await Promise.all([
@@ -68,10 +87,12 @@ test("an enabled shell lazy-loads once, shares one runtime, and replaces it only
     createNotificationPushRuntimeComposition: ({ auth }) => {
       creates += 1;
       assert.ok(auth.readCurrentVerifiedAuthProof());
-      return fakeRuntime(async ({ notice }) => {
-        failures += 1;
-        assert.deepEqual(notice, { kind: "rejected", revision: 1 });
-        return { kind: "cleanup-completed" };
+      return fakeRuntime({
+        onFailure: async ({ notice }) => {
+          failures += 1;
+          assert.deepEqual(notice, { kind: "rejected", revision: 1 });
+          return { kind: "cleanup-completed" };
+        },
       });
     },
   };
@@ -105,6 +126,93 @@ test("an enabled shell lazy-loads once, shares one runtime, and replaces it only
   assert.notEqual(replacement, first);
   assert.equal(loads, 1, "the JavaScript module is imported only once");
   assert.equal(creates, 2, "a new Auth authority cannot reuse the old authority-bound runtime");
+});
+
+test("the enabled shell obtains and rechecks its own current proof and binding before sign-out cleanup", async () => {
+  const calls = [];
+  const abortController = new AbortController();
+  const currentAuthority = authority({
+    isVerifiedAuthProofCurrent: (proof) => {
+      calls.push(["current-proof", proof.authUserId, proof.revision]);
+      return true;
+    },
+  });
+  const runtime = fakeRuntime({
+    onSignOut: async (input) => {
+      calls.push(["sign-out", input]);
+      return { kind: "completed" };
+    },
+    readState: async () => {
+      calls.push("read-state");
+      return { binding: SIGN_OUT_BINDING, deviceId: SIGN_OUT_BINDING.deviceId, kind: "enabled" };
+    },
+  });
+  const shell = createNotificationPushProductionShell({
+    loadRuntime: async () => ({ createNotificationPushRuntimeComposition: () => runtime }),
+    mode: "enabled",
+    runtimeOptions: {},
+  });
+  shell.installAuthVerificationAuthority(currentAuthority);
+
+  assert.deepEqual(await shell.processCurrentDeviceSignOut({ signal: abortController.signal }), {
+    kind: "completed",
+  });
+  assert.deepEqual(
+    calls.map((call) => (Array.isArray(call) ? call[0] : call)),
+    ["current-proof", "current-proof", "read-state", "current-proof", "sign-out"]
+  );
+  const signOutInput = calls.at(-1)[1];
+  assert.equal(signOutInput.authUserId, AUTH_USER_ID);
+  assert.equal(signOutInput.binding, SIGN_OUT_BINDING);
+  assert.equal(signOutInput.signal, abortController.signal);
+  assert.equal(Object.hasOwn(signOutInput, "accessToken"), false);
+});
+
+test("authority drift after reading storage prevents sign-out cleanup", async () => {
+  let current = true;
+  let cleanupCalls = 0;
+  const currentAuthority = authority({ isVerifiedAuthProofCurrent: () => current });
+  const runtime = fakeRuntime({
+    onSignOut: async () => {
+      cleanupCalls += 1;
+      return { kind: "completed" };
+    },
+    readState: async () => {
+      current = false;
+      return { binding: SIGN_OUT_BINDING, deviceId: SIGN_OUT_BINDING.deviceId, kind: "enabled" };
+    },
+  });
+  const shell = createNotificationPushProductionShell({
+    loadRuntime: async () => ({ createNotificationPushRuntimeComposition: () => runtime }),
+    mode: "enabled",
+    runtimeOptions: {},
+  });
+  shell.installAuthVerificationAuthority(currentAuthority);
+
+  assert.deepEqual(await shell.processCurrentDeviceSignOut(), { kind: "pending" });
+  assert.equal(cleanupCalls, 0);
+});
+
+test("abort releases a never-settling runtime load and invalid signals stay dormant", async () => {
+  let loads = 0;
+  const shell = createNotificationPushProductionShell({
+    loadRuntime: () => {
+      loads += 1;
+      return new Promise(() => {});
+    },
+    mode: "enabled",
+    runtimeOptions: {},
+  });
+  shell.installAuthVerificationAuthority(authority());
+
+  assert.deepEqual(await shell.processCurrentDeviceSignOut({ signal: { aborted: false } }), { kind: "pending" });
+  assert.equal(loads, 0);
+
+  const abortController = new AbortController();
+  const pending = shell.processCurrentDeviceSignOut({ signal: abortController.signal });
+  abortController.abort();
+  assert.deepEqual(await pending, { kind: "pending" });
+  assert.equal(loads, 1);
 });
 
 test("the enabled shell fails closed when the lazy module is unavailable", async () => {
@@ -175,6 +283,10 @@ test("the runtime composition connects B1, B9, cleanup, subscription, and manual
     locationRef: { origin: "https://qiuka.tw" },
     navigatorRef: {
       serviceWorker: {
+        getRegistration: async () => {
+          calls.serviceWorker += 1;
+          throw new Error("construction must not read service worker registration");
+        },
         ready: new Promise(() => {}),
         register: async () => {
           calls.serviceWorker += 1;
