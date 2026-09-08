@@ -525,6 +525,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/notificationPushCleanupTransport.ts::readCleanupOutcome::Response",
       "src/notificationPushCleanupTransport.ts::responseCameFrom::Response",
       "src/notificationPushManualReenableCoordinator.ts::<top-level>::AbortSignal",
+      "src/notificationPushSignOutCoordinator.ts::<top-level>::AbortSignal",
       "src/notificationPushStorage.ts::<top-level>::Crypto,IDBFactory",
       "src/notificationPushStorage.ts::loadStoredState::IDBTransaction",
       "src/notificationPushStorage.ts::openDatabase::IDBDatabase,IDBFactory,IDBOpenDBRequest",

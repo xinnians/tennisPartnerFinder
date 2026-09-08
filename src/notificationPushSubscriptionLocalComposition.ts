@@ -85,5 +85,5 @@ export function createNotificationPushSubscriptionLocalComposition(options: Push
   });
   const coordinator = createNotificationPushSubscriptionCoordinator({ auth, browser, storage, transport });
 
-  return Object.freeze({ coordinator, storage });
+  return Object.freeze({ browser, coordinator, storage });
 }

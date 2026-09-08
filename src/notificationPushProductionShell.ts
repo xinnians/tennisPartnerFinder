@@ -64,6 +64,8 @@ function validRuntime(value: unknown): value is NotificationPushRuntimeCompositi
     typeof runtime.authCorrelation.processAuthFailureNotice === "function" &&
     runtime.manualReenable &&
     typeof runtime.manualReenable.startManualPushReenable === "function" &&
+    runtime.signOutCleanup &&
+    typeof runtime.signOutCleanup.processCurrentDeviceSignOut === "function" &&
     runtime.storage &&
     typeof runtime.storage.readPushRuntimeState === "function" &&
     runtime.subscriptionCoordinator &&

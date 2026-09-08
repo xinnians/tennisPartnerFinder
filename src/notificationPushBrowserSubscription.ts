@@ -203,6 +203,15 @@ export function createNotificationPushBrowserSubscription(
     throw browserSubscriptionError(PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES.INVALID_CONFIGURATION);
   }
 
+  async function readCurrentSubscription(): Promise<unknown> {
+    const serviceWorker = navigatorRef?.serviceWorker;
+    if (!serviceWorker) throw browserSubscriptionError(PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES.INVALID_CONFIGURATION);
+    const registration = await serviceWorker.ready;
+    const pushManager = pushManagerFromRegistration(registration);
+    if (!pushManager) throw browserSubscriptionError(PUSH_BROWSER_SUBSCRIPTION_ERROR_CODES.INVALID_CONFIGURATION);
+    return pushManager.getSubscription();
+  }
+
   async function preparePushSubscription(
     input: PreparePushSubscriptionInput
   ): Promise<PreparedBrowserPushSubscription> {
@@ -272,5 +281,5 @@ export function createNotificationPushBrowserSubscription(
     }
   }
 
-  return Object.freeze({ preparePushSubscription });
+  return Object.freeze({ preparePushSubscription, readCurrentSubscription });
 }

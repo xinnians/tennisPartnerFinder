@@ -92,6 +92,7 @@ function createHarness({
 test("construction is dormant and rejects invalid fixed dependencies", () => {
   const harness = createHarness();
   assert.equal(typeof harness.port.preparePushSubscription, "function");
+  assert.equal(typeof harness.port.readCurrentSubscription, "function");
   assert.deepEqual(harness.calls, []);
 
   for (const options of [
@@ -110,6 +111,14 @@ test("construction is dormant and rejects invalid fixed dependencies", () => {
       }
     );
   }
+});
+
+test("reading the current subscription waits for the existing registration without registering", async () => {
+  const current = subscription();
+  const harness = createHarness({ existing: [current] });
+
+  assert.equal(await harness.port.readCurrentSubscription(), current);
+  assert.deepEqual(harness.calls, ["ready", "get-subscription"]);
 });
 
 test("enable requests permission before browser activity and only exact refusal cancels provisioning", async () => {

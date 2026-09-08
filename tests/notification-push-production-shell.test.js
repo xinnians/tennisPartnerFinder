@@ -26,6 +26,7 @@ function fakeRuntime(onFailure = async () => ({ kind: "ignored" })) {
   return Object.freeze({
     authCorrelation: Object.freeze({ processAuthFailureNotice: onFailure }),
     manualReenable: Object.freeze({ startManualPushReenable: async () => ({ kind: "pending" }) }),
+    signOutCleanup: Object.freeze({ processCurrentDeviceSignOut: async () => ({ kind: "pending" }) }),
     storage: Object.freeze({ readPushRuntimeState: async () => ({ kind: "disabled" }) }),
     subscriptionCoordinator: Object.freeze({ enableProvisioning: async () => ({ kind: "pending" }) }),
   });
@@ -188,13 +189,21 @@ test("the runtime composition connects B1, B9, cleanup, subscription, and manual
         return "denied";
       },
     },
+    quarantineRpc: async () => ({ data: "OK", error: null }),
     subscriptionEndpoint: "https://project.supabase.co/functions/v1/push-subscription-v2",
     vapidPublicKey,
   });
 
-  assert.deepEqual(Object.keys(runtime), ["authCorrelation", "manualReenable", "storage", "subscriptionCoordinator"]);
+  assert.deepEqual(Object.keys(runtime), [
+    "authCorrelation",
+    "manualReenable",
+    "signOutCleanup",
+    "storage",
+    "subscriptionCoordinator",
+  ]);
   assert.equal(typeof runtime.authCorrelation.processAuthFailureNotice, "function");
   assert.equal(typeof runtime.manualReenable.startManualPushReenable, "function");
+  assert.equal(typeof runtime.signOutCleanup.processCurrentDeviceSignOut, "function");
   assert.equal(typeof runtime.storage.readPushRuntimeState, "function");
   assert.equal(typeof runtime.subscriptionCoordinator.enableProvisioning, "function");
   assert.deepEqual(calls, { fetch: 0, indexedDb: 0, notification: 0, serviceWorker: 0 });

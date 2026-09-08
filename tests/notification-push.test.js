@@ -35,6 +35,8 @@ const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL = new URL(
 const PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_SOURCE = readFileSync(PUSH_SUBSCRIPTION_LOCAL_COMPOSITION_URL, "utf8");
 const PUSH_OWNER_QUARANTINE_URL = new URL("../src/notificationPushOwnerQuarantine.ts", import.meta.url);
 const PUSH_OWNER_QUARANTINE_SOURCE = readFileSync(PUSH_OWNER_QUARANTINE_URL, "utf8");
+const PUSH_SIGN_OUT_COORDINATOR_URL = new URL("../src/notificationPushSignOutCoordinator.ts", import.meta.url);
+const PUSH_SIGN_OUT_COORDINATOR_SOURCE = readFileSync(PUSH_SIGN_OUT_COORDINATOR_URL, "utf8");
 const PUSH_RUNTIME_COMPOSITION_URL = new URL("../src/notificationPushRuntimeComposition.ts", import.meta.url);
 
 function sourceFiles(directoryUrl) {
@@ -123,12 +125,12 @@ test("the Push cleanup coordinator is referenced only by the lazy production com
   assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
-test("the Push deactivation seam stays outside the production runtime graph", () => {
+test("the Push deactivation seam is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_DEACTIVATION_URL.href)
     .filter((sourceUrl) => /notificationPushDeactivation/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
 test("the Push Auth-failure coordinator is referenced only by the lazy production composition", () => {
@@ -190,12 +192,20 @@ test("the Push subscription local composition is referenced only by the lazy pro
   assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
-test("the Push owner-quarantine adapter stays outside the production runtime graph", () => {
+test("the Push owner-quarantine adapter is referenced only by the lazy production composition", () => {
   const references = sourceFiles(new URL("../src/", import.meta.url))
     .filter((sourceUrl) => sourceUrl.href !== PUSH_OWNER_QUARANTINE_URL.href)
     .filter((sourceUrl) => /notificationPushOwnerQuarantine/u.test(readFileSync(sourceUrl, "utf8")));
 
-  assert.deepEqual(references, []);
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
+});
+
+test("the Push sign-out coordinator is referenced only by the lazy production composition", () => {
+  const references = sourceFiles(new URL("../src/", import.meta.url))
+    .filter((sourceUrl) => sourceUrl.href !== PUSH_SIGN_OUT_COORDINATOR_URL.href)
+    .filter((sourceUrl) => /notificationPushSignOutCoordinator/u.test(readFileSync(sourceUrl, "utf8")));
+
+  assert.deepEqual(references, [PUSH_RUNTIME_COMPOSITION_URL]);
 });
 
 test("the Push storage foundation has no network, Supabase, or unsafe fallback boundary", () => {
@@ -458,4 +468,25 @@ test("the dormant owner-quarantine adapter has no secret, storage, network, logg
     PUSH_OWNER_QUARANTINE_SOURCE,
     /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
   );
+});
+
+test("the dormant sign-out coordinator has no direct runtime, network, persistence, logging, or timer dependency", () => {
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\b(?:import|export)\s+[^;]*\bfrom\s+["']/u);
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /^\s*import\s+["']/gmu);
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\bimport\s*\(/u);
+  assert.doesNotMatch(
+    PUSH_SIGN_OUT_COORDINATOR_SOURCE,
+    /\b(?:dataApi|supabaseClient|notificationPushStorage|notificationPushCleanupTransport)\b/u
+  );
+  assert.doesNotMatch(
+    PUSH_SIGN_OUT_COORDINATOR_SOURCE,
+    /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/u
+  );
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\b(?:localStorage|sessionStorage|indexedDB|caches)\b/u);
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\b(?:console|logger|Sentry)\./u);
+  assert.doesNotMatch(
+    PUSH_SIGN_OUT_COORDINATOR_SOURCE,
+    /\b(?:AbortSignal\.timeout|setTimeout|setInterval|queueMicrotask|Math\.random)\b/u
+  );
+  assert.doesNotMatch(PUSH_SIGN_OUT_COORDINATOR_SOURCE, /\b(?:for|while)\s*\(/u);
 });

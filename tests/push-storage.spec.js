@@ -41,6 +41,84 @@ async function createEnabledBinding(page) {
   );
 }
 
+test("sign-out cleanup closes real IndexedDB work before browser deactivation", async ({ page }) => {
+  await page.goto("/");
+  const enabled = await createEnabledBinding(page);
+  expect(enabled).toMatchObject({ hasCleanupToken: false, state: "enabled" });
+
+  const result = await page.evaluate(async (authUserId) => {
+    const [storageModule, signOutModule] = await Promise.all([
+      import("/src/notificationPushStorage.ts"),
+      import("/src/notificationPushSignOutCoordinator.ts"),
+    ]);
+    const storage = storageModule.createNotificationPushStorage();
+    const before = await storage.readPushRuntimeState();
+    if (before.kind !== "enabled") return { wrongRuntime: before.kind };
+
+    const calls = [];
+    let ownerInput = null;
+    const coordinator = signOutModule.createNotificationPushSignOutCoordinator({
+      browser: {
+        deactivateCurrentSubscription: async () => {
+          calls.push("browser");
+          return { kind: "absent" };
+        },
+      },
+      cleanup: {
+        processPendingPushCleanup: async () => {
+          calls.push("token-cleanup");
+          return { kind: "pending" };
+        },
+      },
+      owner: {
+        quarantineOwnedPushDevice: async (input) => {
+          calls.push("owner");
+          ownerInput = input;
+          return { kind: "completed" };
+        },
+      },
+      storage: {
+        completePendingPushCleanup: async (attempt) => {
+          calls.push("local-complete");
+          return storage.completePendingPushCleanup(attempt);
+        },
+        suspendCurrentPushBinding: async (input) => {
+          calls.push("suspend");
+          return storage.suspendCurrentPushBinding(input);
+        },
+      },
+    });
+    const coordinatorResult = await coordinator.processCurrentDeviceSignOut({
+      authUserId,
+      binding: before.binding,
+    });
+    const after = await storage.readPushRuntimeState();
+    return {
+      calls,
+      coordinatorResult,
+      devicePreserved: after.deviceId === before.deviceId,
+      ownerInput,
+      pendingCount: (await storage.listPendingPushCleanups()).length,
+      resultExposesToken: JSON.stringify(coordinatorResult).includes("cleanupToken"),
+      runtime: after.kind,
+    };
+  }, AUTH_USER_ID);
+
+  expect(result).toEqual({
+    calls: ["suspend", "owner", "local-complete", "browser"],
+    coordinatorResult: { kind: "completed" },
+    devicePreserved: true,
+    ownerInput: {
+      consentEpoch: SERVER_CONSENT.consentEpoch,
+      consentVersion: SERVER_CONSENT.consentVersion,
+      deviceId: enabled.deviceId,
+    },
+    pendingCount: 0,
+    resultExposesToken: false,
+    runtime: "disabled",
+  });
+});
+
 test("stays dormant until explicit use and preserves exact cleanup work across reloads", async ({ page }) => {
   await page.goto("/");
 

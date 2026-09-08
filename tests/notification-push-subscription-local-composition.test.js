@@ -30,7 +30,7 @@ function options(fetchRef) {
   };
 }
 
-test("the local composition is dormant and exposes only its coordinator and storage", () => {
+test("the local composition is dormant and exposes its browser, coordinator, and storage ports", () => {
   let fetches = 0;
   const composition = createNotificationPushSubscriptionLocalComposition(
     options(async () => {
@@ -39,7 +39,8 @@ test("the local composition is dormant and exposes only its coordinator and stor
     })
   );
 
-  assert.deepEqual(Object.keys(composition), ["coordinator", "storage"]);
+  assert.deepEqual(Object.keys(composition), ["browser", "coordinator", "storage"]);
+  assert.equal(typeof composition.browser.readCurrentSubscription, "function");
   assert.equal(typeof composition.coordinator.enableProvisioning, "function");
   assert.equal(typeof composition.coordinator.refreshEnabledBinding, "function");
   assert.equal(typeof composition.storage.beginExplicitPushProvisioning, "function");

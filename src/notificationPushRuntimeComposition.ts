@@ -3,14 +3,19 @@ import { createNotificationPushAuthCorrelation } from "./notificationPushAuthCor
 import { createNotificationPushAuthFailureCoordinator } from "./notificationPushAuthFailureCoordinator.ts";
 import { createNotificationPushCleanupCoordinator } from "./notificationPushCleanupCoordinator.ts";
 import { createNotificationPushCleanupTransport } from "./notificationPushCleanupTransport.ts";
+import { createNotificationPushDeactivation } from "./notificationPushDeactivation.ts";
 import { createNotificationPushManualReenableCoordinator } from "./notificationPushManualReenableCoordinator.ts";
+import { createNotificationPushOwnerQuarantine } from "./notificationPushOwnerQuarantine.ts";
+import { createNotificationPushSignOutCoordinator } from "./notificationPushSignOutCoordinator.ts";
 import { createNotificationPushSubscriptionLocalComposition } from "./notificationPushSubscriptionLocalComposition.ts";
 
 type SubscriptionCompositionOptions = Parameters<typeof createNotificationPushSubscriptionLocalComposition>[0];
+type OwnerQuarantineOptions = Parameters<typeof createNotificationPushOwnerQuarantine>[0];
 
 export interface NotificationPushRuntimeCompositionOptions extends Omit<SubscriptionCompositionOptions, "auth"> {
   readonly auth: AuthVerificationAuthority;
   readonly cleanupEndpoint: string;
+  readonly quarantineRpc: OwnerQuarantineOptions["rpc"];
 }
 
 export function createNotificationPushRuntimeComposition(options: NotificationPushRuntimeCompositionOptions) {
@@ -46,10 +51,19 @@ export function createNotificationPushRuntimeComposition(options: NotificationPu
       auth.readVerifiedAuthProof({ authUserId, revision }) !== null,
     storage: subscription.storage,
   });
+  const deactivation = createNotificationPushDeactivation({ browser: subscription.browser });
+  const ownerQuarantine = createNotificationPushOwnerQuarantine({ rpc: options.quarantineRpc });
+  const signOutCleanup = createNotificationPushSignOutCoordinator({
+    browser: deactivation,
+    cleanup,
+    owner: ownerQuarantine,
+    storage: subscription.storage,
+  });
 
   return Object.freeze({
     authCorrelation,
     manualReenable,
+    signOutCleanup,
     storage: subscription.storage,
     subscriptionCoordinator: subscription.coordinator,
   });
