@@ -1,8 +1,8 @@
 # FA-03 push-cleanup Hosted source substage 前置確認
 
-最後更新：2026-09-04
+最後更新：2026-09-08
 
-狀態：**本機 source substage 與完整 CI 已通過；Hosted 診斷尚未核可、尚未執行。**
+狀態：**本機 source substage 與完整 CI 已通過；2026-09-08 Hosted 唯讀基線通過，診斷仍未核可、尚未執行。**
 
 ## 白話結論
 
@@ -41,6 +41,11 @@ Hosted deploy／secret／request／DB write：未執行
 ```
 
 ## 建議核可的最小 Hosted 範圍
+
+2026-09-08 已重新唯讀確認：`push-cleanup` 與 `PUSH_CLEANUP_*` 皆不存在；兩支現存 dispatcher Function 的狀態與
+bundle hash 符合紀錄；39 local／39 remote migration 無差異；runtime、4 筆 legacy Push、0 筆 v2 Push、7 筆已處理
+outbox、0 pending，以及 worker／delivery／consent／registry／limiter 全 0 均符合下列基線。完整證據見
+`frontend-architecture-fa-03-hosted-read-only-revalidation-2026-09-08.md`。
 
 ### 1. 事前唯讀基線
 
