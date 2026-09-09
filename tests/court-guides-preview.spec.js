@@ -9,7 +9,7 @@ import { createSessionViaRpc, createFutureSessionInput } from "./fixtures/sessio
 import { COURT_GUIDE_NAMES } from "../src/features/guides/courtGuideCatalog.ts";
 
 const guide = "/courts/youth-park/";
-const output = "docs/growth/g09-expansion-qa/local";
+const output = "/tmp/qiuka-guide-search-qa/local";
 async function setup(page) {
   await installLocalPreviewPlatformStubs(page);
   await installFakeMaps(page);
@@ -200,4 +200,83 @@ test("every published guide opens a draft for its own court without publishing",
   }
   expect(writes).toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test("guide index combines name and district filters, handles empty results and preserves keyboard focus", async ({
+  page,
+}, info) => {
+  const errors = await setup(page);
+  const requests = [];
+  page.on("request", (request) => requests.push(request.url()));
+  await page.goto("/courts/");
+  await expect(page).toHaveTitle("球場指南｜球咖");
+  const name = page.getByRole("searchbox", { name: "球場名稱" });
+  const district = page.getByRole("combobox", { name: "行政區" });
+  const cards = page.locator(".guide-index-card:visible");
+  const count = page.getByRole("status");
+  await expect(name).toBeVisible();
+  await expect(count).toHaveText("共 10 篇指南");
+  await name.fill("河濱");
+  await expect(cards).toHaveCount(8);
+  await expect(name).toBeFocused();
+  await district.selectOption("中山區");
+  await expect(cards).toHaveCount(2);
+  await expect(cards.locator("h2")).toHaveText(["大佳河濱公園網球場", "美堤河濱公園網球場"]);
+  await mkdir(output, { recursive: true });
+  await page.screenshot({ path: `${output}/filtered-${info.project.name}.png`, fullPage: false });
+  await name.fill("　大佳  ");
+  await expect(cards).toHaveCount(1);
+  await name.press("Enter");
+  await expect(name).toBeFocused();
+  await expect(count).toHaveText("找到 1 篇指南（共 10 篇）");
+  await name.fill("青年");
+  await expect(cards).toHaveCount(0);
+  await expect(page.locator("#guide-no-results")).toBeVisible();
+  await expect(count).toHaveText("找到 0 篇指南（共 10 篇）");
+  await page.screenshot({ path: `${output}/empty-${info.project.name}.png`, fullPage: false });
+  await page.getByRole("button", { name: "清除條件" }).click();
+  await expect(name).toBeFocused();
+  await expect(name).toHaveValue("");
+  await expect(district).toHaveValue("");
+  await expect(cards).toHaveCount(10);
+  await expect(page.locator("#guide-no-results")).toBeHidden();
+  await name.fill("臺北");
+  await expect(cards.locator("h2")).toHaveText(["台北網球中心"]);
+  await name.fill("青年 公園");
+  await expect(cards.locator("h2")).toHaveText(["青年公園網球場"]);
+  // Do not filter away results while a Chinese IME composition is still active.
+  await name.dispatchEvent("compositionstart");
+  await name.evaluate((input) => {
+    input.value = "大佳";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true }));
+  });
+  await expect(cards.locator("h2")).toHaveText(["青年公園網球場"]);
+  await name.dispatchEvent("compositionend");
+  await expect(cards.locator("h2")).toHaveText(["大佳河濱公園網球場"]);
+  expect(
+    requests.filter((url) =>
+      /supabase|maps\.googleapis|privateDataRepository|notificationPushRuntimeComposition/.test(url)
+    )
+  ).toEqual([]);
+  await page.getByRole("link", { name: "查看指南 ：大佳河濱公園網球場" }).click();
+  await expect(page).toHaveURL(/\/courts\/dajia-riverside\/$/);
+  expect(errors).toEqual([]);
+  // The index itself is isolated from API and app modules (detail may query sessions).
+  expect(
+    requests.filter((url) => /maps\.googleapis|privateDataRepository|notificationPushRuntimeComposition/.test(url))
+  ).toEqual([]);
+});
+
+test("guide index stays readable without JavaScript", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    await page.goto(new URL("/courts/", baseURL).href);
+    await expect(page.locator("#guide-filters")).toBeHidden();
+    await expect(page.locator(".guide-index-card:visible")).toHaveCount(10);
+    await page.getByRole("link", { name: "查看指南 ：大佳河濱公園網球場" }).click();
+    await expect(page.getByRole("heading", { name: "大佳河濱公園網球場", exact: true })).toBeVisible();
+  } finally {
+    await context.close();
+  }
 });

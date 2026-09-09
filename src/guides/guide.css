@@ -14,7 +14,9 @@
   text-underline-offset: 5px;
 }
 .guide-body a:focus-visible,
-.guide-body button:focus-visible {
+.guide-body button:focus-visible,
+.guide-body input:focus-visible,
+.guide-body select:focus-visible {
   outline: 3px solid #1c5c3c;
   outline-offset: 4px;
 }
@@ -423,5 +425,49 @@
   }
   .guide-session-card > p {
     font-size: 14px;
+  }
+}
+
+/* Search enhances server-rendered cards without replacing their links or focus. */
+.guide-body [hidden] {
+  display: none !important;
+}
+.guide-filters {
+  margin-top: 28px;
+}
+.guide-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+}
+.guide-filter-fields label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+.guide-filter-fields input,
+.guide-filter-fields select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #809482;
+  border-radius: 8px;
+  background: #fff;
+  color: #12291c;
+  font: inherit;
+}
+.guide-filters .guide-caption {
+  margin-top: 12px;
+}
+@media (max-width: 760px) {
+  .guide-filter-fields {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .guide-filter-fields label:first-child {
+    grid-column: 1 / -1;
   }
 }
