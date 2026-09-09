@@ -215,9 +215,9 @@ test("guide index combines name and district filters, handles empty results and 
   const cards = page.locator(".guide-index-card:visible");
   const count = page.getByRole("status");
   await expect(name).toBeVisible();
-  await expect(count).toHaveText("共 21 篇指南");
+  await expect(count).toHaveText("共 24 篇指南");
   await name.fill("河濱");
-  await expect(cards).toHaveCount(11);
+  await expect(cards).toHaveCount(13);
   await expect(name).toBeFocused();
   await district.selectOption("中山區");
   await expect(cards).toHaveCount(2);
@@ -228,17 +228,17 @@ test("guide index combines name and district filters, handles empty results and 
   await expect(cards).toHaveCount(1);
   await name.press("Enter");
   await expect(name).toBeFocused();
-  await expect(count).toHaveText("找到 1 篇指南（共 21 篇）");
+  await expect(count).toHaveText("找到 1 篇指南（共 24 篇）");
   await name.fill("青年");
   await expect(cards).toHaveCount(0);
   await expect(page.locator("#guide-no-results")).toBeVisible();
-  await expect(count).toHaveText("找到 0 篇指南（共 21 篇）");
+  await expect(count).toHaveText("找到 0 篇指南（共 24 篇）");
   await page.screenshot({ path: `${output}/empty-${info.project.name}.png`, fullPage: false });
   await page.getByRole("button", { name: "清除條件" }).click();
   await expect(name).toBeFocused();
   await expect(name).toHaveValue("");
   await expect(district).toHaveValue("");
-  await expect(cards).toHaveCount(21);
+  await expect(cards).toHaveCount(24);
   await expect(page.locator("#guide-no-results")).toBeHidden();
   await name.fill("臺北");
   await expect(cards.locator("h2")).toHaveText(["台北網球中心", "台北網球場"]);
@@ -273,7 +273,7 @@ test("guide index stays readable without JavaScript", async ({ browser, baseURL 
     const page = await context.newPage();
     await page.goto(new URL("/courts/", baseURL).href);
     await expect(page.locator("#guide-filters")).toBeHidden();
-    await expect(page.locator(".guide-index-card:visible")).toHaveCount(21);
+    await expect(page.locator(".guide-index-card:visible")).toHaveCount(24);
     await page.getByRole("link", { name: "查看指南 ：大佳河濱公園網球場" }).click();
     await expect(page.getByRole("heading", { name: "大佳河濱公園網球場", exact: true })).toBeVisible();
   } finally {

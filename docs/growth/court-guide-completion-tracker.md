@@ -58,7 +58,7 @@ C01首批重新查核民權、青年、道南、百齡及北投，C02新增復�
 
 ## 台北未發布40筆
 
-C02剩餘5筆依計畫順序排列：天母、南港、玉成、中研、新生皆已查核但來源／現況未解；另35筆中，C03觀海可發布待實作、8筆待補來源、26筆尚未開始本計畫查核。葫蘆洲已發布移至上表。
+C02剩餘5筆依計畫順序排列：天母、南港、玉成、中研、新生皆已查核但來源／現況未解；另35筆中，C03觀海可發布待實作、8筆待補來源、10筆C04首輪查核／處置中、16筆尚未開始本計畫查核。葫蘆洲已發布移至上表。
 
 | 優先 | 場地／slug | 行政區 | 查核狀態 | 發布狀態 | 下一步 | 來源／證據 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -68,22 +68,22 @@ C02剩餘5筆依計畫順序排列：天母、南港、玉成、中研、新生�
 | P1 | 中研公園網球場／`zhongyan-park` | 南港區 | 待補來源 | 未發布 | 網球現場流程／費用／夜照，不能套籃球時間 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
 | P0 | 新生公園網球場／`xinsheng-park` | 中山區 | 待釐清現況 | 未發布 | P0：新生館改建新聞拆除／保留描述不一；查最新網球現況 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
 | P3 | 實踐大學網球場／`shih-chien-university` | 中山區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P3 | 台北醫學大學網球場／`tmu` | 信義區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P3 | 松山高中網球場／`songshan-senior-high` | 信義區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/e13d57cdaf90) |
-| P3 | 三民國中網球場／`sanmin-junior-high` | 內湖區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P3 | 德明財經科技大學網球場／`takming-university` | 內湖區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
+| P3 | 台北醫學大學網球場／`tmu` | 信義區 | 查核中 | 未發布 | 現行校外紙本申請成立；需信義位置與時段／費率內容補完 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
+| P3 | 松山高中網球場／`songshan-senior-high` | 信義區 | 待補來源 | 未發布 | 舊租借頁跳首頁；iPlay五樓混用，缺現行網球租用資格 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
+| P3 | 三民國中網球場／`sanmin-junior-high` | 內湖區 | 可發布 | 未發布 | 已讀2025-12-18要點，公眾7日前申請／240元面時＋夜照50；接續實作 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
+| P3 | 德明財經科技大學網球場／`takming-university` | 內湖區 | 待補來源 | 未發布 | 校外租借移推廣中心；機關團體14日前規定不證明個人可借 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
 | P2 | 煙波庭公園網球場／`yanboting-park` | 內湖區 | 待補來源 | 未發布 | VBS756有兩面；區公所租用頁為公園活動費，缺網球個人現場流程 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P2 | 瑞湖公園網球場／`ruihu-park` | 內湖區 | 待補來源 | 未發布 | VBS768及iPlay查詢頁可對照身份；缺網球專屬使用／輪替流程 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P2 | 石潭公園網球場／`shitan-park` | 內湖區 | 待補來源 | 未發布 | VBS763、iPlay16413確認公眾與免費租借；缺實際登記／借用流程 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P2 | 碧湖公園網球場／`bihu-park` | 內湖區 | 待補來源 | 未發布 | VBS603、iPlay25744有網球專欄；缺借用流程，泳池時段不套網球 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
-| P3 | 西湖國中網球場／`xihu-junior-high` | 內湖區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P3 | 台北藝術大學網球場／`tnua` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
+| P3 | 西湖國中網球場／`xihu-junior-high` | 內湖區 | 待補來源 | 未發布 | 兩面季租頁受理期限2024；需2026現行季租公告 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
+| P3 | 台北藝術大學網球場／`tnua` | 北投區 | 待補來源 | 未發布 | 有2023規章修正線索，需最新正式租借資格／流程 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
 | P2 | 大豐公園網球場／`dafeng-park` | 北投區 | 待補來源 | 未發布 | iPlay23069有現場規則；改造／移位範圍與實際開放待公告 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P2 | 天溪綠地網球場／`tianxi-green-space` | 北投區 | 待補來源 | 未發布 | VBS898區分網球與練習壁；iPlay25743僅泳池，缺網球使用規則 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 文林國小網球場／`wenlin-elementary` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 新民國中網球場／`xinmin-junior-high` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/431c7decfa8c) |
 | P3 | 明德國中網球場／`mingde-junior-high` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 觀海公園網球場／`guanhai-park` | 北投區 | 可發布 | 未發布 | iPlay23071網球專欄確認隨到隨用、08–22；費用／輪替／夜照操作待補 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 觀海公園網球場／`guanhai-park` | 北投區 | 可發布 | 內容完成 | iPlay23071網球專欄確認隨到隨用、08–22；費用／輪替／夜照操作待補 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 逸仙國小網球場／`yixian-elementary` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 陽明大學山下網球場／`yangming-university-foothill` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 陽明大學山頂網球場／`yangming-university-hilltop` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
@@ -97,11 +97,11 @@ C02剩餘5筆依計畫順序排列：天母、南港、玉成、中研、新生�
 | P3 | 台灣科技大學網球場／`ntust` | 大安區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 政治大學網球場／`nccu` | 文山區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 景美女中網球場／`jingmei-girls-high` | 文山區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 景美河濱公園網球場／`jingmei-riverside` | 文山區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=489) |
+| P2 | 景美河濱公園網球場／`jingmei-riverside` | 文山區 | 待補來源 | 未發布 | VBS485網球無按鈕；缺個人現場流程，非新店同名球場 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
 | P3 | 木柵國小網球場／`muzha-elementary` | 文山區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/1ba2075d5fe7) |
-| P2 | 溪洲(福和)河濱公園網球場／`xizhou-riverside` | 文山區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=352) |
-| P2 | 萬有二號公園網球場／`wanyou-no2-park` | 文山區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=849) |
-| P2 | 雙園河濱公園網球場／`shuangyuan-riverside` | 萬華區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=210) |
+| P2 | 溪洲(福和)河濱公園網球場／`xizhou-riverside` | 文山區 | 可發布 | 內容完成 | VBS26六面／order352登入已核對；夜照操作pending | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
+| P2 | 萬有二號公園網球場／`wanyou-no2-park` | 文山區 | 待補來源 | 未發布 | VBS848與2024廢存會議；需2025整建後網球保留／現況 | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
+| P2 | 雙園河濱公園網球場／`shuangyuan-riverside` | 萬華區 | 可發布 | 內容完成 | VBS20四面／order210登入已核對；網球時段與夜照pending | [2026-09-09 C04首輪](court-guide-completion-c04-2026-09-09.md) |
 
 ## 新北28筆：資料準備
 

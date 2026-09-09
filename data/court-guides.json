@@ -1149,6 +1149,166 @@
           "verifiedAt": "2026-09-09"
         }
       ]
+    },
+    {
+      "slug": "guanhai-park",
+      "summary": "一般民眾可現場使用，出發前留意球場告示與夜間照明。",
+      "booking": "全國運動場館資訊網列一般公眾可隨到隨用，不開放對外場地租借。請依現場告示使用；輪替、團體使用與是否可保留場地的規則尚待確認。",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "使用資格",
+          "value": "官方場館資料列一般公眾無限制，採現場隨到隨用。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "開放時段",
+          "value": "官方網球設施欄列平日及假日 08:00–22:00；臨時封閉與現場公告優先。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "費用與輪替",
+          "value": "尚未取得日常費率與多人等候時的輪替規則，請以現場告示或管理單位說明為準。",
+          "status": "pending",
+          "source": 1
+        },
+        {
+          "label": "夜間照明",
+          "value": "官方設施欄列有照明，但未說明開燈方式、各面可用狀況及是否另有費用；夜間前往請先確認。",
+          "status": "pending",
+          "source": 1
+        }
+      ],
+      "transport": "位於北投區中央北路四段 601 巷、知行路旁，公園南側鄰近關渡碼頭。抵達後請依園內指示找到網球場。",
+      "transportSource": 1,
+      "sources": [
+        {
+          "title": "臺北市體育局場地租借 2.0｜觀海公園",
+          "url": "https://vbs.sports.gov.taipei/venues/983",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "全國運動場館資訊網｜臺北市北投區觀海公園",
+          "url": "https://iplay.sports.gov.tw/GymInfo/Index/23071?PP=Traffic",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "xizhou-riverside",
+      "summary": "先由官方系統確認網球場租借與面號，再安排河濱約球。",
+      "booking": "一般民眾可至體育局場地租借 2.0 的「溪洲[福和]河濱公園」，在「網球場」區塊選擇「場租租借」，登入後依系統辦理申請。可租面號、時段、費率及核准結果以官方為準；送出申請不等於訂場成功。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "開放時間",
+          "value": "官方場館頁列示 08:00–22:00；各面實際開放與可租時段請依系統及公告確認。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "場地區分",
+          "value": "新系統網球場區塊列第 1–6 面。請核對預約面號，避免使用其他球類場地。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "申請租借費用",
+          "value": "現行一般基準：網球場每面每小時 140 元，照明每面每小時 80 元另計；不足一小時以一小時計。實際適用費用依申請及核准內容確認。",
+          "status": "verified",
+          "source": 2
+        },
+        {
+          "label": "申請期限",
+          "value": "一般申請及繳費須於使用日 10 天前完成；緊急或不可抗力事由另有規定。請預留審核時間，並查看系統當期公告。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "夜間使用",
+          "value": "費率表不代表每面都有照明或夜間可使用；開燈方式、可用面號與臨時封閉請向管理單位確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "官方列福和橋下景 2 號疏散門為入口參考。球場位於文山區溪洲（福和）河濱，請依預約面號集合，避免與其他河岸同名場地混淆。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "臺北市體育局場地租借 2.0｜溪洲[福和]河濱公園",
+          "url": "https://vbs.sports.gov.taipei/venues/26",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "臺北市法規查詢系統｜開放式運動場地收費基準",
+          "url": "https://laws.gov.taipei/Law/LawSearch/LawArticleContent/FL095531",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "開放式運動場地開放時間及收費基準表（PDF）",
+          "url": "https://laws.gov.taipei/Law/File/0000320682",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "shuangyuan-riverside",
+      "summary": "先由官方系統確認網球場租借與面號，再安排河濱約球。",
+      "booking": "一般民眾可至體育局場地租借 2.0 的「雙園河濱公園」，在「網球場」區塊選擇「場租租借」，登入後依系統辦理申請。可租面號、時段、費率及核准結果以官方為準；送出申請不等於訂場成功。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "開放時間",
+          "value": "新系統列園區全天開放；體育局開放式運動場地一般基準為 08:00–22:00，特殊需求依各場地公告。網球各面實際時段請依申請結果及現場公告確認，園區全天不代表網球可整夜使用。",
+          "status": "pending",
+          "source": 2
+        },
+        {
+          "label": "場地區分",
+          "value": "新系統網球場區塊列第 1–4 面。請核對預約面號，避免使用其他球類場地。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "申請租借費用",
+          "value": "現行一般基準：網球場每面每小時 140 元，照明每面每小時 80 元另計；不足一小時以一小時計。實際適用費用依申請及核准內容確認。",
+          "status": "verified",
+          "source": 2
+        },
+        {
+          "label": "申請期限",
+          "value": "一般申請及繳費須於使用日 10 天前完成；緊急或不可抗力事由另有規定。請預留審核時間，並查看系統當期公告。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "夜間使用",
+          "value": "費率表不代表每面都有照明或夜間可使用；開燈方式、可用面號與臨時封閉請向管理單位確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "官方列園區位於雙園抽水站至華江橋上游側欄杆間。請使用球場路線並核對預約面號，抵達河濱後依現場指示前往網球場。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "臺北市體育局場地租借 2.0｜雙園河濱公園",
+          "url": "https://vbs.sports.gov.taipei/venues/20",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "臺北市法規查詢系統｜開放式運動場地收費基準",
+          "url": "https://laws.gov.taipei/Law/LawSearch/LawArticleContent/FL095531",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "開放式運動場地開放時間及收費基準表（PDF）",
+          "url": "https://laws.gov.taipei/Law/File/0000320682",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
     }
   ]
 }

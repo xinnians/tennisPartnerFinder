@@ -22,4 +22,7 @@ export const COURT_GUIDE_NAMES = {
   "zhoumei-sports-park": "洲美運動公園網球場",
   "dihua-sports-park": "迪化休閒運動公園網球場",
   "huluzhou-sports-park": "葫蘆洲運動公園網球場",
+  "guanhai-park": "觀海公園網球場",
+  "xizhou-riverside": "溪洲(福和)河濱公園網球場",
+  "shuangyuan-riverside": "雙園河濱公園網球場",
 } as const;
