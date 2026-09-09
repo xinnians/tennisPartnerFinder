@@ -55,3 +55,13 @@
 - `npm run test:preview:chromium`：20 passed，包含十五篇逐一開啟自己的草稿、無自動發局，及名稱／行政區、台／臺、空結果、清除、無 JS。
 - Hosted 唯讀 preflight：41 migrations local/remote 一致，profiles 3、sessions 3、participants 3、messages 2、reports 0、outbox 13；五個 cron active；匿名只有核可 discovery view，25 欄及既有私有 view 權限保持。零 migration／DB／Edge 改動，不另做 hosted dump；真實 OAuth／兩帳號群聊沿用歷史記錄，不標記本次新驗收。
 - PR #5 已建立；為 Git 分支設定臨時 Preview 公開 Supabase URL/anon，Production 設定未改。必要 CI、正式環境容量、Git 預览與正式 QA 仍須完成後才合併發布。
+
+## Git 預覽與正式設定容量
+
+- Head `81cd213`，Vercel Git preview `dpl_6gPov6ytaQcZTayUjT7XqMysy9KE` READY。1280×844／390×844 的標題、非空內容、無 overlay、console／pageerror 0、搜尋／空結果／清除／鍵盤及無 JS 瀏覽通過；松山篩選三篇、士林篩選百齡一篇。
+- 十五篇 HTTP 200、來源及內文逐一對照；未知指南與全台底稿 URL 404。預覽刻意 noindex／空 sitemap；正式才應為17 URLs。七個重點詳情頁各跑桌面與手機，共14次驗證，無橫向溢出，近期球局載入完成；純 URL 檢查與本機十五篇實際開草稿測試分別記錄。
+- 臨時 QA 腳本初版將 Preview sitemap 誤期待為17及未限定主開局按鈕（空球局另有同名 CTA），修正檢查條件／selector 後重跑通過，產品沒有因此改動。
+- `npm run test:preview:webkit` 9 passed，`npm run test:local:mobile` 6 passed。正式環境 `check:production-bundle:release` 通過：main 385,456／119,304、root static 661,243／193,418、guide static 277,206／74,948、total JS 942,801／282,839 raw／gzip bytes；index 1,036／543。未放寬任何上限。
+- 匿名 REST 實測：核可25欄 select 200、line_id 400，十個私有 table/view 401；未輸出資料內容。正式 OAuth、群聊及真實發局未重跑，這批無 hosted 寫入。
+- 截圖、HTTP／DOM檢查 JSON 與可重現腳本存於 `/Users/ian/tennisPartnerFinder-qa/g09-guide-batch-two-2026-09-09/`。詳細頁截圖含青年、民權、台北網球場的首屏與費率段落，已人工檢視手機與桌面樣本。
+- 必要 CI：舊 `5657104` 的 workflow 34335313993 在取消後仍執行 always 清理／Safari後續步驟，讓新 PR run 等待；已取消完成。曾對相同新 head 觸發 workflow_dispatch 34335904285；待 PR run 開始後取消重複執行，正式以 PR run 34335417749 為驗收依據。
