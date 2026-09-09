@@ -26,3 +26,5 @@ JSON候選28篇，生成slug map新增ntust／muzha-elementary；索引count26�
 - 清冊89唯一slug與目錄完全相符，61台北列都有2026-09-09批次證據與具體處置；明德由查核中改待補來源，原因為學校現行申請／時段仍未取得，沒有擅自發布。候選JSON27篇44欄pending。
 
 Git預覽、CI、正式发布及容量網路量測尚待執行；長期目標仍active。
+
+已推送程式81691e2，並為本分支設定兩個Preview Supabase公開變數；接續Git建置。Production設定未變。
