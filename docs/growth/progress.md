@@ -21,7 +21,11 @@
 
 觀海／溪洲／雙園三篇已正式發布，現24篇、台北37筆未發布。PR #9 merge `f0bcedddeee144da707e06159b005340e7c760d1`、Production `dpl_8stP3nFiVwUCuEueBj7sxfvmh8n8` READY。CI34348031374前端／Supabase成功；Safari mock190 passed／1 failed／3 skipped（shell3175ms>2500ms），preview Safari9 passed。正式24篇／sitemap26、搜尋／no-JS、三篇6組長文及開局取消、分享200/404/405全部通過，pageerror0。首訪最大788644／242736 bytes過既有上限，手機LCP中位8172ms限制保留；預覽偶發Maps錯誤未宣稱修復。完整本機／來源與QA見[C04紀錄](court-guide-completion-c04-2026-09-09.md)。分支Preview兩個變數與env匯出檔已清理。候選三民與北醫接續實作，其他待來源與校園查核持續。
 
-C01九座河濱的新版VBS頁已覆核，逐筆處置與夜照原則／大佳入口新來源見[覆核紀錄](court-guide-completion-c01-followup-2026-09-09.md)。PR9已發布，接續更新適用文案，逐面夜照未知仍保留。C01兩座營運球場亦完成覆核：中心可補繳費期限、網球場新增取消條件差異；C04校園接續已有5筆首輪處置，11筆未開始，見[校園紀錄](court-guide-completion-c04-schools-2026-09-09.md)，並非長期目標完成。
+C01九座河濱的新版VBS頁已覆核，逐筆處置與夜照原則／大佳入口新來源見[覆核紀錄](court-guide-completion-c01-followup-2026-09-09.md)。PR9已發布，接續更新適用文案，逐面夜照未知仍保留。C01兩座營運球場亦完成覆核：中心可補繳費期限、網球場新增取消條件差異；C04校園接續已有10筆首輪處置，6筆未開始，見[校園紀錄](court-guide-completion-c04-schools-2026-09-09.md)，並非長期目標完成。
+
+## C04補強接續（本機26篇候選，未發布）
+
+分支`codex/court-guide-completion-c04-followup`新增三民／北醫，九河濱夜照、大佳入口、兩營運場預約與取消補強已寫入JSON；北醫取得2026-07-21最新人工草皮費率和2025會員規章，硬地費用及時段差異保留。unit4、完整frontend（775 unit／384 Chromium）及原始local重跑（API4／browser46，12 skipped）、mobile6通過。首次local訂閱checkbox失敗保留，單項及完整重跑通過但根因未確定；Chromium預覽20、WebKit9與26篇長文內容／2篇4組畫面驗收通過；strict容量、匿名權限及41版migration對齊通過。尚待Git預覽、必要CI與正式發布。詳見[本批證據／接續](court-guide-completion-c04-followup-2026-09-09.md)。正式仍24篇，長期目標未完成。
 
 ## 2026-09-09 補完目標已啟動
 
