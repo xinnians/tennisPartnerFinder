@@ -17,6 +17,10 @@
 - 已移除本分支兩個Preview公開變數、刪除Production env臨時匯出檔。首訪各裝置3次容量最大788495／242659 raw／encoded bytes，低於820000／260000上限；桌面LCP中位612ms、手機8152ms，pageerror0。手機慢網路效能缺口保留，上限不變。
 - 下一步：觀海已符合基本公開門檻，草稿 `/tmp/qiuka-c03/guanhai-guide-draft.json`；套入JSON前核對來源，走必要測試／Git發布。另8筆已列待補來源、26筆台北未查核及C01其餘11篇覆核接續；長期目標保持進行。
 
+## C04 目前工作（尚未發布）
+
+分支`codex/court-guide-completion-c04`，觀海／溪洲／雙園三篇內容完成，本機24、正式21；完整frontend775 unit／384 mock、local46／12跳過、mobile6、preview Chromium20／WebKit9通過；Production strict容量、24篇內容及6組長文QA通過。41migration由Management API確認對齊，匿名REST及hosted唯讀preflight通過；下一步Git preview／必要CI。runtime70b35bf已推送，分支Preview兩個公開Supabase變數已建立，驗收後清理；候選22篇33欄pending。下一組四公園＋六校園已有[第一輪來源底稿](court-guide-completion-c04-2026-09-09.md)，萬有二號有廢存／整建疑義、北醫校外申請途徑已確認待內容補完；西湖租借頁明列2024期限，不採為2026現價。未發布／查核中的項目接續，長期目標仍active。
+
 ## 2026-09-09 補完目標已啟動
 
 - 使用者「建立相關目標開始進行」核可執行。已建立本批目標：C01 民權、青年、道南、百齡社子岸四座高影響疑義，以及 C02 北投運動中心、天母兩座來源查核。
