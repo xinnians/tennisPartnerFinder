@@ -54,3 +54,5 @@
 Chromium production-preview 20通過，WebKit production-preview 9通過。
 
 Browser plugin not available，沿用 repo Playwright。待測流程：指南列表 → 北投區／名稱查找 → 北投詳情 → 指定球場開局 → 登入提示與取消；桌面及390px，並查來源、pending、no-JS、sitemap與未知頁404。容量上限不變，零migration。
+
+正式設定 strict 容量通過：main 385,456／119,299、root static 661,296／193,443、guide static 277,259／74,976、total JS 942,854／282,858 raw／gzip bytes；index 1,036／543。未放寬預算。Runtime commit `11cac8d`；Git預覽與必要CI接續驗證，尚未標記正式上線。
