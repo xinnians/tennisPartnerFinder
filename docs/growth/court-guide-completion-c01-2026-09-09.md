@@ -56,3 +56,18 @@ Chromium production-preview 20通過，WebKit production-preview 9通過。
 Browser plugin not available，沿用 repo Playwright。待測流程：指南列表 → 北投區／名稱查找 → 北投詳情 → 指定球場開局 → 登入提示與取消；桌面及390px，並查來源、pending、no-JS、sitemap與未知頁404。容量上限不變，零migration。
 
 正式設定 strict 容量通過：main 385,456／119,299、root static 661,296／193,443、guide static 277,259／74,976、total JS 942,854／282,858 raw／gzip bytes；index 1,036／543。未放寬預算。Runtime commit `11cac8d`；Git預覽與必要CI接續驗證，尚未標記正式上線。
+
+### Git 預覽驗收
+
+PR [#6](https://github.com/xinnians/tennisPartnerFinder/pull/6)，head `57ace4e20daed3130c02f1e95990232e448084f4`。Preview `dpl_G34nh9MMFQXjK4CDYErdUHK57pRZ` READY，穩定入口 `https://tennis-partner-finder-git-cod-c58ca1-xinnians-projects-c513dbd3.vercel.app`。
+
+| 檢查 | 結果／證據 |
+| --- | --- |
+| 頁面識別、有內容、無錯誤覆蓋層 | 16篇HTTP200，4篇修改詳情×1280／390px，標題及正文正確 |
+| Console／版面 | 0 error，無水平溢出；已看北投桌面／手機截圖 |
+| 搜尋與鍵盤 | 北投區只有北投指南；名稱／行政區交集、零結果、清除與焦點回復通過 |
+| 無JS及容量 | 16篇可讀、連結可走；列表只載1支1,036 raw／541 encoded bytes JS，無API／Maps |
+| 開局互動 | 北投桌面／390px到登入，courtSlug正確；取消清空intent；無建立球局／訂閱寫入 |
+| 爬蟲邊界 | 預覽sitemap刻意0；未知指南及全台底稿404 |
+
+QA原始JSON、截圖及腳本：`/Users/ian/tennisPartnerFinder-qa/court-guide-c01-2026-09-09/preview/`。沿用`verify-hosted.mjs`、`verify-details.mjs`及`verify-entry.mjs`，對應最新16篇。正式OAuth、實際付款／租場、真實留存未測；Preview Maps referrer未擴充，不將預覽首頁Maps表現當正式效能。

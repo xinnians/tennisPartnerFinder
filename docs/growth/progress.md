@@ -5,7 +5,8 @@
 ## 2026-09-09 補完目標已啟動
 
 - 使用者「建立相關目標開始進行」核可執行。已建立本批目標：C01 民權、青年、道南、百齡社子岸四座高影響疑義，以及 C02 北投運動中心、天母兩座來源查核。
-- 工作分支 `codex/court-guide-completion-c01`；查核中，符合門檻者完成內容、必要 QA 與 Git 發布，未解決欄位保留證據及下一步。C01 全部15篇及 C02 全部10候選仍未完成。
+- 工作分支 `codex/court-guide-completion-c01`；[六座本批查核](court-guide-completion-c01-2026-09-09.md)完成，北投指南及青年／道南／百齡補強已實作。天母維持未發布，其餘關鍵缺口保留；C01全部15篇及C02全部10候選仍未完成。
+- 本機完整frontend／local／mobile／preview Chromium與WebKit、正式容量及hosted preflight通過。PR #6 head `57ace4e`，Git preview `dpl_G34nh9MMFQXjK4CDYErdUHK57pRZ` READY；必要CI與正式發布尚在進行。
 
 ## 當前狀態
 
