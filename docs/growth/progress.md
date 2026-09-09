@@ -11,7 +11,7 @@
 
 ## C03 目前工作分支（尚未部署）
 
-`codex/court-guide-completion-c03` 已新增葫蘆洲指南及迪化工程入口提醒，本機21篇、正式20篇；葫蘆洲費率單位／照明2欄pending。官方配置圖相對位置已確認，迪化公告明列網球照常使用。catalog檢查通過；frontend已通過（775 unit／384 mock及type/lint/prettier/build），test:local首跑39通過／1失敗／12跳過／6未執行，計數案例受本機226筆累積fixture超過探索200筆保護影響；已改由單局連結開fixture，修正版重驗中（session98159），完整local尚未通過；葫蘆洲1280／390px文字與手機閱圖正常，尚未宣稱完整QA或部署。下一步完成測試、兩尺寸／入口QA、Git預览及必要CI後正式发布。其餘C03九筆與C01/C04仍需接續，見C03第三輪紀錄。
+`codex/court-guide-completion-c03` 已新增葫蘆洲指南及迪化工程入口提醒，本機21篇、正式20篇；19篇28欄pending。前端775 unit／384 mock及建置通過，兩尺寸內容QA通過。local發現累積fixture超過探索200筆保護，已用本機測試帳號RPC取消本次工作192筆未開始球局（公開剩41），不重置DB／不改正式資料；撤回中間測試替代路徑，保留原斷言。完整local重驗中，log `/tmp/qiuka-c03/test-local-clean.log`。下一步完成local／mobile／preview、strict容量、匿名REST及Git發布。觀海已取得完整現場使用來源，可接續下一篇；其餘C03與C01/C04未完成。
 
 ## 2026-09-09 補完目標已啟動
 

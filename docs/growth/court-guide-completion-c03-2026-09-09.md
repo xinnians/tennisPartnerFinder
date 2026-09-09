@@ -83,3 +83,15 @@
 修正計數案例的openPreviewSheet改走既有`/#/session/:id`，仍保留三個面的零／非零及名單人數斷言。這項測試驗的是計數，不要求透過全域探索取得自己fixture；目前修正版單測驗證中，完整local仍須重跑。第一次修正版誤於前次程序尚未結束時啟動，被5175占用攔下、沒有執行測試；確認前次terminal後才重新啟動，記錄不可當產品failure。
 
 接續句柄：修正版單測exec session98159，log `/tmp/qiuka-c03/neutral-fixed.log`；先檢查是否仍存活／結果再開始下一個DB測試，不平行啟動。dev5180 session25978僅渲染QA可停止；frontend session36563已exit0、首輪local27649及原案例62381皆exit1。正式仍20篇、沒有Git部署；不得用前端通過取代local與發布門檻。
+
+### 本機環境修復（以此段為準）
+
+前回合為進展：完成21篇本機內容及前端QA；本回合確認修正版單測先能開球局、後因殘留hash在切帳號時重開sheet失敗，清hash後單測1通過。但完整test:local揭示API／performance也受累積fixture影響，僅更改計數案例不是完整解法。
+
+已停止明確失敗的完整測試（session29484 exit130），在測試程序結束後清理本次工作產生的local fixture：loopback54321、host-20260909時間戳@example.test、建立時間07:26–11:24 UTC、未開始open/full球局。透過每個fixture測試帳號正常登入，再呼叫cancel_session，192筆回OK、零失敗；未直接寫raw lifecycle、未刪帳號、未reset DB、未碰hosted。候選及結果存`/tmp/qiuka-c03/local-fixture-cleanup*.json`。清理後公開球局41筆。
+
+**最終不保留測試替代路徑**：已把session.spec.js及session-data-local-api.test.js還原origin/main，恢復原探索入口與API完整查詢斷言；此批只保留指南預期數21的測試更新。清理後完整test:local已重新執行，log`test-local-clean.log`，先確認其結果再跑下一個DB測試。舊失敗與中間單測通過僅為診斷，不是最終發布通過。
+
+另觀海iPlay23071本輪取得完整網球欄位：無限制、每天08–22、隨到隨用、有照明、不開放對外租借。和VBS983識別對應，已具基本現場使用來源，可接續下一篇；費用／輪替／開燈操作仍pending，不把體育日免費套日常。
+
+Hosted唯讀preflight已重查：41migration對齊，profiles3／sessions3／participants3／messages2／reports0／outbox15、5cronactive、匿名discovery25欄與私有view無select；仍需匿名REST實測、strict正式env build及Git驗收。
