@@ -1,3 +1,5 @@
+import { sessionShareSummary } from "./sessionShareSummary.ts";
+
 let toast;
 
 /** Configure the entry-owned toast without coupling clipboard helpers to bootstrap state. */
@@ -28,13 +30,14 @@ function fallbackCopyText(value) {
   }
 }
 
-export async function copySessionShareLink(sessionId) {
+export async function copySessionShareLink(sessionId, session) {
   const link = sessionShareLink(sessionId);
+  const text = session ? sessionShareSummary(session, link) : link;
   try {
-    if (globalThis.navigator?.clipboard?.writeText) await globalThis.navigator.clipboard.writeText(link);
-    else if (!fallbackCopyText(link)) throw new Error("copy unavailable");
+    if (globalThis.navigator?.clipboard?.writeText) await globalThis.navigator.clipboard.writeText(text);
+    else if (!fallbackCopyText(text)) throw new Error("copy unavailable");
   } catch {
-    if (!fallbackCopyText(link)) throw new Error("目前無法複製連結，請手動複製網址。");
+    if (!fallbackCopyText(text)) throw new Error("目前無法複製連結，請手動複製網址。");
   }
-  toast("球局連結已複製。");
+  toast(session ? "球局摘要已複製。" : "球局連結已複製。");
 }

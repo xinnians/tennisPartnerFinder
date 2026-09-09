@@ -2439,3 +2439,80 @@ test("N3 a failing subscription seed never fails the profile save", async ({ pag
   await expect.poll(async () => await subscribedCourtIds(client)).toEqual([]);
   await expect(page.locator("#toast-root")).not.toContainText("無法");
 });
+
+for (const width of [1280, 390]) {
+  test(`a host repeats a booked session through My Sessions at ${width}px and publishes a new unbooked session`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    const errors = captureRuntimeErrors(page);
+    const context = createSessionTestContext({ suffix: randomUUID() });
+    const host = await signUpUser(context.host.email);
+    await createProfile(host.client, { nickname: context.host.nickname, ntrp: 3.5, courts: context.host.courts });
+    const courtId = await courtIdByName(host.client, context.host.courts[0]);
+    const originalId = await createSessionViaRpc(
+      host.client,
+      createFutureSessionInput({
+        courtId,
+        ntrpMin: 2.5,
+        ntrpMax: 3.5,
+        slotsTotal: 2,
+        feeNote: "現場分攤",
+        notes: "重開測試備註",
+      })
+    );
+    const writes = [];
+    await page.route(`${SUPABASE_URL}/rest/v1/rpc/create_session`, async (route) => {
+      writes.push(route.request().postDataJSON());
+      await route.continue();
+    });
+    await gotoWithSession(page, host.session);
+    await page.getByTestId("my-sessions-tab").click();
+    await page.getByRole("button", { name: /我主揪的/ }).click();
+    const repeat = page.locator(`[data-my-action="repeat"][data-session-id="${originalId}"]`);
+    await expect(repeat).toBeVisible();
+    await page.screenshot({ path: `/tmp/qiuka-growth-${width}-my-sessions.png`, animations: "disabled" });
+    await repeat.click();
+    const sheet = page.locator("#session-create-modal");
+    await expect(sheet.getByTestId("repeat-session-hint")).toBeVisible();
+    await expect(page).toHaveTitle("球咖｜台北網球");
+    await testInfo.attach("repeat-draft", {
+      body: await page.screenshot({ path: `/tmp/qiuka-growth-${width}-draft.png`, animations: "disabled" }),
+      contentType: "image/png",
+    });
+    await expect(sheet.getByTestId(`create-court-${courtId}`)).toHaveClass(/is-selected/);
+    await expect(sheet.getByTestId("session-venue-booked")).toHaveAttribute("aria-checked", "false");
+    await expect(sheet.getByTestId("session-fee-note")).toHaveValue("現場分攤");
+    await expect(sheet.getByTestId("session-notes")).toHaveValue("重開測試備註");
+    await expect(sheet.getByTestId("create-band-repeat")).toHaveClass(/is-selected/);
+    await sheet.getByTestId("create-time-20:00").click();
+    await sheet.getByTestId("session-submit").click();
+    expect(writes).toHaveLength(0);
+    await page.keyboard.press("Escape");
+    await expect(repeat).toBeFocused();
+    await repeat.click();
+    await sheet.getByTestId("create-date-custom").click();
+    await sheet.getByTestId("create-date-custom-input").fill("2099-09-09");
+    await sheet.getByTestId("create-time-20:00").click();
+    await sheet.getByTestId("session-submit").click();
+    await expect(sheet.getByTestId("create-done-title")).toBeVisible();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({
+      p_court_id: courtId,
+      p_start_at: "2099-09-09T12:00:00.000Z",
+      p_venue_type: "walk_on",
+      p_ntrp_min: 2.5,
+      p_ntrp_max: 3.5,
+      p_slots_total: 2,
+      p_join_mode: "approval",
+      p_fee_note: "現場分攤",
+      p_notes: "重開測試備註",
+    });
+    const { data, error } = await host.client.from("my_session_participations").select("session_id,venue_type");
+    if (error) throw error;
+    expect(data).toHaveLength(2);
+    expect(data.find((row) => row.session_id === originalId).venue_type).toBe("booked");
+    expect(data.find((row) => row.session_id !== originalId).venue_type).toBe("walk_on");
+    expect(errors).toEqual([]);
+  });
+}

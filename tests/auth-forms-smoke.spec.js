@@ -131,7 +131,7 @@ test("the login modal titles each gate entry point instead of always naming a jo
   };
 
   for (const [action, title] of [
-    ["join", "登入以申請加入球局"],
+    ["join", "登入後確認加入方式"],
     ["create", "登入以開球局"],
     ["players", "登入以查看在線球友"],
     ["directory", "登入以查看球友名單"],
@@ -141,6 +141,7 @@ test("the login modal titles each gate entry point instead of always naming a jo
   ]) {
     await openLoginFor(action);
     await expect(page.locator("#login-dialog h2")).toHaveText(title);
+    if (action === "join") await expect(page.locator("#login-dialog")).toContainText("未填程度或超出範圍會改為申請");
     await page.keyboard.press("Escape");
     await expect(page.locator("#login-dialog")).toHaveCount(0);
   }

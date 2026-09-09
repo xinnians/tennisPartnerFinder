@@ -67,6 +67,7 @@ interface IntentControllerDependencies {
   openCreateSession: (handlers: {
     courts: unknown[];
     courtsReady: boolean;
+    repeatSource?: MySessionSummary;
     onClose(options?: { reason?: string }): void;
     onSubmit(input: unknown): Promise<unknown>;
     onViewMySessions(sessionId: ControllerIdentifier): void;
@@ -94,7 +95,7 @@ export interface IntentController {
   clearIntent: (expectedIntent?: ControllerPendingIntent | null) => boolean;
   clearPendingIntentIfUnchanged: (version: number) => boolean;
   isReconcileSuppressed: (session: SessionSummary | MySessionSummary | null | undefined) => boolean;
-  openCreateIntent: () => void;
+  openCreateIntent: (sourceSessionId?: ControllerIdentifier) => void;
   refreshAuthoritativeState: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
   requestCurrentLocation: () => void;
   requestJoin: (
@@ -374,13 +375,17 @@ export function createIntentController({
     }
   }
 
-  function openCreateSessionForIntent(intent: ControllerPendingIntent = { action: "create" }): unknown {
+  function openCreateSessionForIntent(
+    intent: ControllerPendingIntent = { action: "create" },
+    repeatSource?: MySessionSummary
+  ): unknown {
     if (surfaceRegistry.get("createSession")) return surfaceRegistry.get("createSession");
     const openedAuthSnapshot = captureAuthSnapshot();
     let sheet: ControllerSurfaceHandle | null | undefined = null;
     sheet = openCreateSession({
       courts: read().courts,
       courtsReady: read().courtsReady,
+      ...(repeatSource ? { repeatSource } : {}),
       onClose: ({ reason = "dismiss" } = {}) => {
         surfaceRegistry.release("createSession", sheet);
         if (reason === "dismiss") clearIntent(intent);
@@ -523,7 +528,23 @@ export function createIntentController({
     }
   }
 
-  function openCreateIntent(): void {
+  function openCreateIntent(sourceSessionId?: ControllerIdentifier): void {
+    if (sourceSessionId !== undefined) {
+      const source = currentParticipation(sourceSessionId);
+      if (
+        !read().authSession ||
+        !profileIsReady(read().profileEligibility, "ntrp") ||
+        !profileMeetsGate(read().profileEligibility, "ntrp") ||
+        !read().courtsReady ||
+        read().mySessionsStatus !== "ready" ||
+        source?.viewerRole !== "host"
+      ) {
+        toast("請確認登入、程度與球局資料。");
+        return;
+      }
+      openCreateSessionForIntent({ action: "create" }, source);
+      return;
+    }
     requireSessionAction({ action: "create" });
   }
 

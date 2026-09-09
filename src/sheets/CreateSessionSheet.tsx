@@ -17,8 +17,6 @@ interface CreateDateChip {
 interface CreateNtrpBand {
   key: string;
   label: string;
-  max: number | null;
-  min: number | null;
 }
 
 interface CreateSlotOption {
@@ -29,6 +27,8 @@ interface CreateSlotOption {
 }
 
 export interface CreateSessionFormState {
+  repeated?: boolean;
+  repeatRange?: { ntrpMin: number | null; ntrpMax: number | null };
   band: string;
   booked: boolean;
   candCourts: Record<string, boolean>;
@@ -220,7 +220,14 @@ function CreateSessionSheet({
   const ready = canPublish(form);
   const currentNow = now();
   const startAtValue = isCandidate ? candidateWindow(form, currentNow).startAtLocal : fixedStartAt(form, currentNow);
-  const publishLabel = ready ? "發布球局" : isCandidate ? "選 2–3 個候選與時段" : "選好球場與開始時間";
+  const publishLabel =
+    form.repeated && !form.dateKey
+      ? "選擇新的日期與時間"
+      : ready
+        ? "發布球局"
+        : isCandidate
+          ? "選 2–3 個候選與時段"
+          : "選好球場與開始時間";
 
   const updateForm = (next: Partial<CreateSessionFormState>) => {
     setForm((current) => ({ ...current, ...next }));
@@ -307,6 +314,11 @@ function CreateSessionSheet({
           hidden={stage !== "form"}
           onSubmit={submitForm}
         >
+          {form.repeated ? (
+            <p className="form-hint" data-testid="repeat-session-hint">
+              已帶入上次設定。請重選日期時間，確認場地、費用與備註。
+            </p>
+          ) : null}
           <section className="create-v2__card">
             <p className="create-v2__label">球場</p>
             <div className="create-v2__segmented" role="group" aria-label="場地確定了嗎？">
@@ -683,7 +695,7 @@ function CreateSessionSheet({
               data-testid="session-fee-note"
               maxLength={500}
               rows={2}
-              defaultValue=""
+              defaultValue={initialForm.feeNote}
               ref={feeNoteRef}
             />
             <label className="create-v2__label create-v2__label--mt" htmlFor="session-notes">
@@ -696,7 +708,7 @@ function CreateSessionSheet({
               maxLength={500}
               rows={4}
               placeholder="球風、注意事項、集合方式…"
-              defaultValue=""
+              defaultValue={initialForm.note}
               ref={notesRef}
             />
           </section>

@@ -1,9 +1,10 @@
+import { createSessionDraft } from "../features/session-lifecycle/repeatSessionDraft.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.ts";
 import { mountSheet } from "../sheets.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
 import { runAsyncAction } from "../sessionActions.ts";
 import { taipeiClock, taipeiDateTimeLocalValue, taipeiLocalDateTimeToIso, taipeiParts } from "../taipeiTime.ts";
-import { padTwo, taipeiTileDate } from "../sessionPresentation.ts";
+import { padTwo, taipeiTileDate, ntrpRange } from "../sessionPresentation.ts";
 
 let deferSurfaceOpen;
 let lazyMounts;
@@ -215,27 +216,6 @@ export const CREATE_NTRP_BANDS = [
   { key: "pro", label: "5.0 +", max: 7, min: 5 },
 ];
 
-function freshCreateSessionForm() {
-  return {
-    band: "any", // dc 預設 mid 是原型假資料;「不限」才符合現行選填語意,回報標注
-    booked: false,
-    candCourts: {},
-    court: null,
-    customDate: "",
-    dateKey: "today",
-    feeNote: "",
-    instant: true,
-    mode: "fixed",
-    need: 2,
-    note: "",
-    nowStart: false,
-    slot: null,
-    time: null,
-    timeCustom: false,
-    type: "雙打",
-  };
-}
-
 /** venueType 由「已定球場／先列候選」segmented + 「已訂場」toggle 推導,單元測試覆蓋。 */
 export function deriveCreateVenueType(mode, booked) {
   if (mode === "cand") return "candidates";
@@ -270,6 +250,7 @@ export function taipeiDateValue(value, now = new Date()) {
 
 /** 表單目前選中的日期(YYYY-MM-DD,Taipei);'custom' 用使用者填的 customDate。 */
 export function resolveCreateDateValue(form, now = new Date()) {
+  if (form.repeated && !form.dateKey) return "";
   if (form.dateKey === "custom") return form.customDate || "";
   return taipeiDateValue(createDateChipDate(form.dateKey, now), now);
 }
@@ -302,6 +283,7 @@ export function createCandidateWindowLocal(form, now = new Date()) {
 
 /** 底鈕守門(dc canPublish,§7):候選=候選≥2＋時段已選;已定=球場＋時間已選。 */
 export function createSessionFormCanPublish(form) {
+  if (form.repeated && !resolveCreateDateValue(form)) return false;
   if (form.mode === "cand") {
     const count = Object.values(form.candCourts).filter(Boolean).length;
     return count >= 2 && Boolean(form.slot);
@@ -313,7 +295,8 @@ export function createSessionFormCanPublish(form) {
 export function createSessionFormRawInput(form, now = new Date()) {
   const isCandidate = form.mode === "cand";
   const venueType = deriveCreateVenueType(form.mode, form.booked);
-  const { ntrpMax, ntrpMin } = createNtrpRangeForBand(form.band);
+  const { ntrpMax, ntrpMin } =
+    form.band === "repeat" && form.repeatRange ? form.repeatRange : createNtrpRangeForBand(form.band);
   const candidateWindow = isCandidate ? createCandidateWindowLocal(form, now) : null;
   return {
     candidateCourtIds: isCandidate ? Object.keys(form.candCourts).filter((id) => form.candCourts[id]) : [],
@@ -349,6 +332,7 @@ export function createSessionDonePresentation(value, result, courts) {
 
 /** 開球局全螢幕流程(批 D5):計分板視覺,含成功頁;大量複用 D1/D4 語彙。 */
 export function openCreateSessionSheet({
+  repeatSource,
   courts = [],
   courtsReady = true,
   onClose = () => {},
@@ -364,7 +348,8 @@ export function openCreateSessionSheet({
       load: preloadCreateSessionSheet,
       methods: ["setCourts"],
       onClose,
-      open: () => openCreateSessionSheet({ courts, courtsReady, onClose, onSubmit, onViewMySessions, toast }),
+      open: () =>
+        openCreateSessionSheet({ courts, courtsReady, repeatSource, onClose, onSubmit, onViewMySessions, toast }),
     });
   }
   const now = () => new Date();
@@ -384,7 +369,15 @@ export function openCreateSessionSheet({
     candidateWindow: sessionFormSheetRuntime.createCandidateWindowLocal,
     clock: sessionFormSheetRuntime.taipeiClock,
     config: {
-      bands: CREATE_NTRP_BANDS,
+      bands: repeatSource
+        ? [
+            ...CREATE_NTRP_BANDS,
+            {
+              key: "repeat",
+              label: `上次：${ntrpRange(repeatSource)}`,
+            },
+          ]
+        : CREATE_NTRP_BANDS,
       dateChips: CREATE_DATE_CHIP_KEYS.map((key) => ({ key, label: createDateChipLabel(key, now()) })),
       ntrpExplanation: ntrpScaleExplanation,
       playTypeHint: PLAY_TYPE_HINT,
@@ -399,7 +392,10 @@ export function openCreateSessionSheet({
     dateValueNow: (value) => sessionFormSheetRuntime.taipeiDateValue(value, value),
     donePresentation: sessionFormSheetRuntime.createSessionDonePresentation,
     fixedStartAt: sessionFormSheetRuntime.createFixedStartAtLocal,
-    initialForm: freshCreateSessionForm(),
+    initialForm: createSessionDraft(
+      repeatSource,
+      sessionFormSheetRuntime.taipeiCourts(courts).map((court) => Number(court.id))
+    ),
     now,
     onBackToMap: () => mounted.close(),
     onClose: () => mounted.close(),

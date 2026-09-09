@@ -113,7 +113,7 @@ export interface MySessionsActions {
   onAcceptInvite(sessionId?: ControllerIdentifier): ReturnType<ControllerApi["respondInvite"]>;
   onCancel: MySessionsServices["cancelMySession"];
   onConfirmAttendance: MySessionsServices["confirmMySessionAttendance"];
-  onCreateSession(): ReturnType<ControllerApi["openCreateIntent"]>;
+  onCreateSession(sourceSessionId?: ControllerIdentifier): ReturnType<ControllerApi["openCreateIntent"]>;
   onDecline(
     sessionId?: ControllerIdentifier,
     participantId?: ControllerIdentifier
@@ -307,7 +307,8 @@ export function useMySessionsActions(): MySessionsActions {
       onAcceptInvite: (sessionId) => controller.respondInvite(sessionId, "accepted"),
       onCancel: controller.cancelMySession,
       onConfirmAttendance: controller.confirmMySessionAttendance,
-      onCreateSession: () => controller.openCreateIntent(),
+      onCreateSession: (sourceSessionId) =>
+        sourceSessionId === undefined ? controller.openCreateIntent() : controller.openCreateIntent(sourceSessionId),
       onDecline: (sessionId, participantId) =>
         controller.reviewMySessionParticipant(sessionId, participantId, "declined"),
       onDeclineInvite: (sessionId) => controller.respondInvite(sessionId, "declined"),
