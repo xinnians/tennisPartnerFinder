@@ -115,7 +115,7 @@ strict TypeScript、ESLint flat config 與 Prettier；存量 `.js` 採 `allowJs`
   開打前提醒可由本人偏好關閉（`notification_prefs` 六欄）；定案與取消恆送。新球局廣播依
   `court_subscriptions`（台北市 active 球場、上限為當下符合條件的球場總數）派送；行政區訂閱已退役。
   通知是 best-effort，outbox 寫入失敗不可中斷球局 RPC。
-- 分享／推播深連結使用 `#/session/:id`：進入地圖並開啟該局 sheet；不存在或已下架要顯示
+- 分享使用 `/s/:id` 提供公開伺服器摘要，進站轉為 `#/session/:id`；既有 hash／推播連結仍相容。不存在或已下架要顯示
   明確 empty sheet，登入或對應的三級個人檔案門檻仍沿用既有 intent。
 
 ## 本機開發與驗證

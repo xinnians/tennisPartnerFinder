@@ -1,11 +1,11 @@
 # 產品改善進度（接續先讀）
 
-最後更新：2026-09-09。第一批 G02／G03／G04 已上線；G09 視覺提案 v1 與 G10 計畫均已核可，已完成實作與本機／Git preview 驗證，等待遠端 CI。
+最後更新：2026-09-09。第一批 G02／G03／G04 已上線；G09 視覺提案 v1 與 G10 計畫均已核可，已完成實作、必要 CI 與正式部署；正式站驗證及成效分開記錄。
 
 ## 當前狀態
 
 - 使用者已核可依競品清單開始改善、建立目標與維護跨 session 進度。
-- 最新範圍：G09 球場指南與 G10 逐局分享預覽均已核可並完成初版實作，正在做完整回歸與發布驗證。G01、G05–G08、G11–G12 暫緩。
+- 最新範圍：G09 球場指南與 G10 逐局分享預覽均已核可並完成初版實作，必要回歸通過並已於 qiuka.tw 上線。G01、G05–G08、G11–G12 暫緩。
 - [G09／G10 計畫](g09-g10-plan-2026-09-09.md) 及 [已核可視覺稿](g09-design/README.md) 是本批範圍；本輪無新增商業功能或 DB migration。
 - 已建立計畫、第一批規格、試點基準模板與根目錄接續指引。
 - 第一批 G02／G03／G04 已完成實作、必要 CI 與正式部署，qiuka.tw 已驗證新版；沒有真實成效結論。
@@ -22,25 +22,28 @@
 | G05 | 使用者暫不考慮 | 暫緩 | 不適用 | 未部署 | 未取得 |
 | G06 | 使用者暫不考慮 | 暫緩 | 不適用 | 未部署 | 未取得 |
 | G07–G08 | 使用者暫緩，既有計畫保留 | 暫緩 | 不適用 | 未部署 | 未取得 |
-| G09 | 視覺提案 v1 已核可；發布內容待逐欄查核 | 待 G10 接通後實作 | 未開始（僅圖片檢視） | 未部署 | 未取得 |
-| G10 | 計畫已核可 | 進行中：handler／打包／路由 | 未開始 | 未部署 | 未取得 |
+| G09 | 核可；三篇官方來源查核完成 | 完成 | 通過 | 已部署 | 未取得 |
+| G10 | 計畫已核可 | 完成 | 通過 | 已部署 | 未取得 |
 | G11–G12 | 使用者暫緩，既有計畫保留 | 暫緩 | 不適用 | 未部署 | 未取得 |
 
-## 2026-09-09 G09／G10 實作與驗證中
+## 2026-09-09 G09／G10 已上線
 
-- 分支 `codex/court-guides-share-preview`；新增 `/courts/` 與三篇指南、`/s/:id` server metadata、新舊連結相容、courtSlug 意圖接續及訂閱提示。
-- 已完成：10 項分享單元測試、4 項指南單元測試；production preview 全部 12 項通過（含 G09／G10 八項）；完整 frontend gate 775 unit passed／5 skipped、384 Chromium passed／4 skipped。
-- 嚴格容量 gate 通過：main 385,077／119,179 bytes；root static 660,061／193,004；guide static 276,403／74,659；total 940,583／281,884（raw／gzip）。指南索引 JS 0，無 Maps，未提高上限。
-- `vercel build` 成功，function 已依檔案映射重建並執行成功（本機）；已 Git push；PR #2 最新 head `6abead3`，尚未正式部署。
-- 完整本機 gates 已通過，正式設定嚴格大小通過；Git preview `dpl_MRDaFUmqzNgNSEN6Fp8L33JqBCL6` READY，桌面／390px 匿名 smoke 與真實剪貼簿通過。遠端 CI run `34322437828` Frontend 成功；Supabase 手機尺寸測試需先等待登入 fixture 就緒，已補斷言。另補訂閱 OAuth 返回與聚焦通知設定，新的 preview 14 項通過；待乾淨 local 環境與下一輪 CI 成功後合併。
-- 既有效能預算修改與規劃文件保留，commit 時辨識來源。沒有真實使用者黏著度／轉換成效結論。
+- [球場指南](https://qiuka.tw/courts/)：青年公園、彩虹河濱、台北網球中心三篇；官方來源、待確認欄位、近期球局、指定球場開局及訂閱設定入口完成。登入返回保留場地／通知設定位置，不自動發布或改訂閱。
+- G10：分享改為 `/s/:id`，伺服器提供逐局公開標題與摘要，沿用品牌圖；既有 `#/session/:id` 仍可開啟。不存在 404／上游失敗 503 使用中性摘要，no-store，僅查匿名 allowlist。
+- [PR #2](https://github.com/xinnians/tennisPartnerFinder/pull/2) 已合併；runtime head `6c74c209e20ccf2682c044078009be64cd5a4c1f`，main merge `957dcbad1abda0c3e8d51ffb8c6208c8be840ee5`。Git production deployment `dpl_Ep3TqQ1A86iEDrhYDvU9xD85GHon` READY，qiuka.tw alias 已指向新版。零 migration／hosted DB 寫入／Edge 變更。
+- 必要 CI [34323850447](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34323850447) Frontend／Supabase 成功：775 unit、384 Chromium、1,305 SQL、4 API、46 local browser、6 mobile、14 production preview、四組 Edge 整合通過；略過項目及 Safari 結果見 [QA](g09-g10-qa-2026-09-09.md)。
+- Safari 非阻擋組 190 passed／1 failed／3 skipped；失敗為既有殼可操作 2,598ms 超過 2,500ms。新功能 production-preview WebKit 6 passed。沒有全瀏覽器全綠宣稱。
+- 正式設定嚴格容量 gate 通過：main 385,456／119,303；root static 660,635／193,194；guide static 276,598／74,725；total 941,157／282,086 raw／gzip bytes。索引 JS 0，指南無 Maps，未提高上限。
+- 正式站桌面／390px smoke、三篇指南 HTTP、分享 GET／HEAD／404／405 通過；首頁各三次首訪容量最大 787,615 raw／242,287 encoded bytes，在核可上限內。手機首頁 LCP 中位數 8,184ms、指南單次 3,092ms，尚未達 2.5s 參考值。詳見 QA 及原始 JSON。
+- 本分支臨時 Preview 公開 Supabase 設定與 Production env export 已清理；進度文件持續保存於 main。
+- 真實 LINE／Facebook 對話卡片未代發驗證；沒有真實留存／轉換數據。其他暫緩 G 項不因本次上線自動啟動。
 
 ## 下一步
 
-1. 完成 G09／G10 最終 frontend gate、正式環境大小與 Git preview smoke，通過既有發布工作流後部署；驗證結果持續補入 [QA 紀錄](g09-g10-qa-2026-09-09.md)。
-2. 發布後確認三篇指南、分享 HTTP metadata、404／503 與首頁相容入口，量測首頁與指南首訪並記下部署 SHA。
-3. G01、G05–G08、G11–G12 保持暫緩，不啟動招募或新追蹤事件；Maps 手機 LCP 仍為既有限制。
-4. 指南於 2026-12-08 前重新查核官方來源，資料待確認不改成未經查證的營運承諾。
+1. 依使用者實際回饋修正 G09／G10；若要取得轉換／留存數據，先重新確認是否啟動已暫緩的 G01，不把工程測試當產品成效。
+2. G01、G05–G08、G11–G12 保持暫緩；Maps 手機 LCP 與 Safari 首屏時間仍是已知效能限制。
+3. 指南於 2026-12-08 前重新查核官方來源，更新 `data/court-guides.json` 並重建發布；90 天提示是 build-time，不是自動背景查核。
+4. 若日後回復 G10，保留已散佈 `/s/:id` 的 handler 或相容轉址。發布證據及未測範圍見 QA 文件。
 
 ## 決策與變更日誌
 

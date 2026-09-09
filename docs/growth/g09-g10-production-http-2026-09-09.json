@@ -1,0 +1,72 @@
+{
+  "origin": "https://qiuka.tw",
+  "checkedAt": "2026-09-09T07:36:52.627Z",
+  "results": [
+    {
+      "path": "/courts/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 3729
+    },
+    {
+      "path": "/courts/youth-park/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5027
+    },
+    {
+      "path": "/courts/rainbow-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5173
+    },
+    {
+      "path": "/courts/taipei-tennis-center/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5541
+    },
+    {
+      "path": "/courts/not-a-guide/",
+      "method": "GET",
+      "status": 404,
+      "bytes": 79
+    },
+    {
+      "path": "/s/21",
+      "method": "GET",
+      "status": 200,
+      "bytes": 7298
+    },
+    {
+      "path": "/s/21",
+      "method": "HEAD",
+      "status": 200,
+      "bytes": 0
+    },
+    {
+      "path": "/s/999999999",
+      "method": "GET",
+      "status": 404,
+      "bytes": 7094
+    },
+    {
+      "path": "/s/21",
+      "method": "POST",
+      "status": 405,
+      "bytes": 18
+    },
+    {
+      "path": "/robots.txt",
+      "method": "GET",
+      "status": 200,
+      "bytes": 61
+    },
+    {
+      "path": "/sitemap.xml",
+      "method": "GET",
+      "status": 200,
+      "bytes": 380
+    }
+  ]
+}
