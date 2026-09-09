@@ -11,4 +11,9 @@ export const COURT_GUIDE_NAMES = {
   "guting-riverside": "古亭河濱公園網球場",
   "daonan-riverside": "道南河濱公園網球場",
   "yanping-riverside": "延平河濱公園網球場",
+  "bailing-riverside": "百齡河濱公園網球場",
+  "guanshan-riverside": "觀山河濱公園網球場",
+  "chengmei-right-bank": "成美右岸河濱公園網球場",
+  "minquan-park": "民權公園網球場",
+  "taipei-tennis-court": "台北網球場",
 } as const;
