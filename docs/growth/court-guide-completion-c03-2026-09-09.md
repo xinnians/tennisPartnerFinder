@@ -1,6 +1,6 @@
 # C03 第一組公園來源底稿（查核中）
 
-2026-09-09，Codex在C02必要CI期間接續10筆官方來源，**不是10篇已完成或全部可發布**。本批尚未寫入指南、沒有部署，下一個session先從本檔接續，查核狀態仍「查核中」。對應[清冊](court-guide-completion-tracker.md)及[補完計畫](court-guide-completion-plan.md)。
+2026-09-09，Codex在C02必要CI期間接續10筆官方來源，**不是10篇已完成或全部可發布**。目前葫蘆洲內容完成、迪化工程提醒已修補，尚未部署；觀海可發布未實作、其餘8筆仍查核中。下一個session先讀本檔末段最新驗證狀態，前文保留研究歷程。對應[清冊](court-guide-completion-tracker.md)及[補完計畫](court-guide-completion-plan.md)。
 
 ## 已直接載入的新VBS對照
 
@@ -63,3 +63,46 @@
 ### 已發布迪化的新工程線索（C02後續，非C03第11筆）
 
 [2025-11-14正式開工新聞](https://pwd.gov.taipei/News_Content.aspx?n=5C3C29C78077C93E&s=CB6D61680EEC332E&sms=72544237BBE4C5F6)已讀：2025-11-10開工，預計2026年9月竣工，施工期間部分區域封閉；工程為堤外至公園自行車牽引道／跨堤平台。這比早期工作坊「2026年8月」預計日期新，不能宣稱已完工，也不能推論網球全部停用。**下一個優先動作：查施工範圍及網球入口影響，視來源補充指南工程提醒**。當前指南尚未加入此公告，保持追蹤，不把部署完成當內容永久完整。
+
+## 第三輪：內容實作（尚未發布）
+
+- 上一目標回合判定為**進展**：C02驗收與進度已推送、C03來源改變後續查核方向。本輪由main `1a9733f`建立`codex/court-guide-completion-c03`，繼續實作。
+- **迪化工程範圍已釐清**：2025-11-14公告全文明載網球場照常使用，封閉景觀平台、大地重現陸橋及延平北路北側出入口。此前只摘部分封閉段落而留下疑義，本輪補讀全文解除「是否整座網球停用」疑義；沒有確認已竣工。已在指南新增工程／入口提醒及來源。
+- **葫蘆洲內容完成**：2026-04-22[廠區配置圖](https://www.nhrip.gov.taipei/cp.aspx?n=7E66726EDB987E2D)已實際閱圖，15號網球場為兩面，位於泳池、能源利用中心旁，安康路228巷一側；這是相對位置辨識，不宣稱精確重測GPS。現場與網約報到、使用資格及時段已寫入，費率單位與照明操作明示pending。正式目錄座標／DB不改。
+- 本機catalog共21篇（正式仍20），19篇28個pending；測試預期數同步21。未新增UI或資料庫契約，生成catalog屬src變更，仍執行必要test:local。
+- 迪化本機1280／390px文字與無橫向溢出通過，手機圖片人工確認。QA腳本首跑使用不存在的`.guide-facts`定位逾時，改為精確文字定位後兩尺寸通過；不是產品錯誤。Browser plugin not available，沿用frontend-testing-debugging skill的Playwright路徑。圖像與log存`/tmp/qiuka-c03/`。
+- 新來源：[碧湖iPlay25744](https://iplay.sports.gov.tw/GymInfo/Index/25744?PP=Traffic)已取得網球專屬欄位：無限制、免費對外租借、有照明、每天開放但時間空白；泳池05:30–21:30不套網球。現場／申請流程仍待查。觀海已找到[iPlay23071](https://iplay.sports.gov.tw/GymInfo/Index/23071?PP=Traffic)，本輪只取得場館與時段摘要，待完整設施流程，不當可發布。
+- 下一步：完成本機frontend／local及preview測試、葫蘆洲兩尺寸與開局入口驗收，Git preview／必要CI／正式部署。此批先發布合格葫蘆洲及迪化修補，其餘9筆保留具體查核線索接續，不湊數；長期C01–C04未完成。
+
+驗證更新：frontend完整入口已exit0，775 unit／384 mock通過（5／4跳過），型別、lint、prettier及build／結構檢查通過。葫蘆洲1280／390px內容與無溢出通過，手機長文已實際閱圖。test:local仍執行中，正式環境strict容量／Git驗收尚未執行；不將development容量報告當正式發布檢查。
+
+### Local驗證障礙與修正中
+
+完整test:local首跑：39通過／12跳過／1失敗／6因serial未執行；失敗為`neutral counts`未找到自己的球局（255），90秒逾時。獨立重跑原案例也失敗。本機唯讀SQL確認session_discovery有226筆、255及256仍open；探索有200筆完整性保護，累積fixture超出上限會拒絕整批。該案例finally只關閉球友可見性，沒有移除球局。本輪未刪資料或提高產品上限。
+
+修正計數案例的openPreviewSheet改走既有`/#/session/:id`，仍保留三個面的零／非零及名單人數斷言。這項測試驗的是計數，不要求透過全域探索取得自己fixture；目前修正版單測驗證中，完整local仍須重跑。第一次修正版誤於前次程序尚未結束時啟動，被5175占用攔下、沒有執行測試；確認前次terminal後才重新啟動，記錄不可當產品failure。
+
+接續句柄：修正版單測exec session98159，log `/tmp/qiuka-c03/neutral-fixed.log`；先檢查是否仍存活／結果再開始下一個DB測試，不平行啟動。dev5180 session25978僅渲染QA可停止；frontend session36563已exit0、首輪local27649及原案例62381皆exit1。正式仍20篇、沒有Git部署；不得用前端通過取代local與發布門檻。
+
+### 本機環境修復（以此段為準）
+
+前回合為進展：完成21篇本機內容及前端QA；本回合確認修正版單測先能開球局、後因殘留hash在切帳號時重開sheet失敗，清hash後單測1通過。但完整test:local揭示API／performance也受累積fixture影響，僅更改計數案例不是完整解法。
+
+已停止明確失敗的完整測試（session29484 exit130），在測試程序結束後清理本次工作產生的local fixture：loopback54321、host-20260909時間戳@example.test、建立時間07:26–11:24 UTC、未開始open/full球局。透過每個fixture測試帳號正常登入，再呼叫cancel_session，192筆回OK、零失敗；未直接寫raw lifecycle、未刪帳號、未reset DB、未碰hosted。候選及結果存`/tmp/qiuka-c03/local-fixture-cleanup*.json`。清理後公開球局41筆。
+
+**最終不保留測試替代路徑**：已把session.spec.js及session-data-local-api.test.js還原origin/main，恢復原探索入口與API完整查詢斷言；此批只保留指南預期數21的測試更新。清理後完整test:local已重新執行，log`test-local-clean.log`，先確認其結果再跑下一個DB測試。舊失敗與中間單測通過僅為診斷，不是最終發布通過。
+
+另觀海iPlay23071本輪取得完整網球欄位：無限制、每天08–22、隨到隨用、有照明、不開放對外租借。和VBS983識別對應，已具基本現場使用來源，可接續下一篇；費用／輪替／開燈操作仍pending，不把體育日免費套日常。
+
+Hosted唯讀preflight已重查：41migration對齊，profiles3／sessions3／participants3／messages2／reports0／outbox15、5cronactive、匿名discovery25欄與私有view無select；仍需匿名REST實測、strict正式env build及Git驗收。
+
+觀海處置更新：基本身份／位置、新VBS網球項目與iPlay公眾現場使用方式已達新指南最低門檻，清冊改「可發布／未發布」，尚未寫入JSON、未算第22篇。接續應寫指南，費用／輪替／夜照操作保留pending，不因目前21篇進入QA而遺漏此已合格項目。C03目前葫蘆洲內容完成、觀海可發布未實作、其餘8筆查核中。
+
+## 本機發布候選驗收完成
+
+- 清理fixture後，保持原始測試流程：4 local API、46 local browser／12跳過、6 local mobile通過；frontend775 unit／5跳過、384 mock／4跳過及type/lint/prettier/build通過。
+- Production preview Chromium20、WebKit9通過，包含全21篇入口、OAuth返回、搜尋／清除／no-JS與390px流程。葫蘆洲交通文案僅區分兩個官方地址，不再推論機關地址一定不含報到櫃台。
+- Production env strict build通過：main385456／119294、root661537／193547、指南277500／75085、全部943095／282926、索引1036／543 raw/gzip bytes；無超限、上限不變。真實首訪量測仍待正式部署。
+- 匿名REST：discovery200、禁用欄400、10私有面401；41migration對齊、5cronactive。OAuth及雙帳號聊天由local／preview測試覆蓋，沒有宣稱正式雙帳號人工寫入。
+- 已在本分支建立兩個Preview公開Supabase變數；測完須移除，Production設定不變。`.env.production`臨時匯出檔只在`/tmp/qiuka-c03/`，發布後刪除。
+- 即將以本提交啟動Git preview／必要CI；未正式發布，正式仍20篇。QA腳本存`/Users/ian/tennisPartnerFinder-qa/court-guide-c03-2026-09-09/`，已調整全21篇與sitemap23、兩篇×兩尺寸內容／入口檢查。
