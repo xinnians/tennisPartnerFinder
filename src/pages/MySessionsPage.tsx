@@ -78,6 +78,10 @@ function ActionButton({
   const handleClick = (button: HTMLButtonElement) => {
     if (!actions) return;
     const resolvedSessionId = dataValue(sessionId);
+    if (action === "repeat") {
+      actions.onCreateSession(resolvedSessionId);
+      return;
+    }
     const resolvedParticipantId = participantId === undefined ? undefined : dataValue(participantId);
     const resolvedProfileId = profileId === undefined ? undefined : dataValue(profileId);
     const callbacks: Record<string, (() => CallbackResult) | undefined> = {
@@ -220,6 +224,11 @@ function SessionCard({
           查看球局
         </button>
         {canChat ? <ChatButton session={session} /> : null}
+        {session.viewerRole === "host" ? (
+          <ActionButton action="repeat" sessionId={session.sessionId}>
+            照這局再開
+          </ActionButton>
+        ) : null}
         {hostCanManage && isUndecidedCandidate(session) ? (
           <ActionButton action="decide" sessionId={session.sessionId}>
             定案場地與時間

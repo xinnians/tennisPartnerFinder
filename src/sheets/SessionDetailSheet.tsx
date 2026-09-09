@@ -170,7 +170,7 @@ function CopyLinkButton({ handlers }: { handlers: SessionDetailHandlers }) {
       data-session-action="copy-link"
       onClick={handleClick}
     >
-      複製連結
+      複製球局摘要
     </button>
   );
 }

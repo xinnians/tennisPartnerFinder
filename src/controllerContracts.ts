@@ -319,7 +319,7 @@ export interface ControllerApi {
   loadDiscovery(bounds?: MapBounds | null): ControllerDiscoveryResult;
   markMySessionPlayed: (sessionId: ControllerIdentifier) => Promise<unknown>;
   openCourt(court: DataCourt, onlySessions?: SessionSummary[] | null): void;
-  openCreateIntent: () => void;
+  openCreateIntent: (sourceSessionId?: ControllerIdentifier) => void;
   openPlayerCourt(court: DataCourt, onlyPlayers?: ControllerPlayer[] | null): ControllerSurfaceResult;
   openPlayerDirectory(): Promise<boolean> | void;
   openRosterParticipantReport: (

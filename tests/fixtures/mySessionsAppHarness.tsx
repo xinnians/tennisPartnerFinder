@@ -25,7 +25,7 @@ interface MySessionsHarnessOptions {
   onAcceptInvite?(sessionId?: string): unknown;
   onCancel?(sessionId?: string): unknown;
   onConfirmAttendance?(sessionId?: string): unknown;
-  onCreateSession?(): unknown;
+  onCreateSession?(sourceSessionId?: ControllerIdentifier): unknown;
   onDecline?(sessionId?: string, participantId?: string): unknown;
   onDeclineInvite?(sessionId?: string): unknown;
   onDecide?(sessionId?: string): unknown;
@@ -184,7 +184,7 @@ export function mountMySessionsAppHarness(
     cancelMySession: (sessionId: string) => options.onCancel?.(sessionId),
     confirmMySessionAttendance: (sessionId: string) => options.onConfirmAttendance?.(sessionId),
     markMySessionPlayed: (sessionId: string) => options.onMarkPlayed?.(sessionId),
-    openCreateIntent: () => options.onCreateSession?.(),
+    openCreateIntent: (sourceSessionId?: ControllerIdentifier) => options.onCreateSession?.(sourceSessionId),
     openRosterParticipantReport: (sessionId: string, profileId: string) =>
       options.onReportParticipant?.(sessionId, profileId),
     openSession: (sessionId: string) => options.onOpenSession?.(sessionId),

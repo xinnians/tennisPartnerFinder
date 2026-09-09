@@ -4309,3 +4309,41 @@ test("chat governance reports the exact visible message, blocks its sender, and 
   ]);
   assert.deepEqual(harness.controller.blockedPlayers.getSnapshot().blockedPlayers, []);
 });
+
+test("repeat create accepts only the signed-in host source and stale auth cannot publish", async () => {
+  let createCalls = 0;
+  const own = futureSession({ viewerRole: "host", viewerParticipantStatus: "accepted" });
+  const guest = futureSession({ sessionId: 42, viewerRole: "guest", viewerParticipantStatus: "accepted" });
+  const harness = createHarness({
+    api: {
+      loadMySessions: async () => [own, guest],
+      createSession: async () => {
+        createCalls += 1;
+        return { sessionId: 99 };
+      },
+    },
+  });
+  harness.controller.setCourts([{ id: 8, city: "台北市", name: "測試球場" }]);
+  harness.controller.openCreateIntent(41);
+  assert.equal(harness.createSheets.length, 0);
+  await harness.controller.setAuthState(
+    { user: { id: "repeat-host" } },
+    { nickname: true, ntrp: true, directory: true }
+  );
+  harness.controller.openCreateIntent(42);
+  harness.controller.openCreateIntent(999);
+  assert.equal(harness.createSheets.length, 0);
+  harness.controller.openCreateIntent(41);
+  const sheet = harness.createSheets.at(-1);
+  assert.equal(sheet.handlers.repeatSource.sessionId, 41);
+  assert.equal(createCalls, 0);
+  harness.controller.openCreateIntent(41);
+  assert.equal(harness.createSheets.length, 1, "existing draft is not overwritten");
+  await harness.controller.setAuthState(
+    { user: { id: "another-host" } },
+    { nickname: true, ntrp: true, directory: true }
+  );
+  assert.equal(sheet.detail.closeCalls, 1);
+  await assert.rejects(sheet.handlers.onSubmit({ courtId: 8 }), /登入或個人檔案狀態已變更/);
+  assert.equal(createCalls, 0);
+});

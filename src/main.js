@@ -328,6 +328,7 @@ function currentAuthAvatarUrl() {
 function openCreateSession({
   courts: selectableCourts,
   courtsReady: formCourtsReady,
+  repeatSource,
   onClose,
   onSubmit,
   onViewMySessions,
@@ -335,6 +336,7 @@ function openCreateSession({
   return openCreateSessionSheet({
     courts: selectableCourts ?? getAppState().courts,
     courtsReady: formCourtsReady ?? getAppState().courtsReady,
+    repeatSource,
     onClose,
     onSubmit,
     onViewMySessions,
@@ -624,7 +626,7 @@ function init() {
       return openSessionSheet(session, {
         ...handlers,
         notificationSettings,
-        onCopyLink: () => copySessionShareLink(session.sessionId),
+        onCopyLink: () => copySessionShareLink(session.sessionId, session),
         onChat: openChat,
         onEnablePush: enablePushNotifications,
         onPrimary: handlers.action?.kind === "chat" ? openChat : handlers.onPrimary,

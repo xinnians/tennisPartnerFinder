@@ -604,7 +604,7 @@ function BottomNavigation({ navigation }: { navigation: NavigationSnapshot }) {
 }
 
 const LOGIN_TITLES: Readonly<Record<string, string>> = {
-  join: "登入以申請加入球局",
+  join: "登入後確認加入方式",
   create: "登入以開球局",
   players: "登入以查看在線球友",
   directory: "登入以查看球友名單",
@@ -642,6 +642,9 @@ function LoginModalContent({ action = "", lineProviderId = "", onClose, onProvid
         </button>
       </div>
       <p className="surface__copy">登入只用於繼續目前操作；已接受的球局成員可使用群組聊天。</p>
+      {action === "join" ? (
+        <p className="surface__copy">直接加入需符合程度；未填程度或超出範圍會改為申請。審核制需主揪確認。</p>
+      ) : null}
       {lineProviderId ? (
         <p className="surface__copy">
           Google 與 LINE 是各自獨立的帳號；登入後可在「我」頁把兩種登入方式連結成同一帳號。

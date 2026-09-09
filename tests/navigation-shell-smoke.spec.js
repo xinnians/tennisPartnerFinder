@@ -25,8 +25,13 @@ test("a hash session link opens its detail, copies a stable share link, and give
   // 由 baseURL 推導,不寫死 port:同一支測試在 mock 兩個 project 之外若換 port 也不會假紅。
   await expect
     .poll(() => page.evaluate(() => window.__copiedSessionLink))
-    .toBe(new URL("/#/session/9001", baseURL).toString());
-  await expect(page.locator("#toast-root")).toContainText("球局連結已複製");
+    .toContain(new URL("/#/session/9001", baseURL).toString());
+  const summary = await page.evaluate(() => window.__copiedSessionLink);
+  expect(summary).toContain("球咖｜台北網球");
+  expect(summary).toContain("台北網球中心");
+  expect(summary).toContain("台北時間");
+  expect(summary).toContain("最新名額與場地以連結為準");
+  await expect(page.locator("#toast-root")).toContainText("球局摘要已複製");
 
   await page.goto("/#/session/999999");
   await expect(page.locator("#session-unavailable-sheet")).toBeVisible();
