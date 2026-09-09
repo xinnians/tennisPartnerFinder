@@ -1,3 +1,4 @@
+import { subscriptionGuideHint } from "../features/guides/guideEntry.ts";
 import { useEffect, useLayoutEffect, useState, type ChangeEvent, type MouseEvent } from "react";
 
 import { Avatar } from "../components/Avatar.tsx";
@@ -432,6 +433,7 @@ function CourtSubscriptions({
 }
 
 function NotificationSettings({
+  guideHint,
   courts,
   notification,
   onEnablePush,
@@ -440,6 +442,7 @@ function NotificationSettings({
   rootElement,
 }: {
   courts: MeCourt[] | null;
+  guideHint: string | null;
   notification: NormalizedNotification;
   onEnablePush: () => CallbackResult;
   onSaveCourtSubscriptions: (courtIds: number[]) => CallbackResult;
@@ -474,6 +477,11 @@ function NotificationSettings({
           <h2 id="notification-settings-title" tabIndex={-1} data-notification-settings-heading="">
             通知設定
           </h2>
+          {guideHint ? (
+            <p className="form-hint" data-guide-subscription-hint="">
+              想收到{guideHint}的新球局？請在下方勾選球場並儲存訂閱。
+            </p>
+          ) : null}
           <p className="form-hint">推播只包含球局摘要與連結，不包含聯絡方式或其他球友個資。</p>
         </div>
         <button
@@ -638,6 +646,7 @@ function ServiceLinks({ supportHref }: { supportHref: string }) {
       <h2 id="me-service-title">站務</h2>
       <div>
         {supportHref ? <a href={supportHref}>聯絡支援</a> : null}
+        <a href="/courts/">球場指南</a>
         <a href="/privacy.html">隱私權政策</a>
       </div>
     </section>
@@ -672,6 +681,11 @@ export function MePage(props: MePageProps) {
   } = useMeAppActions();
   const pageView = useMePageView();
   const authenticated = Boolean(authSession);
+  const [guideHint, setGuideHint] = useState<string | null>(null);
+  const guideIdentity = authSession?.user?.id ?? null;
+  useEffect(() => {
+    setGuideHint(subscriptionGuideHint(guideIdentity));
+  }, [guideIdentity]);
   const nickname = String(profile?.nick ?? "").trim() || "球友";
   const presence = mePageRuntime.normalizedPresenceSettings(composeMePresence(profile, pageView));
   const notification = mePageRuntime.normalizedNotificationSettings(pageView.notificationSettings);
@@ -696,7 +710,10 @@ export function MePage(props: MePageProps) {
           profile={profile}
         />
       ) : (
-        <SignInCard onSignIn={onSignIn} />
+        <>
+          {guideHint ? <p className="form-hint">登入後，可在通知設定中訂閱{guideHint}的新球局。</p> : null}
+          <SignInCard onSignIn={onSignIn} />
+        </>
       )}
       {authenticated ? (
         <>
@@ -713,6 +730,7 @@ export function MePage(props: MePageProps) {
           />
           <p className="form-error" data-my-sessions-error="" role="alert" tabIndex={-1} hidden />
           <NotificationSettings
+            guideHint={guideHint}
             courts={courts}
             notification={notification}
             onEnablePush={onEnablePush}

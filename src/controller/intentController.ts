@@ -1,3 +1,4 @@
+import { isCourtGuideSlug, resolveGuideCourt, type CourtGuideSlug } from "../features/guides/courtGuideLinks.ts";
 import { DataApiUnavailableError } from "../dataApi.ts";
 import { actionKey, staleIntentMessage } from "../features/session-lifecycle/sessionLifecycleFeature.ts";
 import {
@@ -68,6 +69,7 @@ interface IntentControllerDependencies {
     courts: unknown[];
     courtsReady: boolean;
     repeatSource?: MySessionSummary;
+    initialCourtId?: number;
     onClose(options?: { reason?: string }): void;
     onSubmit(input: unknown): Promise<unknown>;
     onViewMySessions(sessionId: ControllerIdentifier): void;
@@ -95,7 +97,7 @@ export interface IntentController {
   clearIntent: (expectedIntent?: ControllerPendingIntent | null) => boolean;
   clearPendingIntentIfUnchanged: (version: number) => boolean;
   isReconcileSuppressed: (session: SessionSummary | MySessionSummary | null | undefined) => boolean;
-  openCreateIntent: (sourceSessionId?: ControllerIdentifier) => void;
+  openCreateIntent: (sourceSessionId?: ControllerIdentifier, courtSlug?: CourtGuideSlug) => void;
   refreshAuthoritativeState: (snapshot: ControllerAuthSnapshot) => Promise<boolean>;
   requestCurrentLocation: () => void;
   requestJoin: (
@@ -353,7 +355,11 @@ export function createIntentController({
     }
   }
 
-  async function submitCreateSession(input: unknown, openedAuthSnapshot = captureAuthSnapshot()): Promise<unknown> {
+  async function submitCreateSession(
+    input: unknown,
+    openedAuthSnapshot = captureAuthSnapshot(),
+    intent: ControllerPendingIntent = { action: "create" }
+  ): Promise<unknown> {
     const authSnapshot = openedAuthSnapshot;
     if (!isCurrentAuthSnapshot(authSnapshot) || !profileMeetsGate(read().profileEligibility, "ntrp")) {
       throw new Error("登入或個人檔案狀態已變更，請重新開啟表單。");
@@ -362,7 +368,7 @@ export function createIntentController({
       if (typeof api.createSession !== "function") throw new Error("目前無法建立球局。");
       const result = await api.createSession(input);
       if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新開啟表單。");
-      clearIntent({ action: "create" });
+      clearIntent(intent);
       await Promise.all([loadDiscovery(), reloadParticipation(authSnapshot.epoch, authSnapshot.identity)]);
       if (!isCurrentAuthSnapshot(authSnapshot)) throw new Error("登入狀態已變更，請重新整理後再試。");
       toast("球局已發布！");
@@ -380,17 +386,26 @@ export function createIntentController({
     repeatSource?: MySessionSummary
   ): unknown {
     if (surfaceRegistry.get("createSession")) return surfaceRegistry.get("createSession");
+    const guideSlug = intent.action === "create" ? intent.courtSlug : undefined;
+    if (guideSlug && !read().courtsReady) return;
+    const guideCourt = guideSlug ? resolveGuideCourt(guideSlug, read().courts) : null;
+    if (guideSlug && !guideCourt) {
+      clearIntent(intent);
+      toast("這座球場目前無法發起球局，請從地圖選擇其他球場。");
+      return;
+    }
     const openedAuthSnapshot = captureAuthSnapshot();
     let sheet: ControllerSurfaceHandle | null | undefined = null;
     sheet = openCreateSession({
       courts: read().courts,
       courtsReady: read().courtsReady,
       ...(repeatSource ? { repeatSource } : {}),
+      ...(guideCourt ? { initialCourtId: Number(guideCourt.id) } : {}),
       onClose: ({ reason = "dismiss" } = {}) => {
         surfaceRegistry.release("createSession", sheet);
         if (reason === "dismiss") clearIntent(intent);
       },
-      onSubmit: (input) => submitCreateSession(input, openedAuthSnapshot),
+      onSubmit: (input) => submitCreateSession(input, openedAuthSnapshot, intent),
       onViewMySessions: (sessionId) => showCreatedSession(sessionId),
     });
     return surfaceRegistry.set("createSession", sheet?.close ? sheet : null);
@@ -406,6 +421,7 @@ export function createIntentController({
       authSnapshot.identity,
       intent.action,
       intent.action === "join" ? intent.sessionId : null,
+      intent.action === "create" ? intent.courtSlug : null,
     ]);
     const existing = resumeInFlight.get(resumeKey);
     if (existing) return existing;
@@ -528,7 +544,7 @@ export function createIntentController({
     }
   }
 
-  function openCreateIntent(sourceSessionId?: ControllerIdentifier): void {
+  function openCreateIntent(sourceSessionId?: ControllerIdentifier, courtSlug?: CourtGuideSlug): void {
     if (sourceSessionId !== undefined) {
       const source = currentParticipation(sourceSessionId);
       if (
@@ -545,7 +561,8 @@ export function createIntentController({
       openCreateSessionForIntent({ action: "create" }, source);
       return;
     }
-    requireSessionAction({ action: "create" });
+    if (courtSlug !== undefined && !isCourtGuideSlug(courtSlug)) return;
+    requireSessionAction(courtSlug ? { action: "create", courtSlug } : { action: "create" });
   }
 
   function togglePlayerLayer(): Promise<boolean> | void {

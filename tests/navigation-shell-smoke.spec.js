@@ -25,7 +25,7 @@ test("a hash session link opens its detail, copies a stable share link, and give
   // 由 baseURL 推導,不寫死 port:同一支測試在 mock 兩個 project 之外若換 port 也不會假紅。
   await expect
     .poll(() => page.evaluate(() => window.__copiedSessionLink))
-    .toContain(new URL("/#/session/9001", baseURL).toString());
+    .toContain(new URL("/s/9001", baseURL).toString());
   const summary = await page.evaluate(() => window.__copiedSessionLink);
   expect(summary).toContain("球咖｜台北網球");
   expect(summary).toContain("台北網球中心");

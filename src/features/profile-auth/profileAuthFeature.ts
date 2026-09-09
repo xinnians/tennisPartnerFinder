@@ -80,6 +80,7 @@ export function samePendingIntent(
   right: ControllerPendingIntent | null | undefined
 ): boolean {
   if (!left || !right || left.action !== right.action) return false;
+  if (left.action === "create") return right.action === "create" && left.courtSlug === right.courtSlug;
   return left.action !== "join" || (right.action === "join" && String(left.sessionId) === String(right.sessionId));
 }
 

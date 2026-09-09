@@ -52,6 +52,11 @@ mobile-webkit 只提供相容性訊號。前兩者聚合入口是
 frontend CI 在 build 後必跑 `npm run check:production-bundle`：demo／E2E hook 洩漏、輸出掃描不足、
 private repository 或 Sentry 拆包邊界錯誤一律 hard fail；bytes 在開發期只報告。
 `npm run check:production-bundle:release` 會以相同門檻強制 bytes，供 release candidate 使用。
+2026-09-09 使用者核可重評後，門檻以 `scripts/productionBundlePolicy.mjs` 為準：
+98% 提醒、超過 100% 才在 release 阻擋，並包含入口的完整靜態依賴圖。
+另以 `node scripts/measure-production-performance.mjs --runs 3 --enforce-startup-byte-limits`
+檢查匿名首訪本站 JS；這是正式網路量測，應單獨執行，不把通過容量預算當作 LCP／INP 達標。
+理由、數值與量測邊界見 `docs/growth/performance-budget-2026-09-09.md`；不得逐次自動提高門檻。
 `mobile-webkit` 會留失敗證據，但目前以 `continue-on-error` 運作，不擋合併。
 2026-08-21 基準為 Chromium `266 passed / 4 skipped`；WebKit 在 avatar CDN stub 後連跑三次
 均為 `126 passed / 6 failed / 3 skipped`。另有一條負載相依、非穩定的 dialog focus 訊號；

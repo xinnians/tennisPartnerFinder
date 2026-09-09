@@ -2,7 +2,11 @@ import type { MySessionSummary } from "../../domainTypes.ts";
 import { isUndecidedCandidate } from "../../sessionCriteria.ts";
 
 /** 新建與重開共用初值；重開只覆寫可沿用的活動設定。 */
-export function createSessionDraft(source?: MySessionSummary, courtIds: readonly number[] = []) {
+export function createSessionDraft(
+  source?: MySessionSummary,
+  courtIds: readonly number[] = [],
+  initialCourtId?: number
+) {
   const form = {
     band: "any",
     booked: false,
@@ -21,7 +25,10 @@ export function createSessionDraft(source?: MySessionSummary, courtIds: readonly
     timeCustom: false,
     type: "雙打",
   };
-  if (!source) return form;
+  if (!source) {
+    if (initialCourtId !== undefined && courtIds.includes(initialCourtId)) form.court = initialCourtId;
+    return form;
+  }
   const undecided = isUndecidedCandidate(source);
   const court = !undecided && source.courtId != null && courtIds.includes(source.courtId) ? source.courtId : null;
   return Object.assign(form, {

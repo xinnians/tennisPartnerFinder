@@ -45,6 +45,8 @@ const defaultDataApi = createDataApi();
 export const loadCourts = (...args: Parameters<DataApi["loadCourts"]>) => defaultDataApi.loadCourts(...args);
 export const loadSessionDiscovery = (...args: Parameters<DataApi["loadSessionDiscovery"]>) =>
   defaultDataApi.loadSessionDiscovery(...args);
+export const loadCourtGuideSessions = (...args: Parameters<DataApi["loadCourtGuideSessions"]>) =>
+  defaultDataApi.loadCourtGuideSessions(...args);
 export const loadPlayerDirectory = (...args: Parameters<DataApi["loadPlayerDirectory"]>) =>
   defaultDataApi.loadPlayerDirectory(...args);
 export const loadPlayerPresenceDirectory = (...args: Parameters<DataApi["loadPlayerPresenceDirectory"]>) =>

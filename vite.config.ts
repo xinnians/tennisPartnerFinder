@@ -1,6 +1,8 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import { visualizer } from "rollup-plugin-visualizer";
+import { sharePagePlugin } from "./scripts/sharePagePlugin.mjs";
+import { courtGuidePlugin } from "./scripts/courtGuidePlugin.mjs";
 
 import {
   createPushCleanupPublicKeyAssetPlugin,
@@ -28,6 +30,7 @@ function subscriptionPublicJwk(mode: string): string {
 
 export default defineConfig(({ command, mode }) => ({
   build: {
+    rollupOptions: { input: { app: "index.html", guide: "src/guides/guideClient.ts" } },
     minify: "terser",
     terserOptions: { compress: { passes: 2 } },
   },
@@ -37,6 +40,8 @@ export default defineConfig(({ command, mode }) => ({
   },
   plugins: [
     react(),
+    sharePagePlugin(),
+    courtGuidePlugin(),
     createPushCleanupPublicKeyAssetPlugin(cleanupPublicJwk(mode)),
     createPushSubscriptionPublicKeyAssetPlugin(subscriptionPublicJwk(mode)),
     ...(BUNDLE_ANALYSIS_ENABLED

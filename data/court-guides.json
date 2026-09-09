@@ -1,0 +1,99 @@
+{
+  "guides": [
+    {
+      "slug": "youth-park",
+      "summary": "租借請洽營運單位，出發前先確認場地資訊。",
+      "booking": "場地由運博國際股份有限公司營運，網球租借請洽營運單位。官方頁面列有網球場洽詢電話：02-2305-8735。",
+      "bookingSource": 0,
+      "facts": [
+        { "label": "開放時間", "value": "請以營運單位最新公告為準。", "status": "pending", "source": 0 },
+        {
+          "label": "場地設施",
+          "value": "官方場地頁列有照明、無障礙設施與無障礙廁所。",
+          "status": "verified",
+          "source": 0
+        },
+        { "label": "租借費用", "value": "請向營運單位確認網球場適用費率。", "status": "pending", "source": 0 }
+      ],
+      "transport": "位於萬華區青年公園。可先查看前往路線，抵達後請確認實際球場入口。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "臺北市體育局｜青年公園場地資訊",
+          "url": "https://vbs.sports.taipei/venues/?K=827",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "rainbow-riverside",
+      "summary": "部分場地可預約，部分供現場輪流使用。",
+      "booking": "第 5–8、13–17 面開放線上預約付費使用；第 1–4、9–12 面供現場民眾輪流使用。預約與核准方式請查看官方場地資訊。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "開放時間",
+          "value": "官方列示 08:00–22:00；第 13–16 面夜間不開放，實際可用時段以官方公告為準。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "場地規模",
+          "value": "總規格 17 面，其中線上租借列有 9 面；面數不代表即時空場。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "夜間照明",
+          "value": "設有夜間照明；租借時需另確認適用的照明費與開放場次。",
+          "status": "verified",
+          "source": 0
+        }
+      ],
+      "transport": "位於基隆河右岸舊宗段，中山高速公路至麥帥一橋之間。前往前請查看官方場地或河濱開放公告，抵達後確認球場編號。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "臺北市體育局｜彩虹河濱網球場",
+          "url": "https://vbs.sports.taipei/venues/?K=201",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "taipei-tennis-center",
+      "summary": "室內與室外場地，開放與租借方式分別查詢。",
+      "booking": "一般網球場租借可依官方說明電話預約；室外頁另列 APP 預約方式。預約、繳費與異動條件請依所選場地的官方規範辦理。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "室外開放",
+          "value": "室外網球場 06:00–19:00；與全館開放時間不同。",
+          "status": "verified",
+          "source": 0
+        },
+        { "label": "室內開放", "value": "室內網球場位於 2 樓，06:00–22:00。", "status": "verified", "source": 1 },
+        {
+          "label": "租借費用",
+          "value": "室內、室外及適用身分費率不同，請查看對應場地的官方收費說明。",
+          "status": "verified",
+          "source": 0
+        }
+      ],
+      "transport": "地址：台北市內湖區民權東路六段 208 號。前往前請確認預約的是室內或室外場地。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "台北網球中心｜室外網球場",
+          "url": "https://www.tsc.taipei/場館介紹/室外網球場outdoor/",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "台北網球中心｜室內網球場",
+          "url": "https://www.tsc.taipei/場館介紹/室內網球場indoor/",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    }
+  ]
+}

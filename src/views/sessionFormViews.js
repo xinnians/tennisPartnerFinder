@@ -333,6 +333,7 @@ export function createSessionDonePresentation(value, result, courts) {
 /** 開球局全螢幕流程(批 D5):計分板視覺,含成功頁;大量複用 D1/D4 語彙。 */
 export function openCreateSessionSheet({
   repeatSource,
+  initialCourtId,
   courts = [],
   courtsReady = true,
   onClose = () => {},
@@ -349,7 +350,16 @@ export function openCreateSessionSheet({
       methods: ["setCourts"],
       onClose,
       open: () =>
-        openCreateSessionSheet({ courts, courtsReady, repeatSource, onClose, onSubmit, onViewMySessions, toast }),
+        openCreateSessionSheet({
+          courts,
+          courtsReady,
+          repeatSource,
+          initialCourtId,
+          onClose,
+          onSubmit,
+          onViewMySessions,
+          toast,
+        }),
     });
   }
   const now = () => new Date();
@@ -394,7 +404,8 @@ export function openCreateSessionSheet({
     fixedStartAt: sessionFormSheetRuntime.createFixedStartAtLocal,
     initialForm: createSessionDraft(
       repeatSource,
-      sessionFormSheetRuntime.taipeiCourts(courts).map((court) => Number(court.id))
+      sessionFormSheetRuntime.taipeiCourts(courts).map((court) => Number(court.id)),
+      initialCourtId
     ),
     now,
     onBackToMap: () => mounted.close(),

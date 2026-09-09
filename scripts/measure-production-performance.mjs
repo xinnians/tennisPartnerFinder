@@ -1,8 +1,9 @@
-/* global window, document */
+/* global window, document, location */
 import { chromium } from "playwright";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { applyByteLimitPolicy, BUNDLE_SIZE_LIMITS, BYTE_LIMIT_MODES } from "./productionBundlePolicy.mjs";
 
 const { values } = parseArgs({
   options: {
@@ -10,6 +11,7 @@ const { values } = parseArgs({
     output: { type: "string", default: "test-results/production-performance.json" },
     runs: { type: "string", default: "3" },
     "enforce-lab-targets": { type: "boolean", default: false },
+    "enforce-startup-byte-limits": { type: "boolean", default: false },
   },
 });
 const target = new URL(values.url);
@@ -80,7 +82,20 @@ try {
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         // Observe the initial page before any input ends the LCP observation window.
         await page.waitForTimeout(2000);
-        const initial = await page.evaluate(() => ({ ...window.__qiukaLab }));
+        const initial = await page.evaluate(() => {
+          const scripts = performance.getEntriesByType("resource").filter((entry) => {
+            const url = new URL(entry.name);
+            return url.origin === location.origin && url.pathname.endsWith(".js");
+          });
+          return {
+            ...window.__qiukaLab,
+            firstPartyScriptCount: scripts.length,
+            firstPartyRawBytes: scripts.reduce((sum, entry) => sum + entry.decodedBodySize, 0),
+            firstPartyEncodedBytes: scripts.reduce((sum, entry) => sum + entry.encodedBodySize, 0),
+            scriptSizesAvailable:
+              scripts.length > 0 && scripts.every((entry) => entry.decodedBodySize > 0 && entry.encodedBodySize > 0),
+          };
+        });
         const filterStarted = performance.now();
         await page.locator("#filter-sheet-open").click();
         await page.locator("#filters-sheet").waitFor({ state: "visible" });
@@ -98,6 +113,10 @@ try {
           cls: initial.cls,
           maxObservedInteractionMs: Math.max(0, ...interactions),
           pageErrors,
+          firstPartyScriptCount: initial.firstPartyScriptCount,
+          firstPartyRawBytes: initial.firstPartyRawBytes,
+          firstPartyEncodedBytes: initial.firstPartyEncodedBytes,
+          scriptSizesAvailable: initial.scriptSizesAvailable,
         });
       } finally {
         await context.close();
@@ -117,6 +136,8 @@ const summary = [false, true].map((mobile) => {
     medianFilterOpenMs: median(group.map((sample) => sample.filterOpenMs)),
     maxCls: Math.max(...group.map((sample) => sample.cls)),
     pageErrors: group.reduce((count, sample) => count + sample.pageErrors, 0),
+    maxFirstPartyRawBytes: Math.max(...group.map((sample) => sample.firstPartyRawBytes)),
+    maxFirstPartyEncodedBytes: Math.max(...group.map((sample) => sample.firstPartyEncodedBytes)),
   };
 });
 const report = {
@@ -133,6 +154,26 @@ const output = resolve(values.output);
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
 console.log(JSON.stringify({ output, summary }, null, 2));
+if (values["enforce-startup-byte-limits"]) {
+  if (samples.some((sample) => !sample.scriptSizesAvailable || sample.pageErrors)) {
+    throw new Error("Startup byte evidence is unavailable or the app has runtime errors");
+  }
+  applyByteLimitPolicy(
+    summary.flatMap((row) => [
+      {
+        name: `${row.mobile ? "mobile" : "desktop"} first-visit first-party JS raw`,
+        actualBytes: row.maxFirstPartyRawBytes,
+        limitBytes: BUNDLE_SIZE_LIMITS.firstVisitRawBytes,
+      },
+      {
+        name: `${row.mobile ? "mobile" : "desktop"} first-visit first-party JS encoded`,
+        actualBytes: row.maxFirstPartyEncodedBytes,
+        limitBytes: BUNDLE_SIZE_LIMITS.firstVisitEncodedBytes,
+      },
+    ]),
+    { mode: BYTE_LIMIT_MODES.ENFORCE, onReport: (message) => console.warn(message) }
+  );
+}
 if (
   values["enforce-lab-targets"] &&
   summary.some((row) => row.medianLcpMs <= 0 || row.medianLcpMs > 2500 || row.maxCls > 0.1 || row.pageErrors)

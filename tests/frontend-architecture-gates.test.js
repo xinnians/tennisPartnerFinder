@@ -721,7 +721,7 @@ test("CSS imports pass, swapping two fails, and restored main source passes", ()
 
 test("the formal DOM mutation ledger has a reviewed owner and lifecycle for every symbol", () => {
   const inventory = assertDomMutationLedger(createProjectProgram());
-  assert.equal(inventory.symbols.length, 31);
+  assert.equal(inventory.symbols.length, 34);
   for (const entry of FRONTEND_ARCHITECTURE_MANIFEST.mutationSymbols) {
     assert.ok(entry.reference.length > 0, `${entry.key} has no selector or ref source`);
     assert.ok(entry.owner.length > 0, `${entry.key} has no owner`);

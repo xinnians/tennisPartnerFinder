@@ -7,6 +7,7 @@ import { build } from "vite";
 import {
   applyByteLimitPolicy,
   BUNDLE_SIZE_LIMITS,
+  collectInitialJavaScriptChunks,
   identifySentryChunk,
   parseByteLimitMode,
 } from "./productionBundlePolicy.mjs";
@@ -101,6 +102,49 @@ const entryScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="\/([^"]+\.js)"
 );
 assert.deepEqual(entryScripts.length, 1, `expected one production entry script, found ${entryScripts.length}`);
 const [mainChunkPath] = entryScripts;
+const initialOutputChunks = collectInitialJavaScriptChunks(
+  productionOutputs.filter((chunk) => chunk.type === "chunk"),
+  entryScripts
+);
+const guideEntry = productionOutputs.find(
+  (chunk) => chunk.type === "chunk" && chunk.facadeModuleId?.endsWith("/src/guides/guideClient.ts")
+);
+assert.ok(guideEntry, "guide entry is missing");
+const guideInitialChunks = collectInitialJavaScriptChunks(
+  productionOutputs.filter((chunk) => chunk.type === "chunk"),
+  [guideEntry.fileName]
+);
+const allInitialChunks = [...new Set([...initialOutputChunks, ...guideInitialChunks])];
+const initialChunkFiles = new Set(allInitialChunks.map((chunk) => fileURLToPath(new URL(chunk.fileName, DIST_DIR))));
+for (const chunk of guideInitialChunks) {
+  assert.ok(
+    !Object.keys(chunk.modules).some((id) => /\/src\/(?:map|pins|main)\.(?:ts|js)$/u.test(id)),
+    "Maps/application shell leaked into guide startup"
+  );
+}
+for (const chunk of allInitialChunks) {
+  assert.equal(
+    readFileSync(new URL(chunk.fileName, DIST_DIR), "utf8"),
+    chunk.code,
+    `dist initial output differs from the verified production build: ${chunk.fileName}`
+  );
+  assert.ok(
+    chunk !== sentryOutputChunk && chunk !== pushOutputChunk,
+    `on-demand runtime leaked into initial JavaScript: ${chunk.fileName}`
+  );
+  assert.ok(
+    !chunk.code.includes("tennis_private_data_repository_v1"),
+    `private repository leaked into initial JavaScript: ${chunk.fileName}`
+  );
+  assert.ok(
+    !Object.keys(chunk.modules).some((id) =>
+      /\/src\/notificationPush(?:Storage|UserActions|RuntimeComposition)\.ts$/u.test(id)
+    ),
+    `Push runtime or storage leaked into initial JavaScript: ${chunk.fileName}`
+  );
+}
+const initialRawBytes = initialOutputChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0);
+const initialGzipBytes = initialOutputChunks.reduce((sum, chunk) => sum + gzipSync(chunk.code).length, 0);
 const mainChunk = readFileSync(new URL(`../dist/${mainChunkPath}`, import.meta.url));
 const mainChunkBrotliBytes = brotliCompressSync(mainChunk).length;
 const mainChunkGzipBytes = gzipSync(mainChunk).length;
@@ -147,6 +191,16 @@ assert.equal(privateDataChunks.length, 1, `expected one private repository chunk
 
 const byteChecks = [
   {
+    actualBytes: initialRawBytes,
+    limitBytes: BUNDLE_SIZE_LIMITS.initialRawBytes,
+    name: "production initial static JavaScript raw",
+  },
+  {
+    actualBytes: initialGzipBytes,
+    limitBytes: BUNDLE_SIZE_LIMITS.initialGzipBytes,
+    name: "production initial static JavaScript gzip",
+  },
+  {
     actualBytes: mainChunk.length,
     limitBytes: MAIN_CHUNK_RAW_LIMIT_BYTES,
     name: `production main chunk raw (${mainChunkPath})`,
@@ -157,7 +211,19 @@ const byteChecks = [
     name: `production main chunk gzip (${mainChunkPath})`,
   },
 ];
-for (const chunk of javascriptChunks.filter(({ file }) => file !== mainChunkFile)) {
+byteChecks.push(
+  {
+    actualBytes: guideInitialChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
+    limitBytes: BUNDLE_SIZE_LIMITS.initialRawBytes,
+    name: "guide initial static JavaScript raw",
+  },
+  {
+    actualBytes: guideInitialChunks.reduce((sum, chunk) => sum + gzipSync(chunk.code).length, 0),
+    limitBytes: BUNDLE_SIZE_LIMITS.initialGzipBytes,
+    name: "guide initial static JavaScript gzip",
+  }
+);
+for (const chunk of javascriptChunks.filter(({ file }) => !initialChunkFiles.has(file))) {
   const isSentry = sentryChunks.includes(chunk);
   const isPush = chunk.file === fileURLToPath(new URL(pushOutputChunk.fileName, DIST_DIR));
   const rawLimit = isSentry
@@ -200,12 +266,19 @@ const exceededByteLimits = applyByteLimitPolicy(byteChecks, {
 const largestApplicationLazyChunk = javascriptChunks
   .filter(
     (chunk) =>
-      chunk.file !== mainChunkFile &&
+      !initialChunkFiles.has(chunk.file) &&
       !sentryChunks.includes(chunk) &&
       chunk.file !== fileURLToPath(new URL(pushOutputChunk.fileName, DIST_DIR))
   )
   .sort((left, right) => right.rawBytes - left.rawBytes)[0];
 
 console.log(
+  `initial static JS (${initialOutputChunks.length} chunks) raw/gzip ${initialRawBytes}/${initialGzipBytes} budget ${BUNDLE_SIZE_LIMITS.initialRawBytes}/${BUNDLE_SIZE_LIMITS.initialGzipBytes}; dynamic startup loads and external Maps/fonts require browser measurement`
+);
+console.log(
   `production bundle structural checks passed: development E2E hook present, production E2E hook absent; ${outputFiles.length} files, ${DEMO_IDENTIFIERS.length} demo identifiers absent; byte mode ${byteLimitMode}, ${exceededByteLimits.length} exceeded; sizes raw/gzip/brotli; main ${mainChunk.length}/${mainChunkGzipBytes}/${mainChunkBrotliBytes} budget raw/gzip ${MAIN_CHUNK_RAW_LIMIT_BYTES}/${MAIN_CHUNK_GZIP_LIMIT_BYTES}; largest app lazy ${largestApplicationLazyChunk.file.split("/").at(-1)} ${largestApplicationLazyChunk.rawBytes}/${largestApplicationLazyChunk.gzipBytes}/${largestApplicationLazyChunk.brotliBytes} budget raw/gzip ${LAZY_CHUNK_RAW_LIMIT_BYTES}/${LAZY_CHUNK_GZIP_LIMIT_BYTES}; total JS ${totalJavaScriptRawBytes}/${totalJavaScriptGzipBytes}/${totalJavaScriptBrotliBytes} budget raw/gzip ${TOTAL_JS_RAW_LIMIT_BYTES}/${TOTAL_JS_GZIP_LIMIT_BYTES}; private repository: ${privateDataChunks[0].file.split("/").at(-1)}; Sentry: ${sentryChunks.map(({ file }) => file.split("/").at(-1)).join(", ")}`
+);
+
+console.log(
+  `guide static JS raw/gzip ${guideInitialChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0)}/${guideInitialChunks.reduce((sum, chunk) => sum + gzipSync(chunk.code).length, 0)}; Maps absent; index JS 0`
 );

@@ -11,6 +11,7 @@ const REPOSITORY_SOURCES = new Map(
 const LIMITS_SOURCE = readFileSync(new URL("../src/data/repositories/listQueryLimits.ts", import.meta.url), "utf8");
 
 const QUERY_SITES = [
+  ["dataRepository.ts", "loadCourtGuideSessions", "session_discovery"],
   ["dataRepository.ts", "loadCourts", "courts"],
   ["dataRepository.ts", "loadSessionDiscovery", "session_discovery"],
   ["dataRepository.ts", "loadSessionSummary", "session_discovery"],
@@ -27,6 +28,13 @@ const QUERY_SITES = [
 ];
 
 const CAPPED_LIST_CONTRACTS = [
+  {
+    file: "dataRepository.ts",
+    functionName: "loadCourtGuideSessions",
+    limit: "4",
+    orders: ['.order("start_at", { ascending: true })', '.order("session_id", { ascending: true })'],
+    table: "session_discovery",
+  },
   {
     file: "dataRepository.ts",
     functionName: "loadSessionDiscovery",
@@ -93,7 +101,7 @@ function validateListQueryContracts(sources) {
     "repository query-site set drifted; classify every new query so uncapped list reads cannot arrive silently"
   );
   assert.deepEqual(
-    CAPPED_LIST_CONTRACTS.map(({ table }) => table).sort(),
+    [...new Set(CAPPED_LIST_CONTRACTS.map(({ table }) => table))].sort(),
     ["my_session_participations", "player_directory", "session_discovery", "session_message_feed"],
     "the capped-list contract must remain the exact approved four-view set"
   );
@@ -109,7 +117,7 @@ function validateListQueryContracts(sources) {
   }
 }
 
-test("four approved list queries have deterministic order and safety limits", () => {
+test("five approved list queries have deterministic order and safety limits", () => {
   assert.match(LIMITS_SOURCE, /SESSION_DISCOVERY_LIMIT\s*=\s*200;/);
   assert.match(LIMITS_SOURCE, /PLAYER_DIRECTORY_LIMIT\s*=\s*200;/);
   assert.match(LIMITS_SOURCE, /MY_SESSIONS_LIMIT\s*=\s*100;/);

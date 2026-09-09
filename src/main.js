@@ -1,3 +1,5 @@
+import { readPendingIntent } from "./sessionIntent.ts";
+import { consumeGuideEntry, subscriptionGuideHint } from "./features/guides/guideEntry.ts";
 /* global __TENNIS_DEPLOY_ENVIRONMENT__ */
 /* 批 10 CSS 收整:src/session.css(1429 行)依既有實體邊界切成下列各檔,宣告順序逐行保存。
    **這串 import 的次序就是層疊次序**(本專案未用 @layer,理由見
@@ -18,6 +20,11 @@ import "./responsive.css"; /* 10 700px／390px 斷點覆寫 */
 import "./vocabulary.css"; /* 11 D1 基礎語彙(time-tile／chip／toggle…) */
 import "./player-sheets.css"; /* 12 球友名單與球友卡 sheet */
 import "./motion.css"; /* 13 keyframes、按壓回饋、reduced-motion */
+import { normalizeShareRoute } from "./features/share/shareRoute.ts";
+
+if (normalizeShareRoute(globalThis.location, globalThis.history)) {
+  document.getElementById("share-page-fallback")?.remove();
+}
 
 if (import.meta.env.PROD) {
   void import("@vercel/analytics").then(({ inject }) => {
@@ -329,6 +336,7 @@ function openCreateSession({
   courts: selectableCourts,
   courtsReady: formCourtsReady,
   repeatSource,
+  initialCourtId,
   onClose,
   onSubmit,
   onViewMySessions,
@@ -337,6 +345,7 @@ function openCreateSession({
     courts: selectableCourts ?? getAppState().courts,
     courtsReady: formCourtsReady ?? getAppState().courtsReady,
     repeatSource,
+    initialCourtId,
     onClose,
     onSubmit,
     onViewMySessions,
@@ -572,12 +581,26 @@ async function startMap() {
 async function boot() {
   // Court data, public discovery, and Maps are intentionally auth-independent
   // and start together. Each path owns its existing fallback UI.
-  const publicStartup = Promise.allSettled([loadCourtsImmediately(), controller.loadDiscovery(), startMap()]);
+  const resumeGuideSubscription =
+    new URL(globalThis.location.href).searchParams.has("code") && !readPendingIntent() && !currentRouteHash();
+  const guideEntry = consumeGuideEntry();
+  const courtStartup = loadCourtsImmediately();
+  const publicStartup = Promise.allSettled([courtStartup, controller.loadDiscovery(), startMap()]);
   // A session hash alone depends on the initial auth/profile candidate. The
   // router awaits this promise before opening that session exactly once.
   bootAuthReady = restoreAuth();
   const routeStartup = routeCurrentHash();
   await bootAuthReady;
+  if (guideEntry?.action === "create") {
+    await courtStartup;
+    controller.openCreateIntent(undefined, guideEntry.slug);
+  }
+  if (guideEntry?.action === "subscribe" || resumeGuideSubscription) {
+    const identity = getAppState().authSession?.user?.id ?? null;
+    if (identity && subscriptionGuideHint(identity)) {
+      pageRouteOwner.navigate("me", { focusTarget: "notification-settings" });
+    }
+  }
   await Promise.all([publicStartup, routeStartup]);
 }
 
