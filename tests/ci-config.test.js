@@ -169,6 +169,8 @@ test("quality workflow branch guard fails closed when one filter drifts", () => 
 test("frontend CI script contains every current non-database gate in order", () => {
   const commands = scriptCommands("test:ci:frontend");
   const gates = [
+    "npm run check:court-guides",
+    "npm run check:national-courts",
     "node scripts/generate-courts-seed.mjs --check",
     "npm run check:design-system",
     "npm run typecheck",

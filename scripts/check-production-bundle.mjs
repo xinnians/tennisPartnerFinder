@@ -84,6 +84,13 @@ assert.ok(
   "Push runtime or storage leaked into initial JavaScript"
 );
 
+assert.ok(
+  !productionOutputs.some(
+    (asset) => asset.type === "chunk" && Object.keys(asset.modules).some((id) => /\/data\/national\//u.test(id))
+  ),
+  "Unreviewed national court data must never enter the browser bundle"
+);
+
 const outputFiles = readdirSync(DIST_DIR, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile())
   .map((entry) => `${entry.parentPath}/${entry.name}`);
@@ -95,6 +102,8 @@ for (const identifier of DEMO_IDENTIFIERS) {
   assert.ok(!output.includes(identifier), `production bundle still contains demo identifier: ${identifier}`);
 }
 assert.ok(!output.includes(E2E_TEST_HOOK_IDENTIFIER), "production bundle still contains the E2E test hook");
+assert.ok(!outputFiles.some((file) => /\/national\//u.test(file)), "National drafts must not be published assets");
+assert.ok(!output.includes("sourceRecordIdAvailable"), "National source snapshot metadata leaked into dist");
 
 const indexHtml = readFileSync(new URL("../dist/index.html", import.meta.url), "utf8");
 const entryScripts = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="\/([^"]+\.js)"[^>]*><\/script>/g)].map(
