@@ -27,4 +27,6 @@ export const COURT_GUIDE_NAMES = {
   "shuangyuan-riverside": "雙園河濱公園網球場",
   "sanmin-junior-high": "三民國中網球場",
   tmu: "台北醫學大學網球場",
+  ntust: "台灣科技大學網球場",
+  "muzha-elementary": "木柵國小網球場",
 } as const;

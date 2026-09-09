@@ -85,7 +85,7 @@ C02剩餘5筆依計畫順序排列：天母、南港、玉成、中研、新生�
 | P2 | 天溪綠地網球場／`tianxi-green-space` | 北投區 | 待補來源 | 未發布 | VBS898區分網球與練習壁；iPlay25743僅泳池，缺網球使用規則 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 文林國小網球場／`wenlin-elementary` | 北投區 | 待補來源 | 未發布 | 室內明示不對外；室外三面一般使用流程待補 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |
 | P3 | 新民國中網球場／`xinmin-junior-high` | 北投區 | 待補來源 | 未發布 | 市府季租頁受理2024；需115年度現行季租公告 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |
-| P3 | 明德國中網球場／`mingde-junior-high` | 北投區 | 查核中 | 未發布 | iPlay網球付費公眾候選；需學校現行申請／時段 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |
+| P3 | 明德國中網球場／`mingde-junior-high` | 北投區 | 待補來源 | 未發布 | iPlay網球付費公眾候選；學校現行申請／時段未取得，待重新取得學校公告 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |
 | P3 | 逸仙國小網球場／`yixian-elementary` | 北投區 | 待補來源 | 未發布 | 綜合球場夜間無燈且舊時段；需現行網球用途與流程 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |
 | P3 | 陽明大學山下網球場／`yangming-university-foothill` | 北投區 | 待補來源 | 未發布 | 2026管理辦法已讀；待陽明校區一般校外個人網球路徑及會員適用 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |
 | P3 | 陽明大學山頂網球場／`yangming-university-hilltop` | 北投區 | 待補來源 | 未發布 | 2026管理辦法已讀；待山頂與山下配置、一般校外網球申請 | [2026-09-09 C04校園](court-guide-completion-c04-schools-2026-09-09.md) |

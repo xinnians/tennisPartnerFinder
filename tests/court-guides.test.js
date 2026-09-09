@@ -17,7 +17,7 @@ const storage = () => {
 };
 
 test("all published guides have crawlable, sourced static content and production canonicals", () => {
-  assert.equal(guides.length, 26);
+  assert.equal(guides.length, 28);
   const index = renderGuidePage(null, { production: true });
   assert.doesNotMatch(index, /<script|noindex|maps.googleapis/);
   for (const guide of guides) {
