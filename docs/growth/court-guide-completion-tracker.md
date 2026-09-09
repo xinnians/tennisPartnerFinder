@@ -34,20 +34,20 @@ C01首批重新查核民權、青年、道南、百齡及北投，C02新增復�
 
 | 優先 | 場地／slug | 行政區 | 查核狀態 | 發布狀態 | 下一步／缺口 | 最近查核／紀錄 |
 | --- | --- | --- | --- | --- | --- | --- |
-| P0 | 大佳河濱公園網球場／`dajia-riverside` | 中山區 | 待補資訊 | 已發布 | 7／10號水門衝突、各面夜照 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 美堤河濱公園網球場／`meiti-riverside` | 中山區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 中正河濱公園網球場／`zhongzheng-riverside` | 中正區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 古亭河濱公園網球場／`guting-riverside` | 中正區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 台北網球中心／`taipei-tennis-center` | 內湖區 | 已查核／待定期覆核 | 已發布 | 依期限覆核費率、預約規則及最新公告 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 彩虹河濱公園網球場／`rainbow-riverside` | 內湖區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 成美右岸河濱公園網球場／`chengmei-right-bank` | 內湖區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
+| P0 | 大佳河濱公園網球場／`dajia-riverside` | 中山區 | 待補資訊 | 已發布 | 7／10號水門衝突、各面夜照 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 美堤河濱公園網球場／`meiti-riverside` | 中山區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 中正河濱公園網球場／`zhongzheng-riverside` | 中正區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 古亭河濱公園網球場／`guting-riverside` | 中正區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 台北網球中心／`taipei-tennis-center` | 內湖區 | 已查核／待定期覆核 | 已發布 | 本輪覆核完成，補電話繳費／取消期限 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 彩虹河濱公園網球場／`rainbow-riverside` | 內湖區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 成美右岸河濱公園網球場／`chengmei-right-bank` | 內湖區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
 | P0 | 百齡河濱公園網球場／`bailing-riverside` | 士林區 | 待補資訊 | 已發布 | B區使用方式、各面夜照、社子岸集合入口 | [2026-09-09本批查核](court-guide-completion-c01-2026-09-09.md) |
-| P1 | 延平河濱公園網球場／`yanping-riverside` | 大同區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
+| P1 | 延平河濱公園網球場／`yanping-riverside` | 大同區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
 | P0 | 道南河濱公園網球場／`daonan-riverside` | 文山區 | 待補資訊 | 已發布 | 1–2／3號使用方式、各面夜照 | [2026-09-09本批查核](court-guide-completion-c01-2026-09-09.md) |
-| P1 | 台北網球場／`taipei-tennis-court` | 松山區 | 已查核／待定期覆核 | 已發布 | 依期限覆核費率、預約規則及最新公告 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
+| P1 | 台北網球場／`taipei-tennis-court` | 松山區 | 待補資訊 | 已發布 | 預訂公告與收費頁取消／雨天規定差異，優先補充 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
 | P0 | 民權公園網球場／`minquan-park` | 松山區 | 待補資訊 | 已發布 | 現場使用／輪流／費用；租借按鈕屬壘球 | [2026-09-09本批查核](court-guide-completion-c01-2026-09-09.md) |
-| P1 | 觀山河濱公園網球場／`guanshan-riverside` | 松山區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
-| P1 | 華中河濱公園網球場／`huazhong-riverside` | 萬華區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09](g09-guide-batch-two-2026-09-09.md) |
+| P1 | 觀山河濱公園網球場／`guanshan-riverside` | 松山區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
+| P1 | 華中河濱公園網球場／`huazhong-riverside` | 萬華區 | 待補資訊 | 已發布 | 各面夜間照明、開燈方式及可用條件 | [2026-09-09 C01覆核](court-guide-completion-c01-followup-2026-09-09.md) |
 | P0 | 青年公園網球場／`youth-park` | 萬華區 | 待補資訊 | 已發布 | 清晨05:30／06:00／08:00衝突、各面夜照與額外費用 | [2026-09-09本批查核](court-guide-completion-c01-2026-09-09.md) |
 | P1 | 北投運動中心網球場／`beitou-sports-center` | 北投區 | 待補資訊 | 已發布 | 繳費期限、假日費率適用時段及夜間附加費 | [2026-09-09本批查核](court-guide-completion-c01-2026-09-09.md) |
 | P1 | 復興公園網球場／`fuxing-park` | 北投區 | 待補資訊 | 已發布 | 清晨時間衝突、費用／輪替、夜照 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |

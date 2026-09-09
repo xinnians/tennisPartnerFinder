@@ -67,3 +67,12 @@ Git runtime70b35bf已推送；第一個Preview變數新增回exit1，後續env l
 PR #9 https://github.com/xinnians/tennisPartnerFinder/pull/9，head `0fa015688594b2e2720bc5632d5bf4b954af25f0`；Git Preview `dpl_GCzY4rHGewPbrueWjEJoLuxnhoPm`建置中。QA腳本位於`/Users/ian/tennisPartnerFinder-qa/court-guide-c04-2026-09-09/`，verify-hosted／details／entry分別驗24篇索引、全部HTTP與三篇6尺寸內容、開局取消。Production sitemap26、preview0。接續先inspect部署、確認穩定Git別名，再跑hosted三腳本；CI結束後合併此確切head。這段CI期间不推新head以免取消檢查。
 
 Git Preview已READY，穩定URL https://tennis-partner-finder-git-cod-40d48b-xinnians-projects-c513dbd3.vercel.app 。PR建立後run list為空、checks僅Vercel，確認無CI句柄後手動dispatch既有Quality Gate，run34348031374已確認in_progress且head0fa0156一致。不可把沒有job當CI成功；等這個run完成。預覽index腳本已啟動，log/tmp/qiuka-c04/preview-index.log，接续details與entry，再正式驗收。
+
+
+## Git Preview實測
+
+24篇HTTP200／內容來源一致、preview sitemap0、未知指南／全台底稿404、索引搜尋／鍵盤／清除／44px／no-JS通過。三篇×桌面與390px共6組detail通過、console/pageerror0，觀海手機長文實際閱圖正常。入口首跑再出現Maps65/14a getRootNode TypeError（stack保存preview-entry.log），和C02／C03既有紀錄一致；第一輪重查6組通過。不可宣稱已修復，仍需第二次確認及正式入口驗收。
+
+C01其餘九座河濱覆核已另存[c01-followup](court-guide-completion-c01-followup-2026-09-09.md)，本輪不改PR9 runtime。新取得今年檢視的戶外照明FAQ及大佳停車場水門資料，待這批发布後補入指南。
+
+第二輪Preview入口確認6組通過（preview-entry-confirm.log），首輪Maps例外保留。CI34348031374在head0fa0156完成：Frontend／Supabase成功；Safari非阻擋190 passed／1 failed／3 skipped，唯一失敗為shell timing3175ms超過2500ms，既有類型，不放寬預算。正式preview Safari子步驟結果另核對。準備依授權合併exact head，仍需正式驗收。

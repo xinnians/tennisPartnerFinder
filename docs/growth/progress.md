@@ -21,6 +21,8 @@
 
 分支`codex/court-guide-completion-c04`，觀海／溪洲／雙園三篇內容完成，本機24、正式21；完整frontend775 unit／384 mock、local46／12跳過、mobile6、preview Chromium20／WebKit9通過；Production strict容量、24篇內容及6組長文QA通過。41migration由Management API確認對齊，匿名REST及hosted唯讀preflight通過；下一步Git preview／必要CI。PR #9 head0fa0156已送出、Git Preview dpl_GCzY4rHGewPbrueWjEJoLuxnhoPm READY，CI34348031374進行中（PR未觸發後以相同head手動dispatch）；runtime70b35bf已推送，分支Preview兩個公開Supabase變數已建立，驗收後清理；候選22篇33欄pending。下一組四公園＋六校園已有[第一輪來源底稿](court-guide-completion-c04-2026-09-09.md)，萬有二號有廢存／整建疑義、北醫校外申請途徑已確認待內容補完；西湖租借頁明列2024期限，不採為2026現價。未發布／查核中的項目接續，長期目標仍active。
 
+C01九座河濱的新版VBS頁已覆核，逐筆處置與夜照原則／大佳入口新來源見[覆核紀錄](court-guide-completion-c01-followup-2026-09-09.md)。待PR9發布後更新適用文案，逐面夜照未知仍保留。C01兩座營運球場亦完成覆核：中心可補繳費期限、網球場新增取消條件差異；C04待查校園及16筆未開始者繼續，並非長期目標完成。
+
 ## 2026-09-09 補完目標已啟動
 
 - 使用者「建立相關目標開始進行」核可執行。已建立本批目標：C01 民權、青年、道南、百齡社子岸四座高影響疑義，以及 C02 北投運動中心、天母兩座來源查核。
