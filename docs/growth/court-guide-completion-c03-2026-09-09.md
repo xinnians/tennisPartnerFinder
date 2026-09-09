@@ -134,3 +134,17 @@ Git Preview `dpl_EdnsVWbLSiwpjS2wBRZxNriad7U2`已READY，head64e4df9。21篇HTTP
 入口首跑捕捉一次`getRootNode` TypeError，stack位於Google Maps65/14a的main.js／marker.js／common.js；C02亦有同訊息紀錄。首次重查4組登入意圖／取消均通過、無發布或訂閱寫入。不能由stack推論應用程式完全無責，保留偶發地圖初始化風險，沒有宣稱修復；第二次確認及正式驗收接續。QA保存於`/Users/ian/tennisPartnerFinder-qa/court-guide-c03-2026-09-09/`。
 
 第二次入口確認亦4組通過（preview-entry-confirm），兩次重查合計8組；仍保留首跑錯誤。Frontend CI已通過，Supabase與WebKit仍執行中。後續先等run34345785799，合併確切head64e4df9，再做正式QA及清理本分支兩個Preview公開變數與/tmp/qiuka-c03/.env.production。
+
+
+### Git正式部署（驗收中）
+
+必要CI run34345785799成功，含frontend775 unit／384 mock，Supabase1305 SQL、4 API、46 local／12跳過、6 mobile、20 production preview；Safari191／3跳過及WebKit preview9通過。PR #8確切head64e4df9合併為`aa2e77fdb8e036570133d5d8533629dec67b8177`。Production `dpl_7FPdpKMdKCT3gh1fJWjzDbGgp4rW` READY且qiuka.tw alias指向新版。正式索引21篇搜尋／焦點／no-JS通過；分享GET/HEAD /s/21=200、未知404、POST405，全部no-store。詳細頁／入口／容量接續驗收，不以READY替代實測。
+
+正式21篇內容與來源、sitemap23、兩篇×兩尺寸4組detail／開局取消通過，pageerror0；人工閱圖迪化手機版正常。預覽偶發Maps錯誤保留，不視為修復。已逐一移除C03分支Preview的VITE_SUPABASE_URL／VITE_SUPABASE_ANON_KEY，成功紀錄preview-env-cleanup.log；Production env export已刪除。性能量測仍執行中，結果接續。
+
+
+### C03這次發布驗收完成
+
+正式各裝置3次單獨瀏覽器量測通過既有startup gate：最大本站JS788495 raw／242659 encoded bytes（上限820000／260000），pageerror0。桌面LCP中位612ms、手機8152ms、手機shell2986.8ms；手機慢網路尚未達理想，未提高容量上限、未宣稱留存或速度成效。原始結果保存在QA目錄production/performance.json。
+
+本次正式21篇／台北40筆未發布；19篇28個pending。清冊、進度已更新。下一步為觀海指南（草稿/tmp/qiuka-c03/guanhai-guide-draft.json，transportSource=1）與C03其他8筆待來源處置後續，再接尚未查核26筆及C01剩11篇；長期目標尚未完成。
