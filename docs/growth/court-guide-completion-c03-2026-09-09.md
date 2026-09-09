@@ -1,6 +1,6 @@
 # C03 第一組公園來源底稿（查核中）
 
-2026-09-09，Codex在C02必要CI期間接續10筆官方來源，**不是10篇已完成或全部可發布**。目前葫蘆洲內容完成、迪化工程提醒已修補，尚未部署；其餘9筆仍查核中。下一個session先讀本檔末段最新驗證狀態，前文保留研究歷程。對應[清冊](court-guide-completion-tracker.md)及[補完計畫](court-guide-completion-plan.md)。
+2026-09-09，Codex在C02必要CI期間接續10筆官方來源，**不是10篇已完成或全部可發布**。目前葫蘆洲內容完成、迪化工程提醒已修補，尚未部署；觀海可發布未實作、其餘8筆仍查核中。下一個session先讀本檔末段最新驗證狀態，前文保留研究歷程。對應[清冊](court-guide-completion-tracker.md)及[補完計畫](court-guide-completion-plan.md)。
 
 ## 已直接載入的新VBS對照
 
@@ -95,3 +95,14 @@
 另觀海iPlay23071本輪取得完整網球欄位：無限制、每天08–22、隨到隨用、有照明、不開放對外租借。和VBS983識別對應，已具基本現場使用來源，可接續下一篇；費用／輪替／開燈操作仍pending，不把體育日免費套日常。
 
 Hosted唯讀preflight已重查：41migration對齊，profiles3／sessions3／participants3／messages2／reports0／outbox15、5cronactive、匿名discovery25欄與私有view無select；仍需匿名REST實測、strict正式env build及Git驗收。
+
+觀海處置更新：基本身份／位置、新VBS網球項目與iPlay公眾現場使用方式已達新指南最低門檻，清冊改「可發布／未發布」，尚未寫入JSON、未算第22篇。接續應寫指南，費用／輪替／夜照操作保留pending，不因目前21篇進入QA而遺漏此已合格項目。C03目前葫蘆洲內容完成、觀海可發布未實作、其餘8筆查核中。
+
+## 本機發布候選驗收完成
+
+- 清理fixture後，保持原始測試流程：4 local API、46 local browser／12跳過、6 local mobile通過；frontend775 unit／5跳過、384 mock／4跳過及type/lint/prettier/build通過。
+- Production preview Chromium20、WebKit9通過，包含全21篇入口、OAuth返回、搜尋／清除／no-JS與390px流程。葫蘆洲交通文案僅區分兩個官方地址，不再推論機關地址一定不含報到櫃台。
+- Production env strict build通過：main385456／119294、root661537／193547、指南277500／75085、全部943095／282926、索引1036／543 raw/gzip bytes；無超限、上限不變。真實首訪量測仍待正式部署。
+- 匿名REST：discovery200、禁用欄400、10私有面401；41migration對齊、5cronactive。OAuth及雙帳號聊天由local／preview測試覆蓋，沒有宣稱正式雙帳號人工寫入。
+- 已在本分支建立兩個Preview公開Supabase變數；測完須移除，Production設定不變。`.env.production`臨時匯出檔只在`/tmp/qiuka-c03/`，發布後刪除。
+- 即將以本提交啟動Git preview／必要CI；未正式發布，正式仍20篇。QA腳本存`/Users/ian/tennisPartnerFinder-qa/court-guide-c03-2026-09-09/`，已調整全21篇與sitemap23、兩篇×兩尺寸內容／入口檢查。

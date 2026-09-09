@@ -83,7 +83,7 @@ C02剩餘5筆依計畫順序排列：天母、南港、玉成、中研、新生�
 | P3 | 文林國小網球場／`wenlin-elementary` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 新民國中網球場／`xinmin-junior-high` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/431c7decfa8c) |
 | P3 | 明德國中網球場／`mingde-junior-high` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 觀海公園網球場／`guanhai-park` | 北投區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 觀海公園網球場／`guanhai-park` | 北投區 | 可發布 | 未發布 | iPlay23071網球專欄確認隨到隨用、08–22；費用／輪替／夜照操作待補 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 逸仙國小網球場／`yixian-elementary` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 陽明大學山下網球場／`yangming-university-foothill` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 陽明大學山頂網球場／`yangming-university-hilltop` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
