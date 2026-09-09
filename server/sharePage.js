@@ -13,9 +13,9 @@ export function shareId(url) {
   const path = /^\/s\/([1-9]\d*)\/?$/.exec(url.pathname);
   const ids = url.searchParams.getAll("id");
   const value = path
-    ? ids.length
-      ? null
-      : path[1]
+    ? ids.length === 0 || (ids.length === 1 && ids[0] === path[1])
+      ? path[1]
+      : null
     : url.pathname === "/api/share" && ids.length === 1
       ? ids[0]
       : null;

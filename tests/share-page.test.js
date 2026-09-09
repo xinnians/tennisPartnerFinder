@@ -120,7 +120,7 @@ test("strict path, safe integer and duplicate parameter validation", () => {
     "/other?id=42",
   ])
     assert.equal(shareId(new URL(path, "https://example.test")), null);
-  for (const path of ["/s/42", "/s/42/", "/api/share?id=42"])
+  for (const path of ["/s/42", "/s/42/", "/s/42?id=42", "/api/share?id=42"])
     assert.equal(shareId(new URL(path, "https://example.test")), 42);
 });
 test("HEAD has same status/metadata headers and no body; POST never reads database", async () => {
