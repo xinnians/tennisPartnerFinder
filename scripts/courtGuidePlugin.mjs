@@ -14,13 +14,20 @@ export function courtGuidePlugin() {
         const client = Object.values(bundle).find(
           (asset) => asset.type === "chunk" && asset.facadeModuleId?.endsWith("/src/guides/guideClient.ts")
         );
-        if (!client) throw new Error("Guide client entry not built");
+        const indexClient = Object.values(bundle).find(
+          (asset) => asset.type === "chunk" && asset.facadeModuleId?.endsWith("/src/guides/guideIndexClient.ts")
+        );
+        if (!client || !indexClient) throw new Error("Guide client entry not built");
         const styles = [...(client.viteMetadata?.importedCss || [])].map((file) => `/${file}`);
         for (const slug of [null, ...guides.map((g) => g.slug)])
           this.emitFile({
             type: "asset",
             fileName: slug ? `courts/${slug}/index.html` : "courts/index.html",
-            source: renderGuidePage(slug, { script: slug ? `/${client.fileName}` : "", styles, production }),
+            source: renderGuidePage(slug, {
+              script: `/${slug ? client.fileName : indexClient.fileName}`,
+              styles,
+              production,
+            }),
           });
         this.emitFile({
           type: "asset",
@@ -48,7 +55,7 @@ export function courtGuidePlugin() {
         }
         const html = match
           ? renderGuidePage(match[1] || null, {
-              script: match[1] ? "/src/guides/guideClient.ts" : "",
+              script: match[1] ? "/src/guides/guideClient.ts" : "/src/guides/guideIndexClient.ts",
               styles: ["/src/guides/guide.css"],
               production: false,
             })

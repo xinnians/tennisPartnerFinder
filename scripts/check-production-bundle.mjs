@@ -123,7 +123,22 @@ const guideInitialChunks = collectInitialJavaScriptChunks(
   productionOutputs.filter((chunk) => chunk.type === "chunk"),
   [guideEntry.fileName]
 );
-const allInitialChunks = [...new Set([...initialOutputChunks, ...guideInitialChunks])];
+const guideIndexEntry = productionOutputs.find(
+  (chunk) => chunk.type === "chunk" && chunk.facadeModuleId?.endsWith("/src/guides/guideIndexClient.ts")
+);
+assert.ok(guideIndexEntry, "guide index entry is missing");
+assert.deepEqual(guideIndexEntry.imports, [], "Guide index must not import the app or libraries");
+assert.deepEqual(guideIndexEntry.dynamicImports, [], "Guide index must not load dynamic dependencies");
+assert.ok(
+  Object.keys(guideIndexEntry.modules).every((id) => id.endsWith("/src/guides/guideIndexClient.ts")),
+  "Guide index must remain standalone"
+);
+const guideIndexHtml = readFileSync(new URL("../dist/courts/index.html", import.meta.url), "utf8");
+assert.deepEqual(
+  [...guideIndexHtml.matchAll(/<script\b[^>]*\bsrc="\/([^"]+\.js)"/g)].map((match) => match[1]),
+  [guideIndexEntry.fileName]
+);
+const allInitialChunks = [...new Set([...initialOutputChunks, ...guideInitialChunks, guideIndexEntry])];
 const initialChunkFiles = new Set(allInitialChunks.map((chunk) => fileURLToPath(new URL(chunk.fileName, DIST_DIR))));
 for (const chunk of guideInitialChunks) {
   assert.ok(
@@ -222,6 +237,16 @@ const byteChecks = [
 ];
 byteChecks.push(
   {
+    actualBytes: Buffer.byteLength(guideIndexEntry.code),
+    limitBytes: LAZY_CHUNK_RAW_LIMIT_BYTES,
+    name: "guide index JavaScript raw",
+  },
+  {
+    actualBytes: gzipSync(guideIndexEntry.code).length,
+    limitBytes: LAZY_CHUNK_GZIP_LIMIT_BYTES,
+    name: "guide index JavaScript gzip",
+  },
+  {
     actualBytes: guideInitialChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0),
     limitBytes: BUNDLE_SIZE_LIMITS.initialRawBytes,
     name: "guide initial static JavaScript raw",
@@ -289,5 +314,5 @@ console.log(
 );
 
 console.log(
-  `guide static JS raw/gzip ${guideInitialChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0)}/${guideInitialChunks.reduce((sum, chunk) => sum + gzipSync(chunk.code).length, 0)}; Maps absent; index JS 0`
+  `guide static JS raw/gzip ${guideInitialChunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.code), 0)}/${guideInitialChunks.reduce((sum, chunk) => sum + gzipSync(chunk.code).length, 0)}; Maps absent; index JS raw/gzip ${Buffer.byteLength(guideIndexEntry.code)}/${gzipSync(guideIndexEntry.code).length}`
 );

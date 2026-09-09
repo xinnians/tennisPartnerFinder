@@ -30,7 +30,9 @@ function subscriptionPublicJwk(mode: string): string {
 
 export default defineConfig(({ command, mode }) => ({
   build: {
-    rollupOptions: { input: { app: "index.html", guide: "src/guides/guideClient.ts" } },
+    rollupOptions: {
+      input: { app: "index.html", guide: "src/guides/guideClient.ts", guideIndex: "src/guides/guideIndexClient.ts" },
+    },
     minify: "terser",
     terserOptions: { compress: { passes: 2 } },
   },

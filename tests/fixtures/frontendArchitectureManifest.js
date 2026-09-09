@@ -83,7 +83,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
     "src/sheets.ts::closeSurface::innerHTML::root::empty-string",
     "src/views/sessionSurfaceViews.js::openSessionSheet::surface-html::mountSheet::template",
   ]),
-  mutationBaseline: Object.freeze({ files: 20, nodes: 128, references: 112, symbols: 34 }),
+  mutationBaseline: Object.freeze({ files: 21, nodes: 134, references: 118, symbols: 36 }),
   mutationSymbols: namedList(
     [
       {
@@ -169,6 +169,23 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
         owner: "static court guide client",
         reason: "Generation-guarded public session refresh, error retry and focus restoration.",
         retirement: "retain while guides use a separate static page runtime",
+      },
+      {
+        key: "src/guides/guideIndexClient.ts::<top-level>",
+        mutations: ["hidden::form", "value::districtInput", "value::nameInput"],
+        reference: "#guide-filters, #guide-name and #guide-district in the static guide index",
+        owner: "static guide index search",
+        reason: "Reveal controls only after initialization and clear user filters without replacing cards or links.",
+        retirement:
+          "retain for the lifetime of the standalone index document; revisit if index becomes a React surface",
+      },
+      {
+        key: "src/guides/guideIndexClient.ts::update",
+        mutations: ["hidden::card", "hidden::empty", "textContent::count"],
+        reference: ".guide-index-card, #guide-no-results and #guide-result-count",
+        owner: "static guide index search",
+        reason: "Filter only published static cards and announce their visible count while preserving input focus.",
+        retirement: "retain for the lifetime of the standalone index document; no application root ownership",
       },
       {
         key: "src/main.js::<top-level>",
@@ -472,6 +489,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/guides/guideClient.ts::<top-level>::document,window",
       "src/guides/guideClient.ts::element::document",
       "src/guides/guideClient.ts::render::document",
+      "src/guides/guideIndexClient.ts::<top-level>::document,window",
       "src/main.js::<top-level>::document,globalThis.history,globalThis.location,globalThis.window",
       "src/main.js::boot::globalThis.location",
       "src/main.js::currentRouteHash::globalThis.location",
@@ -543,6 +561,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/features/share/shareRoute.ts::normalizeShareRoute::History,Location",
       "src/guides/guideClient.ts::<top-level>::HTMLElement",
       "src/guides/guideClient.ts::element::HTMLElementTagNameMap",
+      "src/guides/guideIndexClient.ts::<top-level>::HTMLButtonElement,HTMLElement,HTMLFormElement,HTMLInputElement,HTMLSelectElement",
       "src/map.ts::<top-level>::HTMLElement,Window",
       "src/map.ts::createMap::HTMLElement",
       "src/mySessionsCreatedFocus.ts::<top-level>::HTMLElement",
