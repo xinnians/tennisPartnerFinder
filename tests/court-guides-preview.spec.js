@@ -215,7 +215,7 @@ test("guide index combines name and district filters, handles empty results and 
   const cards = page.locator(".guide-index-card:visible");
   const count = page.getByRole("status");
   await expect(name).toBeVisible();
-  await expect(count).toHaveText("共 16 篇指南");
+  await expect(count).toHaveText("共 20 篇指南");
   await name.fill("河濱");
   await expect(cards).toHaveCount(11);
   await expect(name).toBeFocused();
@@ -228,17 +228,17 @@ test("guide index combines name and district filters, handles empty results and 
   await expect(cards).toHaveCount(1);
   await name.press("Enter");
   await expect(name).toBeFocused();
-  await expect(count).toHaveText("找到 1 篇指南（共 16 篇）");
+  await expect(count).toHaveText("找到 1 篇指南（共 20 篇）");
   await name.fill("青年");
   await expect(cards).toHaveCount(0);
   await expect(page.locator("#guide-no-results")).toBeVisible();
-  await expect(count).toHaveText("找到 0 篇指南（共 16 篇）");
+  await expect(count).toHaveText("找到 0 篇指南（共 20 篇）");
   await page.screenshot({ path: `${output}/empty-${info.project.name}.png`, fullPage: false });
   await page.getByRole("button", { name: "清除條件" }).click();
   await expect(name).toBeFocused();
   await expect(name).toHaveValue("");
   await expect(district).toHaveValue("");
-  await expect(cards).toHaveCount(16);
+  await expect(cards).toHaveCount(20);
   await expect(page.locator("#guide-no-results")).toBeHidden();
   await name.fill("臺北");
   await expect(cards.locator("h2")).toHaveText(["台北網球中心", "台北網球場"]);
@@ -273,7 +273,7 @@ test("guide index stays readable without JavaScript", async ({ browser, baseURL 
     const page = await context.newPage();
     await page.goto(new URL("/courts/", baseURL).href);
     await expect(page.locator("#guide-filters")).toBeHidden();
-    await expect(page.locator(".guide-index-card:visible")).toHaveCount(16);
+    await expect(page.locator(".guide-index-card:visible")).toHaveCount(20);
     await page.getByRole("link", { name: "查看指南 ：大佳河濱公園網球場" }).click();
     await expect(page.getByRole("heading", { name: "大佳河濱公園網球場", exact: true })).toBeVisible();
   } finally {

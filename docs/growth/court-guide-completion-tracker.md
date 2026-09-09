@@ -1,6 +1,6 @@
 # 球場指南補完清冊
 
-建立／更新：2026-09-09。對應 [補完計畫](court-guide-completion-plan.md)，總發布狀態見 [progress.md](progress.md)。C01首批與C02前兩座已開始重新查核，見[本批紀錄](court-guide-completion-c01-2026-09-09.md)；其他列承接既有基準。
+建立／更新：2026-09-09。對應 [補完計畫](court-guide-completion-plan.md)，總發布狀態見 [progress.md](progress.md)。C01首批與C02前兩座已開始重新查核，見[本批紀錄](court-guide-completion-c01-2026-09-09.md)；[C02後續8筆](court-guide-completion-c02-2026-09-09.md)已查核，4篇內容完成尚未部署；其他列承接既有基準。
 
 本檔是逐場工作狀態的維護位置；發布內容仍以 `data/court-guides.json` 為準，正式目錄仍以 `data/courts.json` 為準。後續手動更新清冊，不重跑初始化腳本覆蓋人工結論。slug為既有識別，不另造court_id。
 
@@ -53,19 +53,19 @@
 
 ## 台北未發布45筆
 
-C02剩餘9筆依計畫順序排列，其餘按既有目錄排序。天母已查核待補來源；另外44筆尚未開始本計畫查核。北投已移至發布表。
+C02剩餘9筆依計畫順序排列，其餘按既有目錄排序。天母已查核待補來源；本批8筆已查核（4篇內容完成、4筆待來源／現況），另36筆尚未開始本計畫查核。北投已移至發布表。
 
 | 優先 | 場地／slug | 行政區 | 查核狀態 | 發布狀態 | 下一步 | 來源／證據 |
 | --- | --- | --- | --- | --- | --- | --- |
 | P1 | 天母運動公園網球場／`tianmu-sports-park` | 士林區 | 待補來源 | 未發布 | 找現行委外營運／租借規則，不套用舊公營費率 | [2026-09-09本批查核](court-guide-completion-c01-2026-09-09.md) |
-| P1 | 復興公園網球場／`fuxing-park` | 北投區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=998) |
-| P1 | 洲美運動公園網球場／`zhoumei-sports-park` | 北投區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P1 | 榮華公園網球場／`ronghua-park` | 北投區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=1006) |
-| P1 | 南港公園網球場／`nangang-park` | 南港區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=609) |
-| P1 | 玉成公園網球場／`yucheng-park` | 南港區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=624) |
-| P1 | 中研公園網球場／`zhongyan-park` | 南港區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=635) |
-| P1 | 迪化休閒運動公園網球場／`dihua-sports-park` | 大同區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P1 | 新生公園網球場／`xinsheng-park` | 中山區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://data.gov.tw/dataset/22849) |
+| P1 | 復興公園網球場／`fuxing-park` | 北投區 | 可發布 | 內容完成 | 清晨時間衝突、費用／輪替、夜照；待QA發布 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 洲美運動公園網球場／`zhoumei-sports-park` | 北投區 | 可發布 | 內容完成 | 按人與逐人資格已釐清；夜照／取消／提前預約待補，待QA發布 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 榮華公園網球場／`ronghua-park` | 北投區 | 可發布 | 內容完成 | 精確網球時間、費用／輪替、夜照；待QA發布 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 南港公園網球場／`nangang-park` | 南港區 | 待補來源 | 未發布 | 網球現場使用／輪替及費用規則未取得 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 玉成公園網球場／`yucheng-park` | 南港區 | 待補來源 | 未發布 | 網球現場流程、工程是否影響球場 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 中研公園網球場／`zhongyan-park` | 南港區 | 待補來源 | 未發布 | 網球現場流程／費用／夜照，不能套籃球時間 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 迪化休閒運動公園網球場／`dihua-sports-park` | 大同區 | 可發布 | 內容完成 | 現場時段／輪替、開燈操作；待QA發布 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
+| P1 | 新生公園網球場／`xinsheng-park` | 中山區 | 待釐清現況 | 未發布 | P0：新生館改建新聞拆除／保留描述不一；查最新網球現況 | [2026-09-09 C02查核](court-guide-completion-c02-2026-09-09.md) |
 | P3 | 實踐大學網球場／`shih-chien-university` | 中山區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 台北醫學大學網球場／`tmu` | 信義區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 松山高中網球場／`songshan-senior-high` | 信義區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/e13d57cdaf90) |

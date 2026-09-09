@@ -891,6 +891,196 @@
           "verifiedAt": "2026-09-09"
         }
       ]
+    },
+    {
+      "slug": "fuxing-park",
+      "summary": "新北投站附近的公園網球場；現場使用，清晨開放時間仍需確認。",
+      "booking": "iPlay 的網球設施資料列一般公眾可使用、隨到隨用，不提供對外租借。抵達後請先看球場告示；多人等候時的登記、輪替及費用仍待確認，可向體育局 02-2570-2330 查詢。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地",
+          "value": "體育局新系統列有 1 面網球場，與園內其他球類設施分開。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "開放時間",
+          "value": "iPlay 網球資料列每日 06:00–22:00；體育局園區頁列 08:00–22:00。清晨能否入場尚未一致，出發前請確認。",
+          "status": "pending",
+          "source": 0
+        },
+        {
+          "label": "使用費用與輪替",
+          "value": "尚未找到網球費用與候場輪替的具體規則；不提供線上租借並不等於已確認免費。",
+          "status": "pending",
+          "source": 0
+        },
+        {
+          "label": "夜間照明",
+          "value": "iPlay 列有照明設備，但開燈時間、操作方式與是否另計費未明，夜間前往請先確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位於北投區中和街 200 號的復興公園，可由捷運新北投站步行前往；入園後請依配置圖找到網球場，與籃球場及遊戲區區分。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "全國運動場館資訊網 iPlay｜復興公園網球設施",
+          "url": "https://iplay.sports.gov.tw/gyminfo/IndexPrint/23061",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "臺北市體育局場館租借 2.0｜復興公園",
+          "url": "https://vbs.sports.gov.taipei/venues/996",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "ronghua-park",
+      "summary": "明德站附近的兩面公園網球場；先確認現場使用時段與候場規則。",
+      "booking": "iPlay 的網球設施資料列一般公眾可使用、隨到隨用，不提供對外租借。請依現場告示使用；精確時段、費用及候場輪替規則仍待確認，可向體育局 02-2570-2330 查詢。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地",
+          "value": "體育局新系統列有第 1、2 面網球場；請與同園區籃球、羽球設施區分。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "開放時間",
+          "value": "iPlay 列網球每天開放，但未填起訖時間；園區全天開放不代表網球可打整夜，請先確認球場告示。",
+          "status": "pending",
+          "source": 0
+        },
+        {
+          "label": "使用費用與輪替",
+          "value": "尚未找到網球費用與候場輪替的具體規則；不提供線上租借並不等於已確認免費。",
+          "status": "pending",
+          "source": 0
+        },
+        {
+          "label": "夜間照明",
+          "value": "iPlay 列有照明設備；可用面號、開關燈時間與是否另計費仍待確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "可由捷運明德站經明德路 150 巷前往。體育局列園區位於明德路 150 巷 3 弄，入園後請依現場標示尋找網球場。",
+      "transportSource": 1,
+      "sources": [
+        {
+          "title": "全國運動場館資訊網 iPlay｜榮華公園網球設施",
+          "url": "https://iplay.sports.gov.tw/GymInfo/Index/23064?PP=Traffic",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "臺北市體育局場館租借 2.0｜榮華公園",
+          "url": "https://vbs.sports.gov.taipei/venues/1004",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "zhoumei-sports-park",
+      "summary": "分早、午、晚三段開放；按人收費，回饋區居民須攜帶證件。",
+      "booking": "可經市府公有場地租用頁線上申辦，或至北投垃圾焚化廠臨櫃申請。網路預約者仍須攜帶身分證明報到；每位球友分別核對免費資格，不能用主揪資格涵蓋全組。續用須等原時段結束前 5 分鐘才能再登記。 市府列申辦處理時限 5 日，可提前預約範圍請另確認。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "網球時段",
+          "value": "上午 05:30–11:30、下午 13:30–16:30、夜間 18:00–21:00；中間有休息時段。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "休場日",
+          "value": "星期一及國定假日休場，元旦、228、國慶另有例外；星期一逢國定假日，當日及次日均休場。春節依另行公告，假日前請再查官網。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "一般費率",
+          "value": "新臺幣每人每小時：上午、下午 150 元，夜間 200 元；不是整面球場的總價。65 歲以上憑證件半價，其他優惠資格依官方說明。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "免費使用資格",
+          "value": "設籍臺北市內湖、南港、文山、北投、士林區居民憑身分證明免費；志工榮譽卡、身障證明及必要陪伴者等條件依官方說明。不符資格或未帶證件者須補繳個人費用。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "場地",
+          "value": "營運官網列有 4 面網球場。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "夜間照明與取消",
+          "value": "夜間費率已公布；各面照明操作、是否有額外費用及一般取消退款條件仍待確認，可洽 02-2836-0050 分機 103。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "位於北投區洲美街 271 號、北投垃圾焚化廠洲美運動公園。可由捷運唭哩岸站再步行或轉乘前往；入場先辦理報到，不要直接進入球場。",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "臺北市公有場地租用｜洲美運動公園網球預約與資格",
+          "url": "https://service.gov.taipei/rental/VenueDetail/0a8d71a1bdef",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "北投垃圾焚化廠｜網球場時段與收費（2024-07-16 更新）",
+          "url": "https://www.ptrip.gov.taipei/cp.aspx?n=8996601D7D10F3A7",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "dihua-sports-park",
+      "summary": "污水處理廠上方的三面網球場；官方列免費開放，球場照明至晚間十點。",
+      "booking": "衛工處的公園專頁列網球等設施免費開放使用；文中的預借管道指壘球場。網球現場登記、候場輪替及活動優先規則尚未詳列，請先查看現場公告或透過官方管道確認。",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地與費用",
+          "value": "衛工處列園內 3 面網球場；公園專頁公布除汽車停車場外，其餘設施免費開放使用。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "園區與照明",
+          "value": "園區列 24 小時開放，球場夜間照明至 22:00；公園路燈較晚關閉不代表球場整夜有照明。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "現場規則",
+          "value": "網球專屬可用時段、各面開燈方式與候場輪替仍待確認。既有專頁更新於 2022-12-15，出發前請留意現場異動公告。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "官方交通資訊列大同區延平北路四段 200 號、靠近酒泉街口。可由捷運圓山站 2 號出口往延平北路方向前往；目的地是污水處理廠上方的運動公園，請依園區標示找到網球場。",
+      "transportSource": 1,
+      "sources": [
+        {
+          "title": "臺北市衛工處｜迪化休閒運動公園使用與照明",
+          "url": "https://www.sso.gov.taipei/News_Content.aspx?n=1BC78EB2EDF58222&s=775FFDDC43F1C0EB",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "臺北市衛工處｜迪化公園交通資訊（2024-08-09）",
+          "url": "https://www.sso.gov.taipei/News_Content.aspx?n=8F9EC0AE93AD1641&s=7BCAC82CBDFA951B",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
     }
   ]
 }

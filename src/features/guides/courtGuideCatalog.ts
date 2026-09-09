@@ -17,4 +17,8 @@ export const COURT_GUIDE_NAMES = {
   "minquan-park": "民權公園網球場",
   "taipei-tennis-court": "台北網球場",
   "beitou-sports-center": "北投運動中心網球場",
+  "fuxing-park": "復興公園網球場",
+  "ronghua-park": "榮華公園網球場",
+  "zhoumei-sports-park": "洲美運動公園網球場",
+  "dihua-sports-park": "迪化休閒運動公園網球場",
 } as const;
