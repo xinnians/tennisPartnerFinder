@@ -76,3 +76,13 @@ Git Preview已READY，穩定URL https://tennis-partner-finder-git-cod-40d48b-xin
 C01其餘九座河濱覆核已另存[c01-followup](court-guide-completion-c01-followup-2026-09-09.md)，本輪不改PR9 runtime。新取得今年檢視的戶外照明FAQ及大佳停車場水門資料，待這批发布後補入指南。
 
 第二輪Preview入口確認6組通過（preview-entry-confirm.log），首輪Maps例外保留。CI34348031374在head0fa0156完成：Frontend／Supabase成功；Safari非阻擋190 passed／1 failed／3 skipped，唯一失敗為shell timing3175ms超過2500ms，既有類型，不放寬預算。正式preview Safari子步驟結果另核對。準備依授權合併exact head，仍需正式驗收。
+
+## C04正式發布完成
+
+PR #9於2026-09-09合併，merge `f0bcedddeee144da707e06159b005340e7c760d1`。Production `dpl_8stP3nFiVwUCuEueBj7sxfvmh8n8` READY，qiuka.tw指向此Git部署。Safari production-preview子組9 passed；非阻擋mock timing失敗保留。
+
+正式24篇HTTP／內容來源、sitemap26、未知指南／全台底稿404；1280×844與390×844索引搜尋、清除焦點、44px、no-JS及三篇6組長文／開局取消皆通過，pageerror0，未建立球局或通知。觀海手機實際阅圖正常。分享GET/HEAD200、未知404、POST405、no-store通過。Browser plugin not available，延用已記錄的Playwright驗收路徑。
+
+各裝置3次獨立首訪量測exit0，最大788644／242736 raw／encoded bytes，低於820000／260000；桌面LCP中位628ms、手機8172ms，pageerror0。手機慢網路限制及預覽偶發Maps錯誤未解，不宣稱所有瀏覽器或效能全面達標。兩個C04分支Preview公開變數已移除，Production env匯出檔已刪除。全部本機QA句柄完成。
+
+現正式24篇，台北37筆未發布；22篇33欄pending（營運場取消差異另已列清冊待寫入runtime，尚未反映這個JSON統計）。接續C01補強、三民／北醫合格候選及其餘校園查核，長期目標仍active。
