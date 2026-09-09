@@ -6,12 +6,20 @@ export const BYTE_LIMIT_MODES = Object.freeze({
 });
 
 export const ENFORCE_BYTE_LIMITS_FLAG = "--enforce-byte-limits";
+export const BUNDLE_WARNING_RATIO = 0.98;
 
 export const BUNDLE_SIZE_LIMITS = Object.freeze({
-  // F4-3 emits 654,771 raw / 191,396 gzip after authenticated repositories become conditional.
-  // One 4 KiB raw / 1 KiB gzip maintenance window keeps the budget below the prior 661,080/192,693 bundle.
-  mainRawBytes: 658_867,
-  mainGzipBytes: 192_420,
+  // September 9 production baseline: main 653,830 raw / 190,017 gzip.
+  // Fixed maintenance ceilings, not an automatic percentage increase on each build.
+  // Rationale and field/lab limits: docs/growth/performance-budget-2026-09-09.md.
+  mainRawBytes: 680_000,
+  mainGzipBytes: 200_000,
+  // Include transitive static imports; moving code out of main must not hide startup growth.
+  initialRawBytes: 700_000,
+  initialGzipBytes: 205_000,
+  // Cold anonymous visit through map/fonts readiness + 2 seconds; includes dynamic startup loads.
+  firstVisitRawBytes: 820_000,
+  firstVisitEncodedBytes: 260_000,
   // The largest ordinary lazy surface is 16,912/5,122; keep roughly 1 KiB/378 B for local maintenance.
   lazyRawBytes: 18_000,
   lazyGzipBytes: 5_500,
@@ -23,9 +31,10 @@ export const BUNDLE_SIZE_LIMITS = Object.freeze({
   // retain their existing limits. See the September 8 release acceptance.
   pushRawBytes: 75_000,
   pushGzipBytes: 17_000,
-  // Prior release budget plus 80 KB / 18 KB for Push v2 and its facade wiring.
-  totalRawBytes: 929_961,
-  totalGzipBytes: 277_062,
+  // All first-party JS, including lazy chunks and the service worker.
+  // Baseline 929,943 / 276,629; this is not the first-visit network payload.
+  totalRawBytes: 1_000_000,
+  totalGzipBytes: 300_000,
 });
 
 export function parseByteLimitMode(arguments_) {
@@ -51,6 +60,16 @@ export function applyByteLimitPolicy(checks, { mode, onReport = () => {} }) {
   }
 
   const excesses = checks.filter(({ actualBytes, limitBytes }) => actualBytes > limitBytes);
+  for (const check of checks) {
+    if (
+      check.actualBytes <= check.limitBytes &&
+      check.actualBytes >= Math.ceil(check.limitBytes * BUNDLE_WARNING_RATIO)
+    ) {
+      onReport(
+        `bundle size approaching limit — ${check.name}: ${check.actualBytes}/${check.limitBytes} bytes (${check.limitBytes - check.actualBytes} remaining)`
+      );
+    }
+  }
   if (mode === BYTE_LIMIT_MODES.ENFORCE && excesses.length > 0) {
     assert.fail(`production bundle byte limits exceeded:\n${excesses.map(formatByteLimitExcess).join("\n")}`);
   }
@@ -58,6 +77,23 @@ export function applyByteLimitPolicy(checks, { mode, onReport = () => {} }) {
     for (const excess of excesses) onReport(`bundle size report only — ${formatByteLimitExcess(excess)}`);
   }
   return excesses;
+}
+
+/** Count each static dependency once, including shared/cyclic imports, but not dynamic imports. */
+export function collectInitialJavaScriptChunks(chunks, entryNames) {
+  const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+  assert.equal(byName.size, chunks.length, "duplicate JavaScript output filenames");
+  assert.ok(entryNames.length > 0, "initial JavaScript needs an entry");
+  const visited = new Set();
+  function visit(name) {
+    if (visited.has(name)) return;
+    const chunk = byName.get(name);
+    assert.ok(chunk, `unmeasured static JavaScript import: ${name}`);
+    visited.add(name);
+    for (const dependency of chunk.imports) visit(dependency);
+  }
+  entryNames.forEach(visit);
+  return [...visited].map((name) => byName.get(name));
 }
 
 const normalizeModuleId = (moduleId) => moduleId.replaceAll("\\", "/");
