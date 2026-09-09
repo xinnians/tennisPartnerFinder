@@ -19,7 +19,7 @@
 
 ## C04 目前工作（尚未發布）
 
-分支`codex/court-guide-completion-c04`，觀海／溪洲／雙園三篇內容完成，本機24、正式21；完整frontend775 unit／384 mock、local46／12跳過、mobile6、preview Chromium20／WebKit9通過；Production strict容量、24篇內容及6組長文QA通過。41migration由Management API確認對齊，匿名REST及hosted唯讀preflight通過；下一步Git preview／必要CI。下一組四公園＋六校園已有[第一輪來源底稿](court-guide-completion-c04-2026-09-09.md)，萬有二號有廢存／整建疑義、北醫校外申請途徑已確認待內容補完；西湖租借頁明列2024期限，不採為2026現價。未發布／查核中的項目接續，長期目標仍active。
+分支`codex/court-guide-completion-c04`，觀海／溪洲／雙園三篇內容完成，本機24、正式21；完整frontend775 unit／384 mock、local46／12跳過、mobile6、preview Chromium20／WebKit9通過；Production strict容量、24篇內容及6組長文QA通過。41migration由Management API確認對齊，匿名REST及hosted唯讀preflight通過；下一步Git preview／必要CI。runtime70b35bf已推送，分支Preview兩個公開Supabase變數已建立，驗收後清理；候選22篇33欄pending。下一組四公園＋六校園已有[第一輪來源底稿](court-guide-completion-c04-2026-09-09.md)，萬有二號有廢存／整建疑義、北醫校外申請途徑已確認待內容補完；西湖租借頁明列2024期限，不採為2026現價。未發布／查核中的項目接續，長期目標仍active。
 
 ## 2026-09-09 補完目標已啟動
 

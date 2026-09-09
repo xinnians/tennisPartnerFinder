@@ -59,3 +59,6 @@ Production env strict exit0：main385456/119286、root661686/193594、guide27764
 本機長文驗收24篇HTTP／內容來源一致、sitemap26、3篇×2尺寸6組無溢出／API載入／CTA檢查通過，pageerror及console0；雙園手機版已人工閱圖。Management API唯讀schema_migrations與本機檔名排序逐一比較，41版完全對齊。原migration list仍卡login role，完成替代權威比對後主動SIGINT（exit130），不是宣稱原指令成功。本機QA preview5181亦停止，所有本機測試terminal。
 
 接續Git Preview及必要CI，通過後依使用者既有授權合併／正式驗收／移除C04分支公開Preview變數及刪/tmp/qiuka-c04/.env.production。正式仍21篇，不能把候選24篇當已上線。
+
+
+Git runtime70b35bf已推送；第一個Preview變數新增回exit1，後續env ls確認分支沒有任何變數，才重試。重試兩個公開Supabase變數均exit0，限定C04分支（Production未改）。本文件提交觸發完整設定的Git preview。候選24篇、22篇33欄pending；正式仍21篇。測完移除分支變數及/tmp/qiuka-c04/.env.production。
