@@ -1,4 +1,5 @@
-import { consumeGuideEntry } from "./features/guides/guideEntry.ts";
+import { readPendingIntent } from "./sessionIntent.ts";
+import { consumeGuideEntry, subscriptionGuideHint } from "./features/guides/guideEntry.ts";
 /* global __TENNIS_DEPLOY_ENVIRONMENT__ */
 /* 批 10 CSS 收整:src/session.css(1429 行)依既有實體邊界切成下列各檔,宣告順序逐行保存。
    **這串 import 的次序就是層疊次序**(本專案未用 @layer,理由見
@@ -580,6 +581,8 @@ async function startMap() {
 async function boot() {
   // Court data, public discovery, and Maps are intentionally auth-independent
   // and start together. Each path owns its existing fallback UI.
+  const resumeGuideSubscription =
+    new URL(globalThis.location.href).searchParams.has("code") && !readPendingIntent() && !currentRouteHash();
   const guideEntry = consumeGuideEntry();
   const courtStartup = loadCourtsImmediately();
   const publicStartup = Promise.allSettled([courtStartup, controller.loadDiscovery(), startMap()]);
@@ -591,6 +594,12 @@ async function boot() {
   if (guideEntry?.action === "create") {
     await courtStartup;
     controller.openCreateIntent(undefined, guideEntry.slug);
+  }
+  if (guideEntry?.action === "subscribe" || resumeGuideSubscription) {
+    const identity = getAppState().authSession?.user?.id ?? null;
+    if (identity && subscriptionGuideHint(identity)) {
+      pageRouteOwner.navigate("me", { focusTarget: "notification-settings" });
+    }
   }
   await Promise.all([publicStartup, routeStartup]);
 }

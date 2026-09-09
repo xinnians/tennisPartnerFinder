@@ -473,6 +473,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/guides/guideClient.ts::element::document",
       "src/guides/guideClient.ts::render::document",
       "src/main.js::<top-level>::document,globalThis.history,globalThis.location,globalThis.window",
+      "src/main.js::boot::globalThis.location",
       "src/main.js::currentRouteHash::globalThis.location",
       "src/main.js::historyPageOwnerIdentity::globalThis.history",
       "src/main.js::init::Element,document,globalThis.addEventListener",

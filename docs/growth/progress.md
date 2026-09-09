@@ -1,6 +1,6 @@
 # 產品改善進度（接續先讀）
 
-最後更新：2026-09-09。第一批 G02／G03／G04 已上線；G09 視覺提案 v1 與 G10 計畫均已核可，開始實作。
+最後更新：2026-09-09。第一批 G02／G03／G04 已上線；G09 視覺提案 v1 與 G10 計畫均已核可，已完成實作與本機／Git preview 驗證，等待遠端 CI。
 
 ## 當前狀態
 
@@ -11,7 +11,7 @@
 - 第一批 G02／G03／G04 已完成實作、必要 CI 與正式部署，qiuka.tw 已驗證新版；沒有真實成效結論。
 - 使用者已於 2026-09-09 明確授權直接部署。PR #1 已合併，runtime commit `9c54f7e`，Vercel `dpl_7ctFBj2NXGzuKzdmP9BKJ5CLWEPQ` READY。詳細證據與未測範圍見 [發布紀錄](batch-1-release-2026-09-09.md)。本機已切回 main，後續文件更新亦提交保存。
 - 原競品分析為同一任務新增的文件，應一併保留。
-- 使用者另核可重新評估大小限制；本機 build／量測規則已更新，網站 runtime 未變。此批尚未 commit／push，接續時保留工作區差異；理由與驗證見 [效能預算重評](performance-budget-2026-09-09.md)。
+- 使用者另核可重新評估大小限制；本機 build／量測規則已更新，網站 runtime 未變。效能預算獨立提交為 `b9bb9d2`，本批 Git push 已保留這些變更；理由與驗證見 [效能預算重評](performance-budget-2026-09-09.md)。
 
 | ID | 規格／準備 | 程式 | 本機 QA | 部署 | 成效 |
 | --- | --- | --- | --- | --- | --- |
@@ -31,8 +31,8 @@
 - 分支 `codex/court-guides-share-preview`；新增 `/courts/` 與三篇指南、`/s/:id` server metadata、新舊連結相容、courtSlug 意圖接續及訂閱提示。
 - 已完成：10 項分享單元測試、4 項指南單元測試；production preview 全部 12 項通過（含 G09／G10 八項）；完整 frontend gate 775 unit passed／5 skipped、384 Chromium passed／4 skipped。
 - 嚴格容量 gate 通過：main 385,077／119,179 bytes；root static 660,061／193,004；guide static 276,403／74,659；total 940,583／281,884（raw／gzip）。指南索引 JS 0，無 Maps，未提高上限。
-- `vercel build` 成功，function 已依檔案映射重建並執行成功（本機）；尚未 Git push 或正式部署。
-- 正在跑既有 frontend/local gates，追加 OAuth 接續與最後視覺 QA；完成後 Git preview、正式設定與匿名 smoke，並補完整發布紀錄。
+- `vercel build` 成功，function 已依檔案映射重建並執行成功（本機）；已 Git push；PR #2 最新 head `6abead3`，尚未正式部署。
+- 完整本機 gates 已通過，正式設定嚴格大小通過；Git preview `dpl_MRDaFUmqzNgNSEN6Fp8L33JqBCL6` READY，桌面／390px 匿名 smoke 與真實剪貼簿通過。遠端 CI run `34322437828` Frontend 成功；Supabase 手機尺寸測試需先等待登入 fixture 就緒，已補斷言。另補訂閱 OAuth 返回與聚焦通知設定，新的 preview 14 項通過；待乾淨 local 環境與下一輪 CI 成功後合併。
 - 既有效能預算修改與規劃文件保留，commit 時辨識來源。沒有真實使用者黏著度／轉換成效結論。
 
 ## 下一步

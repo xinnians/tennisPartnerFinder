@@ -152,3 +152,28 @@ test("guide create survives the OAuth callback with the same court and no automa
     .toBeNull();
   expect(errors).toEqual([]);
 });
+
+test("guide subscription returns from OAuth to the visible notification heading without saving preferences", async ({
+  page,
+}) => {
+  const errors = await setup(page);
+  const { session } = await account();
+  const writes = [];
+  page.on("request", (r) => {
+    if (/set_court_subscriptions|set_notification_prefs/.test(r.url())) writes.push(r.url());
+  });
+  await page.goto("/?courtGuide=youth-park&guideAction=subscribe#tab-me");
+  await expect(page.getByTestId("me-sign-in")).toBeVisible();
+  await page.evaluate(() =>
+    localStorage.setItem("tennis-partner-finder-auth-code-verifier", JSON.stringify("guide-subscription-verifier"))
+  );
+  await page.route("**/auth/v1/token?grant_type=pkce", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(session) })
+  );
+  await page.goto("/?code=guide-subscription-callback");
+  await expect(page.locator("[data-notification-settings-heading]")).toBeFocused();
+  await expect(page.locator("[data-notification-settings-heading]")).toBeInViewport();
+  await expect(page.locator("[data-guide-subscription-hint]")).toContainText("青年公園網球場");
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});

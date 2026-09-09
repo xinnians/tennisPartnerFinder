@@ -272,6 +272,10 @@ test("the create and edit forms keep every 390px touch target at 44px", async ({
   await setBrowserSession(page, host.session);
   await page.goto("/");
 
+  // This scenario measures authenticated controls; do not race initial auth restoration.
+  await expect(page.getByTestId("me-sign-out")).toHaveCount(1);
+  await expect(page.locator("#me-page")).toContainText(context.host.nickname);
+
   const { measure, undersized } = createTouchTargetScanner(page);
 
   await page.getByTestId("create-session-tab").click();
