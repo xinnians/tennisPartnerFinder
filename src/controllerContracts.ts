@@ -1,3 +1,4 @@
+import type { CourtGuideSlug } from "./features/guides/courtGuideLinks.ts";
 import type {
   ChatMessage,
   MySessionSummary,
@@ -194,7 +195,9 @@ export interface ControllerStoreEventPayloads {
 export type ControllerEventName = keyof ControllerStoreEventPayloads;
 
 export type ControllerPendingIntent =
-  { action: "create" | "directory" | "players" | "visibility" } | { action: "join"; sessionId: number };
+  | { action: "create"; courtSlug?: CourtGuideSlug }
+  | { action: "directory" | "players" | "visibility" }
+  | { action: "join"; sessionId: number };
 
 export interface ControllerAuthSnapshot {
   epoch: number;
@@ -319,7 +322,7 @@ export interface ControllerApi {
   loadDiscovery(bounds?: MapBounds | null): ControllerDiscoveryResult;
   markMySessionPlayed: (sessionId: ControllerIdentifier) => Promise<unknown>;
   openCourt(court: DataCourt, onlySessions?: SessionSummary[] | null): void;
-  openCreateIntent: (sourceSessionId?: ControllerIdentifier) => void;
+  openCreateIntent: (sourceSessionId?: ControllerIdentifier, courtSlug?: CourtGuideSlug) => void;
   openPlayerCourt(court: DataCourt, onlyPlayers?: ControllerPlayer[] | null): ControllerSurfaceResult;
   openPlayerDirectory(): Promise<boolean> | void;
   openRosterParticipantReport: (

@@ -1,6 +1,7 @@
 node_modules/
 .worktrees/
 dist/
+server-generated/
 playwright-report/
 test-results/
 .DS_Store
@@ -12,3 +13,4 @@ test-results/
 .playwright-mcp/
 .superpowers/
 .ua/
+.generated/

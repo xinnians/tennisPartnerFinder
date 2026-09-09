@@ -1,8 +1,9 @@
+import { isCourtGuideSlug, type CourtGuideSlug } from "./features/guides/courtGuideLinks.ts";
 export const PENDING_SESSION_INTENT_KEY = "tennis-partner-finder:pending-session-intent";
 
 type PendingSessionIntent =
   | { action: "join"; sessionId: number }
-  | { action: "create" }
+  | { action: "create"; courtSlug?: CourtGuideSlug }
   | { action: "players" }
   | { action: "directory" }
   | { action: "visibility" };
@@ -10,6 +11,7 @@ type PendingSessionIntent =
 interface PendingSessionIntentInput {
   action?: unknown;
   sessionId: number;
+  courtSlug?: unknown;
 }
 
 interface SessionStoragePort {
@@ -40,6 +42,16 @@ function normalizedIntent(intent: unknown): PendingSessionIntent | null {
     (intent as PendingSessionIntentInput).sessionId > 0
   ) {
     return { action: "join", sessionId: (intent as PendingSessionIntentInput).sessionId };
+  }
+
+  if (
+    (intent as PendingSessionIntentInput).action === "create" &&
+    keys.length === 2 &&
+    keys[0] === "action" &&
+    keys[1] === "courtSlug"
+  ) {
+    const courtSlug = (intent as PendingSessionIntentInput).courtSlug;
+    if (isCourtGuideSlug(courtSlug)) return { action: "create", courtSlug };
   }
 
   if ((intent as PendingSessionIntentInput).action === "create" && keys.length === 1 && keys[0] === "action") {

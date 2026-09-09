@@ -162,6 +162,38 @@ export function createDataApi({
     return data ? mapSessionSummary(data) : null;
   }
 
+  async function loadCourtGuideSessions(courtId: number) {
+    if (!Number.isSafeInteger(courtId) || courtId <= 0) throw new DataApiError("球場資料無法確認。");
+    const start = currentTime();
+    const end = new Date(start.getTime() + 14 * 86_400_000);
+    if (!configured) {
+      return mockSessions
+        .map(mapMockSessionSummary)
+        .filter(
+          (session) =>
+            Number(session.courtId) === courtId &&
+            ["open", "full"].includes(session.status) &&
+            Date.parse(session.startAt) >= start.getTime() &&
+            Date.parse(session.startAt) < end.getTime() &&
+            (session.venueType !== "candidates" || Boolean(session.decidedAt))
+        )
+        .sort((a, b) => a.startAt.localeCompare(b.startAt) || Number(a.sessionId) - Number(b.sessionId))
+        .slice(0, 4);
+    }
+    const { data, error } = await requireClient()
+      .from("session_discovery")
+      .select(SESSION_DISCOVERY_SELECT)
+      .eq("court_id", courtId)
+      .gte("start_at", start.toISOString())
+      .lt("start_at", end.toISOString())
+      .or("venue_type.neq.candidates,decided_at.not.is.null")
+      .order("start_at", { ascending: true })
+      .order("session_id", { ascending: true })
+      .limit(4);
+    if (error) throw asDataApiError(error);
+    return rowsOrEmpty(data).map(mapSessionSummary);
+  }
+
   let privateDataApiRequest: Promise<PrivateDataApi> | null = null;
   function loadPrivateDataApi(): Promise<PrivateDataApi> {
     if (privateDataApiRequest) return privateDataApiRequest;
@@ -248,6 +280,7 @@ export function createDataApi({
     loadSessionMessages,
     loadSessionRoster,
     loadSessionSummary,
+    loadCourtGuideSessions,
     markSessionChatRead,
     markSessionPlayed,
     postSessionMessage,

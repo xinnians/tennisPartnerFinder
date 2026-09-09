@@ -61,5 +61,16 @@
         }
       ]
     }
+  ],
+  "functions": {
+    "api/share.js": {
+      "includeFiles": "server-generated/share-shell.html"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/s/:id",
+      "destination": "/api/share?id=:id"
+    }
   ]
 }

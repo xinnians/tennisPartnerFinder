@@ -12,7 +12,7 @@ function sessionShareLink(sessionId) {
   if (!Number.isSafeInteger(normalizedSessionId) || normalizedSessionId <= 0) {
     throw new Error("目前無法產生這個球局的連結。");
   }
-  return `${globalThis.location.origin}${globalThis.location.pathname}#/session/${normalizedSessionId}`;
+  return `${globalThis.location.origin}/s/${normalizedSessionId}`;
 }
 
 function fallbackCopyText(value) {

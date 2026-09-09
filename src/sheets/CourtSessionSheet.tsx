@@ -1,3 +1,4 @@
+import { courtGuideHref } from "../features/guides/courtGuideLinks.ts";
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
 import { SessionCard } from "../components/SessionCard.tsx";
 import type { CourtSummary, SessionSummary } from "../domainTypes.ts";
@@ -34,6 +35,11 @@ function CourtSessionSheet({ court, courts, onClose, onOpenSession, sessions }: 
           ×
         </button>
       </div>
+      {courtGuideHref(court.name) ? (
+        <p className="surface__copy">
+          <a href={courtGuideHref(court.name)!}>查看球場指南：場地、預約與交通 →</a>
+        </p>
+      ) : null}
       <div className="nearby-sessions__cards">
         {sessions.length ? (
           sessions.map((session, index) => (

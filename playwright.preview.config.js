@@ -13,19 +13,19 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4174",
+    command: "node scripts/serve-production-preview.mjs",
     url: baseURL,
     reuseExistingServer: false,
   },
   projects: [
     {
       name: "preview-desktop-chromium",
-      testMatch: /production-preview\.spec\.js/,
+      testMatch: /(?:production-preview|court-guides-preview)\.spec\.js/,
       use: { ...devices["Desktop Chrome"], baseURL },
     },
     {
       name: "preview-mobile-chromium",
-      testMatch: /production-preview-mobile\.spec\.js/,
+      testMatch: /(?:production-preview-mobile|court-guides-preview)\.spec\.js/,
       use: {
         ...devices["Pixel 5"],
         baseURL,
@@ -34,7 +34,7 @@ export default defineConfig({
     },
     {
       name: "preview-mobile-webkit",
-      testMatch: /production-preview-mobile\.spec\.js/,
+      testMatch: /(?:production-preview-mobile|court-guides-preview)\.spec\.js/,
       use: {
         ...devices["iPhone 12"],
         baseURL,

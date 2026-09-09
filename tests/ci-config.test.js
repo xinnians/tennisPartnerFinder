@@ -26,6 +26,7 @@ import {
   applyByteLimitPolicy,
   BYTE_LIMIT_MODES,
   ENFORCE_BYTE_LIMITS_FLAG,
+  collectInitialJavaScriptChunks,
   identifySentryChunk,
   parseByteLimitMode,
 } from "../scripts/productionBundlePolicy.mjs";
@@ -132,7 +133,7 @@ function assertProductionPreviewConfig(config, packageJson = PACKAGE) {
     "npm run build:preview-test && playwright test --config=playwright.preview.config.js --project=preview-mobile-webkit"
   );
   assert.equal(config.workers, 1);
-  assert.equal(config.webServer.command, "npm run preview -- --host 127.0.0.1 --port 4174");
+  assert.equal(config.webServer.command, "node scripts/serve-production-preview.mjs");
   assert.equal(config.webServer.reuseExistingServer, false);
   assert.deepEqual(
     config.projects.map(({ name }) => name),
@@ -211,7 +212,10 @@ test("development bundle checks report byte excesses while release checks enforc
     applyByteLimitPolicy(checks, { mode: BYTE_LIMIT_MODES.REPORT, onReport: (message) => reports.push(message) }),
     [checks[1]]
   );
-  assert.deepEqual(reports, ["bundle size report only — over limit: 12 bytes exceeds 10 bytes by 2"]);
+  assert.deepEqual(reports, [
+    "bundle size approaching limit — at limit: 10/10 bytes (0 remaining)",
+    "bundle size report only — over limit: 12 bytes exceeds 10 bytes by 2",
+  ]);
   assert.throws(
     () => applyByteLimitPolicy(checks, { mode: BYTE_LIMIT_MODES.ENFORCE }),
     /production bundle byte limits exceeded:[\s\S]*over limit/
@@ -220,6 +224,44 @@ test("development bundle checks report byte excesses while release checks enforc
     applyByteLimitPolicy([checks[0]], { mode: BYTE_LIMIT_MODES.ENFORCE }),
     [],
     "the exact limit must remain valid"
+  );
+});
+
+test("bundle near-limit warnings preserve release success and exact hard limits", () => {
+  for (const mode of Object.values(BYTE_LIMIT_MODES)) {
+    const reports = [];
+    const checks = [979, 980, 1000].map((actualBytes) => ({
+      actualBytes,
+      limitBytes: 1000,
+      name: `size ${actualBytes}`,
+    }));
+    assert.deepEqual(applyByteLimitPolicy(checks, { mode, onReport: (message) => reports.push(message) }), []);
+    assert.equal(reports.length, 2);
+    assert.match(reports[0], /980\/1000 bytes \(20 remaining\)/u);
+    assert.match(reports[1], /1000\/1000 bytes \(0 remaining\)/u);
+  }
+});
+
+test("initial JS follows static dependency graphs once and excludes dynamic-only entries", () => {
+  const chunks = [
+    { fileName: "main.js", imports: ["a.js", "b.js"], dynamicImports: ["lazy.js"] },
+    { fileName: "a.js", imports: ["shared.js"], dynamicImports: [] },
+    { fileName: "b.js", imports: ["shared.js"], dynamicImports: [] },
+    { fileName: "shared.js", imports: ["main.js"], dynamicImports: [] },
+    { fileName: "lazy.js", imports: [], dynamicImports: [] },
+  ];
+  const initial = collectInitialJavaScriptChunks(chunks, ["main.js"]);
+  assert.deepEqual(initial.map((chunk) => chunk.fileName).sort(), ["a.js", "b.js", "main.js", "shared.js"]);
+  assert.throws(() => collectInitialJavaScriptChunks(chunks.slice(0, 3), ["main.js"]), /unmeasured static/u);
+  assert.throws(() => collectInitialJavaScriptChunks([...chunks, chunks[0]], ["main.js"]), /duplicate/u);
+  assert.throws(() => collectInitialJavaScriptChunks(chunks, []), /needs an entry/u);
+  assert.throws(
+    () =>
+      applyByteLimitPolicy([{ name: "initial total", actualBytes: initial.length * 30, limitBytes: 100 }], {
+        mode: BYTE_LIMIT_MODES.ENFORCE,
+      }),
+    /initial total/u,
+    "splitting startup code into individually small files does not bypass the aggregate limit"
   );
 });
 
@@ -283,11 +325,11 @@ test("Sentry size allowance follows Vite module provenance instead of a text mar
 test("lint and Prettier cover source, test, script, and executable root configuration files", () => {
   assert.equal(
     PACKAGE.scripts.lint,
-    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts'
+    'eslint "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts "server/**/*.js" "api/**/*.js"'
   );
   assert.equal(
     PACKAGE.scripts["prettier:check"],
-    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json'
+    'prettier --check "src/**/*.{js,ts,tsx}" "supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}" "supabase/functions/notification-outbox-dispatch/*.{js,ts}" "tests/**/*.{js,mjs}" "scripts/**/*.{js,mjs}" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json "server/**/*.js" "api/**/*.js"'
   );
 });
 
