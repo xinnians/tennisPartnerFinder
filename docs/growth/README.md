@@ -22,3 +22,5 @@ G09 已完成 [視覺提案 v1（五張圖與設計說明）](g09-design/README.
 G09 擴充已核可：台北完整指南與全台待審資料分開推進，見 [執行紀錄](g09-expansion-implementation-2026-09-09.md) 與 [全台資料品質報告](national-courts-quality-2026-09-09.md)。最新驗證與部署狀態仍以 progress.md 為準。
 
 指南列表查找已核可，行為與驗證見 [名稱／行政區查找](g09-guide-search-2026-09-09.md)。
+
+現有指南使用資訊補強與新增五篇台北指南，見 [第二批查核紀錄](g09-guide-batch-two-2026-09-09.md)。
