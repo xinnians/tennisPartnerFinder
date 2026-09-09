@@ -62,3 +62,8 @@ Production env strict exit0：main385456/119286、root661686/193594、guide27764
 
 
 Git runtime70b35bf已推送；第一個Preview變數新增回exit1，後續env ls確認分支沒有任何變數，才重試。重試兩個公開Supabase變數均exit0，限定C04分支（Production未改）。本文件提交觸發完整設定的Git preview。候選24篇、22篇33欄pending；正式仍21篇。測完移除分支變數及/tmp/qiuka-c04/.env.production。
+
+
+PR #9 https://github.com/xinnians/tennisPartnerFinder/pull/9，head `0fa015688594b2e2720bc5632d5bf4b954af25f0`；Git Preview `dpl_GCzY4rHGewPbrueWjEJoLuxnhoPm`建置中。QA腳本位於`/Users/ian/tennisPartnerFinder-qa/court-guide-c04-2026-09-09/`，verify-hosted／details／entry分別驗24篇索引、全部HTTP與三篇6尺寸內容、開局取消。Production sitemap26、preview0。接續先inspect部署、確認穩定Git別名，再跑hosted三腳本；CI結束後合併此確切head。這段CI期间不推新head以免取消檢查。
+
+Git Preview已READY，穩定URL https://tennis-partner-finder-git-cod-40d48b-xinnians-projects-c513dbd3.vercel.app 。PR建立後run list為空、checks僅Vercel，確認無CI句柄後手動dispatch既有Quality Gate，run34348031374已確認in_progress且head0fa0156一致。不可把沒有job當CI成功；等這個run完成。預覽index腳本已啟動，log/tmp/qiuka-c04/preview-index.log，接续details與entry，再正式驗收。
