@@ -42,7 +42,7 @@
 
 - 使用者指出場地租借 2.0；已核對體育局官方 2026 年 7 月起檔期切換說明。先前漏查切換公告，已修正現行指南內容。
 - 彩虹改至 `/venues/19`，青年網球委外場地改至 `/venues/1098`；台北網球中心保留營運官網。舊版無法在新系統確認的固定場次／夜間及設施細節改為待確認。
-- 詳細來源、範圍與維護規則見 [租借系統更正](g09-booking-system-correction-2026-09-09.md)。4 項 unit、build／嚴格容量 gate 已通過；桌面／390px 渲染、錯誤重試、零 Maps／console error 2 項通過；Git 發布中。
+- 詳細來源、範圍與維護規則見 [租借系統更正](g09-booking-system-correction-2026-09-09.md)。4 項 unit、build／嚴格容量 gate 已通過；桌面／390px 渲染、錯誤重試、零 Maps／console error 2 項通過；已 Git 部署並驗證正式站。內容 commit `05b6ca0`，Vercel `dpl_E2LMyHTUc1QfBMRxkN2UaQja96Hh` READY。兩篇正式 HTML 均 200、指向新系統且不再包含舊租借網址。
 
 ## 下一步
 

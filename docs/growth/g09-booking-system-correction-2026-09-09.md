@@ -17,3 +17,5 @@
 既有指南單元測試 4 項通過，build 與嚴格 bundle gate 通過（本機一般設定 total 940,864 raw／281,937 gzip，0 exceeded）。Browser plugin skill 未提供，渲染 QA 沿用 frontend-testing-debugging 的 repo Playwright 路徑；官方來源以 CUA Chrome 的可見頁面查核。桌面／390px 指南渲染、錯誤重試與無 Maps 檢查結果及正式發布狀態見 progress.md。本批未改 runtime／migration，未重跑完整 local／SQL 流程，不挪用前一批結果作為新測試。
 
 後續來源查核需同時看官方系統公告、當前實際入口和場館個別規定，不能只憑舊頁仍可開啟就標示為現行租借入口。
+
+正式發布完成：內容 commit `05b6ca0`；Vercel `dpl_E2LMyHTUc1QfBMRxkN2UaQja96Hh` READY，qiuka.tw alias 已更新。青年／彩虹正式頁 HTTP 200，原始 HTML 正確指向新系統場館頁且不含舊 `vbs.sports.taipei` 連結。桌面／390px 指南渲染與重試測試 2 passed，截圖已更新。後續純文件 commit 不改產品內容。
