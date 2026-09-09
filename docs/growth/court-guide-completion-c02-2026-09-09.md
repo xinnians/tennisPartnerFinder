@@ -98,3 +98,17 @@
 - 原始log：`/tmp/qiuka-c02/`；Git preview、必要CI及正式驗收接續後補。
 
 Git runtime `7b6f65e`已推送工作分支；為本批Git preview建立兩個分支限定的公開Supabase變數，QA完將清理。此文件提交觸發具完整公開設定的預覽建置，尚未宣稱正式發布。
+
+### Git preview驗收
+
+- PR #7 head `1276222bccc1f4929fe38283d9f2db8c20adf170`，runtime `7b6f65eac9655098ba8bb6e1a42bd964b9a3111a`。
+- Vercel `dpl_Ci7fTDsKTsVWviL66VQzqgKQusDA` READY；穩定入口：<https://tennis-partner-finder-git-cod-87b2d5-xinnians-projects-c513dbd3.vercel.app>。
+- 20篇HTTP200、來源／內容與JSON一致；preview sitemap0（noindex預期）、不存在的指南與全台底稿404。
+- 桌面1280×844、手機390×844：20篇索引、名稱＋行政區、空結果、Tab／清除focus、44px控制及no-JS均通過；索引只載1KB JS、無API／Maps。北投篩選4篇。
+- 四篇×兩尺寸8組detail檢查：標題、內容、球局查詢及CTA正確、無橫向溢出、console與pageerror皆0。人工閱圖洲美手機費率、復興手機pending及迪化桌面，文字正常。
+- 開局入口首跑有一次 `Cannot read properties of undefined (reading 'getRootNode')` pageerror，當時沒有stack，不能斷言來源或已修正。增加stack記錄後兩輪各8組入口／取消皆通過，沒有發布／訂閱寫入；正式站還需再驗。專案src/server/scripts無該字串不是足以歸責第三方的證據。
+- QA腳本、PNG及report位於 `/Users/ian/tennisPartnerFinder-qa/court-guide-c02-2026-09-09/`。必要CI run `34342352957`進行中；本段本機提交，未推新head干擾CI。
+
+### 新生後續來源（仍不發布）
+
+本批等待CI時找到 [台北YMCA新生館頁](https://www.ymca-taipei.org.tw/%E6%96%B0%E7%94%9F%E9%81%8B%E5%8B%95%E9%A4%A8)及[新生運動館網站導覽](https://www.ymca-xssc.org/pages-10)，說明YMCA營運、指向場館／價格／預約；但YMCA介紹的樓層與舊工程規模有疑義，未確認一般網球項目。下一步應查新營運者**球類項目及網球保留位置**，不能只重讀2021規畫，也不能因運動館營運就推導舊網球場可打。碧湖泳池標尚未開放僅適用泳池，不能直接套網球。

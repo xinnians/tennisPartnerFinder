@@ -53,7 +53,7 @@
 
 ## 台北未發布45筆
 
-C02剩餘9筆依計畫順序排列，其餘按既有目錄排序。天母已查核待補來源；本批8筆已查核（4篇內容完成、4筆待來源／現況），另36筆尚未開始本計畫查核。北投已移至發布表。
+C02剩餘9筆依計畫順序排列，其餘按既有目錄排序。天母已查核待補來源；本批8筆已查核（4篇內容完成、4筆待來源／現況），另36筆中10筆C03查核中、26筆尚未開始本計畫查核。北投已移至發布表。
 
 | 優先 | 場地／slug | 行政區 | 查核狀態 | 發布狀態 | 下一步 | 來源／證據 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -71,27 +71,27 @@ C02剩餘9筆依計畫順序排列，其餘按既有目錄排序。天母已查�
 | P3 | 松山高中網球場／`songshan-senior-high` | 信義區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/e13d57cdaf90) |
 | P3 | 三民國中網球場／`sanmin-junior-high` | 內湖區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 德明財經科技大學網球場／`takming-university` | 內湖區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 煙波庭公園網球場／`yanboting-park` | 內湖區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=760) |
-| P2 | 瑞湖公園網球場／`ruihu-park` | 內湖區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=767) |
-| P2 | 石潭公園網球場／`shitan-park` | 內湖區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=766) |
-| P2 | 碧湖公園網球場／`bihu-park` | 內湖區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=604) |
-| P2 | 葫蘆洲運動公園網球場／`huluzhou-sports-park` | 內湖區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://data.gov.tw/dataset/22849) |
+| P2 | 煙波庭公園網球場／`yanboting-park` | 內湖區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 瑞湖公園網球場／`ruihu-park` | 內湖區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 石潭公園網球場／`shitan-park` | 內湖區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 碧湖公園網球場／`bihu-park` | 內湖區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 葫蘆洲運動公園網球場／`huluzhou-sports-park` | 內湖區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 西湖國中網球場／`xihu-junior-high` | 內湖區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 台北藝術大學網球場／`tnua` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 大豐公園網球場／`dafeng-park` | 北投區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=994) |
-| P2 | 天溪綠地網球場／`tianxi-green-space` | 北投區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=968) |
+| P2 | 大豐公園網球場／`dafeng-park` | 北投區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
+| P2 | 天溪綠地網球場／`tianxi-green-space` | 北投區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 文林國小網球場／`wenlin-elementary` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 新民國中網球場／`xinmin-junior-high` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/431c7decfa8c) |
 | P3 | 明德國中網球場／`mingde-junior-high` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 觀海公園網球場／`guanhai-park` | 北投區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=984) |
+| P2 | 觀海公園網球場／`guanhai-park` | 北投區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 逸仙國小網球場／`yixian-elementary` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 陽明大學山下網球場／`yangming-university-foothill` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 陽明大學山頂網球場／`yangming-university-hilltop` | 北投區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 中華科技大學網球場／`cust` | 南港區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
-| P2 | 天壽公園網球場／`tianshou-park` | 士林區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=816) |
+| P2 | 天壽公園網球場／`tianshou-park` | 士林區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 東吳大學網球場／`soochow-university` | 士林區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 至善國中網球場／`zhishan-junior-high` | 士林區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://service.gov.taipei/rental/VenueDetail/7609a1c8ed2f) |
-| P2 | 蘭興公園網球場／`lanxing-park` | 士林區 | 待查核 | 未發布 | 核對網球設施、使用資格、現行租借／現場流程及位置 | [歷史來源](https://vbs.sports.taipei/venues/?K=1013) |
+| P2 | 蘭興公園網球場／`lanxing-park` | 士林區 | 查核中 | 未發布 | 官方設施對照已取得；接續使用流程／費率／資格查核 | [2026-09-09 C03底稿](court-guide-completion-c03-2026-09-09.md) |
 | P3 | 銘傳大學網球場／`ming-chuan-university` | 士林區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 台北教育大學網球場／`ntue` | 大安區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
 | P3 | 台灣科技大學網球場／`ntust` | 大安區 | 待查核 | 未發布 | 先查一般民眾資格及時段，再查網球場地／費用／入口 | [歷史來源](https://data.gov.tw/dataset/22849) |
