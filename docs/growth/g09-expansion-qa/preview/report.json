@@ -1,0 +1,92 @@
+{
+  "origin": "https://tennis-partner-finder-a42byetey-xinnians-projects-c513dbd3.vercel.app",
+  "checkedAt": "2026-09-09T08:22:04.988Z",
+  "results": [
+    {
+      "mobile": false,
+      "path": "/courts/",
+      "articleReadyMs": 108.5,
+      "lcp": 372,
+      "cls": 0,
+      "raw": 0,
+      "encoded": 0,
+      "scriptCount": 0,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": false,
+      "path": "/courts/daonan-riverside/",
+      "articleReadyMs": 953,
+      "lcp": 204,
+      "cls": 0.002486812266128323,
+      "raw": 276767,
+      "encoded": 76906,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": false,
+      "path": "/courts/huazhong-riverside/",
+      "articleReadyMs": 236.4000005722046,
+      "lcp": 236,
+      "cls": 0.002486812266128323,
+      "raw": 276767,
+      "encoded": 76906,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": false,
+      "shareRoute": true,
+      "realClipboard": true,
+      "guideAnonymousCreate": true,
+      "pageErrors": []
+    },
+    {
+      "mobile": true,
+      "path": "/courts/",
+      "articleReadyMs": 295.19999980926514,
+      "lcp": 2244,
+      "cls": 0,
+      "raw": 0,
+      "encoded": 0,
+      "scriptCount": 0,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": true,
+      "path": "/courts/daonan-riverside/",
+      "articleReadyMs": 3123.9000005722046,
+      "lcp": 3080,
+      "cls": 0.03190300230689176,
+      "raw": 276767,
+      "encoded": 76906,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": true,
+      "path": "/courts/huazhong-riverside/",
+      "articleReadyMs": 3123,
+      "lcp": 3092,
+      "cls": 0.03190300230689176,
+      "raw": 276767,
+      "encoded": 76906,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": true,
+      "shareRoute": true,
+      "realClipboard": true,
+      "guideAnonymousCreate": true,
+      "pageErrors": []
+    }
+  ]
+}

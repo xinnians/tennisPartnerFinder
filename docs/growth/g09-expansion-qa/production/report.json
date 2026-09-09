@@ -1,0 +1,92 @@
+{
+  "origin": "https://qiuka.tw",
+  "checkedAt": "2026-09-09T08:31:38.051Z",
+  "results": [
+    {
+      "mobile": false,
+      "path": "/courts/",
+      "articleReadyMs": 113.30000019073486,
+      "lcp": 364,
+      "cls": 0,
+      "raw": 0,
+      "encoded": 0,
+      "scriptCount": 0,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": false,
+      "path": "/courts/daonan-riverside/",
+      "articleReadyMs": 667.1999998092651,
+      "lcp": 204,
+      "cls": 0.002486812266128323,
+      "raw": 276996,
+      "encoded": 77062,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": false,
+      "path": "/courts/huazhong-riverside/",
+      "articleReadyMs": 194.19999980926514,
+      "lcp": 192,
+      "cls": 0.002486812266128323,
+      "raw": 276996,
+      "encoded": 77062,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": false,
+      "shareRoute": true,
+      "realClipboard": true,
+      "guideAnonymousCreate": true,
+      "pageErrors": []
+    },
+    {
+      "mobile": true,
+      "path": "/courts/",
+      "articleReadyMs": 277.8999996185303,
+      "lcp": 2240,
+      "cls": 0,
+      "raw": 0,
+      "encoded": 0,
+      "scriptCount": 0,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": true,
+      "path": "/courts/daonan-riverside/",
+      "articleReadyMs": 3124.699999809265,
+      "lcp": 3092,
+      "cls": 0.03190300230689176,
+      "raw": 276996,
+      "encoded": 77062,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": true,
+      "path": "/courts/huazhong-riverside/",
+      "articleReadyMs": 3130.8999996185303,
+      "lcp": 3100,
+      "cls": 0.03190300230689176,
+      "raw": 276996,
+      "encoded": 77062,
+      "scriptCount": 2,
+      "overflow": false,
+      "errors": []
+    },
+    {
+      "mobile": true,
+      "shareRoute": true,
+      "realClipboard": true,
+      "guideAnonymousCreate": true,
+      "pageErrors": []
+    }
+  ]
+}

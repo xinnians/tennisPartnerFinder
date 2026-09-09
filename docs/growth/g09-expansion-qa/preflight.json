@@ -1,0 +1,98 @@
+{
+  "checkedAt": "2026-09-09",
+  "migrationCount": 41,
+  "migrationsAligned": true,
+  "hostedWrites": false,
+  "anonymous": [
+    {
+      "select": true,
+      "view": "session_discovery"
+    },
+    {
+      "select": false,
+      "view": "profiles"
+    },
+    {
+      "select": false,
+      "view": "sessions"
+    },
+    {
+      "select": false,
+      "view": "session_participants"
+    },
+    {
+      "select": false,
+      "view": "session_message_feed"
+    },
+    {
+      "select": false,
+      "view": "player_directory"
+    },
+    {
+      "select": false,
+      "view": "my_profile"
+    }
+  ],
+  "counts": {
+    "messages": 2,
+    "outbox": 13,
+    "participants": 3,
+    "profiles": 3,
+    "reports": 0,
+    "sessions": 3
+  },
+  "cron": [
+    {
+      "active": true,
+      "name": "expire-stale-tennis-sessions",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "active": true,
+      "name": "dispatch-notification-outbox",
+      "schedule": "* * * * *"
+    },
+    {
+      "active": true,
+      "name": "purge-archived-session-messages",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "active": true,
+      "name": "enqueue-session-reminders",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "active": true,
+      "name": "dispatch-notification-outbox-v2",
+      "schedule": "* * * * *"
+    }
+  ],
+  "discovery_columns": [
+    "id",
+    "session_id",
+    "sport_code",
+    "court_id",
+    "court",
+    "court_district",
+    "court_lat",
+    "court_lng",
+    "start_at",
+    "play_type",
+    "ntrp_min",
+    "ntrp_max",
+    "slots_total",
+    "slots_remaining",
+    "notes",
+    "host_nickname",
+    "host_ntrp",
+    "host_profile_complete",
+    "status",
+    "join_mode",
+    "venue_type",
+    "range_end",
+    "candidate_court_ids",
+    "fee_note",
+    "decided_at"
+  ]
+}

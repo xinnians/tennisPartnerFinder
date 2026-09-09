@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/data/national/inventory.json",
+    "status": 404
+  },
+  {
+    "path": "/national/inventory.json",
+    "status": 404
+  },
+  {
+    "path": "/data/national/source-22849.json",
+    "status": 404
+  }
+]

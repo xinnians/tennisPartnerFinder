@@ -1,0 +1,114 @@
+{
+  "origin": "https://qiuka.tw",
+  "checkedAt": "2026-09-09T08:30:46.191Z",
+  "results": [
+    {
+      "path": "/courts/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 7134
+    },
+    {
+      "path": "/courts/youth-park/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5165
+    },
+    {
+      "path": "/courts/rainbow-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5350
+    },
+    {
+      "path": "/courts/taipei-tennis-center/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5541
+    },
+    {
+      "path": "/courts/dajia-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5484
+    },
+    {
+      "path": "/courts/meiti-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5425
+    },
+    {
+      "path": "/courts/huazhong-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5475
+    },
+    {
+      "path": "/courts/zhongzheng-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5427
+    },
+    {
+      "path": "/courts/guting-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5428
+    },
+    {
+      "path": "/courts/daonan-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5552
+    },
+    {
+      "path": "/courts/yanping-riverside/",
+      "method": "GET",
+      "status": 200,
+      "bytes": 5451
+    },
+    {
+      "path": "/courts/not-a-guide/",
+      "method": "GET",
+      "status": 404,
+      "bytes": 79
+    },
+    {
+      "path": "/s/21",
+      "method": "GET",
+      "status": 200,
+      "bytes": 7298
+    },
+    {
+      "path": "/s/21",
+      "method": "HEAD",
+      "status": 200,
+      "bytes": 0
+    },
+    {
+      "path": "/s/999999999",
+      "method": "GET",
+      "status": 404,
+      "bytes": 7094
+    },
+    {
+      "path": "/s/21",
+      "method": "POST",
+      "status": 405,
+      "bytes": 18
+    },
+    {
+      "path": "/robots.txt",
+      "method": "GET",
+      "status": 200,
+      "bytes": 61
+    },
+    {
+      "path": "/sitemap.xml",
+      "method": "GET",
+      "status": 200,
+      "bytes": 826
+    }
+  ]
+}
