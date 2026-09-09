@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { repeatSessionDraft } from "../src/features/session-lifecycle/repeatSessionDraft.ts";
+import { createSessionDraft as repeatSessionDraft } from "../src/features/session-lifecycle/repeatSessionDraft.ts";
 import { sessionShareSummary } from "../src/features/share/sessionShareSummary.ts";
 import {
   createSessionFormCanPublish,

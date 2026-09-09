@@ -1,4 +1,4 @@
-import { freshCreateSessionForm, repeatSessionDraft } from "../features/session-lifecycle/repeatSessionDraft.ts";
+import { createSessionDraft } from "../features/session-lifecycle/repeatSessionDraft.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.ts";
 import { mountSheet } from "../sheets.ts";
 import { sessionActionMessage } from "../sessionActionMessages.ts";
@@ -283,7 +283,7 @@ export function createCandidateWindowLocal(form, now = new Date()) {
 
 /** 底鈕守門(dc canPublish,§7):候選=候選≥2＋時段已選;已定=球場＋時間已選。 */
 export function createSessionFormCanPublish(form) {
-  if (form.repeated && (!form.dateKey || (form.dateKey === "custom" && !form.customDate))) return false;
+  if (form.repeated && !resolveCreateDateValue(form)) return false;
   if (form.mode === "cand") {
     const count = Object.values(form.candCourts).filter(Boolean).length;
     return count >= 2 && Boolean(form.slot);
@@ -392,12 +392,10 @@ export function openCreateSessionSheet({
     dateValueNow: (value) => sessionFormSheetRuntime.taipeiDateValue(value, value),
     donePresentation: sessionFormSheetRuntime.createSessionDonePresentation,
     fixedStartAt: sessionFormSheetRuntime.createFixedStartAtLocal,
-    initialForm: repeatSource
-      ? repeatSessionDraft(
-          repeatSource,
-          sessionFormSheetRuntime.taipeiCourts(courts).map((court) => Number(court.id))
-        )
-      : freshCreateSessionForm(),
+    initialForm: createSessionDraft(
+      repeatSource,
+      sessionFormSheetRuntime.taipeiCourts(courts).map((court) => Number(court.id))
+    ),
     now,
     onBackToMap: () => mounted.close(),
     onClose: () => mounted.close(),

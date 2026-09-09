@@ -1,7 +1,9 @@
 import type { MySessionSummary } from "../../domainTypes.ts";
+import { isUndecidedCandidate } from "../../sessionCriteria.ts";
 
-export function freshCreateSessionForm() {
-  return {
+/** 新建與重開共用初值；重開只覆寫可沿用的活動設定。 */
+export function createSessionDraft(source?: MySessionSummary, courtIds: readonly number[] = []) {
+  const form = {
     band: "any",
     booked: false,
     candCourts: {} as Record<string, boolean>,
@@ -19,14 +21,10 @@ export function freshCreateSessionForm() {
     timeCustom: false,
     type: "雙打",
   };
-}
-
-/** 只重用活動設定；日期、訂場承諾與成員資料都留在原球局。 */
-export function repeatSessionDraft(source: MySessionSummary, courtIds: readonly number[]) {
-  const undecided = source.venueType === "candidates" && !source.decidedAt;
+  if (!source) return form;
+  const undecided = isUndecidedCandidate(source);
   const court = !undecided && source.courtId != null && courtIds.includes(source.courtId) ? source.courtId : null;
-  return {
-    ...freshCreateSessionForm(),
+  return Object.assign(form, {
     band: "repeat",
     court,
     dateKey: "",
@@ -38,5 +36,5 @@ export function repeatSessionDraft(source: MySessionSummary, courtIds: readonly 
     repeatRange: { ntrpMin: source.ntrpMin, ntrpMax: source.ntrpMax },
     repeated: true,
     type: source.playType === "對拉" ? "練球" : source.playType,
-  };
+  });
 }
