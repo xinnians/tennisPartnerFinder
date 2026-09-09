@@ -6,8 +6,10 @@ import { createProfile, setBrowserSession, signUpUser, courtIdByName } from "./f
 import { installLocalPreviewPlatformStubs, captureProductionRuntimeErrors } from "./fixtures/productionPreview.js";
 import { createSessionViaRpc, createFutureSessionInput } from "./fixtures/sessionFactory.js";
 
+import { COURT_GUIDE_NAMES } from "../src/features/guides/courtGuideCatalog.ts";
+
 const guide = "/courts/youth-park/";
-const output = "docs/growth/g09-design/qa";
+const output = "docs/growth/g09-expansion-qa/local";
 async function setup(page) {
   await installLocalPreviewPlatformStubs(page);
   await installFakeMaps(page);
@@ -27,7 +29,7 @@ test("static guides render before API, remain readable on failure, retry and exc
   const urls = [];
   page.on("request", (r) => urls.push(r.url()));
   await mkdir(output, { recursive: true });
-  for (const path of ["/courts/", guide, "/courts/rainbow-riverside/", "/courts/taipei-tennis-center/"]) {
+  for (const path of ["/courts/", ...Object.keys(COURT_GUIDE_NAMES).map((slug) => `/courts/${slug}/`)]) {
     const res = await request.get(path);
     expect(res.status()).toBe(200);
     const html = await res.text();
@@ -37,7 +39,7 @@ test("static guides render before API, remain readable on failure, retry and exc
   }
   expect((await request.get("/courts/unknown/")).status()).toBe(404);
   await page.goto("/courts/");
-  await expect(page.locator(".guide-index-card")).toHaveCount(3);
+  await expect(page.locator(".guide-index-card")).toHaveCount(Object.keys(COURT_GUIDE_NAMES).length);
   await page.screenshot({ path: `${output}/index-${info.project.name}.png`, fullPage: true });
   await page.route("**/rest/v1/session_discovery?**", (route) => route.abort());
   await page.goto(guide);
@@ -174,6 +176,28 @@ test("guide subscription returns from OAuth to the visible notification heading 
   await expect(page.locator("[data-notification-settings-heading]")).toBeFocused();
   await expect(page.locator("[data-notification-settings-heading]")).toBeInViewport();
   await expect(page.locator("[data-guide-subscription-hint]")).toContainText("青年公園網球場");
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("every published guide opens a draft for its own court without publishing", async ({ page }) => {
+  const errors = await setup(page);
+  const { session, client } = await account();
+  await setBrowserSession(page, session);
+  const writes = [];
+  page.on("request", (r) => {
+    if (/create_session|set_court_subscriptions|set_notification_prefs/.test(r.url())) writes.push(r.url());
+  });
+  for (const [slug, name] of Object.entries(COURT_GUIDE_NAMES)) {
+    const courtId = await courtIdByName(client, name);
+    await page.goto(`/courts/${slug}/`);
+    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "在這裡開球局", exact: true }).first().click();
+    await expect(page.getByTestId("session-form")).toBeVisible();
+    await expect(page.getByTestId(`create-court-${courtId}`)).toHaveClass(/is-selected/);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("session-form")).toHaveCount(0);
+  }
   expect(writes).toEqual([]);
   expect(errors).toEqual([]);
 });

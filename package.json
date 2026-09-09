@@ -35,12 +35,14 @@
     "test:local:push-subscription-v2-edge": "RUN_LOCAL_PUSH_SUBSCRIPTION_V2_EDGE_TEST=1 node --test --test-concurrency=1 tests/push-subscription-v2-edge-local.test.js",
     "test:local:notification-dispatch-v2-edge": "RUN_LOCAL_NOTIFICATION_DISPATCH_V2_CANARY_TEST=1 node --test --test-concurrency=1 tests/notification-dispatch-v2-edge-local.test.js",
     "test:local:notification-outbox-dispatch-v2-edge": "RUN_LOCAL_NOTIFICATION_OUTBOX_DISPATCH_V2_EDGE_TEST=1 node --test --test-concurrency=1 tests/notification-outbox-dispatch-v2-edge-local.test.js",
-    "test:ci:frontend": "node scripts/generate-courts-seed.mjs --check && npm run check:design-system && npm run typecheck && npm run lint && npm run prettier:check && npm run test:mock && npm run build && npm run check:production-bundle && git diff --check",
+    "test:ci:frontend": "npm run check:court-guides && npm run check:national-courts && node scripts/generate-courts-seed.mjs --check && npm run check:design-system && npm run typecheck && npm run lint && npm run prettier:check && npm run test:mock && npm run build && npm run check:production-bundle && git diff --check",
     "test:ci:supabase": "node scripts/generate-courts-seed.mjs --check && npm run test:db && npm run test:local && npm run test:local:mobile && npm run test:preview:chromium && npm run test:local:push-cleanup-edge && npm run test:local:push-subscription-v2-edge && npm run test:local:notification-dispatch-v2-edge && npm run test:local:notification-outbox-dispatch-v2-edge && git diff --check",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{js,ts,tsx}\" \"supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}\" \"supabase/functions/notification-outbox-dispatch/*.{js,ts}\" \"tests/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts \"server/**/*.js\" \"api/**/*.js\"",
     "prettier:check": "prettier --check \"src/**/*.{js,ts,tsx}\" \"supabase/functions/{_shared,push-cleanup,push-subscription-v2,notification-dispatch-v2-canary,notification-outbox-dispatch-v2,notification-outbox-dispatch-v2-canary}/**/*.{js,ts}\" \"supabase/functions/notification-outbox-dispatch/*.{js,ts}\" \"tests/**/*.{js,mjs}\" \"scripts/**/*.{js,mjs}\" eslint.config.js prettier.config.js playwright.config.js playwright.preview.config.js vite.config.ts package.json package-lock.json tsconfig.json vercel.json \"server/**/*.js\" \"api/**/*.js\"",
-    "db:reset:test": "node scripts/reset-local-test-db.mjs"
+    "db:reset:test": "node scripts/reset-local-test-db.mjs",
+    "check:court-guides": "node scripts/generate-court-guide-catalog.mjs",
+    "check:national-courts": "python3 scripts/national_courts.py --check && python3 -m unittest discover -s tests -p \"test_national_courts.py\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

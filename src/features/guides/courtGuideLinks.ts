@@ -1,9 +1,6 @@
 /** Public guide slugs map to canonical catalogue names, never environment-specific DB ids. */
-export const COURT_GUIDE_NAMES = {
-  "youth-park": "青年公園網球場",
-  "rainbow-riverside": "彩虹河濱公園網球場",
-  "taipei-tennis-center": "台北網球中心",
-} as const;
+import { COURT_GUIDE_NAMES } from "./courtGuideCatalog.ts";
+export { COURT_GUIDE_NAMES };
 export type CourtGuideSlug = keyof typeof COURT_GUIDE_NAMES;
 export function isCourtGuideSlug(value: unknown): value is CourtGuideSlug {
   return typeof value === "string" && Object.hasOwn(COURT_GUIDE_NAMES, value);

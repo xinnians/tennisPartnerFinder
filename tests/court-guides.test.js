@@ -16,8 +16,8 @@ const storage = () => {
   };
 };
 
-test("all three guides have crawlable, sourced static content and production canonicals", () => {
-  assert.equal(guides.length, 3);
+test("all published guides have crawlable, sourced static content and production canonicals", () => {
+  assert.equal(guides.length, 10);
   const index = renderGuidePage(null, { production: true });
   assert.doesNotMatch(index, /<script|noindex|maps.googleapis/);
   for (const guide of guides) {
@@ -27,6 +27,11 @@ test("all three guides have crawlable, sourced static content and production can
     for (const text of ["租借方式", "開放與設施", "交通方式", "資料來源", "未來 14 天・已定場", "2026/09/09"])
       assert.ok(html.includes(text));
     for (const fact of guide.facts) assert.ok(guide.sources[fact.source]);
+    const court = { id: 123, name: guide.name };
+    assert.equal(resolveGuideCourt(guide.slug, [court]), court);
+    const store = storage();
+    savePendingIntent({ action: "create", courtSlug: guide.slug }, store);
+    assert.equal(readPendingIntent(store).courtSlug, guide.slug);
     assert.ok(guide.sources[guide.bookingSource]);
     assert.ok(guide.sources[guide.transportSource]);
     assert.match(renderGuidePage(guide.slug, { now: Date.parse("2027-01-01") }), /資訊已超過 90 天未查核/);

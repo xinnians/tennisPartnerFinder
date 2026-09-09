@@ -1,0 +1,1721 @@
+{
+  "meta": {
+    "dataset": "22849",
+    "sourceUrl": "https://ws.sports.gov.tw/FS01/FilePath/1/relfile/164/10269/5a511d68-e6b8-42ee-a449-acc395135268.csv",
+    "datasetUrl": "https://data.gov.tw/dataset/22849",
+    "license": "政府資料開放授權條款-第1版",
+    "fetchedAt": "2026-09-09",
+    "sourceLastModified": "Sat, 08 Aug 2026 11:32:21 GMT",
+    "sourceSha256": "1c481e0816dad61af86bfecde452fff785315d3080ee54c13702642ccb7623ec",
+    "sourceRowCount": 15001,
+    "candidateRowCount": 562,
+    "sourceRecordIdAvailable": false,
+    "selection": "name or facility contains 網球 or 軟網; not a verified court count",
+    "administrativeSourceUrl": "https://api.nlsc.gov.tw/other/ListCounty",
+    "administrativeFetchedAt": "2026-09-09",
+    "snapshotSha256": "42652f02b6ead4a783200c4986815430ccd48705684f56de8d25fbaaaeb3937d",
+    "administrativeSnapshotSha256": "fd5089b0a47b1909ca4f0299ac2806b09cd645c4bf5acff793a161728bcd04c3",
+    "coordinateCheck": "finite and broad Taiwan/islands bbox only; no point-in-polygon verification",
+    "deduplication": "suggestions only; no records merged; candidate IDs are local, not provider IDs"
+  },
+  "summary": {
+    "candidateRows": 562,
+    "publishReady": 0,
+    "classifications": {
+      "tennis_candidate": 505,
+      "name_only": 41,
+      "practice_wall": 2,
+      "shared_or_ambiguous": 9,
+      "soft_tennis": 5
+    },
+    "access": {
+      "paid": 113,
+      "free": 285,
+      "closed": 163,
+      "unknown": 1
+    },
+    "reviewQueues": {
+      "verify_public_access": 354,
+      "resolve_issues": 105,
+      "verify_restrictions": 103
+    },
+    "flags": {
+      "access_rental_conflict": 50,
+      "address_city_conflict": 2,
+      "address_district_unconfirmed": 19,
+      "district_not_in_county": 2,
+      "missing_or_invalid_website": 40,
+      "name_only": 41,
+      "possible_same_site": 137,
+      "practice_wall": 2,
+      "retirement_mentioned": 1,
+      "school_access_review": 341,
+      "shared_or_ambiguous": 9,
+      "soft_tennis": 5,
+      "unknown_access_or_rental": 1,
+      "works_mentioned": 24
+    },
+    "possibleSameSitePairs": 86,
+    "catalogueCourts": 89,
+    "catalogueWithCandidates": 65
+  },
+  "byCity": [
+    {
+      "city": "連江縣",
+      "candidateRows": 2,
+      "tennisCandidates": 2,
+      "reportedPublicAccess": 2,
+      "issueQueue": 2,
+      "publishReady": 0
+    },
+    {
+      "city": "金門縣",
+      "candidateRows": 2,
+      "tennisCandidates": 2,
+      "reportedPublicAccess": 2,
+      "issueQueue": 0,
+      "publishReady": 0
+    },
+    {
+      "city": "宜蘭縣",
+      "candidateRows": 6,
+      "tennisCandidates": 5,
+      "reportedPublicAccess": 4,
+      "issueQueue": 2,
+      "publishReady": 0
+    },
+    {
+      "city": "新竹縣",
+      "candidateRows": 20,
+      "tennisCandidates": 19,
+      "reportedPublicAccess": 17,
+      "issueQueue": 2,
+      "publishReady": 0
+    },
+    {
+      "city": "苗栗縣",
+      "candidateRows": 14,
+      "tennisCandidates": 13,
+      "reportedPublicAccess": 14,
+      "issueQueue": 1,
+      "publishReady": 0
+    },
+    {
+      "city": "彰化縣",
+      "candidateRows": 44,
+      "tennisCandidates": 37,
+      "reportedPublicAccess": 31,
+      "issueQueue": 10,
+      "publishReady": 0
+    },
+    {
+      "city": "南投縣",
+      "candidateRows": 39,
+      "tennisCandidates": 34,
+      "reportedPublicAccess": 31,
+      "issueQueue": 6,
+      "publishReady": 0
+    },
+    {
+      "city": "雲林縣",
+      "candidateRows": 36,
+      "tennisCandidates": 30,
+      "reportedPublicAccess": 27,
+      "issueQueue": 8,
+      "publishReady": 0
+    },
+    {
+      "city": "嘉義縣",
+      "candidateRows": 16,
+      "tennisCandidates": 15,
+      "reportedPublicAccess": 9,
+      "issueQueue": 2,
+      "publishReady": 0
+    },
+    {
+      "city": "屏東縣",
+      "candidateRows": 34,
+      "tennisCandidates": 32,
+      "reportedPublicAccess": 22,
+      "issueQueue": 7,
+      "publishReady": 0
+    },
+    {
+      "city": "臺東縣",
+      "candidateRows": 7,
+      "tennisCandidates": 7,
+      "reportedPublicAccess": 5,
+      "issueQueue": 1,
+      "publishReady": 0
+    },
+    {
+      "city": "花蓮縣",
+      "candidateRows": 25,
+      "tennisCandidates": 23,
+      "reportedPublicAccess": 15,
+      "issueQueue": 4,
+      "publishReady": 0
+    },
+    {
+      "city": "澎湖縣",
+      "candidateRows": 0,
+      "tennisCandidates": 0,
+      "reportedPublicAccess": 0,
+      "issueQueue": 0,
+      "publishReady": 0
+    },
+    {
+      "city": "基隆市",
+      "candidateRows": 5,
+      "tennisCandidates": 4,
+      "reportedPublicAccess": 4,
+      "issueQueue": 1,
+      "publishReady": 0
+    },
+    {
+      "city": "新竹市",
+      "candidateRows": 18,
+      "tennisCandidates": 18,
+      "reportedPublicAccess": 13,
+      "issueQueue": 3,
+      "publishReady": 0
+    },
+    {
+      "city": "嘉義市",
+      "candidateRows": 5,
+      "tennisCandidates": 4,
+      "reportedPublicAccess": 2,
+      "issueQueue": 3,
+      "publishReady": 0
+    },
+    {
+      "city": "臺北市",
+      "candidateRows": 62,
+      "tennisCandidates": 53,
+      "reportedPublicAccess": 46,
+      "issueQueue": 12,
+      "publishReady": 0
+    },
+    {
+      "city": "高雄市",
+      "candidateRows": 66,
+      "tennisCandidates": 61,
+      "reportedPublicAccess": 41,
+      "issueQueue": 11,
+      "publishReady": 0
+    },
+    {
+      "city": "新北市",
+      "candidateRows": 42,
+      "tennisCandidates": 40,
+      "reportedPublicAccess": 30,
+      "issueQueue": 6,
+      "publishReady": 0
+    },
+    {
+      "city": "臺中市",
+      "candidateRows": 51,
+      "tennisCandidates": 46,
+      "reportedPublicAccess": 41,
+      "issueQueue": 10,
+      "publishReady": 0
+    },
+    {
+      "city": "臺南市",
+      "candidateRows": 48,
+      "tennisCandidates": 41,
+      "reportedPublicAccess": 27,
+      "issueQueue": 11,
+      "publishReady": 0
+    },
+    {
+      "city": "桃園市",
+      "candidateRows": 20,
+      "tennisCandidates": 19,
+      "reportedPublicAccess": 15,
+      "issueQueue": 3,
+      "publishReady": 0
+    }
+  ],
+  "possibleSameSitePairs": [
+    {
+      "a": "candidate-b6b4f1748ff9a470deb6",
+      "b": "candidate-bde3f54bf5a47d3d1693",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 665
+    },
+    {
+      "a": "candidate-232ea04282e728f8493c",
+      "b": "candidate-88866adbc6c172cf838c",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-232ea04282e728f8493c",
+      "b": "candidate-347d6532d998555fca89",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-88866adbc6c172cf838c",
+      "b": "candidate-347d6532d998555fca89",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-c317f006e7dd28d1b412",
+      "b": "candidate-7edd8a6f26aedb7d2523",
+      "reasons": [
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 63
+    },
+    {
+      "a": "candidate-41792d9770db3f6cb153",
+      "b": "candidate-99984196bba6770847a6",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 611
+    },
+    {
+      "a": "candidate-dcc708ba480e48ee0cc6",
+      "b": "candidate-38b91ca663b656b72e74",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-12cbbd168c2895030689",
+      "b": "candidate-958d5a421f338677cfeb",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-504b79f3456e9d0e3863",
+      "b": "candidate-013e8e1b4a25a6e31e16",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 516
+    },
+    {
+      "a": "candidate-5d1729c2a226a1891269",
+      "b": "candidate-3f8a3cbdf9042abd4eee",
+      "reasons": [
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 42
+    },
+    {
+      "a": "candidate-1b7ff4f939a761398498",
+      "b": "candidate-3cdc040e7dc9ff7e9716",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-b2fbda4a265757efbc59",
+      "b": "candidate-f8a38e52ab917242625c",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-5a6bf86d4adee45db255",
+      "b": "candidate-87207a75689b85abd89c",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 399
+    },
+    {
+      "a": "candidate-c67c7d7a587ce90448dd",
+      "b": "candidate-c67c7d7a587ce90448dd-row-2691",
+      "reasons": [
+        "same_name",
+        "same_address"
+      ],
+      "distanceMeters": 101
+    },
+    {
+      "a": "candidate-7d788b76c0fc4ab5b748",
+      "b": "candidate-7d788b76c0fc4ab5b748-row-3257",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-f1afc9a5e940720d14cb",
+      "b": "candidate-731e3e92b9bd38664750",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 196
+    },
+    {
+      "a": "candidate-7840fd60f2192c532036",
+      "b": "candidate-6a1457be1e6e88e5786c",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 684
+    },
+    {
+      "a": "candidate-7840fd60f2192c532036",
+      "b": "candidate-cd3d178329bcaa6f6e8b",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 263
+    },
+    {
+      "a": "candidate-6a1457be1e6e88e5786c",
+      "b": "candidate-cd3d178329bcaa6f6e8b",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 690
+    },
+    {
+      "a": "candidate-58a7034a93a0dcdd599b",
+      "b": "candidate-236455965c2f2db75c6f",
+      "reasons": [
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 5
+    },
+    {
+      "a": "candidate-61b38b60ff933f7ec203",
+      "b": "candidate-61b38b60ff933f7ec203-row-4437",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-7aa8d758f5ae6597ac20",
+      "b": "candidate-73e5f8411cbe5f4fd483",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-696cb280de0bbd19e315",
+      "b": "candidate-6e95c1b466aa1f01443c",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-f5cccc2332f8066bf7af",
+      "b": "candidate-4e71dda7044f6f2a1178",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-f5cccc2332f8066bf7af",
+      "b": "candidate-9e32c30fc6d063574b60",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-f5cccc2332f8066bf7af",
+      "b": "candidate-a53acc9518cea494f172",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-4e71dda7044f6f2a1178",
+      "b": "candidate-9e32c30fc6d063574b60",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-4e71dda7044f6f2a1178",
+      "b": "candidate-a53acc9518cea494f172",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-9e32c30fc6d063574b60",
+      "b": "candidate-a53acc9518cea494f172",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-91dfb5042178501b3313",
+      "b": "candidate-95bfa9dfc8c146b12033",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 1870
+    },
+    {
+      "a": "candidate-1a77ba2a9a30ce422dc4",
+      "b": "candidate-b4263df0a7a31e41efdf",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-0588e540b8050658d860",
+      "b": "candidate-3df3cd1b644ddd512eba",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 222
+    },
+    {
+      "a": "candidate-430cc9c88808767c2420",
+      "b": "candidate-cb08733931e1d4d31fbd",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-c2a329a028ff8746632a",
+      "b": "candidate-d46f73e7fd06da6d2900",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-c2a329a028ff8746632a",
+      "b": "candidate-77eb50394296911ec5fe",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 113
+    },
+    {
+      "a": "candidate-d46f73e7fd06da6d2900",
+      "b": "candidate-77eb50394296911ec5fe",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 113
+    },
+    {
+      "a": "candidate-d62ac5a590688a9ad912",
+      "b": "candidate-fe02ebb60f6b124a0775",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-dad5f298f58c46fbf519",
+      "b": "candidate-9a41b22a7c29f5d41859",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-dad5f298f58c46fbf519",
+      "b": "candidate-c9e38c29726e3ae2dc49",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-9a41b22a7c29f5d41859",
+      "b": "candidate-c9e38c29726e3ae2dc49",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-a4bbee6d303bea7954b6",
+      "b": "candidate-e563427189c4d521a823",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-2ef827bd4df634b58e06",
+      "b": "candidate-d184ba06113354429508",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-cefe78b057e725b7d85e",
+      "b": "candidate-89e08ed44328a82f62ef",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-cefe78b057e725b7d85e",
+      "b": "candidate-0af47e961150fad03c1e",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-cefe78b057e725b7d85e",
+      "b": "candidate-2e0eeef55e51f6ab5116",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 30365
+    },
+    {
+      "a": "candidate-89e08ed44328a82f62ef",
+      "b": "candidate-0af47e961150fad03c1e",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-89e08ed44328a82f62ef",
+      "b": "candidate-2e0eeef55e51f6ab5116",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 30365
+    },
+    {
+      "a": "candidate-0af47e961150fad03c1e",
+      "b": "candidate-2e0eeef55e51f6ab5116",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 30365
+    },
+    {
+      "a": "candidate-0f0fc0a323808edd8f88",
+      "b": "candidate-c94ad0a89651f1101ef5",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-a96920545cc64c379260",
+      "b": "candidate-501f6b759076b2ed8da1",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 17823
+    },
+    {
+      "a": "candidate-30a1a25f6677825c664d",
+      "b": "candidate-e196b1f7368f268b0815",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-f78b78bd31c1024f3458",
+      "b": "candidate-954bb800b8d89fc29ab5",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-fa5f9d66e4efd2e3ef8a",
+      "b": "candidate-85fbdf61201c25f27fd8",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-faca9ea23b08aeca4de0",
+      "b": "candidate-d8b4ba035fa7a80c5ec2",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-1b0d5e07ddc0d6908c38",
+      "b": "candidate-a02b9749bd00273ffe8f",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-aac6529cf9a939d3cb24",
+      "b": "candidate-8411120a871f884e6d44",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-814c69d7f8801edb9be4",
+      "b": "candidate-3c5c698ab7955a1bd834",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 123
+    },
+    {
+      "a": "candidate-fb37223ac014120306f8",
+      "b": "candidate-085e66d8198a93160f44",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-a1f2717c7c0c2a6d4928",
+      "b": "candidate-6c5ec721a5f25ac19aa8",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-e45d5a333dd86f44c5a6",
+      "b": "candidate-deaea9aceb4f808c8bce",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 7039
+    },
+    {
+      "a": "candidate-4a0b2b452305e1dacc7d",
+      "b": "candidate-16efeff03dd5254a33e7",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-3ebf51493e41cc1380c0",
+      "b": "candidate-00abeb90814b28bf3ccd",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-3ebf51493e41cc1380c0",
+      "b": "candidate-48302231273029114948",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 603
+    },
+    {
+      "a": "candidate-00abeb90814b28bf3ccd",
+      "b": "candidate-48302231273029114948",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 603
+    },
+    {
+      "a": "candidate-0127fab50cd5d33b5b81",
+      "b": "candidate-d8cf528c4659d4739fc1",
+      "reasons": [
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 8
+    },
+    {
+      "a": "candidate-55406bd9cfd49b7866ba",
+      "b": "candidate-398d065d46ebe47a1a07",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-23393051db9279eae4a2",
+      "b": "candidate-2089f32c7a269921b23d",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 64400
+    },
+    {
+      "a": "candidate-c374b0eed05921a6de4f",
+      "b": "candidate-e8b11512c169b2679864",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-b47792461f7b2eec02b8",
+      "b": "candidate-7624a9233a6594ec9f00",
+      "reasons": [
+        "within_80m"
+      ],
+      "distanceMeters": 70
+    },
+    {
+      "a": "candidate-7624a9233a6594ec9f00",
+      "b": "candidate-063cb1fd80d5f632febc",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 327
+    },
+    {
+      "a": "candidate-fabdbfa10be66526d98a",
+      "b": "candidate-6e3a1ac866ff8bb92ffd",
+      "reasons": [
+        "same_name"
+      ],
+      "distanceMeters": 34484
+    },
+    {
+      "a": "candidate-218f9ec8c15590174af0",
+      "b": "candidate-f2233699bf1d7d5cefda",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-a3c08e2098964e6fa714",
+      "b": "candidate-7a32653b2ec883cacab9",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-75dd385358c7bc5be059",
+      "b": "candidate-6c7fdb549b306ff63093",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-8ded5f01419ebcce5679",
+      "b": "candidate-c93581aac24ddffc59d2",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-8ded5f01419ebcce5679",
+      "b": "candidate-22d2533c55301ef66e82",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-c93581aac24ddffc59d2",
+      "b": "candidate-22d2533c55301ef66e82",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-8272fbed52ef3bf6355a",
+      "b": "candidate-28f67d8d6a1dc1873ec3",
+      "reasons": [
+        "same_address"
+      ],
+      "distanceMeters": 239
+    },
+    {
+      "a": "candidate-7b05c5a96da029de37d4",
+      "b": "candidate-dd32fa4d916a9347078e",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-95d9149e9d81a48566ef",
+      "b": "candidate-5374a2e57b81388ae927",
+      "reasons": [
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-50ba3f5588474c415953",
+      "b": "candidate-13927285dc8a5f31193c",
+      "reasons": [
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 66
+    },
+    {
+      "a": "candidate-04fd623246b9bb66da90",
+      "b": "candidate-04fd623246b9bb66da90-row-13894",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-77dbfdfd33a5a597a72d",
+      "b": "candidate-b29850077cf344c51d57",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-642188f7e0858533fe97",
+      "b": "candidate-b061a7d3f81aa0adaea5",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-dc77fbafa2cea5c3ed29",
+      "b": "candidate-009b53cbcf1f1ff4cf45",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    },
+    {
+      "a": "candidate-85ac165a16dd751dbc52",
+      "b": "candidate-5bdaa0d18e0e1a5bba98",
+      "reasons": [
+        "same_name",
+        "same_address",
+        "within_80m"
+      ],
+      "distanceMeters": 0
+    }
+  ],
+  "catalogueCoverage": [
+    {
+      "slug": "dajia-riverside",
+      "name": "大佳河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "shih-chien-university",
+      "name": "實踐大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-72a7e733419155d2e4bb"
+      ]
+    },
+    {
+      "slug": "xinsheng-park",
+      "name": "新生公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-abb7c104a37d08cfbba2"
+      ]
+    },
+    {
+      "slug": "meiti-riverside",
+      "name": "美堤河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-175c3b91c6132428c63c"
+      ]
+    },
+    {
+      "slug": "zhongzheng-riverside",
+      "name": "中正河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "guting-riverside",
+      "name": "古亭河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "tmu",
+      "name": "台北醫學大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-99b417bf2af4eb768156"
+      ]
+    },
+    {
+      "slug": "songshan-senior-high",
+      "name": "松山高中網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "sanmin-junior-high",
+      "name": "三民國中網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-6fe5e7e8c04c8cb2638d"
+      ]
+    },
+    {
+      "slug": "taipei-tennis-center",
+      "name": "台北網球中心",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-12cbbd168c2895030689",
+        "candidate-958d5a421f338677cfeb"
+      ]
+    },
+    {
+      "slug": "rainbow-riverside",
+      "name": "彩虹河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "takming-university",
+      "name": "德明財經科技大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-cfc69a7e71ee2f7f8839"
+      ]
+    },
+    {
+      "slug": "chengmei-right-bank",
+      "name": "成美右岸河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "yanboting-park",
+      "name": "煙波庭公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-55e3c1cd266d351160d8"
+      ]
+    },
+    {
+      "slug": "ruihu-park",
+      "name": "瑞湖公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-81a1f25fad5de9c93a32"
+      ]
+    },
+    {
+      "slug": "shitan-park",
+      "name": "石潭公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-faa28591709938cc5ea6"
+      ]
+    },
+    {
+      "slug": "bihu-park",
+      "name": "碧湖公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "huluzhou-sports-park",
+      "name": "葫蘆洲運動公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-86a7b4b1b68047a6cdfc"
+      ]
+    },
+    {
+      "slug": "xihu-junior-high",
+      "name": "西湖國中網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-ef0531e8c1437a547449"
+      ]
+    },
+    {
+      "slug": "beitou-sports-center",
+      "name": "北投運動中心網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "tnua",
+      "name": "台北藝術大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-4a4005bdd9d5aca89019"
+      ]
+    },
+    {
+      "slug": "dafeng-park",
+      "name": "大豐公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-9dd94890b7a5ea892a27"
+      ]
+    },
+    {
+      "slug": "tianxi-green-space",
+      "name": "天溪綠地網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "fuxing-park",
+      "name": "復興公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-7ff672d53d9dba06f8b6"
+      ]
+    },
+    {
+      "slug": "wenlin-elementary",
+      "name": "文林國小網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-5d1729c2a226a1891269",
+        "candidate-3f8a3cbdf9042abd4eee"
+      ]
+    },
+    {
+      "slug": "xinmin-junior-high",
+      "name": "新民國中網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-653b0e9669e7ef15991f"
+      ]
+    },
+    {
+      "slug": "mingde-junior-high",
+      "name": "明德國中網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-339b32173ee3d7082c9a"
+      ]
+    },
+    {
+      "slug": "ronghua-park",
+      "name": "榮華公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-232ea04282e728f8493c",
+        "candidate-88866adbc6c172cf838c",
+        "candidate-347d6532d998555fca89",
+        "candidate-afdad9a6fab5cd0eb011"
+      ]
+    },
+    {
+      "slug": "zhoumei-sports-park",
+      "name": "洲美運動公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-d0fff50fc8188038cef2"
+      ]
+    },
+    {
+      "slug": "guanhai-park",
+      "name": "觀海公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-b892111a55a854ab764a"
+      ]
+    },
+    {
+      "slug": "yixian-elementary",
+      "name": "逸仙國小網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-653b0e9669e7ef15991f"
+      ]
+    },
+    {
+      "slug": "yangming-university-foothill",
+      "name": "陽明大學山下網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-013e8e1b4a25a6e31e16"
+      ]
+    },
+    {
+      "slug": "yangming-university-hilltop",
+      "name": "陽明大學山頂網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-504b79f3456e9d0e3863"
+      ]
+    },
+    {
+      "slug": "zhongyan-park",
+      "name": "中研公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-df0cf75bdf68d1138dab"
+      ]
+    },
+    {
+      "slug": "cust",
+      "name": "中華科技大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-2f3e743802d67fbe68ac"
+      ]
+    },
+    {
+      "slug": "nangang-park",
+      "name": "南港公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-e3da6b99a485c9205e43"
+      ]
+    },
+    {
+      "slug": "yucheng-park",
+      "name": "玉成公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "tianshou-park",
+      "name": "天壽公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-56816d9333c3dae0df08"
+      ]
+    },
+    {
+      "slug": "tianmu-sports-park",
+      "name": "天母運動公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "soochow-university",
+      "name": "東吳大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-96aa4eaae06c40bd459f"
+      ]
+    },
+    {
+      "slug": "bailing-riverside",
+      "name": "百齡河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "zhishan-junior-high",
+      "name": "至善國中網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-c317f006e7dd28d1b412",
+        "candidate-7edd8a6f26aedb7d2523"
+      ]
+    },
+    {
+      "slug": "lanxing-park",
+      "name": "蘭興公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-232ea04282e728f8493c",
+        "candidate-88866adbc6c172cf838c",
+        "candidate-347d6532d998555fca89",
+        "candidate-afdad9a6fab5cd0eb011"
+      ]
+    },
+    {
+      "slug": "ming-chuan-university",
+      "name": "銘傳大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-41792d9770db3f6cb153"
+      ]
+    },
+    {
+      "slug": "yanping-riverside",
+      "name": "延平河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "dihua-sports-park",
+      "name": "迪化休閒運動公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-56a0183076f2872ccac6"
+      ]
+    },
+    {
+      "slug": "ntue",
+      "name": "台北教育大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-480d2e153740dfb9d42b"
+      ]
+    },
+    {
+      "slug": "ntust",
+      "name": "台灣科技大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-a3d7189bd8dacbb3ec63"
+      ]
+    },
+    {
+      "slug": "nccu",
+      "name": "政治大學網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-6c60d78b84878203bb79"
+      ]
+    },
+    {
+      "slug": "jingmei-girls-high",
+      "name": "景美女中網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-d159d6c9d0ace0837592"
+      ]
+    },
+    {
+      "slug": "jingmei-riverside",
+      "name": "景美河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "muzha-elementary",
+      "name": "木柵國小網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "xizhou-riverside",
+      "name": "溪洲(福和)河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "wanyou-no2-park",
+      "name": "萬有二號公園網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-9921bef85b4458c486a7"
+      ]
+    },
+    {
+      "slug": "daonan-riverside",
+      "name": "道南河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "taipei-tennis-court",
+      "name": "台北網球場",
+      "city": "台北市",
+      "candidateIds": [
+        "candidate-b1e560c34e4a73330b5b"
+      ]
+    },
+    {
+      "slug": "minquan-park",
+      "name": "民權公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "guanshan-riverside",
+      "name": "觀山河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "huazhong-riverside",
+      "name": "華中河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "shuangyuan-riverside",
+      "name": "雙園河濱公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "youth-park",
+      "name": "青年公園網球場",
+      "city": "台北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "sanhe-junior-high",
+      "name": "三和國中網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-46203b85cc2f9e9b1db6"
+      ]
+    },
+    {
+      "slug": "new-taipei-senior-high",
+      "name": "新北高中網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-0e65a5ae5587fbe44c96"
+      ]
+    },
+    {
+      "slug": "mingzhi-junior-high",
+      "name": "明志國中網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-644dc6d2a918b5086673"
+      ]
+    },
+    {
+      "slug": "longmen",
+      "name": "龍門網球場",
+      "city": "新北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "xiushan-elementary",
+      "name": "秀山國小網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-f0ae326392506f932b96"
+      ]
+    },
+    {
+      "slug": "jinhe-sports-park",
+      "name": "錦和運動公園網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-165a2cc6faf97f0821b4"
+      ]
+    },
+    {
+      "slug": "shuixing-temple",
+      "name": "水興宮網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-1577018e0f7f33425120"
+      ]
+    },
+    {
+      "slug": "tucheng-sports-complex",
+      "name": "土城綜合球場網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-08bba8a388e2aba11bff"
+      ]
+    },
+    {
+      "slug": "mazutian",
+      "name": "媽祖田網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-9702e28624ad0474ea91"
+      ]
+    },
+    {
+      "slug": "hungkuo-delin-university",
+      "name": "宏國德霖科技大學網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-64b620ad890e67d1133a"
+      ]
+    },
+    {
+      "slug": "xiaobitan",
+      "name": "小碧潭網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-5a9dfca29f71039b643d"
+      ]
+    },
+    {
+      "slug": "jinwen-university",
+      "name": "景文科技大學網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-ecaca1644d550e2db262"
+      ]
+    },
+    {
+      "slug": "xinzhuang",
+      "name": "新莊網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-de95f163b4c978cc0718"
+      ]
+    },
+    {
+      "slug": "minsheng-park",
+      "name": "民生公園網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-c6399bcca51900e88be1"
+      ]
+    },
+    {
+      "slug": "nanzaigou",
+      "name": "湳仔溝抽水站旁網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-3ba08d00dc1c53576091"
+      ]
+    },
+    {
+      "slug": "chihlee-university",
+      "name": "致理科技大學網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-3c49f8a9f2bb99a3df99"
+      ]
+    },
+    {
+      "slug": "linkou-no2-sports-park",
+      "name": "林口第二運動公園網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-8566bbf54bad0e18031a"
+      ]
+    },
+    {
+      "slug": "linkou-senior-high",
+      "name": "林口高中網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-d819d439c788d5546c76"
+      ]
+    },
+    {
+      "slug": "shulin-sports-park",
+      "name": "樹林體育園區網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-b4fa946f3c47514fe596"
+      ]
+    },
+    {
+      "slug": "fuhe",
+      "name": "福和網球場",
+      "city": "新北市",
+      "candidateIds": []
+    },
+    {
+      "slug": "emerald",
+      "name": "綠寶石網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-0705c7a11ff6448e3489"
+      ]
+    },
+    {
+      "slug": "wenhua-elementary",
+      "name": "文化國小網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-146d76ebc7d271dccc47"
+      ]
+    },
+    {
+      "slug": "tamkang-university",
+      "name": "淡江大學網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-87207a75689b85abd89c"
+      ]
+    },
+    {
+      "slug": "aletheia-university",
+      "name": "真理大學網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-89982e820bede2bd4e4b"
+      ]
+    },
+    {
+      "slug": "st-johns-university",
+      "name": "聖約翰科技大學網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-c67c7d7a587ce90448dd",
+        "candidate-c67c7d7a587ce90448dd-row-2691"
+      ]
+    },
+    {
+      "slug": "zhongyi-elementary",
+      "name": "忠義國小網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-54889523f133b533eac9"
+      ]
+    },
+    {
+      "slug": "weifeng-canal",
+      "name": "蘆堤網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-84aceba3b274fe0cd57e"
+      ]
+    },
+    {
+      "slug": "yingge-elementary",
+      "name": "鶯歌國小網球場",
+      "city": "新北市",
+      "candidateIds": [
+        "candidate-7ac78919bc4fdae15d03"
+      ]
+    }
+  ]
+}
