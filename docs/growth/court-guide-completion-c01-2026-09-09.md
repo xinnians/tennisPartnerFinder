@@ -12,7 +12,7 @@
 | 青年／youth-park | 待補資訊 | 補清楚優惠價的身分與一般民眾適用時段；時間／夜照疑義保留 | 比對後續營運公告；若授權聯絡，向網球櫃檯確認清晨開場及夜間附加費 |
 | 道南／daonan-riverside | 待補資訊 | 將1–2／3號使用方式獨立列為 pending，不混在已查核場地區分 | 取得現行面號公告，或授權後向管理窗口確認現場使用／排隊及夜照 |
 | 百齡／bailing-riverside | 待補資訊 | B區使用方式獨立列 pending，保留社子岸辨別 | 找對應網球區入口圖及現行 B 區使用公告；遊戲場入口不能當球場入口 |
-| 北投／beitou-sports-center | 達新指南最低門檻，內容完成／待 QA 發布 | 一樓預約／費率、五樓場館規範與假日公告交叉查核；新增指南 | QA、Git發布；繳費期限、假日時段與附加費仍需確認 |
+| 北投／beitou-sports-center | 達新指南最低門檻，已發布 | 一樓預約／費率、五樓場館規範與假日公告交叉查核；新增指南 | 繳費期限、假日時段與附加費仍需確認 |
 | 天母／tianmu-sports-park | 待補來源，未發布 | 今年公益使用文件佐證場地使用，不足以推定一般散客租借規則 | 從現行委外營運／主管機關公告找一般租借入口；取得授權才對外聯絡 |
 
 ## 逐場證據卡
@@ -53,7 +53,7 @@
 
 Chromium production-preview 20通過，WebKit production-preview 9通過。
 
-Browser plugin not available，沿用 repo Playwright。待測流程：指南列表 → 北投區／名稱查找 → 北投詳情 → 指定球場開局 → 登入提示與取消；桌面及390px，並查來源、pending、no-JS、sitemap與未知頁404。容量上限不變，零migration。
+Browser plugin not available，沿用 repo Playwright。已驗證流程：指南列表 → 北投區／名稱查找 → 北投詳情 → 指定球場開局 → 登入提示與取消；桌面及390px，並查來源、pending、no-JS、sitemap與未知頁404。容量上限不變，零migration。
 
 正式設定 strict 容量通過：main 385,456／119,299、root static 661,296／193,443、guide static 277,259／74,976、total JS 942,854／282,858 raw／gzip bytes；index 1,036／543。未放寬預算。Runtime commit `11cac8d`；Git預覽與必要CI接續驗證，尚未標記正式上線。
 
@@ -71,3 +71,18 @@ PR [#6](https://github.com/xinnians/tennisPartnerFinder/pull/6)，head `57ace4e2
 | 爬蟲邊界 | 預覽sitemap刻意0；未知指南及全台底稿404 |
 
 QA原始JSON、截圖及腳本：`/Users/ian/tennisPartnerFinder-qa/court-guide-c01-2026-09-09/preview/`。沿用`verify-hosted.mjs`、`verify-details.mjs`及`verify-entry.mjs`，對應最新16篇。正式OAuth、實際付款／租場、真實留存未測；Preview Maps referrer未擴充，不將預覽首頁Maps表現當正式效能。
+
+### 遠端 CI 與合併
+
+[Quality Gate 34339599561](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34339599561)必要Frontend／Supabase成功。775 unit（5skip）、384 mock Chromium（4skip）、1,305 SQL、4 API、46 local（12skip）、6 mobile、20 preview及四組Edge整合通過。非阻擋Safari190pass／1fail／3skip：既有performance.spec.js首屏2,632ms超過2,500ms；preview WebKit9通過，未調整門檻。PR #6按已驗證head合併，merge `1aa41ca034c41af8104fccf103b4843a69440b33`；正式站驗證接續進行。
+
+
+### 正式發布驗收完成
+
+Vercel `dpl_4HaKw7ybmYrMQYTgvbgmXGGbVNUf` READY，Git merge `1aa41ca`，qiuka.tw已指向新版。16篇與索引200、sitemap18、未知指南及全台底稿404；同一組桌面1280×844／手機390×844搜尋、鍵盤／清除、無JS、北投登入intent／取消皆通過。4篇修改詳情共8次檢查無水平溢出／console／pageerror；正式北投截圖已檢視，沒有框架錯誤覆蓋層。分享GET／HEAD200、未知404、POST405均no-store。
+
+正式首頁各3次首訪容量通過：最大本站JS788,254 raw／242,634 encoded bytes，門檻820,000／260,000；pageerror0。手機LCP中位數8,164ms、桌面648ms，既有Maps載入限制保留，未宣稱達2.5秒或留存改善。量測在其他browser QA完成後單獨執行。
+
+原始證據：`/Users/ian/tennisPartnerFinder-qa/court-guide-c01-2026-09-09/production/`（report、detail-report、entry-report、performance JSON與截圖），測試及CI logs在同層`logs/`。臨時Preview兩項公開Supabase設定已移除，Production設定未改，Production env export已刪除。沒有對外訊息、真實訂場或hosted寫入。
+
+本批目標完成：六座有來源查核處置；新增北投一篇、補強三篇，天母仍未發布，其餘未解疑義不標已解。清冊現為16篇發布／45筆台北未發布／28筆新北未發布，14篇18欄pending。C01/C02長期目標尚未全部完成，下一批接續復興、洲美、榮華；其他G項及全台公開仍暫緩。
