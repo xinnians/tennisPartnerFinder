@@ -112,3 +112,5 @@ Git runtime `7b6f65e`已推送工作分支；為本批Git preview建立兩個分
 ### 新生後續來源（仍不發布）
 
 本批等待CI時找到 [台北YMCA新生館頁](https://www.ymca-taipei.org.tw/%E6%96%B0%E7%94%9F%E9%81%8B%E5%8B%95%E9%A4%A8)及[新生運動館網站導覽](https://www.ymca-xssc.org/pages-10)，說明YMCA營運、指向場館／價格／預約；但YMCA介紹的樓層與舊工程規模有疑義，未確認一般網球項目。下一步應查新營運者**球類項目及網球保留位置**，不能只重讀2021規畫，也不能因運動館營運就推導舊網球場可打。碧湖泳池標尚未開放僅適用泳池，不能直接套網球。
+
+新生營運者延伸查核：[場館介紹](https://www.ymca-xssc.org/service-5?lang=tw)確認B1–3F、射擊／體適能／羽球等設施；[收費頁](https://www.ymca-xssc.org/pages-3?lang=tw)沒有網球項目，[球場使用FAQ](https://www.ymca-xssc.org/pages-4?lang=tw)亦已讀。這能排除YMCA總站十層樓介紹作本館規格，但仍不足證明戶外舊網球場消失。待確認範圍縮小為「戶外網球保留／開放及管理權」，不再查新館室內羽球費率。
