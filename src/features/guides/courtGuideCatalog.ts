@@ -21,4 +21,5 @@ export const COURT_GUIDE_NAMES = {
   "ronghua-park": "榮華公園網球場",
   "zhoumei-sports-park": "洲美運動公園網球場",
   "dihua-sports-park": "迪化休閒運動公園網球場",
+  "huluzhou-sports-park": "葫蘆洲運動公園網球場",
 } as const;

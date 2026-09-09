@@ -2231,8 +2231,8 @@ test("neutral counts stay hidden at zero and appear on all three surfaces once a
     });
   };
   const openPreviewSheet = async (sessionId) => {
-    await page.locator("#nearby-sessions-toggle").click();
-    await page.locator(`#nearby-sessions-list [data-session-id='${sessionId}']`).first().click();
+    // 計數測試直接開自己的球局，避免重複執行累積資料觸發探索查詢上限。
+    await page.goto(`/#/session/${sessionId}`);
     await expect(page.locator("#session-sheet")).toBeVisible();
   };
 

@@ -1,6 +1,6 @@
 # C03 第一組公園來源底稿（查核中）
 
-2026-09-09，Codex在C02必要CI期間接續10筆官方來源，**不是10篇已完成或全部可發布**。本批尚未寫入指南、沒有部署，下一個session先從本檔接續，查核狀態仍「查核中」。對應[清冊](court-guide-completion-tracker.md)及[補完計畫](court-guide-completion-plan.md)。
+2026-09-09，Codex在C02必要CI期間接續10筆官方來源，**不是10篇已完成或全部可發布**。目前葫蘆洲內容完成、迪化工程提醒已修補，尚未部署；其餘9筆仍查核中。下一個session先讀本檔末段最新驗證狀態，前文保留研究歷程。對應[清冊](court-guide-completion-tracker.md)及[補完計畫](court-guide-completion-plan.md)。
 
 ## 已直接載入的新VBS對照
 
@@ -63,3 +63,23 @@
 ### 已發布迪化的新工程線索（C02後續，非C03第11筆）
 
 [2025-11-14正式開工新聞](https://pwd.gov.taipei/News_Content.aspx?n=5C3C29C78077C93E&s=CB6D61680EEC332E&sms=72544237BBE4C5F6)已讀：2025-11-10開工，預計2026年9月竣工，施工期間部分區域封閉；工程為堤外至公園自行車牽引道／跨堤平台。這比早期工作坊「2026年8月」預計日期新，不能宣稱已完工，也不能推論網球全部停用。**下一個優先動作：查施工範圍及網球入口影響，視來源補充指南工程提醒**。當前指南尚未加入此公告，保持追蹤，不把部署完成當內容永久完整。
+
+## 第三輪：內容實作（尚未發布）
+
+- 上一目標回合判定為**進展**：C02驗收與進度已推送、C03來源改變後續查核方向。本輪由main `1a9733f`建立`codex/court-guide-completion-c03`，繼續實作。
+- **迪化工程範圍已釐清**：2025-11-14公告全文明載網球場照常使用，封閉景觀平台、大地重現陸橋及延平北路北側出入口。此前只摘部分封閉段落而留下疑義，本輪補讀全文解除「是否整座網球停用」疑義；沒有確認已竣工。已在指南新增工程／入口提醒及來源。
+- **葫蘆洲內容完成**：2026-04-22[廠區配置圖](https://www.nhrip.gov.taipei/cp.aspx?n=7E66726EDB987E2D)已實際閱圖，15號網球場為兩面，位於泳池、能源利用中心旁，安康路228巷一側；這是相對位置辨識，不宣稱精確重測GPS。現場與網約報到、使用資格及時段已寫入，費率單位與照明操作明示pending。正式目錄座標／DB不改。
+- 本機catalog共21篇（正式仍20），19篇28個pending；測試預期數同步21。未新增UI或資料庫契約，生成catalog屬src變更，仍執行必要test:local。
+- 迪化本機1280／390px文字與無橫向溢出通過，手機圖片人工確認。QA腳本首跑使用不存在的`.guide-facts`定位逾時，改為精確文字定位後兩尺寸通過；不是產品錯誤。Browser plugin not available，沿用frontend-testing-debugging skill的Playwright路徑。圖像與log存`/tmp/qiuka-c03/`。
+- 新來源：[碧湖iPlay25744](https://iplay.sports.gov.tw/GymInfo/Index/25744?PP=Traffic)已取得網球專屬欄位：無限制、免費對外租借、有照明、每天開放但時間空白；泳池05:30–21:30不套網球。現場／申請流程仍待查。觀海已找到[iPlay23071](https://iplay.sports.gov.tw/GymInfo/Index/23071?PP=Traffic)，本輪只取得場館與時段摘要，待完整設施流程，不當可發布。
+- 下一步：完成本機frontend／local及preview測試、葫蘆洲兩尺寸與開局入口驗收，Git preview／必要CI／正式部署。此批先發布合格葫蘆洲及迪化修補，其餘9筆保留具體查核線索接續，不湊數；長期C01–C04未完成。
+
+驗證更新：frontend完整入口已exit0，775 unit／384 mock通過（5／4跳過），型別、lint、prettier及build／結構檢查通過。葫蘆洲1280／390px內容與無溢出通過，手機長文已實際閱圖。test:local仍執行中，正式環境strict容量／Git驗收尚未執行；不將development容量報告當正式發布檢查。
+
+### Local驗證障礙與修正中
+
+完整test:local首跑：39通過／12跳過／1失敗／6因serial未執行；失敗為`neutral counts`未找到自己的球局（255），90秒逾時。獨立重跑原案例也失敗。本機唯讀SQL確認session_discovery有226筆、255及256仍open；探索有200筆完整性保護，累積fixture超出上限會拒絕整批。該案例finally只關閉球友可見性，沒有移除球局。本輪未刪資料或提高產品上限。
+
+修正計數案例的openPreviewSheet改走既有`/#/session/:id`，仍保留三個面的零／非零及名單人數斷言。這項測試驗的是計數，不要求透過全域探索取得自己fixture；目前修正版單測驗證中，完整local仍須重跑。第一次修正版誤於前次程序尚未結束時啟動，被5175占用攔下、沒有執行測試；確認前次terminal後才重新啟動，記錄不可當產品failure。
+
+接續句柄：修正版單測exec session98159，log `/tmp/qiuka-c03/neutral-fixed.log`；先檢查是否仍存活／結果再開始下一個DB測試，不平行啟動。dev5180 session25978僅渲染QA可停止；frontend session36563已exit0、首輪local27649及原案例62381皆exit1。正式仍20篇、沒有Git部署；不得用前端通過取代local與發布門檻。
