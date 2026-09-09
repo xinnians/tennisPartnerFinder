@@ -106,3 +106,31 @@ Hosted唯讀preflight已重查：41migration對齊，profiles3／sessions3／par
 - 匿名REST：discovery200、禁用欄400、10私有面401；41migration對齊、5cronactive。OAuth及雙帳號聊天由local／preview測試覆蓋，沒有宣稱正式雙帳號人工寫入。
 - 已在本分支建立兩個Preview公開Supabase變數；測完須移除，Production設定不變。`.env.production`臨時匯出檔只在`/tmp/qiuka-c03/`，發布後刪除。
 - 即將以本提交啟動Git preview／必要CI；未正式發布，正式仍20篇。QA腳本存`/Users/ian/tennisPartnerFinder-qa/court-guide-c03-2026-09-09/`，已調整全21篇與sitemap23、兩篇×兩尺寸內容／入口檢查。
+
+## C03第一組十筆處置結論（Git驗收期間）
+
+葫蘆洲內容完成待發布；觀海具公眾現場規則，列可發布待實作。其餘8筆皆已有本輪VBS對照與具體缺口，改待補來源而非無期限查核中：
+
+| 球場 | 未解決原因／下一步 |
+| --- | --- |
+| 煙波庭 | 公園活动場租不適用網球個人使用；找設施專頁或現場規則 |
+| 瑞湖 | 名稱／地址確認，尚無網球專屬現場流程；接續GymID及區公所頁全文 |
+| 石潭 | iPlay免費租借與VBS無按鈕無法決定登記方式；找場地告示／主管機關借用說明 |
+| 碧湖 | 網球欄與泳池已分開，免費租借但流程／時段空白；找網球管理規則，泳池新營運消息不替代 |
+| 大豐 | 一般規則已取得，但改造／球場移位影響待核對；找施工界線／現況公告 |
+| 天溪 | 新VBS有网球，iPlay僅取得泳池；需網球專屬規則 |
+| 天壽 | 新VBS設施身份成立，第三方推測免費不足；找主管機關現行現場規則 |
+| 蘭興 | 新VBS3面與舊資料2面、iPlay23055受阻；需現行使用資格／流程與面數說明 |
+
+查核覆蓋與資訊完整分開：這8筆有處置不代表可發布或疑義解決。具體VBS／iPlay連結與已讀／僅線索界線見前文；同一缺口不以重複搜尋計為新解決。
+
+PR #8 head `64e4df9ec4450d2c5531909338214299edd87e72`，必要CI run34345785799進行中；本段QA期間只保存本機，不推新head取消檢查。Git預覽部署`dpl_EdnsVWbLSiwpjS2wBRZxNriad7U2`，待READY與21篇實測。預览臨時公開變數已設妥；正式仍20篇。
+
+
+### C03 Git預覽驗收（2026-09-09）
+
+Git Preview `dpl_EdnsVWbLSiwpjS2wBRZxNriad7U2`已READY，head64e4df9。21篇HTTP200且內容／來源與JSON一致、preview sitemap0、未知指南與全台底稿404。桌面與390px索引搜尋、行政區、清除焦點、44px操作及no-JS通過；兩篇×兩尺寸內容／CTA／球局載入通過，零console/pageerror，葫蘆洲手機長文實際閱圖正常。
+
+入口首跑捕捉一次`getRootNode` TypeError，stack位於Google Maps65/14a的main.js／marker.js／common.js；C02亦有同訊息紀錄。首次重查4組登入意圖／取消均通過、無發布或訂閱寫入。不能由stack推論應用程式完全無責，保留偶發地圖初始化風險，沒有宣稱修復；第二次確認及正式驗收接續。QA保存於`/Users/ian/tennisPartnerFinder-qa/court-guide-c03-2026-09-09/`。
+
+第二次入口確認亦4組通過（preview-entry-confirm），兩次重查合計8組；仍保留首跑錯誤。Frontend CI已通過，Supabase與WebKit仍執行中。後續先等run34345785799，合併確切head64e4df9，再做正式QA及清理本分支兩個Preview公開變數與/tmp/qiuka-c03/.env.production。

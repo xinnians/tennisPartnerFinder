@@ -6,12 +6,12 @@
 
 - 使用者「請建立一個長期目標並繼續」已核可持續執行C01–C04。已建立持續目標，完成標準為61筆皆有可靠來源查核處置、合格內容已驗證發布、未解決疑義及維護方法完整保存；不是承諾61篇全部公開。
 - 現有20篇已發布，41筆未發布。C02本批8筆已查核，復興／榮華／洲美／迪化四篇已正式上線，其餘4筆待來源／現況；[證據與QA](court-guide-completion-c02-2026-09-09.md)已保存。PR #7必要CI及Safari全通過，merge `b380a6a`、production `dpl_3n4WgYsnX5sAmv39pg6G8tJmVGcE` READY；qiuka.tw 20篇／sitemap22及桌面／390px開局取消通過。首訪容量最大788439／242763 raw／encoded bytes通過；手機LCP8160ms限制保留。本批18篇26欄pending，長期目標仍進行中。
-- C03下一組10筆已建立[來源底稿](court-guide-completion-c03-2026-09-09.md)，目前查核中而非已可發布；葫蘆洲已讀2026-06-30營運須知，下一步核對球場位置／費率單位；大豐取得使用規則但待施工現況。另發現迪化2025-11正式開工公告（部分動線封閉、預計2026年9月竣工），優先查網球入口影響及補工程提醒，詳C03第二輪交接。這批研究尚未修改runtime。
+- C03十筆已有[逐場處置](court-guide-completion-c03-2026-09-09.md)：葫蘆洲內容與迪化入口提醒完成，Git預覽21篇通過內容／搜尋QA；觀海可發布待實作，另8筆待具體來源。迪化工程公告明示網球照常使用，但部分入口封閉、未確認竣工。開局首跑偶發Maps getRootNode錯誤，重查通過仍保留風險；正式仍20篇。
 - 全台公開、跨城市開局及其他暫緩G項不連帶啟動；沒有建立排程或對外聯絡。
 
 ## C03 目前工作分支（尚未部署）
 
-`codex/court-guide-completion-c03` 已新增葫蘆洲指南及迪化工程入口提醒，本機21篇、正式20篇；19篇28欄pending。前端775 unit／384 mock及建置通過，兩尺寸內容QA通過。local發現累積fixture超過探索200筆保護，已用本機測試帳號RPC取消本次工作192筆未開始球局（公開剩41），不重置DB／不改正式資料；撤回中間測試替代路徑，保留原斷言。清理後原始完整local46／12跳過、mobile6、preview Chromium20／WebKit9及Production env strict容量通過，匿名REST與hosted preflight通過。下一步Git preview／必要CI及正式發布。觀海已取得完整現場使用來源，可接續下一篇；其餘C03與C01/C04未完成。
+`codex/court-guide-completion-c03` 已新增葫蘆洲指南及迪化工程入口提醒，本機21篇、正式20篇；19篇28欄pending。前端775 unit／384 mock及建置通過，兩尺寸內容QA通過。local發現累積fixture超過探索200筆保護，已用本機測試帳號RPC取消本次工作192筆未開始球局（公開剩41），不重置DB／不改正式資料；撤回中間測試替代路徑，保留原斷言。清理後原始完整local46／12跳過、mobile6、preview Chromium20／WebKit9及Production env strict容量通過，匿名REST與hosted preflight通過。下一步Git preview／必要CI及正式發布。觀海已取得完整現場使用來源，可接續下一篇；C03另8筆已列具體待補來源處置。PR #8 head64e4df9、CI34345785799進行中，尚未合併／正式部署；C01/C04未完成。
 
 ## 2026-09-09 補完目標已啟動
 
