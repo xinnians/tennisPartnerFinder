@@ -24,3 +24,5 @@ G09 擴充已核可：台北完整指南與全台待審資料分開推進，見 
 指南列表查找已核可，行為與驗證見 [名稱／行政區查找](g09-guide-search-2026-09-09.md)。
 
 現有指南使用資訊補強與新增五篇台北指南，見 [第二批查核紀錄](g09-guide-batch-two-2026-09-09.md)。
+
+長期補完依 [球場指南補完計畫](court-guide-completion-plan.md) 分批執行，逐場狀態集中在 [補完清冊](court-guide-completion-tracker.md)。
