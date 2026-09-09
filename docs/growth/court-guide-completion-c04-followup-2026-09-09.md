@@ -37,3 +37,5 @@ Hosted只讀preflight：profiles3／sessions3／participants3／messages2／repo
 
 
 本機長文QA完成：26篇HTTP200／每項文案與來源一致、sitemap28；兩新篇×桌面／390px共4組無溢出、標題／CTA／載入檢查通過，pageerror及console0。北醫手機長文圖已實際閱圖。QA存於`/Users/ian/tennisPartnerFinder-qa/court-guide-c04-followup-2026-09-09/local`；5181本機預覽已停止。尚待Git預覽、必要CI及正式發布。
+
+Git候選10004ec已推送並建立PR。分支建立前Preview環境設定首次exit1，唯讀查詢確認無設定；分支推送後兩個公開Supabase變數設定成功，Production未變。本文件提交再次Git觸發建置，確保使用完整Preview設定；尚未標記正式發布。
