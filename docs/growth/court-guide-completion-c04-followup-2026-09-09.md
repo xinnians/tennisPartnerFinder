@@ -39,3 +39,10 @@ Hosted只讀preflight：profiles3／sessions3／participants3／messages2／repo
 本機長文QA完成：26篇HTTP200／每項文案與來源一致、sitemap28；兩新篇×桌面／390px共4組無溢出、標題／CTA／載入檢查通過，pageerror及console0。北醫手機長文圖已實際閱圖。QA存於`/Users/ian/tennisPartnerFinder-qa/court-guide-c04-followup-2026-09-09/local`；5181本機預覽已停止。尚待Git預覽、必要CI及正式發布。
 
 Git候選10004ec已推送並建立PR。分支建立前Preview環境設定首次exit1，唯讀查詢確認無設定；分支推送後兩個公開Supabase變數設定成功，Production未變。本文件提交再次Git觸發建置，確保使用完整Preview設定；尚未標記正式發布。
+
+
+### Git預覽與CI接續
+
+PR #10：https://github.com/xinnians/tennisPartnerFinder/pull/10，驗證head `02a8349c7a55274cf5978309cdebc6a7d5f84918`。Vercel Git preview `dpl_8L69P3A3zdakgE21xVa755VUY1ve` READY，穩定別名`https://tennis-partner-finder-git-cod-da792c-xinnians-projects-c513dbd3.vercel.app`。26篇內容／來源、sitemap0（Preview禁止索引）、未知指南與全台底稿404、名稱／行政區／鍵盤／no-JS、兩篇4組長文全部通過。
+
+開局入口首跑仍遇Maps65/14a getRootNode偶發TypeError；同樣斷言重跑兩輪各4組通過、無寫入、取消清intent；失敗stack保存preview-entry.log，不宣稱根因修復。PR初版10004ec的run34350921866取消後Safari always步驟仍未退出，新head PRrun34350963525被相同concurrency group排隊；已對旧run請求force-cancel，並以同一head啟動完整workflow_dispatch34351291388，未修改門檻／測試。必要CI及正式发布尚待完成。
