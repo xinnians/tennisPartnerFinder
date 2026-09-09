@@ -65,3 +65,33 @@
 - 匿名 REST 實測：核可25欄 select 200、line_id 400，十個私有 table/view 401；未輸出資料內容。正式 OAuth、群聊及真實發局未重跑，這批無 hosted 寫入。
 - 截圖、HTTP／DOM檢查 JSON 與可重現腳本存於 `/Users/ian/tennisPartnerFinder-qa/g09-guide-batch-two-2026-09-09/`。詳細頁截圖含青年、民權、台北網球場的首屏與費率段落，已人工檢視手機與桌面樣本。
 - 必要 CI：舊 `5657104` 的 workflow 34335313993 在取消後仍執行 always 清理／Safari後續步驟，讓新 PR run 等待；已取消完成。曾對相同新 head 觸發 workflow_dispatch 34335904285；待 PR run 開始後取消重複執行，正式以 PR run 34335417749 為驗收依據。
+
+## 必要 CI 與合併
+
+[PR #5](https://github.com/xinnians/tennisPartnerFinder/pull/5) 的 head `81cd213425f51251b44a7fd0cf5e66f6061f7110` 通過 [Quality Gate 34335417749](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34335417749) 兩個必要 job。775 unit、384 Chromium、1,305 SQL、4 API、46 local browser、6 mobile、20 production-preview 及四組 Edge 整合通過。略過範圍仍為 unit 5、Chromium 4、local browser 12。
+
+非阻擋 WebKit 190 passed／1 failed／3 skipped，唯一失敗仍在既有 `performance.spec.js:59` 首屏時間：3,714ms 超過2,500ms；production-preview WebKit 9 passed。保留失敗，不調高門檻，不宣稱全瀏覽器全綠。PR 已合併為 `3eee6f2b1db58273d40ead895bf5f65f445c7a3f`，由 Git 觸發正式建置。
+
+## 正式發布結果
+
+Vercel Git production `dpl_4YKCWdv6eX5VyG5H9Cq3MASHrds7` READY，qiuka.tw 已切至十五篇版本。十五篇 HTTP200、來源及內文對照、sitemap17、未知指南及待審底稿404通過。桌面1280×844／手機390×844搜尋、新行政區、零結果、清除／鍵盤、無JS均通過；七個重點詳情頁各兩尺寸共14次檢查無溢出或程式錯誤。新增五篇各兩尺寸共10次匿名開局至登入、取消清除 intent 通過，沒有發局或訂閱寫入。分享21 GET／HEAD200、未知404、POST405及no-store通過。
+
+| 正式 QA | 結果 |
+| --- | --- |
+| 網址／標題 | 通過 |
+| 非空內容／無 framework overlay | 通過 |
+| Console／pageerror | 指南0；開局入口pageerror0 |
+| 手機與桌面畫面／溢出 | 通過，已檢視正式手機松山篩選截圖 |
+| 搜尋／新行政區／清除／無JS | 通過 |
+| 新指南登入入口／取消 | 10次通過，無自動寫入 |
+
+正式根頁各三次首訪實測 `--enforce-startup-byte-limits` 通過：最大本站 JS 788,201 raw／242,609 encoded bytes，低於820,000／260,000；pageerror0。手機LCP中位數8,176ms，桌面648ms；既有手機載入限制仍在，這是 lab 而非 field p75／留存成果。未因指南內容擴充宣稱改善首頁LCP。
+
+臨時 Preview 的兩個公開 Supabase 設定已移除，production env export 已刪除；Production 設定未改。重現腳本、正式畫面及 JSON 保存在 repo 外上述 QA 目錄。發布與查核文件提交 main 保存，沒有新 DB migration、Edge 部署或真實 OAuth／群聊重測。
+
+## 下一批接續
+
+- 青年清晨時間、河濱各面夜照與民權現場使用流程仍需管理單位確認；未代替使用者聯絡或詢價。
+- 天母／北投先找可確認的現行營運來源，再評估指南；不把頁面空白解讀成場地停業。
+- 資訊更正入口尚未實作，可另行規劃；全台候選仍待審。已發布十五篇需於2026-12-08前再查核，沒有自動排程。
+- 回復本批可 revert runtime `5657104`（內容、generated map及固定數量測試），保留既有G09模板與G10分享handler；不用回復DB。
