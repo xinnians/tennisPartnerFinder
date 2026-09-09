@@ -46,3 +46,17 @@ Git候選10004ec已推送並建立PR。分支建立前Preview環境設定首次e
 PR #10：https://github.com/xinnians/tennisPartnerFinder/pull/10，驗證head `02a8349c7a55274cf5978309cdebc6a7d5f84918`。Vercel Git preview `dpl_8L69P3A3zdakgE21xVa755VUY1ve` READY，穩定別名`https://tennis-partner-finder-git-cod-da792c-xinnians-projects-c513dbd3.vercel.app`。26篇內容／來源、sitemap0（Preview禁止索引）、未知指南與全台底稿404、名稱／行政區／鍵盤／no-JS、兩篇4組長文全部通過。
 
 開局入口首跑仍遇Maps65/14a getRootNode偶發TypeError；同樣斷言重跑兩輪各4組通過、無寫入、取消清intent；失敗stack保存preview-entry.log，不宣稱根因修復。PR初版10004ec的run34350921866取消後Safari always步驟仍未退出，新head PRrun34350963525被相同concurrency group排隊；已對旧run請求force-cancel，並以同一head啟動完整workflow_dispatch34351291388，未修改門檻／測試。必要CI及正式发布尚待完成。
+
+
+## 已正式發布
+
+PR #10已合併，merge `471d70b5b236d21cc893f6ca1e9bbe8138fde63a`；Production `dpl_88EvseZfdvb4uSJ6TuZa7UDDMhwp` READY且qiuka.tw指向此部署。正式26篇（台北35筆未發布），25篇39欄pending。
+
+完整CI34351291388成功：Frontend775 unit／384 Chromium；Supabase1305 SQL、4 API、46 browser、6 mobile、20 preview Chromium及4組Edge檢查通過。Safari非阻擋189 pass／2 fail／3 skip，包含shell3744ms>2500及nearby drawer開啟後session-card焦點失敗（tests/session-lifecycle-smoke.spec.js:75）；正式建置preview Safari9通過。保留失敗，沒有宣稱Safari全綠或焦點問題已修復。
+
+正式QA：全26篇HTTP內容來源一致、sitemap28、未知指南／全台底稿404；桌面／390px搜尋、鍵盤清除回焦、44px、no-JS、索引只有1036raw／541encoded bytes、2篇4組長文／開局取消皆通過。正式pageerror及console0，開局無寫入；分享GET／HEAD200、不存在404、POST405及no-store通過。QA於`/Users/ian/tennisPartnerFinder-qa/court-guide-c04-followup-2026-09-09/production`。首訪三次容量量測及環境清理接續。
+
+逐場清冊61筆與台北JSON slug集合逐一相等、無漏列，全部已有首輪查核處置。台科／木柵候選仍未發布，草稿`/tmp/qiuka-c04-schools-final/guides-draft.json`及[最後六筆證據](court-guide-completion-c04-schools-final-2026-09-09.md)可接續；尚未宣告長期目標完成，也未取得真實留存成效。
+
+
+發布收尾：正式站各裝置3次獨立效能量測exit0，最大本站JS788723raw／242817encoded bytes，上限820000／260000未調整。桌面LCP中位692ms、手機8168ms，pageerror0；慢速手機LCP缺口保留。三民手機長文已人工閱圖。兩個本分支Preview公開Supabase變數移除成功，Production env臨時匯出檔已刪除；Production環境設定不變。後續仍有台科／木柵候選待完成，長期目標不標完成。

@@ -1,11 +1,11 @@
 # 產品改善進度（接續先讀）
 
-最後更新：2026-09-09。G02／G03／G04／G10 已上線；G09 已擴至 24 篇並加入名稱／行政區查找，均已正式部署，全台 562 筆待審底稿與品質報告已建立。正式站驗證及真實成效分開記錄。
+最後更新：2026-09-09。G02／G03／G04／G10 已上線；G09 已擴至 26 篇並加入名稱／行政區查找，均已正式部署，全台 562 筆待審底稿與品質報告已建立。正式站驗證及真實成效分開記錄。
 
 ## 長期目標：台北61筆逐場補完
 
 - 使用者「請建立一個長期目標並繼續」已核可持續執行C01–C04。已建立持續目標，完成標準為61筆皆有可靠來源查核處置、合格內容已驗證發布、未解決疑義及維護方法完整保存；不是承諾61篇全部公開。
-- 現有20篇已發布，41筆未發布。C02本批8筆已查核，復興／榮華／洲美／迪化四篇已正式上線，其餘4筆待來源／現況；[證據與QA](court-guide-completion-c02-2026-09-09.md)已保存。PR #7必要CI及Safari全通過，merge `b380a6a`、production `dpl_3n4WgYsnX5sAmv39pg6G8tJmVGcE` READY；qiuka.tw 20篇／sitemap22及桌面／390px開局取消通過。首訪容量最大788439／242763 raw／encoded bytes通過；手機LCP8160ms限制保留。本批18篇26欄pending，長期目標仍進行中。
+- C02歷史里程碑：當時20篇已發布，41筆未發布。C02本批8筆已查核，復興／榮華／洲美／迪化四篇已正式上線，其餘4筆待來源／現況；[證據與QA](court-guide-completion-c02-2026-09-09.md)已保存。PR #7必要CI及Safari全通過，merge `b380a6a`、production `dpl_3n4WgYsnX5sAmv39pg6G8tJmVGcE` READY；qiuka.tw 20篇／sitemap22及桌面／390px開局取消通過。首訪容量最大788439／242763 raw／encoded bytes通過；手機LCP8160ms限制保留。本批18篇26欄pending，長期目標仍進行中。
 - C03十筆已有[逐場處置](court-guide-completion-c03-2026-09-09.md)：葫蘆洲內容與迪化入口提醒完成，Git預覽21篇通過內容／搜尋QA；觀海可發布待實作，另8筆待具體來源。迪化工程公告明示網球照常使用，但部分入口封閉、未確認竣工。開局首跑偶發Maps getRootNode錯誤，重查通過仍保留風險；正式仍20篇。
 - 全台公開、跨城市開局及其他暫緩G項不連帶啟動；沒有建立排程或對外聯絡。
 
@@ -23,9 +23,13 @@
 
 C01九座河濱的新版VBS頁已覆核，逐筆處置與夜照原則／大佳入口新來源見[覆核紀錄](court-guide-completion-c01-followup-2026-09-09.md)。PR9已發布，接續更新適用文案，逐面夜照未知仍保留。C01兩座營運球場亦完成覆核：中心可補繳費期限、網球場新增取消條件差異；C04校園16筆已皆有首輪處置，台科／木柵為下一批候選（尚待實作），見[校園紀錄](court-guide-completion-c04-schools-2026-09-09.md)，並非長期目標完成。
 
-## C04補強接續（本機26篇候選，未發布）
+## C04補強最新狀態（26篇已正式部署）
 
-分支`codex/court-guide-completion-c04-followup`新增三民／北醫，九河濱夜照、大佳入口、兩營運場預約與取消補強已寫入JSON；北醫取得2026-07-21最新人工草皮費率和2025會員規章，硬地費用及時段差異保留。unit4、完整frontend（775 unit／384 Chromium）及原始local重跑（API4／browser46，12 skipped）、mobile6通過。首次local訂閱checkbox失敗保留，單項及完整重跑通過但根因未確定；Chromium預覽20、WebKit9與26篇長文內容／2篇4組畫面驗收通過；strict容量、匿名權限及41版migration對齊通過。PR10 head02a8349的Git預覽26篇／兩新篇4組長文與兩輪開局取消通過；首次Maps偶發錯誤保留。必要CI34351291388進行中，正式仍24篇。詳見[本批證據／接續](court-guide-completion-c04-followup-2026-09-09.md)。正式仍24篇，長期目標未完成。
+新增三民／北醫，九河濱夜照、大佳入口及兩營運球場預約／取消補強已發布。PR10 head02a8349、merge471d70b，Production `dpl_88EvseZfdvb4uSJ6TuZa7UDDMhwp` READY。必要CI34351291388成功（775 unit／384 Chromium、1305 SQL、4 API、46 browser、6 mobile、20 preview、四組Edge）；Safari mock189 pass／2 fail／3 skip（shell3744ms>2500與nearby drawer焦點），preview Safari9 pass。失敗保留，不宣稱全綠。
+
+qiuka.tw 26篇內容來源、sitemap28、搜尋／no-JS／鍵盤、兩新篇4組長文及開局取消、分享200/404/405/no-store通過，正式pageerror0。首訪各裝置3次容量最大788723 raw／242817 encoded bytes，低於820000／260000上限；桌面LCP中位692ms、手機8168ms，手機效能缺口保留。臨時分支Preview兩變數與env匯出檔已清理。詳見[本批發布證據](court-guide-completion-c04-followup-2026-09-09.md)。
+
+台北61筆已全部有首輪查核處置，26篇發布、35筆未發布，25篇39欄pending；不能解讀為61筆資訊齊全。下一步：[最後六筆證據](court-guide-completion-c04-schools-final-2026-09-09.md)中的台科大週末使用／木柵國小季租指南候選，草稿`/tmp/qiuka-c04-schools-final/guides-draft.json`。先核對台科近期臨停與場地位置、木柵下一季受理，保留未確定欄位，再走必要驗證及Git發布。其他待來源皆有具體下一步；長期目標仍active。
 
 ## 2026-09-09 補完目標已啟動
 
@@ -38,7 +42,7 @@ C01九座河濱的新版VBS頁已覆核，逐筆處置與夜照原則／大佳�
 ## 當前狀態
 
 - 使用者已核可依競品清單開始改善、建立目標與維護跨 session 進度。
-- 最新範圍：G09 二十四篇球場指南與名稱／行政區查找、全台待審底稿，以及已上線的 G10 逐局分享預覽；C01首批與C02查核完成處置，北投及本批四座公園指南已於 qiuka.tw 上線，部分疑義保留。G01、G05–G08、G11–G12 暫緩。
+- 最新範圍：G09 二十六篇球場指南與名稱／行政區查找、全台待審底稿，以及已上線的 G10 逐局分享預覽；C01首批與C02查核完成處置，北投及本批四座公園指南已於 qiuka.tw 上線，部分疑義保留。G01、G05–G08、G11–G12 暫緩。
 - [G09／G10 計畫](g09-g10-plan-2026-09-09.md)、[已核可視覺稿](g09-design/README.md) 與 [本批擴充](g09-expansion-implementation-2026-09-09.md) 為範圍依據；本輪無新增商業功能或 DB migration。
 - 已建立計畫、第一批規格、試點基準模板與根目錄接續指引。
 - 第一批 G02／G03／G04 已完成實作、必要 CI 與正式部署，qiuka.tw 已驗證新版；沒有真實成效結論。
