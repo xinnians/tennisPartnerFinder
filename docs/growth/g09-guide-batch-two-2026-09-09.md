@@ -47,3 +47,11 @@
 套用 frontend-testing-debugging；Browser plugin not available，使用專案 Playwright。目標流程：指南列表 → 名稱與新行政區篩選 → 新指南費率／待查內容 → 對應球場開局／登入；桌面1280×844、手機390×844檢查標題、非空、無 overlay、console、畫面與互動。截圖／暫存研究保存在 repo 外。
 
 本批驗證與部署進行中；實際結果見後續補錄及 progress.md。沒有新增使用者追蹤或真實留存數據。
+
+## 已完成的本機與發布前檢查
+
+- `npm run test:ci:frontend`：775 unit passed／5 skipped、384 Chromium passed／4 skipped；型別、lint、格式、架構、全台底稿／球場 seed、build 與 bundle gate 通過。
+- `npm run test:local`：4 API passed、46 browser passed／12 skipped；沒有重置或寫入 hosted DB。
+- `npm run test:preview:chromium`：20 passed，包含十五篇逐一開啟自己的草稿、無自動發局，及名稱／行政區、台／臺、空結果、清除、無 JS。
+- Hosted 唯讀 preflight：41 migrations local/remote 一致，profiles 3、sessions 3、participants 3、messages 2、reports 0、outbox 13；五個 cron active；匿名只有核可 discovery view，25 欄及既有私有 view 權限保持。零 migration／DB／Edge 改動，不另做 hosted dump；真實 OAuth／兩帳號群聊沿用歷史記錄，不標記本次新驗收。
+- PR #5 已建立；為 Git 分支設定臨時 Preview 公開 Supabase URL/anon，Production 設定未改。必要 CI、正式環境容量、Git 預览與正式 QA 仍須完成後才合併發布。
