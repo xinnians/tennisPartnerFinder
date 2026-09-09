@@ -96,3 +96,5 @@
 - 真正Production env strict release build通過，raw／gzip bytes：main385456／119292、root661481／193525、指南277444／75065、全部943039／282925、索引1036／543。大小上限未調整，真實首訪網路量測待正式發布。
 - hosted唯讀preflight：profiles3、sessions3、participants3、messages2、reports0、outbox13；41migration對齊，5cron啟用，匿名discovery25欄。匿名公開查詢200、禁止欄400、10個私有面401。無DB／秘密變更、無對外聯絡。OAuth／雙帳號聊天採本機與必要CI驗證，不宣稱真實使用者雙帳號人工測試。
 - 原始log：`/tmp/qiuka-c02/`；Git preview、必要CI及正式驗收接續後補。
+
+Git runtime `7b6f65e`已推送工作分支；為本批Git preview建立兩個分支限定的公開Supabase變數，QA完將清理。此文件提交觸發具完整公開設定的預覽建置，尚未宣稱正式發布。
