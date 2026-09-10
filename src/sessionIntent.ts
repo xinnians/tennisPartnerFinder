@@ -1,4 +1,4 @@
-import { isCourtGuideSlug, type CourtGuideSlug } from "./features/guides/courtGuideLinks.ts";
+import { canStartFromGuide, type CourtGuideSlug } from "./features/guides/courtGuideLinks.ts";
 export const PENDING_SESSION_INTENT_KEY = "tennis-partner-finder:pending-session-intent";
 
 type PendingSessionIntent =
@@ -51,7 +51,7 @@ function normalizedIntent(intent: unknown): PendingSessionIntent | null {
     keys[1] === "courtSlug"
   ) {
     const courtSlug = (intent as PendingSessionIntentInput).courtSlug;
-    if (isCourtGuideSlug(courtSlug)) return { action: "create", courtSlug };
+    if (canStartFromGuide(courtSlug)) return { action: "create", courtSlug };
   }
 
   if ((intent as PendingSessionIntentInput).action === "create" && keys.length === 1 && keys[0] === "action") {

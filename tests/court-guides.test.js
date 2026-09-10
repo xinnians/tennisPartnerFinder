@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { guides, renderGuidePage } from "../scripts/courtGuidePages.mjs";
-import { resolveGuideCourt } from "../src/features/guides/courtGuideLinks.ts";
+import { resolveGuideCourt, canStartFromGuide } from "../src/features/guides/courtGuideLinks.ts";
 import { consumeGuideEntry, subscriptionGuideHint } from "../src/features/guides/guideEntry.ts";
 import { readPendingIntent, savePendingIntent } from "../src/sessionIntent.ts";
 import { samePendingIntent } from "../src/features/profile-auth/profileAuthFeature.ts";
@@ -17,21 +17,29 @@ const storage = () => {
 };
 
 test("all published guides have crawlable, sourced static content and production canonicals", () => {
-  assert.equal(guides.length, 28);
+  assert.equal(guides.length, 61);
   const index = renderGuidePage(null, { production: true });
   assert.doesNotMatch(index, /<script|noindex|maps.googleapis/);
   for (const guide of guides) {
     const html = renderGuidePage(guide.slug, { production: true, now: Date.parse("2026-09-09") });
     assert.ok(index.includes(`/courts/${guide.slug}/`));
     assert.ok(html.includes(`<h1>${guide.name}</h1>`));
-    for (const text of ["租借方式", "開放與設施", "交通方式", "資料來源", "未來 14 天・已定場", "2026/09/09"])
-      assert.ok(html.includes(text));
+    for (const text of ["租借方式", "開放與設施", "交通方式", "資料來源"]) assert.ok(html.includes(text));
     for (const fact of guide.facts) assert.ok(guide.sources[fact.source]);
     const court = { id: 123, name: guide.name };
     assert.equal(resolveGuideCourt(guide.slug, [court]), court);
     const store = storage();
-    savePendingIntent({ action: "create", courtSlug: guide.slug }, store);
-    assert.equal(readPendingIntent(store).courtSlug, guide.slug);
+    if (canStartFromGuide(guide.slug)) {
+      savePendingIntent({ action: "create", courtSlug: guide.slug }, store);
+      assert.equal(readPendingIntent(store).courtSlug, guide.slug);
+      assert.match(html, /未來 14 天・已定場/);
+    } else {
+      assert.throws(() => savePendingIntent({ action: "create", courtSlug: guide.slug }, store));
+      assert.match(html, /開放狀態待確認/);
+      assert.doesNotMatch(html, /guideAction=|id="guide-session-list"/);
+    }
+    if (guide.locationStatus === "unconfirmed") assert.doesNotMatch(html, /maps\/dir/);
+    assert.doesNotMatch(html, /jojotennis\.com|tennislocal\.app/);
     assert.ok(guide.sources[guide.bookingSource]);
     assert.ok(guide.sources[guide.transportSource]);
     assert.match(renderGuidePage(guide.slug, { now: Date.parse("2027-01-01") }), /資訊已超過 90 天未查核/);
@@ -121,4 +129,22 @@ test("guide query filters exact court and the future window before a determinist
     ["limit", 4],
   ]);
   await assert.rejects(() => api.loadCourtGuideSessions(0));
+});
+
+test("unconfirmed guide actions reject crafted URLs and remain readable without JavaScript", () => {
+  const blocked = guides.filter((g) => g.accessStatus === "unconfirmed");
+  assert.ok(blocked.length > 0);
+  for (const g of blocked) {
+    assert.equal(canStartFromGuide(g.slug), false);
+    for (const action of ["create", "subscribe"]) {
+      const history = { state: null, replaceState() {} };
+      assert.equal(
+        consumeGuideEntry({ href: `https://qiuka.tw/?courtGuide=${g.slug}&guideAction=${action}` }, history, storage()),
+        null
+      );
+    }
+    const html = renderGuidePage(g.slug, { production: true });
+    assert.ok(html.includes(g.notice));
+    assert.doesNotMatch(html, /<script/);
+  }
 });
