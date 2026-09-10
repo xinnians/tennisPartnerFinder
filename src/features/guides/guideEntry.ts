@@ -1,4 +1,4 @@
-import { COURT_GUIDE_NAMES, isCourtGuideSlug } from "./courtGuideLinks.ts";
+import { COURT_GUIDE_NAMES, isCourtGuideSlug, canStartFromGuide } from "./courtGuideLinks.ts";
 
 const HINT_KEY = "qiuka:court-guide-subscription-hint";
 const HINT_TTL = 10 * 60 * 1000;
@@ -11,7 +11,7 @@ export function consumeGuideEntry(location = window.location, history = window.h
   const valid =
     url.searchParams.getAll("courtGuide").length === 1 &&
     url.searchParams.getAll("guideAction").length === 1 &&
-    isCourtGuideSlug(slug) &&
+    canStartFromGuide(slug) &&
     (action === "create" || action === "subscribe");
   if (!url.searchParams.has("courtGuide") && !url.searchParams.has("guideAction")) return null;
   url.searchParams.delete("courtGuide");

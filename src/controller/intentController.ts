@@ -1,4 +1,4 @@
-import { isCourtGuideSlug, resolveGuideCourt, type CourtGuideSlug } from "../features/guides/courtGuideLinks.ts";
+import { canStartFromGuide, resolveGuideCourt, type CourtGuideSlug } from "../features/guides/courtGuideLinks.ts";
 import { DataApiUnavailableError } from "../dataApi.ts";
 import { actionKey, staleIntentMessage } from "../features/session-lifecycle/sessionLifecycleFeature.ts";
 import {
@@ -387,6 +387,11 @@ export function createIntentController({
   ): unknown {
     if (surfaceRegistry.get("createSession")) return surfaceRegistry.get("createSession");
     const guideSlug = intent.action === "create" ? intent.courtSlug : undefined;
+    if (guideSlug && !canStartFromGuide(guideSlug)) {
+      clearIntent(intent);
+      toast("這座球場開放狀態待確認，請先查看指南。");
+      return;
+    }
     if (guideSlug && !read().courtsReady) return;
     const guideCourt = guideSlug ? resolveGuideCourt(guideSlug, read().courts) : null;
     if (guideSlug && !guideCourt) {
@@ -561,7 +566,7 @@ export function createIntentController({
       openCreateSessionForIntent({ action: "create" }, source);
       return;
     }
-    if (courtSlug !== undefined && !isCourtGuideSlug(courtSlug)) return;
+    if (courtSlug !== undefined && !canStartFromGuide(courtSlug)) return;
     requireSessionAction(courtSlug ? { action: "create", courtSlug } : { action: "create" });
   }
 

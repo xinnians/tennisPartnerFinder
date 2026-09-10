@@ -1,5 +1,5 @@
 /** Public guide slugs map to canonical catalogue names, never environment-specific DB ids. */
-import { COURT_GUIDE_NAMES } from "./courtGuideCatalog.ts";
+import { COURT_GUIDE_NAMES, COURT_GUIDE_BLOCKED_SLUGS } from "./courtGuideCatalog.ts";
 export { COURT_GUIDE_NAMES };
 export type CourtGuideSlug = keyof typeof COURT_GUIDE_NAMES;
 export function isCourtGuideSlug(value: unknown): value is CourtGuideSlug {
@@ -17,4 +17,9 @@ export function resolveGuideCourt<T extends { id?: unknown; name?: string }>(
   return matches.length === 1 && Number.isSafeInteger(Number(matches[0].id)) && Number(matches[0].id) > 0
     ? matches[0]
     : null;
+}
+
+/** Guide actions require confirmed public access; informational pages remain readable. */
+export function canStartFromGuide(value: unknown): value is CourtGuideSlug {
+  return isCourtGuideSlug(value) && !COURT_GUIDE_BLOCKED_SLUGS.includes(value);
 }

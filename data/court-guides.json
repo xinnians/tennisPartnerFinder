@@ -1673,6 +1673,1193 @@
           "verifiedAt": "2026-09-09"
         }
       ]
+    },
+    {
+      "slug": "tianmu-sports-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。營運公開頁列6面硬地球場，地址為士林區忠誠路2段77號。",
+      "booking": "訂場方式尚未確認。可先致電營運窗口02-2874-8268，確認首次使用資格與辦理方式。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "營運公開頁列6面硬地球場，地址為士林區忠誠路2段77號。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "現行訂場流程、費率、開放時段及夜間照明尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "營運公開頁列6面硬地球場，地址為士林區忠誠路2段77號。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "營運公開頁｜天母運動公園網球場",
+          "url": "https://www.facebook.com/TianmuTennis/",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "nangang-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。東新街170號；新版場館頁列2面網球。",
+      "booking": "官方網球頁說明，不開放線上預約的場地供現場民眾輪流使用，禁止營利行為。出發前請確認當日適用面號及公告。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "東新街170號；新版場館頁列2面網球。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "待確認事項",
+          "value": "輪替細節、個人使用費用與夜照方式尚未確認；舊頁租借費不直接當作現場臨打價格。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "東新街170號；新版場館頁列2面網球。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜南港公園網球場",
+          "url": "https://vbs.sports.taipei/venues/?K=609",
+          "verifiedAt": "2026-09-10"
+        },
+        {
+          "title": "臺北市體育局場地租借2.0｜南港公園",
+          "url": "https://vbs.sports.gov.taipei/venues/514",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "yucheng-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。位於中坡南路55號玉成公園內；官方資料列有網球及照明設施。",
+      "booking": "iPlay網球欄列一般民眾無限制、每日開放。現場如何登記或輪流尚未確認，請查看管理單位公告。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "位於中坡南路55號玉成公園內；官方資料列有網球及照明設施。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "新版場館頁列2面、舊頁列1面；面數、網球實際時段、費用及工程是否影響使用尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "位於中坡南路55號玉成公園內；官方資料列有網球及照明設施。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜玉成公園網球場",
+          "url": "https://iplay.sports.gov.tw/GymInfo/Index/23085?PP=Traffic",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "臺北市體育局場地租借2.0｜玉成公園",
+          "url": "https://vbs.sports.gov.taipei/venues/620",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "zhongyan-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。研究院路2段12巷58弄，官方場館頁列1面網球；不是中央研究院院內球場。",
+      "booking": "iPlay網球欄列公眾無限制、不提供租借。現場使用及輪替方式尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "研究院路2段12巷58弄，官方場館頁列1面網球；不是中央研究院院內球場。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "網球專屬開放時段、費用與開燈方式尚未確認。園區或籃球時間不代表網球時間。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "研究院路2段12巷58弄，官方場館頁列1面網球；不是中央研究院院內球場。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜中研公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/633",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "iPlay｜中研公園",
+          "url": "https://iplay.sports.gov.tw/gyminfo/index/23134?page=12&sort=%25u4f9d%25u8a55%25u5206%25u6392%25u5e8f&title=%25u9801%25u6578",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "xinsheng-park",
+      "accessStatus": "unconfirmed",
+      "notice": "改建後網球位置、是否共用、一般民眾使用方式尚未確認；不能沿用改建前資訊。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。2026年7月27日新生特色運動館開幕新聞提到網球場與匹克球場。",
+      "booking": "網球實際開放及預約方式尚未確認。請向新生館02-7742-0029分機141／142確認網球項目。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "2026年7月27日新生特色運動館開幕新聞提到網球場與匹克球場。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "改建後網球位置、是否共用、一般民眾使用方式尚未確認；不能沿用改建前資訊。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜新生公園網球場",
+          "url": "https://sec.gov.taipei/News_Content.aspx?n=49B4C3242CB7658C&s=215EDA6DA648B00C&sms=72544237BBE4C5F6",
+          "verifiedAt": "2026-09-10"
+        },
+        {
+          "title": "YMCA｜新生特色運動館",
+          "url": "https://www.ymca-xssc.org/",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "yanboting-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。大湖街131巷18弄61號；新版場館頁列網球第1、2面。",
+      "booking": "新版網球項目標示未開放租借；現場登記或輪替方式尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "大湖街131巷18弄61號；新版場館頁列網球第1、2面。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "網球使用流程、費用、夜照及實際可用時段尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "大湖街131巷18弄61號；新版場館頁列網球第1、2面。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜煙波庭公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/756",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "ruihu-park",
+      "accessStatus": "unconfirmed",
+      "notice": "使用規則、費用、夜照及網球實際時段尚未確認，出發前請洽管理單位。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。位於民權東路6段15巷與瑞湖街一帶，官方場館頁列網球項目。",
+      "booking": "新版網球項目標示未開放租借；現場使用資格、登記及輪替方式尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "位於民權東路6段15巷與瑞湖街一帶，官方場館頁列網球項目。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "使用規則、費用、夜照及網球實際時段尚未確認，出發前請洽管理單位。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "位於民權東路6段15巷與瑞湖街一帶，官方場館頁列網球項目。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜瑞湖公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/768",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "shitan-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。安康路25巷，官方將網球與籃球分列。",
+      "booking": "iPlay網球資料有一般民眾與免費使用描述；實際是否需要登記或申請尚未確認。現況窗口02-2597-2232。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "安康路25巷，官方將網球與籃球分列。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "現場取得場地方式、夜照及網球實際時段尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "安康路25巷，官方將網球與籃球分列。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜石潭公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/763",
+          "verifiedAt": "2026-09-10"
+        },
+        {
+          "title": "iPlay｜石潭公園",
+          "url": "https://iplay.sports.gov.tw/GymInfo/Index/16413?PP=Traffic",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "bihu-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。內湖路2段175號；官方將網球與游泳池分列。",
+      "booking": "舊網球頁寫向現場值班人員辦理借用；新版沒有線上租借入口，請先以02-2597-2232確認目前流程。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "內湖路2段175號；官方將網球與游泳池分列。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "新版場館時間列08:00–17:00；網球是否中午休息、現行借用與費用尚未確認，泳池公告不直接套用。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "內湖路2段175號；官方將網球與游泳池分列。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜碧湖公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/603",
+          "verifiedAt": "2026-09-10"
+        },
+        {
+          "title": "臺北市體育局舊場地頁｜碧湖公園網球",
+          "url": "https://vbs.sports.taipei/venues/?K=604",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "dafeng-park",
+      "accessStatus": "unconfirmed",
+      "notice": "整建後實際位置與開放狀態尚未確認；官方系統列名不代表已完成工程驗收。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。磺港路72號對面；新版場館頁仍列網球項目。",
+      "booking": "已有現場使用資料，但改造或移位是否影響當日使用尚未確認，請先查管理單位公告。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "磺港路72號對面；新版場館頁仍列網球項目。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "整建後實際位置與開放狀態尚未確認；官方系統列名不代表已完成工程驗收。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜大豐公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/991",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "tianxi-green-space",
+      "accessStatus": "unconfirmed",
+      "notice": "一般民眾網球使用資格、現場流程、費用與夜照尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。行義路58巷33號附近；網球、練習壁與泳池分列。",
+      "booking": "新版網球項目標示未開放租借；可向頁面現況窗口02-2874-8122確認網球使用方式。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "行義路58巷33號附近；網球、練習壁與泳池分列。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "一般民眾網球使用資格、現場流程、費用與夜照尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "行義路58巷33號附近；網球、練習壁與泳池分列。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜天溪綠地網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/898",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "tianshou-park",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。中山北路6段405巷右側；官方列網球及照明設施。",
+      "booking": "網球項目標示未開放租借；現場使用與輪替方式尚未確認，請依現場公告。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "中山北路6段405巷右側；官方列網球及照明設施。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "費用、網球實際時段與開燈方式尚未確認；照明圖示不代表全時段有燈。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "中山北路6段405巷右側；官方列網球及照明設施。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜天壽公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/815",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "lanxing-park",
+      "accessStatus": "unconfirmed",
+      "notice": "實際面數與舊資料有差異，資格、輪替、費用及照明尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。克強路10巷底；新版列網球第1–3面及練習壁。",
+      "booking": "網球項目標示未開放租借；一般民眾使用資格與現場流程尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "克強路10巷底；新版列網球第1–3面及練習壁。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "實際面數與舊資料有差異，資格、輪替、費用及照明尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "克強路10巷底；新版列網球第1–3面及練習壁。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜蘭興公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/1012",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "jingmei-riverside",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。文山區育英疏散門（景一）附近；官方列有網球設施，非新北新店同名場地。",
+      "booking": "新版網球沒有租借入口，個人現場使用方式尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "文山區育英疏散門（景一）附近；官方列有網球設施，非新北新店同名場地。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "網球實際時段、費用、輪替與夜照尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "文山區育英疏散門（景一）附近；官方列有網球設施，非新北新店同名場地。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜景美河濱公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/485",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "wanyou-no2-park",
+      "accessStatus": "unconfirmed",
+      "notice": "網球保留範圍、整建後位置及開放狀態尚未確認。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。景隆街19巷4-2號；官方系統仍列網球項目，改善會議曾討論設施保留。",
+      "booking": "整建後是否仍可使用網球場尚未確認，請先向管理單位查詢，不依系統列名直接前往打球。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "景隆街19巷4-2號；官方系統仍列網球項目，改善會議曾討論設施保留。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "網球保留範圍、整建後位置及開放狀態尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜萬有二號公園網球場",
+          "url": "https://vbs.sports.gov.taipei/venues/848",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "市府｜2024改善會議",
+          "url": "https://doit.gov.taipei/News_Content.aspx?n=E3D88B653EACBF6E&s=05449D4E90BE8B68&sms=78D644F2755ACCAA",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "shih-chien-university",
+      "accessStatus": "unconfirmed",
+      "notice": "校外資格、申請方式、時段與個人費率尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。官方有網球設施與時刻表；2026年2月至6月表列開放對象為校內師生。",
+      "booking": "本學期校外人士能否使用網球尚未確認。一般場館零租及賽事包場規範不等於個人網球可租。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "官方有網球設施與時刻表；2026年2月至6月表列開放對象為校內師生。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "校外資格、申請方式、時段與個人費率尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "官方有網球設施與時刻表；2026年2月至6月表列開放對象為校內師生。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜實踐大學網球場",
+          "url": "https://sport.usc.edu.tw/p/404-1078-2291.php?Lang=zh-tw",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "songshan-senior-high",
+      "accessStatus": "unconfirmed",
+      "notice": "現行網球配置、對外資格、費用與可用時段尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。iPlay資料列活動中心五樓有籃球、羽球與網球混用設施。",
+      "booking": "一般民眾網球租用資格與流程尚未確認；操場租借規定不直接套用五樓網球。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "iPlay資料列活動中心五樓有籃球、羽球與網球混用設施。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "現行網球配置、對外資格、費用與可用時段尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "iPlay資料列活動中心五樓有籃球、羽球與網球混用設施。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜松山高中網球場",
+          "url": "https://iplay.sports.gov.tw/gyminfo/index/9734",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "takming-university",
+      "accessStatus": "unconfirmed",
+      "notice": "個人資格、網球出租範圍、費率與時段尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。校方設施資料列2面網球；總務說明校外場租由推廣中心受理。",
+      "booking": "校方有機關團體借用規範，但一般個人能否申請網球尚未確認，請先洽推廣中心。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "校方設施資料列2面網球；總務說明校外場租由推廣中心受理。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "待確認事項",
+          "value": "個人資格、網球出租範圍、費率與時段尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "校方設施資料列2面網球；總務說明校外場租由推廣中心受理。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜德明財經科技大學網球場",
+          "url": "https://general.takming.edu.tw/p/412-1009-497.php?Lang=zh-tw",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "德明體育室｜設施介紹",
+          "url": "https://www.takming.edu.tw/physical/display/place.html",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "xihu-junior-high",
+      "accessStatus": "unconfirmed",
+      "notice": "現行季租受理期、費率、夜照與可用時段尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。市府資料列室外2面網球，採紙本、按季申請。",
+      "booking": "已取得的受理頁為2024年度，不能當作目前仍可申請；請先查看學校最新網球季租公告。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "市府資料列室外2面網球，採紙本、按季申請。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "現行季租受理期、費率、夜照與可用時段尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "市府資料列室外2面網球，採紙本、按季申請。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜西湖國中網球場",
+          "url": "https://service.gov.taipei/rental/VenueDetail/83cba2811d59",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "tnua",
+      "accessStatus": "unconfirmed",
+      "notice": "目前可用面數、一般校外資格、費用、開放時段及夜照尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。已取得臺北藝術大學體育中心介紹及網球設施相關資料；此為北投校區。",
+      "booking": "校外人士最新正式租借資格與流程尚未確認，請向體育中心查詢。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "已取得臺北藝術大學體育中心介紹及網球設施相關資料；此為北投校區。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "目前可用面數、一般校外資格、費用、開放時段及夜照尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "已取得臺北藝術大學體育中心介紹及網球設施相關資料；此為北投校區。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜台北藝術大學網球場",
+          "url": "https://pe.tnua.edu.tw/main/intro.php",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "wenlin-elementary",
+      "accessStatus": "unconfirmed",
+      "notice": "室外使用資格、申請流程、費率與時段尚未確認，操場費率不套網球。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。官方2026年賽事資料記載室外3面、室內1面；iPlay室內網球明示不對外開放或出租。",
+      "booking": "室內場不對外；室外三面一般民眾是否可用及如何申請尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "官方2026年賽事資料記載室外3面、室內1面；iPlay室內網球明示不對外開放或出租。",
+          "status": "verified",
+          "source": 1
+        },
+        {
+          "label": "待確認事項",
+          "value": "室外使用資格、申請流程、費率與時段尚未確認，操場費率不套網球。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "官方2026年賽事資料記載室外3面、室內1面；iPlay室內網球明示不對外開放或出租。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜文林國小網球場",
+          "url": "https://iplay.sports.gov.tw/gyminfo/index/15197",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "學校官方轉知｜2026文林盃",
+          "url": "https://www.djes.tp.edu.tw/news/轉知臺北市文林盃校際網球邀請賽訊息/",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "xinmin-junior-high",
+      "accessStatus": "unconfirmed",
+      "notice": "現行受理期、時段、費率與夜照尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。市府資料列2面紅土網球，按季出租、不提供單次租借。",
+      "booking": "目前取得的受理頁為2024年度；請先向學校確認本年度網球季租，勿直接沿用舊受理日期。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "市府資料列2面紅土網球，按季出租、不提供單次租借。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "現行受理期、時段、費率與夜照尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "市府資料列2面紅土網球，按季出租、不提供單次租借。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜新民國中網球場",
+          "url": "https://service.gov.taipei/rental/VenueDetail/431c7decfa8c",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "mingde-junior-high",
+      "accessStatus": "confirmed",
+      "notice": "",
+      "locationStatus": "confirmed",
+      "summary": "部分資訊待確認。iPlay網球欄列一般民眾無限制、付費租用；窗口為學校總務處分機605。",
+      "booking": "可先向總務處詢問個人租用。iPlay有付費對外資訊，但學校現行申請方式尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "iPlay網球欄列一般民眾無限制、付費租用；窗口為學校總務處分機605。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "iPlay列220元／面／小時及18:00–21:00，是否仍適用尚未確認，請以校方回覆為準。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "iPlay網球欄列一般民眾無限制、付費租用；窗口為學校總務處分機605。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜明德國中網球場",
+          "url": "https://iplay.sports.gov.tw/gyminfo/index/15246",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "yixian-elementary",
+      "accessStatus": "unconfirmed",
+      "notice": "網球實際配置、對外時段、費用及現場流程尚未確認；舊資料夜間無燈。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。北投新民路2號；綜合球場資料列網球、籃球等多項用途。",
+      "booking": "目前能否架網打球及一般民眾租用流程尚未確認；綜合球場開放不等於任何時段都可打網球。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "北投新民路2號；綜合球場資料列網球、籃球等多項用途。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "網球實際配置、對外時段、費用及現場流程尚未確認；舊資料夜間無燈。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "北投新民路2號；綜合球場資料列網球、籃球等多項用途。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜逸仙國小網球場",
+          "url": "https://iplay.sports.gov.tw/gyminfo/index/14797",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "yangming-university-foothill",
+      "accessStatus": "unconfirmed",
+      "notice": "一般個人資格、山下配置、實際時段與個人費率尚未確認，不套新竹交大校區資料。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。陽明校區官方資料區分山下與山頂網球；場借窗口分機62169。",
+      "booking": "2026管理辦法有外界活動申請規範，但一般校外個人日常網球及會員適用方式尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "陽明校區官方資料區分山下與山頂網球；場借窗口分機62169。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "一般個人資格、山下配置、實際時段與個人費率尚未確認，不套新竹交大校區資料。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜陽明大學山下網球場",
+          "url": "https://peo.nycu.edu.tw/peo/ch/app/folder/2222",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "陽明交通大學｜2026管理辦法與附表",
+          "url": "https://peo.nycu.edu.tw/peo/ch/app/data/doc?detailNo=1158664699449970688&module=nycu0014&type=s",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "yangming-university-hilltop",
+      "accessStatus": "unconfirmed",
+      "notice": "山頂位置配置、個人資格、時段與費率尚未確認，不套山下或新竹校區規則。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。陽明校區官方資料列山頂網球場，山頂場借窗口分機62327。",
+      "booking": "外界活動申請與個人日常打球須分開；山頂網球校外使用方式及會員資格尚未確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "陽明校區官方資料列山頂網球場，山頂場借窗口分機62327。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "山頂位置配置、個人資格、時段與費率尚未確認，不套山下或新竹校區規則。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜陽明大學山頂網球場",
+          "url": "https://peo.nycu.edu.tw/peo/ch/app/folder/2222",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "陽明交通大學｜2026管理辦法與附表",
+          "url": "https://peo.nycu.edu.tw/peo/ch/app/data/doc?detailNo=1158664699449970688&module=nycu0014&type=s",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "cust",
+      "accessStatus": "unconfirmed",
+      "notice": "網球實際位置、居民使用資格、時段與申請流程尚未確認。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。校方設施頁列室外2面硬地；室外設施在指定時間服務附近居民，室內不開放。",
+      "booking": "網球是否包含在目前居民開放時段、是否需登記尚未確認，請先洽校方。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "校方設施頁列室外2面硬地；室外設施在指定時間服務附近居民，室內不開放。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "網球實際位置、居民使用資格、時段與申請流程尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜中華科技大學網球場",
+          "url": "https://www.cust.edu.tw/sports/02/0201.html",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "soochow-university",
+      "accessStatus": "unconfirmed",
+      "notice": "校外個人申請、費率及可用時段尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。2025年設施頁列外雙溪校區2面網球；規章要求校外人士先獲許可，校內優先。",
+      "booking": "校外未獲許可不得進入。個人申請網球的表單與辦理方式尚未確認，請先向校方查詢。",
+      "bookingStatus": "pending",
+      "bookingSource": 1,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "2025年設施頁列外雙溪校區2面網球；規章要求校外人士先獲許可，校內優先。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "校外個人申請、費率及可用時段尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "2025年設施頁列外雙溪校區2面網球；規章要求校外人士先獲許可，校內優先。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜東吳大學網球場",
+          "url": "https://web-ch.scu.edu.tw/physical/web_page/1523",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "東吳大學｜網球場使用規則",
+          "url": "https://web-ch.scu.edu.tw/storage/app/uploads/public/658/006/0eb/6580060eb4492065074330.pdf",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "zhishan-junior-high",
+      "accessStatus": "unconfirmed",
+      "notice": "室外網球專屬費率、時段及申請方式尚未確認，不套用活動中心價格。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。市府有室外2面網球租借頁；不是室內活動中心。",
+      "booking": "室外網球頁尚缺完整費用與時段，請向學校確認個人租用資格及流程。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "市府有室外2面網球租借頁；不是室內活動中心。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "室外網球專屬費率、時段及申請方式尚未確認，不套用活動中心價格。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "市府有室外2面網球租借頁；不是室內活動中心。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜至善國中網球場",
+          "url": "https://service.gov.taipei/rental/VenueDetail/7609a1c8ed2f",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "ming-chuan-university",
+      "accessStatus": "unconfirmed",
+      "notice": "一般個人網球申請、指定共用場地、費率與時間尚未確認。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。臺北校區資料列H樓前籃網共用場及其他多用途設施；非桃園或金門校區。",
+      "booking": "校外人士須先獲許可；機關團體借用規範不能直接當作個人可進場依據。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "臺北校區資料列H樓前籃網共用場及其他多用途設施；非桃園或金門校區。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "一般個人網球申請、指定共用場地、費率與時間尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜銘傳大學網球場",
+          "url": "https://physical.mcu.edu.tw/場地設備/",
+          "verifiedAt": "2026-09-09"
+        },
+        {
+          "title": "銘傳大學｜運動場地管理辦法",
+          "url": "https://physical.mcu.edu.tw/wp-content/uploads/sites/75/2023/04/銘傳大學運動場地管理辦法_pdf.pdf",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "ntue",
+      "accessStatus": "unconfirmed",
+      "notice": "一般個人資格、現行開放時段、申請與費率單位尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。校方2025年10月收費附表列紅土與硬地網球，活動借用需計畫書。",
+      "booking": "一般個人打球與活動包場的適用方式尚未確認。不要把每時段活動費當作個人每小時費用。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "校方2025年10月收費附表列紅土與硬地網球，活動借用需計畫書。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "一般個人資格、現行開放時段、申請與費率單位尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "校方2025年10月收費附表列紅土與硬地網球，活動借用需計畫書。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜台北教育大學網球場",
+          "url": "https://general.ntue.edu.tw/p/450-1044-17257,c0.php?Lang=zh-tw",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
+    },
+    {
+      "slug": "nccu",
+      "accessStatus": "unconfirmed",
+      "notice": "環山網球確切位置與本學期時段尚未確認；四維時刻表不適用一般社會人士。",
+      "locationStatus": "unconfirmed",
+      "summary": "開放狀態待確認。官方票證頁明列社會人士限使用環山網球，不能使用四維校內場。",
+      "booking": "官方列單張網球票200元，先至游泳館以悠遊卡繳費，持當日收據給管理員；環山位置及本學期可用時段尚待確認。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "官方票證頁明列社會人士限使用環山網球，不能使用四維校內場。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "環山網球確切位置與本學期時段尚未確認；四維時刻表不適用一般社會人士。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transportStatus": "pending",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜政治大學網球場",
+          "url": "https://sports.nccu.edu.tw/web/venue/venue_in.jsp?cp_id=CP1591947022832",
+          "verifiedAt": "2026-09-10"
+        }
+      ]
+    },
+    {
+      "slug": "jingmei-girls-high",
+      "accessStatus": "unconfirmed",
+      "notice": "整修後開放狀態、一般公眾資格、時段與使用流程尚未確認。",
+      "locationStatus": "confirmed",
+      "summary": "開放狀態待確認。校方2024年會議記錄提到網球地坪與圍籬整修、供師生使用。",
+      "booking": "一般民眾目前能否入場尚未確認；歷史免費欄位不等於現在對外開放。",
+      "bookingStatus": "pending",
+      "bookingSource": 0,
+      "facts": [
+        {
+          "label": "場地資料",
+          "value": "校方2024年會議記錄提到網球地坪與圍籬整修、供師生使用。",
+          "status": "verified",
+          "source": 0
+        },
+        {
+          "label": "待確認事項",
+          "value": "整修後開放狀態、一般公眾資格、時段與使用流程尚未確認。",
+          "status": "pending",
+          "source": 0
+        }
+      ],
+      "transport": "校方2024年會議記錄提到網球地坪與圍籬整修、供師生使用。出發前請查看官方交通資訊並確認入口。",
+      "transportStatus": "verified",
+      "transportSource": 0,
+      "sources": [
+        {
+          "title": "官方來源｜景美女中網球場",
+          "url": "https://www.cmgsh.tp.edu.tw/uploads/1724310465384gwEP32It.pdf",
+          "verifiedAt": "2026-09-09"
+        }
+      ]
     }
   ]
 }

@@ -6,7 +6,7 @@ import { createProfile, setBrowserSession, signUpUser, courtIdByName } from "./f
 import { installLocalPreviewPlatformStubs, captureProductionRuntimeErrors } from "./fixtures/productionPreview.js";
 import { createSessionViaRpc, createFutureSessionInput } from "./fixtures/sessionFactory.js";
 
-import { COURT_GUIDE_NAMES } from "../src/features/guides/courtGuideCatalog.ts";
+import { COURT_GUIDE_NAMES, COURT_GUIDE_BLOCKED_SLUGS } from "../src/features/guides/courtGuideCatalog.ts";
 
 const guide = "/courts/youth-park/";
 const output = "/tmp/qiuka-guide-batch-two/local";
@@ -189,6 +189,7 @@ test("every published guide opens a draft for its own court without publishing",
     if (/create_session|set_court_subscriptions|set_notification_prefs/.test(r.url())) writes.push(r.url());
   });
   for (const [slug, name] of Object.entries(COURT_GUIDE_NAMES)) {
+    if (COURT_GUIDE_BLOCKED_SLUGS.includes(slug)) continue;
     const courtId = await courtIdByName(client, name);
     await page.goto(`/courts/${slug}/`);
     await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
@@ -215,9 +216,9 @@ test("guide index combines name and district filters, handles empty results and 
   const cards = page.locator(".guide-index-card:visible");
   const count = page.getByRole("status");
   await expect(name).toBeVisible();
-  await expect(count).toHaveText("共 28 篇指南");
+  await expect(count).toHaveText("共 61 篇指南");
   await name.fill("河濱");
-  await expect(cards).toHaveCount(13);
+  await expect(cards).toHaveCount(14);
   await expect(name).toBeFocused();
   await district.selectOption("中山區");
   await expect(cards).toHaveCount(2);
@@ -228,20 +229,26 @@ test("guide index combines name and district filters, handles empty results and 
   await expect(cards).toHaveCount(1);
   await name.press("Enter");
   await expect(name).toBeFocused();
-  await expect(count).toHaveText("找到 1 篇指南（共 28 篇）");
+  await expect(count).toHaveText("找到 1 篇指南（共 61 篇）");
   await name.fill("青年");
   await expect(cards).toHaveCount(0);
   await expect(page.locator("#guide-no-results")).toBeVisible();
-  await expect(count).toHaveText("找到 0 篇指南（共 28 篇）");
+  await expect(count).toHaveText("找到 0 篇指南（共 61 篇）");
   await page.screenshot({ path: `${output}/empty-${info.project.name}.png`, fullPage: false });
   await page.getByRole("button", { name: "清除條件" }).click();
   await expect(name).toBeFocused();
   await expect(name).toHaveValue("");
   await expect(district).toHaveValue("");
-  await expect(cards).toHaveCount(28);
+  await expect(cards).toHaveCount(61);
   await expect(page.locator("#guide-no-results")).toBeHidden();
   await name.fill("臺北");
-  await expect(cards.locator("h2")).toHaveText(["台北網球中心", "台北網球場", "台北醫學大學網球場"]);
+  await expect(cards.locator("h2")).toHaveText([
+    "台北網球中心",
+    "台北網球場",
+    "台北醫學大學網球場",
+    "台北藝術大學網球場",
+    "台北教育大學網球場",
+  ]);
   await name.fill("青年 公園");
   await expect(cards.locator("h2")).toHaveText(["青年公園網球場"]);
   // Do not filter away results while a Chinese IME composition is still active.
@@ -273,10 +280,31 @@ test("guide index stays readable without JavaScript", async ({ browser, baseURL 
     const page = await context.newPage();
     await page.goto(new URL("/courts/", baseURL).href);
     await expect(page.locator("#guide-filters")).toBeHidden();
-    await expect(page.locator(".guide-index-card:visible")).toHaveCount(28);
+    await expect(page.locator(".guide-index-card:visible")).toHaveCount(61);
     await page.getByRole("link", { name: "查看指南 ：大佳河濱公園網球場" }).click();
     await expect(page.getByRole("heading", { name: "大佳河濱公園網球場", exact: true })).toBeVisible();
   } finally {
     await context.close();
   }
+});
+
+test("unconfirmed guides show notices without actions and reject direct create entry", async ({ page }) => {
+  const errors = await setup(page);
+  const requests = [];
+  page.on("request", (r) => {
+    if (/session_discovery|create_session|set_court_subscriptions/.test(r.url())) requests.push(r.url());
+  });
+  for (const slug of COURT_GUIDE_BLOCKED_SLUGS) {
+    await page.goto(`/courts/${slug}/`);
+    await expect(page.getByRole("heading", { name: "開放狀態待確認", exact: true })).toBeVisible();
+    await expect(page.locator('a[href*="guideAction="]')).toHaveCount(0);
+    await expect(page.locator("#guide-session-list")).toHaveCount(0);
+  }
+  expect(requests).toEqual([]);
+  await page.goto("/?courtGuide=xinsheng-park&guideAction=create#tab-map");
+  await expect(page.locator("#map")).toBeVisible();
+  await expect(page.getByTestId("session-form")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(page.url()).not.toContain("courtGuide");
+  expect(errors).toEqual([]);
 });

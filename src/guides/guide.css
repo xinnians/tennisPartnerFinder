@@ -471,3 +471,19 @@
     grid-column: 1 / -1;
   }
 }
+
+.guide-notice {
+  padding: 16px;
+  border: 1px solid #b88b3d;
+  border-radius: 8px;
+  background: #fff8e8;
+  color: #594013;
+  line-height: 1.7;
+}
+.guide-notice h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.guide-notice p {
+  margin: 0;
+}
