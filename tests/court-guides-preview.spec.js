@@ -40,7 +40,8 @@ test("static guides render before API, remain readable on failure, retry and exc
   expect((await request.get("/courts/unknown/")).status()).toBe(404);
   await page.goto("/courts/");
   await expect(page.locator(".guide-index-card")).toHaveCount(Object.keys(COURT_GUIDE_NAMES).length);
-  await page.screenshot({ path: `${output}/index-${info.project.name}.png`, fullPage: true });
+  // Capture CSS pixels so long court lists stay below WebKit's image-size limit on high-DPR devices.
+  await page.screenshot({ path: `${output}/index-${info.project.name}.png`, fullPage: true, scale: "css" });
   await page.route("**/rest/v1/session_discovery?**", (route) => route.abort());
   await page.goto(guide);
   await expect(page.getByRole("heading", { name: "青年公園網球場", exact: true })).toBeVisible();

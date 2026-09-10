@@ -13,20 +13,33 @@
 - 這是指南入口限制，不改資料庫court active狀態、不停用其他既有球局、不擴大新北／全台約球範圍。未對外聯絡或提交表單。
 - 公開來源排除tennislocal.app與jojotennis.com（渲染驗證亦拒絕）；直接引用原始官方／營運資料。
 
-## 驗證流程
+## 驗證結果與發布
 
-Browser plugin not available，採既有Playwright。測試路徑：列表搜尋→正常／狀態待確認指南→來源與待確認標示→允許的開局與取消／拒絕受限制網址→返回列表；桌面與390px、no-JS、console、sitemap與未知404都需驗證。
+使用 frontend-testing-debugging skill；Browser plugin not available，採既有 Playwright。操作路徑包含列表搜尋→正常／狀態待確認指南→來源與待確認標示→允許的開局與取消／拒絕受限制網址→返回列表。桌面1280與390px、no-JS、頁面身份／非空白／無overlay／無橫向溢出、pageerror及sitemap／未知404均檢查。
 
-單元已驗證61篇靜態內容、來源與禁止網域、受限制CTA缺席、位置待確認無導航、URL／pending intent拒絕。完整frontend與local Supabase正在執行；尚未完成Git預覽／CI／部署，正式仍28篇。最終結果寫入progress及本文件。
+- 實作：新增33篇，合計61篇；23篇access unconfirmed、8篇location unconfirmed，38篇保留指南動作。60篇77個facts pending，另新增33篇booking pending。不是61篇完整驗證或皆可自由入場。
+- 必要CI：[34432326956](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34432326956)，runtime head `b6e425c7703bee548f49c28c97fdf05f77d1f987`，Frontend／Supabase兩組成功。781 unit總數（776 pass／5 skip）、384 Chromium、1305 SQL、4 API、46 browser、6 mobile、22 preview及四組Edge檢查通過。
+- Git發布：[PR #12](https://github.com/xinnians/tennisPartnerFinder/pull/12)，merge `a02eb09d40a41e61a6f5753b48d6545919f4ac5c`。Production `dpl_ED1jNwxWFjCCrhqkQ14Cd3BZkyWf` READY，immutable URL `https://tennis-partner-finder-oq9ad9k11-xinnians-projects-c513dbd3.vercel.app`；已對qiuka.tw正式驗收。
+- 正式：61頁HTTP200／內容／來源／提醒／受限CTA／位置導航規則、sitemap63、unknown與全台底稿404通過；1280與390四頁、新生搜尋→資料頁→返回、no-JS61篇及受限入口缺席通過。南港／明德×桌面／手機共4組匿名開局與取消通過，pageerror0，沒有送出球局或訂閱寫入。已目視新生手機與南港桌面截圖。
+- Git預覽：61篇、桌面／手機、no-JS、4組匿名開局取消通過；本機preview Chromium22／WebKit10通過。首輪Chromium20 pass／2 fail是「臺北」舊預期3筆未納入北藝／北教，改成明確5個名稱後整組重跑通過。
 
+## 容量及成效界線
 
-## 本機驗證更新
+release嚴格容量通過：initial663849 raw／194280 gzip，全部JS945407／283708，既有上限700000／205000及1000000／300000不變。
 
-- frontend聚合完成：776 unit、384 Chromium、typecheck／lint／格式／目錄／build與bundle結構通過。release嚴格容量亦通過：initial 663849 raw／194280 gzip，全部JS945407／283708，未提高上限。
-- 原始local測試因累積215筆example.test未來球局觸發200筆完整性保護，39 pass／1 fail／12 skip／6未跑；已保存215筆id／status並僅在本機暫時改cancelled，沒有重置DB。完整重跑4 API／46 browser／12 skip通過；mobile6通過。所有DB測試完成後須恢復原215筆狀態。
-- 本機1280及390四頁內容／無橫向溢出／頁面身份／無overlay／pageerror0、列表搜尋與返回、no-JS61篇及受限制入口缺席通過。截圖在/tmp/qiuka-guide-pending-20260910，已目視手機新生提醒與導覽。
-- WebKit mock首輪182 pass／9 fail／3 skip，失敗為焦點與shell timing，完整log保存；不宣稱Safari全通過。preview Chromium／WebKit仍進行中。
-- Hosted schema／data備份已取得（316738／519555 bytes）；41 migrations對齊。counts：3 profiles／3 sessions／3 participants／3 messages／0 reports／15 outbox。匿名discovery200、禁止欄400、10私有端點401。零DB變更，未重跑hosted OAuth／兩帳號寫入／cron，本輪不列完成；沿用既有已驗證契約。
-- 分支先推送既有研究commit後，已新增兩個分支限定Preview公開變數；先前branch不存在的設定嘗試失敗，確認遠端分支存在後成功，未改Production設定。
+正式站真實網路、桌面及手機各3次，首訪最大790807 raw／243422 encoded bytes，低於820000／260000。桌面LCP中位648ms，手機3400ms；手機地圖容器中位6807ms。pageerror0、CLS0。此輪公開球局為空，不能與前批有球局時的LCP直接比較或宣稱效能改善；手機慢網路限制與真實留存／使用意願成效皆未宣告達標。
 
-預覽首輪Chromium20 pass／2 fail：搜尋「臺北」預期仍為舊3筆，實際正確顯示新增北藝／北教共5筆。已更新明確預期5個名稱，重跑整組預覽；不是放寬搜尋斷言。
+## 保留的失敗與驗證限制
+
+- Safari mock本機兩輪182 pass／9 fail／3 skip，涉及焦點與shell timing。獨立worktree以部署前基準`c25fbc1`重跑同套，亦182 pass／完全相同9 fail／3 skip，未觀察本批新增mock失敗，既有問題仍未修復。CI Safari mock190 pass／1 fail／3 skip，shell3490ms超2500ms；非必要阻擋job，未放寬門檻。
+- CI Safari preview9 pass／1 fail：61篇長列表在高DPR全頁截圖超WebKit32767像素上限。收尾將列表截圖改`scale: css`，保留完整列表與斷言；本機生成390×18588圖，對應靜態內容／錯誤重試測試通過。收尾整套8 pass／2 fail，因恢復本機215筆既有fixture後再遇discovery200筆overflow，分享dialog與shell未達正常狀態；不是截圖仍失敗。此前隔離fixture時同runtime WebKit10項通過；本次僅修測試證據擷取，不改正式runtime。
+- 原始test:local因累積215筆example.test未來球局超過200筆完整性保護，39 pass／1 fail／12 skip／6未跑。保存215筆id／status後僅本機暫改cancelled，完整重跑4 API／46 browser／12 skip通過，mobile6通過；沒有DB reset。原215筆status已全部恢復（一般轉換trigger拒絕cancelled→open，初次還原transaction rollback；測試結束後本機transaction暫用replica還原215筆並commit，未用於測試或正式DB）。後續需先處理本機測試資料容量；不藉移除overflow保障讓測試過關。
+- 正式分享沿用舊`/s/21`首跑預期200實為404；即時公開discovery為空，沒有可用200樣本。已驗證GET／HEAD／API404、未知404及POST405、no-store；200路徑本輪未重驗，沒有為此建立正式測試球局。必要CI的有效分享與路由契約通過。
+
+## Hosted檢查、清理與接續
+
+零DB migration／Edge／cron變更。已完成schema／data備份316738／519555 bytes，保存於`/Users/ian/tennisPartnerFinder-backups/20260910-guide-pending/`（私有備份，不在repo）；41 local／remote migrations對齊。備份counts：3 profiles／3 sessions／3 participants／3 messages／0 reports／15 outbox。匿名discovery200、禁止欄400、10私有端點401。未重跑hosted OAuth／兩帳號寫入／cron，本輪不列完成，沿用既有契約。
+
+分支限定Preview兩個公開變數已移除，Production設定未改；env匯出檔已刪除，本機dev server已停止。未建立排程／聯絡場館，沒有新北／全台公開或DB場地停用。
+
+QA logs、正式桌面／手機截圖與效能JSON保存於`/Users/ian/tennisPartnerFinder-qa/court-guide-pending-2026-09-10/`。維護人ian／Codex，下次完整覆核2026-12-08；實際資訊異動優先處理。下一步先補新生位置及開放、南港新舊規則適用、天母官方註冊／費時；其餘按清冊逐場補證。舊資料頁不因發布刷新查核日期，查明後再解除相應限制。
