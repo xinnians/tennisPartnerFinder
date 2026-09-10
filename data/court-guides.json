@@ -1976,7 +1976,7 @@
       "accessStatus": "confirmed",
       "notice": "",
       "locationStatus": "confirmed",
-      "summary": "部分資訊待確認。內湖路2段175號；官方將網球与游泳池分列。",
+      "summary": "部分資訊待確認。內湖路2段175號；官方將網球與游泳池分列。",
       "booking": "舊網球頁寫向現場值班人員辦理借用；新版沒有線上租借入口，請先以02-2597-2232確認目前流程。",
       "bookingStatus": "pending",
       "bookingSource": 1,
@@ -1994,7 +1994,7 @@
           "source": 0
         }
       ],
-      "transport": "內湖路2段175號；官方將網球与游泳池分列。出發前請查看官方交通資訊並確認入口。",
+      "transport": "內湖路2段175號；官方將網球與游泳池分列。出發前請查看官方交通資訊並確認入口。",
       "transportStatus": "verified",
       "transportSource": 0,
       "sources": [
@@ -2579,7 +2579,7 @@
       "accessStatus": "unconfirmed",
       "notice": "山頂位置配置、個人資格、時段與費率尚未確認，不套山下或新竹校區規則。",
       "locationStatus": "unconfirmed",
-      "summary": "開放狀態待確認。陽明校區官方資料列山頂网球場，山頂場借窗口分機62327。",
+      "summary": "開放狀態待確認。陽明校區官方資料列山頂網球場，山頂場借窗口分機62327。",
       "booking": "外界活動申請與個人日常打球須分開；山頂網球校外使用方式及會員資格尚未確認。",
       "bookingStatus": "pending",
       "bookingSource": 1,

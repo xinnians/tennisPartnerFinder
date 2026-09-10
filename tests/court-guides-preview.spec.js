@@ -242,7 +242,13 @@ test("guide index combines name and district filters, handles empty results and 
   await expect(cards).toHaveCount(61);
   await expect(page.locator("#guide-no-results")).toBeHidden();
   await name.fill("臺北");
-  await expect(cards.locator("h2")).toHaveText(["台北網球中心", "台北網球場", "台北醫學大學網球場"]);
+  await expect(cards.locator("h2")).toHaveText([
+    "台北網球中心",
+    "台北網球場",
+    "台北醫學大學網球場",
+    "台北藝術大學網球場",
+    "台北教育大學網球場",
+  ]);
   await name.fill("青年 公園");
   await expect(cards.locator("h2")).toHaveText(["青年公園網球場"]);
   // Do not filter away results while a Chinese IME composition is still active.

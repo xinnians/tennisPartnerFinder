@@ -28,3 +28,5 @@ Browser plugin not available，採既有Playwright。測試路徑：列表搜尋
 - WebKit mock首輪182 pass／9 fail／3 skip，失敗為焦點與shell timing，完整log保存；不宣稱Safari全通過。preview Chromium／WebKit仍進行中。
 - Hosted schema／data備份已取得（316738／519555 bytes）；41 migrations對齊。counts：3 profiles／3 sessions／3 participants／3 messages／0 reports／15 outbox。匿名discovery200、禁止欄400、10私有端點401。零DB變更，未重跑hosted OAuth／兩帳號寫入／cron，本輪不列完成；沿用既有已驗證契約。
 - 分支先推送既有研究commit後，已新增兩個分支限定Preview公開變數；先前branch不存在的設定嘗試失敗，確認遠端分支存在後成功，未改Production設定。
+
+預覽首輪Chromium20 pass／2 fail：搜尋「臺北」預期仍為舊3筆，實際正確顯示新增北藝／北教共5筆。已更新明確預期5個名稱，重跑整組預覽；不是放寬搜尋斷言。
