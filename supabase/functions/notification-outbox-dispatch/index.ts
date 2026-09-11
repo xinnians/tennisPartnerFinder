@@ -1,7 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.0";
 import webpush from "npm:web-push@3.6.7";
 
-import { classifyPushStatus, notificationTitle, safePushPayload, toWebPushSubscription } from "./dispatch.js";
+import {
+  classifyPushStatus,
+  notificationTitle,
+  safePushPayload,
+  shouldDeliverLegacyNotification,
+  toWebPushSubscription,
+} from "./dispatch.js";
 import {
   dispatcherV2RuntimeAccess,
   readDispatcherV2LocalConfig,
@@ -115,6 +121,13 @@ Deno.serve(async (request) => {
     .limit(configuredBatchSize());
   if (outboxError) return json({ error: "OUTBOX_READ_FAILED" }, 500);
 
+  const courtEventIds = (outboxRows ?? []).filter((row) => row.event_type === "court_new_session").map((row) => row.id);
+  const { data: eligibleEvents, error: sourceError } = courtEventIds.length
+    ? await client.rpc("filter_legacy_court_notification_ids", { p_outbox_ids: courtEventIds })
+    : { data: [], error: null };
+  if (sourceError) return json({ error: "NOTIFICATION_SOURCE_READ_FAILED" }, 500);
+  const eligibleCourtIds = new Set((eligibleEvents ?? []).map((row: { id: number }) => row.id));
+
   const recipientIds = [...new Set((outboxRows ?? []).map((row) => row.recipient_profile_id))];
   const { data: subscriptionRows, error: subscriptionError } = recipientIds.length
     ? await client
@@ -136,6 +149,15 @@ Deno.serve(async (request) => {
   let sent = 0;
   let staleSubscriptions = 0;
   for (const outboxRow of outboxRows ?? []) {
+    if (!shouldDeliverLegacyNotification(outboxRow, eligibleCourtIds.has(outboxRow.id))) {
+      await client
+        .from("notification_outbox")
+        .update({ attempts: 3 })
+        .eq("id", outboxRow.id)
+        .eq("attempts", outboxRow.attempts)
+        .is("sent_at", null);
+      continue;
+    }
     const nextAttempt = Number(outboxRow.attempts) + 1;
     const { data: claimedRows, error: claimError } = await client
       .from("notification_outbox")

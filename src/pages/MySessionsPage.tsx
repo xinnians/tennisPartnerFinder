@@ -189,7 +189,10 @@ function ChatButton({ session }: { session: MySessionsSession }) {
       data-session-id={sessionId}
       data-testid={`open-chat-${sessionId}`}
       aria-label={unreadCount > 0 ? `群組聊天，${unreadCount} 則未讀訊息` : undefined}
-      onClick={() => actions?.onOpenChat?.(sessionId)}
+      onClick={(event) => {
+        event.currentTarget.focus({ preventScroll: true });
+        actions?.onOpenChat?.(sessionId);
+      }}
     >
       {label}
     </button>

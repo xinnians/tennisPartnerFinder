@@ -2533,3 +2533,44 @@ for (const width of [1280, 390]) {
     expect(errors).toEqual([]);
   });
 }
+
+for (const width of [1280, 390]) {
+  test(`chat browser Back and close button return to their entry page without extra Back presses (${width}px)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const errors = captureRuntimeErrors(page);
+    const { hostSession, sessionId } = await createPublishedSession();
+    await gotoWithSession(page, hostSession);
+    await page.getByTestId("my-sessions-tab").click();
+    await page.getByTestId("my-sessions-seg-hosted").click();
+    const opener = page.getByTestId(`open-chat-${sessionId}`);
+    await opener.click();
+    await expect(page.locator("#session-chat-sheet")).toBeVisible();
+    await page.goBack();
+    await expect(page.locator("#session-chat-sheet")).toHaveCount(0);
+    await expect(page).toHaveURL(/#tab-my-sessions$/);
+    await expect(opener).toBeFocused();
+    await opener.click();
+    await expect(page.getByTestId("chat-message-input")).toBeVisible();
+    await expect(page).toHaveTitle(/球咖/);
+    await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+    await page.screenshot({ path: `/tmp/qiuka-chat-open-${width}.png`, animations: "disabled" });
+    await page.locator("#session-chat-sheet [data-surface-close]").click();
+    await expect(page.locator("#session-chat-sheet")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Boolean(history.state?.qiukaChatEntry))).toBe(false);
+    await expect(opener).toBeFocused();
+    await page.goBack();
+    await expect(page.locator("#tab-map")).toBeVisible();
+    await page.getByTestId("messages-tab").click();
+    await page.getByTestId(`messages-row-${sessionId}`).click();
+    await expect(page.locator("#session-chat-sheet")).toBeVisible();
+    await page.goBack();
+    await expect(page.locator("#session-chat-sheet")).toHaveCount(0);
+    await expect(page).toHaveURL(/#tab-messages$/);
+    await expect(page.locator("#messages-page")).toBeVisible();
+    await expect(page.getByTestId(`messages-row-${sessionId}`)).toBeFocused();
+    await page.screenshot({ path: `/tmp/qiuka-chat-back-${width}.png`, animations: "disabled" });
+    expect(errors).toEqual([]);
+  });
+}

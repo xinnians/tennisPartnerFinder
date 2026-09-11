@@ -85,3 +85,13 @@ test("flat DB subscription rows are wrapped into the web-push keys shape", () =>
   );
   assert.throws(() => toWebPushSubscription({ endpoint: "https://push.example/e1" }), /INVALID_PUSH_SUBSCRIPTION_ROW/);
 });
+
+test("legacy court notifications exclude their host and missing sources without suppressing other events", async () => {
+  const { shouldDeliverLegacyNotification } =
+    await import("../supabase/functions/notification-outbox-dispatch/dispatch.js");
+  const event = { event_type: "court_new_session", recipient_profile_id: 71 };
+  assert.equal(shouldDeliverLegacyNotification(event, false), false);
+  assert.equal(shouldDeliverLegacyNotification(event, undefined), false);
+  assert.equal(shouldDeliverLegacyNotification(event, true), true);
+  assert.equal(shouldDeliverLegacyNotification({ ...event, event_type: "host_new_request" }, false), true);
+});

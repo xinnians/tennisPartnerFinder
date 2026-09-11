@@ -1838,6 +1838,12 @@ export type Database = {
         };
         Returns: Json;
       };
+      filter_legacy_court_notification_ids: {
+        Args: { p_outbox_ids: number[] };
+        Returns: {
+          id: number;
+        }[];
+      };
       invite_to_session: {
         Args: { p_profile_id: number; p_session_id: number };
         Returns: string;

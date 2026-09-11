@@ -10,13 +10,14 @@ interface ChatSurfaceOptions {
   courts: ControllerChatSession["courts"];
   feed: ControllerChatSession["feed"];
   onBlock(profileId: ControllerIdentifier): Promise<true>;
-  onClose(): void;
+  onClose(options?: SurfaceCloseOptions): void;
   onPost(body: unknown): Promise<unknown>;
   onReport(messageId: ControllerIdentifier): unknown;
   onWithdraw(): unknown;
 }
 
 interface ChatSessionWiringDependencies {
+  bindHistory?: (close: (options: SurfaceCloseOptions) => void) => (options?: SurfaceCloseOptions) => void;
   createSessionChat: (sessionId: ControllerIdentifier) => ControllerChatSession | null | undefined;
   openChatSurface: (
     session: MySessionSummary,
@@ -28,11 +29,13 @@ interface ChatSessionWiringDependencies {
 export function createSessionChatOpener({
   createSessionChat,
   openChatSurface,
+  bindHistory,
 }: ChatSessionWiringDependencies): (sessionId: ControllerIdentifier) => ControllerSurfaceHandle | null | undefined {
   return function openSessionChat(sessionId) {
     const chat = createSessionChat(sessionId);
     if (!chat) return chat;
     let unsubscribeClose = () => {};
+    let releaseHistory: (options?: SurfaceCloseOptions) => void = () => {};
     let surface: ControllerSurfaceHandle | null | undefined;
     try {
       surface = openChatSurface(chat.session, {
@@ -40,7 +43,8 @@ export function createSessionChatOpener({
         courts: chat.courts,
         feed: chat.feed,
         onBlock: chat.block,
-        onClose: () => {
+        onClose: (options) => {
+          releaseHistory(options);
           unsubscribeClose();
           chat.release();
         },
@@ -53,10 +57,12 @@ export function createSessionChatOpener({
         return surface;
       }
       unsubscribeClose = chat.subscribeClose((options?: SurfaceCloseOptions) => surface?.close(options));
+      releaseHistory = bindHistory?.((options) => surface?.close(options)) ?? releaseHistory;
       chat.start();
       return surface;
     } catch (error) {
       unsubscribeClose();
+      releaseHistory({ reason: "chat-open-failed" });
       try {
         surface?.close({ reason: "chat-open-failed", restoreFocus: false });
       } finally {

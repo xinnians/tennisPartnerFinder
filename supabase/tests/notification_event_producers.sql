@@ -20,12 +20,13 @@ begin
   values(host_id,gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),'enabled','user_enabled',extensions.digest(gen_random_uuid()::text,'sha256')),
         (guest_id,gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),'enabled','user_enabled',extensions.digest(gen_random_uuid()::text,'sha256')),
         (guest_id,gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),'enabled','user_enabled',extensions.digest(gen_random_uuid()::text,'sha256'));
-  insert into public.court_subscriptions(profile_id,court_id) values(guest_id,court_id);
+  insert into public.court_subscriptions(profile_id,court_id) values(guest_id,court_id),(host_id,court_id);
   perform set_config('request.jwt.claim.sub',host_user::text,true);
   execute 'set local role authenticated';
   select public.create_session(court_id,'雙打',now()+interval '1 hour',3,4,3,'producer fixture','approval','booked',null,null,null) into target_session_id;
   execute 'reset role';
   select id into event_id from public.notification_outbox where notification_outbox.session_id=target_session_id and event_type='court_new_session' and outbox_format_version=2;
+  return next is((select count(*) from public.notification_outbox where session_id=target_session_id and event_type='court_new_session' and recipient_profile_id=host_id),0::bigint,'v2 subscribed host has no self-notification or device fanout');
   return next ok(event_id is not null,'create_session emits a real v2 court event');
   return next is((select count(*) from private.notification_deliveries where outbox_id=event_id),2::bigint,'one frozen event fans out to both current devices');
   return next is((select fanout_state from public.notification_outbox where id=event_id),'frozen','fanout freezes in the event transaction');
@@ -52,6 +53,13 @@ begin
   delete from private.notification_runtime_canary_profiles where profile_id=guest_id;
   perform private.enqueue_notification('session_updated',guest_id,target_session_id,private.notification_session_payload(target_session_id,'updated'));
   return next ok(exists(select 1 from public.notification_outbox where notification_outbox.session_id=target_session_id and event_type='session_updated' and outbox_format_version=1),'accounts outside canary retain legacy events');
+  -- Model an old pending self-broadcast while legacy and v2 coexist.
+  insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload)
+  values('court_new_session',host_id,target_session_id,private.notification_session_payload(target_session_id,'legacy self fixture')) returning id into result_id;
+  return next is((select count(*) from public.filter_legacy_court_notification_ids(array[result_id])),0::bigint,'legacy dispatch rejects a previously queued self-broadcast');
+  insert into public.notification_outbox(event_type,recipient_profile_id,session_id,payload)
+  values('court_new_session',guest_id,target_session_id,private.notification_session_payload(target_session_id,'legacy guest fixture')) returning id into result_id;
+  return next is((select count(*) from public.filter_legacy_court_notification_ids(array[result_id])),1::bigint,'legacy dispatch permits another subscribed recipient');
   return next is((select count(*) from public.notification_outbox where fanout_state='open'),0::bigint,'no open fanout can escape the producer');
 end;
 $$;

@@ -2,6 +2,28 @@
 
 最後更新：2026-09-11。G02／G03／G04／G10 已上線；G09 已擴至 61 篇（23篇開放待確認）並加入名稱／行政區查找，均已正式部署，全台 562 筆待審底稿與品質報告已建立。正式站驗證及真實成效分開記錄。
 
+## 2026-09-11 自建球局通知／聊天室返回修正（本機完成，未部署）
+
+- 使用者核可第 1、3 項修正；[本批規格](self-notification-chat-back-2026-09-11.md)記錄介面、history／生命週期與派送邊界。第 2 項聊天期限不變。
+- 通知產生端排除自訂閱主揪，涵蓋單一／候選球場、新舊格式；migration 202609110001 停止待送 legacy 自我廣播。舊 Edge 派送另使用 202609110002 service-only `filter_legacy_court_notification_ids` 查核，拒絕主揪本人與缺失來源，不放寬 sessions／profiles 原表權限，不新增 browser 讀取或 push payload 個資。
+- chat app wiring 接上暫時 history ownership；兩個 React 入口明確聚焦，補足 Safari 點擊不自動聚焦；Back 關閉並回原入口／恢復焦點，dismiss 消耗 entry，快速 reopen 不被前次 popstate 誤關；權限撤銷與換帳號清除 ownership、不恢復私人聊天。保留 lazy cancellation 與 feed stop。
+- SQL 1,313 通過；完整前端 gate（型別／lint／格式／unit 782 pass、5 skip／Chromium 386 pass、4 skip／build／bundle structural check）通過。服務資格 RPC 調整後追加 targeted unit 14 pass、lint／格式重驗通過；生成 DB types 只新增服務 RPC 型別。
+- 最終前端 `npm run test:ci:frontend` 再跑通過（unit 782／5 skip、Chromium 386／4 skip）；型別、lint、格式、build、bundle structural check 與 diff check 通過。最終 JS total raw/gzip 948,125／284,509 bytes；沒有調高門檻。
+- 真實本機登入 1280×844／390×844 的兩入口 Back、關閉、重開、焦點在 Chromium／WebKit 各兩項通過；最後 Chromium 定向組包含 quiet polling、傳訊／封鎖／封存唯讀共4項通過。Browser plugin not available，使用 Playwright；畫面存在、title／URL、無 Vite overlay、console error 檢查納入回歸。截圖在 /tmp，非發布產物。
+- `npm run test:local` 曾取得 API4通過、browser40通過／12 skip，首次建檔訂閱 UI 同步失敗導致後7項未跑；這7項另跑通過。訂閱 UI 失敗也在未修改 HEAD 2417b84 的暫存 worktree 重現（同一本機 DB），記為獨立問題；該 worktree 已移除。後續重跑因測試球局累積超出探索上限，performance 隱藏狀態列及 API discovery 遇到 DISCOVERY_TOO_BROAD，完整套件不能標全綠；未放寬斷言或清庫。新增自我通知入列斷言在 discovery 前通過。實際 service RPC transport 成功、匿名呼叫42501。
+- 尚未部署，兩支 migration 僅套用本機，未重置資料庫、未改 hosted 設定或發送真實推播；沒有產品成效宣稱。WebKit 是定向驗證，完整 Safari、iOS／Android 原生手勢及真實推播未驗證。
+- 提交授權：使用者於本輪要求 commit；只提交本批修正、測試、規格及本批進度，其他分享圖片／成長文件維持未提交。本輪檢查 staged diff 與格式，沿用以上驗證；未 push／部署。
+- 下一步：依 release checklist 依序發布兩支 migration、legacy Edge 與前端，再由實機確認通知及返回；另行處理首次建檔訂閱顯示同步及測試資料隔離問題。先前與本批無關的文件改動保留。
+
+## 2026-09-11 測試回報三項初查（評估，未修正）
+
+- 本輪依使用者要求確認是否需調整，靜態追查通知 SQL／Edge、聊天 RPC／controller／sheet 與 history 接線。
+- 自建球局通知：舊 `try_enqueue_court_new_session` 未排除主揪；202609070001 新版 dispatcher 的 court_new_session recipient eligibility 已排除 host。應修正自我通知體驗，但根因仍須核對回報環境的 migration／Edge／派送版本及該次事件，不能把舊 enqueue 缺口直接認定為新版實際送出原因。
+- 過時聊天：現行規格為 cancelled／played／expired 後唯讀；一般球局 start_at + 24h 到期，未定案候選局在範圍起點到期。post_session_message 先 lock_and_expire_session，再拒絕封存局。僅超過開始時間仍可聊天符合目前規格；建議明示可聊天期限，若已封存或超過 24h 仍成功寫入，需按實際事件另查。前端在 participation refresh 或 RPC SESSION_ARCHIVED 後更新唯讀。
+- 手勢返回：chatSessionWiring／surface 開啟未建立 history entry，main 接 hashchange 而沒有聊天室專屬返回狀態。建議串接返回歷史，確保返回關閉聊天室、回原入口及保留焦點／清理輪詢；手機原生邊緣返回仍需實機驗證。
+- 本輪未改 runtime／migration、未執行產品測試、未重現真實推播或手機手勢、未部署，無產品成效證據。只新增本段進度並以 git diff --check 檢查。
+- 下一步：核對回報的環境與通知派送版本；實作自我通知防護及聊天室返回修正前補對應 spec／回歸案例，聊天期限若要縮短則先明訂產品規則。
+
 ## 2026-09-11 第3點摘要與標題提交
 
 - 使用者要求commit and push；本批提交新版摘要、統一「球咖｜球局資訊」標題、對應測試及分享規格／進度，其他文章與成長規劃草稿保留未提交。

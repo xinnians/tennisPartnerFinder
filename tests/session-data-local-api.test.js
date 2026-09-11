@@ -50,7 +50,7 @@ test(
       types: new Set(["單打"]),
       slots: new Set(["we-m"]),
     });
-    await guestApi.saveCurrentProfile({
+    const guestProfile = await guestApi.saveCurrentProfile({
       nick: "本機球友",
       ntrp: 3.5,
       courts: new Set(["青年公園網球場"]),
@@ -65,6 +65,10 @@ test(
     const courts = await hostApi.loadCourts();
     const court = courts.find((item) => item.name === "青年公園網球場");
     assert.ok(court?.id);
+    for (const client of [hostClient, guestClient]) {
+      const { error } = await client.rpc("set_court_subscriptions", { p_court_ids: [court.id] });
+      assert.ifError(error);
+    }
     const startAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
     const { sessionId } = await hostApi.createSession({
       courtId: court.id,
@@ -77,6 +81,34 @@ test(
       joinMode: "approval",
     });
     assert.ok(sessionId);
+    const admin = makeAdminClient();
+    const { data: notifications, error: notificationError } = await admin
+      .from("notification_outbox")
+      .select("recipient_profile_id")
+      .eq("session_id", sessionId)
+      .eq("event_type", "court_new_session");
+    assert.ifError(notificationError);
+    const { data: guestRow, error: guestError } = await guestClient
+      .from("court_subscriptions")
+      .select("profile_id")
+      .eq("court_id", court.id)
+      .single();
+    assert.ifError(guestError);
+    const { data: hostRow, error: hostError } = await hostClient
+      .from("court_subscriptions")
+      .select("profile_id")
+      .eq("court_id", court.id)
+      .single();
+    assert.ifError(hostError);
+    assert.ok(guestProfile.nick);
+    assert.ok(
+      notifications.some((row) => row.recipient_profile_id === guestRow.profile_id),
+      "other court subscribers still receive the new session"
+    );
+    assert.ok(
+      notifications.every((row) => row.recipient_profile_id !== hostRow.profile_id),
+      "subscribed host is excluded"
+    );
 
     const discovery = await guestApi.loadSessionDiscovery({
       bounds: { south: 24.95, west: 121.43, north: 25.18, east: 121.67 },

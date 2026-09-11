@@ -170,3 +170,94 @@ test("Chat app-wiring gate keeps concrete surface selection outside controllers"
     assert.equal(legacyConcreteChatWiringFindings(drifted).length, 1, `${key} canary stayed green`);
   }
 });
+
+async function historyHarness() {
+  const { createChatHistory } = await import("../src/features/chat/chatHistory.ts");
+  const entries = [{ state: { pageOwnerIdentity: "viewer" }, url: "https://example.test/#tab-messages" }];
+  let index = 0;
+  let pending = false;
+  const listeners = new Set();
+  const browser = {
+    location: {
+      get href() {
+        return entries[index].url;
+      },
+    },
+    history: {
+      get state() {
+        return entries[index].state;
+      },
+      pushState(state, _, url) {
+        entries.splice(++index);
+        entries.push({ state, url });
+      },
+      replaceState(state, _, url) {
+        entries[index] = { state, url };
+      },
+      back() {
+        pending = true;
+      },
+    },
+    addEventListener(_, listener) {
+      listeners.add(listener);
+    },
+    removeEventListener(_, listener) {
+      listeners.delete(listener);
+    },
+  };
+  return {
+    bind: createChatHistory(browser),
+    browser,
+    entries,
+    listeners,
+    back() {
+      index--;
+      for (const listener of [...listeners]) listener();
+    },
+    flush() {
+      assert.equal(pending, true);
+      pending = false;
+      this.back();
+    },
+  };
+}
+
+test("native Back closes chat once, preserves its entry page identity and releases the history listener", async () => {
+  const h = await historyHarness();
+  const closes = [];
+  const release = h.bind((options) => {
+    closes.push(options);
+    release(options);
+  });
+  assert.equal(h.entries.length, 2);
+  assert.equal(h.browser.history.state.pageOwnerIdentity, "viewer");
+  h.back();
+  assert.deepEqual(closes, [{ reason: "history-back", restoreFocus: true }]);
+  assert.equal(h.listeners.size, 0);
+});
+
+test("button dismissal consumes its entry and immediate reopen survives asynchronous Back", async () => {
+  const h = await historyHarness();
+  const first = h.bind(() => assert.fail("dismissed chat must not close again"));
+  first();
+  let secondCloses = 0;
+  const second = h.bind((options) => {
+    secondCloses++;
+    second(options);
+  });
+  h.flush();
+  assert.equal(secondCloses, 0);
+  assert.equal(h.entries.length, 2);
+  h.back();
+  assert.equal(secondCloses, 1);
+  assert.equal(h.listeners.size, 0);
+});
+
+test("authority closure removes chat ownership without going back over sign-out navigation", async () => {
+  const h = await historyHarness();
+  const release = h.bind(() => assert.fail("closed chat cannot revive"));
+  release({ reason: "chat-authority-changed" });
+  assert.equal(h.browser.history.state.qiukaChatEntry, undefined);
+  assert.equal(h.listeners.size, 0);
+  assert.equal(h.entries.length, 2);
+});

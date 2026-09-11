@@ -56,3 +56,8 @@ export function notificationTitle(eventType) {
     }[eventType] ?? "球咖通知"
   );
 }
+
+/** 僅供服務端使用的資格 RPC 排除自我廣播與已不存在的來源。 */
+export function shouldDeliverLegacyNotification(event, courtSourceEligible) {
+  return event.event_type !== "court_new_session" || courtSourceEligible === true;
+}

@@ -557,6 +557,7 @@ export const FRONTEND_ARCHITECTURE_MANIFEST = Object.freeze({
       "src/controller/discoveryMapController.ts::<top-level>::Document",
       "src/controller/discoveryMapController.ts::createDiscoveryMapController::setTimeout",
       "src/domainTypes.ts::<top-level>::HTMLElement",
+      "src/features/chat/chatHistory.ts::createChatHistory::Window",
       "src/features/guides/guideEntry.ts::consumeGuideEntry::Storage",
       "src/features/guides/guideEntry.ts::subscriptionGuideHint::Storage",
       "src/features/notifications/notificationFeature.ts::<top-level>::AbortSignal",

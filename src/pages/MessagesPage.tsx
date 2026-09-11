@@ -57,7 +57,10 @@ function MessageRow({
       data-session-id={sessionId}
       data-testid={`messages-row-${sessionId}`}
       aria-label={unread ? `${courtLabel}，${scheduleLabel}，${unreadCount} 則未讀訊息` : undefined}
-      onClick={() => onOpenChat(sessionId)}
+      onClick={(event) => {
+        event.currentTarget.focus({ preventScroll: true });
+        onOpenChat(sessionId);
+      }}
     >
       <span className="messages-row__avatar" aria-hidden="true">
         {sessionHostInitial(session)}

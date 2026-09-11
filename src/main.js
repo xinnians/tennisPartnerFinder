@@ -125,6 +125,7 @@ import {
 } from "./features/notifications/notificationFeature.ts";
 import { createNotificationPushProductionShell } from "./notificationPushProductionShell.ts";
 import { createNotificationPushSignOutContinuation } from "./notificationPushSignOutContinuation.ts";
+import { createChatHistory } from "./features/chat/chatHistory.ts";
 import { createSessionChatOpener } from "./features/chat/chatSessionWiring.ts";
 import { createPageRouteOwner } from "./features/navigation/pageRouteOwner.ts";
 import { configureShareFeature, copySessionShareLink, shareSession } from "./features/share/shareFeature.js";
@@ -506,6 +507,7 @@ function enablePushNotifications() {
 }
 
 const openSessionChat = createSessionChatOpener({
+  bindHistory: createChatHistory(globalThis.window),
   createSessionChat: (sessionId) => controller.createSessionChat(sessionId),
   openChatSurface: openSessionChatSheet,
 });
