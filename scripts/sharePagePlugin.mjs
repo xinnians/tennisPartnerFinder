@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadEnv } from "vite";
+import { handleShareImage } from "../server/shareImage.js";
 import { handleSharePage } from "../server/sharePage.js";
 
 export function sharePagePlugin() {
@@ -26,13 +27,23 @@ export function sharePagePlugin() {
   function attach(server, preview) {
     const env = { ...loadEnv(config.mode, config.root, ""), ...process.env };
     server.middlewares.use(async (req, res, next) => {
-      if (!/^\/(?:s(?:\/|$)|api\/share(?:\?|$))/.test(req.url || "")) return next();
+      if (!/^\/(?:s(?:\/|$)|api\/share(?:-image)?(?:\?|$))/.test(req.url || "")) return next();
       try {
+        if (new URL(req.url, "http://localhost").pathname === "/api/share-image") {
+          const result = await handleShareImage(new Request(`http://127.0.0.1${req.url}`, { method: req.method }), {
+            env,
+          });
+          res.statusCode = result.status;
+          result.headers.forEach((value, key) => res.setHeader(key, value));
+          res.end(Buffer.from(await result.arrayBuffer()));
+          return;
+        }
         let template = readFileSync(resolve(config.root, preview ? "dist/index.html" : "index.html"), "utf8");
         if (!preview) template = await server.transformIndexHtml(req.url, template);
         const result = await handleSharePage(new Request(`http://127.0.0.1${req.url}`, { method: req.method }), {
           template,
           env,
+          localOrigin: server.resolvedUrls?.local?.[0]?.replace(/\/$/, ""),
         });
         res.statusCode = result.status;
         result.headers.forEach((value, key) => res.setHeader(key, value));

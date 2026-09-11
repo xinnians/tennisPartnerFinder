@@ -4,6 +4,8 @@
 
 ## 從這裡接續
 
+2026-09-11 [逐局分享圖片](session-share-image-2026-09-11.md)本機完成，已核可最終視覺；[實際PNG與比較](share-card-preview/README.md)。提交／部署狀態與驗證限制見progress。
+
 2026-09-11 [開局後系統分享本機版](native-session-share-2026-09-11.md)已完成；支援系統分享與複製備援，驗證限制與部署狀態見progress。
 
 1. 讀 [目前進度](progress.md)，確認工作區、最近驗證與下一步。

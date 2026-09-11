@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // Server-only anonymous share surface. Never forward browser credentials or read private tables.
 export const SHARE_SELECT =
   "session_id,court,start_at,play_type,ntrp_min,ntrp_max,slots_remaining,status,venue_type,range_end,decided_at";
@@ -79,9 +80,10 @@ function render(template, id, origin, content, production) {
 <meta property="og:description" content="${escapeHtml(content.description)}">
 <meta property="og:type" content="website"><meta property="og:locale" content="zh_TW">
 <meta property="og:url" content="${escapeHtml(canonical)}">
-<meta property="og:image" content="${escapeHtml(origin)}/og.png">
+<meta property="og:image" content="${escapeHtml(origin)}${escapeHtml(content.image || "/og.png")}">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="球咖｜台北網球">`;
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:alt" content="${escapeHtml(content.title)}">`;
   const clean = template
     .replace(/<title>[\s\S]*?<\/title>/gi, "")
     .replace(/<meta\b[^>]*(?:property=["']og:[^"']*["']|name=["'](?:description|robots)["'])[^>]*>/gi, "")
@@ -93,7 +95,10 @@ function render(template, id, origin, content, production) {
     .replace(/<body([^>]*)>/i, `<body$1>${notice}`);
 }
 
-export async function handleSharePage(request, { template, env, fetchImpl = fetch, now = () => Date.now() }) {
+export async function handleSharePage(
+  request,
+  { template, env, fetchImpl = fetch, now = () => Date.now(), localOrigin = "http://127.0.0.1:4174" }
+) {
   const url = new URL(request.url);
   const headers = {
     "Content-Type": "text/html; charset=utf-8",
@@ -107,32 +112,56 @@ export async function handleSharePage(request, { template, env, fetchImpl = fetc
   const id = shareId(url);
   if (!id) return respond("找不到這個球局連結。", 404);
   const origin =
-    env.VERCEL_ENV === "production"
-      ? "https://qiuka.tw"
-      : env.VERCEL_URL
-        ? `https://${env.VERCEL_URL}`
-        : "http://127.0.0.1:4174";
+    env.VERCEL_ENV === "production" ? "https://qiuka.tw" : env.VERCEL_URL ? `https://${env.VERCEL_URL}` : localOrigin;
   let status = 200;
   let content;
   try {
-    if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) throw new Error("Unavailable");
-    const apiUrl = new URL("/rest/v1/session_discovery", env.VITE_SUPABASE_URL);
-    apiUrl.search = new URLSearchParams({ select: SHARE_SELECT, session_id: `eq.${id}`, limit: "1" }).toString();
-    const response = await fetchImpl(apiUrl, {
-      headers: { apikey: env.VITE_SUPABASE_ANON_KEY },
-      signal: AbortSignal.timeout(2000),
-      redirect: "error",
-    });
-    if (!response.ok) throw new Error("Unavailable");
-    const rows = await response.json();
-    if (!Array.isArray(rows) || rows.length > 1) throw new Error("Invalid response");
-    if (!visibleRow(rows[0], id, now())) {
+    const row = await loadPublicShareRow(id, { env, fetchImpl, now });
+    if (!row) {
       status = 404;
       content = { title: "目前無法查看這個球局｜球咖", description: "這個球局目前未公開，請回到地圖找其他球局。" };
-    } else content = summary(rows[0]);
+    } else content = { ...summary(row), image: shareImagePath(row) };
   } catch {
     status = 503;
     content = { title: "球局暫時無法載入｜球咖", description: "請稍後再試，或開啟球局詳情重新查看。" };
   }
   return respond(render(template, id, origin, content, env.VERCEL_ENV === "production"), status);
+}
+
+/** Same anonymous discovery window for HTML and image requests; no client-supplied content. */
+export async function loadPublicShareRow(id, { env, fetchImpl = fetch, now = () => Date.now() }) {
+  if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) throw new Error("Unavailable");
+  const apiUrl = new URL("/rest/v1/session_discovery", env.VITE_SUPABASE_URL);
+  apiUrl.search = new URLSearchParams({ select: SHARE_SELECT, session_id: `eq.${id}`, limit: "1" }).toString();
+  const response = await fetchImpl(apiUrl, {
+    headers: { apikey: env.VITE_SUPABASE_ANON_KEY },
+    signal: AbortSignal.timeout(2000),
+    redirect: "error",
+  });
+  if (!response.ok) throw new Error("Unavailable");
+  const rows = await response.json();
+  if (!Array.isArray(rows) || rows.length > 1) throw new Error("Invalid response");
+  return visibleRow(rows[0], id, now()) ? rows[0] : null;
+}
+
+export function shareImagePath(row) {
+  const revision = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "card-v3",
+        row.start_at,
+        row.court,
+        row.play_type,
+        row.ntrp_min,
+        row.ntrp_max,
+        row.status,
+        Number(row.slots_remaining) <= 0,
+        row.venue_type,
+        row.range_end,
+        row.decided_at,
+      ])
+    )
+    .digest("hex")
+    .slice(0, 16);
+  return `/api/share-image?id=${Number(row.session_id)}&v=${revision}`;
 }

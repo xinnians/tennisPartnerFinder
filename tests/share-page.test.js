@@ -170,3 +170,12 @@ test("raw HTTP GET and HEAD expose metadata before any JavaScript runs", async (
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("valid pages advertise versioned per-session PNG; unavailable pages retain neutral brand image", async () => {
+  const html = await (await run()).text();
+  assert.match(html, /og:image" content="https:\/\/qiuka.tw\/api\/share-image\?id=42&amp;v=[a-f0-9]{16}"/);
+  assert.match(html, /og:image:type" content="image\/png"/);
+  const missing = await (await run([])).text();
+  assert.match(missing, /og:image" content="https:\/\/qiuka.tw\/og.png"/);
+  assert.doesNotMatch(missing, /share-image/);
+});
