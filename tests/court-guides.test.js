@@ -148,3 +148,29 @@ test("unconfirmed guide actions reject crafted URLs and remain readable without 
     assert.doesNotMatch(html, /<script/);
   }
 });
+
+test("September official evidence preserves booking scope and unresolved location safeguards", () => {
+  const xinsheng = guides.find((g) => g.slug === "xinsheng-park");
+  const nangang = guides.find((g) => g.slug === "nangang-park");
+  const tianmu = guides.find((g) => g.slug === "tianmu-sports-park");
+  const html = renderGuidePage(xinsheng.slug, { production: true });
+  assert.equal(xinsheng.accessStatus, "unconfirmed");
+  assert.equal(xinsheng.locationStatus, "unconfirmed");
+  assert.doesNotMatch(html, /maps\/dir|guideAction=|id="guide-session-list"/);
+  assert.match(html, /8\/23截止/);
+  assert.match(html, /臨租及下一季價格另待確認/);
+  assert.match(html, /原目錄座標與入口對應/);
+  for (const guide of [xinsheng, nangang, tianmu]) {
+    assert.equal(guide.bookingStatus, "pending");
+    assert.ok(guide.facts.some((f) => f.status === "pending"));
+  }
+  const eligibility = nangang.facts.find((f) => f.label === "使用資格");
+  assert.match(nangang.sources[eligibility.source].url, /iplay\.sports\.gov\.tw\/GymInfo\/Index\/23084/);
+  assert.match(nangang.booking, /^採現場輪流使用，不走網球線上預約/);
+  assert.match(nangang.booking, /不把籃球租借按鈕當成網球預約入口/);
+  assert.match(nangang.facts.at(-1).value, /不直接套用現場臨打/);
+  assert.match(tianmu.sources[tianmu.bookingSource].url, /docs\.google\.com\/forms/);
+  assert.ok(tianmu.sources.some((s) => s.url.includes("fbid=233102305629602")));
+  assert.match(tianmu.booking, /免費僅指會員註冊/);
+  assert.match(tianmu.facts.at(-1).value, /不直接當作2026年費時承諾/);
+});

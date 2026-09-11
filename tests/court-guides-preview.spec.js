@@ -309,3 +309,38 @@ test("unconfirmed guides show notices without actions and reject direct create e
   expect(page.url()).not.toContain("courtGuide");
   expect(errors).toEqual([]);
 });
+
+test("official evidence update shows scoped facts and preserves pending actions", async ({ page }, info) => {
+  const errors = await setup(page);
+  await page.route("**/rest/v1/session_discovery?**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
+  );
+  await mkdir("/tmp/qiuka-evidence-20260911", { recursive: true });
+  for (const [slug, name, evidence] of [
+    ["xinsheng-park", "新生公園網球場", "8/23截止"],
+    ["nangang-park", "南港公園網球場", "開放對象無限制"],
+    ["tianmu-sports-park", "天母運動公園網球場", "免費僅指會員註冊"],
+  ]) {
+    await page.goto("/courts/");
+    await page.locator(`a[href="/courts/${slug}/"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/courts/${slug}/$`));
+    await expect(page).toHaveTitle(new RegExp(name));
+    await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+    await expect(page.locator("body")).toContainText(evidence);
+    await expect(page.locator("body")).toContainText("待確認");
+    await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (slug === "xinsheng-park") {
+      await expect(page.locator('a[href*="guideAction="]')).toHaveCount(0);
+      await expect(page.locator('a[href*="maps/dir"]')).toHaveCount(0);
+    } else {
+      await expect(page.getByRole("link", { name: "在這裡開球局", exact: true }).first()).toBeVisible();
+    }
+    await page.screenshot({
+      path: `/tmp/qiuka-evidence-20260911/${slug}-${info.project.name}.png`,
+      fullPage: true,
+      scale: "css",
+    });
+  }
+  expect(errors).toEqual([]);
+});

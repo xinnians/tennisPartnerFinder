@@ -1680,9 +1680,9 @@
       "notice": "",
       "locationStatus": "confirmed",
       "summary": "部分資訊待確認。營運公開頁列6面硬地球場，地址為士林區忠誠路2段77號。",
-      "booking": "訂場方式尚未確認。可先致電營運窗口02-2874-8268，確認首次使用資格與辦理方式。",
+      "booking": "首次訂場須先填寫營運單位會員註冊表，免費加入後攜帶證件至櫃檯審核，通過後才可訂場。免費僅指會員註冊，不代表打球免費。當日預約、排隊與可訂時段仍請洽02-2874-8268確認。",
       "bookingStatus": "pending",
-      "bookingSource": 0,
+      "bookingSource": 2,
       "facts": [
         {
           "label": "場地資料",
@@ -1691,20 +1691,36 @@
           "source": 0
         },
         {
+          "label": "首次使用資格",
+          "value": "官方圖片連結的會員表單確認：首次訂場先免費註冊，再到櫃檯出示證件審核。",
+          "status": "verified",
+          "source": 2
+        },
+        {
           "label": "待確認事項",
-          "value": "現行訂場流程、費率、開放時段及夜間照明尚未確認。",
+          "value": "現行費率、開放時段、夜間照明與詳細預約／排隊規則仍待確認；2021年入場及售票圖片不直接當作2026年費時承諾。",
           "status": "pending",
           "source": 0
         }
       ],
-      "transport": "營運公開頁列6面硬地球場，地址為士林區忠誠路2段77號。出發前請查看官方交通資訊並確認入口。",
+      "transport": "營運公開頁列士林區忠誠路2段77號。集合前請向02-2874-8268確認球場入口。",
       "transportStatus": "verified",
       "transportSource": 0,
       "sources": [
         {
           "title": "營運公開頁｜天母運動公園網球場",
           "url": "https://www.facebook.com/TianmuTennis/",
-          "verifiedAt": "2026-09-10"
+          "verifiedAt": "2026-09-11"
+        },
+        {
+          "title": "天母網球場官方入場規定圖片（2021-12-17；含會員表單連結）",
+          "url": "https://www.facebook.com/photo/?fbid=233102305629602&set=pcb.233103365629496",
+          "verifiedAt": "2026-09-11"
+        },
+        {
+          "title": "天母網球場｜官方連結會員註冊表",
+          "url": "https://docs.google.com/forms/d/e/1FAIpQLSfaD6O0ig8mfCk46tfhMpI6vv4G7CsAU8HUan9T8aBVh0Sy0A/viewform",
+          "verifiedAt": "2026-09-11"
         }
       ]
     },
@@ -1714,7 +1730,7 @@
       "notice": "",
       "locationStatus": "confirmed",
       "summary": "部分資訊待確認。東新街170號；新版場館頁列2面網球。",
-      "booking": "官方網球頁說明，不開放線上預約的場地供現場民眾輪流使用，禁止營利行為。出發前請確認當日適用面號及公告。",
+      "booking": "採現場輪流使用，不走網球線上預約。官方網球頁說明供現場民眾輪流、禁止營利；新版系統兩面均未開放租借，iPlay網球專欄列開放對象無限制、每天開放。現場如何排隊登記、每次使用多久，仍請依現場公告；不把籃球租借按鈕當成網球預約入口。",
       "bookingStatus": "pending",
       "bookingSource": 0,
       "facts": [
@@ -1725,25 +1741,42 @@
           "source": 1
         },
         {
+          "label": "使用資格",
+          "value": "iPlay網球專欄列開放對象無限制、平假日每天開放；新版系統兩面均未開放租借。",
+          "status": "verified",
+          "source": 2
+        },
+        {
+          "label": "官方列示時間",
+          "value": "新舊場館頁均列08:00–22:00；iPlay網球欄未列起訖時間，當日可用面號與臨時管制仍以現場公告為準。",
+          "status": "verified",
+          "source": 1
+        },
+        {
           "label": "待確認事項",
-          "value": "輪替細節、個人使用費用與夜照方式尚未確認；舊頁租借費不直接當作現場臨打價格。",
+          "value": "現場登記方式、每次輪替時間、個人使用費用及照明操作／費用尚未確認；舊頁活動租借費與照明費不直接套用現場臨打。",
           "status": "pending",
           "source": 0
         }
       ],
-      "transport": "東新街170號；新版場館頁列2面網球。出發前請查看官方交通資訊並確認入口。",
+      "transport": "官方新版場館頁及iPlay均列南港區東新街170號。請確認園內網球場入口及當日公告後再出發。",
       "transportStatus": "verified",
-      "transportSource": 0,
+      "transportSource": 1,
       "sources": [
         {
           "title": "官方來源｜南港公園網球場",
           "url": "https://vbs.sports.taipei/venues/?K=609",
-          "verifiedAt": "2026-09-10"
+          "verifiedAt": "2026-09-11"
         },
         {
           "title": "臺北市體育局場地租借2.0｜南港公園",
           "url": "https://vbs.sports.gov.taipei/venues/514",
-          "verifiedAt": "2026-09-09"
+          "verifiedAt": "2026-09-11"
+        },
+        {
+          "title": "全國運動場館資訊網iPlay｜南港公園網球場",
+          "url": "https://iplay.sports.gov.tw/GymInfo/Index/23084",
+          "verifiedAt": "2026-09-11"
         }
       ]
     },
@@ -1828,29 +1861,47 @@
     {
       "slug": "xinsheng-park",
       "accessStatus": "unconfirmed",
-      "notice": "改建後網球位置、是否共用、一般民眾使用方式尚未確認；不能沿用改建前資訊。",
+      "notice": "已確認新生館戶外網球的九月季租規則；與原目錄座標、實際入口及戶外共用方式仍待核對，暫不開放本指南約球動作與導航。",
       "locationStatus": "unconfirmed",
-      "summary": "開放狀態待確認。2026年7月27日新生特色運動館開幕新聞提到網球場與匹克球場。",
-      "booking": "網球實際開放及預約方式尚未確認。請向新生館02-7742-0029分機141／142確認網球項目。",
+      "summary": "新生館官方九月季租公告已明列一樓戶外網球；原目錄位置對應仍待確認。",
+      "booking": "115年第三季適用2026/9/1–9/30，抽籤登記已於8/23截止，不能再依該公告報名。該季申請人須滿20歲，先加入官方預約平台會員，一人限單一日、單一時段登記一次，以偶數整點2小時為單位。附件說明完成登記後如有空場，可走網路、電話或臨櫃預約；目前餘場及臨租條件請洽02-7742-0029分機141／142，下一季受理另待公告。",
       "bookingStatus": "pending",
-      "bookingSource": 1,
+      "bookingSource": 2,
       "facts": [
         {
-          "label": "場地資料",
-          "value": "2026年7月27日新生特色運動館開幕新聞提到網球場與匹克球場。",
+          "label": "官方戶外場地",
+          "value": "使用協議列新生北路三段105號、一樓戶外網球；不等於已核對本頁原目錄座標或指定入口。",
           "status": "verified",
-          "source": 0
+          "source": 3
+        },
+        {
+          "label": "九月季租時段",
+          "value": "2026年九月網球季租表列每日06:00–22:00；週二、四開放2面長租，其餘日1面。這是季租名額，不代表即時空場。",
+          "status": "verified",
+          "source": 3
+        },
+        {
+          "label": "九月季租費率",
+          "value": "公告列網球每面每小時離峰600元、尖峰800元；平日18:00、例假日12:00起為尖峰，離峰自06:00起。此為九月季租公告費率，臨租及下一季價格另待確認。",
+          "status": "verified",
+          "source": 2
+        },
+        {
+          "label": "季租入場與雨天",
+          "value": "季租用戶先至1F球場櫃檯報到，由館方辦理照明；九月網球季租表載雨天無法使用費用於下一季扣抵，不直接套用臨租。",
+          "status": "verified",
+          "source": 3
         },
         {
           "label": "待確認事項",
-          "value": "改建後網球位置、是否共用、一般民眾使用方式尚未確認；不能沿用改建前資訊。",
+          "value": "原目錄座標與入口對應、戶外網球／匹克球共用方式、當日餘場、臨租資格／費率／雨天辦法及下一季受理仍待確認。",
           "status": "pending",
-          "source": 0
+          "source": 3
         }
       ],
-      "transport": "球場位置尚待核對，請先透過官方來源確認入口，暫不提供此頁路線導航。",
+      "transport": "館方列新生北路三段105號、一樓戶外網球。可依官方交通頁前往新生館洽詢；原目錄座標與網球入口尚未核對，暫不提供本頁路線導航。",
       "transportStatus": "pending",
-      "transportSource": 0,
+      "transportSource": 4,
       "sources": [
         {
           "title": "官方來源｜新生公園網球場",
@@ -1861,6 +1912,21 @@
           "title": "YMCA｜新生特色運動館",
           "url": "https://www.ymca-xssc.org/",
           "verifiedAt": "2026-09-10"
+        },
+        {
+          "title": "YMCA｜115年第三季羽球／匹克球／網球長期租用公告（2026-08-12）",
+          "url": "https://www.ymca-xssc.org/news_view-25?lang=tw",
+          "verifiedAt": "2026-09-11"
+        },
+        {
+          "title": "YMCA｜115年第三季抽籤辦法及使用協議（第1–3、6、11頁）",
+          "url": "https://www.ymca-xssc.org/userfiles/files/115臺北市新生運動館-第三季新用戶抽籤辦法及相關說明-官網抽籤版.pdf",
+          "verifiedAt": "2026-09-11"
+        },
+        {
+          "title": "YMCA｜新生運動館交通資訊",
+          "url": "https://www.ymca-xssc.org/pages-1?lang=tw",
+          "verifiedAt": "2026-09-11"
         }
       ]
     },
