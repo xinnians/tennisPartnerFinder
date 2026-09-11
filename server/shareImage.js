@@ -14,7 +14,7 @@ const cleanText = (value) => String(value).replace(/[\u0000-\u001f\u007f-\u009f]
 // Conservative width budget includes Latin letters and punctuation, with a two-line ceiling.
 function courtLines(value) {
   const chars = Array.from(cleanText(value));
-  const size = chars.length <= 9 ? 80 : chars.length <= 12 ? 58 : 44;
+  const size = chars.length <= 8 ? 80 : chars.length <= 12 ? 58 : 44;
   const limit = Math.floor(700 / size);
   return {
     size,

@@ -196,3 +196,9 @@ test("Vite HTTP share HTML leads to an actual PNG; HEAD and unavailable routes w
     Object.assign(process.env, originalEnv);
   }
 });
+
+test("nine-character court name remains on one line without colliding with the time", () => {
+  const svg = renderShareCardSvg(shareCardContent({ ...row, court: "延平河濱公園網球場" }));
+  assert.match(svg, />延平河濱公園網球場<\/text>/);
+  assert.doesNotMatch(svg, />場<\/text>/);
+});

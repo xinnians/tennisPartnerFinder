@@ -148,7 +148,7 @@ export function shareImagePath(row) {
   const revision = createHash("sha256")
     .update(
       JSON.stringify([
-        "card-v3",
+        "card-v4",
         row.start_at,
         row.court,
         row.play_type,
