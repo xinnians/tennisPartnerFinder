@@ -1,3 +1,5 @@
+import { SessionCapacityInput } from "../components/SessionCapacityInput.tsx";
+import { sessionCapacityError } from "../features/session-lifecycle/sessionCapacity.ts";
 import { createRef, forwardRef, useImperativeHandle, useRef, useState } from "react";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
@@ -17,6 +19,7 @@ interface EditableSession {
   ntrpMin?: number | null;
   playType: string;
   slotsTotal: number | null;
+  slotsRemaining?: number | null;
   startAt: string;
   venueType: string;
 }
@@ -70,7 +73,12 @@ function EditSessionSheet({
   const [courtsReady, setCourtsReady] = useState(Boolean(initialCourtsReady));
   const [courtId, setCourtId] = useState(() => initialCourtValue(initialCourts, session.courtId));
   const [playType, setPlayType] = useState(session.playType);
-  const [slotsMissing, setSlotsMissing] = useState(Number(session.slotsTotal));
+  const [slotsMissing, setSlotsMissing] = useState(String(session.slotsTotal ?? ""));
+  const [capacityError, setCapacityError] = useState<string | null>(null);
+  const acceptedCount =
+    session.slotsTotal != null && session.slotsRemaining != null
+      ? Math.max(0, session.slotsTotal - session.slotsRemaining)
+      : null;
   const courtSelectRef = useRef<HTMLSelectElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -95,6 +103,13 @@ function EditSessionSheet({
   const submitForm = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!errorRef.current || !formRef.current || !submitRef.current) return;
+    const nextCapacityError =
+      sessionCapacityError(slotsMissing) ??
+      (acceptedCount != null && Number(slotsMissing) < acceptedCount
+        ? `招募人數不可少於已加入的 ${acceptedCount} 位。`
+        : null);
+    setCapacityError(nextCapacityError);
+    if (nextCapacityError) return;
     void onSubmit({ error: errorRef.current, form: formRef.current, submit: submitRef.current });
   };
 
@@ -172,8 +187,6 @@ function EditSessionSheet({
             onChange={(event) => {
               const nextPlayType = event.currentTarget.value;
               setPlayType(nextPlayType);
-              if (nextPlayType === "單打") setSlotsMissing(1);
-              if (nextPlayType === "雙打") setSlotsMissing(3);
             }}
           >
             {playTypes.map((type) => (
@@ -187,23 +200,26 @@ function EditSessionSheet({
           </p>
         </div>
         <fieldset className="form-fieldset">
-          <legend>還缺幾位</legend>
-          <div className="slots-options">
-            {[1, 2, 3].map((value) => (
-              <label key={value}>
-                <input
-                  type="radio"
-                  name="slotsMissing"
-                  value={value}
-                  data-testid={`session-edit-slots-${value}`}
-                  checked={slotsMissing === value}
-                  onChange={() => setSlotsMissing(value)}
-                />
-                <span>{value} 位</span>
-              </label>
-            ))}
-          </div>
+          <legend>招募人數</legend>
+          <SessionCapacityInput
+            error={capacityError}
+            label="招募人數"
+            name="slotsMissing"
+            testId="session-edit-slots"
+            value={slotsMissing}
+            onChange={(value) => {
+              setCapacityError(null);
+              setSlotsMissing(value);
+            }}
+          />
           <p className="form-hint">不含你自己。</p>
+          {acceptedCount != null && (
+            <p className="form-hint" aria-live="polite">
+              {sessionCapacityError(slotsMissing) === null && Number(slotsMissing) >= acceptedCount
+                ? `已加入 ${acceptedCount} 位，還缺 ${Number(slotsMissing) - acceptedCount} 位。`
+                : `已加入 ${acceptedCount} 位。`}
+            </p>
+          )}
         </fieldset>
         <details className="form-optional" open={hasOptionalValues}>
           <summary>進階設定（選填）</summary>

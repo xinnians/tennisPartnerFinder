@@ -115,3 +115,7 @@ test("share format distinguishes waiting on site from a decided candidate withou
   assert.match(decided, /場地狀態：已定案，訂場待確認/);
   assert.doesNotMatch(decided, /候選球場未定案|場地狀態：已訂場/);
 });
+
+test("repeat draft preserves a capacity above three", () => {
+  assert.equal(repeatSessionDraft({ ...source, slotsTotal: 12 }, [8]).need, 12);
+});

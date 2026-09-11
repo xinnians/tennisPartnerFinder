@@ -1,5 +1,22 @@
 # 產品改善進度（接續先讀）
 
+## 2026-09-11 招募人數部署中（DB已完成）
+
+- 使用者要求部署；本機完整frontend gate unit784／5 skip、Chromium390／4 skip與靜態／build／bundle通過；SQL1,338 pass。既有local探索及refresh限制仍按[本批規格](session-capacity-2026-09-11.md)記錄。
+- 正式schema／data已備份，202609110003已套用，44/44 migration對齊；前後counts不變、公開25欄及私人權限正常、五個cron active。未建立正式測試球局或傳送訊息。前端待本次push及Vercel驗證；無產品成效。
+- 下一步：只提交人數相關程式／測試／規格並推送main，確認正式前端與匿名入口；其他工作區文件保留。
+
+
+## 2026-09-11 開局人數正整數輸入（本機完成，未部署）
+
+- 使用者指定開局「缺幾位」，並核可先討論的 UI／UX；[本批規格](session-capacity-2026-09-11.md)記錄完整介面與資料契約。可直接輸入正整數、加減，1 位停用減號；手動值／再開一局不被切換打法覆蓋。編輯改稱「招募人數」並显示已加入／剩餘，不接受小於既有成員數。欄位錯誤由 React 呈現、重輸入即清除。
+- 本機套用新 migration 202609110003，缺額欄位／view／容量 trigger 升 integer，create／update 移除 3 位上限，沿用 integer RPC 可表示範圍。主動邀請限制、原子容量、角色／隱私／生命週期不變。未重置 DB。
+- SQL 1,338 pass；完整 unit 784 pass／5 skip；typecheck／lint／format／build／bundle（0 exceeded）與 CSS 同步通過。表單 Chrome 桌面／手機組 83 pass／1 skip；最終人數定向桌面／手機 Chrome 與手機 WebKit 共6 pass，含錯誤、玩法保值、12 人送出與 Escape 焦點回復。Browser plugin not available，使用 repo Playwright；截圖目視確認。
+- 完整 test:local 仍為 API3 pass／1 fail：既有 DISCOVERY_TOO_BROAD，browser 未開始；未清庫或放寬斷言。真實本機編輯12人已查核成功落 DB（open），但 refreshAuthoritativeState 回 false、視窗未關閉，定向測試亦記 fail，未完成後續詳情驗證。詳見本批規格；不將寫入成功等同完整旅程通過。
+- 實作完成、上述本機驗證完成；未 commit／push／Hosted migration／部署，無產品成效。其他既有成長文件改動保留。下一步依 release checklist 先發布 DB 再發布前端，並處理完整 local 探索 fixture 資料量阻礙。
+
+
+
 ## 2026-09-11 分享卡9字名稱修正提交
 
 - 使用者要求commit and push；本批僅提交9字球場名單行排版、card-v4圖片revision、回歸測試與對應規格。通知發布紀錄與其他成長草稿保持本機，不併入本提交。

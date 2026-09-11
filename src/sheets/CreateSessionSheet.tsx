@@ -1,3 +1,5 @@
+import { sessionCapacityError } from "../features/session-lifecycle/sessionCapacity.ts";
+import { SessionCapacityInput } from "../components/SessionCapacityInput.tsx";
 import { createRef, forwardRef, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 
 import { AppErrorBoundary } from "../components/AppErrorBoundary.tsx";
@@ -38,7 +40,7 @@ export interface CreateSessionFormState {
   feeNote: string;
   instant: boolean;
   mode: string;
-  need: number;
+  need: number | string;
   note: string;
   nowStart: boolean;
   slot: string | null;
@@ -181,6 +183,8 @@ function CreateSessionSheet({
     ...initialForm,
     candCourts: { ...initialForm.candCourts },
   }));
+  const [capacityError, setCapacityError] = useState<string | null>(null);
+  const needEditedRef = useRef(Boolean(initialForm.repeated));
   const [availableCourts, setAvailableCourts] = useState(initialCourts);
   const [courtsReady, setCourtsReady] = useState(Boolean(initialCourtsReady));
   const [stage, setStage] = useState<"form" | "done">("form");
@@ -267,14 +271,17 @@ function CreateSessionSheet({
   const choosePlayType = (type: string) => {
     const changed = type !== form.type;
     let need = form.need;
-    if (changed && type === "單打") need = 1;
-    else if (changed && type === "雙打") need = 3;
+    if (!needEditedRef.current && changed && type === "單打") need = 1;
+    else if (!needEditedRef.current && changed && type === "雙打") need = 3;
     updateForm({ need, type });
   };
 
   const submitForm = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (stage !== "form" || !errorRef.current || !submitRef.current) return;
+    const nextCapacityError = sessionCapacityError(form.need);
+    setCapacityError(nextCapacityError);
+    if (nextCapacityError) return;
     void onSubmit(
       {
         ...form,
@@ -617,40 +624,20 @@ function CreateSessionSheet({
           <section className="create-v2__card">
             <div className="create-v2__stepper-row">
               <p className="create-v2__stepper-title">缺幾位</p>
-              <button
-                type="button"
-                className="create-v2__stepper-btn"
-                data-role="need-step"
-                data-value="-1"
-                data-testid="create-need-minus"
-                aria-label="缺額減少一位"
-                onClick={() => updateForm({ need: Math.max(1, Math.min(3, form.need - 1)) })}
-              >
-                −
-              </button>
-              <output className="create-v2__stepper-value create-v2__stepper-value--lg" data-testid="create-need-value">
-                {form.need}
-              </output>
-              <button
-                type="button"
-                className="create-v2__stepper-btn"
-                data-role="need-step"
-                data-value="1"
-                data-testid="create-need-plus"
-                aria-label="缺額增加一位"
-                onClick={() => updateForm({ need: Math.max(1, Math.min(3, form.need + 1)) })}
-              >
-                ＋
-              </button>
+              <SessionCapacityInput
+                error={capacityError}
+                label="缺幾位"
+                name="slotsTotal"
+                testId="create-need"
+                value={form.need}
+                onChange={(need) => {
+                  setCapacityError(null);
+                  needEditedRef.current = true;
+                  updateForm({ need });
+                }}
+              />
             </div>
             <p className="form-hint">不含你自己。</p>
-            <input
-              type="hidden"
-              name="slotsTotal"
-              data-testid="session-slots-value"
-              value={String(form.need)}
-              onChange={() => undefined}
-            />
 
             <div className="create-v2__toggle-row">
               <div className="create-v2__toggle-copy">

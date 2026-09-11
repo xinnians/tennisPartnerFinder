@@ -754,8 +754,9 @@ test("a host edits a single-court session and sees authoritative card and detail
     .getByTestId("session-edit-start-at")
     .fill(new Date(updatedStart.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16));
   await form.getByTestId("session-edit-play-type").selectOption("雙打");
-  await expect(form.getByTestId("session-edit-slots-3")).toBeChecked();
-  await form.getByTestId("session-edit-slots-2").check();
+  // 編輯沿用原局的 1 位；切換打法不再覆蓋招募人數。
+  await expect(form.getByTestId("session-edit-slots-value")).toHaveValue("1");
+  await form.getByTestId("session-edit-slots-value").fill("12");
   // 這局帶入 createFutureSessionInput 預設的 NTRP 3.0–4.0 與既有備註；選填欄位已有值時
   // details 必須預設展開（不可用摺疊藏起既有資料），不需再點 summary。
   await expect(form.locator(".form-optional")).toHaveAttribute("open");
@@ -781,7 +782,7 @@ test("a host edits a single-court session and sees authoritative card and detail
   // 「缺 N 位」——那個完整字串只在 vacancyLabel()/discovery 卡的 slots-brick,
   // 跟這裡的 detail 記分板是兩套不同格式,改比照 smoke.spec.js 同款斷言
   // (`.scoreboard-strip__cell--inverse` toContainText "N 位")。
-  await expect(detail.locator(".scoreboard-strip__cell--inverse")).toContainText("2 位");
+  await expect(detail.locator(".scoreboard-strip__cell--inverse")).toContainText("12 位");
   expect(runtimeErrors).toEqual([]);
 });
 

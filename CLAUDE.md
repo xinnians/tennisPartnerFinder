@@ -84,7 +84,7 @@ strict TypeScript、ESLint flat config 與 Prettier；存量 `.js` 採 `allowJs`
 
 - `create_session`：通過 ntrp 門檻的主揪可建 `booked`、`walk_on` 或 `candidates` 球局；前兩型
   使用單一台北市 active tennis court，候選型依序保存 2–3 座候選球場與時間範圍，之後只可用
-  `decide_session_court` 收斂場地與時間。開始時間可早至現在前 5 分鐘、缺額 1–3，同一主揪在
+  `decide_session_court` 收斂場地與時間。開始時間可早至現在前 5 分鐘、缺額為正整數（既有 integer RPC 可表示範圍），同一主揪在
   有效窗口內至多五局；`join_mode` 為 `approval` 或 `instant`。
 - `request_to_join_session` 使用 nickname 門檻。`approval` 建立 `requested` 並回 `OK`；
   `instant` 只有 NTRP 已填且在局方範圍內時直接 `ACCEPTED`，未填或範圍外仍建立 `requested`，

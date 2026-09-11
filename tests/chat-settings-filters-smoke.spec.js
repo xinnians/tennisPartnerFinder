@@ -260,18 +260,18 @@ test("the create form asks about the venue situation and offers three play types
   await expect(createSheet).toContainText("練球｜餵球、對拉、發球等不計分的練習。");
 
   // 缺幾位改 stepper，文案保留。
-  await expect(form.getByTestId("create-need-value")).toHaveText("2");
+  await expect(form.getByTestId("create-need-value")).toHaveValue("2");
   await expect(createSheet).toContainText("不含你自己。");
 
   // 單打→1、雙打→3 的連動保留（stepper 版）。
   await form.getByTestId("create-play-type-單打").click();
-  await expect(form.getByTestId("create-need-value")).toHaveText("1");
+  await expect(form.getByTestId("create-need-value")).toHaveValue("1");
   await form.getByTestId("create-play-type-雙打").click();
-  await expect(form.getByTestId("create-need-value")).toHaveText("3");
+  await expect(form.getByTestId("create-need-value")).toHaveValue("3");
 
   // 手動改選（− 一次)仍送得出正確的值。
   await form.getByTestId("create-need-minus").click();
-  await expect(form.getByTestId("create-need-value")).toHaveText("2");
+  await expect(form.getByTestId("create-need-value")).toHaveValue("2");
   await form.getByTestId("create-court-8").click();
   await form.getByTestId("create-date-custom").click();
   await form.getByTestId("create-date-custom-input").fill("2099-07-18");
@@ -324,7 +324,7 @@ test("an existing 對拉 session still saves from the edit form while new sessio
   await expect(editForm.locator(".form-optional")).not.toHaveAttribute("open");
 
   // 只改缺額，打法維持「對拉」——前端驗證不得擋下既有球局。
-  await editForm.getByTestId("session-edit-slots-3").check();
+  await editForm.getByTestId("session-edit-slots-value").fill("3");
   await editForm.getByTestId("session-edit-submit").click();
   await expect.poll(() => page.evaluate(() => window.__editedInput?.playType)).toBe("對拉");
   await expect.poll(() => page.evaluate(() => window.__editedInput?.slotsMissing)).toBe(3);
@@ -677,4 +677,104 @@ test("the filter sheet traps Tab focus between its own first and last controls",
   await expect(sheetClose).toBeFocused();
 
   expect(runtimeErrors).toEqual([]);
+});
+
+test("capacity input preserves manual values and validates before creating", async ({ page }, testInfo) => {
+  const errors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await expect(page).toHaveTitle(/球咖/);
+  await page.getByTestId("my-sessions-tab").focus();
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+      onSubmit: async (input) => {
+        window.__capacityCreated = input;
+      },
+    });
+  });
+  const form = page.getByTestId("session-form");
+  const input = form.getByTestId("create-need-value");
+  await input.fill("1");
+  await expect(form.getByTestId("create-need-minus")).toBeDisabled();
+  await input.fill("6");
+  await form.getByTestId("create-need-plus").click();
+  await expect(input).toHaveValue("7");
+  await form.getByTestId("create-need-minus").click();
+  await form.getByTestId("create-play-type-單打").click();
+  await expect(input).toHaveValue("6");
+  await form.getByTestId("create-play-type-雙打").click();
+  await expect(input).toHaveValue("6");
+  await form.getByTestId("create-court-8").click();
+  await form.getByTestId("create-date-custom").click();
+  await form.getByTestId("create-date-custom-input").fill("2099-07-18");
+  await form.getByTestId("create-time-09:00").click();
+  for (const value of ["", "0", "1.5"]) {
+    await input.fill(value);
+    await form.getByTestId("session-submit").click();
+    await expect(form).toContainText("請填寫至少 1 位的整數。");
+    await expect(input).toHaveValue(value);
+    expect(await page.evaluate(() => window.__capacityCreated)).toBeUndefined();
+  }
+  await input.fill("12");
+  await expect(input).toHaveAttribute("aria-invalid", "false");
+  await expect(form.getByRole("alert")).toHaveCount(0);
+  await input.scrollIntoViewIfNeeded();
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  await page.screenshot({ path: `/tmp/qiuka-capacity-create-${testInfo.project.name}.png` });
+  await form.getByTestId("session-submit").click();
+  await expect.poll(() => page.evaluate(() => window.__capacityCreated?.slotsTotal)).toBe(12);
+  expect(errors).toEqual([]);
+});
+
+test("edit capacity shows accepted and remaining counts and rejects shrinking below members", async ({
+  page,
+}, testInfo) => {
+  const errors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await expect(page).toHaveTitle(/球咖/);
+  const trigger = page.getByTestId("my-sessions-tab");
+  await trigger.focus();
+  await page.evaluate(async () => {
+    const { openEditSessionSheet } = await window.__importAppModule("views/sessionFormViews");
+    openEditSessionSheet(
+      {
+        courtId: 8,
+        playType: "雙打",
+        slotsTotal: 6,
+        slotsRemaining: 4,
+        startAt: "2099-07-18T01:30:00.000Z",
+        venueType: "booked",
+      },
+      {
+        courts: [{ city: "台北市", id: 8, name: "示範球場" }],
+        onSubmit: async (input) => {
+          window.__capacityEdited = input;
+        },
+      }
+    );
+  });
+  const form = page.getByTestId("session-edit-form");
+  const input = form.getByTestId("session-edit-slots-value");
+  await expect(form).toContainText("招募人數");
+  await expect(form).toContainText("已加入 2 位，還缺 4 位。");
+  await input.fill("1");
+  await form.getByTestId("session-edit-submit").click();
+  await expect(form).toContainText("招募人數不可少於已加入的 2 位。");
+  expect(await page.evaluate(() => window.__capacityEdited)).toBeUndefined();
+  await input.fill("12");
+  await form.getByTestId("session-edit-play-type").selectOption("單打");
+  await expect(input).toHaveValue("12");
+  await expect(form).toContainText("已加入 2 位，還缺 10 位。");
+  await input.scrollIntoViewIfNeeded();
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  await page.screenshot({ path: `/tmp/qiuka-capacity-edit-${testInfo.project.name}.png` });
+  await form.getByTestId("session-edit-submit").click();
+  await expect.poll(() => page.evaluate(() => window.__capacityEdited?.slotsMissing)).toBe(12);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#session-edit-sheet")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(errors).toEqual([]);
 });

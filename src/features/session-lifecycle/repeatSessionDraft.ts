@@ -38,7 +38,7 @@ export function createSessionDraft(
     feeNote: source.feeNote,
     instant: source.joinMode === "instant",
     mode: undecided ? "cand" : "fixed",
-    need: Math.max(1, Math.min(3, source.slotsTotal ?? 1)),
+    need: source.slotsTotal ?? 1,
     note: source.notes,
     repeatRange: { ntrpMin: source.ntrpMin, ntrpMax: source.ntrpMax },
     repeated: true,

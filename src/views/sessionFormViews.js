@@ -1,3 +1,4 @@
+import { sessionCapacityError } from "../features/session-lifecycle/sessionCapacity.ts";
 import { createSessionDraft } from "../features/session-lifecycle/repeatSessionDraft.ts";
 import { isUndecidedCandidate } from "../sessionCriteria.ts";
 import { mountSheet } from "../sheets.ts";
@@ -95,7 +96,8 @@ export function validateCreateSessionInput(input = {}, { now = new Date() } = {}
   }
   if (!["approval", "instant"].includes(joinMode)) errors.joinMode = "請選擇加入方式。";
   if (!CREATE_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
-  if (!Number.isInteger(slotsTotal) || slotsTotal < 1 || slotsTotal > 3) errors.slotsTotal = "缺額請填 1 到 3 位。";
+  const capacityError = sessionCapacityError(input.slotsTotal);
+  if (capacityError) errors.slotsTotal = capacityError;
   if (!startAt || new Date(startAt).getTime() < new Date(now).getTime() - NOW_START_CREATE_GRACE_MS) {
     errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
   }
@@ -147,8 +149,8 @@ export function validateUpdateSessionInput(input = {}, { now = new Date() } = {}
 
   if (courtId == null) errors.courtId = "請選擇台北市球場。";
   if (!EDIT_PLAY_TYPES.has(playType)) errors.playType = "請選擇一種打法。";
-  if (!Number.isInteger(slotsMissing) || slotsMissing < 1 || slotsMissing > 3)
-    errors.slotsMissing = "缺額請填 1 到 3 位。";
+  const capacityError = sessionCapacityError(input.slotsMissing);
+  if (capacityError) errors.slotsMissing = capacityError;
   if (!startAt || new Date(startAt).getTime() < new Date(now).getTime() - NOW_START_CREATE_GRACE_MS) {
     errors.startAtLocal = "開始時間不可早於現在 5 分鐘。";
   }

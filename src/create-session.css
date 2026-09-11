@@ -143,3 +143,8 @@
 .app-error-fallback { display: grid; justify-items: start; gap: 14px; width: min(100%, 520px); margin: auto; padding: clamp(24px, 6vw, 48px); }
 .app-error-fallback h2, .app-error-fallback p { margin: 0; }
 .app-error-fallback .session-secondary { min-width: 44px; min-height: 44px; }
+
+/* 招募人數可直接輸入；與加減按鈕共用於開局及編輯。 */
+.session-capacity { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.session-capacity__input { width: 112px; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 8px 4px; border: var(--border-thin); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-ink); font-family: var(--font-mono); font-size: 16px; font-weight: 600; text-align: center; }
+.session-capacity .create-v2__stepper-btn:disabled { opacity: 0.45; cursor: default; }

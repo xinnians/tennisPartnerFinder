@@ -626,9 +626,9 @@ test("create sheet switches to candidate mode and submits up to three candidate 
   await form.getByTestId("create-slot-afternoon").click();
   // 缺幾位 stepper:+1 到 3 再 −1 回 2,證明 stepper 本身可雙向運作。
   await form.getByTestId("create-need-plus").click();
-  await expect(form.getByTestId("create-need-value")).toHaveText("3");
+  await expect(form.getByTestId("create-need-value")).toHaveValue("3");
   await form.getByTestId("create-need-minus").click();
-  await expect(form.getByTestId("create-need-value")).toHaveText("2");
+  await expect(form.getByTestId("create-need-value")).toHaveValue("2");
   await form.getByTestId("session-fee-note").fill("每人 150 元");
   await form.getByTestId("session-submit").click();
 

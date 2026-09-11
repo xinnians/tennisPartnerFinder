@@ -67,7 +67,7 @@ test("create form rejects an over-five-minute past time, invalid NTRP steps, rev
       ntrpMin: "3.25",
       notes: "x".repeat(501),
       playType: "單打",
-      slotsTotal: "4",
+      slotsTotal: "0",
       startAtLocal: "2026-07-17T09:30",
     },
     { now: new Date("2026-07-17T02:00:00.000Z") }
@@ -76,7 +76,7 @@ test("create form rejects an over-five-minute past time, invalid NTRP steps, rev
   assert.equal(result.valid, false);
   assert.match(result.errors.startAtLocal, /5 分鐘/);
   assert.match(result.errors.ntrpMin, /0.5/);
-  assert.match(result.errors.slotsTotal, /1 到 3/);
+  assert.match(result.errors.slotsTotal, /至少 1 位的整數/);
   assert.match(result.errors.notes, /500/);
 });
 
@@ -255,4 +255,16 @@ test("session editing validates the nine-field RPC shape without venue type or j
   });
   assert.equal("venueType" in result.value, false);
   assert.equal("joinMode" in result.value, false);
+});
+
+test("create and edit accept positive integer capacities beyond three and reject invalid input", () => {
+  const base = { courtId: "8", playType: "雙打", startAtLocal: "2099-07-18T09:30" };
+  for (const slots of ["1", "4", "6", "32768", "2147483647"]) {
+    assert.equal(validateCreateSessionInput({ ...base, slotsTotal: slots }).valid, true);
+    assert.equal(validateUpdateSessionInput({ ...base, slotsMissing: slots }).valid, true);
+  }
+  for (const slots of ["", " ", "0", "-1", "1.5", "abc", "1e3", "0x10", "2147483648", "999999999999999999999"]) {
+    assert.ok(validateCreateSessionInput({ ...base, slotsTotal: slots }).errors.slotsTotal, slots);
+    assert.ok(validateUpdateSessionInput({ ...base, slotsMissing: slots }).errors.slotsMissing, slots);
+  }
 });
