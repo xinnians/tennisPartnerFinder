@@ -27,10 +27,12 @@ test("a hash session link opens its detail, copies a stable share link, and give
     .poll(() => page.evaluate(() => window.__copiedSessionLink))
     .toContain(new URL("/s/9001", baseURL).toString());
   const summary = await page.evaluate(() => window.__copiedSessionLink);
-  expect(summary).toContain("球咖｜台北網球");
+  expect(summary).toContain("球咖｜球局資訊");
   expect(summary).toContain("台北網球中心");
   expect(summary).toContain("台北時間");
-  expect(summary).toContain("最新名額與場地以連結為準");
+  expect(summary).toContain("最新名額、場地與加入方式看這裡：");
+  expect(summary).toContain("（台北時間）｜台北網球中心");
+  expect(summary).toContain("\n場地狀態：");
   await expect(page.locator("#toast-root")).toContainText("球局摘要已複製");
 
   await page.goto("/#/session/999999");

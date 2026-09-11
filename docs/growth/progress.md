@@ -2,6 +2,41 @@
 
 最後更新：2026-09-11。G02／G03／G04／G10 已上線；G09 已擴至 61 篇（23篇開放待確認）並加入名稱／行政區查找，均已正式部署，全台 562 筆待審底稿與品質報告已建立。正式站驗證及真實成效分開記錄。
 
+## 2026-09-11 第3點摘要與標題提交
+
+- 使用者要求commit and push；本批提交新版摘要、統一「球咖｜球局資訊」標題、對應測試及分享規格／進度，其他文章與成長規劃草稿保留未提交。
+- 本輪僅Git整理，runtime與測試未再改動，沿用下方最後一次標題調整驗證及既有local訂閱UI失敗限制；檢查提交差異、文件連結與diff格式。
+- 已fetch確認main與origin/main無分岔。提交後推送並核對遠端SHA及CI／Vercel狀態；推送不代表部署或實機驗收完成，沒有使用者成效數據。
+- 下一步：確認本批CI與部署結果，上線後實機檢查分享／複製格式；既有訂閱UI問題仍待獨立追查。
+
+## 2026-09-11 分享標題調整（本機完成，未提交／部署）
+
+- 使用者同意改為「球咖｜球局資訊」；摘要首行與Web Share title均已同步，保留第3點新版排列、台北時間及產品範圍。無DB／按鈕／路由修改，其他工作區內容保留。
+- 驗證：沿用並更新既有測試，growth unit5 pass；桌面Chrome、手機Chrome／WebKit分享及複製共6 pass，包含native title與摘要首行相同。typecheck（local pre-script）、變更檔lint／format、build、strict bundle及diff通過；initial664833／194522、total947017／284047 raw／gzip，0 exceeded。
+- 必要local整合：4 API pass，完整browser40 pass／1 fail／5未執行／12原skip；再補跑serial未執行5項全過，合計45 pass／1既有失敗。失敗仍是前批已在修改前HEAD重現的新帳號全部球場訂閱UI勾選，未更動其程式或斷言，不宣稱local gate全綠。未清庫、零migration免schema測試；本輪未重跑完整mock套件。
+- [規格](native-session-share-2026-09-11.md)示例與標題要求已同步；日誌為 `/tmp/qiuka-title-browser.log`、`/tmp/qiuka-title-local.log`、`/tmp/qiuka-title-local-remaining.log`、`/tmp/qiuka-title-build.log`、`/tmp/qiuka-title-bundle.log`。沒有使用者成效數據或實機目標App驗證。
+- 尚未commit／push／部署。下一步將本次標題與第3點格式整理為同批提交；既有訂閱UI問題另行追查，發布後再由本人檢查實機貼上格式。
+
+## 2026-09-11 第3點摘要格式補完（本機完成，未提交／部署）
+
+- **實作**：依使用者要求補齊第3點，共用摘要改為「中性標題 → 時間｜球場 → 玩法｜程度｜缺額或狀態 → 場地狀態 → 最新資訊連結」。分享／複製同源，native網址不重複；未定案不承諾球場，已定案不冒稱訂場，取消／額滿等不顯示缺人。
+- **介面／規格**：[規格補充](native-session-share-2026-09-11.md)有完整示例及狀態契約。只修改 `sessionShareSummary` 的文字／排列與對應測試，既有分享按鈕、API、路由、隱私allowlist及焦點／生命週期不變；未新增DB或SDK。
+- **驗證完成**：frontend gate通過778 unit／5 skip、386 Chromium／4 skip；手機WebKit分享／複製2 pass；local 4 API、46 browser／12 skip全過。型別／lint／format／build／diff與strict bundle通過，initial664833／194512、total947017／284051 raw／gzip，0 exceeded。未清庫，零migration免schema測試。前批訂閱UI失敗本輪未重現，但未修改或宣稱修復該問題。
+- **部署／成效**：本次格式修改尚未commit／push／部署；前批已推送的分享入口不等於新版摘要已上線。測試使用分享API stub，未代發訊息，無真實分享或成局成效。其他文章與成長草稿保留原未提交狀態。
+- **下一步**：將本批摘要、對應測試及規格納入後續提交／發布；上線後以實機LINE／複製貼上檢查格式，依使用回饋微調。
+
+## 2026-09-11 第3點摘要格式完成範圍更正
+
+- 使用者詢問第3點是否完成；查核已推送的 `68b12dd` 後確認：系統分享／複製已共用 `sessionShareSummary`，native網址不重複，但摘要文字與排列沿用原版，尚未套用先前初步確認的第3點新格式。不能以分享入口完成代表摘要文案調整也完成。
+- 本輪只讀取提交差異並更正進度，未改runtime／新增commit／部署；先前驗證只支持已提交的共用摘要與分享行為。下一步補齊第3點摘要文案與格式，沿用中性語氣及公開欄位限制。
+
+## 2026-09-11 分享與指南提交已推送
+
+- 使用者明確要求push；已fetch確認遠端無分岔，推送 `main` 的 `d81b8fb`（三場指南補證）及 `68b12dd`（球局系統分享）。`git ls-remote`確認origin/main為 `68b12dd10892642226753afe8cc89deab3884a3c`，未force push，未包含未提交的文章／成長規劃。
+- 本輪僅Git推送與狀態查核，未改runtime或重跑測試；前輪frontend／分享／bundle通過，以及修改前版本也會失敗的local訂閱UI測試限制維持，沒有把push指令視為測試修復或人工發布QA通過。
+- [Quality Gate 34566549517](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34566549517)查核時in_progress；部署與正式站新版本尚未驗證，不宣稱已上線。無hosted DB／環境設定變更，無使用者成效數據。
+- 下一步：查看該commit的CI／Vercel最終結果及正式站版本，再做實機分享驗收；既有訂閱UI失敗另行追查。本段為前批push後接續紀錄，隨本次摘要格式提交保存。
+
 ## 2026-09-11 開局後系統分享完成（本機，未部署）
 
 - **實作**：使用者核可先做再試用。成功畫面加入主要「分享球局」，我的球局主揪卡提供相同入口；支援時直接開系統選單，無支援改複製摘要，取消安靜結束，不宣稱已傳送。文字及 `/s/:id` 共用、避免native重複網址，不輸出名單／備註／私人ID。

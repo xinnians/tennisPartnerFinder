@@ -2,6 +2,43 @@
 
 日期：2026-09-11。使用者核可「可以先做看看，等實際使用再調整」。最新驗證及部署狀態以 [progress.md](progress.md) 為準。
 
+## 分享標題調整（2026-09-11）
+
+使用者確認不在分享中強調「台北網球」，摘要首行與Web Share title統一改成「球咖｜球局資訊」。沿用第3點新版排列及狀態，不更動網站頁面title、台北網球產品範圍或「台北時間」標記。更新既有摘要／native／複製測試預期；本輪growth unit5、桌面Chrome／390px Chrome及WebKit分享與複製共6項通過，typecheck／lint／format／build／strict bundle通過；local4 API及45 browser通過，1項前批已重現的訂閱UI勾選失敗。完整結果以progress最新段落為準，不能以字串修改推論既有問題已修復。本次依使用者要求納入提交與推送；實際結果以progress最新紀錄為準。
+
+## 第3點摘要格式補完（2026-09-11，本機完成）
+
+`68b12dd` 只完成共用摘要與native分享，並未改寫文字／排列。本節補齊使用者再次要求完成的第3點，優先於下方首批原格式描述。
+
+同一份 `sessionShareSummary(session, link?)` 契約保持不變：第一行保留中性品牌標題；時間與球場合併，玩法／程度／缺額用「｜」分隔，場地狀態獨立一行，結尾告知可從連結查看最新名額、場地與加入方式。主揪、參加者或匿名複製不使用第一人稱邀請句，避免誤認為轉分享者本人開局。
+
+示例（測試資料，非真實邀請）：
+
+```text
+球咖｜球局資訊
+2099-01-02 20:00（台北時間）｜台北測試球場
+單打｜NTRP 2.5–3.5｜缺 1 位
+場地狀態：已訂場
+最新名額、場地與加入方式看這裡：
+https://qiuka.tw/s/42
+```
+
+- 未定案候選局：時間保留範圍，球場列「候選球場未定案」，場地狀態「候選未定案」，不輸出尚未選定的單一球場。
+- 候選已定案：顯示定案球場及「已定案，訂場待確認」。現場局用「現場等場」，已訂局用「已訂場」。
+- 額滿、取消、過期、已結束：缺額位置改為對應狀態，不邀人補缺。
+- 分享text為上述前五行，url單獨交給系統；複製則加上第六行網址。既有隱私allowlist、取消／fallback／焦點與auth生命週期不變。
+- 本批只改摘要產生器，更新既有unit與browser預期以守住核可的新格式；不調整按鈕、路由、DB、meta分享卡或其他成長提案。
+
+本批驗證完成：
+
+- `npm run test:ci:frontend`：778 unit／5 skip、386 Chromium／4 skip，型別／lint／format／build／結構gate／diff全部通過；其中詳情複製與建局native分享測試核對新格式及兩種輸出一致。
+- 定向手機WebKit：詳情複製與成功分享2項通過，包含取消不複製及native網址不重複。測試API stub未實際傳送訊息，真手機目標App貼上格式仍須本人試用。
+- `npm run test:local`：4 API、46 browser／12 skip通過；本輪既有訂閱UI測試也通過，但未更動訂閱程式、不宣稱前批曾重現的問題已修復。零migration／未清庫。
+- 嚴格bundle：initial664833／194512、total947017／284051 raw／gzip，0 exceeded，未調高門檻。
+- 日誌：`/tmp/qiuka-summary-frontend.log`、`/tmp/qiuka-summary-local.log`、`/tmp/qiuka-summary-webkit.log`、`/tmp/qiuka-summary-bundle.log`。
+
+本次格式補完與後續標題調整同批提交／推送；實際推送及部署狀態見progress，不以第一批已推送視為新格式上線。其他未提交文章與規劃完整保留。
+
 ## 本批介面與行為
 
 - 建立成功的 `CreateSessionSheet` 在摘要卡下提供主要「分享球局」，保留「查看我的球局」與「回到地圖」；只有成功取得 sessionId 且有接線才顯示。分享不自動開啟、不新增站內分享選單。

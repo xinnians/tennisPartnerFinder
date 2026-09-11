@@ -72,13 +72,19 @@ test("share summary uses public activity fields and retains Taipei time and the 
       profileId: "private-id",
       roster: ["private-roster"],
     },
-    "https://qiuka.tw/#/session/42"
+    "https://qiuka.tw/s/42"
   );
-  assert.match(summary, /2099-01-02 20:00（台北時間）/);
-  assert.match(summary, /NTRP 2\.5–3\.5 · 缺 1 位/);
-  assert.match(summary, /已訂場/);
-  assert.ok(summary.endsWith("https://qiuka.tw/#/session/42"));
+  assert.equal(
+    summary,
+    "球咖｜球局資訊\n" +
+      "2099-01-02 20:00（台北時間）｜台北測試球場\n" +
+      "對拉｜NTRP 2.5–3.5｜缺 1 位\n" +
+      "場地狀態：已訂場\n" +
+      "最新名額、場地與加入方式看這裡：\n" +
+      "https://qiuka.tw/s/42"
+  );
   assert.doesNotMatch(summary, /private-/);
+  assert.equal(`${sessionShareSummary(source)}\nhttps://qiuka.tw/s/42`, summary);
 });
 
 test("candidate and closed summaries do not promise a confirmed court or available place", () => {
@@ -88,8 +94,24 @@ test("candidate and closed summaries do not promise a confirmed court or availab
   );
   assert.match(candidate, /20:00～22:00/);
   assert.match(candidate, /候選球場未定案/);
+  assert.match(candidate, /場地狀態：候選未定案/);
   assert.doesNotMatch(candidate, /台北測試球場|已訂場/);
-  for (const status of ["cancelled", "played", "expired", "full"]) {
-    assert.doesNotMatch(sessionShareSummary({ ...source, status }, "link"), /缺 1 位/);
+  for (const [status, label] of Object.entries({
+    cancelled: "已取消",
+    played: "已結束",
+    expired: "已過期",
+    full: "已額滿",
+  })) {
+    const summary = sessionShareSummary({ ...source, status }, "link");
+    assert.ok(summary.includes(`對拉｜NTRP 2.5–3.5｜${label}`));
+    assert.doesNotMatch(summary, /缺 1 位|一起打|邀朋友/);
   }
+});
+
+test("share format distinguishes waiting on site from a decided candidate without promising a booking", () => {
+  assert.match(sessionShareSummary({ ...source, venueType: "walk_on" }), /場地狀態：現場等場/u);
+  const decided = sessionShareSummary({ ...source, venueType: "candidates", decidedAt: source.startAt });
+  assert.match(decided, /（台北時間）｜台北測試球場/);
+  assert.match(decided, /場地狀態：已定案，訂場待確認/);
+  assert.doesNotMatch(decided, /候選球場未定案|場地狀態：已訂場/);
 });

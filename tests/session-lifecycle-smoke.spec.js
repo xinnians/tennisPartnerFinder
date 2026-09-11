@@ -1706,7 +1706,11 @@ test("create success shares public details through native share, quietly cancels
   await expect(share).toBeDisabled();
   const [{ data, active }] = await page.evaluate(() => window.__shareCalls);
   expect(active).toBe(true);
-  expect(data.text).toContain("2099-01-02 20:00（台北時間）");
+  expect(data.title).toBe("球咖｜球局資訊");
+  expect(data.text.split("\n")[0]).toBe(data.title);
+  expect(data.text).toContain("2099-01-02 20:00（台北時間）｜青年公園網球場");
+  expect(data.text).toContain("單打｜NTRP 2.5–3.5｜缺 1 位");
+  expect(data.text).toContain("\n場地狀態：現場等場\n最新名額、場地與加入方式看這裡：");
   expect(data.text).toContain("青年公園網球場");
   expect(data.text).not.toContain("PRIVATE_");
   expect(data.text).not.toContain("/s/42");

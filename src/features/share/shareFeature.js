@@ -47,7 +47,7 @@ export async function copySessionShareLink(sessionId, session, { current = () =>
 /** 必須直接由點擊呼叫，保留系統分享所需的使用者操作權限。 */
 export async function shareSession(sessionId, session, options) {
   const data = {
-    title: "球咖｜台北網球",
+    title: "球咖｜球局資訊",
     text: sessionShareSummary(session),
     url: sessionShareLink(sessionId),
   };

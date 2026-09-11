@@ -17,13 +17,18 @@ export function sessionShareSummary(session: SessionSummary, link = ""): string 
           expired: "已過期",
           full: "已額滿",
         }[session.status];
-  const venue = session.venueType === "candidates" ? "已定案，訂場待確認" : VENUE_TYPE_LABELS[session.venueType];
+  const court = undecided ? "候選球場未定案" : session.court || "球場待確認";
+  const venue = undecided
+    ? "候選未定案"
+    : session.venueType === "candidates"
+      ? "已定案，訂場待確認"
+      : VENUE_TYPE_LABELS[session.venueType];
   return [
-    "球咖｜台北網球",
-    `${time}${range}（台北時間）`,
-    undecided ? "候選球場未定案（見連結）" : `${session.court || "球場待確認"} · ${venue}`,
-    `${session.playType} · ${ntrpRange(session)} · ${capacity}`,
-    "最新名額與場地以連結為準。",
+    "球咖｜球局資訊",
+    `${time}${range}（台北時間）｜${court}`,
+    `${session.playType}｜${ntrpRange(session)}｜${capacity}`,
+    `場地狀態：${venue}`,
+    "最新名額、場地與加入方式看這裡：",
     link,
   ]
     .filter(Boolean)
