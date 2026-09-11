@@ -41,6 +41,7 @@ interface MySessionsHarnessOptions {
   onBack?(): unknown;
   onCreatedSessionFocus?(sessionId?: ControllerIdentifier): boolean;
   onEnablePush?(): unknown;
+  onShareSession?(sessionId: ControllerIdentifier): unknown;
   onSignIn?(): unknown;
   pageViewStore?: PageViewStore;
   status?: string;
@@ -204,6 +205,7 @@ export function mountMySessionsAppHarness(
     onBack: () => options.onBack?.(),
     onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => options.onCreatedSessionFocus?.(sessionId) ?? true,
     onEnablePush: () => options.onEnablePush?.(),
+    onShareSession: (sessionId: ControllerIdentifier) => options.onShareSession?.(sessionId),
     onSignIn: () => options.onSignIn?.(),
   };
   const root = createRoot(rootElement);

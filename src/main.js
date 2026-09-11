@@ -127,7 +127,7 @@ import { createNotificationPushProductionShell } from "./notificationPushProduct
 import { createNotificationPushSignOutContinuation } from "./notificationPushSignOutContinuation.ts";
 import { createSessionChatOpener } from "./features/chat/chatSessionWiring.ts";
 import { createPageRouteOwner } from "./features/navigation/pageRouteOwner.ts";
-import { configureShareFeature, copySessionShareLink } from "./features/share/shareFeature.js";
+import { configureShareFeature, copySessionShareLink, shareSession } from "./features/share/shareFeature.js";
 import {
   authIdentity,
   configureProfileOrchestrationFeature,
@@ -332,6 +332,17 @@ function currentAuthAvatarUrl() {
   return metadata.avatar_url ?? metadata.picture ?? "";
 }
 
+function shareHostedSession(sessionId) {
+  const state = controller.sessionStore.getState();
+  const session = state.mySessions.find(
+    (item) => String(item.sessionId) === String(sessionId) && item.viewerRole === "host"
+  );
+  if (!state.authSession || !session) throw new Error("請重新開啟我的球局後再分享。");
+  return shareSession(sessionId, session, {
+    current: () => controller.sessionStore.getState().authEpoch === state.authEpoch,
+  });
+}
+
 function openCreateSession({
   courts: selectableCourts,
   courtsReady: formCourtsReady,
@@ -349,6 +360,7 @@ function openCreateSession({
     onClose,
     onSubmit,
     onViewMySessions,
+    onShareSession: shareHostedSession,
     toast,
   });
 }
@@ -715,6 +727,7 @@ function init() {
       },
       onEnablePush: enablePushNotifications,
       onSignIn: () => openSafeLogin({ action: "my-sessions" }),
+      onShareSession: shareHostedSession,
     },
     nearbyDrawerApp: {
       onSubscribe: () => pageRouteOwner.navigate("me", { focusTarget: "notification-settings" }),

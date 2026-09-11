@@ -18,6 +18,7 @@ export interface MySessionsAppActions {
   onBack: () => unknown;
   onCreatedSessionFocus: (sessionId?: ControllerIdentifier) => boolean;
   onEnablePush: () => unknown;
+  onShareSession: (sessionId: ControllerIdentifier) => unknown;
   onSignIn: () => unknown;
 }
 

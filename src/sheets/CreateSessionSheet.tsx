@@ -112,6 +112,7 @@ interface CreateSessionContentOptions {
   onClose: () => void;
   onSubmit: (form: CreateSessionFormState, nodes: CreateSessionActionNodes) => void | Promise<void>;
   onViewMySessions: (sessionId: number | null) => void;
+  onShareSession?: (sessionId: number, nodes: { button: HTMLButtonElement; error: HTMLElement }) => unknown;
   toast: (message: string) => void;
 }
 
@@ -173,6 +174,7 @@ function CreateSessionSheet({
   onClose,
   onSubmit,
   onViewMySessions,
+  onShareSession,
   toast,
 }: CreateSessionSheetProps) {
   const [form, setForm] = useState<CreateSessionFormState>(() => ({
@@ -196,6 +198,12 @@ function CreateSessionSheet({
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const submitRef = useRef<HTMLButtonElement>(null);
   const doneTitleRef = useRef<HTMLHeadingElement>(null);
+  const shareErrorRef = useRef<HTMLParagraphElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (stage === "done") scrollRef.current?.scrollTo(0, 0);
+  }, [stage]);
 
   useImperativeHandle(
     contentRef,
@@ -306,7 +314,7 @@ function CreateSessionSheet({
           <h2>開球局</h2>
         </div>
       </div>
-      <div className="create-v2__scroll qm-scroll">
+      <div className="create-v2__scroll qm-scroll" ref={scrollRef}>
         <form
           className="create-v2__form"
           data-testid="session-form"
@@ -771,9 +779,24 @@ function CreateSessionSheet({
               {done.need}
             </span>
           </div>
+          {done.sessionId && onShareSession ? (
+            <button
+              type="button"
+              className="session-primary create-v2__done-primary"
+              data-testid="create-done-share"
+              onClick={(event) => {
+                if (done.sessionId && shareErrorRef.current) {
+                  void onShareSession(done.sessionId, { button: event.currentTarget, error: shareErrorRef.current });
+                }
+              }}
+            >
+              分享球局
+            </button>
+          ) : null}
+          <p ref={shareErrorRef} className="form-error" role="alert" hidden />
           <button
             type="button"
-            className="session-primary create-v2__done-primary"
+            className="session-secondary create-v2__done-primary"
             data-testid="create-done-view-my-sessions"
             onClick={() => onViewMySessions(done.sessionId)}
             key="create-done-view"

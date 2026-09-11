@@ -295,6 +295,10 @@ export function runMySessionAction(
     restoreAfterRerender: true,
     onFinally: () => {
       if (!opensConfirmation) pending.delete(descriptorKey);
+      if (descriptor.action === "share" && document.activeElement === document.body && root.isConnected) {
+        const target = currentMySessionActionButton(root, descriptor);
+        if (canReceiveFocus(target ?? null)) target!.focus({ preventScroll: true });
+      }
       if (!opensConfirmation && MY_SESSION_LIFECYCLE_ACTIONS.has(descriptor.action)) {
         focusMySessionActionResult(root, descriptor, { failed: restoreActionFocus });
       }

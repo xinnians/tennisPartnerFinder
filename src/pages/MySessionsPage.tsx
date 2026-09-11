@@ -55,6 +55,7 @@ interface ActionButtonProps {
 interface MySessionsPageActions extends ReturnType<typeof useMySessionsActions> {
   onBack: () => unknown;
   onEnablePush: () => unknown;
+  onShareSession: (sessionId: Identifier) => unknown;
   onSignIn: () => unknown;
   rootElement: HTMLElement;
 }
@@ -96,6 +97,7 @@ function ActionButton({
       played: () => actions.onMarkPlayed?.(resolvedSessionId),
       "report-participant": () => actions.onReportParticipant?.(resolvedSessionId, resolvedProfileId),
       "report-session": () => actions.onReportSession?.(resolvedSessionId),
+      share: () => actions.onShareSession(resolvedSessionId),
       withdraw: () => actions.onWithdraw?.(resolvedSessionId),
     };
     mySessionsPageRuntime.runMySessionAction(button, callbacks[action], actions.rootElement);
@@ -224,6 +226,11 @@ function SessionCard({
           查看球局
         </button>
         {canChat ? <ChatButton session={session} /> : null}
+        {session.viewerRole === "host" ? (
+          <ActionButton action="share" sessionId={session.sessionId}>
+            分享球局
+          </ActionButton>
+        ) : null}
         {session.viewerRole === "host" ? (
           <ActionButton action="repeat" sessionId={session.sessionId}>
             照這局再開
@@ -662,6 +669,7 @@ export function MySessionsPage({ rootElement }: MySessionsPageProps) {
     ...controllerActions,
     onBack: appActions.onBack,
     onEnablePush: appActions.onEnablePush,
+    onShareSession: appActions.onShareSession,
     onSignIn: appActions.onSignIn,
     rootElement,
   };

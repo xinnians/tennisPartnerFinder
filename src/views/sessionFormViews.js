@@ -339,6 +339,7 @@ export function openCreateSessionSheet({
   onClose = () => {},
   onSubmit = async () => {},
   onViewMySessions = () => {},
+  onShareSession,
   toast = () => {},
 } = {}) {
   if (!lazyMounts.createSession) {
@@ -358,6 +359,7 @@ export function openCreateSessionSheet({
           onClose,
           onSubmit,
           onViewMySessions,
+          onShareSession,
           toast,
         }),
     });
@@ -440,6 +442,19 @@ export function openCreateSessionSheet({
       mounted.close({ reason: "view-my-sessions", restoreFocus: false });
       onViewMySessions(sessionId);
     },
+    onShareSession: onShareSession
+      ? (sessionId, { button, error }) =>
+          runAsyncAction({
+            root: mounted.root,
+            callback: () => onShareSession(sessionId),
+            controls: [button],
+            error,
+            clearErrorText: true,
+            onFinally: () => {
+              if (button.isConnected && document.activeElement === document.body) button.focus({ preventScroll: true });
+            },
+          })
+      : undefined,
     toast,
   });
   registerCreateContent(mounted, content);

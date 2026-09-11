@@ -16,6 +16,7 @@ function sessionShareLink(sessionId) {
 }
 
 function fallbackCopyText(value) {
+  const active = document.activeElement;
   const field = document.createElement("textarea");
   field.value = value;
   field.setAttribute("readonly", "");
@@ -27,10 +28,11 @@ function fallbackCopyText(value) {
     return document.execCommand?.("copy") === true;
   } finally {
     field.remove();
+    if (active instanceof HTMLElement && active.isConnected) active.focus({ preventScroll: true });
   }
 }
 
-export async function copySessionShareLink(sessionId, session) {
+export async function copySessionShareLink(sessionId, session, { current = () => true } = {}) {
   const link = sessionShareLink(sessionId);
   const text = session ? sessionShareSummary(session, link) : link;
   try {
@@ -39,5 +41,24 @@ export async function copySessionShareLink(sessionId, session) {
   } catch {
     if (!fallbackCopyText(text)) throw new Error("目前無法複製連結，請手動複製網址。");
   }
-  toast(session ? "球局摘要已複製。" : "球局連結已複製。");
+  if (current()) toast(session ? "球局摘要已複製。" : "球局連結已複製。");
+}
+
+/** 必須直接由點擊呼叫，保留系統分享所需的使用者操作權限。 */
+export async function shareSession(sessionId, session, options) {
+  const data = {
+    title: "球咖｜台北網球",
+    text: sessionShareSummary(session),
+    url: sessionShareLink(sessionId),
+  };
+  const navigator = globalThis.navigator;
+  if (typeof navigator?.share !== "function" || (navigator.canShare && !navigator.canShare(data))) {
+    return copySessionShareLink(sessionId, session, options);
+  }
+  try {
+    await navigator.share(data);
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    throw new Error("目前無法開啟分享，請稍後再試，或在「查看球局」複製球局摘要。", { cause: error });
+  }
 }

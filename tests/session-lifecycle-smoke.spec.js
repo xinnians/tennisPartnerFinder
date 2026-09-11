@@ -1633,3 +1633,109 @@ test("declined My Sessions history uses neutral participation wording", async ({
   await expect(history).not.toContainText("主揪婉拒");
   expect(runtimeErrors).toEqual([]);
 });
+
+test("create success shares public details through native share, quietly cancels, and copies only as fallback", async ({
+  page,
+}, testInfo) => {
+  const runtimeErrors = captureConsoleErrors(page);
+  await installFakeMaps(page);
+  await page.goto("/");
+  await expect(page).toHaveTitle("球咖｜台北網球");
+  expect(new URL(page.url()).pathname).toBe("/");
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  await page.evaluate(async () => {
+    const { openCreateSessionSheet } = await window.__importAppModule("views/sessionFormViews");
+    const { shareSession } = await import("/src/features/share/shareFeature.js");
+    window.__shareCalls = [];
+    window.__copyCalls = [];
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: (data) => {
+        window.__shareCalls.push({ data, active: navigator.userActivation.isActive });
+        return new Promise((resolve, reject) => {
+          window.__finishShare = resolve;
+          window.__failShare = reject;
+        });
+      },
+    });
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (text) => window.__copyCalls.push(text) },
+    });
+    openCreateSessionSheet({
+      courts: [{ city: "台北市", id: 8, name: "青年公園網球場" }],
+      onSubmit: async () => ({ sessionId: 42 }),
+      onShareSession: (id) =>
+        shareSession(id, {
+          court: "青年公園網球場",
+          startAt: "2099-01-02T12:00:00Z",
+          playType: "單打",
+          ntrpMin: 2.5,
+          ntrpMax: 3.5,
+          status: "open",
+          venueType: "walk_on",
+          slotsRemaining: 1,
+          notes: "PRIVATE_NOTE",
+          hostProfileId: "PRIVATE_ID",
+          roster: ["PRIVATE_ROSTER"],
+        }),
+    });
+  });
+  const sheet = page.locator("#session-create-modal");
+  const share = sheet.getByTestId("create-done-share");
+  await expect(share).toHaveCount(0);
+  await sheet.getByTestId("create-court-8").click();
+  await sheet.getByTestId("create-date-custom").click();
+  await sheet.getByTestId("create-date-custom-input").fill("2099-01-02");
+  await sheet.getByTestId("create-time-20:00").click();
+  await sheet.getByTestId("create-play-type-單打").click();
+  await sheet.getByTestId("session-submit").click();
+  await expect(share).toBeVisible();
+  await expect(sheet.getByTestId("create-done-title")).toBeFocused();
+  await expect(sheet.locator(".create-v2__done-badge")).toBeInViewport({ ratio: 1 });
+  await expect.poll(() => page.evaluate(() => window.__shareCalls.length)).toBe(0);
+  if (process.env.NATIVE_SHARE_SCREENSHOTS) {
+    await page.screenshot({
+      path: `${process.env.NATIVE_SHARE_SCREENSHOTS}/${testInfo.project.name}.png`,
+      animations: "disabled",
+      scale: "css",
+    });
+  }
+  await share.click();
+  await expect(share).toBeDisabled();
+  const [{ data, active }] = await page.evaluate(() => window.__shareCalls);
+  expect(active).toBe(true);
+  expect(data.text).toContain("2099-01-02 20:00（台北時間）");
+  expect(data.text).toContain("青年公園網球場");
+  expect(data.text).not.toContain("PRIVATE_");
+  expect(data.text).not.toContain("/s/42");
+  expect(data.url).toBe(new URL("/s/42", page.url()).toString());
+  await share.evaluate((button) => button.click());
+  expect(await page.evaluate(() => window.__shareCalls.length)).toBe(1);
+  await page.evaluate(() => window.__failShare(new DOMException("cancel", "AbortError")));
+  await expect(share).toBeEnabled();
+  await expect(sheet.locator('[role="alert"]:visible')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__copyCalls)).toEqual([]);
+  await share.focus();
+  await share.press("Enter");
+  await page.evaluate(() => window.__finishShare());
+  await expect(share).toBeEnabled();
+  await expect(share).toBeFocused();
+  await share.click();
+  await page.evaluate(() => window.__failShare(new DOMException("denied", "NotAllowedError")));
+  await expect(sheet.locator('[role="alert"]:visible')).toContainText("目前無法開啟分享");
+  expect(await page.evaluate(() => window.__copyCalls)).toEqual([]);
+  await page.evaluate(() => Object.defineProperty(navigator, "canShare", { configurable: true, value: () => false }));
+  await share.click();
+  await expect.poll(() => page.evaluate(() => window.__copyCalls)).toEqual([`${data.text}\n${data.url}`]);
+  await page.evaluate(() => Object.defineProperty(navigator, "share", { configurable: true, value: undefined }));
+  await share.click();
+  await expect.poll(() => page.evaluate(() => window.__copyCalls.length)).toBe(2);
+  await expect(page.locator("#toast-root")).toContainText("球局摘要已複製");
+  await expect(share).toBeEnabled();
+  await share.click();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  expect(runtimeErrors).toEqual([]);
+});

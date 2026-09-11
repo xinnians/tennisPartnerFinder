@@ -526,11 +526,28 @@ test("a complete profile creates a Taipei session with an explicit Taipei ISO ti
   // 批 D5 決策 14:成功後 sheet 不自動關閉,改在同一張 sheet 內先切到成功頁,
   // 要使用者主動點「查看我的球局」才導去 My Sessions。
   await expect(createSheet.getByTestId("create-done-title")).toBeVisible();
+  await page.evaluate(() => {
+    window.__createdNativeShares = [];
+    Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async (data) => window.__createdNativeShares.push(data),
+    });
+  });
+  await createSheet.getByTestId("create-done-share").click();
+  await expect.poll(() => page.evaluate(() => window.__createdNativeShares.length)).toBe(1);
+  const shared = await page.evaluate(() => window.__createdNativeShares[0]);
+  expect(shared.text).toContain(context.host.courts[0]);
+  expect(shared.text).toContain("2099-07-18 09:00");
+  expect(shared.url).toMatch(/\/s\/[1-9]\d*$/);
   await createSheet.getByTestId("create-done-view-my-sessions").click();
 
   await expect(page.locator("#my-sessions-page")).toBeVisible();
   await expect(page.locator("#my-upcoming-sessions [data-session-id]").first()).toBeFocused();
   await expect(page.locator("#my-upcoming-sessions")).toContainText(context.host.courts[0]);
+  await page.locator("#my-upcoming-sessions [data-my-action='share']").first().click();
+  await expect.poll(() => page.evaluate(() => window.__createdNativeShares.length)).toBe(2);
+  expect(await page.evaluate(() => window.__createdNativeShares[1])).toEqual(shared);
   expect(createPayload?.p_start_at).toBe("2099-07-18T01:00:00.000Z");
 });
 

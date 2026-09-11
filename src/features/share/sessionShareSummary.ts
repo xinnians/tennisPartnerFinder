@@ -4,7 +4,7 @@ import { isUndecidedCandidate } from "../../sessionCriteria.ts";
 import { taipeiClock, taipeiDateKey } from "../../taipeiTime.ts";
 
 /** 明列分享欄位，不序列化活動物件或可能含私人文字的備註。 */
-export function sessionShareSummary(session: SessionSummary, link: string): string {
+export function sessionShareSummary(session: SessionSummary, link = ""): string {
   const undecided = isUndecidedCandidate(session);
   const time = `${taipeiDateKey(session.startAt) ?? "日期待確認"} ${taipeiClock(session.startAt)}`;
   const range = undecided && session.rangeEnd ? `～${taipeiClock(session.rangeEnd)}` : "";
@@ -25,5 +25,7 @@ export function sessionShareSummary(session: SessionSummary, link: string): stri
     `${session.playType} · ${ntrpRange(session)} · ${capacity}`,
     "最新名額與場地以連結為準。",
     link,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
