@@ -57,3 +57,7 @@ Vite dev／preview middleware支援相同圖片API，圖片絕對網址取本機
 實機 WhatsApp 同聊天室 Apple／新聞有圖，球咖原網址沒有卡；加新 query 後有標題摘要但無圖片。PNG 1,176,542 bytes，取圖約 2.6–3.7 秒。先以更小 JPEG 驗證取圖相容性，不把大小門檻當作已確定根因。
 
 OG 改用 `format=jpeg`、`image/jpeg`，card-v5-jpeg 更新圖片 revision；1200×630 設計不變，Sharp quality 82、4:4:4，實際卡 118,259 bytes。舊無 format URL 保留 PNG，公開性重新查詢與 no-store 不變。19 項 focused 分享測試、ESLint、strict production bundle 通過；本批無 src runtime／DB 變更。待部署後 Samsung 驗收；不宣稱 LINE 已通過。
+
+## 已停用
+
+2026-09-11 使用者決定不採用球局圖片預覽，恢復品牌 OG 圖與原有摘要連結分享。本文與示意圖保留作歷史紀錄。

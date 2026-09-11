@@ -65,9 +65,6 @@
   "functions": {
     "api/share.js": {
       "includeFiles": "server-generated/share-shell.html"
-    },
-    "api/share-image.js": {
-      "includeFiles": "server/fonts/**"
     }
   },
   "rewrites": [
