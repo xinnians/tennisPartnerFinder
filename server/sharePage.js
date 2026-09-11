@@ -82,7 +82,7 @@ function render(template, id, origin, content, production) {
 <meta property="og:url" content="${escapeHtml(canonical)}">
 <meta property="og:image" content="${escapeHtml(origin)}${escapeHtml(content.image || "/og.png")}">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/png">
+<meta property="og:image:type" content="${content.image ? "image/jpeg" : "image/png"}">
 <meta property="og:image:alt" content="${escapeHtml(content.title)}">`;
   const clean = template
     .replace(/<title>[\s\S]*?<\/title>/gi, "")
@@ -148,7 +148,7 @@ export function shareImagePath(row) {
   const revision = createHash("sha256")
     .update(
       JSON.stringify([
-        "card-v4",
+        "card-v5-jpeg",
         row.start_at,
         row.court,
         row.play_type,
@@ -163,5 +163,5 @@ export function shareImagePath(row) {
     )
     .digest("hex")
     .slice(0, 16);
-  return `/api/share-image?id=${Number(row.session_id)}&v=${revision}`;
+  return `/api/share-image?id=${Number(row.session_id)}&v=${revision}&format=jpeg`;
 }

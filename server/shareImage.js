@@ -1,4 +1,5 @@
 import { accessSync } from "node:fs";
+import sharp from "sharp";
 import { Resvg } from "@resvg/resvg-js";
 import { fileURLToPath } from "node:url";
 import { escapeHtml, loadPublicShareRow, shareId } from "./sharePage.js";
@@ -131,6 +132,8 @@ export async function handleShareImage(request, options) {
     });
   const url = new URL(request.url);
   if (url.pathname !== "/api/share-image") return new Response(null, { status: 404, headers });
+  const jpeg = url.searchParams.get("format") === "jpeg";
+  if (jpeg) headers["Content-Type"] = "image/jpeg";
   url.pathname = "/api/share";
   const id = shareId(url);
   if (!id) return new Response(null, { status: 404, headers });
@@ -150,5 +153,10 @@ export async function handleShareImage(request, options) {
       detail: "最新資訊請開啟球局連結",
     };
   }
-  return new Response(request.method === "HEAD" ? null : renderShareCardPng(content), { status, headers });
+  let body = null;
+  if (request.method !== "HEAD") {
+    const png = renderShareCardPng(content);
+    body = jpeg ? await sharp(png).jpeg({ quality: 82, chromaSubsampling: "4:4:4" }).toBuffer() : png;
+  }
+  return new Response(body, { status, headers });
 }

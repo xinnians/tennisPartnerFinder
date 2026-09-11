@@ -51,3 +51,9 @@ Vite dev／preview middleware支援相同圖片API，圖片絕對網址取本機
 ## 尚未完成
 
 尚未提交、推送、部署、實機LINE分享驗收或取得真實成效。下一步檢視實際PNG；發布前解決或獨立確認本機探索資料量阻礙、依release checklist完成必要檢查，部署後測LINE預覽與快取行為。回復只需恢復分享頁品牌og:image並移除圖片API及專用依賴，不涉及資料遷移。
+
+## Samsung 預覽相容性修正（2026-09-11）
+
+實機 WhatsApp 同聊天室 Apple／新聞有圖，球咖原網址沒有卡；加新 query 後有標題摘要但無圖片。PNG 1,176,542 bytes，取圖約 2.6–3.7 秒。先以更小 JPEG 驗證取圖相容性，不把大小門檻當作已確定根因。
+
+OG 改用 `format=jpeg`、`image/jpeg`，card-v5-jpeg 更新圖片 revision；1200×630 設計不變，Sharp quality 82、4:4:4，實際卡 118,259 bytes。舊無 format URL 保留 PNG，公開性重新查詢與 no-store 不變。19 項 focused 分享測試、ESLint、strict production bundle 通過；本批無 src runtime／DB 變更。待部署後 Samsung 驗收；不宣稱 LINE 已通過。

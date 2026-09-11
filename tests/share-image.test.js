@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import sharp from "sharp";
 import { handleShareImage, renderShareCardSvg, shareCardContent } from "../server/shareImage.js";
 import { shareImagePath, SHARE_SELECT } from "../server/sharePage.js";
 import handler from "../api/share-image.js";
@@ -146,7 +147,7 @@ test("Vercel adapter returns binary PNG without UTF-8 corruption", async () => {
   }
 });
 
-test("Vite HTTP share HTML leads to an actual PNG; HEAD and unavailable routes work", async () => {
+test("Vite HTTP share HTML leads to a compact JPEG; HEAD and unavailable routes work", async () => {
   const { createServer: createHttpServer } = await import("node:http");
   const { once } = await import("node:events");
   const { createServer: createViteServer } = await import("vite");
@@ -181,8 +182,13 @@ test("Vite HTTP share HTML leads to an actual PNG; HEAD and unavailable routes w
     assert.equal(image.origin, origin);
     const response = await fetch(image);
     assert.equal(response.status, 200);
-    assert.equal(response.headers.get("content-type"), "image/png");
-    assert.equal(Buffer.from(await response.arrayBuffer()).readUInt32BE(16), 1200);
+    assert.equal(response.headers.get("content-type"), "image/jpeg");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.ok(bytes.length < 300_000, `Preview should stay compact: ${bytes.length}`);
+    const metadata = await sharp(bytes).metadata();
+    assert.equal(metadata.width, 1200);
+    assert.equal(metadata.height, 630);
+    assert.equal(metadata.format, "jpeg");
     assert.equal(
       (await (await fetch(`${origin}${image.pathname}${image.search}`, { method: "HEAD" })).arrayBuffer()).byteLength,
       0
