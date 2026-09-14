@@ -1,5 +1,12 @@
 # 產品改善進度（接續先讀）
 
+## 2026-09-14 推送後 CI／部署結果與文件狀態更正
+
+- Quality Gate [34797566683](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34797566683)（`c57cfcd`）：Frontend and Chromium success；Supabase RLS and browser journeys **failure**；非阻擋 Mobile WebKit failure。Supabase job 失敗原因是 CI 端 Docker 拉取映像回 `toomanyrequests: Rate exceeded`（Supabase job log 內 15 行），local Edge 未啟動，唯一失敗測試 `canonical envelope traverses the local Edge RPC` 回 `fetch failed`。該 commit 只改文件，判定為 CI 環境限流而非回歸；尚未重跑，WebKit 失敗根因仍未查。
+- Vercel production `dpl_ETqEs9VF95S5BJSWLg525Z6gsvDF` Ready，別名 qiuka.tw／www.qiuka.tw，建立時間 09-14 09:57（台北）與上述 CI 觸發同秒；`vercel inspect` 未列 commit SHA，以時間對應判定為本次 docs-only 推送。runtime 仍為 `c6f0d0e`，本機 `main` 另有兩筆未推送的 design-sync commit（`b54ff4f`、`22bec9c`）。
+- `docs/mvp-plan.md` 首次公開發布 checklist 標題與前言更正：production 自 2026-08-25（`322da94`／`fm4t1mjdn`）起已多次部署，社群公開發布尚未進行；兩個未勾項維持未勾，是否作為社群發布前置由負責人決定。
+- 本輪只改文件與本機 memory，未跑產品／DB／browser 測試，未 commit／push／部署、未發文。
+
 ## 2026-09-14 文件提交與推送
 
 - 使用者明確要求 commit 並 push，範圍為本次盤點的 19 份文件；規格／發布紀錄與內容規劃草稿分成兩筆提交，目標 origin/main。
@@ -444,7 +451,7 @@ qiuka.tw 26篇內容來源、sitemap28、搜尋／no-JS／鍵盤、兩新篇4組
 ## 下一步（2026-09-14 同步）
 
 1. 整理提交本機發布紀錄與規格同步；文章、Threads 草稿及自然獲客提案另批保存，尚未發布或取得成效。
-2. 處理本機 `DISCOVERY_TOO_BROAD` fixture 隔離、編輯儲存後 refresh 與首次訂閱 UI 同步的既有問題；CI 成功不代表這些本機問題已修復。另查非阻擋 WebKit job 失敗原因。
+2. 處理本機 `DISCOVERY_TOO_BROAD` fixture 隔離、編輯儲存後 refresh 與首次訂閱 UI 同步的既有問題；CI 成功不代表這些本機問題已修復。另查非阻擋 WebKit job 失敗原因。`c57cfcd` 的 Supabase job 失敗是 CI Docker 限流（見頂部 09-14 條目），以 `gh run rerun 34797566683 --failed` 重跑確認。
 3. 指南已發布 61 篇；23 篇開放狀態待確認、8 篇無導航的缺口依清冊補證，不再沿用 16 篇／45 筆待發布的舊狀態。於 2026-12-08 前重新查核官方來源；90 天提示是 build-time，沒有自動背景查核。
 4. 真實使用時觀察招募人數、系統分享與通知裝置收訊；動態逐局圖片已停用，不再排入發布待辦。保留 `/s/:id` 相容路由與品牌圖片。
 5. G01、G05–G08、G11–G12 維持暫緩；Maps 手機 LCP 與 Safari 首屏效能限制保留。沒有實際產品成效數據。

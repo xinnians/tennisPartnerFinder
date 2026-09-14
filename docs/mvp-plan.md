@@ -1,6 +1,6 @@
 # 台北市網球公開球局 MVP 計畫
 
-最後更新：2026-09-14（同步已核可的招募人數契約）
+最後更新：2026-09-14（同步已核可的招募人數契約；更正首次公開發布 checklist 的發布狀態）
 
 這是目前產品、資料模型與發布決策的來源。實作細節以
 `supabase/migrations/`、`supabase/tests/` 和
@@ -93,19 +93,29 @@ git diff --check
 `npm test` 與 `npm run test:local` 都不會清資料庫。只在需要乾淨 fixture 時，使用帶
 `CONFIRM_LOCAL_DB_RESET=1` 的 local-only reset。
 
-## 首次公開發布 checklist（2026-08-03 建立；2026-08-04 執行 hosted，尚未發布）
+## 首次公開發布 checklist（2026-08-03 建立；2026-08-04 執行 hosted；production 自 2026-08-25 起已部署，社群公開發布尚未進行）
 
 本節是 hosted 發布的人工 gate。**2026-08-04 已實際執行下列已勾選項**（migration 已套用至
 hosted、Edge Function 已部署、preview 已由 git push 建置、兩帳號 QA 已完成）；未勾選項仍是
-未完成，不得把本機測試通過解讀成已完成。發布本身尚未進行。
+未完成，不得把本機測試通過解讀成已完成。
+
+**2026-09-14 狀態更正**：本節先前寫的「尚未發布」與「未勾項完成後才可把 `main` push 上
+production」已不符現況。`main` 自 2026-08-25 起由負責人決定多次部署 production（首次
+`322da94`／Vercel `fm4t1mjdn`，見 `docs/arch-roadmap-2026-08-25.md` 步驟 6；其後各批部署與
+正式站 smoke 逐批記錄在 `docs/growth/progress.md`，最近一次 runtime 變更為 2026-09-11
+`c6f0d0e`，之後只有文件與設計參考檔）。qiuka.tw 以真實模式對外可用，但**社群公開發布**
+（下方核可的 Threads／LINE openchat／FB 三管道）尚未進行，也沒有真實球局與成效數據。
+下方兩個未勾項在各次部署前都未完成，文件未載明後續補做：390px 實機慢網路、鍵盤焦點走查、
+支援／隱私連結實際點開（2026-09-11 只做過 Chrome 390 模擬慢網路 smoke）、2026-08-04 QA
+資料清理。它們是否作為社群公開發布的前置，由負責人決定；本次只更正狀態，不勾選。
 
 **2026-08-22 純前端 REL 執行紀錄**（arch-hardening 管線，零新 migration）：本機 release
 gate 全綠（pgTAP 799、mock 266、local 42＋6＋2、build＋bundle gate）；
 `supabase migration list` 25/25 local↔remote 對齊零 drift；分支 push 後 preview alias
 （`...git-cla-6f302a...`）經 smoke 確認跑新版（lazy chunks、零 console 錯誤）。本節
 DB／Edge Function／cron 各 [x] 項為 2026-08-04 紀錄，本次無 DB 變更故不重跑；剩餘
-未勾項（穩定 preview 人工 QA、QA 資料清理）仍待負責人完成後才可把 `main` push 上
-production。
+未勾項（穩定 preview 人工 QA、QA 資料清理）當時仍待負責人完成——後續處置見上方
+2026-09-14 更正。
 
 - [x] 備份 hosted schema/data，記錄 profiles、sessions、participants、messages、reports、
   notification outbox 與 push subscription 的 migration 前 counts。
