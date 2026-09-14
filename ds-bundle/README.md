@@ -87,8 +87,9 @@ production CSS、順序或 token 已變、但產生檔未更新時失敗。它�
 
 - [Sheet 與表單](components/surfaces/Sheet/Sheet.html)
 
-本索引只列 repo 內實際存在的檔案。歷史筆記記載遠端設計專案曾有 Bricks 與 9 張 Screens，但本次沒有遠端
-read-back 證據，所以不把它們列為目前可交付內容，也不拿舊檔冒充現況。
+本索引只列 repo 內實際存在的檔案。2026-09-14 遠端 read-back 確認設計專案另有 Bricks、9 張 Screens、
+`explorations/` 與 `templates/`（品牌識別、app icon、session-map-app 設計稿）；它們是設計端產物，不在 repo，
+同步只覆寫本目錄的檔案，不刪除也不代管它們。
 
 ## 更新流程
 

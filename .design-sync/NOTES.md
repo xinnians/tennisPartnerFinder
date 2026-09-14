@@ -2,7 +2,7 @@
 
 ## 2026-09-14 重同步（repo HEAD c57cfcd）
 
-- 遠端 read-back 完成：專案名稱仍為「網球球局地圖設計系統」；遠端除本 repo 的 9 張卡片外，還有
+- 遠端 read-back 完成：專案名稱當時仍為「網球球局地圖設計系統」，user 決定改為「球咖」；DesignSync 工具無改名方法，需在 claude.ai/design 介面手動改。遠端除本 repo 的 9 張卡片外，還有
   Bricks、9 張 Screens、`explorations/`、`templates/`（品牌識別、app icon、session-map-app 設計稿）、
   `_ds_bundle.js`、`_ds_manifest.json`、`_adherence.oxlintrc.json`、`github.md`、`support.js`。
   這些不是 repo 產物，同步只覆寫 repo 內 13 個檔案，不刪除任何遠端檔。
