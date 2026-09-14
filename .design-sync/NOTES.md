@@ -1,5 +1,17 @@
 # design-sync 筆記
 
+## 2026-09-14 重同步（repo HEAD c57cfcd）
+
+- 遠端 read-back 完成：專案名稱仍為「網球球局地圖設計系統」；遠端除本 repo 的 9 張卡片外，還有
+  Bricks、9 張 Screens、`explorations/`、`templates/`（品牌識別、app icon、session-map-app 設計稿）、
+  `_ds_bundle.js`、`_ds_manifest.json`、`_adherence.oxlintrc.json`、`github.md`、`support.js`。
+  這些不是 repo 產物，同步只覆寫 repo 內 13 個檔案，不刪除任何遠端檔。
+- 自 8d14219 後 production 唯一影響卡片的變更是 c6f0d0e：招募人數改為 `SessionCapacityInput`
+  （`.session-capacity` 可輸入正整數＋加減鈕），Sheet 卡的編輯表單由「還缺幾位」radio 改為新元件。
+- 其餘 UI 變更（建局完成頁分享鈕、我頁球場指南連結與訂閱提示、推播 v2 文案）都不在 9 張卡片的示範範圍。
+- `check:design-system`、`tests/design-system-bundle.test.js`、`tests/design-system-cards-smoke.spec.js`
+  （mobile-chromium）全綠；Sheet 卡以 390×844 與 1280×900 目視複核。
+
 ## 2026-09-08 現行狀態
 
 - production 已是 React app；以下 2026-08 歷史中「無 React」只描述當時狀態，不再適用。

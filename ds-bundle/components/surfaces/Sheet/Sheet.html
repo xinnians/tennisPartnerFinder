@@ -35,13 +35,17 @@ body { padding: var(--space-5); background: var(--color-surface-page); }
         <select id="demo-edit-play-type"><option>雙打</option></select>
       </div>
       <fieldset class="form-fieldset">
-        <legend>還缺幾位</legend>
-        <div class="slots-options">
-          <label><input type="radio" name="slotsMissing" value="1"><span>1 位</span></label>
-          <label><input type="radio" name="slotsMissing" value="2" checked><span>2 位</span></label>
-          <label><input type="radio" name="slotsMissing" value="3"><span>3 位</span></label>
+        <legend>招募人數</legend>
+        <!-- src/components/SessionCapacityInput.tsx 的 SessionCapacityInput：正整數可直接輸入，加減鈕在 1 與上限時 disabled；建局 create-v2 流程共用同一元件。 -->
+        <div>
+          <div class="session-capacity">
+            <button type="button" class="create-v2__stepper-btn" data-testid="session-edit-slots-minus" aria-label="招募人數減少一位">−</button>
+            <input type="text" inputmode="numeric" name="slotsMissing" aria-label="招募人數" aria-invalid="false" class="session-capacity__input" data-testid="session-edit-slots-value" value="2">
+            <button type="button" class="create-v2__stepper-btn" data-testid="session-edit-slots-plus" aria-label="招募人數增加一位">＋</button>
+          </div>
         </div>
         <p class="form-hint">不含你自己。</p>
+        <p class="form-hint" aria-live="polite">已加入 1 位，還缺 1 位。</p>
       </fieldset>
       <details class="form-optional">
         <summary>進階設定（選填）</summary>
