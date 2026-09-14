@@ -1,10 +1,12 @@
 # 逐局分享卡視覺修正版
 
-這些是正式產圖程式輸出的PNG，使用明示的虛構資料，並非真實球局或LINE截圖。
+2026-09-11 已停用動態球局圖片；目前分享使用品牌 `/og.png`，以下僅保留歷史設計。
+
+這些是當時產圖程式輸出的PNG，使用明示的虛構資料，並非真實球局或LINE截圖。
 
 [原稿與實作並排比較](comparison.html)／[對照截圖](comparison.png)，包含360px縮圖示意。
 
-重現：`node scripts/preview-share-cards.mjs`。
+當時的產圖腳本 `scripts/preview-share-cards.mjs` 已隨 `6d8c40e` 移除，現行版本無法直接重跑；追溯請參考停用前 Git 歷史。
 
 - [一般球局](standard.png)
 - [長球場名稱](long.png)

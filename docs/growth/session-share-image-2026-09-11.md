@@ -1,5 +1,7 @@
 # 逐局連結預覽圖片
 
+> 現行狀態：2026-09-11 已依使用者決定停用，`6d8c40e` 恢復品牌 OG 圖並已部署。下方實作、待辦與驗證為歷史紀錄，不再是待發布功能。
+
 日期：2026-09-11。使用者選擇A連結預覽、確認精修視覺並核可「先做一版看看」。本批完成本機版本，不含commit／push／部署或代發訊息。
 
 ## 正式實測修正 v4（2026-09-11，本機）
@@ -57,6 +59,8 @@ Vite dev／preview middleware支援相同圖片API，圖片絕對網址取本機
 實機 WhatsApp 同聊天室 Apple／新聞有圖，球咖原網址沒有卡；加新 query 後有標題摘要但無圖片。PNG 1,176,542 bytes，取圖約 2.6–3.7 秒。先以更小 JPEG 驗證取圖相容性，不把大小門檻當作已確定根因。
 
 OG 改用 `format=jpeg`、`image/jpeg`，card-v5-jpeg 更新圖片 revision；1200×630 設計不變，Sharp quality 82、4:4:4，實際卡 118,259 bytes。舊無 format URL 保留 PNG，公開性重新查詢與 no-store 不變。19 項 focused 分享測試、ESLint、strict production bundle 通過；本批無 src runtime／DB 變更。待部署後 Samsung 驗收；不宣稱 LINE 已通過。
+
+- 部署後實機驗證：895676d Vercel success，production JPEG 200、image/jpeg、118,259 bytes。Samsung WhatsApp 草稿貼 `/s/22?preview=jpeg20260911` 約 10 秒後顯示球咖圖片＋正確標題摘要；同環境舊 `/s/22` 仍只有文字卡，符合舊網址預覽快取尚未更新的現象。修正有效的證據限新網址 WhatsApp 草稿，未送出訊息、未驗 LINE；不能斷言精確檔案大小上限。已清空測試草稿。下一步處理分享連結版本以繞過既有失敗快取，並驗 LINE 實際送出效果（需使用者自己送出或明確授權）。
 
 ## 已停用
 

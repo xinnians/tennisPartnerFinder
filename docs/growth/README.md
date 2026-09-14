@@ -4,9 +4,15 @@
 
 ## 從這裡接續
 
-2026-09-11 [逐局分享圖片](session-share-image-2026-09-11.md)本機完成，已核可最終視覺；[實際PNG與比較](share-card-preview/README.md)。提交／部署狀態與驗證限制見progress。
+目前分享保留原生分享、文字摘要與 `/s/:id` 公開文字預覽，OG 使用品牌 `/og.png`。[逐局動態圖片](session-share-image-2026-09-11.md)已依 2026-09-11 決定停用；[PNG示例](share-card-preview/README.md)僅為歷史設計。
 
-2026-09-11 [開局後系統分享本機版](native-session-share-2026-09-11.md)已完成；支援系統分享與複製備援，驗證限制與部署狀態見progress。
+[招募人數正整數輸入](session-capacity-2026-09-11.md)與[通知／聊天修正](self-notification-chat-back-2026-09-11.md)已部署；通知 Hosted 證據見[發布紀錄](notification-release-2026-09-11.md)。最新 CI 查核及未完成項見 progress。
+
+2026-09-11 [開局後系統分享](native-session-share-2026-09-11.md)已提交並隨 main 發布；支援系統分享與複製備援，驗證限制與部署狀態見progress。
+
+2026-09-11 內容方向已轉向球友生活情境，首篇[全文與短貼文](articles/same-level-different-game-draft.md)完成；新增[空站到朋友加入的分享改善提案](empty-state-sharing-plan-2026-09-11.md)。文章未發布；系統分享本機版已完成，見[本批規格](native-session-share-2026-09-11.md)，驗證／部署以progress為準。
+
+2026-09-11 新增[自然獲客起步計畫](inbound-launch-plan-2026-09-11.md)與[觀察表](inbound-observations.md)：配合不主動約訪的偏好，規劃三篇指南、少量公開分享及搜尋觀察。計畫與文字草稿完成；尚未實際發布、設定量測或恢復其他暫緩 G 項。
 
 1. 讀 [目前進度](progress.md)，確認工作區、最近驗證與下一步。
 2. 讀 [目標與執行計畫](plan-2026-09-09.md)，選擇尚未完成且依賴已具備的工作。

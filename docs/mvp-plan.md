@@ -1,6 +1,6 @@
 # 台北市網球公開球局 MVP 計畫
 
-最後更新：2026-08-03
+最後更新：2026-09-14（同步已核可的招募人數契約）
 
 這是目前產品、資料模型與發布決策的來源。實作細節以
 `supabase/migrations/`、`supabase/tests/` 和
@@ -47,7 +47,7 @@ join 只允許台北市 active court 與 active tennis sport。多運動／另�
 | Roster | host 看該局 roster；guest 只看自己與 host；兩者都沒有 LINE。 |
 | Chat | `session_message_feed` 只給 host 與 accepted guest；封存局唯讀，user 訊息受雙向封鎖過濾。 |
 | Retired contacts | `session_contacts` view 前端零 consumer；`profiles.line_id` 前端不讀、不寫、不渲染，但凍結的 `save_my_profile` 無預設值，`src/dataApi.js` 仍須傳 `p_line_id: null`；drop 或改簽名前須先處理該呼叫點。 |
-| 名額 | `slots_total` 1–3；最後缺額接受在 DB lock 下原子完成，不能 overfill。 |
+| 名額 | `slots_total` 為正整數（1–2,147,483,647），不含主揪；介面與編輯下限見[招募人數規格](growth/session-capacity-2026-09-11.md)；最後缺額接受在 DB lock 下原子完成，不能 overfill。 |
 | Lifecycle | RPC 處理 create/request/review/invite/update/decide/withdraw/cancel/played/attendance/chat/block/report；失敗後 UI 重讀權威資料。 |
 | 到期 | `expire-stale-tennis-sessions` 每 15 分鐘處理超齡局與逾範圍起點未定案候選局；RPC 也立即檢查。 |
 | Notifications | service-only outbox＋每分鐘 dispatch；六項可調偏好、定案／取消恆送、球場訂閱廣播、開打與催定案提醒。 |

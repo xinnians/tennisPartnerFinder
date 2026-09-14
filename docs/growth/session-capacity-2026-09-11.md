@@ -35,3 +35,12 @@
 - 正式 schema／data 備份於 `/Users/ian/tennisPartnerFinder-backups/20260911-capacity-release/`（SQL 權限0600）；首次短期登入失敗，序列重試成功。dry-run 只含本支 migration，實際 db push 成功，44/44 對齊。
 - 正式缺額欄位、兩個 view 及容量 trigger 已擴為 integer；CHECK >0、create/update 不再限制3位。前後 counts 一致：profiles3／sessions5／participants5／messages3／reports0／outbox27／push subscriptions4；五個cron均active，匿名discovery25欄與原表／私人面拒絕權限檢查通過。
 - 前端待本次 Git push 觸發 Vercel；部署後結果另記於進度。本輪不建立正式測試球局或發送訊息／通知；正式OAuth雙帳號、裝置鍵盤與真實使用成效未驗。
+
+### 正式前端驗證完成
+
+`c6f0d0e100ab88e99a7aebc52560c77037e9c0bc` 已推送 main，Vercel `9x72uzSABELKrva7HzfBMnYGREAd` success。qiuka.tw 三支相關新chunk均200，新input與招募／已加入文字已確認。正式匿名Chrome1280／390慢網路及WebKit390驗首頁、開局登入保護、Escape、title／URL／非空／無overlay／pageerror0；手機截圖目視正常。證據 `production-browser.json`、`postflight.json`、`rest.json`、`migrations-after.json` 位於本批備份目錄；正式登入後建局／編輯未操作，未新建真實資料或傳送訊息。GitHub Quality Gate 34586776570查核時in_progress，遠端CI結果待確認；本次部署已完成。沒有真實使用成效數據。此段為發布後本機紀錄，未另提交。
+
+
+### CI 結果補查（2026-09-14）
+
+[Quality Gate 34586776570](https://github.com/xinnians/tennisPartnerFinder/actions/runs/34586776570) 已 completed/success，head 為 `c6f0d0e`；Frontend and Chromium、Supabase RLS and browser journeys 均 success。Mobile WebKit 非阻擋 job 為 failure（mobile Safari compatibility signal 失敗，production-preview mobile Safari 通過）；本次未查明失敗根因，不宣稱全瀏覽器全綠或本機 fixture 問題已修復。

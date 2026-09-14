@@ -27,3 +27,7 @@
 - SQL 1,313 項通過，包含主揪自訂閱、候選去重、v2 不建立主揪 fanout、legacy 舊自我事件遭拒、anon／authenticated 無資格 RPC 權限。另實際 PostgREST 驗 service RPC 可呼叫、匿名 42501；API fixture 驗自己不入列、其他訂閱者仍入列。
 - 完整本機套件不是全綠：首次建檔後訂閱全選 UI 未同步，在目前程式及未修改 HEAD 2417b84 的暫存 worktree 都重現（同一本機 DB）；是本批外的既有問題。累積測試球局亦超過探索上限，使 performance.spec 的「狀態列隱藏」前提失效；未放寬斷言、未清空 DB。其餘未執行的 7 項已另跑通過。暫存 baseline worktree 已移除。
 - 完整前端 gate 與最後定向回歸的精確結果，以 progress.md 收尾紀錄為準。正式推播、完整 Safari 套件及 iOS／Android 原生手勢未驗；尚未部署。
+
+## 正式發布補完（2026-09-11）
+
+兩支migration及legacy Edge已部署，43/43對齊、dispatcher v46；正式權限、計數及排程HTTP200驗證見[發布紀錄](notification-release-2026-09-11.md)。真實裝置收訊仍待實際使用觀察，不能以部署完成推論已送達。
